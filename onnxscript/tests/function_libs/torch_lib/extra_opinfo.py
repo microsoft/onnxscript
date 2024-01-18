@@ -1431,7 +1431,7 @@ def sample_inputs_unfold(op_info, device, dtype, requires_grad, **kwargs):
         yield opinfo_core.SampleInput(t, args=(dimension, size, step))
 
 
-def sample_inputs_upsample_bicubic2d(op_info, device, dtype, requires_grad, **kwargs):
+def sample_inputs_upsample_2d(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
 
@@ -1470,15 +1470,77 @@ def sample_inputs_upsample_bicubic2d(op_info, device, dtype, requires_grad, **kw
         )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
-            None,  # output_size
-            align_corners,
-            (1.7, 1.7),  # scaler
+            args=(shape(L, rank, False), align_corners),
+            kwargs=dict(scales_h=0.6, scales_w=4.2),
         )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
-            None,  # if this is None, the scalar must be list
+            args=(shape(L, rank, False), align_corners),
+            kwargs=dict(scales_h=4.2, scales_w=0.6),
+        )
+
+
+def sample_inputs_upsample_2d_vec(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    N, C = 2, 3
+    D = 4
+    SS = 3
+    L = 5
+
+    align_corners_options = (True, False)
+    rank = 2
+
+    def shape(size, rank, with_batch_channel=True):
+        if with_batch_channel:
+            return tuple([N, C] + ([size] * rank))
+        return tuple([size] * rank)
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor,
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+        low=-1,
+        high=1,
+    )
+
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True, None)
+
+    for align_corners in align_corners_options:
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(S, rank, False), align_corners, None
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)),
+            shape(L, rank, False),
             align_corners,
-            (0.6, 0.6),
+            None,
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)),
+            args=(
+                None,  # output_size
+                align_corners,
+            ),
+            kwargs=dict(scale_factors=(1.7, 1.7)),
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)),
+            args=(
+                None,  # if this is None, the scalar must be list
+                align_corners,
+            ),
+            kwargs=dict(scale_factors=(0.6, 0.6)),
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)),
+            args=(
+                None,  # if this is None, the scalar must be list
+                align_corners,
+            ),
+            kwargs=dict(scale_factors=(0.6, 4.2)),
         )
 
 
@@ -1948,10 +2010,31 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.upsample_bicubic2d",
+        "ops.aten.upsample_bicubic2d.default",
         aten_name="upsample_bicubic2d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        sample_inputs_func=sample_inputs_upsample_bicubic2d,
+        sample_inputs_func=sample_inputs_upsample_2d,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.upsample_bicubic2d.vec",
+        aten_name="upsample_bicubic2d.vec",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_upsample_2d_vec,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.upsample_bilinear2d.default",
+        aten_name="upsample_bilinear2d",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_upsample_2d,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.upsample_bilinear2d.vec",
+        aten_name="upsample_bilinear2d.vec",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_upsample_2d_vec,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
