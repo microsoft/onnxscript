@@ -2368,12 +2368,20 @@ def aten_upsample_bilinear2d_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::upsample_linear1d", trace_only=True)
 def aten_upsample_linear1d(
-    self: TensorType, output_size: INT64, align_corners: bool, scales: Optional[float] = None
-) -> TensorType:
+    self: TReal, output_size: INT64, align_corners: bool, scales: Optional[float] = None
+) -> TReal:
     """upsample_linear1d(Tensor self, SymInt[1] output_size, bool align_corners, float? scales=None) -> Tensor"""
-
-    raise NotImplementedError()
+    # FIXME(justinchuby): Support when scales is provided and align_corners is False
+    del scales
+    coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    return _aten_upsample_output_size(
+        self,
+        output_size,
+        mode="linear",
+        coordinate_transformation_mode=coordinate_transformation_mode,
+    )
 
 
 def aten_upsample_linear1d_backward(

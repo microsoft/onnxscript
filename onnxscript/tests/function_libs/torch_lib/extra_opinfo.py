@@ -1464,9 +1464,7 @@ def sample_inputs_upsample_2d(op_info, device, dtype, requires_grad, **kwargs):
             make_arg(shape(D, rank)), shape(S, rank, False), align_corners
         )
         yield opinfo_core.SampleInput(
-            make_arg(shape(D, rank)),
-            shape(L, rank, False),
-            align_corners,
+            make_arg(shape(D, rank)), shape(L, rank, False), align_corners
         )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
@@ -1513,10 +1511,7 @@ def sample_inputs_upsample_2d_vec(op_info, device, dtype, requires_grad, **kwarg
             make_arg(shape(D, rank)), shape(S, rank, False), align_corners, None
         )
         yield opinfo_core.SampleInput(
-            make_arg(shape(D, rank)),
-            shape(L, rank, False),
-            align_corners,
-            None,
+            make_arg(shape(D, rank)), shape(L, rank, False), align_corners, None
         )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
@@ -1541,6 +1536,46 @@ def sample_inputs_upsample_2d_vec(op_info, device, dtype, requires_grad, **kwarg
                 align_corners,
             ),
             kwargs=dict(scale_factors=(0.6, 4.2)),
+        )
+
+
+def sample_inputs_upsample_linear1d(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    N, C = 2, 3
+    D = 4
+    SS = 3
+    L = 5
+
+    align_corners_options = (True, False)
+    rank = 1
+
+    def shape(size, rank, with_batch_channel=True):
+        if with_batch_channel:
+            return tuple([N, C] + ([size] * rank))
+        return tuple([size] * rank)
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor,
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+        low=-1,
+        high=1,
+    )
+
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True)
+
+    for align_corners in align_corners_options:
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(S, rank, False), align_corners
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(L, rank, False), align_corners
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(L, rank, False), align_corners, scales=4.2
         )
 
 
@@ -2035,6 +2070,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="upsample_bilinear2d.vec",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_upsample_2d_vec,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.upsample_linear1d",
+        aten_name="upsample_linear1d",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_upsample_linear1d,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
