@@ -52,6 +52,7 @@ from onnxscript.function_libs.torch_lib.ops import fft as fft_ops
 from onnxscript.function_libs.torch_lib.ops import linalg as linalg_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
+from onnxscript.function_libs.torch_lib.ops import vision as vision_ops
 from onnxscript.tests.function_libs.torch_lib import extra_opinfo, ops_test_common
 
 # Create a copy of the op_db to modify
@@ -411,19 +412,6 @@ def _sum_input_wrangler(
 ) -> tuple[list[Any], dict[str, Any]]:
     if kwargs.get("dim") is not None:
         kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64)
-    return args, kwargs
-
-
-def _upsample_bilinear2d_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    if "size" in kwargs:
-        args.append(np.array(kwargs["size"], dtype=np.int64))
-        del kwargs["size"]  # promote tensor type kwargs to args
-    if "scale_factor" in kwargs:
-        kwargs["scales_h"] = kwargs["scale_factor"]
-        kwargs["scales_w"] = kwargs["scale_factor"]
-        del kwargs["scale_factor"]  # adapt the function signature
     return args, kwargs
 
 
@@ -2117,15 +2105,41 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         test_class_name="TestOutputConsistencyEager",
     ),
     TorchLibOpInfo(
-        "nn.functional.upsample_bilinear2d",
+        "ops.aten.upsample_bilinear2d.default",
         nn_ops.aten_upsample_bilinear2d,
-        input_wrangler=_upsample_bilinear2d_input_wrangler,
+        trace_only=True,
+    ).xfail(
+        matcher=lambda sample: sample.args[1] is False
+        and sample.kwargs.get("scales_h") is not None,
+        reason="fixme: align_corners=False output mismatch when scales are provided",
+    ),
+    TorchLibOpInfo(
+        "ops.aten.upsample_bilinear2d.vec",
+        nn_ops.aten_upsample_bilinear2d_vec,
         trace_only=True,
     ),
     TorchLibOpInfo(
-        "ops.aten.upsample_bicubic2d",
+        "ops.aten.upsample_bicubic2d.default",
         nn_ops.aten_upsample_bicubic2d,
         trace_only=True,
+    ).xfail(
+        matcher=lambda sample: sample.args[1] is False
+        and sample.kwargs.get("scales_h") is not None,
+        reason="fixme: align_corners=False output mismatch when scales are provided",
+    ),
+    TorchLibOpInfo(
+        "ops.aten.upsample_bicubic2d.vec",
+        nn_ops.aten_upsample_bicubic2d_vec,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
+        "ops.aten.upsample_linear1d",
+        nn_ops.aten_upsample_linear1d,
+        trace_only=True,
+    ).xfail(
+        matcher=lambda sample: sample.args[1] is False
+        and sample.kwargs.get("scales") is not None,
+        reason="fixme: align_corners=False output mismatch when scales are provided",
     ),
     TorchLibOpInfo(
         "nn.functional.upsample_nearest1d",
@@ -2300,6 +2314,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload only support when correction attribute exists",
     ),
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like, trace_only=True),
+    TorchLibOpInfo("torchvision.ops.nms", vision_ops.torchvision_nms),
 )
 
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim", "all_dims"))
@@ -2374,11 +2389,6 @@ ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.celu",
     ("nn.functional.celu_type_promoted",),
-)
-ops_test_common.duplicate_opinfo(
-    OPS_DB,
-    "nn.functional.upsample_bilinear",
-    ("nn.functional.upsample_bilinear2d",),
 )
 ops_test_common.duplicate_opinfo(
     OPS_DB,
