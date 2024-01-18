@@ -2373,7 +2373,7 @@ def aten_upsample_linear1d(
     self: TReal, output_size: INT64, align_corners: bool, scales: Optional[float] = None
 ) -> TReal:
     """upsample_linear1d(Tensor self, SymInt[1] output_size, bool align_corners, float? scales=None) -> Tensor"""
-    # FIXME(justinchuby): Support when scales is provided
+    # FIXME(justinchuby): Support when scales is provided and align_corners is False
     del scales
     coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
     return _aten_upsample_output_size(
