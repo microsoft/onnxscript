@@ -2254,7 +2254,8 @@ def aten_upsample_bicubic2d(
 ) -> TReal:
     """upsample_bicubic2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
-    # Based on experimentation, scales_h and scales_w are always ignored in PyTorch
+    # NOTE: Based on experimentation, scales_h and scales_w are always ignored in PyTorch,
+    # unless when align_corners is True, in which case we do not know what is going on.
     coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
     return _aten_upsample_output_size(
         self,
