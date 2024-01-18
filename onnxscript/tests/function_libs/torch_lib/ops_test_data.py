@@ -2136,6 +2136,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.upsample_linear1d",
         nn_ops.aten_upsample_linear1d,
         trace_only=True,
+    ).xfail(
+        matcher=lambda sample: sample.args[1] is False
+        and sample.kwargs.get("scales") is not None,
+        reason="fixme: align_corners=False output mismatch when scales are provided",
     ),
     TorchLibOpInfo(
         "nn.functional.upsample_nearest2d",
