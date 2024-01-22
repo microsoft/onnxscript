@@ -2128,13 +2128,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
     ),
     TorchLibOpInfo(
-        "nn.functional.upsample_nearest1d",
+        "ops.aten.upsample_nearest1d",
         nn_ops.aten_upsample_nearest1d,
         trace_only=True,
-    ).skip(
-        # size parameter must be existed
-        matcher=lambda sample: sample.kwargs.get("size", None) is None,
-        reason="aten_upsample_nearest1d takes size as input",
     ),
     TorchLibOpInfo(
         "nn.functional.upsample_nearest2d",
@@ -2152,13 +2148,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: the scale_factor tests",
     ),
     TorchLibOpInfo(
-        "nn.functional.upsample_nearest3d",
+        "ops.aten.upsample_nearest3d",
         nn_ops.aten_upsample_nearest3d,
         trace_only=True,
-    ).skip(
-        # Shape should be [N, C, H, W]
-        matcher=lambda sample: len(sample.input.shape) != 2 + 3,
-        reason="only test on 2d inputs",
     ),
     TorchLibOpInfo("ones_like", core_ops.aten_ones_like, trace_only=True),
     TorchLibOpInfo(
@@ -2384,9 +2376,9 @@ ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_nearest",
     (
-        "nn.functional.upsample_nearest1d",
+        # "nn.functional.upsample_nearest1d",
         "nn.functional.upsample_nearest2d",
-        "nn.functional.upsample_nearest3d",
+        # "nn.functional.upsample_nearest3d",
     ),
 )
 ops_test_common.duplicate_opinfo(
