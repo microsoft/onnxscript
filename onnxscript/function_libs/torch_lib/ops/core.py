@@ -17,6 +17,8 @@ from typing import Any, Optional, Sequence, Tuple, Union
 from onnxscript import (
     BFLOAT16,
     BOOL,
+    COMPLEX64,
+    COMPLEX128,
     DOUBLE,
     FLOAT,
     FLOAT16,
@@ -1410,6 +1412,15 @@ def aten_cartesian_prod(tensors: Sequence[TensorType]) -> TensorType:
     """cartesian_prod(Tensor[] tensors) -> Tensor"""
 
     raise NotImplementedError()
+
+
+@torch_op("aten::cat", trace_only=True, complex=True)
+def aten_cat_complex(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
+    """cat(Tensor[] tensors, int dim=0) -> Tensor"""
+    # Real representation unsqueezes the last dimension
+    if dim < 0:
+        dim = dim - 1
+    return aten_cat(tensors, dim=dim)
 
 
 @torch_op("aten::cat")
@@ -7102,6 +7113,25 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> RealType:
     return common_ops.cast_to(s, dtype=dtype)
 
 
+@torch_op("aten::scalar_tensor", trace_only=True, complex=True)
+def aten_scalar_tensor_complex(
+    s: Union[FLOAT, DOUBLE], dtype: int = COMPLEX64.dtype
+) -> RealType:
+    """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+    # NOTE: When the input is originally in complex, this function is invoked.
+    # On the other hand, when the input is originally in real, aten_scalar_tensor is used.
+    # is invoked.
+    if dtype == COMPLEX128.dtype:
+        result = op.Cast(s, to=DOUBLE.dtype)
+    elif dtype == COMPLEX64.dtype:
+        result = op.Cast(s, to=FLOAT.dtype)
+    else:
+        # NOTE: No-op for non-complex dtype
+        # It's potentially a bug if it comes here with no-op.
+        result = s
+    return result
+
+
 @torch_op("aten::scalar_tensor", trace_only=True)
 def aten_scalar_tensor_sym_number(s: RealType, dtype: int = FLOAT.dtype) -> RealType:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
@@ -7530,6 +7560,15 @@ def aten_sspaddmm(
     """sspaddmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
     raise NotImplementedError()
+
+
+@torch_op("aten::stack", trace_only=True, complex=True)
+def aten_stack_complex(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTensorOrString:
+    """stack(Tensor[] tensors, int dim=0) -> Tensor"""
+    # Real representation unsqueezes the last dimension
+    if dim < 0:
+        dim = dim - 1
+    return aten_stack(tensors, dim)
 
 
 @torch_op("aten::stack")
@@ -8100,7 +8139,7 @@ def aten_triplet_margin_loss(
 
 
 @torch_op("aten::triu")
-def aten_triu(self: TensorType, diagonal: int = 0) -> TensorType:
+def aten_triu(self: TTensor, diagonal: int = 0) -> TTensor:
     """triu(Tensor self, int diagonal=0) -> Tensor"""
 
     return op.Trilu(self, diagonal, upper=1)
