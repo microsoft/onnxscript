@@ -17,6 +17,8 @@ from typing import Any, Optional, Sequence, Tuple, Union
 from onnxscript import (
     BFLOAT16,
     BOOL,
+    COMPLEX64,
+    COMPLEX128,
     DOUBLE,
     FLOAT,
     FLOAT16,
@@ -1410,6 +1412,15 @@ def aten_cartesian_prod(tensors: Sequence[TensorType]) -> TensorType:
     """cartesian_prod(Tensor[] tensors) -> Tensor"""
 
     raise NotImplementedError()
+
+
+@torch_op("aten::cat", trace_only=True, complex=True)
+def aten_cat_complex(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
+    """cat(Tensor[] tensors, int dim=0) -> Tensor"""
+    # Real representation unsqueezes the last dimension
+    if dim < 0:
+        dim = dim - 1
+    return aten_cat(tensors, dim=dim)
 
 
 @torch_op("aten::cat")
@@ -5555,10 +5566,16 @@ def aten_native_batch_norm(
     """native_batch_norm(Tensor input, Tensor? weight, Tensor? bias, Tensor? running_mean, Tensor? running_var, bool training, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
 
     if weight is None:  # Set to 1.0 as default
-        weight = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(input, start=1, end=2))
+        weight = op.Expand(
+            op.CastLike(op.Constant(value_floats=[1.0]), input),
+            op.Shape(input, start=1, end=2),
+        )
 
     if bias is None:  # Set to 0.0 as default
-        bias = op.Expand(op.Constant(value_floats=[0.0]), op.Shape(input, start=1, end=2))
+        bias = op.Expand(
+            op.CastLike(op.Constant(value_floats=[0.0]), input),
+            op.Shape(input, start=1, end=2),
+        )
 
     axes = list(range(len(input.shape)))
     axes.pop(1)
@@ -5609,13 +5626,16 @@ def _aten_native_batch_norm_training_onnx(
         training_mode=training,
     )
     # Compute var and rstd
-    mean = op.ReduceMean(input, axes)
-    input_sub_mean = op.Sub(input, mean)
+    # Mean, var, and rstd computation and results are expected to be
+    # in higher precision when inputs are float16.
+    upcast_input = op.Cast(input, to=FLOAT.dtype)
+    mean = op.ReduceMean(upcast_input, axes)
+    input_sub_mean = op.Sub(upcast_input, mean)
     sqr = op.Mul(input_sub_mean, input_sub_mean)
     var = op.ReduceMean(sqr, axes, keepdims=False)
     rstd = op.Div(1.0, op.Sqrt(var + eps))
     # Get mean again with size = [1, C]
-    mean = op.ReduceMean(input, axes, keepdims=False)
+    mean = op.ReduceMean(upcast_input, axes, keepdims=False)
     return norm, mean, rstd
 
 
@@ -5724,13 +5744,16 @@ def _aten__native_batch_norm_training_functional_onnx(
         training_mode=training,
     )
     # Compute var and rstd
-    mean = op.ReduceMean(input, axes)
-    input_sub_mean = op.Sub(input, mean)
+    # Mean, var, and rstd computation and results are expected to be
+    # in higher precision when inputs are float16.
+    upcast_input = op.Cast(input, to=FLOAT.dtype)
+    mean = op.ReduceMean(upcast_input, axes)
+    input_sub_mean = op.Sub(upcast_input, mean)
     sqr = op.Mul(input_sub_mean, input_sub_mean)
     var = op.ReduceMean(sqr, axes, keepdims=False)
     rstd = op.Div(1.0, op.Sqrt(var + eps))
     # Get mean again with size = [1, C]
-    mean = op.ReduceMean(input, axes, keepdims=False)
+    mean = op.ReduceMean(upcast_input, axes, keepdims=False)
     # NOTE: Fixed to be FLOAT dtype
     running_mean = op.Cast(running_mean, to=FLOAT.dtype)
     running_var = op.Cast(running_var, to=FLOAT.dtype)
@@ -7090,6 +7113,25 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> RealType:
     return common_ops.cast_to(s, dtype=dtype)
 
 
+@torch_op("aten::scalar_tensor", trace_only=True, complex=True)
+def aten_scalar_tensor_complex(
+    s: Union[FLOAT, DOUBLE], dtype: int = COMPLEX64.dtype
+) -> RealType:
+    """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+    # NOTE: When the input is originally in complex, this function is invoked.
+    # On the other hand, when the input is originally in real, aten_scalar_tensor is used.
+    # is invoked.
+    if dtype == COMPLEX128.dtype:
+        result = op.Cast(s, to=DOUBLE.dtype)
+    elif dtype == COMPLEX64.dtype:
+        result = op.Cast(s, to=FLOAT.dtype)
+    else:
+        # NOTE: No-op for non-complex dtype
+        # It's potentially a bug if it comes here with no-op.
+        result = s
+    return result
+
+
 @torch_op("aten::scalar_tensor", trace_only=True)
 def aten_scalar_tensor_sym_number(s: RealType, dtype: int = FLOAT.dtype) -> RealType:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
@@ -7518,6 +7560,15 @@ def aten_sspaddmm(
     """sspaddmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
     raise NotImplementedError()
+
+
+@torch_op("aten::stack", trace_only=True, complex=True)
+def aten_stack_complex(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTensorOrString:
+    """stack(Tensor[] tensors, int dim=0) -> Tensor"""
+    # Real representation unsqueezes the last dimension
+    if dim < 0:
+        dim = dim - 1
+    return aten_stack(tensors, dim)
 
 
 @torch_op("aten::stack")
@@ -8088,7 +8139,7 @@ def aten_triplet_margin_loss(
 
 
 @torch_op("aten::triu")
-def aten_triu(self: TensorType, diagonal: int = 0) -> TensorType:
+def aten_triu(self: TTensor, diagonal: int = 0) -> TTensor:
     """triu(Tensor self, int diagonal=0) -> Tensor"""
 
     return op.Trilu(self, diagonal, upper=1)

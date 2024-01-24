@@ -52,6 +52,7 @@ from onnxscript.function_libs.torch_lib.ops import fft as fft_ops
 from onnxscript.function_libs.torch_lib.ops import linalg as linalg_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
+from onnxscript.function_libs.torch_lib.ops import vision as vision_ops
 from onnxscript.tests.function_libs.torch_lib import extra_opinfo, ops_test_common
 
 # Create a copy of the op_db to modify
@@ -414,19 +415,6 @@ def _sum_input_wrangler(
     return args, kwargs
 
 
-def _upsample_bilinear2d_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    if "size" in kwargs:
-        args.append(np.array(kwargs["size"], dtype=np.int64))
-        del kwargs["size"]  # promote tensor type kwargs to args
-    if "scale_factor" in kwargs:
-        kwargs["scales_h"] = kwargs["scale_factor"]
-        kwargs["scales_w"] = kwargs["scale_factor"]
-        del kwargs["scale_factor"]  # adapt the function signature
-    return args, kwargs
-
-
 def _upsample_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -715,6 +703,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
+    TorchLibOpInfo("cat", core_ops.aten_cat_complex, trace_only=True, complex=True).skip(
+        matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
+        reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
+    ),
     TorchLibOpInfo("ceil", core_ops.aten_ceil),
     TorchLibOpInfo(
         "chunk",
@@ -722,6 +714,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         dtypes=(torch.float16,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
@@ -1222,16 +1215,30 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.relu",
         nn_ops.aten_relu,
-    ).xfail(
+    )
+    .xfail(
         dtypes=(torch.int64,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    )
+    .xfail(
+        dtypes=(torch.int64,),
+        test_class_name="TestOutputConsistencyEager",
+        reason="fixme: ORT fails with 'Could not find an implementation for Relu(14) node'",
     ),
     TorchLibOpInfo(
         "nn.functional.relu6",
         nn_ops.aten_relu6,
-    ).xfail(
+    )
+    .xfail(
         dtypes=(torch.int64,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    )
+    .xfail(
+        dtypes=(torch.int64,),
+        test_class_name="TestOutputConsistencyEager",
+        reason="fixme: ORT fails with 'Could not find an implementation for Relu(14) node'",
     ),
     TorchLibOpInfo(
         "ops.aten.replication_pad1d",
@@ -1413,6 +1420,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         complex=True,
     ),
     TorchLibOpInfo(
+        "ops.aten.scalar_tensor",
+        core_ops.aten_scalar_tensor_complex,
+        trace_only=True,
+        complex=True,
+    ),
+    TorchLibOpInfo(
         "scatter_add",
         core_ops.aten_scatter_add,
     )
@@ -1470,6 +1483,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         dtypes=(torch.float16,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT failed to produce the correct argument type: https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
@@ -1482,11 +1496,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         dtypes=(torch.float16,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT failed to produce the correct argument type: https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
         variant_name="list_args",
         dtypes=(torch.float16,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT failed to produce the correct argument type: https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
@@ -1523,6 +1539,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload only support one tensor as input by design",
     ),
     TorchLibOpInfo("stack", core_ops.aten_stack),
+    TorchLibOpInfo("stack", core_ops.aten_stack_complex, complex=True, trace_only=True),
     TorchLibOpInfo("sub", core_ops.aten_sub),
     TorchLibOpInfo("sub", core_ops.aten_sub_complex, complex=True, trace_only=True),
     # TorchLibOpInfo("sym_size", core_ops.aten_sym_size),  # no test case in OPS_DB
@@ -1563,6 +1580,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         dtypes=(torch.float16,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
@@ -1820,7 +1838,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "native_batch_norm",
         core_ops.aten_native_batch_norm,
         trace_only=True,
-        tolerance={torch.float16: (9e-3, 7e-4)},
     ),
     TorchLibOpInfo(
         "ops.aten._native_batch_norm_legit", core_ops.aten_native_batch_norm, trace_only=True
@@ -2087,10 +2104,41 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         test_class_name="TestOutputConsistencyEager",
     ),
     TorchLibOpInfo(
-        "nn.functional.upsample_bilinear2d",
+        "ops.aten.upsample_bilinear2d.default",
         nn_ops.aten_upsample_bilinear2d,
-        input_wrangler=_upsample_bilinear2d_input_wrangler,
         trace_only=True,
+    ).xfail(
+        matcher=lambda sample: sample.args[1] is False
+        and sample.kwargs.get("scales_h") is not None,
+        reason="fixme: align_corners=False output mismatch when scales are provided",
+    ),
+    TorchLibOpInfo(
+        "ops.aten.upsample_bilinear2d.vec",
+        nn_ops.aten_upsample_bilinear2d_vec,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
+        "ops.aten.upsample_bicubic2d.default",
+        nn_ops.aten_upsample_bicubic2d,
+        trace_only=True,
+    ).xfail(
+        matcher=lambda sample: sample.args[1] is False
+        and sample.kwargs.get("scales_h") is not None,
+        reason="fixme: align_corners=False output mismatch when scales are provided",
+    ),
+    TorchLibOpInfo(
+        "ops.aten.upsample_bicubic2d.vec",
+        nn_ops.aten_upsample_bicubic2d_vec,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
+        "ops.aten.upsample_linear1d",
+        nn_ops.aten_upsample_linear1d,
+        trace_only=True,
+    ).xfail(
+        matcher=lambda sample: sample.args[1] is False
+        and sample.kwargs.get("scales") is not None,
+        reason="fixme: align_corners=False output mismatch when scales are provided",
     ),
     TorchLibOpInfo(
         "nn.functional.upsample_nearest2d",
@@ -2247,6 +2295,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload only support when correction attribute exists",
     ),
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like, trace_only=True),
+    TorchLibOpInfo("torchvision.ops.nms", vision_ops.torchvision_nms),
 )
 
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim", "all_dims"))
@@ -2321,11 +2370,6 @@ ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.celu",
     ("nn.functional.celu_type_promoted",),
-)
-ops_test_common.duplicate_opinfo(
-    OPS_DB,
-    "nn.functional.upsample_bilinear",
-    ("nn.functional.upsample_bilinear2d",),
 )
 ops_test_common.duplicate_opinfo(
     OPS_DB,

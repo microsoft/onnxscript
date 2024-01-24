@@ -34,6 +34,7 @@ ValidArgumentType: TypeAlias = Union[
     Sequence["TorchScriptTensor"],
     Sequence[float],
     Sequence[int],
+    complex,
     str,
     int,
     float,
@@ -45,6 +46,7 @@ ValidInputType: TypeAlias = Union[
     Sequence["TorchScriptTensor"],
     Sequence[float],
     Sequence[int],
+    complex,
     str,
     int,
     float,
@@ -56,6 +58,7 @@ ValidTorchValueType: TypeAlias = Union[
     Sequence[torch.Value],
     Sequence[float],
     Sequence[int],
+    complex,
     str,
     int,
     float,
@@ -654,6 +657,10 @@ class TorchScriptGraph:
             isinstance(val, float) for val in constant
         ):
             constant_tensor = torch.tensor(constant, dtype=torch.float)
+        elif isinstance(constant, complex):
+            # NOTE: ONNX doesn't support tensor of complex64/complex128, so we
+            # convert them to float32/float64 with real representation.
+            constant_tensor = torch.view_as_real(torch.tensor(constant).resolve_conj())
         else:
             raise TypeError(
                 f"Constant input '{constant}' of type '{type(constant)}' is not supported"
