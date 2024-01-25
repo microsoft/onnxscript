@@ -1607,7 +1607,8 @@ def sample_inputs_upsample_nearest1d(op_info, device, dtype, requires_grad, **kw
     yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True)
 
     yield opinfo_core.SampleInput(
-        make_arg(shape(D, rank)), shape(S, rank, False),
+        make_arg(shape(D, rank)),
+        shape(S, rank, False),
     )
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
@@ -1653,7 +1654,8 @@ def sample_inputs_upsample_nearest3d(op_info, device, dtype, requires_grad, **kw
     yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True)
 
     yield opinfo_core.SampleInput(
-        make_arg(shape(D, rank)), shape(S, rank, False),
+        make_arg(shape(D, rank)),
+        shape(S, rank, False),
     )
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),

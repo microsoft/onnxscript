@@ -2207,6 +2207,7 @@ def _aten_upsample_output_size(
     output_size: INT64,
     mode: str,
     coordinate_transformation_mode: str,
+    nearest_mode: str = "floor",
 ) -> TReal:
     self_shape = op.Shape(self)
     starts = op.Constant(value_ints=[0])
@@ -2220,7 +2221,7 @@ def _aten_upsample_output_size(
         output_size,
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
-        nearest_mode="floor",
+        nearest_mode=nearest_mode,
     )
 
 
@@ -2402,7 +2403,7 @@ def aten_upsample_nearest1d(
 ) -> TReal:
     """upsample_nearest1d(Tensor self, SymInt[1] output_size, float? scales=None) -> Tensor"""
     if size is not None:
-        return _aten_upsample_nearest_size_onnx(self, size)
+        return _aten_upsample_output_size(self, size, "nearest", "asymmetric", "floor")
     else:
         return _aten_upsample_nearest1d_scales(self, scale_factor)
 
@@ -2450,31 +2451,7 @@ def aten_upsample_nearest2d(
     del scales_h
     del scales_w
 
-    return _aten_upsample_nearest_size_onnx(self, size)
-
-
-@torch_op("aten::upsample_nearest2d", private=True)
-def _aten_upsample_nearest_size_onnx(
-    self: TReal,
-    size: INT64,
-) -> TReal:
-    self_shape = op.Shape(self)
-    starts = op.Constant(value_ints=[0])
-    ends = op.Constant(value_ints=[2])
-    batch_channel = op.Slice(self_shape, starts, ends)
-    output_size = op.Concat(batch_channel, size, axis=0)
-
-    return op.Resize(
-        self,
-        None,
-        None,
-        output_size,
-        mode="nearest",
-        # NOTE(justinchuby): Both asymmetric and pytorch_half_pixel pass the test
-        # I used asymmetric because it aligns with the torch.onnx exporter
-        coordinate_transformation_mode="asymmetric",
-        nearest_mode="floor",
-    )
+    return _aten_upsample_output_size(self, size, "nearest", "asymmetric", "floor")
 
 
 def aten_upsample_nearest2d_backward(
@@ -2503,7 +2480,7 @@ def aten_upsample_nearest3d(
     del scales_w
     del scales_d
 
-    return _aten_upsample_nearest_size_onnx(self, size)
+    return _aten_upsample_output_size(self, size, "nearest", "asymmetric", "floor")
 
 
 def aten_upsample_nearest3d_backward(
