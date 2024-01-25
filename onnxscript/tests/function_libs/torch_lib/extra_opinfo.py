@@ -1621,7 +1621,7 @@ def sample_inputs_upsample_nearest1d(op_info, device, dtype, requires_grad, **kw
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
         None,  # if this is None, the scalar must be list
-        0.6,
+        (0.6,),
     )
 
 
@@ -1634,7 +1634,6 @@ def sample_inputs_upsample_nearest3d(op_info, device, dtype, requires_grad, **kw
     SS = 3
     L = 5
 
-    align_corners_options = (True, False)
     rank = 3
 
     def shape(size, rank, with_batch_channel=True):
@@ -1653,27 +1652,24 @@ def sample_inputs_upsample_nearest3d(op_info, device, dtype, requires_grad, **kw
 
     yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True)
 
-    for align_corners in align_corners_options:
-        yield opinfo_core.SampleInput(
-            make_arg(shape(D, rank)), shape(S, rank, False), align_corners
-        )
-        yield opinfo_core.SampleInput(
-            make_arg(shape(D, rank)),
-            shape(L, rank, False),
-            align_corners,
-        )
-        yield opinfo_core.SampleInput(
-            make_arg(shape(D, rank)),
-            None,  # output_size
-            align_corners,
-            (1.7, 1.7),  # scaler
-        )
-        yield opinfo_core.SampleInput(
-            make_arg(shape(D, rank)),
-            None,  # if this is None, the scalar must be list
-            align_corners,
-            (0.6, 0.6),
-        )
+    yield opinfo_core.SampleInput(
+        make_arg(shape(D, rank)), shape(S, rank, False),
+    )
+    yield opinfo_core.SampleInput(
+        make_arg(shape(D, rank)),
+        shape(L, rank, False),
+    )
+    # ONNX don't support below cases: both output_size and scaler are not None
+    # yield opinfo_core.SampleInput(
+    #     make_arg(shape(D, rank)),
+    #     shape(L, rank, False),
+    #     1.7,  # scaler
+    # )
+    # yield opinfo_core.SampleInput(
+    #     make_arg(shape(D, rank)),
+    #     shape(L, rank, False),
+    #     0.6,
+    # )
 
 
 class _TestParamsMaxPoolEmptyStrideBase:

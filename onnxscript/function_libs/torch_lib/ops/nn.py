@@ -2401,7 +2401,28 @@ def aten_upsample_nearest1d(
     self: TReal, size: INT64, scale_factor: Optional[float] = None
 ) -> TReal:
     """upsample_nearest1d(Tensor self, SymInt[1] output_size, float? scales=None) -> Tensor"""
-    return _aten_upsample_nearest2d_onnx(self, size)
+    if size is not None:
+        return _aten_upsample_nearest_size_onnx(self, size)
+    else:
+        return _aten_upsample_nearest1d_scales(self, scale_factor)
+
+
+@torch_op("aten::upsample_nearest1d", private=True)
+def _aten_upsample_nearest1d_scales(
+    self: TReal,
+    scale_factors: TFloat,
+) -> TReal:
+    scale_factors = op.Cast(scale_factors, to=FLOAT.dtype)
+    scale_factors = op.Concat(op.Constant(value_floats=[1.0, 1.0]), scale_factors, axis=0)
+    return op.Resize(
+        self,
+        None,
+        scale_factors,  # format should be: [1.0, 1.0, scale_h, scale_w]
+        None,
+        mode="nearest",
+        coordinate_transformation_mode="asymmetric",
+        nearest_mode="floor",
+    )
 
 
 def aten_upsample_nearest1d_backward(
@@ -2429,11 +2450,11 @@ def aten_upsample_nearest2d(
     del scales_h
     del scales_w
 
-    return _aten_upsample_nearest2d_onnx(self, size)
+    return _aten_upsample_nearest_size_onnx(self, size)
 
 
 @torch_op("aten::upsample_nearest2d", private=True)
-def _aten_upsample_nearest2d_onnx(
+def _aten_upsample_nearest_size_onnx(
     self: TReal,
     size: INT64,
 ) -> TReal:
@@ -2478,8 +2499,11 @@ def aten_upsample_nearest3d(
 ) -> TReal:
     """upsample_nearest3d(Tensor self, SymInt[3] output_size, float? scales_d=None, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
-    return _aten_upsample_nearest2d_onnx(self, size)
+    del scales_h
+    del scales_w
+    del scales_d
 
+    return _aten_upsample_nearest_size_onnx(self, size)
 
 
 def aten_upsample_nearest3d_backward(
