@@ -2201,7 +2201,16 @@ def _get_upsample_align_corners_mode(align_corners: bool) -> str:
     return "align_corners" if align_corners else "pytorch_half_pixel"
 
 
-@torch_op(("aten::upsample_bicubic2d", "aten::upsample_bilinear2d"), private=True)
+@torch_op(
+    (
+        "aten::upsample_bicubic2d",
+        "aten::upsample_bilinear2d",
+        "aten::upsample_nearest1d",
+        "aten::upsample_nearest2d",
+        "aten::upsample_nearest3d"
+    ),
+    private=True,
+)
 def _aten_upsample_output_size(
     self: TReal,
     output_size: INT64,
