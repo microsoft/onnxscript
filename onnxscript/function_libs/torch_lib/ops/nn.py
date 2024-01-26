@@ -2208,7 +2208,7 @@ def _get_upsample_align_corners_mode(align_corners: bool) -> str:
         "aten::upsample_bilinear2d",
         "aten::upsample_bilinear2d_aa",
     ),
-    private=True
+    private=True,
 )
 def _aten_upsample_output_size(
     self: TReal,
@@ -2230,7 +2230,7 @@ def _aten_upsample_output_size(
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
         nearest_mode="floor",
-        antialias = antialias,
+        antialias=antialias,
     )
 
 
