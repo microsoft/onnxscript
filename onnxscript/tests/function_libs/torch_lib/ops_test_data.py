@@ -2113,6 +2113,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: align_corners=False output mismatch when scales are provided",
     ),
     TorchLibOpInfo(
+        "ops.aten._upsample_bilinear2d_aa",
+        nn_ops.aten__upsample_bilinear2d_aa,
+        trace_only=True,
+        # ONNX use different antialias method than PyTorch, so the result is different
+        compare_shape_only_for_output=(0,),
+    ),
+    TorchLibOpInfo(
         "ops.aten.upsample_bilinear2d.vec",
         nn_ops.aten_upsample_bilinear2d_vec,
         trace_only=True,
@@ -2130,6 +2137,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.upsample_bicubic2d.vec",
         nn_ops.aten_upsample_bicubic2d_vec,
         trace_only=True,
+    ),
+    TorchLibOpInfo(
+        "ops.aten._upsample_bicubic2d_aa",
+        nn_ops.aten__upsample_bicubic2d_aa,
+        trace_only=True,
+        # ONNX use different antialias method than PyTorch, so the result is different
+        compare_shape_only_for_output=(0,),
     ),
     TorchLibOpInfo(
         "ops.aten.upsample_linear1d",

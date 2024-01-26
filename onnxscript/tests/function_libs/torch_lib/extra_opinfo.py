@@ -2052,10 +2052,24 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "ops.aten._upsample_bicubic2d_aa",
+        aten_name="_upsample_bicubic2d_aa",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_upsample_2d,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "ops.aten.upsample_bicubic2d.vec",
         aten_name="upsample_bicubic2d.vec",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_upsample_2d_vec,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._upsample_bilinear2d_aa",
+        aten_name="_upsample_bilinear2d_aa",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_upsample_2d,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
