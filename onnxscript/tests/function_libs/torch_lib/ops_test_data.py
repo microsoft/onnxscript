@@ -2141,6 +2141,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: align_corners=False output mismatch when scales are provided",
     ),
     TorchLibOpInfo(
+        "ops.aten.upsample_trilinear3d",
+        nn_ops.aten_upsample_trilinear3d,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
         "nn.functional.upsample_nearest2d",
         nn_ops.aten_upsample_nearest2d,
         input_wrangler=_upsample_input_wrangler,

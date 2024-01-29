@@ -2491,17 +2491,28 @@ def aten_upsample_nearest3d_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::upsample_trilinear3d", trace_only=True)
 def aten_upsample_trilinear3d(
-    self: TensorType,
+    self: TReal,
     output_size: INT64,
     align_corners: bool,
     scales_d: Optional[float] = None,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
-) -> TensorType:
+) -> TReal:
     """upsample_trilinear3d(Tensor self, SymInt[3] output_size, bool align_corners, float? scales_d=None, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
-    raise NotImplementedError()
+    del scales_d
+    del scales_h
+    del scales_w
+
+    coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    return _aten_upsample_output_size(
+        self,
+        output_size,
+        mode="linear",
+        coordinate_transformation_mode=coordinate_transformation_mode,
+    )
 
 
 def aten_upsample_trilinear3d_backward(
