@@ -1579,6 +1579,44 @@ def sample_inputs_upsample_linear1d(op_info, device, dtype, requires_grad, **kwa
         )
 
 
+def sample_inputs_upsample_trilinear3d(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    N, C = 2, 3
+    D = 4
+    SS = 3
+    L = 5
+
+    align_corners_options = (True, False)
+    rank = 3
+
+    def shape(size, rank, with_batch_channel=True):
+        if with_batch_channel:
+            return tuple([N, C] + ([size] * rank))
+        return tuple([size] * rank)
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor,
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+        low=-1,
+        high=1,
+    )
+
+    for align_corners in align_corners_options:
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(SS, rank, False), align_corners
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(S, rank, False), align_corners
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(L, rank, False), align_corners
+        )
+
+
 class _TestParamsMaxPoolEmptyStrideBase:
     # Adapted from https://github.com/pytorch/pytorch/blob/d6d55f8590eab05d2536756fb4efcfb2d07eb81a/torch/testing/_internal/common_methods_invocations.py#L3203
     def __init__(self):
@@ -2077,6 +2115,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="upsample_linear1d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_upsample_linear1d,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.upsample_trilinear3d",
+        aten_name="upsample_trilinear3d",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_upsample_trilinear3d,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
