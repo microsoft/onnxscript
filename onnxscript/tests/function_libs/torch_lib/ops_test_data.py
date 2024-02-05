@@ -2166,6 +2166,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nn_ops.aten_upsample_nearest3d,
         trace_only=True,
     ),
+    TorchLibOpInfo(
+        "ops.aten.upsample_trilinear3d",
+        nn_ops.aten_upsample_trilinear3d,
+        trace_only=True,
+    ),
     TorchLibOpInfo("ones_like", core_ops.aten_ones_like, trace_only=True),
     TorchLibOpInfo(
         "roll",
