@@ -2216,7 +2216,6 @@ def _aten_upsample_output_size(
     output_size: INT64,
     mode: str,
     coordinate_transformation_mode: str,
-    nearest_mode: str = "floor",
 ) -> TReal:
     self_shape = op.Shape(self)
     starts = op.Constant(value_ints=[0])
@@ -2230,7 +2229,6 @@ def _aten_upsample_output_size(
         output_size,
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
-        nearest_mode=nearest_mode,
     )
 
 
@@ -2250,7 +2248,6 @@ def _aten_upsample_scales(
         None,
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
-        nearest_mode="floor",
     )
 
 
@@ -2412,7 +2409,7 @@ def aten_upsample_nearest1d(
 ) -> TReal:
     """upsample_nearest1d(Tensor self, SymInt[1] output_size, float? scales=None) -> Tensor"""
     if size is not None:
-        return _aten_upsample_output_size(self, size, "nearest", "asymmetric", "floor")
+        return _aten_upsample_output_size(self, size, "nearest", "asymmetric")
     else:
         return _aten_upsample_nearest1d_scales(self, scale_factor)
 
@@ -2460,7 +2457,7 @@ def aten_upsample_nearest2d(
     del scales_h
     del scales_w
 
-    return _aten_upsample_output_size(self, size, "nearest", "asymmetric", "floor")
+    return _aten_upsample_output_size(self, size, "nearest", "asymmetric")
 
 
 def aten_upsample_nearest2d_backward(
@@ -2489,7 +2486,7 @@ def aten_upsample_nearest3d(
     del scales_w
     del scales_d
 
-    return _aten_upsample_output_size(self, size, "nearest", "asymmetric", "floor")
+    return _aten_upsample_output_size(self, size, "nearest", "asymmetric")
 
 
 def aten_upsample_nearest3d_backward(

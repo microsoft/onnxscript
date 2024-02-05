@@ -2146,20 +2146,21 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
     ),
     TorchLibOpInfo(
-        "nn.functional.upsample_nearest2d",
+        # "nn.functional.upsample_nearest2d",
+        "ops.aten.upsample_nearest2d",
         nn_ops.aten_upsample_nearest2d,
-        input_wrangler=_upsample_input_wrangler,
+        # input_wrangler=_upsample_input_wrangler,
         trace_only=True,
-    )
-    .skip(
-        # Shape should be [N, C, H, W]
-        matcher=lambda sample: len(sample.input.shape) != 2 + 2,
-        reason="only test on 2d inputs",
-    )
-    .xfail(
-        matcher=lambda sample: "scale_factor" in sample.kwargs,
-        reason="fixme: the scale_factor tests",
     ),
+    # .skip(
+    #     # Shape should be [N, C, H, W]
+    #     matcher=lambda sample: len(sample.input.shape) != 2 + 2,
+    #     reason="only test on 2d inputs",
+    # )
+    # .xfail(
+    #     matcher=lambda sample: "scale_factor" in sample.kwargs,
+    #     reason="fixme: the scale_factor tests",
+    # ),
     TorchLibOpInfo(
         "ops.aten.upsample_nearest3d",
         nn_ops.aten_upsample_nearest3d,
@@ -2381,15 +2382,15 @@ ops_test_common.duplicate_opinfo(
     "nn.functional.celu",
     ("nn.functional.celu_type_promoted",),
 )
-ops_test_common.duplicate_opinfo(
-    OPS_DB,
-    "nn.functional.upsample_nearest",
-    (
-        # "nn.functional.upsample_nearest1d",
-        "nn.functional.upsample_nearest2d",
-        # "nn.functional.upsample_nearest3d",
-    ),
-)
+# ops_test_common.duplicate_opinfo(
+#     OPS_DB,
+#     "nn.functional.upsample_nearest",
+#     (
+#         # "nn.functional.upsample_nearest1d",
+#         "nn.functional.upsample_nearest2d",
+#         # "nn.functional.upsample_nearest3d",
+#     ),
+# )
 ops_test_common.duplicate_opinfo(
     OPS_DB, "ops.aten._log_softmax", ("ops.aten._log_softmax_half",)
 )
