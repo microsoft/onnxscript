@@ -1683,7 +1683,6 @@ def sample_inputs_upsample_nearest3d(op_info, device, dtype, requires_grad, **kw
     SS = 3
     L = 5
 
-    align_corners_options = (True, False)
     rank = 3
 
     def shape(size, rank, with_batch_channel=True):
@@ -1724,6 +1723,30 @@ def sample_inputs_upsample_nearest3d(op_info, device, dtype, requires_grad, **kw
 
 
 def sample_inputs_upsample_trilinear3d(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    N, C = 2, 3
+    D = 4
+    SS = 3
+    L = 5
+
+    align_corners_options = (True, False)
+    rank = 3
+
+    def shape(size, rank, with_batch_channel=True):
+        if with_batch_channel:
+            return tuple([N, C] + ([size] * rank))
+        return tuple([size] * rank)
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor,
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+        low=-1,
+        high=1,
+    )
 
     for align_corners in align_corners_options:
         yield opinfo_core.SampleInput(

@@ -2229,6 +2229,7 @@ def _aten_upsample_output_size(
         output_size,
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
+        nearest_mode="floor",
     )
 
 
