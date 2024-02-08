@@ -29,6 +29,7 @@ COMMON_TEST_DEPENDENCIES = (
 ONNX = "onnx==1.14.1"
 ONNX_RUNTIME = "onnxruntime==1.16.1"
 PYTORCH = "torch==2.1.0"
+TORCHVISON = "torchvision==0.16"
 ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "flatbuffers",
     "coloredlogs",
@@ -52,6 +53,7 @@ def test(session):
     session.install(
         *COMMON_TEST_DEPENDENCIES,
         PYTORCH,
+        TORCHVISON,
         ONNX,
         ONNX_RUNTIME,
     )
@@ -78,7 +80,7 @@ def test_torch_nightly(session):
 @nox.session(tags=["test-onnx-weekly"])
 def test_onnx_weekly(session):
     """Test with ONNX weekly (preview) build."""
-    session.install(*COMMON_TEST_DEPENDENCIES, ONNX_RUNTIME, PYTORCH)
+    session.install(*COMMON_TEST_DEPENDENCIES, ONNX_RUNTIME, PYTORCH, TORCHVISON)
     session.install("-r", "requirements/ci/requirements-onnx-weekly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
@@ -89,7 +91,11 @@ def test_onnx_weekly(session):
 def test_ort_nightly(session):
     """Test with ONNX Runtime nightly builds."""
     session.install(
-        *COMMON_TEST_DEPENDENCIES, PYTORCH, ONNX, *ONNX_RUNTIME_NIGHTLY_DEPENDENCIES
+        *COMMON_TEST_DEPENDENCIES,
+        PYTORCH,
+        TORCHVISON,
+        ONNX,
+        *ONNX_RUNTIME_NIGHTLY_DEPENDENCIES,
     )
     session.install("-r", "requirements/ci/requirements-ort-nightly.txt")
     session.install(".", "--no-deps")
@@ -101,7 +107,11 @@ def test_ort_nightly(session):
 def test_experimental_torchlib_tracing(session):
     """Test TorchLib with the experimental TORCHLIB_EXPERIMENTAL_PREFER_TRACING flag on."""
     session.install(
-        *COMMON_TEST_DEPENDENCIES, PYTORCH, ONNX, *ONNX_RUNTIME_NIGHTLY_DEPENDENCIES
+        *COMMON_TEST_DEPENDENCIES,
+        PYTORCH,
+        TORCHVISON,
+        ONNX,
+        *ONNX_RUNTIME_NIGHTLY_DEPENDENCIES,
     )
     session.install("-r", "requirements/ci/requirements-ort-nightly.txt")
     session.install(".", "--no-deps")

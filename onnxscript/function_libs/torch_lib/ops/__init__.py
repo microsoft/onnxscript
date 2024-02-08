@@ -7,6 +7,7 @@ __all__ = [
     "prims",
     "sparse",
     "special",
+    "vision",
 ]
 
-from . import core, fft, linalg, nested, nn, prims, sparse, special
+from . import core, fft, linalg, nested, nn, prims, sparse, special, vision
