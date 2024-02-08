@@ -74,7 +74,7 @@ jobs:
           CREATE_REPRODUCTION_REPORT: "${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}"
       - name: Upload coverage to Codecov
         if: always()
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v3
