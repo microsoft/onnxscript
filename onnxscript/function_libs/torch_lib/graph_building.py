@@ -804,7 +804,7 @@ class TorchScriptGraph:
 
         # Insert value info for nodes within nested function calls.
         # NOTE: This is an experimental feature, will be replaced by ValueInfo inside FunctionProto
-        # in ONNX 1.16.
+        # in ONNX 1.16. https://github.com/microsoft/onnxscript/issues/1268
         # The naming strategy is subject to change. Since all local functions representing
         # nn.Modules exported by dynamo exporter have unique call sites, their function
         # op_type name can serve to form the unique identifier for value info.
