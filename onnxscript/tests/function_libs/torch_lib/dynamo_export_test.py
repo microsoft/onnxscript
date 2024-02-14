@@ -67,17 +67,15 @@ class TestOperatorsOnnxrt(unittest.TestCase):
         rtol=1e-6,
         opset_version=None,
         test_backward=True,
-        operator_export_type=None,
-        impl="ort",
         #
         input_names=None,
         dynamic_axes=None,
         keep_initializers_as_inputs=None,
-        training=None,
     ):
         if sys.platform == "win32":
             raise unittest.SkipTest("Windows not supported yet.")
         assert isinstance(onnx_export, str), f"Export onnx is wrong for f={f}"
+        assert opset_version is None, f"opset={opset_version}, only default opset is supported"
         if isinstance(args, torch.Tensor):
             args = [args]
         if params is None:
@@ -90,7 +88,7 @@ class TestOperatorsOnnxrt(unittest.TestCase):
 
         if test_backward:
             # forward/backward
-            local_aot_ort, local_ort = make_aot_ort(dynamic=False)
+            local_aot_ort, _ = make_aot_ort(dynamic=False)
 
             compiled_model = torch.compile(
                 copy.deepcopy(model),
@@ -155,7 +153,7 @@ class TestOperatorsOnnxrt(unittest.TestCase):
         x = torch.zeros((10, 3), requires_grad=True, dtype=torch.float32)
         indices = torch.arange(8, dtype=torch.int64).reshape((-1, 4))
         values = torch.arange(24, dtype=torch.float32).reshape((-1, 4, 3))
-        
+
         # redondant test to make sure this expression is valid for torch
         assert x.index_put((indices,), values) is not None
 
@@ -169,7 +167,7 @@ class TestOperatorsOnnxrt(unittest.TestCase):
         x = torch.zeros((10, 3), requires_grad=True, dtype=torch.float32)
         indices = torch.arange(8, dtype=torch.int64).reshape((-1, 4))
         values = torch.arange(24, dtype=torch.float32).reshape((-1, 4, 3))
-        
+
         # redondant test to make sure this expression is valid for torch
         assert x.index_put((indices,), values) is not None
 
