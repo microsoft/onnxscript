@@ -40,7 +40,6 @@ class FuncModuleModule(torch.nn.Module):
 
 
 def make_aot_ort(dynamic: bool = False):
-
     ort_backend = OrtBackend(
         options=OrtBackendOptions(
             export_options=ExportOptions(
@@ -54,7 +53,7 @@ def make_aot_ort(dynamic: bool = False):
 class TestOperatorsOnnxrt(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        torch._dynamo.reset()
+        torch._dynamo.reset()  # pylint: disable=protected-access
 
     def assertONNX(
         self,
