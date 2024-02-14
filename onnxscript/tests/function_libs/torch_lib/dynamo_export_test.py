@@ -67,10 +67,6 @@ class TestOperatorsOnnxrt(unittest.TestCase):
         rtol=1e-6,
         opset_version=None,
         test_backward=True,
-        #
-        input_names=None,
-        dynamic_axes=None,
-        keep_initializers_as_inputs=None,
     ):
         if sys.platform == "win32":
             raise unittest.SkipTest("Windows not supported yet.")
