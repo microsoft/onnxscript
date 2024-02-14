@@ -88,6 +88,14 @@ def _rename_intermediate_value(name: str) -> str:
     return name
 
 
+def _function_id(domain: str | None, name: str) -> str:
+    """Create a unique function id for a function in a domain.
+
+    Used for generating model level unique ids for values inside a function.
+    """
+    return f"{domain if domain is not None else ''}::{name}"
+
+
 class TorchScriptTensor(onnxscript_tensor.Tensor):
     """A onnxscript tensor that wraps a torchscript Value."""
 
@@ -870,7 +878,7 @@ class TorchScriptGraph:
         self, function_op_type: str
     ) -> Mapping[str, onnx.ValueInfoProto]:
         named_value_info: Dict[str, onnx.ValueInfoProto] = {}
-        function_id = f"{self.domain_name}::{function_op_type}"
+        function_id = _function_id(self.domain_name, function_op_type)
         for torch_value, tensor in self._value_to_tensor.items():
             if (value_info := tensor.value_info()) is None:
                 continue
