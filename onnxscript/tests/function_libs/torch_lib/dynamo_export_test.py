@@ -165,6 +165,20 @@ class TestOperatorsOnnxrt(unittest.TestCase):
             onnx_export=inspect.currentframe().f_code.co_name,
         )
 
+    def test_index_put_accumulate(self):
+        x = torch.zeros((10, 3), requires_grad=True, dtype=torch.float32)
+        indices = torch.arange(8, dtype=torch.int64).reshape((-1, 4))
+        values = torch.arange(24, dtype=torch.float32).reshape((-1, 4, 3))
+        
+        # redondant test to make sure this expression is valid for torch
+        assert x.index_put((indices,), values) is not None
+
+        self.assertONNX(
+            lambda x, indices, values: x.index_put((indices,), values, accumulate=True),
+            (x, indices, values),
+            onnx_export=inspect.currentframe().f_code.co_name,
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
