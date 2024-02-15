@@ -88,6 +88,14 @@ def _rename_intermediate_value(name: str) -> str:
     return name
 
 
+def _function_id(domain: str | None, name: str) -> str:
+    """Create a unique function id for a function in a domain.
+
+    Used for generating model level unique ids for values inside a function.
+    """
+    return f"{domain if domain is not None else ''}::{name}"
+
+
 class TorchScriptTensor(onnxscript_tensor.Tensor):
     """A onnxscript tensor that wraps a torchscript Value."""
 
@@ -795,16 +803,15 @@ class TorchScriptGraph:
         del onnx_model.graph.value_info[:]
 
         # Insert value info for nodes within nested function calls.
-        # NOTE: This is an experimental feature, since in official ONNX spec, nodes
-        # within FunctionProto to have value info. https://github.com/onnx/onnx/issues/5487
-        # The names for value info are generated uniquely to be retrievable based on
-        # the call site and call stack.
+        # NOTE: This is an experimental feature, will be replaced by ValueInfo inside FunctionProto
+        # in ONNX 1.16. https://github.com/microsoft/onnxscript/issues/1268
         # The naming strategy is subject to change. Since all local functions representing
         # nn.Modules exported by dynamo exporter have unique call sites, their function
         # op_type name can serve to form the unique identifier for value info.
-        function_value_infos = self.generate_function_value_info_proto()
-        # Override existing value info for nodes in top level graph.
-        existing_value_info.update(function_value_infos)
+        # Store inside top level GraphProto.
+        existing_value_info.update(self.generate_subgraphs_value_info_proto())
+        # Insert value info for nodes in top level graph.
+        existing_value_info.update(self.generate_maingraph_value_info_proto())
         onnx_model.graph.value_info.extend(existing_value_info.values())
 
         return onnx_model
@@ -867,38 +874,44 @@ class TorchScriptGraph:
             n_outputs=sub_torch_script_graph.num_outputs,
         )
 
-    @runtime_typing.checked
     def generate_function_value_info_proto(
-        self, prefix: str = ""
+        self, function_op_type: str
     ) -> Mapping[str, onnx.ValueInfoProto]:
-        """Unique naming strategies
-
-            {function1_op_type}/{function2_op_type}/.../{value_name}
-
-        As long as function op_type has unique call site, this is safe.
-
-        Preferably, the following is better
-
-            {node1_name}/{node2_name}/.../{value_name}
-
-        However, node name is an optional field generated on the fly during torchscript
-        graph serialization to onnx model proto. Such info is not retrievable at this point.
-        """
-        named_value_info = {}
+        named_value_info: Dict[str, onnx.ValueInfoProto] = {}
+        function_id = _function_id(self.domain_name, function_op_type)
         for torch_value, tensor in self._value_to_tensor.items():
-            name = torch_value.debugName()
             if (value_info := tensor.value_info()) is None:
                 continue
-            if prefix:
-                name = f"{prefix}/{name}"
+            name = f"{function_id}/{torch_value.debugName()}"
             value_info.name = name
             named_value_info[name] = value_info
+        named_value_info.update(self.generate_subgraphs_value_info_proto())
+        return named_value_info
+
+    @runtime_typing.checked
+    def generate_subgraphs_value_info_proto(self) -> Mapping[str, onnx.ValueInfoProto]:
+        """Unique naming strategies for values inside subgraphs, i.e. local functions.
+
+            {function_domain::function_op_type}/{value_name}
+
+        NOTE: Mainly designed for specialized functions, which are local functions
+        with only one call site. For non-specialized functions, it is assumed that
+        the `value_info` carried in `TorchScriptTensor` represents the general
+        compatible shape and type.
+        """
+        named_value_info: Dict[str, onnx.ValueInfoProto] = {}
         for name, sub_graph in self._sub_torch_script_graphs.items():
-            named_value_info.update(
-                sub_graph.generate_function_value_info_proto(
-                    f"{prefix}/{name}" if prefix else name
-                )
-            )
+            named_value_info.update(sub_graph.generate_function_value_info_proto(name))
+        return named_value_info
+
+    @runtime_typing.checked
+    def generate_maingraph_value_info_proto(self) -> Mapping[str, onnx.ValueInfoProto]:
+        """Returns value info proto for values in the main graph."""
+        named_value_info: Dict[str, onnx.ValueInfoProto] = {}
+        for torch_value, tensor in self._value_to_tensor.items():
+            if (value_info := tensor.value_info()) is None:
+                continue
+            named_value_info[torch_value.debugName()] = value_info
         return named_value_info
 
     @runtime_typing.checked
