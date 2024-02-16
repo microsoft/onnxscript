@@ -845,7 +845,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: not (
             (sample.args[0][0].dtype == torch.int64)
             # onnxruntime: MLFloat16 data type is not supported with ScatterND when reduction is 'add'
-            and (sample.args[1].dtype != torch.float16 or not sample.kwargs.get("accumulate", False))
+            and (
+                sample.args[1].dtype != torch.float16
+                or not sample.kwargs.get("accumulate", False)
+            )
         ),
         reason="this Aten overload only support tensor(int) as indices or float16 when reduction is 'add'",
     ),

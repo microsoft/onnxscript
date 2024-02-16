@@ -4044,10 +4044,13 @@ def aten_index_put(
     values: TReal,
     accumulate: bool = False,
 ) -> TReal:
-    """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
+    """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor
+    See implementation of `torch.onnx.symbolic_opset11.index_put
+    <https://github.com/pytorch/pytorch/blob/main/torch/onnx/symbolic_opset11.py#L212>`_.
+    """
 
     index = op.SequenceAt(indices, 0)
-    new_index = op.Unsqueeze(index, -1)
+    new_index = op.Unsqueeze(index, [-1])
     shape_self = op.Shape(self)
 
     if op.Cast(accumulate, to=BOOL.dtype):
