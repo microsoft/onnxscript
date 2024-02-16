@@ -850,7 +850,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 or not sample.kwargs.get("accumulate", False)
             )
         ),
-        reason="this Aten overload only support tensor(int) as indices or float16 when reduction is 'add'",
+        reason="this Aten overload only support tensor(int) as indices and float32 when accumulate is True",
     ),
     TorchLibOpInfo("index_select", core_ops.aten_index_select),
     TorchLibOpInfo("isclose", core_ops.aten_isclose),
