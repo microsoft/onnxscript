@@ -415,18 +415,6 @@ def _sum_input_wrangler(
     return args, kwargs
 
 
-def _upsample_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    if "scale_factor" in kwargs:
-        kwargs["scales_h"] = kwargs["scale_factor"]
-        kwargs["scales_w"] = kwargs["scale_factor"]
-        del kwargs["scale_factor"]
-    if "size" in kwargs:
-        kwargs["size"] = np.array(kwargs["size"], dtype=np.int64)
-    return args, kwargs
-
-
 def _unflatten_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -2155,19 +2143,24 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: align_corners=False output mismatch when scales are provided",
     ),
     TorchLibOpInfo(
-        "nn.functional.upsample_nearest2d",
-        nn_ops.aten_upsample_nearest2d,
-        input_wrangler=_upsample_input_wrangler,
+        "ops.aten.upsample_nearest1d",
+        nn_ops.aten_upsample_nearest1d,
         trace_only=True,
-    )
-    .skip(
-        # Shape should be [N, C, H, W]
-        matcher=lambda sample: len(sample.input.shape) != 2 + 2,
-        reason="only test on 2d inputs",
-    )
-    .xfail(
-        matcher=lambda sample: "scale_factor" in sample.kwargs,
-        reason="fixme: the scale_factor tests",
+    ),
+    TorchLibOpInfo(
+        "ops.aten.upsample_nearest2d",
+        nn_ops.aten_upsample_nearest2d,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
+        "ops.aten.upsample_nearest3d",
+        nn_ops.aten_upsample_nearest3d,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
+        "ops.aten.upsample_trilinear3d",
+        nn_ops.aten_upsample_trilinear3d,
+        trace_only=True,
     ),
     TorchLibOpInfo("ones_like", core_ops.aten_ones_like, trace_only=True),
     TorchLibOpInfo(
@@ -2384,15 +2377,6 @@ ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.celu",
     ("nn.functional.celu_type_promoted",),
-)
-ops_test_common.duplicate_opinfo(
-    OPS_DB,
-    "nn.functional.upsample_nearest",
-    (
-        "nn.functional.upsample_nearest1d",
-        "nn.functional.upsample_nearest2d",
-        "nn.functional.upsample_nearest3d",
-    ),
 )
 ops_test_common.duplicate_opinfo(
     OPS_DB, "ops.aten._log_softmax", ("ops.aten._log_softmax_half",)
