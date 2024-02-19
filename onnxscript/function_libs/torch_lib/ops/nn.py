@@ -2205,8 +2205,8 @@ def _get_upsample_align_corners_mode(align_corners: bool) -> str:
     (
         "aten::upsample_bicubic2d",
         "aten::upsample_bicubic2d_aa",
-        "aten::upsample_bilinear2d_aa",
         "aten::upsample_bilinear2d",
+        "aten::upsample_bilinear2d_aa",
         "aten::upsample_nearest1d",
         "aten::upsample_nearest2d",
         "aten::upsample_nearest3d",
