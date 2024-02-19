@@ -390,7 +390,7 @@ def _numpy_to_onnxscript_value(
     """Converts an ORT encoding of an ONNX value into the encoding used by onnxscript."""
     if isinstance(v, np.ndarray):
         return tensor.Tensor(v)
-    if np.issctype(type(v)):
+    if np.issctype(type(v)):  # noqa: NPY201
         # Numpy scalar types that are not ndarray
         # https://numpy.org/doc/stable/reference/arrays.scalars.html
         return tensor.Tensor(np.array(v))
