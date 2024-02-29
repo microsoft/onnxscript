@@ -292,7 +292,7 @@ def convert_kwargs_for_onnx(kwargs: dict[str, Any]) -> dict[str, Any]:
         if key == "dtype":
             value = TORCH_TYPE_TO_ONNX[value]
         if isinstance(value, torch.Tensor):
-            value = np.array(value)
+            value = np.array(value.cpu())
         new_kwargs[key] = value
     return new_kwargs
 
