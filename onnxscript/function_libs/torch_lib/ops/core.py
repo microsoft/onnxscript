@@ -4192,6 +4192,9 @@ def aten_instance_norm(
             op.Expand(op.Constant(value_floats=[0.0]), op.Shape(input, start=1, end=2)), input
         )
 
+    # If `use_input_stats` is set to True, ignore 'running_mean' and 'running_var' and
+    # compute using input statistics.
+    # Otherwise, compute using the running statistics.
     if use_input_stats:
         return op.InstanceNormalization(input, weight, bias, epsilon=eps)
 
