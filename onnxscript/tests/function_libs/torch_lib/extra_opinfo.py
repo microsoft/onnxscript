@@ -1957,12 +1957,6 @@ OP_DB: List[opinfo_core.OpInfo] = [
         sample_inputs_func=sample_inputs_index,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.index.Tensor_bool",
-        aten_name="index.Tensor",
-        dtypes=common_dtype.all_types_and_complex_and(torch.bool),
-        sample_inputs_func=sample_inputs_index_bool,
-    ),
-    opinfo_core.OpInfo(
         "ops.aten.layer_norm",
         aten_name="layer_norm",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),

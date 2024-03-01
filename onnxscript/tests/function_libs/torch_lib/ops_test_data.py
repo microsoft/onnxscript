@@ -830,7 +830,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("gt_bool", core_ops.aten_gt_bool),
     # TorchLibOpInfo("is_same_size", core_ops.aten_is_same_size),  # no test case in OPS_DB
     # TorchLibOpInfo("is_nonzero", core_ops.aten_is_nonzero),  # no test case in OPS_DB
-    TorchLibOpInfo("ops.aten.index.Tensor", core_ops.aten_index, trace_only=True),
+    TorchLibOpInfo("ops.aten.index.Tensor", core_ops.aten_index, trace_only=True,
+    ).skip(
+        matcher=lambda sample: len(sample.args[0]) == 1
+        and sample.args[0][0].dtype == torch.bool,
+        reason="this Aten overload only support tensor(bool) as args",
+    ),
+    TorchLibOpInfo("ops.aten.index.Tensor.bool", core_ops.aten_index_bool, trace_only=True,
+    ).skip(
+        matcher=lambda sample: not (sample.args[0][0].dtype == torch.bool)
+        or len(sample.args[0]) > 1,
+        reason="this Aten overload only support tensor(bool) as args",
+    ),
     TorchLibOpInfo(
         "index_put_bool",
         core_ops.aten_index_put_bool,
@@ -2374,6 +2385,7 @@ ops_test_common.duplicate_opinfo(
     OPS_DB, "ops.aten._log_softmax", ("ops.aten._log_softmax_half",)
 )
 ops_test_common.duplicate_opinfo(OPS_DB, "ops.aten._softmax", ("ops.aten._softmax_half",))
+ops_test_common.duplicate_opinfo(OPS_DB, "ops.aten.index.Tensor", ("ops.aten.index.Tensor.bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "round", ("round_decimals",))
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction"))
