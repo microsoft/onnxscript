@@ -361,6 +361,8 @@ class IRFunction:
                 if isinstance(f, onnx.FunctionProto):
                     return f
                 if isinstance(f, onnxscript.OnnxFunction):
+                    # TODO(justinchuby): functions should be function protos
+                    # Normalize the OnnxFunction instead?
                     return f.to_function_proto()
                 raise TypeError("Expected a value of type FunctionProto of OnnxFunction")
 
