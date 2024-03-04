@@ -832,14 +832,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     # TorchLibOpInfo("is_nonzero", core_ops.aten_is_nonzero),  # no test case in OPS_DB
     TorchLibOpInfo("ops.aten.index.Tensor", core_ops.aten_index, trace_only=True,
     ).skip(
-        matcher=lambda sample: len(sample.args[0]) == 1
+        matcher=lambda sample: sample.args[0][0] is not None
         and sample.args[0][0].dtype == torch.bool,
-        reason="this Aten overload only support tensor(bool) as args",
+        reason="this Aten overload does NOT support tensor(bool) as args",
     ),
     TorchLibOpInfo("ops.aten.index.Tensor.bool", core_ops.aten_index_bool, trace_only=True,
     ).skip(
-        matcher=lambda sample: not (sample.args[0][0].dtype == torch.bool)
-        or len(sample.args[0]) > 1,
+        matcher=lambda sample: sample.args[0][0] is not None
+        and sample.args[0][0].dtype != torch.bool,
         reason="this Aten overload only support tensor(bool) as args",
     ),
     TorchLibOpInfo(
