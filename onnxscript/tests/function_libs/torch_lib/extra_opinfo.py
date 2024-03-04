@@ -692,6 +692,13 @@ def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
             )
 
 
+def _index_variable_bool(shape, max_indices, device=torch.device('cpu')):
+    if not isinstance(shape, tuple):
+        shape = (shape,)
+    index = torch.rand(*shape, dtype=torch.double, device=device).mul_(max_indices).floor_().bool()
+    return index
+
+
 def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
     del op_info  # Unused
     del kwargs  # Unused
@@ -702,6 +709,7 @@ def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
     index_1d = common_methods_invocations.index_variable(2, s, device=device)
     index_2d = common_methods_invocations.index_variable((s + 1, 2), s, device=device)
     index_3d = common_methods_invocations.index_variable((s + 2, s + 1, 2), s, device=device)
+    index_bool = _index_variable_bool(s, s, device=device)
     test_args = [
         ([index_1d],),
         ([None, index_1d],),
@@ -735,28 +743,7 @@ def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
         # All indices are not None
         ([index_2d, index_3d, index_1d],),
         ([index_2d, index_3d, index_1d, index_2d],),
-    ]
-
-    for args in test_args:
-        yield opinfo_core.SampleInput(make_arg((s, s, s, s)), args=args)
-
-
-def index_variable_bool(shape, max_indices, device=torch.device('cpu')):
-    if not isinstance(shape, tuple):
-        shape = (shape,)
-    index = torch.rand(*shape, dtype=torch.double, device=device).mul_(max_indices).floor_().bool()
-    return index
-
-
-def sample_inputs_index_bool(op_info, device, dtype, requires_grad, **kwargs):
-    del op_info  # Unused
-    del kwargs  # Unused
-    make_arg = functools.partial(
-        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=requires_grad
-    )
-    s = 5
-    index_bool = index_variable_bool(s, s, device=device)
-    test_args = [
+        # Bool index
         ([index_bool],),
     ]
 
