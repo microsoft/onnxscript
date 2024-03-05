@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------
 
 """Generates the Prims signatures for the ONNX Prims operator set using torch.ops."""
+
 from __future__ import annotations
 
 import argparse

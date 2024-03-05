@@ -18,10 +18,10 @@ class SarifLog:
     schema_uri: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "$schema"}
     )
-    inline_external_properties: Optional[
-        List[_external_properties.ExternalProperties]
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "inlineExternalProperties"}
+    inline_external_properties: Optional[List[_external_properties.ExternalProperties]] = (
+        dataclasses.field(
+            default=None, metadata={"schema_property_name": "inlineExternalProperties"}
+        )
     )
     properties: Optional[_property_bag.PropertyBag] = dataclasses.field(
         default=None, metadata={"schema_property_name": "properties"}

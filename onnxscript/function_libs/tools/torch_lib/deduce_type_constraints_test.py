@@ -1,4 +1,5 @@
 """Test cases for type constraint deduction functionality."""
+
 from __future__ import annotations
 
 import inspect
