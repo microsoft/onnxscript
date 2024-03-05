@@ -5672,7 +5672,7 @@ def _aten_native_batch_norm_training_onnx(
     momentum: float,
     eps: float,
 ) -> Tuple[TFloat, TFloat, TFloat]:
-    norm, mean, var = op.BatchNormalization(
+    norm, running_mean, running_var = op.BatchNormalization(
         input,
         weight,
         bias,
@@ -5683,7 +5683,16 @@ def _aten_native_batch_norm_training_onnx(
         training_mode=True,
     )
     # Compute var and rstd
+    # Mean, var, and rstd computation and results are expected to be
+    # in higher precision when inputs are float16.
+    # upcast_input = op.Cast(input, to=FLOAT.dtype)
+    mean = op.ReduceMean(input, axes)
+    input_sub_mean = op.Sub(input, mean)
+    sqr = op.Mul(input_sub_mean, input_sub_mean)
+    var = op.ReduceMean(sqr, axes, keepdims=False)
     rstd = op.Div(1.0, op.Sqrt(var + eps))
+    # Get mean again with size = [1, C]
+    mean = op.ReduceMean(input, axes, keepdims=False)
     return norm, mean, rstd
 
 

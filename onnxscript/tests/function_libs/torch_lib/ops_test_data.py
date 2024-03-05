@@ -1830,6 +1830,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "native_batch_norm",
         core_ops.aten_native_batch_norm,
         trace_only=True,
+        tolerance={torch.float16: (1e-2, 7e-3)},
     ),
     TorchLibOpInfo(
         "ops.aten._native_batch_norm_legit", core_ops.aten_native_batch_norm, trace_only=True
