@@ -5708,18 +5708,9 @@ def _aten_native_batch_norm_inference_onnx(
         momentum=momentum,
         training_mode=False,
     )
-    # Compute var and rstd
-    # Mean, var, and rstd computation and results are expected to be
-    # in higher precision when inputs are float16.
-    # upcast_input = op.Cast(input, to=FLOAT.dtype)
-    mean = op.ReduceMean(input, axes)
-    input_sub_mean = op.Sub(input, mean)
-    sqr = op.Mul(input_sub_mean, input_sub_mean)
-    var = op.ReduceMean(sqr, axes, keepdims=False)
-    rstd = op.Div(1.0, op.Sqrt(var + eps))
-    # Get mean again with size = [1, C]
-    mean = op.ReduceMean(input, axes, keepdims=False)
-    return norm, mean, rstd
+    empty_mean = op.CastLike(op.Shape(input, start=0, end=0), norm)
+    empty_var = op.CastLike(op.Shape(input, start=0, end=0), norm)
+    return norm, empty_mean, empty_var
 
 
 # TODO: This op is using duplicated code from aten_native_batch_norm,
