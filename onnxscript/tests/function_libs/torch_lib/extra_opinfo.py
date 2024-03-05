@@ -692,10 +692,12 @@ def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
             )
 
 
-def _index_variable_bool(shape, max_indices, device=torch.device('cpu')):
+def _index_variable_bool(shape, max_indices, device):
     if not isinstance(shape, tuple):
         shape = (shape,)
-    index = torch.rand(*shape, dtype=torch.double, device=device).mul_(max_indices).floor_().bool()
+    index = (
+        torch.rand(*shape, dtype=torch.double, device=device).mul_(max_indices).floor_().bool()
+    )
     return index
 
 
