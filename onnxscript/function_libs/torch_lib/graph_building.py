@@ -1,4 +1,5 @@
 """Graph building functions for torchscript graph backend."""
+
 from __future__ import annotations
 
 import os
@@ -609,9 +610,9 @@ class TorchScriptGraph:
         ):
             # Only the root graph can have initializers. Add as initializer
             # to root graph, and add as input to current graph.
-            self._initializers_inputs_from_parent[
-                name
-            ] = self._parent_torch_script_graph.add_initializer(name, value)
+            self._initializers_inputs_from_parent[name] = (
+                self._parent_torch_script_graph.add_initializer(name, value)
+            )
         else:
             self._initializers[name] = value
 
@@ -957,9 +958,9 @@ class TorchScriptGraph:
     def to_model_proto(
         self, opset_version: int, include_initializers: bool = True
     ) -> onnx.ModelProto:
-        function_proto_dict: Mapping[
-            Tuple[str, str], onnx.FunctionProto
-        ] = self.fetch_function_proto_dict(opset_version)
+        function_proto_dict: Mapping[Tuple[str, str], onnx.FunctionProto] = (
+            self.fetch_function_proto_dict(opset_version)
+        )
         unique_custom_domains: Dict[str, int] = {}
 
         for function_proto in function_proto_dict.values():

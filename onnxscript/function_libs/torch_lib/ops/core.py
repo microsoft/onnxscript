@@ -9,6 +9,7 @@
 - All functions should not have the script() decorator. This is because
     we want to delay the compilation of the function.
 """
+
 from __future__ import annotations
 
 import math
@@ -1641,10 +1642,23 @@ def aten_combinations(
     raise NotImplementedError()
 
 
-def aten_complex(real: TensorType, imag: TensorType) -> TensorType:
+@torch_op("aten::complex", private=True)
+def _aten_complex(real: TFloat, imag: TFloat) -> TFloat:
+    """Non-broadcasting complex constructor."""
+
+    return op.Concat(op.Unsqueeze(real, axes=[-1]), op.Unsqueeze(imag, axes=[-1]), axis=-1)
+
+
+@torch_op("aten::complex", trace_only=True)
+def aten_complex(real: TFloat, imag: TFloat) -> TFloat:
     """complex(Tensor real, Tensor imag) -> Tensor"""
 
-    raise NotImplementedError()
+    # Broadcast the real and imaginary parts to the same shape
+    broadcasted_shape = _shape_of_broadcast_tensors(real, imag)
+    real = op.Expand(real, broadcasted_shape)
+    imag = op.Expand(imag, broadcasted_shape)
+
+    return _aten_complex(real, imag)
 
 
 @torch_op("aten::concat")
@@ -6392,10 +6406,13 @@ def aten_poisson_nll_loss(
     raise NotImplementedError()
 
 
-def aten_polar(abs: TensorType, angle: TensorType) -> TensorType:
+@torch_op("aten::polar")
+def aten_polar(abs: TFloat, angle: TFloat) -> TFloat:
     """polar(Tensor abs, Tensor angle) -> Tensor"""
 
-    raise NotImplementedError()
+    real = op.Unsqueeze(op.Mul(abs, op.Cos(angle)), axes=[-1])
+    imag = op.Unsqueeze(op.Mul(abs, op.Sin(angle)), axes=[-1])
+    return op.Concat(real, imag, axis=-1)
 
 
 def aten_polygamma(n: int, self: TensorType) -> TensorType:

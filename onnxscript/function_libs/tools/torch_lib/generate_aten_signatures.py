@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------
 
 """Generates the ATen signatures for the ONNX ATen operator set using torch.ops."""
+
 from __future__ import annotations
 
 import argparse

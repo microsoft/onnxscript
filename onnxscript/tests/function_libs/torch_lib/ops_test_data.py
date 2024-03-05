@@ -32,6 +32,7 @@ wrangler function. See `_mean_input_wrangler` for an example.
     op, use `ops_test_common.duplicate_opinfo` to create new OpInfo with new names and map each
     to one overload.
 """
+
 from __future__ import annotations
 
 import copy
@@ -720,6 +721,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo("clone", core_ops.aten_clone),
+    TorchLibOpInfo("complex", core_ops.aten_complex, trace_only=True),
     TorchLibOpInfo("concat", core_ops.aten_concat).skip(
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
@@ -1333,6 +1335,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_permute_input_wrangler,
         trace_only=True,
     ),
+    TorchLibOpInfo("polar", core_ops.aten_polar),
     TorchLibOpInfo("pow", core_ops.aten_pow),
     TorchLibOpInfo("ops.aten.rand", core_ops.aten_rand, nondeterministic=True),
     TorchLibOpInfo("ops.aten.rand_like", core_ops.aten_rand_like, nondeterministic=True),

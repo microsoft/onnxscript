@@ -20,6 +20,7 @@ in onnxruntime by running the inference sessions in a separate process.
 2. Set `CREATE_REPRODUCTION_REPORT=1` to create markdown files for reproduction of
 errors.
 """
+
 from __future__ import annotations
 
 import os

@@ -4,6 +4,7 @@ Decorate a function with `@runtime_typing.checked` to enable runtime
 type checking. The decorator is a no-op when the `beartype` library is not
 installed.
 """
+
 import warnings
 
 __all__ = [
