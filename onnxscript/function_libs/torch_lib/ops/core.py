@@ -5772,7 +5772,7 @@ def aten__native_batch_norm_legit_functional(
         )
     else:
         norm, new_mean, new_var = _aten_native_batch_norm_inference_onnx(
-            input, weight, bias, new_mean, new_var, axes, momentum=momentum, eps=eps
+            input, weight, bias, running_mean, running_var, axes, momentum=momentum, eps=eps
         )
     # NOTE: Fixed to be FLOAT dtype
     running_mean = op.Cast(running_mean, to=FLOAT.dtype)
