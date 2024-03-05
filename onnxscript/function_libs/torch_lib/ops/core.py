@@ -5672,7 +5672,7 @@ def _aten_native_batch_norm_training_onnx(
     momentum: float,
     eps: float,
 ) -> Tuple[TFloat, TFloat, TFloat]:
-    norm, running_mean, running_var = op.BatchNormalization(
+    norm, mean, var = op.BatchNormalization(
         input,
         weight,
         bias,
@@ -5683,16 +5683,7 @@ def _aten_native_batch_norm_training_onnx(
         training_mode=True,
     )
     # Compute var and rstd
-    # Mean, var, and rstd computation and results are expected to be
-    # in higher precision when inputs are float16.
-    upcast_input = op.Cast(input, to=FLOAT.dtype)
-    mean = op.ReduceMean(upcast_input, axes)
-    input_sub_mean = op.Sub(upcast_input, mean)
-    sqr = op.Mul(input_sub_mean, input_sub_mean)
-    var = op.ReduceMean(sqr, axes, keepdims=False)
     rstd = op.Div(1.0, op.Sqrt(var + eps))
-    # Get mean again with size = [1, C]
-    mean = op.ReduceMean(upcast_input, axes, keepdims=False)
     return norm, mean, rstd
 
 
@@ -5720,14 +5711,14 @@ def _aten_native_batch_norm_inference_onnx(
     # Compute var and rstd
     # Mean, var, and rstd computation and results are expected to be
     # in higher precision when inputs are float16.
-    upcast_input = op.Cast(input, to=FLOAT.dtype)
-    mean = op.ReduceMean(upcast_input, axes)
-    input_sub_mean = op.Sub(upcast_input, mean)
+    # upcast_input = op.Cast(input, to=FLOAT.dtype)
+    mean = op.ReduceMean(input, axes)
+    input_sub_mean = op.Sub(input, mean)
     sqr = op.Mul(input_sub_mean, input_sub_mean)
     var = op.ReduceMean(sqr, axes, keepdims=False)
     rstd = op.Div(1.0, op.Sqrt(var + eps))
     # Get mean again with size = [1, C]
-    mean = op.ReduceMean(upcast_input, axes, keepdims=False)
+    mean = op.ReduceMean(input, axes, keepdims=False)
     return norm, mean, rstd
 
 
@@ -5774,9 +5765,7 @@ def aten__native_batch_norm_legit_functional(
         norm, new_mean, new_var = _aten_native_batch_norm_inference_onnx(
             input, weight, bias, running_mean, running_var, axes, momentum=momentum, eps=eps
         )
-    # NOTE: Fixed to be FLOAT dtype
-    running_mean = op.Cast(running_mean, to=FLOAT.dtype)
-    running_var = op.Cast(running_var, to=FLOAT.dtype)
+
     return norm, running_mean, running_var, new_mean, new_var
 
 
