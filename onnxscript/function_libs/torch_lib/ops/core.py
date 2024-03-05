@@ -5650,15 +5650,17 @@ def aten_native_batch_norm(
 
     # We have to split to two private functions, because BatchNormalization returns
     # three outputs when training_mode=True and one when it is False.
-    if training is True:
-        norm, mean, var = _aten_native_batch_norm_training_onnx(
+    if training:
+        norm, input_mean, input_rstd, _, _ = _aten_native_batch_norm_training_onnx(
             input, weight, bias, running_mean, running_var, axes, momentum=momentum, eps=eps
         )
     else:
-        norm, mean, var = _aten_native_batch_norm_inference_onnx(
+        norm, empty = _aten_native_batch_norm_inference_onnx(
             input, weight, bias, running_mean, running_var, axes, momentum=momentum, eps=eps
         )
-    return norm, mean, var
+        input_mean = empty
+        input_rstd = empty
+    return norm, input_mean, input_rstd
 
 
 @torch_op("aten::native_batch_norm", private=True)
@@ -5671,7 +5673,7 @@ def _aten_native_batch_norm_training_onnx(
     axes: INT64,
     momentum: float,
     eps: float,
-) -> Tuple[TFloat, TFloat, TFloat]:
+) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
     norm, running_mean, running_var = op.BatchNormalization(
         input,
         weight,
@@ -5685,15 +5687,17 @@ def _aten_native_batch_norm_training_onnx(
     # Compute var and rstd
     # Mean, var, and rstd computation and results are expected to be
     # in higher precision when inputs are float16.
-    # upcast_input = op.Cast(input, to=FLOAT.dtype)
-    mean = op.ReduceMean(input, axes)
-    input_sub_mean = op.Sub(input, mean)
+    upcast_input = op.Cast(input, to=FLOAT.dtype)
+    mean = op.ReduceMean(upcast_input, axes)
+    input_sub_mean = op.Sub(upcast_input, mean)
     sqr = op.Mul(input_sub_mean, input_sub_mean)
     var = op.ReduceMean(sqr, axes, keepdims=False)
     rstd = op.Div(1.0, op.Sqrt(var + eps))
     # Get mean again with size = [1, C]
-    mean = op.ReduceMean(input, axes, keepdims=False)
-    return norm, mean, rstd
+    mean = op.ReduceMean(upcast_input, axes, keepdims=False)
+    mean = op.CastLike(mean, norm)
+    rstd = op.CastLike(rstd, norm)
+    return norm, mean, rstd, running_mean, running_var
 
 
 @torch_op("aten::native_batch_norm", private=True)
@@ -5706,7 +5710,7 @@ def _aten_native_batch_norm_inference_onnx(
     axes: INT64,
     momentum: float,
     eps: float,
-) -> Tuple[TFloat, TFloat, TFloat]:
+) -> Tuple[TFloat, TFloat]:
     norm = op.BatchNormalization(
         input,
         weight,
@@ -5717,9 +5721,10 @@ def _aten_native_batch_norm_inference_onnx(
         momentum=momentum,
         training_mode=False,
     )
-    empty_mean = op.CastLike(op.Shape(input, start=0, end=0), norm)
-    empty_var = op.CastLike(op.Shape(input, start=0, end=0), norm)
-    return norm, empty_mean, empty_var
+    # CUDA and CPU gives different shapes:
+    # https://github.com/pytorch/pytorch/blob/a44f8894fa6d973693aab44a3dda079a168b05c1/torch/_decomp/decompositions.py#L1451-L1457
+    empty = op.CastLike(op.Shape(input, start=0, end=0), norm)
+    return norm, empty
 
 
 # TODO: This op is using duplicated code from aten_native_batch_norm,
@@ -5758,15 +5763,20 @@ def aten__native_batch_norm_legit_functional(
     # We have to split to two private functions, because BatchNormalization returns
     # three outputs when training_mode=True and one when it is False.
     if training:
-        norm, new_mean, new_var = _aten_native_batch_norm_training_onnx(
+        norm, input_mean, input_rstd, running_mean, running_var = _aten_native_batch_norm_training_onnx(
             input, weight, bias, running_mean, running_var, axes, momentum=momentum, eps=eps
         )
     else:
-        norm, new_mean, new_var = _aten_native_batch_norm_inference_onnx(
+        norm, empty = _aten_native_batch_norm_inference_onnx(
             input, weight, bias, running_mean, running_var, axes, momentum=momentum, eps=eps
         )
+        input_mean = empty
+        input_rstd = empty
+        running_mean = empty
+        running_var = empty
 
-    return norm, running_mean, running_var, new_mean, new_var
+    # FIXME: Fix running_mean, running_var
+    return norm, input_mean, input_rstd, running_mean, running_var
 
 
 def aten_native_batch_norm_backward(
