@@ -38,9 +38,9 @@ class Run:
     artifacts: Optional[List[_artifact.Artifact]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "artifacts"}
     )
-    automation_details: Optional[
-        _run_automation_details.RunAutomationDetails
-    ] = dataclasses.field(default=None, metadata={"schema_property_name": "automationDetails"})
+    automation_details: Optional[_run_automation_details.RunAutomationDetails] = (
+        dataclasses.field(default=None, metadata={"schema_property_name": "automationDetails"})
+    )
     baseline_guid: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "baselineGuid"}
     )
@@ -93,19 +93,19 @@ class Run:
     results: Optional[List[_result.Result]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "results"}
     )
-    run_aggregates: Optional[
-        List[_run_automation_details.RunAutomationDetails]
-    ] = dataclasses.field(default=None, metadata={"schema_property_name": "runAggregates"})
+    run_aggregates: Optional[List[_run_automation_details.RunAutomationDetails]] = (
+        dataclasses.field(default=None, metadata={"schema_property_name": "runAggregates"})
+    )
     special_locations: Optional[_special_locations.SpecialLocations] = dataclasses.field(
         default=None, metadata={"schema_property_name": "specialLocations"}
     )
     taxonomies: Optional[List[_tool_component.ToolComponent]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "taxonomies"}
     )
-    thread_flow_locations: Optional[
-        List[_thread_flow_location.ThreadFlowLocation]
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "threadFlowLocations"}
+    thread_flow_locations: Optional[List[_thread_flow_location.ThreadFlowLocation]] = (
+        dataclasses.field(
+            default=None, metadata={"schema_property_name": "threadFlowLocations"}
+        )
     )
     translations: Optional[List[_tool_component.ToolComponent]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "translations"}

@@ -5,7 +5,6 @@ Generating a FunctionProto
 The example below shows how we can define Selu as a function in onnxscript.
 """
 
-
 # %%
 # First, import the ONNX opset used to define the function.
 from onnxscript import opset15 as op

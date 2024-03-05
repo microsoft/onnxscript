@@ -22,12 +22,12 @@ class ExternalPropertyFileReferences:
     artifacts: Optional[
         List[_external_property_file_reference.ExternalPropertyFileReference]
     ] = dataclasses.field(default=None, metadata={"schema_property_name": "artifacts"})
-    conversion: Optional[
-        _external_property_file_reference.ExternalPropertyFileReference
-    ] = dataclasses.field(default=None, metadata={"schema_property_name": "conversion"})
-    driver: Optional[
-        _external_property_file_reference.ExternalPropertyFileReference
-    ] = dataclasses.field(default=None, metadata={"schema_property_name": "driver"})
+    conversion: Optional[_external_property_file_reference.ExternalPropertyFileReference] = (
+        dataclasses.field(default=None, metadata={"schema_property_name": "conversion"})
+    )
+    driver: Optional[_external_property_file_reference.ExternalPropertyFileReference] = (
+        dataclasses.field(default=None, metadata={"schema_property_name": "driver"})
+    )
     extensions: Optional[
         List[_external_property_file_reference.ExternalPropertyFileReference]
     ] = dataclasses.field(default=None, metadata={"schema_property_name": "extensions"})
@@ -36,9 +36,9 @@ class ExternalPropertyFileReferences:
     ] = dataclasses.field(
         default=None, metadata={"schema_property_name": "externalizedProperties"}
     )
-    graphs: Optional[
-        List[_external_property_file_reference.ExternalPropertyFileReference]
-    ] = dataclasses.field(default=None, metadata={"schema_property_name": "graphs"})
+    graphs: Optional[List[_external_property_file_reference.ExternalPropertyFileReference]] = (
+        dataclasses.field(default=None, metadata={"schema_property_name": "graphs"})
+    )
     invocations: Optional[
         List[_external_property_file_reference.ExternalPropertyFileReference]
     ] = dataclasses.field(default=None, metadata={"schema_property_name": "invocations"})

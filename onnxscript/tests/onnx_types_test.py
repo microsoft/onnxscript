@@ -6,6 +6,7 @@
 # mypy: disable-error-code=misc
 
 """Unit tests for the onnx_types module."""
+
 from __future__ import annotations
 
 import unittest

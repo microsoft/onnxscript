@@ -10,6 +10,7 @@ invocation. This mode of execution is referred to as *eager mode evaluation*.
 
 The example below illustrates this. We first define an *onnxscript* function:
 """
+
 import numpy as np
 
 from onnxscript import FLOAT, script

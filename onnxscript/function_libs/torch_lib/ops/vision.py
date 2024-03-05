@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------
 # mypy: disable-error-code="misc,arg-type,type-arg,valid-type,assignment,return-value"
 """torchvision operators."""
+
 from __future__ import annotations
 
 from onnxscript.function_libs.torch_lib.registration import torch_op
