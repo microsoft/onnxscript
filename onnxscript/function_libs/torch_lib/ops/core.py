@@ -5656,7 +5656,7 @@ def aten_native_batch_norm(
         )
     else:
         norm, mean, var = _aten_native_batch_norm_inference_onnx(
-            input, weight, bias, running_mean, running_var, training, momentum, eps
+            input, weight, bias, running_mean, running_var, axes, training, momentum, eps
         )
     return norm, mean, var
 
@@ -5669,11 +5669,9 @@ def _aten_native_batch_norm_training_onnx(
     running_mean: TFloat,
     running_var: TFloat,
     axes: INT64,
-    training: bool,
     momentum: float,
     eps: float,
 ) -> Tuple[TFloat, TFloat, TFloat]:
-    # Assert(training is True)
     norm, running_mean, running_var = op.BatchNormalization(
         input,
         weight,
@@ -5682,7 +5680,7 @@ def _aten_native_batch_norm_training_onnx(
         running_var,
         epsilon=eps,
         momentum=momentum,
-        training_mode=training,
+        training_mode=True,
     )
     # Compute var and rstd
     # Mean, var, and rstd computation and results are expected to be
@@ -5705,11 +5703,10 @@ def _aten_native_batch_norm_inference_onnx(
     bias: TFloat,
     running_mean: TFloat,
     running_var: TFloat,
-    training: bool,
+    axes: INT64,
     momentum: float,
     eps: float,
 ) -> Tuple[TFloat, TFloat, TFloat]:
-    # Assert(training is False)
     norm = op.BatchNormalization(
         input,
         weight,
@@ -5718,13 +5715,20 @@ def _aten_native_batch_norm_inference_onnx(
         running_var,
         epsilon=eps,
         momentum=momentum,
-        training_mode=training,
+        training_mode=False,
     )
-    # NOTE: mean and var are omitted in inference mode
-    # Cannot return 2 dup output, so have to do twice with different variable name
-    empty_mean = op.CastLike(op.Shape(input, start=0, end=0), norm)
-    empty_var = op.CastLike(op.Shape(input, start=0, end=0), norm)
-    return norm, empty_mean, empty_var
+    # Compute var and rstd
+    # Mean, var, and rstd computation and results are expected to be
+    # in higher precision when inputs are float16.
+    upcast_input = op.Cast(input, to=FLOAT.dtype)
+    mean = op.ReduceMean(upcast_input, axes)
+    input_sub_mean = op.Sub(upcast_input, mean)
+    sqr = op.Mul(input_sub_mean, input_sub_mean)
+    var = op.ReduceMean(sqr, axes, keepdims=False)
+    rstd = op.Div(1.0, op.Sqrt(var + eps))
+    # Get mean again with size = [1, C]
+    mean = op.ReduceMean(upcast_input, axes, keepdims=False)
+    return norm, mean, rstd
 
 
 # TODO: This op is using duplicated code from aten_native_batch_norm,
@@ -5762,90 +5766,15 @@ def aten__native_batch_norm_legit_functional(
 
     # Have to split to 2 private functions, because training_function return 3 outputs
     # While inference_function return 1 output
-    if training is True:
-        norm, mean, var, new_mean, new_var = _aten__native_batch_norm_training_functional_onnx(
-            input, weight, bias, running_mean, running_var, axes, training, momentum, eps
+    if training:
+        norm, new_mean, new_var = _aten_native_batch_norm_training_onnx(
+            input, weight, bias, running_mean, running_var, axes, momentum=momentum, eps=eps
         )
     else:
-        (
-            norm,
-            mean,
-            var,
-            new_mean,
-            new_var,
-        ) = _aten__native_batch_norm_inference_functional_onnx(
-            input, weight, bias, running_mean, running_var, training, momentum, eps
+        norm, new_mean, new_var = _aten_native_batch_norm_inference_onnx(
+            input, weight, bias, running_mean, running_var, axes, momentum=momentum, eps=eps
         )
-    return norm, mean, var, new_mean, new_var
-
-
-@torch_op("aten::_native_batch_norm_legit_functional", private=True)
-def _aten__native_batch_norm_training_functional_onnx(
-    input: TFloat,
-    weight: TFloat,
-    bias: TFloat,
-    running_mean: TFloat,
-    running_var: TFloat,
-    axes: INT64,
-    training: bool,
-    momentum: float,
-    eps: float,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
-    # Assert(training is True)
-    norm, running_mean, running_var = op.BatchNormalization(
-        input,
-        weight,
-        bias,
-        running_mean,
-        running_var,
-        epsilon=eps,
-        momentum=momentum,
-        training_mode=training,
-    )
-    # Compute var and rstd
-    # Mean, var, and rstd computation and results are expected to be
-    # in higher precision when inputs are float16.
-    upcast_input = op.Cast(input, to=FLOAT.dtype)
-    mean = op.ReduceMean(upcast_input, axes)
-    input_sub_mean = op.Sub(upcast_input, mean)
-    sqr = op.Mul(input_sub_mean, input_sub_mean)
-    var = op.ReduceMean(sqr, axes, keepdims=False)
-    rstd = op.Div(1.0, op.Sqrt(var + eps))
-    # Get mean again with size = [1, C]
-    mean = op.ReduceMean(upcast_input, axes, keepdims=False)
-    # NOTE: Fixed to be FLOAT dtype
-    running_mean = op.Cast(running_mean, to=FLOAT.dtype)
-    running_var = op.Cast(running_var, to=FLOAT.dtype)
-    return norm, mean, rstd, running_mean, running_var
-
-
-@torch_op("aten::_native_batch_norm_legit_functional", private=True)
-def _aten__native_batch_norm_inference_functional_onnx(
-    input: TFloat,
-    weight: TFloat,
-    bias: TFloat,
-    running_mean: TFloat,
-    running_var: TFloat,
-    training: bool,
-    momentum: float,
-    eps: float,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
-    # Assert(training is False)
-    norm = op.BatchNormalization(
-        input,
-        weight,
-        bias,
-        running_mean,
-        running_var,
-        epsilon=eps,
-        momentum=momentum,
-        training_mode=training,
-    )
-    # NOTE: mean and var are ommited in inference mode
-    # Cannot return 2 dup output, so have to do twice with different variable name
-    empty_mean = op.CastLike(op.Shape(input, start=0, end=0), norm)
-    empty_var = op.CastLike(op.Shape(input, start=0, end=0), norm)
-    return norm, empty_mean, empty_var, running_mean, running_var
+    return norm, running_mean, running_var, new_mean, new_var
 
 
 def aten_native_batch_norm_backward(
