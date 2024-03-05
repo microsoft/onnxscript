@@ -5648,8 +5648,8 @@ def aten_native_batch_norm(
         sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
         running_var = op.Squeeze(op.ReduceMean(sqr_input_sub_mean, axes))
 
-    # Have to split to 2 private functions, because training_function return 3 outputs
-    # While inference_function return 1 output
+    # We have to split to two private functions, because BatchNormalization returns
+    # three outputs when training_mode=True and one when it is False.
     if training is True:
         norm, mean, var = _aten_native_batch_norm_training_onnx(
             input, weight, bias, running_mean, running_var, axes, training, momentum, eps
@@ -5764,8 +5764,8 @@ def aten__native_batch_norm_legit_functional(
         sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
         running_var = op.Squeeze(op.ReduceMean(sqr_input_sub_mean, axes))
 
-    # Have to split to 2 private functions, because training_function return 3 outputs
-    # While inference_function return 1 output
+    # We have to split to two private functions, because BatchNormalization returns
+    # three outputs when training_mode=True and one when it is False.
     if training:
         norm, new_mean, new_var = _aten_native_batch_norm_training_onnx(
             input, weight, bias, running_mean, running_var, axes, momentum=momentum, eps=eps
