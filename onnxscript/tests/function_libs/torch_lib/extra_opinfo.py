@@ -699,6 +699,22 @@ def _index_variable_bool(shape, max_indices, device=torch.device('cpu')):
     return index
 
 
+def sample_inputs_index_bool(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=requires_grad
+    )
+    s = 5
+    index_bool = _index_variable_bool(s, s, device=device)
+    test_args = [
+        ([index_bool],),
+    ]
+
+    for args in test_args:
+        yield opinfo_core.SampleInput(make_arg((s, s, s, s)), args=args)
+
+
 def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
     del op_info  # Unused
     del kwargs  # Unused
@@ -709,7 +725,6 @@ def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
     index_1d = common_methods_invocations.index_variable(2, s, device=device)
     index_2d = common_methods_invocations.index_variable((s + 1, 2), s, device=device)
     index_3d = common_methods_invocations.index_variable((s + 2, s + 1, 2), s, device=device)
-    index_bool = _index_variable_bool(s, s, device=device)
     test_args = [
         ([index_1d],),
         ([None, index_1d],),
@@ -743,8 +758,6 @@ def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
         # All indices are not None
         ([index_2d, index_3d, index_1d],),
         ([index_2d, index_3d, index_1d, index_2d],),
-        # Bool index
-        ([index_bool],),
     ]
 
     for args in test_args:
@@ -1942,6 +1955,15 @@ OP_DB: List[opinfo_core.OpInfo] = [
             torch.bool, torch.float16, torch.bfloat16, torch.chalf
         ),
         sample_inputs_func=sample_inputs_index,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.index.Tensor.bool",
+        aten_name="index.Tensor",
+        dtypes=common_dtype.all_types_and_complex_and(
+            torch.bool, torch.float16, torch.bfloat16, torch.chalf
+        ),
+        sample_inputs_func=sample_inputs_index_bool,
+        op=torch.ops.aten.index.Tensor,
     ),
     opinfo_core.OpInfo(
         "ops.aten.layer_norm",
