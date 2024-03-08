@@ -1839,16 +1839,19 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float16: (1e-2, 7e-3)},
     )
     .skip(
+        device_type="cpu",
         matcher=lambda sample: sample.args[-3] is False,
         reason="native_batch_norm outputs different shapes on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
     )
     .skip(
+        device_type="cpu",
         dtypes=(torch.float16,),
         reason="native_batch_norm outputs different dtypes on CPU and CUDA. Our implematation is based on that for CUDA",
     ),
     TorchLibOpInfo(
         "ops.aten._native_batch_norm_legit", core_ops.aten_native_batch_norm, trace_only=True
     ).skip(
+        device_type="cpu",
         matcher=lambda sample: sample.kwargs.get("training") is False,
         reason="native_batch_norm outputs different shapes on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
     ),
