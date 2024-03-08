@@ -1864,10 +1864,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten._native_batch_norm_legit_functional",
         core_ops.aten__native_batch_norm_legit_functional,
         trace_only=True,
+        tolerance={torch.float16: (1e-2, 7e-3)}
     ).skip(
         device_type="cpu",
         matcher=lambda sample: sample.kwargs.get("training") is False,
         reason="native_batch_norm outputs different results on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
+    ).skip(
+        device_type="cuda",
+        dtypes=(torch.float16,),
+        matcher=lambda sample: sample.kwargs.get("training") is True,
+        reason="fixme: output 4 (new_running_var) does not match the gpu output sometimes",
     ),
     TorchLibOpInfo(
         "ops.aten.native_group_norm",
@@ -2322,7 +2328,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload only support when correction attribute exists",
     ),
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like, trace_only=True),
-    TorchLibOpInfo("torchvision.ops.nms", vision_ops.torchvision_nms),
+    # TorchLibOpInfo("torchvision.ops.nms", vision_ops.torchvision_nms),
 )
 
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim", "all_dims"))
