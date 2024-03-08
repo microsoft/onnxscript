@@ -5673,7 +5673,7 @@ def _aten_native_batch_norm_training_onnx(
     momentum: float,
     eps: float,
 ) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
-    norm, running_mean, running_var = op.BatchNormalization(
+    norm, running_mean, _ = op.BatchNormalization(
         input,
         weight,
         bias,
@@ -5683,7 +5683,7 @@ def _aten_native_batch_norm_training_onnx(
         momentum=momentum,
         training_mode=True,
     )
-    # Compute var and rstd
+    # Compute mean and rstd
     # Mean, var, and rstd computation and results are expected to be
     # in higher precision when inputs are float16.
     upcast_input = op.Cast(input, to=FLOAT.dtype)
@@ -5694,7 +5694,15 @@ def _aten_native_batch_norm_training_onnx(
     rstd = op.Div(1.0, op.Sqrt(var + eps))
     # Get mean again with size = [1, C]
     mean = op.ReduceMean(upcast_input, axes, keepdims=False)
-    return norm, mean, rstd, running_mean, running_var
+
+    # Compute the running var the PyTorch way
+    # https://github.com/pytorch/pytorch/blob/5cc511f72fe073bbd8c10d796d72dce67f5cd5c4/torch/_decomp/decompositions.py#L1646
+
+    n = op.CastLike(op.Size(input), var)
+    unbiased_var = var * (n / (n - 1.0))
+    new_running_var = momentum * unbiased_var + (1.0 - momentum) * running_var
+
+    return norm, mean, rstd, running_mean, new_running_var
 
 
 @torch_op("aten::native_batch_norm", private=True)

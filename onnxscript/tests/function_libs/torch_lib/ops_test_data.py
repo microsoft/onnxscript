@@ -1838,11 +1838,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
         tolerance={torch.float16: (1e-2, 7e-3)},
     ).skip(
-        device_type="cpu",
-        reason="native_batch_norm outputs different results on CPU and CUDA. Our implematation is based on that for CUDA",
+        matcher=lambda sample: sample.kwargs.get("training") is False,
+        reason="native_batch_norm outputs different results on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
     ),
     TorchLibOpInfo(
         "ops.aten._native_batch_norm_legit", core_ops.aten_native_batch_norm, trace_only=True
+    ).skip(
+        matcher=lambda sample: sample.kwargs.get("training") is False,
+        reason="native_batch_norm outputs different results on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
     ),
     TorchLibOpInfo(
         "ops.aten._native_batch_norm_legit.no_stats",
@@ -1853,6 +1856,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten._native_batch_norm_legit_functional",
         core_ops.aten__native_batch_norm_legit_functional,
         trace_only=True,
+    ).skip(
+        matcher=lambda sample: sample.kwargs.get("training") is False,
+        reason="native_batch_norm outputs different results on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
     ),
     TorchLibOpInfo(
         "ops.aten.native_group_norm",
