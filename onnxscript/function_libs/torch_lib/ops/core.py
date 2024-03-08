@@ -4237,7 +4237,7 @@ def aten_instance_norm(
         running_mean,
         running_var,
         epsilon=eps,
-        momentum=1.0 - momemtum,
+        momentum=1.0 - momentum,
         training_mode=False,
     )
     return op.Reshape(norm, op.Shape(input))
@@ -5689,8 +5689,8 @@ def _aten_native_batch_norm_training_onnx(
 ) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
     """Batch normalization training mode.
 
-    NOTE: momentum in PyTorch is 1.0-momemtum in ONNX.
-    When calling this function be sure to pass 1.0-momemtum when momentum is obtained from PyTorch.
+    NOTE: momentum in PyTorch is 1.0-momentum in ONNX.
+    When calling this function be sure to pass 1.0-momentum when momentum is obtained from PyTorch.
     """
     norm, running_mean, _ = op.BatchNormalization(
         input,
@@ -5720,7 +5720,7 @@ def _aten_native_batch_norm_training_onnx(
     n = op.Cast(op.Size(input) / op.Shape(input)[1], to=FLOAT.dtype)
     unbiased_var = var * (n / (n - 1.0))
 
-    # NOTE: momentum in ONNX is 1.0-momemtum in PyTorch
+    # NOTE: momentum in ONNX is 1.0-momentum in PyTorch
     new_running_var = (
         op.CastLike((1.0 - momentum) * unbiased_var, running_var) + momentum * running_var
     )
@@ -5741,8 +5741,8 @@ def _aten_native_batch_norm_inference_onnx(
 ) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
     """Batch normalization inference mode.
 
-    NOTE: momentum in PyTorch is 1.0-momemtum in ONNX.
-    When calling this function be sure to pass 1.0-momemtum when momentum is obtained from PyTorch.
+    NOTE: momentum in PyTorch is 1.0-momentum in ONNX.
+    When calling this function be sure to pass 1.0-momentum when momentum is obtained from PyTorch.
     """
     norm = op.BatchNormalization(
         input,
