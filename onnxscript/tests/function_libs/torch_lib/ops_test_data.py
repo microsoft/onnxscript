@@ -110,6 +110,7 @@ class TorchLibOpInfo:
         *,
         reason: str,
         dtypes: Optional[Collection[torch.dtype]] = None,
+        device_type: Optional[str] = None,
         matcher: Optional[Callable[[Any], Any]] = None,
         enabled_if: bool = True,
         test_class_name: Optional[str] = None,
@@ -120,6 +121,7 @@ class TorchLibOpInfo:
             variant_name: Optional OpInfo variant_test_name.
             reason: The reason for skipping.
             dtypes: The dtypes to skip.
+            device_type: Device type. E.g. "cpu", "cuda".
             matcher: A function that matches the test sample input. It is used only when
                 the skip is in the SKIP_XFAIL_SUBTESTS list.
             enabled_if: Whether the skip is enabled.
@@ -132,6 +134,7 @@ class TorchLibOpInfo:
                 variant_name,
                 reason=reason,
                 dtypes=dtypes,
+                device_type=device_type,
                 matcher=matcher,
                 enabled_if=enabled_if,
                 test_class_name=test_class_name,
@@ -145,6 +148,7 @@ class TorchLibOpInfo:
         *,
         reason: str,
         dtypes: Optional[Collection[torch.dtype]] = None,
+        device_type: Optional[str] = None,
         matcher: Optional[Callable[[Any], Any]] = None,
         enabled_if: bool = True,
         test_class_name: Optional[str] = None,
@@ -154,7 +158,8 @@ class TorchLibOpInfo:
         Args:
             variant_name: Optional OpInfo variant_test_name.
             reason: The reason for the failure.
-            dtypes: The dtypes to expect the failure.
+            dtypes: The dtypes to expect the failure
+            device_type: Device type. E.g. "cpu", "cuda"..
             matcher: A function that matches the test sample input. It is used only when
                 the xfail is in the SKIP_XFAIL_SUBTESTS list.
             enabled_if: Whether the xfail is enabled.
@@ -167,6 +172,7 @@ class TorchLibOpInfo:
                 variant_name,
                 reason=reason,
                 dtypes=dtypes,
+                device_type=device_type,
                 matcher=matcher,
                 enabled_if=enabled_if,
                 test_class_name=test_class_name,
@@ -1831,6 +1837,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_native_batch_norm,
         trace_only=True,
         tolerance={torch.float16: (1e-2, 7e-3)},
+    ).skip(
+        device_type="cpu",
+        reason="native_batch_norm outputs different results on CPU and CUDA. Our implematation is based on that for CUDA",
     ),
     TorchLibOpInfo(
         "ops.aten._native_batch_norm_legit", core_ops.aten_native_batch_norm, trace_only=True

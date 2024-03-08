@@ -70,6 +70,7 @@ class DecorateMeta:
     variant_name: str
     decorator: Callable[..., Any]
     dtypes: Optional[Collection[torch.dtype]]
+    device_type: Optional[str]
     reason: str
     test_behavior: str
     matcher: Optional[Callable[[Any], bool]] = None
@@ -85,6 +86,7 @@ def xfail(
     *,
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
+    device_type: Optional[str] = None,
     matcher: Optional[Callable[[Any], Any]] = None,
     enabled_if: bool = True,
     test_class_name: Optional[str] = None,
@@ -96,6 +98,7 @@ def xfail(
         variant_name: Optional OpInfo variant_test_name.
         reason: The reason for the failure.
         dtypes: The dtypes to expect the failure.
+        device_type: Device type. E.g. "cpu", "cuda".
         matcher: A function that matches the test sample input. It is used only when
             the xfail is in the SKIP_XFAIL_SUBTESTS list.
         enabled_if: Whether the xfail is enabled.
@@ -107,6 +110,7 @@ def xfail(
         variant_name=variant_name,
         decorator=unittest.expectedFailure,
         dtypes=dtypes,
+        device_type=device_type,
         matcher=matcher,
         reason=reason,
         enabled_if=enabled_if,
@@ -121,6 +125,7 @@ def skip(
     *,
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
+    device_type: Optional[str] = None,
     matcher: Optional[Callable[[Any], Any]] = None,
     enabled_if: bool = True,
     test_class_name: Optional[str] = None,
@@ -132,6 +137,7 @@ def skip(
         variant_name: Optional OpInfo variant_test_name.
         reason: The reason for skipping.
         dtypes: The dtypes to skip.
+        device_type: Device type. E.g. "cpu", "cuda".
         matcher: A function that matches the test sample input. It is used only when
             the skip is in the SKIP_XFAIL_SUBTESTS list.
         enabled_if: Whether the skip is enabled.
@@ -143,6 +149,7 @@ def skip(
         variant_name=variant_name,
         decorator=unittest.skip(f"Skip: {reason}"),
         dtypes=dtypes,
+        device_type=device_type,
         reason=reason,
         matcher=matcher,
         enabled_if=enabled_if,
@@ -174,6 +181,7 @@ def add_decorate_info(
             decorate_meta.test_class_name or test_class_name,
             base_test_name,
             dtypes=decorate_meta.dtypes,
+            device_type=decorate_meta.device_type,
             active_if=decorate_meta.enabled_if,
         )
         decorators.append(new_decorator)

@@ -5655,11 +5655,10 @@ def aten_native_batch_norm(
             input, weight, bias, running_mean, running_var, axes, momentum=momentum, eps=eps
         )
     else:
-        norm, empty = _aten_native_batch_norm_inference_onnx(
+        norm, input_mean, input_rstd, _, _ = _aten_native_batch_norm_inference_onnx(
             input, weight, bias, running_mean, running_var, axes, momentum=momentum, eps=eps
         )
-        input_mean = empty
-        input_rstd = empty
+
     return norm, input_mean, input_rstd
 
 
@@ -5695,8 +5694,6 @@ def _aten_native_batch_norm_training_onnx(
     rstd = op.Div(1.0, op.Sqrt(var + eps))
     # Get mean again with size = [1, C]
     mean = op.ReduceMean(upcast_input, axes, keepdims=False)
-    mean = op.CastLike(mean, norm)
-    rstd = op.CastLike(rstd, norm)
     return norm, mean, rstd, running_mean, running_var
 
 
@@ -5710,7 +5707,7 @@ def _aten_native_batch_norm_inference_onnx(
     axes: INT64,
     momentum: float,
     eps: float,
-) -> Tuple[TFloat, TFloat]:
+) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
     norm = op.BatchNormalization(
         input,
         weight,
@@ -5723,8 +5720,11 @@ def _aten_native_batch_norm_inference_onnx(
     )
     # CUDA and CPU gives different shapes:
     # https://github.com/pytorch/pytorch/blob/a44f8894fa6d973693aab44a3dda079a168b05c1/torch/_decomp/decompositions.py#L1451-L1457
-    empty = op.CastLike(op.Shape(input, start=0, end=0), norm)
-    return norm, empty
+    # We use CUDA's output here
+    invstd = op.Div(1.0, op.Sqrt(running_var + eps))
+    # https://github.com/pytorch/pytorch/blob/a44f8894fa6d973693aab44a3dda079a168b05c1/torch/_decomp/decompositions.py#L1475
+    # TODO(justinchuby): Make sure the output types are correct
+    return norm, running_mean, invstd, running_mean, running_var
 
 
 # TODO: This op is using duplicated code from aten_native_batch_norm,
@@ -5767,13 +5767,9 @@ def aten__native_batch_norm_legit_functional(
             input, weight, bias, running_mean, running_var, axes, momentum=momentum, eps=eps
         )
     else:
-        norm, empty = _aten_native_batch_norm_inference_onnx(
+        norm, input_mean, input_rstd, running_mean, running_var = _aten_native_batch_norm_inference_onnx(
             input, weight, bias, running_mean, running_var, axes, momentum=momentum, eps=eps
         )
-        input_mean = empty
-        input_rstd = empty
-        running_mean = empty
-        running_var = empty
 
     # FIXME: Fix running_mean, running_var
     return norm, input_mean, input_rstd, running_mean, running_var
