@@ -4237,7 +4237,7 @@ def aten_instance_norm(
         running_mean,
         running_var,
         epsilon=eps,
-        momentum=1.0-momemtum,
+        momentum=1.0 - momemtum,
         training_mode=False,
     )
     return op.Reshape(norm, op.Shape(input))
@@ -5652,11 +5652,25 @@ def aten_native_batch_norm(
     # three outputs when training_mode=True and one when it is False.
     if training:
         norm, input_mean, input_rstd, _, _ = _aten_native_batch_norm_training_onnx(
-            input, weight, bias, running_mean, running_var, axes, momentum=1.0-momentum, eps=eps
+            input,
+            weight,
+            bias,
+            running_mean,
+            running_var,
+            axes,
+            momentum=1.0 - momentum,
+            eps=eps,
         )
     else:
         norm, input_mean, input_rstd, _, _ = _aten_native_batch_norm_inference_onnx(
-            input, weight, bias, running_mean, running_var, axes, momentum=1.0-momentum, eps=eps
+            input,
+            weight,
+            bias,
+            running_mean,
+            running_var,
+            axes,
+            momentum=1.0 - momentum,
+            eps=eps,
         )
 
     return norm, input_mean, input_rstd
@@ -5793,7 +5807,7 @@ def aten__native_batch_norm_legit_functional(
                 running_mean,
                 running_var,
                 axes,
-                momentum=1.0-momentum,
+                momentum=1.0 - momentum,
                 eps=eps,
             )
         )
@@ -5806,7 +5820,7 @@ def aten__native_batch_norm_legit_functional(
                 running_mean,
                 running_var,
                 axes,
-                momentum=1.0-momentum,
+                momentum=1.0 - momentum,
                 eps=eps,
             )
         )
