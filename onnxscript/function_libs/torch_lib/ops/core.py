@@ -5698,9 +5698,11 @@ def _aten_native_batch_norm_training_onnx(
     # Compute the running var the PyTorch way
     # https://github.com/pytorch/pytorch/blob/5cc511f72fe073bbd8c10d796d72dce67f5cd5c4/torch/_decomp/decompositions.py#L1646
 
-    n = op.CastLike(op.Size(input), var)
+    n = op.Cast(op.Size(input), to=FLOAT.dtype)
     unbiased_var = var * (n / (n - 1.0))
-    new_running_var = momentum * unbiased_var + (1.0 - momentum) * running_var
+    new_running_var = (
+        op.CastLike(momentum * unbiased_var, running_var) + (1.0 - momentum) * running_var
+    )
 
     return norm, mean, rstd, running_mean, new_running_var
 
@@ -5771,12 +5773,30 @@ def aten__native_batch_norm_legit_functional(
     # We have to split to two private functions, because BatchNormalization returns
     # three outputs when training_mode=True and one when it is False.
     if training:
-        norm, input_mean, input_rstd, running_mean, running_var = _aten_native_batch_norm_training_onnx(
-            input, weight, bias, running_mean, running_var, axes, momentum=momentum, eps=eps
+        norm, input_mean, input_rstd, running_mean, running_var = (
+            _aten_native_batch_norm_training_onnx(
+                input,
+                weight,
+                bias,
+                running_mean,
+                running_var,
+                axes,
+                momentum=momentum,
+                eps=eps,
+            )
         )
     else:
-        norm, input_mean, input_rstd, running_mean, running_var = _aten_native_batch_norm_inference_onnx(
-            input, weight, bias, running_mean, running_var, axes, momentum=momentum, eps=eps
+        norm, input_mean, input_rstd, running_mean, running_var = (
+            _aten_native_batch_norm_inference_onnx(
+                input,
+                weight,
+                bias,
+                running_mean,
+                running_var,
+                axes,
+                momentum=momentum,
+                eps=eps,
+            )
         )
 
     # FIXME: Fix running_mean, running_var
