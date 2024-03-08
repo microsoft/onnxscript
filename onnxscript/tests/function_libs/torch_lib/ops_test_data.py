@@ -1875,9 +1875,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="native_batch_norm outputs different results on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
     )
     .skip(
-        device_type="cuda",
         dtypes=(torch.float16,),
+        device_type="cuda",
         matcher=lambda sample: sample.kwargs.get("training") is True,
+        test_class_name="TestOutputConsistencyEager",
         reason="fixme: output 4 (new_running_var) does not match the gpu output sometimes",
     ),
     TorchLibOpInfo(
