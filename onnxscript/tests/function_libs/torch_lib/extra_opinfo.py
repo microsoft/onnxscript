@@ -998,7 +998,8 @@ def sample_inputs__native_batch_norm_legit(op_info, device, dtype, requires_grad
         if args[0] is not None and args[1] is not None:
             yield opinfo_core.SampleInput(
                 sample.input,
-                args=(args[2], args[3], args[0], args[1], training, momentum, eps),
+                args=(args[2], args[3], args[0], args[1]),
+                kwargs={"training": training, "momentum": momentum, "eps": eps},
             )
 
 
@@ -1019,7 +1020,9 @@ def sample_inputs__native_batch_norm_legit_no_stats(
         eps = sample.kwargs.get("eps", 1e-5)
         if args[0] is not None and args[1] is None:
             yield opinfo_core.SampleInput(
-                sample.input, args=(args[2], args[3], training, momentum, eps)
+                sample.input,
+                args=(args[2], args[3]),
+                kwargs={"training": training, "momentum": momentum, "eps": eps},
             )
 
 
