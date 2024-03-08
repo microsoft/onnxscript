@@ -5817,7 +5817,6 @@ def aten__native_batch_norm_legit_functional(
                 bias,
                 running_mean,
                 running_var,
-                axes,
                 momentum=1.0 - momentum,
                 eps=eps,
             )
