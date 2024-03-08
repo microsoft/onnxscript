@@ -5735,7 +5735,6 @@ def _aten_native_batch_norm_inference_onnx(
     bias: TFloat,
     running_mean: TFloat,
     running_var: TFloat,
-    axes: INT64,
     momentum: float,
     eps: float,
 ) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
@@ -5825,7 +5824,6 @@ def aten__native_batch_norm_legit_functional(
             )
         )
 
-    # FIXME: Fix running_mean, running_var
     return norm, input_mean, input_rstd, running_mean, running_var
 
 
