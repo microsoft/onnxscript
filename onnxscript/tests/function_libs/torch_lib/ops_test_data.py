@@ -1865,6 +1865,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten__native_batch_norm_legit_functional,
         trace_only=True,
     ).skip(
+        device_type="cpu",
         matcher=lambda sample: sample.kwargs.get("training") is False,
         reason="native_batch_norm outputs different results on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
     ),
