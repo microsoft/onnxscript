@@ -5668,7 +5668,6 @@ def aten_native_batch_norm(
             bias,
             running_mean,
             running_var,
-            axes,
             momentum=1.0 - momentum,
             eps=eps,
         )
