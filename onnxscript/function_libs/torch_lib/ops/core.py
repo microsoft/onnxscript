@@ -5757,8 +5757,9 @@ def _aten_native_batch_norm_inference_onnx(
     # We use CUDA's output here
     invstd = op.Div(1.0, op.Sqrt(running_var + eps))
     # https://github.com/pytorch/pytorch/blob/a44f8894fa6d973693aab44a3dda079a168b05c1/torch/_decomp/decompositions.py#L1475
-    # TODO(justinchuby): Make sure the output types are correct
-    return norm, running_mean, invstd, running_mean, running_var
+    running_mean_fp32 = op.Cast(running_mean, to=FLOAT.dtype)
+    invstd = op.Cast(invstd, to=FLOAT.dtype)
+    return norm, running_mean_fp32, invstd, running_mean, running_var
 
 
 # TODO: This op is using duplicated code from aten_native_batch_norm,
