@@ -191,7 +191,8 @@ def get_llama_model(
 
         def forward(self, input_ids, attention_mask):
             model_output = self.model(input_ids, attention_mask=attention_mask)
-            return model_output[0]
+            # Output 2, 3 are None
+            return model_output[0], model_output[1]
 
     def generate_example_inputs(batch: int, seq: int, vocab_size: int):
         input_ids = ids_tensor([batch, seq], vocab_size)
@@ -221,7 +222,9 @@ def display_model_stats(model: onnx.ModelProto):
 def export():
     model, example_args_collection = get_llama_model()
     exported = torch.export.export(model, example_args_collection[0])
+    print("===exported fx graph===")
     print(exported)
+    print("FX Node count:", len(exported.graph.nodes))
     exported_onnx = torch.onnx.dynamo_export(exported, *example_args_collection[0]).model_proto
     print("===exported_onnx===")
     display_model_stats(exported_onnx)
