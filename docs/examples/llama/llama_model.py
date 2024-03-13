@@ -239,10 +239,11 @@ def export():
     inlined_eager_exported_onnx = onnx.inliner.inline_local_functions(exported_eager_onnx)
     print("===inlined_eager_exported_onnx===")
     display_model_stats(inlined_eager_exported_onnx)
-    print(onnx.printer.to_text(inlined_eager_exported_onnx))
+    # print(onnx.printer.to_text(inlined_eager_exported_onnx))
 
     rewritten_model = ort_rewriter.rewrite(exported_onnx)
     rewritten_model = onnx.inliner.inline_local_functions(rewritten_model)
+    onnx.save(rewritten_model, "rewritten_model.onnx")
     print("===rewritten_model===")
     display_model_stats(rewritten_model)
 
@@ -262,7 +263,13 @@ def export():
     )
     print("===rewritten_inlined_eager_exported_onnx2===")
     display_model_stats(rewritten_inlined_eager_exported_onnx2)
-    print(onnx.printer.to_text(rewritten_inlined_eager_exported_onnx2))
+    # print(onnx.printer.to_text(rewritten_inlined_eager_exported_onnx2))
+    rewritten_inlined_eager_exported_onnx2 = onnx.shape_inference.infer_shapes(
+        rewritten_inlined_eager_exported_onnx2, data_prop=True
+    )
+    onnx.save(
+        rewritten_inlined_eager_exported_onnx2, "rewritten_inlined_eager_exported_onnx2.onnx"
+    )
 
 
 if __name__ == "__main__":
