@@ -334,7 +334,7 @@ def aten_linalg_vector_norm(
         return _aten_linalg_vector_norm_onnx(self, ord, dim, keepdim)
 
 
-@torch_op("aten::linalg_vector_norm", private=True, traceable=True)
+@torch_op("aten::linalg_vector_norm", private=True)
 def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool) -> TFloat:
     self_is_scalar = IsScalar(self)
     if self_is_scalar:
@@ -342,6 +342,7 @@ def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool
 
     self = op.Abs(self)
     ord = op.Cast(ord, to=FLOAT.dtype)  # Must be FLOAT, due to op.IsInf() needs FLOAT
+    # TODO(justinchuby): Evaluate IsInf in trace mode
     if op.IsInf(ord, detect_negative=0, detect_positive=1):
         result = op.ReduceMax(self, keepdims=keepdim)
     elif op.IsInf(ord, detect_negative=1, detect_positive=0):
@@ -362,7 +363,7 @@ def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool
     return result
 
 
-@torch_op("aten::linalg_vector_norm", private=True, traceable=True)
+@torch_op("aten::linalg_vector_norm", private=True)
 def _aten_linalg_vector_norm_onnx(
     self: TFloat, ord: float, dim: INT64, keepdim: bool
 ) -> TFloat:
@@ -373,6 +374,7 @@ def _aten_linalg_vector_norm_onnx(
     dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
     self = op.Abs(self)
     ord = op.Cast(ord, to=FLOAT.dtype)  # Must be FLOAT, due to op.IsInf() needs FLOAT
+    # TODO(justinchuby): Evaluate IsInf in trace mode
     if op.IsInf(ord, detect_negative=0, detect_positive=1):
         result = op.ReduceMax(self, dim, keepdims=keepdim)
     elif op.IsInf(ord, detect_negative=1, detect_positive=0):
