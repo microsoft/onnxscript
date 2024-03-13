@@ -20,6 +20,7 @@ in onnxruntime by running the inference sessions in a separate process.
 2. Set `CREATE_REPRODUCTION_REPORT=1` to create markdown files for reproduction of
 errors.
 """
+
 from __future__ import annotations
 
 import os
@@ -68,7 +69,7 @@ def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
 
 
 def _should_skip_xfail_test_sample(
-    op_name: str, sample, dtype: torch.dtype
+    op_name: str, sample, dtype: torch.dtype, device_type: str
 ) -> Tuple[Optional[str], Optional[str]]:
     """Returns a reason if a test sample should be skipped."""
     if op_name not in ops_test_data.OP_WITH_SKIPPED_XFAIL_SUBTESTS:
@@ -82,6 +83,12 @@ def _should_skip_xfail_test_sample(
                 continue
             if decorator_meta.dtypes is not None and dtype not in decorator_meta.dtypes:
                 # Not applicable for this dtype
+                continue
+            if (
+                decorator_meta.device_type is not None
+                and decorator_meta.device_type != device_type
+            ):
+                # Not applicable for this device_type
                 continue
             if decorator_meta.matcher(sample):
                 return decorator_meta.test_behavior, decorator_meta.reason
@@ -199,7 +206,13 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            test_behavior, reason = _should_skip_xfail_test_sample(op.name, cpu_sample, dtype)
+            try:
+                device_type = cpu_sample.args[0].device.type
+            except (AttributeError, IndexError):
+                device_type = "cpu"
+            test_behavior, reason = _should_skip_xfail_test_sample(
+                op.name, cpu_sample, dtype, device_type
+            )
 
             with ops_test_common.normal_xfail_skip_test_behaviors(test_behavior, reason):
                 input_onnx = [ops_test_common.convert_tensor_to_numpy(x) for x in inputs]

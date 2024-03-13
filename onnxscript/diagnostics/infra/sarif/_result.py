@@ -36,9 +36,9 @@ class Result:
     attachments: Optional[List[_attachment.Attachment]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "attachments"}
     )
-    baseline_state: Optional[
-        Literal["new", "unchanged", "updated", "absent"]
-    ] = dataclasses.field(default=None, metadata={"schema_property_name": "baselineState"})
+    baseline_state: Optional[Literal["new", "unchanged", "updated", "absent"]] = (
+        dataclasses.field(default=None, metadata={"schema_property_name": "baselineState"})
+    )
     code_flows: Optional[List[_code_flow.CodeFlow]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "codeFlows"}
     )
@@ -63,9 +63,9 @@ class Result:
     hosted_viewer_uri: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "hostedViewerUri"}
     )
-    kind: Literal[
-        "notApplicable", "pass", "fail", "review", "open", "informational"
-    ] = dataclasses.field(default="fail", metadata={"schema_property_name": "kind"})
+    kind: Literal["notApplicable", "pass", "fail", "review", "open", "informational"] = (
+        dataclasses.field(default="fail", metadata={"schema_property_name": "kind"})
+    )
     level: Literal["none", "note", "warning", "error"] = dataclasses.field(
         default="warning", metadata={"schema_property_name": "level"}
     )
@@ -88,9 +88,9 @@ class Result:
     related_locations: Optional[List[_location.Location]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "relatedLocations"}
     )
-    rule: Optional[
-        _reporting_descriptor_reference.ReportingDescriptorReference
-    ] = dataclasses.field(default=None, metadata={"schema_property_name": "rule"})
+    rule: Optional[_reporting_descriptor_reference.ReportingDescriptorReference] = (
+        dataclasses.field(default=None, metadata={"schema_property_name": "rule"})
+    )
     rule_id: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "ruleId"}
     )
@@ -103,9 +103,9 @@ class Result:
     suppressions: Optional[List[_suppression.Suppression]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "suppressions"}
     )
-    taxa: Optional[
-        List[_reporting_descriptor_reference.ReportingDescriptorReference]
-    ] = dataclasses.field(default=None, metadata={"schema_property_name": "taxa"})
+    taxa: Optional[List[_reporting_descriptor_reference.ReportingDescriptorReference]] = (
+        dataclasses.field(default=None, metadata={"schema_property_name": "taxa"})
+    )
     web_request: Optional[_web_request.WebRequest] = dataclasses.field(
         default=None, metadata={"schema_property_name": "webRequest"}
     )

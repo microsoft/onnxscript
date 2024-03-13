@@ -49,9 +49,9 @@ class ThreadFlowLocation:
         default=None, metadata={"schema_property_name": "stack"}
     )
     state: Any = dataclasses.field(default=None, metadata={"schema_property_name": "state"})
-    taxa: Optional[
-        List[_reporting_descriptor_reference.ReportingDescriptorReference]
-    ] = dataclasses.field(default=None, metadata={"schema_property_name": "taxa"})
+    taxa: Optional[List[_reporting_descriptor_reference.ReportingDescriptorReference]] = (
+        dataclasses.field(default=None, metadata={"schema_property_name": "taxa"})
+    )
     web_request: Optional[_web_request.WebRequest] = dataclasses.field(
         default=None, metadata={"schema_property_name": "webRequest"}
     )

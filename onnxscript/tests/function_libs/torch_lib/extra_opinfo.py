@@ -692,6 +692,31 @@ def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
             )
 
 
+def _index_variable_bool(shape, max_indices, device):
+    if not isinstance(shape, tuple):
+        shape = (shape,)
+    index = (
+        torch.rand(*shape, dtype=torch.double, device=device).mul_(max_indices).floor_().bool()
+    )
+    return index
+
+
+def sample_inputs_index_bool(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=requires_grad
+    )
+    s = 5
+    index_bool = _index_variable_bool(s, s, device=device)
+    test_args = [
+        ([index_bool],),
+    ]
+
+    for args in test_args:
+        yield opinfo_core.SampleInput(make_arg((s, s, s, s)), args=args)
+
+
 def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
     del op_info  # Unused
     del kwargs  # Unused
@@ -993,7 +1018,8 @@ def sample_inputs__native_batch_norm_legit(op_info, device, dtype, requires_grad
         if args[0] is not None and args[1] is not None:
             yield opinfo_core.SampleInput(
                 sample.input,
-                args=(args[2], args[3], args[0], args[1], training, momentum, eps),
+                args=(args[2], args[3], args[0], args[1]),
+                kwargs={"training": training, "momentum": momentum, "eps": eps},
             )
 
 
@@ -1014,7 +1040,9 @@ def sample_inputs__native_batch_norm_legit_no_stats(
         eps = sample.kwargs.get("eps", 1e-5)
         if args[0] is not None and args[1] is None:
             yield opinfo_core.SampleInput(
-                sample.input, args=(args[2], args[3], training, momentum, eps)
+                sample.input,
+                args=(args[2], args[3]),
+                kwargs={"training": training, "momentum": momentum, "eps": eps},
             )
 
 
@@ -1952,6 +1980,15 @@ OP_DB: List[opinfo_core.OpInfo] = [
             torch.bool, torch.float16, torch.bfloat16, torch.chalf
         ),
         sample_inputs_func=sample_inputs_index,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.index.Tensor.bool",
+        aten_name="index.Tensor",
+        dtypes=common_dtype.all_types_and_complex_and(
+            torch.bool, torch.float16, torch.bfloat16, torch.chalf
+        ),
+        sample_inputs_func=sample_inputs_index_bool,
+        op=torch.ops.aten.index.Tensor,
     ),
     opinfo_core.OpInfo(
         "ops.aten.index_put",

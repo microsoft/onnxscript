@@ -32,6 +32,7 @@ wrangler function. See `_mean_input_wrangler` for an example.
     op, use `ops_test_common.duplicate_opinfo` to create new OpInfo with new names and map each
     to one overload.
 """
+
 from __future__ import annotations
 
 import copy
@@ -109,6 +110,7 @@ class TorchLibOpInfo:
         *,
         reason: str,
         dtypes: Optional[Collection[torch.dtype]] = None,
+        device_type: Optional[str] = None,
         matcher: Optional[Callable[[Any], Any]] = None,
         enabled_if: bool = True,
         test_class_name: Optional[str] = None,
@@ -119,6 +121,7 @@ class TorchLibOpInfo:
             variant_name: Optional OpInfo variant_test_name.
             reason: The reason for skipping.
             dtypes: The dtypes to skip.
+            device_type: Device type. E.g. "cpu", "cuda".
             matcher: A function that matches the test sample input. It is used only when
                 the skip is in the SKIP_XFAIL_SUBTESTS list.
             enabled_if: Whether the skip is enabled.
@@ -131,6 +134,7 @@ class TorchLibOpInfo:
                 variant_name,
                 reason=reason,
                 dtypes=dtypes,
+                device_type=device_type,
                 matcher=matcher,
                 enabled_if=enabled_if,
                 test_class_name=test_class_name,
@@ -144,6 +148,7 @@ class TorchLibOpInfo:
         *,
         reason: str,
         dtypes: Optional[Collection[torch.dtype]] = None,
+        device_type: Optional[str] = None,
         matcher: Optional[Callable[[Any], Any]] = None,
         enabled_if: bool = True,
         test_class_name: Optional[str] = None,
@@ -153,7 +158,8 @@ class TorchLibOpInfo:
         Args:
             variant_name: Optional OpInfo variant_test_name.
             reason: The reason for the failure.
-            dtypes: The dtypes to expect the failure.
+            dtypes: The dtypes to expect the failure
+            device_type: Device type. E.g. "cpu", "cuda"..
             matcher: A function that matches the test sample input. It is used only when
                 the xfail is in the SKIP_XFAIL_SUBTESTS list.
             enabled_if: Whether the xfail is enabled.
@@ -166,6 +172,7 @@ class TorchLibOpInfo:
                 variant_name,
                 reason=reason,
                 dtypes=dtypes,
+                device_type=device_type,
                 matcher=matcher,
                 enabled_if=enabled_if,
                 test_class_name=test_class_name,
@@ -720,6 +727,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo("clone", core_ops.aten_clone),
+    TorchLibOpInfo("complex", core_ops.aten_complex, trace_only=True),
     TorchLibOpInfo("concat", core_ops.aten_concat).skip(
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
@@ -831,6 +839,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     # TorchLibOpInfo("is_same_size", core_ops.aten_is_same_size),  # no test case in OPS_DB
     # TorchLibOpInfo("is_nonzero", core_ops.aten_is_nonzero),  # no test case in OPS_DB
     TorchLibOpInfo("ops.aten.index.Tensor", core_ops.aten_index, trace_only=True),
+    TorchLibOpInfo("ops.aten.index.Tensor.bool", core_ops.aten_index_bool, trace_only=True),
     TorchLibOpInfo(
         "index_put_bool",
         core_ops.aten_index_put_bool,
@@ -1341,6 +1350,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_permute_input_wrangler,
         trace_only=True,
     ),
+    TorchLibOpInfo("polar", core_ops.aten_polar),
     TorchLibOpInfo("pow", core_ops.aten_pow),
     TorchLibOpInfo("ops.aten.rand", core_ops.aten_rand, nondeterministic=True),
     TorchLibOpInfo("ops.aten.rand_like", core_ops.aten_rand_like, nondeterministic=True),
@@ -1835,9 +1845,27 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "native_batch_norm",
         core_ops.aten_native_batch_norm,
         trace_only=True,
+        tolerance={torch.float16: (1e-2, 7e-3)},
+    )
+    .skip(
+        device_type="cpu",
+        matcher=lambda sample: sample.args[-3] is False,
+        reason="native_batch_norm outputs different shapes on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
+    )
+    .skip(
+        device_type="cpu",
+        dtypes=(torch.float16,),
+        reason="native_batch_norm outputs different dtypes on CPU and CUDA. Our implematation is based on that for CUDA",
     ),
     TorchLibOpInfo(
-        "ops.aten._native_batch_norm_legit", core_ops.aten_native_batch_norm, trace_only=True
+        "ops.aten._native_batch_norm_legit",
+        core_ops.aten_native_batch_norm,
+        trace_only=True,
+        tolerance={torch.float16: (1e-2, 7e-3)},
+    ).skip(
+        device_type="cpu",
+        matcher=lambda sample: sample.kwargs.get("training") is False,
+        reason="native_batch_norm outputs different shapes on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
     ),
     TorchLibOpInfo(
         "ops.aten._native_batch_norm_legit.no_stats",
@@ -1848,7 +1876,19 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten._native_batch_norm_legit_functional",
         core_ops.aten__native_batch_norm_legit_functional,
         trace_only=True,
-        compare_shape_only_for_output=(3, 4),
+        tolerance={torch.float16: (1e-2, 7e-3)},
+    )
+    .skip(
+        device_type="cpu",
+        matcher=lambda sample: sample.kwargs.get("training") is False,
+        reason="native_batch_norm outputs different results on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
+    )
+    .skip(
+        dtypes=(torch.float16,),
+        device_type="cuda",
+        matcher=lambda sample: sample.kwargs.get("training") is True,
+        test_class_name="TestOutputConsistencyEager",
+        reason="fixme: output 4 (new_running_var) does not match the gpu output sometimes",
     ),
     TorchLibOpInfo(
         "ops.aten.native_group_norm",
@@ -1928,6 +1968,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ).xfail(
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv2d",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.instance_norm",
+        core_ops.aten_instance_norm,
+        trace_only=True,
+        tolerance={torch.float16: (1e-2, 1e-3)},
     ),
     TorchLibOpInfo(
         "ops.aten.conv3d",

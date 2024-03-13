@@ -1,4 +1,5 @@
 """Test cases for graph building functionality."""
+
 # mypy: disable-error-code="arg-type,type-arg,valid-type"
 from __future__ import annotations
 

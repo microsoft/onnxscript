@@ -74,10 +74,10 @@ class ExternalProperties:
     taxonomies: Optional[List[_tool_component.ToolComponent]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "taxonomies"}
     )
-    thread_flow_locations: Optional[
-        List[_thread_flow_location.ThreadFlowLocation]
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "threadFlowLocations"}
+    thread_flow_locations: Optional[List[_thread_flow_location.ThreadFlowLocation]] = (
+        dataclasses.field(
+            default=None, metadata={"schema_property_name": "threadFlowLocations"}
+        )
     )
     translations: Optional[List[_tool_component.ToolComponent]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "translations"}
