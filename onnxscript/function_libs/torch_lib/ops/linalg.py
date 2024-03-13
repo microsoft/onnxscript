@@ -334,7 +334,7 @@ def aten_linalg_vector_norm(
         return _aten_linalg_vector_norm_onnx(self, ord, dim, keepdim)
 
 
-@torch_op("aten::linalg_vector_norm", private=True)
+@torch_op("aten::linalg_vector_norm", private=True, traceable=True)
 def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool) -> TFloat:
     self_is_scalar = IsScalar(self)
     if self_is_scalar:
@@ -362,7 +362,7 @@ def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool
     return result
 
 
-@torch_op("aten::linalg_vector_norm", private=True)
+@torch_op("aten::linalg_vector_norm", private=True, traceable=True)
 def _aten_linalg_vector_norm_onnx(
     self: TFloat, ord: float, dim: INT64, keepdim: bool
 ) -> TFloat:

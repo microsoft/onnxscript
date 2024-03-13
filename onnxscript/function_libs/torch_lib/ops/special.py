@@ -341,7 +341,7 @@ def aten_special_shifted_chebyshev_polynomial_w(x: TensorType, n: TensorType) ->
     raise NotImplementedError()
 
 
-@torch_op(("aten::special_sinc", "aten::sinc"))
+@torch_op(("aten::special_sinc", "aten::sinc"), traceable=True)
 def aten_special_sinc(self: TFloat) -> TFloat:
     """special_sinc(Tensor self) -> Tensor"""
 
