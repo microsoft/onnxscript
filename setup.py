@@ -33,3 +33,5 @@ if os.environ.get("ONNX_SCRIPT_RELEASE") != "1":
 
 # NOTE: Do not include other metadata in setup.py. Put it in pyproject.toml.
 setuptools.setup(version=version, project_urls=project_urls, url="https://onnxscript.ai/")
+
+# todo
