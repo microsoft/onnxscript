@@ -750,7 +750,6 @@ def sample_inputs_index_put(op_info, device, dtype, requires_grad, **kwargs):
         device=device,
         dtype=dtype,
         requires_grad=requires_grad,
-        **kwargs,
     )
     indices = torch.arange(8, dtype=torch.int64, device=device).reshape((-1, 4))
     values = torch_testing.make_tensor(
@@ -758,7 +757,6 @@ def sample_inputs_index_put(op_info, device, dtype, requires_grad, **kwargs):
         device=device,
         dtype=dtype,
         requires_grad=requires_grad,
-        **kwargs,
     )
     yield opinfo_core.SampleInput(data, indices, values)
 

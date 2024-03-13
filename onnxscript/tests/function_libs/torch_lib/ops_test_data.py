@@ -842,6 +842,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "index_put",
         core_ops.aten_index_put,
     ).skip(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"), 
         matcher=lambda sample: not (
             (sample.args[0][0].dtype == torch.int64)
             # onnxruntime: MLFloat16 data type is not supported with ScatterND when reduction is 'add'
@@ -852,6 +853,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
         reason="this Aten overload only support tensor(int) as indices and float32 when accumulate is True",
     ),
+    TorchLibOpInfo("ops.aten.index_put", core_ops.aten_index_put),
     TorchLibOpInfo("index_select", core_ops.aten_index_select),
     TorchLibOpInfo("isclose", core_ops.aten_isclose),
     TorchLibOpInfo("isfinite", core_ops.aten_isfinite),
