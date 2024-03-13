@@ -4906,7 +4906,7 @@ def aten_margin_ranking_loss(
     raise NotImplementedError()
 
 
-@torch_op(("aten::masked_fill", "aten::masked_fill.Scalar", "aten::masked_fill.Tensor"))
+@torch_op(("aten::masked_fill", "aten::masked_fill.Scalar", "aten::masked_fill.Tensor"), traceable=True)
 def aten_masked_fill(self: TTensor, mask: BOOL, value: TTensor) -> TTensor:
     """masked_fill.Tensor(Tensor self, Tensor mask, Tensor value) -> Tensor"""
     # NOTE: Do not attempt to cast `mask` to BOOL because mask should not take any other types.
@@ -7482,7 +7482,7 @@ def aten_softmax(self: TFloatOrBFloat16, dim: int, dtype: int = -1) -> TFloatOrB
     return result
 
 
-@torch_op(("aten::softmax", "aten::softmax.int", "aten::special_softmax"))
+@torch_op(("aten::softmax", "aten::softmax.int", "aten::special_softmax"), traceable=True)
 def aten_softmax_no_dtype(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
     """softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
 
@@ -7887,7 +7887,7 @@ def aten_symeig(
     raise NotImplementedError()
 
 
-@torch_op("aten::t")
+@torch_op("aten::t", traceable=True)
 def aten_t(self: TTensor) -> TTensor:
     """t(Tensor(a) self) -> Tensor(a)"""
 
@@ -8063,7 +8063,7 @@ def aten_to_sparse_csr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::topk")
+@torch_op("aten::topk", traceable=True)
 def aten_topk(
     self: TReal, k: INT64, dim: int = -1, largest: bool = True, sorted: bool = True
 ) -> Tuple[TReal, INT64]:
