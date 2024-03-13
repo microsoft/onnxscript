@@ -842,7 +842,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "index_put",
         core_ops.aten_index_put,
     ).skip(
-        enabled_if=version_utils.onnxruntime_older_than("1.16"), 
+        enabled_if=version_utils.onnxruntime_older_than("1.17"), 
         matcher=lambda sample: not (
             (sample.args[0][0].dtype == torch.int64)
             # onnxruntime: MLFloat16 data type is not supported with ScatterND when reduction is 'add'
