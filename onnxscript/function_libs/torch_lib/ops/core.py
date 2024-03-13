@@ -4049,7 +4049,7 @@ def aten_index_put(
     <https://github.com/pytorch/pytorch/blob/main/torch/onnx/symbolic_opset11.py#L212>`_.
     """
 
-    TODO(justinchuby): Handle when indicies has more than one element
+    # TODO(justinchuby): Handle when indicies has more than one element
     index = op.SequenceAt(indices, 0)
     new_index = op.Unsqueeze(index, [-1])
     shape_self = op.Shape(self)
