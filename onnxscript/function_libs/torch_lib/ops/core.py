@@ -4906,7 +4906,10 @@ def aten_margin_ranking_loss(
     raise NotImplementedError()
 
 
-@torch_op(("aten::masked_fill", "aten::masked_fill.Scalar", "aten::masked_fill.Tensor"), traceable=True)
+@torch_op(
+    ("aten::masked_fill", "aten::masked_fill.Scalar", "aten::masked_fill.Tensor"),
+    traceable=True,
+)
 def aten_masked_fill(self: TTensor, mask: BOOL, value: TTensor) -> TTensor:
     """masked_fill.Tensor(Tensor self, Tensor mask, Tensor value) -> Tensor"""
     # NOTE: Do not attempt to cast `mask` to BOOL because mask should not take any other types.

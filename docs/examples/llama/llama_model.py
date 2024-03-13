@@ -6,17 +6,19 @@ Code modified from different sources:
 * https://github.com/sdpython/experimental-experiment/blob/main/experimental_experiment/torch_helper/llama_helper.py
 """
 
+import collections
 import random
 from typing import Sequence, Tuple
+
+import onnx
+import onnx.inliner
 import torch
 import torch.export
-import onnx
-import collections
-import onnx.inliner
-import onnxscript
-import onnxscript.function_libs.torch_lib._flags
 from onnxrewriter import optimizer
 from onnxrewriter.rewriter import onnxruntime as ort_rewriter
+
+import onnxscript
+import onnxscript.function_libs.torch_lib._flags
 
 
 def get_llama_decoder(
@@ -221,6 +223,7 @@ def display_model_stats(model: onnx.ModelProto):
 
 def export():
     model, example_args_collection = get_llama_model()
+
     exported = torch.export.export(model, example_args_collection[0])
     print("===exported fx graph===")
     print(exported)
@@ -243,6 +246,7 @@ def export():
     print("===inlined_eager_exported_onnx===")
     display_model_stats(inlined_eager_exported_onnx)
     # print(onnx.printer.to_text(inlined_eager_exported_onnx))
+    onnx.save(inlined_eager_exported_onnx, "inlined_eager_exported_onnx.onnx")
 
     rewritten_model = ort_rewriter.rewrite(exported_onnx)
     rewritten_model = onnx.inliner.inline_local_functions(rewritten_model)
