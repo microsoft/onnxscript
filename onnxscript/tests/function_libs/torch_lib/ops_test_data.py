@@ -479,11 +479,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="PyTorch does not implement _log_softmax for float16 on CPU",
         dtypes=(torch.float16,),
         enabled_if=version_utils.torch_older_than("2.2"),
-    )
-    .xfail(
-        dtypes=(torch.float16,),
-        reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
-        test_class_name="TestOutputConsistencyFullGraph",
     ),
     TorchLibOpInfo("ops.aten._softmax", core_ops.aten__softmax, trace_only=True),
     TorchLibOpInfo("ops.aten._softmax_half", core_ops.aten__softmax_half, trace_only=True)
@@ -491,11 +486,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="PyTorch does not implement _softmax for float16 on CPU",
         dtypes=(torch.float16,),
         enabled_if=version_utils.torch_older_than("2.2"),
-    )
-    .xfail(
-        dtypes=(torch.float16,),
-        reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
-        test_class_name="TestOutputConsistencyFullGraph",
     ),
     TorchLibOpInfo("all_dim", core_ops.aten_all_dim).skip(
         matcher=lambda sample: not (len(sample.kwargs) > 0)
@@ -1545,6 +1535,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "t",
         core_ops.aten_t,
     ).xfail(
+        enabled_if=not _flags.EXPERIMENTAL_PREFER_TRACING,
         reason="fixme: ORT Graph attribute inferencing failed on rank-1 input. https://github.com/onnx/onnx/issues/4986",
         test_class_name="TestOutputConsistencyFullGraph",
     ),

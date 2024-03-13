@@ -539,7 +539,7 @@ def _aten_gelu_approximate_none(self: TReal) -> TReal:
     return result
 
 
-@torch_op("aten::gelu", private=True, traceable=True)
+@torch_op("aten::gelu", private=True)
 def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
     """gelu(Tensor self, *, str approximate='none') -> Tensor"""
 
