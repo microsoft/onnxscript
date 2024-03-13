@@ -845,7 +845,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_index_put_bool,
     ).skip(
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.bool),
-        reason="this Aten overload only support tensor(bool) as indices",
+        reason="this Aten overload only supports tensor(bool) as indices",
     ),
     TorchLibOpInfo(
         "index_put",
