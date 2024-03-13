@@ -766,6 +766,26 @@ def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
         yield opinfo_core.SampleInput(make_arg((s, s, s, s)), args=args)
 
 
+def sample_inputs_index_put(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    data = torch_testing.make_tensor(
+        (10, 3),
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+    )
+    indices = torch.arange(8, dtype=torch.int64, device=device).reshape((-1, 4))
+    values = torch_testing.make_tensor(
+        (2, 3, 4),
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+    )
+    yield opinfo_core.SampleInput(data, indices, values)
+
+
 def sample_inputs_layer_norm(op_info, device, dtype, requires_grad, **kwargs):
     del op_info  # unused
     del kwargs
@@ -1969,6 +1989,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         ),
         sample_inputs_func=sample_inputs_index_bool,
         op=torch.ops.aten.index.Tensor,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.index_put",
+        aten_name="index_put",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_index_put,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.layer_norm",
