@@ -481,6 +481,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         enabled_if=version_utils.torch_older_than("2.2"),
     )
     .xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         dtypes=(torch.float16,),
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
         test_class_name="TestOutputConsistencyFullGraph",
@@ -493,6 +494,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         enabled_if=version_utils.torch_older_than("2.2"),
     )
     .xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         dtypes=(torch.float16,),
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
         test_class_name="TestOutputConsistencyFullGraph",
@@ -544,6 +546,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "decomposed",
         dtypes=(torch.int16, torch.int32, torch.int64),
         reason="ONNX Runtime does not support int inputs to Gemm",
+    )
+    .xfail(
+        "decomposed",
+        matcher=lambda sample: torch.numel(sample.input) == 0
+        or torch.numel(sample.args[0]) == 0
+        or torch.numel(sample.args[1]) == 0,
+        reason="ONNX Runtime does not support zero sized inputs",
     ),
     TorchLibOpInfo("addmv", core_ops.aten_addmv, tolerance={torch.float16: (1e-3, 1e-2)}),
     TorchLibOpInfo(
@@ -1553,6 +1562,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "t",
         core_ops.aten_t,
     ).xfail(
+        enabled_if=not _flags.EXPERIMENTAL_PREFER_TRACING,
         reason="fixme: ORT Graph attribute inferencing failed on rank-1 input. https://github.com/onnx/onnx/issues/4986",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
@@ -1903,7 +1913,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "native_layer_norm",
         core_ops.aten_native_layer_norm,
         trace_only=True,
-        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
+        tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (1e-1, 7e-4)},
+    ).skip(
+        dtypes=(torch.float16,),
+        device_type="cpu",
+        reason="native_layer_norm outputs different dtypes on CPU and CUDA. Our implematation is based on that for CUDA",
     ),
     TorchLibOpInfo(
         "nn.functional.avg_pool1d",
@@ -2099,9 +2113,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         # Output[0] is OK, but other outputs just have the same shape with zero values
         nondeterministic=True,
         compare_shape_only_for_output=(1, 2, 3, 4, 5, 6, 7, 8),
-    ).skip(
+    )
+    .skip(
         enabled_if=version_utils.torch_older_than("2.1"),
         reason="The operator is not supported in older version.",
+    )
+    .skip(
+        device_type="cpu",
+        reason="_scaled_dot_product_flash_attention only supports CUDA",
     ),
     TorchLibOpInfo(
         "ops.aten._scaled_dot_product_efficient_attention",
