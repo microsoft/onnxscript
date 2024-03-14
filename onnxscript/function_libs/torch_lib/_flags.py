@@ -26,7 +26,7 @@ def _load_boolean_flag(
     """
     undefined = os.getenv(name) is None
     state = os.getenv(name) == "1"
-    if turned_on:
+    if state:
         if deprecated:
             logger.error(
                 "Experimental flag %s is deprecated. Please remove it from your environment.",
