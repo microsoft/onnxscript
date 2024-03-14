@@ -40,7 +40,7 @@ Rank = common_ops.Rank
 TFloatUnlessFloat32 = TypeVar("TFloatUnlessFloat32", bound=Union[BFLOAT16, FLOAT16, DOUBLE])
 
 
-@torch_op("aten::aten_adaptive_avg_pool1d")
+@torch_op("aten::aten_adaptive_avg_pool1d", traceable=True)
 def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
     """adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor"""
 
@@ -58,7 +58,7 @@ def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
     return result
 
 
-@torch_op("aten::aten_adaptive_avg_pool2d")
+@torch_op("aten::aten_adaptive_avg_pool2d", traceable=True)
 def aten_adaptive_avg_pool2d(self: TFloat, output_size: INT64[2]) -> TFloat:
     """adaptive_avg_pool2d(Tensor self, SymInt[2] output_size) -> Tensor"""
 
@@ -76,7 +76,7 @@ def aten_adaptive_avg_pool2d(self: TFloat, output_size: INT64[2]) -> TFloat:
     return result
 
 
-@torch_op("aten::aten_adaptive_avg_pool3d")
+@torch_op("aten::aten_adaptive_avg_pool3d", traceable=True)
 def aten_adaptive_avg_pool3d(self: TFloat, output_size: INT64[3]) -> TFloat:
     """adaptive_avg_pool3d(Tensor self, SymInt[3] output_size) -> Tensor"""
 
@@ -350,7 +350,7 @@ def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
     return op.Celu(self, alpha=alpha)  # op.Celu only support float32
 
 
-@torch_op("aten::celu")
+@torch_op("aten::celu", traceable=True)
 def aten_celu_type_promoted(
     self: TFloatUnlessFloat32, alpha: float = 1.0
 ) -> TFloatUnlessFloat32:
@@ -409,7 +409,7 @@ def aten_conv_depthwise3d(
     raise NotImplementedError()
 
 
-@torch_op("aten::cross_entropy_loss")
+@torch_op("aten::cross_entropy_loss", traceable=True)
 def aten_cross_entropy_loss(
     self: TFloatOrBFloat16,
     target: IntType,
@@ -871,7 +871,7 @@ def aten_max_pool2d(
     return _aten_max_pool_onnx(self, kernel_shape, strides, pads, dilations, ceil_mode, 3)
 
 
-@torch_op("internal::max_pool", private=True)
+@torch_op("internal::max_pool", private=True, traceable=True)
 def _aten_max_pool_onnx(
     self: TFloatOrUInt8,
     kernel_shape: Sequence[int],
@@ -1003,7 +1003,7 @@ def aten_max_pool3d_with_indices(
     )
 
 
-@torch_op("internal::max_pool_with_indices", private=True)
+@torch_op("internal::max_pool_with_indices", private=True, traceable=True)
 def _aten_max_pool_with_indices_onnx(
     self: TFloatOrUInt8,
     kernel_size: Sequence[int],
@@ -1159,7 +1159,7 @@ def aten_mkldnn_reorder_conv3d_weight(
     raise NotImplementedError()
 
 
-@torch_op("aten::mse_loss")
+@torch_op("aten::mse_loss", traceable=True)
 def aten_mse_loss(self: TReal, target: TReal, reduction: int = 1) -> TReal:
     """mse_loss(Tensor self, Tensor target, int reduction=Mean) -> Tensor"""
     # FIXME: When reduction=0, the shape(result) will be different than other case
@@ -1235,7 +1235,7 @@ def aten_multilabel_margin_loss_forward(
     raise NotImplementedError()
 
 
-@torch_op("aten::nll_loss")
+@torch_op("aten::nll_loss", traceable=True)
 def aten_nll_loss(
     self: TFloat,
     target: INT64,
@@ -1248,7 +1248,7 @@ def aten_nll_loss(
     if self_rank_is_1:  # self rank should be at least 2
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
 
-    rank_target = op.Size(op.Shape(target))
+    rank_target = Rank(target)
     if rank_target == 0:  # target rank should be at least 1
         target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
 
@@ -1271,7 +1271,7 @@ def aten_nll_loss(
     return result
 
 
-@torch_op("aten::nll_loss")
+@torch_op("aten::nll_loss", traceable=True)
 def aten_nll_loss_weight(
     self: TFloat,
     target: INT64,
@@ -1282,10 +1282,11 @@ def aten_nll_loss_weight(
     """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
     self_rank_is_1 = Rank(self) == 1
-    if self_rank_is_1:  # self rank should be at least 2
+    if self_rank_is_1:
+        # self rank should be at least 2
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
 
-    rank_target = op.Size(op.Shape(target))
+    rank_target = Rank(target)
     if rank_target == 0:  # target rank should be at least 1
         target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
 
@@ -1490,7 +1491,7 @@ def aten_relu(self: TReal) -> TReal:
     return op.Relu(self)
 
 
-@torch_op("aten::relu6")
+@torch_op("aten::relu6", traceable=True)
 def aten_relu6(self: TReal) -> TReal:
     """relu6(Tensor self) -> Tensor"""
 
@@ -1778,7 +1779,7 @@ def aten__scaled_dot_product_flash_attention(
     )
 
 
-@torch_op("aten::_scaled_dot_product_efficient_attention", private=True)
+@torch_op("aten::_scaled_dot_product_efficient_attention", private=True, traceable=True)
 def _aten_scaled_dot_product_efficient_attention_fillin_empty_outputs(
     query: TFloat,
     compute_log_sumexp: bool,

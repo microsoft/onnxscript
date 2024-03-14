@@ -5040,7 +5040,7 @@ def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     else:
         if IsScalar(dim):
             dim = op.Unsqueeze(dim, axes=0)
-        result = op.ReduceMean(self, axes=dim, keepdims=keepdim)
+        result = op.ReduceMean(self, dim, keepdims=keepdim)
     return result
 
 
