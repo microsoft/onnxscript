@@ -223,8 +223,19 @@ def display_model_stats(model: onnx.ModelProto):
     print(f"number of functions: {len(model.functions)}")
 
 
+def time_ort_model(model, name: str, example_args, run_count=100):
+    session = onnxruntime.InferenceSession(model.SerializeToString())
+    input_data = [x.numpy() for x in example_args]
+    start = time.time()
+    ort_input = dict(zip((input.name for input in session.get_inputs()), input_data))
+    for _ in range(run_count):
+        session.run(None, ort_input)
+    end = time.time()
+    print(f"ORT Time {name}:", (end - start) / run_count, "average over", run_count, "runs")
+
+
 def export():
-    model, example_args_collection = get_llama_model()
+    model, example_args_collection = get_llama_model(num_hidden_layers=10)
 
     exported = torch.export.export(model, example_args_collection[0])
     print("===exported fx graph===")
@@ -281,22 +292,23 @@ def export():
     )
 
     # Time the model
-    session = onnxruntime.InferenceSession(inlined_eager_exported_onnx.SerializeToString())
-    input_data = [x.numpy() for x in example_args_collection[0]]
-    start = time.time()
-    ort_input = dict(zip((input.name for input in session.get_inputs()), input_data))
-    print(ort_input)
-    for _ in range(100):
-        session.run(None, ort_input)
-    end = time.time()
-    print("ORT Time:", end - start)
+    time_ort_model(inlined_exported_onnx, "inlined_exported_onnx", example_args_collection[0])
+    time_ort_model(rewritten_model, "rewritten_model", example_args_collection[0])
+    time_ort_model(
+        inlined_eager_exported_onnx, "inlined_eager_exported_onnx", example_args_collection[0]
+    )
+    time_ort_model(
+        rewritten_inlined_eager_exported_onnx2,
+        "rewritten_inlined_eager_exported_onnx2",
+        example_args_collection[0],
+    )
 
     # Time the model
     start = time.time()
     for _ in range(100):
         model(*example_args_collection[0])
     end = time.time()
-    print("Eager Time:", end - start)
+    print("Eager Time:", (end - start) / 100)
 
 
 if __name__ == "__main__":
