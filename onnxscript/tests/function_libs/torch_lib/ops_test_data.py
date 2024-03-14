@@ -474,18 +474,30 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten__log_softmax_half,
         trace_only=True,
         tolerance={torch.float16: (1e-3, 1e-3)},
-    ).xfail(
+    )
+    .xfail(
         reason="PyTorch does not implement _log_softmax for float16 on CPU",
         dtypes=(torch.float16,),
         enabled_if=version_utils.torch_older_than("2.2"),
+    )
+    .xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
+        dtypes=(torch.float16,),
+        reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     TorchLibOpInfo("ops.aten._softmax", core_ops.aten__softmax, trace_only=True),
-    TorchLibOpInfo(
-        "ops.aten._softmax_half", core_ops.aten__softmax_half, trace_only=True
-    ).xfail(
+    TorchLibOpInfo("ops.aten._softmax_half", core_ops.aten__softmax_half, trace_only=True)
+    .xfail(
         reason="PyTorch does not implement _softmax for float16 on CPU",
         dtypes=(torch.float16,),
         enabled_if=version_utils.torch_older_than("2.2"),
+    )
+    .xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
+        dtypes=(torch.float16,),
+        reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     TorchLibOpInfo("all_dim", core_ops.aten_all_dim).skip(
         matcher=lambda sample: not (len(sample.kwargs) > 0)
