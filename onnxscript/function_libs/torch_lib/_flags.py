@@ -23,6 +23,7 @@ def _load_boolean_flag(
         name: The name of the environment variable.
         this_will: A string that describes what this flag will do.
         deprecated: Whether this flag is deprecated.
+        default: The default value if envvar not defined.
     """
     undefined = os.getenv(name) is None
     state = os.getenv(name) == "1"
