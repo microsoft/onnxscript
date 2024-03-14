@@ -1248,7 +1248,7 @@ def aten_nll_loss(
     if self_rank_is_1:  # self rank should be at least 2
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
 
-    rank_target = op.Size(op.Shape(target))
+    rank_target = Rank(target)
     if rank_target == 0:  # target rank should be at least 1
         target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
 
@@ -1282,10 +1282,11 @@ def aten_nll_loss_weight(
     """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
     self_rank_is_1 = Rank(self) == 1
-    if self_rank_is_1:  # self rank should be at least 2
+    if self_rank_is_1:
+        # self rank should be at least 2
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
 
-    rank_target = op.Size(op.Shape(target))
+    rank_target = Rank(target)
     if rank_target == 0:  # target rank should be at least 1
         target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
 
