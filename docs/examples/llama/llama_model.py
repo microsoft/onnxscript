@@ -8,17 +8,19 @@ Code modified from different sources:
 
 import collections
 import random
+import time
 from typing import Sequence, Tuple
 
 import onnx
 import onnx.inliner
+import onnxruntime
 import torch
 import torch.export
+import onnxscript
 from onnxrewriter import optimizer
 from onnxrewriter.rewriter import onnxruntime as ort_rewriter
 
-import onnxscript
-import onnxscript.function_libs.torch_lib._flags
+from onnxscript.function_libs.torch_lib import _flags
 
 
 def get_llama_decoder(
@@ -228,17 +230,17 @@ def export():
     print("===exported fx graph===")
     print(exported)
     print("FX Node count:", len(exported.graph.nodes))
-    exported_onnx = torch.onnx.dynamo_export(exported, *example_args_collection[0]).model_proto
+    exported_onnx = torch.onnx.dynamo_export(model, *example_args_collection[0]).model_proto
     print("===exported_onnx===")
     display_model_stats(exported_onnx)
     inlined_exported_onnx = onnx.inliner.inline_local_functions(exported_onnx)
     print("===inlined_exported_onnx===")
     display_model_stats(inlined_exported_onnx)
 
-    onnxscript.function_libs.torch_lib._flags.EXPERIMENTAL_PREFER_TRACING = True
+    _flags.EXPERIMENTAL_PREFER_TRACING = True
 
     exported_eager_onnx = torch.onnx.dynamo_export(
-        exported, *example_args_collection[0]
+        model, *example_args_collection[0]
     ).model_proto
     print("===exported_eager_onnx===")
     display_model_stats(exported_eager_onnx)
@@ -277,6 +279,24 @@ def export():
     onnx.save(
         rewritten_inlined_eager_exported_onnx2, "rewritten_inlined_eager_exported_onnx2.onnx"
     )
+
+    # Time the model
+    session = onnxruntime.InferenceSession(inlined_eager_exported_onnx.SerializeToString())
+    input_data = [x.numpy() for x in example_args_collection[0]]
+    start = time.time()
+    ort_input = dict(zip((input.name for input in session.get_inputs()), input_data))
+    print(ort_input)
+    for _ in range(100):
+        session.run(None, ort_input)
+    end = time.time()
+    print("ORT Time:", end - start)
+
+    # Time the model
+    start = time.time()
+    for _ in range(100):
+        model(*example_args_collection[0])
+    end = time.time()
+    print("Eager Time:", end - start)
 
 
 if __name__ == "__main__":
