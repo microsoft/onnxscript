@@ -305,8 +305,9 @@ def export():
 
     # Time the model
     start = time.time()
-    for _ in range(100):
-        model(*example_args_collection[0])
+    with torch.no_grad():
+        for _ in range(100):
+            model(*example_args_collection[0])
     end = time.time()
     print("Eager Time:", (end - start) / 100)
 
