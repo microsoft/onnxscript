@@ -349,6 +349,8 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                     else:
                         # Fall to call add_function_call
                         pass
+                elif isinstance(args[0], Sequence):
+                    return False
                 else:
                     # Python constants are scalars
                     return True
@@ -363,6 +365,8 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                     else:
                         # Fall to call add_function_call
                         pass
+                elif isinstance(args[0], Sequence):
+                    return False
                 else:
                     # Python constants are scalars
                     return 0

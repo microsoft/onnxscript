@@ -721,7 +721,7 @@ def aten_argmax_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = Fals
     return result
 
 
-@torch_op("aten::argmin")
+@torch_op("aten::argmin", traceable=True)
 def aten_argmin(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
@@ -734,7 +734,7 @@ def aten_argmin(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     return result
 
 
-@torch_op("aten::argmin")
+@torch_op("aten::argmin", traceable=True)
 def aten_argmin_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = False) -> INT64:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
@@ -3238,7 +3238,7 @@ def aten_exp(self: TFloat) -> TFloat:
     return op.Exp(self)
 
 
-@torch_op("aten::exp2")
+@torch_op("aten::exp2", traceable=True)
 def aten_exp2(self: TFloat) -> TFloat:
     """exp2(Tensor self) -> Tensor"""
 
@@ -3257,7 +3257,7 @@ def aten_expand(self: TTensor, size: TInt) -> TTensor:
     return op.Expand(self, size)
 
 
-@torch_op("aten::expand_as")
+@torch_op("aten::expand_as", traceable=True)
 def aten_expand_as(self: TTensor, other: TTensor) -> TTensor:
     """expand_as(Tensor(a) self, Tensor other) -> Tensor(a)"""
 
@@ -4906,7 +4906,10 @@ def aten_margin_ranking_loss(
     raise NotImplementedError()
 
 
-@torch_op(("aten::masked_fill", "aten::masked_fill.Scalar", "aten::masked_fill.Tensor"))
+@torch_op(
+    ("aten::masked_fill", "aten::masked_fill.Scalar", "aten::masked_fill.Tensor"),
+    traceable=True,
+)
 def aten_masked_fill(self: TTensor, mask: BOOL, value: TTensor) -> TTensor:
     """masked_fill.Tensor(Tensor self, Tensor mask, Tensor value) -> Tensor"""
     # NOTE: Do not attempt to cast `mask` to BOOL because mask should not take any other types.
@@ -5037,7 +5040,7 @@ def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     else:
         if IsScalar(dim):
             dim = op.Unsqueeze(dim, axes=0)
-        result = op.ReduceMean(self, axes=dim, keepdims=keepdim)
+        result = op.ReduceMean(self, dim, keepdims=keepdim)
     return result
 
 
@@ -7482,7 +7485,7 @@ def aten_softmax(self: TFloatOrBFloat16, dim: int, dtype: int = -1) -> TFloatOrB
     return result
 
 
-@torch_op(("aten::softmax", "aten::softmax.int", "aten::special_softmax"))
+@torch_op(("aten::softmax", "aten::softmax.int", "aten::special_softmax"), traceable=True)
 def aten_softmax_no_dtype(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
     """softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
 
@@ -7887,7 +7890,7 @@ def aten_symeig(
     raise NotImplementedError()
 
 
-@torch_op("aten::t")
+@torch_op("aten::t", traceable=True)
 def aten_t(self: TTensor) -> TTensor:
     """t(Tensor(a) self) -> Tensor(a)"""
 
@@ -8063,7 +8066,7 @@ def aten_to_sparse_csr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::topk")
+@torch_op("aten::topk", traceable=True)
 def aten_topk(
     self: TReal, k: INT64, dim: int = -1, largest: bool = True, sorted: bool = True
 ) -> Tuple[TReal, INT64]:
