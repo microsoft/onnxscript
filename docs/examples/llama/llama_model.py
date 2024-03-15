@@ -266,12 +266,13 @@ def export():
     rewritten_model = optimizer.optimize(exported_onnx, num_iterations=2)
     # rewritten_model = ort_rewriter.rewrite(rewritten_model)
     rewritten_model = onnx.inliner.inline_local_functions(rewritten_model)
+    rewritten_model = onnx.shape_inference.infer_shapes(rewritten_model, data_prop=True)
     onnx.save(rewritten_model, "rewritten_model.onnx")
     print("===rewritten_model===")
     display_model_stats(rewritten_model)
 
     rewritten_inlined_eager_exported_onnx = optimizer.optimize(
-        exported_onnx, num_iterations=2, onnx_shape_inference=False
+        exported_onnx, num_iterations=2, onnx_shape_inference=True
     )
     rewritten_inlined_eager_exported_onnx = onnx.inliner.inline_local_functions(
         rewritten_inlined_eager_exported_onnx
@@ -301,10 +302,11 @@ def export():
     print("===torchscript_model===")
     display_model_stats(torchscript_model)
     optimized_torchscript_model = optimizer.optimize(
-        torchscript_model, num_iterations=2, onnx_shape_inference=False
+        torchscript_model, num_iterations=2, onnx_shape_inference=True
     )
     print("===optimized_torchscript_model===")
     display_model_stats(optimized_torchscript_model)
+    onnx.save(optimized_torchscript_model, "optimized_torchscript_model.onnx")
 
     # Time the model
     time_ort_model(inlined_exported_onnx, "inlined_exported_onnx", example_args_collection[0])
