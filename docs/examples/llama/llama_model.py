@@ -233,7 +233,7 @@ def time_ort_model(model, name: str, example_args, run_count=100):
     for _ in range(run_count):
         session.run(None, ort_input)
     end = time.time()
-    print(f"ORT Time {name}:", (end - start) / run_count, "average over", run_count, "runs")
+    print(f"ORT Time {name}:", (end - start) / run_count, "averaged over", run_count, "runs")
 
 
 def export():
@@ -300,6 +300,11 @@ def export():
     torchscript_model = onnx.load("torchscript_model.onnx")
     print("===torchscript_model===")
     display_model_stats(torchscript_model)
+    optimized_torchscript_model = optimizer.optimize(
+        torchscript_model, num_iterations=2, onnx_shape_inference=False
+    )
+    print("===optimized_torchscript_model===")
+    display_model_stats(optimized_torchscript_model)
 
     # Time the model
     time_ort_model(inlined_exported_onnx, "inlined_exported_onnx", example_args_collection[0])
@@ -313,6 +318,9 @@ def export():
         example_args_collection[0],
     )
     time_ort_model(torchscript_model, "torchscript_model", example_args_collection[0])
+    time_ort_model(
+        optimized_torchscript_model, "optimized_torchscript_model", example_args_collection[0]
+    )
 
     # Time the model
     start = time.time()
@@ -320,7 +328,7 @@ def export():
         for _ in range(100):
             model(*example_args_collection[0])
     end = time.time()
-    print("Eager Time:", (end - start) / 100)
+    print("Eager Time:", (end - start) / 100, "averaged over 100 runs")
 
 
 if __name__ == "__main__":
