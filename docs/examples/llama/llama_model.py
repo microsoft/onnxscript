@@ -224,7 +224,9 @@ def display_model_stats(model: onnx.ModelProto):
 
 
 def time_ort_model(model, name: str, example_args, run_count=100):
-    session = onnxruntime.InferenceSession(model.SerializeToString())
+    options = onnxruntime.SessionOptions()
+    options.log_severity_level = 3
+    session = onnxruntime.InferenceSession(model.SerializeToString(), sess_options=options)
     input_data = [x.numpy() for x in example_args]
     start = time.time()
     ort_input = dict(zip((input.name for input in session.get_inputs()), input_data))
@@ -261,7 +263,8 @@ def export():
     # print(onnx.printer.to_text(inlined_eager_exported_onnx))
     onnx.save(inlined_eager_exported_onnx, "inlined_eager_exported_onnx.onnx")
 
-    rewritten_model = ort_rewriter.rewrite(exported_onnx)
+    rewritten_model = optimizer.optimize(exported_onnx, num_iterations=2)
+    # rewritten_model = ort_rewriter.rewrite(rewritten_model)
     rewritten_model = onnx.inliner.inline_local_functions(rewritten_model)
     onnx.save(rewritten_model, "rewritten_model.onnx")
     print("===rewritten_model===")
@@ -291,6 +294,13 @@ def export():
         rewritten_inlined_eager_exported_onnx2, "rewritten_inlined_eager_exported_onnx2.onnx"
     )
 
+    torch.onnx.export(
+        model, example_args_collection[0], "torchscript_model.onnx", opset_version=17
+    )
+    torchscript_model = onnx.load("torchscript_model.onnx")
+    print("===torchscript_model===")
+    display_model_stats(torchscript_model)
+
     # Time the model
     time_ort_model(inlined_exported_onnx, "inlined_exported_onnx", example_args_collection[0])
     time_ort_model(rewritten_model, "rewritten_model", example_args_collection[0])
@@ -302,6 +312,7 @@ def export():
         "rewritten_inlined_eager_exported_onnx2",
         example_args_collection[0],
     )
+    time_ort_model(torchscript_model, "torchscript_model", example_args_collection[0])
 
     # Time the model
     start = time.time()
