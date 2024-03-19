@@ -7431,7 +7431,6 @@ def aten_slice_scatter(
 
     # Scatter ND
     zero = op.Constant(value_ints=[0])
-    one = op.Constant(value_ints=[1])
     self_shape = op.Shape(self)
     dim_shape = op.Gather(self_shape, dim, axis=0)
     index_base = op.Range(0, dim_shape, 1)
@@ -7449,9 +7448,7 @@ def aten_slice_scatter(
     if dim != 0:
         src_rank = len(src.shape)  # type: ignore[attr-defined]
 
-        if src_rank == 0:
-            result = self
-        else:
+        if src_rank != 0:
             # Python code, change when onnxscript supports this
             dims = list(range(src_rank))
             dims[0], dims[dim] = dims[dim], dims[0]
