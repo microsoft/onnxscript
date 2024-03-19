@@ -352,8 +352,6 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                 elif isinstance(args[0], Sequence):
                     return False
                 else:
-                    if isinstance(args[0], (list, tuple)):
-                        return False
                     # Python constants are scalars
                     return True
             if function.name == "Rank":
