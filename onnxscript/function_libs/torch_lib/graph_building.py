@@ -352,6 +352,8 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                 elif isinstance(args[0], Sequence):
                     return False
                 else:
+                    if isinstance(args[0], (list, tuple)):
+                        return False
                     # Python constants are scalars
                     return True
             if function.name == "Rank":
@@ -791,6 +793,8 @@ class TorchScriptGraph:
                 continue
             for i, input_info in enumerate(onnx_model.graph.input):
                 if input_info.name == input.debugName():
+                    # See NOTE: _C.Value re-naming.
+                    value_info.name = input_info.name
                     onnx_model.graph.input.insert(i, value_info)
                     onnx_model.graph.input.remove(input_info)
                     break
@@ -804,6 +808,8 @@ class TorchScriptGraph:
                 continue
             for i, output_info in enumerate(onnx_model.graph.output):
                 if output_info.name == output.debugName():
+                    # See NOTE: _C.Value re-naming.
+                    value_info.name = output_info.name
                     onnx_model.graph.output.insert(i, value_info)
                     onnx_model.graph.output.remove(output_info)
                     break
@@ -920,6 +926,12 @@ class TorchScriptGraph:
         for torch_value, tensor in self._value_to_tensor.items():
             if (value_info := tensor.value_info()) is None:
                 continue
+            # NOTE: _C.Value re-naming.
+            # _C.Value's debugName is unstable.
+            # When there are duplicated names, TorchScript naming strategy updates
+            # all names to be unique. Hence the previous name stored in value_info
+            # can be outdated.
+            value_info.name = torch_value.debugName()
             named_value_info[torch_value.debugName()] = value_info
         return named_value_info
 
