@@ -7400,7 +7400,7 @@ def aten_slice_copy(
     raise NotImplementedError()
 
 
-@torch_op("aten::slice_scatter")
+@torch_op("aten::slice_scatter", trace_only=True)
 def aten_slice_scatter(
     self: TTensor,
     src: TTensor,
@@ -7421,8 +7421,9 @@ def aten_slice_scatter(
     # Step 1: get 1D tensor from 0 to dim_size-1, then Slice it using start, end and step.
     # We cannot use Range(start, end, step) directly as start or end may out of range.
     # For the example, the output of this step is Slice([0, ..., 7], 6, 64, 1) = [6, 7]
+
+    # Scatter ND
     zero = op.Constant(value_ints=[0])
-    one = op.Constant(value_ints=[1])
     self_shape = op.Shape(self)
     dim_shape = op.Gather(self_shape, dim, axis=0)
     index_base = op.Range(0, dim_shape, 1)
@@ -7433,20 +7434,26 @@ def aten_slice_scatter(
         zero,
         op.Unsqueeze(step, zero),
     )
-    # Step 2: Unsqueeze to add 1s preparing for Expand.
-    # Need to handle negative dim here.
-    # For the example above, the result of this step is [[6],[7]].
-    index_base = op.Unsqueeze(
-        index_base, op.Range(1, op.Where(dim < 0, 0, op.Size(self_shape)) - dim, 1)
-    )
-    # Step 3: Expand the indices.
-    # For the example above, it's Expand([[6],[7]], (1, 8)) = [[6,...,6],[7,...,7]].
-    shape_expand = op.ScatterElements(
-        self_shape, op.Unsqueeze(op.Constant(value_int=dim), zero), one, axis=0
-    )
-    indices = op.Expand(index_base, shape_expand)
-    # Step 4: final ScatterElements.
-    return op.ScatterElements(self, indices, src, axis=dim)
+    index_base = op.Unsqueeze(index_base, -1)
+
+    # Use trace only to construct the perm attribute in Transpose
+    dims = None
+    if dim != 0:
+        src_rank = len(src.shape)  # type: ignore[attr-defined]
+
+        if src_rank != 0:
+            # Python code, change when onnxscript supports this
+            dims = list(range(src_rank))
+            dims[0], dims[dim] = dims[dim], dims[0]
+            # Python code ends
+
+            src = op.Transpose(src, perm=dims)
+            self = op.Transpose(self, perm=dims)
+
+    output = op.ScatterND(self, index_base, src)
+    if dims is not None:
+        output = op.Transpose(output, perm=dims)
+    return output
 
 
 def aten_slogdet(self: TensorType) -> tuple[TensorType, TensorType]:
