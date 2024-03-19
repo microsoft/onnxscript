@@ -928,8 +928,8 @@ class TorchScriptGraph:
                 continue
             # NOTE: _C.Value re-naming.
             # _C.Value's debugName is unstable.
-            # When there are duplicated names, TorchScript naming strategy updates
-            # all names to be unique. Hence the previous name stored in value_info
+            # When duplicated names are encountered, all names involved are updated by
+            # TorchScript naming strategy. Hence the previous name stored in value_info
             # can be outdated.
             value_info.name = torch_value.debugName()
             named_value_info[torch_value.debugName()] = value_info
