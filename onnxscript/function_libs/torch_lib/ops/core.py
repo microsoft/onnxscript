@@ -4035,13 +4035,6 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
     return op.Transpose(self, perm=perm)
 
 
-@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
-def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> TensorType:
-    new_indices = op.Transpose(op.NonZero(indices[0]), perm=[1, 0])
-    new_indices = op.Squeeze(new_indices, axes=[1])
-    return op.Gather(self, new_indices, axis=0)
-
-
 def aten_index_add(
     self: TensorType, dim: int, index: TensorType, source: TensorType, alpha: float = 1
 ) -> TensorType:
