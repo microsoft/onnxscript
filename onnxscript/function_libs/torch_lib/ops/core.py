@@ -4071,7 +4071,6 @@ def aten_index_put(
 
     if op.Cast(accumulate, to=BOOL.dtype):
         result = op.ScatterND(result, new_index, values, reduction="add")
-        result = op.Add(result, self)
     else:
         result = op.ScatterND(self, new_index, values)
 
