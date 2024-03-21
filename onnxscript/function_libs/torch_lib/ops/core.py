@@ -4067,10 +4067,9 @@ def aten_index_put(
     # TODO(justinchuby): Handle when indicies has more than one element
     index = op.SequenceAt(indices, 0)
     new_index = op.Unsqueeze(index, [-1])
-    shape_self = op.Shape(self)
 
     if op.Cast(accumulate, to=BOOL.dtype):
-        result = op.ScatterND(result, new_index, values, reduction="add")
+        result = op.ScatterND(self, new_index, values, reduction="add")
     else:
         result = op.ScatterND(self, new_index, values)
 
