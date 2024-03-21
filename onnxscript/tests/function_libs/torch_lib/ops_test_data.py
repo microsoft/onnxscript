@@ -848,7 +848,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     # TorchLibOpInfo("is_same_size", core_ops.aten_is_same_size),  # no test case in OPS_DB
     # TorchLibOpInfo("is_nonzero", core_ops.aten_is_nonzero),  # no test case in OPS_DB
     TorchLibOpInfo("ops.aten.index.Tensor", core_ops.aten_index, trace_only=True),
-    TorchLibOpInfo("ops.aten.index.Tensor.bool", core_ops.aten_index_bool, trace_only=True),
     TorchLibOpInfo(
         "index_put_bool",
         core_ops.aten_index_put_bool,
@@ -2266,7 +2265,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="sum",
         reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'add'",
     ),
-    TorchLibOpInfo("ops.aten.slice_scatter", core_ops.aten_slice_scatter),
+    TorchLibOpInfo("ops.aten.slice_scatter", core_ops.aten_slice_scatter, trace_only=True),
     TorchLibOpInfo("slice", core_ops.aten_slice, trace_only=True),
     TorchLibOpInfo(
         "ops.aten.stft",  # Custom from extra_opinfo
