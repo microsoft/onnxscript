@@ -4070,8 +4070,7 @@ def aten_index_put(
     shape_self = op.Shape(self)
 
     if op.Cast(accumulate, to=BOOL.dtype):
-        zeros = op.CastLike(op.ConstantOfShape(shape_self), values)
-        result = op.ScatterND(zeros, new_index, values, reduction="add")
+        result = op.ScatterND(result, new_index, values, reduction="add")
         result = op.Add(result, self)
     else:
         result = op.ScatterND(self, new_index, values)
