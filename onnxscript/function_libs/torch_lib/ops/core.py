@@ -4058,27 +4058,21 @@ def aten_index_put(
     values: TReal,
     accumulate: bool = False,
 ) -> TReal:
-    """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
+    """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor
 
-    index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
-    # change array([1,3]) to array([[1,1,1,1,1],[3,3,3,3,3]])
-    self_dim_1 = op.Gather(op.Shape(self), 1)
-    index_dim_0 = op.Gather(op.Shape(index), 0)
-    neg_1 = op.Constant(value_ints=[-1])
-    shape = op.Concat(op.Reshape(self_dim_1, neg_1), op.Reshape(index_dim_0, neg_1), axis=0)
-    new_ind = op.Expand(index, shape)
-    new_ind_t = op.Transpose(new_ind)
+    See implementation of `torch.onnx.symbolic_opset11.index_put
+    <https://github.com/pytorch/pytorch/blob/main/torch/onnx/symbolic_opset11.py#L212>`_.
+    """
+
+    # TODO(justinchuby): Handle when indicies has more than one element
+    index = op.SequenceAt(indices, 0)
+    new_index = op.Unsqueeze(index, [-1])
 
     if op.Cast(accumulate, to=BOOL.dtype):
-        # put values into zeros array first, then add to input
-        zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
-        zeros = op.CastLike(zeros, values)
-        result = op.ScatterElements(zeros, new_ind_t, values)
-        # FIXME: type promotion
-        result = op.CastLike(result, self)
-        result = op.Add(result, self)
+        result = op.ScatterND(self, new_index, values, reduction="add")
     else:
-        result = op.ScatterElements(self, new_ind_t, values)
+        result = op.ScatterND(self, new_index, values)
+
     return result
 
 
