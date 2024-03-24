@@ -61,7 +61,7 @@ from .onnx_types import (
 from ._internal.utils import external_tensor
 from .values import OnnxFunction, TracedOnnxFunction
 
-try:
+try:  # noqa: SIM105
     __version__ = importlib.metadata.version("onnxscript")
 except importlib.metadata.PackageNotFoundError:
     # package is not installed

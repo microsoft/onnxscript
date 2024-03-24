@@ -106,12 +106,10 @@ convention = "google"
 target-version = "py38"
 select = [
     "B", # flake8-bugbear
-    "BLE", # flake8-blind-except
     "C4", # flake8-comprehensions
     "D", # pydocstyle
     "E", # pycodestyle
     "F", # Pyflakes
-    "FBT", # flake8-boolean-trap
     "G", # flake8-logging-format
     "I", # isort
     "ISC", # flake8-implicit-str-concat
@@ -120,7 +118,6 @@ select = [
     "NPY", # modern numpy
     "PERF", # Perflint
     "PIE", # flake8-pie
-    "PL", # pylint
     "PYI", # flake8-pyi
     "RUF", # Ruff-specific rules
     "SIM", # flake8-simplify
@@ -149,14 +146,14 @@ ignore = [
     "NPY002", # We may not always need a generator
     "PERF203", # try-except in loops sometimes necessary
     "PERF401", # List comprehension is not always readable
-    "UP006", # keep-runtime-typing
-    "UP007", # keep-runtime-typing
-    "PLR09", # "Too many anything can be arbitrary"
+    "PYI041", # int | float is more clear
     "SIM102", # Collapible if statements are not always more readable
-    "TRY003", # Messages can be constructed in the exception
     "SIM108", # We don't always encourage ternary operators
     "SIM114", # Don't always combine if branches for debugability
     "SIM116", # Don't use dict lookup to replace if-else
+    "TRY003", # Messages can be constructed in the exception
+    "UP006", # keep-runtime-typing
+    "UP007", # keep-runtime-typing
 ]
 line-length = 95
 ignore-init-module-imports = true

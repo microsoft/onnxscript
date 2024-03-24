@@ -6,14 +6,15 @@ import contextlib
 import dataclasses
 import gzip
 import logging
-from typing import Callable, Generator, List, Literal, Mapping, Optional, TypeVar
+import typing
+from typing import Callable, Generator, List, Literal, Mapping, Optional
 
 from onnxscript.diagnostics import infra
 from onnxscript.diagnostics.infra import formatter, sarif, utils
 from onnxscript.diagnostics.infra.sarif import version as sarif_version
 
-# This is a workaround for mypy not supporting Self from typing_extensions.
-_Diagnostic = TypeVar("_Diagnostic", bound="Diagnostic")
+if typing.TYPE_CHECKING:
+    from typing_extensions import Self
 
 
 @dataclasses.dataclass
@@ -70,29 +71,27 @@ class Diagnostic:
         sarif_result.properties = sarif.PropertyBag(tags=[tag.value for tag in self.tags])
         return sarif_result
 
-    def with_location(self: _Diagnostic, location: infra.Location) -> _Diagnostic:
+    def with_location(self: Self, location: infra.Location) -> Self:
         """Adds a location to the diagnostic."""
         self.locations.append(location)
         return self
 
-    def with_thread_flow_location(
-        self: _Diagnostic, location: infra.ThreadFlowLocation
-    ) -> _Diagnostic:
+    def with_thread_flow_location(self: Self, location: infra.ThreadFlowLocation) -> Self:
         """Adds a thread flow location to the diagnostic."""
         self.thread_flow_locations.append(location)
         return self
 
-    def with_stack(self: _Diagnostic, stack: infra.Stack) -> _Diagnostic:
+    def with_stack(self: Self, stack: infra.Stack) -> Self:
         """Adds a stack to the diagnostic."""
         self.stacks.append(stack)
         return self
 
-    def with_graph(self: _Diagnostic, graph: infra.Graph) -> _Diagnostic:
+    def with_graph(self: Self, graph: infra.Graph) -> Self:
         """Adds a graph to the diagnostic."""
         self.graphs.append(graph)
         return self
 
-    def with_additional_message(self: _Diagnostic, message: str) -> _Diagnostic:
+    def with_additional_message(self: Self, message: str) -> Self:
         """Adds an additional message to the diagnostic."""
         if self.additional_message is None:
             self.additional_message = message
@@ -100,7 +99,7 @@ class Diagnostic:
             self.additional_message = f"{self.additional_message}\n{message}"
         return self
 
-    def with_source_exception(self: _Diagnostic, exception: Exception) -> _Diagnostic:
+    def with_source_exception(self: Self, exception: Exception) -> Self:
         """Adds the source exception to the diagnostic."""
         self.source_exception = exception
         return self

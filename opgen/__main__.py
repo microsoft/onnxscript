@@ -50,7 +50,7 @@ argparser.add_argument(
 )
 args = argparser.parse_args()
 
-try:
+try:  # noqa: SIM105
     shutil.rmtree(opsets_path)
 except FileNotFoundError:
     pass  # if base_path doesn't exist, that's great
