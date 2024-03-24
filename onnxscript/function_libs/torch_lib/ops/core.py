@@ -7861,19 +7861,17 @@ def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     # NOTE: onnxscript doesn't support attribute process,
     # so op.Shape(self, start=dim, end=dim + 1) is not supported.
 
-    # TODO(titaiwang): ORT==1.15 fixes SegFault
-    # https://github.com/microsoft/onnxscript/pull/484#discussion_r1136105039
-    # Change the op to:
-    # shape = op.Shape(self)
-    # idx= op.Reshape(dim, [1])
-    # return op.Gather(shape, idx)
-
     shape = op.Shape(self)
     # Reshape helps dim from int to tensor, and
     # input arguments support attribute processing.
     start = op.Reshape(dim, op.Constant(value_ints=[1]))
     end = op.Reshape(dim + 1, op.Constant(value_ints=[1]))
     return op.Slice(shape, start, end)
+
+
+@torch_op("aten::sym_float")
+def aten_sym_float(self: RealType) -> FLOAT:
+    return op.Cast(self, to=FLOAT.dtype)
 
 
 def aten_symeig(
