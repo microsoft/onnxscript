@@ -7855,6 +7855,16 @@ def aten_swapdims(self: TensorType, dim0: int, dim1: int) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::sym_float")
+def aten_sym_float(self: RealType) -> FLOAT:
+    return op.Cast(self, to=FLOAT.dtype)
+
+
+@torch_op("aten::sym_int")
+def aten_sym_int(self: RealType) -> INT64:
+    return op.Cast(self, to=INT64.dtype)
+
+
 @torch_op("aten::sym_size")
 def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     """sym_size(Tensor self, int dim) -> Tensor"""
@@ -7867,11 +7877,6 @@ def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     start = op.Reshape(dim, op.Constant(value_ints=[1]))
     end = op.Reshape(dim + 1, op.Constant(value_ints=[1]))
     return op.Slice(shape, start, end)
-
-
-@torch_op("aten::sym_float")
-def aten_sym_float(self: RealType) -> FLOAT:
-    return op.Cast(self, to=FLOAT.dtype)
 
 
 def aten_symeig(
