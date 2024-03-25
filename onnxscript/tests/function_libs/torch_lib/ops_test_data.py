@@ -863,6 +863,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.int64),
         reason="this Aten overload only supports tensor(int) as indices",
     )
+    TorchLibOpInfo(
+        "_unsafe_index_put",
+        core_ops.aten__unsafe_index_put,
+    )
+    .skip(
+        matcher=lambda sample: not (sample.args[0][0].dtype == torch.int64),
+        reason="this Aten overload only supports tensor(int) as indices",
+    )
     .xfail(
         enabled_if=version_utils.onnxruntime_older_than("1.18"),
         dtypes=(torch.float16,),
