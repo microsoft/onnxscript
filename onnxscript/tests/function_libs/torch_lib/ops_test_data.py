@@ -851,10 +851,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "index_put_bool",
         core_ops.aten_index_put_bool,
-    )
-    .skip(
+    ).skip(
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.bool),
         reason="this Aten overload only supports tensor(bool) as indices",
+    ),
+    TorchLibOpInfo(
+        "index_put",
+        core_ops.aten_index_put,
+    )
+    .skip(
+        matcher=lambda sample: not (sample.args[0][0].dtype == torch.int64),
+        reason="this Aten overload only supports tensor(int) as indices",
     )
     .xfail(
         enabled_if=version_utils.onnxruntime_older_than("1.18"),
@@ -862,15 +869,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("accumulate") is True,
         reason="fixme: ORT only supports float32 when accumulate is True:  MLFloat16 data type is not supported with ScatterND when reduction is 'add'",
     ),
-    TorchLibOpInfo(
-        "index_put",
-        core_ops.aten_index_put,
-    ),
-    TorchLibOpInfo(
-        "_unsafe_index_put",
-        core_ops.aten_index_put,
-    ),
     TorchLibOpInfo("ops.aten.index_put", core_ops.aten_index_put),
+    TorchLibOpInfo("ops.aten._unsafe_index_put", core_ops.aten__unsafe_index_put),
     TorchLibOpInfo("index_select", core_ops.aten_index_select),
     TorchLibOpInfo("isclose", core_ops.aten_isclose),
     TorchLibOpInfo("isfinite", core_ops.aten_isfinite),
