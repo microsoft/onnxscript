@@ -4051,7 +4051,7 @@ def aten_index_copy(
     raise NotImplementedError()
 
 
-@torch_op("aten::index_put")
+@torch_op(("aten::index_put", "aten::_unsafe_index_put"))
 def aten_index_put(
     self: TReal,
     indices: Sequence[INT64],
