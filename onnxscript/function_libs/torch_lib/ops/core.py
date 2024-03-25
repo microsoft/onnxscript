@@ -4076,6 +4076,16 @@ def aten_index_put(
     return result
 
 
+@torch_op("aten::_unsafe_index_put")
+def aten__unsafe_index_put(
+    self: TReal,
+    indices: Sequence[INT64],
+    values: TReal,
+    accumulate: bool = False,
+) -> TReal:
+    return aten_index_put(self, indices, values, accumulate)
+
+
 @torch_op("aten::index_put")
 def aten_index_put_bool(
     self: TReal,
