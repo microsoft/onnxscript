@@ -7855,18 +7855,21 @@ def aten_swapdims(self: TensorType, dim0: int, dim1: int) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::sym_float")
+def aten_sym_float(self: RealType) -> FLOAT:
+    return op.Cast(self, to=FLOAT.dtype)
+
+
+@torch_op("aten::sym_int")
+def aten_sym_int(self: RealType) -> INT64:
+    return op.Cast(self, to=INT64.dtype)
+
+
 @torch_op("aten::sym_size")
 def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     """sym_size(Tensor self, int dim) -> Tensor"""
     # NOTE: onnxscript doesn't support attribute process,
     # so op.Shape(self, start=dim, end=dim + 1) is not supported.
-
-    # TODO(titaiwang): ORT==1.15 fixes SegFault
-    # https://github.com/microsoft/onnxscript/pull/484#discussion_r1136105039
-    # Change the op to:
-    # shape = op.Shape(self)
-    # idx= op.Reshape(dim, [1])
-    # return op.Gather(shape, idx)
 
     shape = op.Shape(self)
     # Reshape helps dim from int to tensor, and
