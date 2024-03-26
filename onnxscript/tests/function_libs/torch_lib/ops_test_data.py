@@ -870,6 +870,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT only supports float32 when accumulate is True:  MLFloat16 data type is not supported with ScatterND when reduction is 'add'",
     ),
     TorchLibOpInfo("ops.aten.index_put", core_ops.aten_index_put),
+    TorchLibOpInfo("ops.aten._unsafe_index_put", core_ops.aten_index_put),
     TorchLibOpInfo("index_select", core_ops.aten_index_select),
     TorchLibOpInfo("isclose", core_ops.aten_isclose),
     TorchLibOpInfo("isfinite", core_ops.aten_isfinite),
