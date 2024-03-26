@@ -476,7 +476,7 @@ class TestConverter(testutils.TestBase):
         from onnxscript.tests.models.graph_attr import sum_to_error
 
         input = np.array(6, dtype=np.int64)
-        with self.assertRaisesRegex(ValueError, "@graph"):
+        with self.assertRaisesRegex(TypeError, "@graph"):
             sum_to_error(input)
 
     def test_loop_outer_scope(self):

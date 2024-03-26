@@ -113,12 +113,18 @@ select = [
     "G", # flake8-logging-format
     "I", # isort
     "ISC", # flake8-implicit-str-concat
+    "LOG", # flake8-logging
     "N", # pep8-naming
     "NPY", # modern numpy
     "PERF", # Perflint
+    "PIE", # flake8-pie
+    "PYI", # flake8-pyi
     "RUF", # Ruff-specific rules
+    "SIM", # flake8-simplify
+    "SLOT", # flake8-slot
     "T10", # flake8-debugger
-    "TID252", # Disallow relative imports
+    "TID", # Disallow relative imports
+    "TRY", # flake8-try-except-raise
     "UP", # pyupgrade
     "W", # pycodestyle
     "YTT", # flake8-2020
@@ -140,6 +146,12 @@ ignore = [
     "NPY002", # We may not always need a generator
     "PERF203", # try-except in loops sometimes necessary
     "PERF401", # List comprehension is not always readable
+    "PYI041", # int | float is more clear
+    "SIM102", # Collapible if statements are not always more readable
+    "SIM108", # We don't always encourage ternary operators
+    "SIM114", # Don't always combine if branches for debugability
+    "SIM116", # Don't use dict lookup to replace if-else
+    "TRY003", # Messages can be constructed in the exception
     "UP006", # keep-runtime-typing
     "UP007", # keep-runtime-typing
 ]

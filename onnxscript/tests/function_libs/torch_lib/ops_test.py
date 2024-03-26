@@ -103,7 +103,7 @@ class TestFunctionValidity(unittest.TestCase):
             with self.subTest(name=info.op_info_name):
                 func = info.op
                 if not isinstance(func, onnxscript.OnnxFunction):
-                    raise AssertionError(
+                    raise TypeError(
                         f"'{func}' is not an OnnxFunction. Was it decorated with '@torch_op'? "
                         "If the function is trace_only, please specify trace_only=True "
                         "in the TorchLibOpInfo entry."
@@ -116,7 +116,7 @@ class TestFunctionValidity(unittest.TestCase):
             with self.subTest(name=info.op_info_name):
                 func = info.op
                 if not isinstance(func, onnxscript.TracedOnnxFunction):
-                    raise AssertionError(
+                    raise TypeError(
                         f"'{func.name}' is not a TracedOnnxFunction. "
                         "If the function is not trace_only, please remove trace_only=True "
                         "in the TorchLibOpInfo entry."

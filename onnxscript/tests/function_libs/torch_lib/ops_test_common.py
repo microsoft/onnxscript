@@ -622,9 +622,9 @@ def normal_xfail_skip_test_behaviors(
         yield
     # We could use `except (AssertionError, RuntimeError, ...) as e:`, but it needs
     # to go over all test cases to find the right exception type.
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception:  # pylint: disable=broad-exception-caught
         if test_behavior is None:
-            raise e
+            raise
         if test_behavior == "xfail":
             pytest.xfail(reason=reason)
     else:

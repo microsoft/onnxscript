@@ -46,10 +46,7 @@ def _same_optional(field, obj1, obj2, equals=_default_equality_op):
 def _same_repeated(values1, values2, equals=_default_equality_op):
     if len(values1) != len(values2):
         return False
-    for val1, val2 in zip(values1, values2):
-        if not equals(val1, val2):
-            return False
-    return True
+    return all(equals(val1, val2) for val1, val2 in zip(values1, values2))
 
 
 def _same_string_string_map(proto1, proto2):
@@ -232,10 +229,7 @@ class _Matcher:
         """Match two lists of variables (either a string or ValueInfoProto)"""
         if len(list1) != len(list2):
             return False
-        for x, y in zip(list1, list2):
-            if not self.same_value(_ioname(x), _ioname(y)):
-                return False
-        return True
+        return all(self.same_value(_ioname(x), _ioname(y)) for x, y in zip(list1, list2))
 
     def same_sub_graph(self, g1, g2):
         """Match two sub-graphs."""

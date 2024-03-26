@@ -1964,6 +1964,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "ops.aten._unsafe_index_put",
+        aten_name="_unsafe_index_put",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_index_put,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "ops.aten.layer_norm",
         aten_name="layer_norm",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),

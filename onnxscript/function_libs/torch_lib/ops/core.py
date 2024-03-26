@@ -4025,7 +4025,7 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
         *range(
             advanced_indexing_rank, starting_position_of_none_in_back
         ),  # None_front_1...x_None_back_1
-        *range(0, advanced_indexing_rank),  # 0...len(broadcasted_shape)
+        *range(advanced_indexing_rank),  # 0...len(broadcasted_shape)
         *range(
             starting_position_of_none_in_back,
             result_rank,
@@ -4051,7 +4051,7 @@ def aten_index_copy(
     raise NotImplementedError()
 
 
-@torch_op("aten::index_put")
+@torch_op(("aten::index_put", "aten::_unsafe_index_put"))
 def aten_index_put(
     self: TReal,
     indices: Sequence[INT64],
