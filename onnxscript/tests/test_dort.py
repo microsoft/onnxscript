@@ -376,6 +376,9 @@ class TestCustomOps(unittest.TestCase):
 
     @unittest.skipIf(not has_cuda(), reason="not available on cpu")
     def test_llama_mixed_precision_large(self):
+        # This test seems to produce a different model even though
+        # the only difference is the model size. It might go through
+        # a different code path in transformers.
         self.common_llama_mixed_precision_small(
             "large",
             hidden_size=4096,
