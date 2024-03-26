@@ -826,12 +826,13 @@ class Opset18(Opset17):
 
 
         Computes the L1 norm of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields 0.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -875,12 +876,13 @@ class Opset18(Opset17):
 
 
         Computes the L2 norm of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields 0.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -924,12 +926,13 @@ class Opset18(Opset17):
 
 
         Computes the log sum of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields minus infinity (if supported by the datatype) or undefined otherwise.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -973,12 +976,13 @@ class Opset18(Opset17):
 
 
         Computes the log sum exponent of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields minus infinity (if supported by the datatype) or undefined otherwise.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -1032,12 +1036,13 @@ class Opset18(Opset17):
 
 
         Computes the max of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields minus infinity (if supported by the datatype) or the minimum value of the data type otherwise.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -1081,12 +1086,13 @@ class Opset18(Opset17):
 
 
         Computes the mean of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields undefined.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -1140,12 +1146,13 @@ class Opset18(Opset17):
 
 
         Computes the min of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields plus infinity (if supported by the datatype) or the maximum value of the data type otherwise.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -1189,12 +1196,13 @@ class Opset18(Opset17):
 
 
         Computes the product of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields 1.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -1238,12 +1246,13 @@ class Opset18(Opset17):
 
 
         Computes the sum square of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields 0.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -1528,8 +1537,8 @@ class Opset18(Opset17):
         When `reduction` is set to some reduction function `f`, the update corresponding to the [i][j] entry is performed as below:
         ::
 
-            output[indices[i][j]][j] += f(output[indices[i][j]][j], updates[i][j]) if axis = 0,
-            output[i][indices[i][j]] += f(output[i][indices[i][j]], updates[i][j]) if axis = 1,
+            output[indices[i][j]][j] = f(output[indices[i][j]][j], updates[i][j]) if axis = 0,
+            output[i][indices[i][j]] = f(output[i][indices[i][j]], updates[i][j]) if axis = 1,
 
 
         where the `f` is `+`, `*`, `max` or `min` as specified.

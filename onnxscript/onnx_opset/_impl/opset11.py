@@ -66,6 +66,7 @@ class Opset11(Opset10):
         Computes the indices of the max elements of the input tensor's element along the
         provided axis. The resulting tensor has the same rank as the input if keepdims equals 1.
         If keepdims equal 0, then the resulting tensor has the reduced dimension pruned.
+        The input tensor must not be empty.
         The type of the output tensor is integer.
 
         Args:
@@ -104,6 +105,7 @@ class Opset11(Opset10):
         Computes the indices of the min elements of the input tensor's element along the
         provided axis. The resulting tensor has the same rank as the input if keepdims equals 1.
         If keepdims equal 0, then the resulting tensor has the reduced dimension pruned.
+        The input tensor must not be empty.
         The type of the output tensor is integer.
 
         Args:
@@ -154,11 +156,17 @@ class Opset11(Opset10):
          * pad_shape[i] is sum of pads along axis i
          ```
 
-         `auto_pad` is a DEPRECATED attribute. If you are using them currently, the output spatial shape will be following:
+         `auto_pad` is a DEPRECATED attribute. If you are using them currently, the output spatial shape will be following when ceil_mode is enabled:
          ```
          VALID: output_spatial_shape[i] = ceil((input_spatial_shape[i] - ((kernel_spatial_shape[i] - 1) * dilations[i] + 1) + 1) / strides_spatial_shape[i])
          SAME_UPPER or SAME_LOWER: output_spatial_shape[i] = ceil(input_spatial_shape[i] / strides_spatial_shape[i])
          ```
+        or when ceil_mode is disabled:
+         ```
+         VALID: output_spatial_shape[i] = floor((input_spatial_shape[i] - ((kernel_spatial_shape[i] - 1) * dilations[i] + 1) + 1) / strides_spatial_shape[i])
+         SAME_UPPER or SAME_LOWER: output_spatial_shape[i] = floor(input_spatial_shape[i] / strides_spatial_shape[i])
+         ```
+
          And pad shape will be following if `SAME_UPPER` or `SAME_LOWER`:
          ```
          pad_shape[i] = (output_spatial_shape[i] - 1) * strides_spatial_shape[i] + ((kernel_spatial_shape[i] - 1) * dilations[i] + 1) - input_spatial_shape[i]
@@ -642,7 +650,9 @@ class Opset11(Opset10):
 
             output_shape: The shape of the output can be explicitly set which will cause
                 pads values to be auto generated. If output_shape is specified pads
-                values are ignored. See doc for details for equations to generate pads
+                values are ignored. See doc for details for equations to generate pads.
+                Note that the output_shape attribute value should not include dimensions
+                for batch size and channels, which are automatically inferred.
 
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
@@ -821,16 +831,16 @@ class Opset11(Opset10):
         r"""[🌐 DynamicQuantizeLinear(11)](https://onnx.ai/onnx/operators/onnx__DynamicQuantizeLinear.html#dynamicquantizelinear-11 "Online Documentation")
 
 
-        A Function to fuse calculation for Scale, Zero Point and FP32->8Bit convertion of FP32 Input data.
+        A Function to fuse calculation for Scale, Zero Point and FP32->8Bit conversion of FP32 Input data.
         Outputs Scale, ZeroPoint and Quantized Input for a given FP32 Input.
         Scale is calculated as:
         ::
 
-            y_scale = (max(x) - min(x))/(qmax - qmin)
+            y_scale = (maximum(0, max(x)) - minimum(0, min(x))) / (qmax - qmin)
 
 
 
-        * where qmax and qmin are max and min values for quantization range .i.e [0, 255] in case of uint8
+        * where qmax and qmin are max and min values for quantization range i.e. [0, 255] in case of uint8
         * data range is adjusted to include 0.
 
         Zero point is calculated as:
@@ -1376,7 +1386,7 @@ class Opset11(Opset10):
         If conditional
 
         Args:
-            cond: Condition for the if
+            cond: Condition for the if. The tensor must contain a single element.
 
             else_branch: Graph to run if condition is false. Has N outputs: values you
                 wish to be live-out to the enclosing scope. The number of outputs must
@@ -1808,7 +1818,7 @@ class Opset11(Opset10):
         MaxUnpool essentially computes the partial inverse of the MaxPool op.
          The input information to this op is typically the output information from a MaxPool op. The first
          input tensor X is the tensor that needs to be unpooled, which is typically the pooled tensor (first output)
-         from MaxPool. The second input tensor, I, contains the indices to the (locally maximal) elements corrsponding
+         from MaxPool. The second input tensor, I, contains the indices to the (locally maximal) elements corresponding
          to the elements in the first input tensor X. Input tensor I is typically the second output of the MaxPool op.
          The third (optional) input is a tensor that specifies the output size of the unpooling operation.
 
@@ -1821,7 +1831,7 @@ class Opset11(Opset10):
          known/predictable size.
 
         In addition to the inputs, MaxUnpool takes three attributes, namely kernel_shape, strides, and pads,
-         which define the exact unpooling op. The attributes typically have the same values as the corrsponding
+         which define the exact unpooling op. The attributes typically have the same values as the corresponding
          pooling op that the unpooling op is trying to invert.
 
 
@@ -2363,7 +2373,8 @@ class Opset11(Opset10):
 
         Computes the max of the input tensor's element along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equal 0, then
-        the resulted tensor have the reduced dimension pruned.
+        the resulted tensor have the reduced dimension pruned. Input tensors of rank zero are
+        valid. Reduction over an empty set of values yields minus infinity (if supported by the datatype) or the minimum value of the data type otherwise.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -2425,7 +2436,8 @@ class Opset11(Opset10):
 
         Computes the min of the input tensor's element along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equal 0, then
-        the resulted tensor have the reduced dimension pruned.
+        the resulted tensor have the reduced dimension pruned. Input tensors of rank zero are
+        valid. Reduction over an empty set of values yields plus infinity (if supported by the datatype) or the maximum value of the data type otherwise.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -2693,7 +2705,7 @@ class Opset11(Opset10):
 
         Round takes one input Tensor and rounds the values, element-wise, meaning
         it finds the nearest integer for each value.
-        In case of halfs, the rule is to round them to the nearest even integer.
+        In case of halves, the rule is to round them to the nearest even integer.
         If input x is integral, +0, -0, NaN,  or infinite, x itself is returned.
         The output tensor has the same shape and type as the input.
 
@@ -3752,11 +3764,11 @@ class Opset11(Opset10):
 
 
         Retrieve the top-K largest or smallest elements along a specified axis. Given an input tensor of
-        shape [a_1, a_2, ..., a_n, r] and integer argument k, return two outputs:
+        shape [a_0, a_1, ..., a_{n-1}] and integer argument k, return two outputs:
 
-        * Value tensor of shape [a_1, a_2, ..., a_{axis-1}, k, a_{axis+1}, ... a_n]
+        * Value tensor of shape [a_0, a_1, ..., a_{axis-1}, k, a_{axis+1}, ... a_{n-1}]
           which contains the values of the top k elements along the specified axis
-        * Index tensor of shape [a_1, a_2, ..., a_{axis-1}, k, a_{axis+1}, ... a_n] which
+        * Index tensor of shape [a_0, a_1, ..., a_{axis-1}, k, a_{axis+1}, ... a_{n-1}] which
           contains the indices of the top k elements (original indices from the input
           tensor).
 
@@ -3769,7 +3781,7 @@ class Opset11(Opset10):
 
 
         Args:
-            X: (differentiable) Tensor of shape [a_1, a_2, ..., a_n, r]
+            X: (differentiable) Tensor of shape [a_0, a_1, ..., a_{n-1}]
 
             K: (non-differentiable) A 1-D tensor containing a single positive value
                 corresponding to the number of top elements to retrieve
@@ -3819,8 +3831,8 @@ class Opset11(Opset10):
 
         This operator returns the unique values or sliced unique subtensors of the input tensor and three optional outputs.
         The first output tensor 'Y' contains all unique values or subtensors of the input.
-        The second optional output tensor 'indices' contains indices of 'Y' elements' first occurance in 'X'..
-        The third optional output tensor 'inverse_indices' contains, for elements of 'X', its corresponding indices in 'Y'. ".
+        The second optional output tensor 'indices' contains indices of 'Y' elements' first occurrence in 'X'.
+        The third optional output tensor 'inverse_indices' contains, for elements of 'X', its corresponding indices in 'Y'.
         The fourth optional output tensor 'counts' contains the count of each element of 'Y' in the input.
 
         Outputs are either sorted in ascending order or optionally in the order of the first occurrence of the values in the input.

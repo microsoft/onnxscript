@@ -115,26 +115,30 @@ class Opset17(Opset16):
                 [batch_idx][signal_dim1][signal_dim2]...[signal_dimN][1]. For complex
                 input, the following shape is expected:
                 [batch_idx][signal_dim1][signal_dim2]...[signal_dimN][2]. The first
-                dimension is the batch dimension. The following N dimentions correspond
+                dimension is the batch dimension. The following N dimensions correspond
                 to the signal's dimensions. The final dimension represents the real and
                 imaginary parts of the value in that order.
 
-            dft_length: (optional, non-differentiable) The length of the signal.If
-                greater than the axis dimension, the signal will be zero-padded up to
-                dft_length. If less than the axis dimension, only the first dft_length
-                values will be used as the signal. It's an optional value.
+            dft_length: (optional, non-differentiable) The length of the signal as a
+                scalar. If greater than the axis dimension, the signal will be
+                zero-padded up to dft_length. If less than the axis dimension, only the
+                first dft_length values will be used as the signal. It's an optional
+                value.
 
             axis: The axis on which to perform the DFT. By default this value is set to
                 1, which corresponds to the first dimension after the batch index.
+                Negative value means counting dimensions from the back. Accepted range
+                is $[-r, -2] \cup [0, r-2]$ where `r = rank(input)`. The last dimension
+                is for representing complex numbers and thus is an invalid axis.
 
             inverse: Whether to perform the inverse discrete fourier transform. By
                 default this value is set to 0, which corresponds to false.
 
             onesided: If onesided is 1, only values for w in [0, 1, 2, ...,
                 floor(n_fft/2) + 1] are returned because the real-to-complex Fourier
-                transform satisfies the conjugate symmetry, i.e., X[m, w] =
-                X[m,w]=X[m,n_fft-w]*. Note if the input or window tensors are complex,
-                then onesided output is not possible. Enabling onesided with real inputs
+                transform satisfies the conjugate symmetry, i.e., X[m, w] = X[m,
+                n_fft-w]*. Note if the input or window tensors are complex, then
+                onesided output is not possible. Enabling onesided with real inputs
                 performs a Real-valued fast Fourier transform (RFFT). When invoked with
                 real or complex valued input, the default value is 0. Values can be 0 or
                 1.
@@ -300,7 +304,9 @@ class Opset17(Opset16):
               Let `d[i]` indicate the i-th dimension of `X`.
               If `X`'s shape is `[d[0], ..., d[axis-1], d[axis], ..., d[rank-1]]`,
               the shape of `Mean` and `InvStdDev` is `[d[0], ..., d[axis-1], 1, ..., 1]`.
-              `Y` and `X` have the same shape.
+              `Y` and `X` have the same shape. This operator supports unidirectional broadcasting
+              (tensors `Scale` and `B` should be unidirectional broadcastable to tensor `X`);
+              for more details please check `Broadcasting in ONNX <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`_.
 
 
         Args:
@@ -311,7 +317,7 @@ class Opset17(Opset16):
             B: (optional) Bias tensor.
 
             axis: The first normalization dimension. If rank(X) is r, axis' allowed
-                range is [-r, r]. Negative value means counting dimensions from the
+                range is [-r, r). Negative value means counting dimensions from the
                 back.
 
             epsilon: The epsilon value to use to avoid division by zero.
