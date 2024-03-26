@@ -95,7 +95,7 @@ class OnnxBackendTest:
             elif isinstance(new_tensor, onnx.TensorProto):
                 t = onnx.numpy_helper.to_array(new_tensor)
             else:
-                raise RuntimeError(  # pragma: no cover
+                raise RuntimeError(  # noqa: TRY004
                     f"Unexpected type {type(new_tensor)!r} for {full!r}."
                 )
             res.append(t)

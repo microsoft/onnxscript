@@ -92,9 +92,10 @@ class Opset:
     def __contains__(self, opname):
         try:
             onnx.defs.get_schema(opname, self.version, self.domain)
-            return True
         except Exception:  # pylint: disable=broad-except # TODO: more specific exception
             return False
+        else:
+            return True
 
     def __str__(self) -> str:
         return self.domain

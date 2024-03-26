@@ -21,7 +21,7 @@ def Selu(X, alpha: float, gamma: float):
     neg = gammaX * (alphaX * op.Exp(X) - alphaX)
     pos = gammaX * X
     zero = op.CastLike(0, X)
-    return op.Where(X <= zero, neg, pos)
+    return op.Where(zero >= X, neg, pos)
 
 
 # %%

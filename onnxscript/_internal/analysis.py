@@ -13,7 +13,7 @@ from onnxscript._internal import ast_utils
 
 def _get_loop_var(for_stmt: ast.For, formatter: sourceinfo.Formatter) -> str:
     if not isinstance(for_stmt.target, ast.Name):
-        raise ValueError(formatter(for_stmt, "For loop target must be a single variable."))
+        raise TypeError(formatter(for_stmt, "For loop target must be a single variable."))
     return for_stmt.target.id
 
 

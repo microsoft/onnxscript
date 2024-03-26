@@ -74,7 +74,7 @@ def diagnose_call(
         def wrapper(*args, **kwargs):  # pylint: disable=inconsistent-return-statements
             common_error_message = "diagnose_call can only be applied to callables"
             if not callable(fn):
-                raise AssertionError(
+                raise AssertionError(  # noqa: TRY004
                     f"{common_error_message}. Got {type(fn)} instead of callable."
                 )
             arg0 = args[0] if len(args) > 0 else None
@@ -88,7 +88,7 @@ def diagnose_call(
             else:
                 # NOTE: At decorate time, it can't tell if a callable is function or method.
                 # Technically both are regarded as function at that time.
-                raise AssertionError(
+                raise AssertionError(  # noqa: TRY004
                     f"{common_error_message}. For {fn}, "
                     f"If it is a function, a DiagnosticContext instance must be present as "
                     f"the first argument. "
@@ -129,7 +129,6 @@ def diagnose_call(
                     additional_messages.append(
                         format_return_values_in_markdown(return_values, format_argument)
                     )
-                    return return_values
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     # Record exception.
                     diag.level = infra.levels.ERROR
@@ -138,6 +137,8 @@ def diagnose_call(
                     diag.message += f"Raised from:\n    {type(e).__name__}: {e}"
                     diag.with_source_exception(e)
                     additional_messages.append(format_exception_in_markdown(e))
+                else:
+                    return return_values
                 finally:
                     diag.with_additional_message("\n".join(additional_messages).strip())
                     ctx.log_and_raise_if_error(diag)

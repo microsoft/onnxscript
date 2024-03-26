@@ -123,6 +123,10 @@ def parse_default_value(arg: torchgen.model.Argument) -> Any:
 
     try:
         value = ast.literal_eval(default)
+    except ValueError:
+        # Treat it as a string.
+        return default.lower()
+    else:
         if isinstance(value, int):
             # Expand the value to a tuple if the type is a list.
             if isinstance(arg.type, torchgen.model.ListType):
@@ -130,9 +134,6 @@ def parse_default_value(arg: torchgen.model.Argument) -> Any:
                     return (value,) * arg.type.size
                 return (value,)
         return value
-    except ValueError:
-        # Treat it as a string.
-        return default.lower()
 
 
 def create_return_type(returns: Sequence[torchgen.model.Return]) -> cg.TypeRef:
