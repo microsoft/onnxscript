@@ -224,7 +224,7 @@ class BaseEvaluator(Evaluator, abc.ABC):
                 else:
                     adapted_attributes[k] = v.function
             elif callable(v):
-                raise ValueError(
+                raise TypeError(
                     f"Error: function-valued attribute {v.__name__} has no graph_proto"
                     "attribute. Did you forget to decorate it with @graph?"
                 )
