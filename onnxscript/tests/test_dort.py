@@ -299,8 +299,7 @@ class TestCustomOps(unittest.TestCase):
                     "new_zeros"
                 ), f"One output of the output is likely to be null, see {output_names}"
 
-    @unittest.skipIf(not has_cuda(), reason="not available on cpu")
-    def test_llama_mixed_precision_small(self):
+    def common_llama_mixed_precision_small(self, folder_suffix, **kwargs):
         import torch
         import torch.onnx
 
@@ -311,7 +310,62 @@ class TestCustomOps(unittest.TestCase):
 
         local_aot_ort, _ = make_aot_ort(dynamic=False, rewrite=True, verbose=1)
 
-        config = LlamaConfig(
+        config = LlamaConfig(**kwargs)
+        config._attn_implementation = "eager"
+
+        model = LlamaModel(config).to("cuda")
+
+        batch, seq, vocab_size = 2, 1024, 1024
+        input_ids = ids_tensor([batch, seq], vocab_size).to("cuda")
+        input_mask = torch.tril(torch.ones(batch, seq, dtype=torch.float32)).to("cuda")
+
+        model(input_ids, input_mask)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                optimized_mod = torch.compile(model, backend=local_aot_ort, fullgraph=True)
+                with dump_onnx(
+                    "dort-llama-ort",
+                    folder=f"dump_eager_llama_mixed_{folder_suffix}",
+                    clean=True,
+                ):
+                    output = optimized_mod(input_ids, input_mask)
+                    output[0].sum().backward()
+
+        names = [
+            _
+            for _ in os.listdir(f"dump_eager_llama_mixed_{folder_suffix}")
+            if _.endswith(".onnx")
+        ]
+        if VERBOSE:
+            print("------------------------------------------")
+            print(f"exported model: {names}")
+        for name in names:
+            if VERBOSE:
+                print()
+                print(f"NODES in {name!r}")
+            onx = onnx.load(os.path.join(f"dump_eager_llama_mixed_{folder_suffix}", name))
+            if VERBOSE:
+                for i, node in enumerate(onx.graph.node):
+                    print(
+                        f"{i+1}/{len(onx.graph.node)}: "
+                        f"{node.op_type} {node.input} -> {node.output}"
+                    )
+            output_names = [o.name for o in onx.graph.output]
+
+            for o in output_names:
+                # This test fails if _unsafe_index_put is not supported, in that case,
+                # DORT detects that a graph break is needed and let torch execute this instruction.
+                # This is not desired.
+                assert not o.startswith(
+                    "new_zeros"
+                ), f"One output of the output is likely to be null, see {output_names}"
+
+    @unittest.skipIf(not has_cuda(), reason="not available on cpu")
+    def test_llama_mixed_precision_small(self):
+        self.common_llama_mixed_precision_small(
+            "small",
             hidden_size=16,
             num_hidden_layers=1,
             vocab_size=1024,
@@ -319,64 +373,11 @@ class TestCustomOps(unittest.TestCase):
             max_position_embeddings=1024,
             num_attention_heads=2,
         )
-        config._attn_implementation = "eager"
-
-        model = LlamaModel(config).to("cuda")
-
-        batch, seq, vocab_size = 2, 1024, 1024
-        input_ids = ids_tensor([batch, seq], vocab_size).to("cuda")
-        input_mask = torch.tril(torch.ones(batch, seq, dtype=torch.float32)).to("cuda")
-
-        model(input_ids, input_mask)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            with torch.autocast(device_type="cuda", dtype=torch.float16):
-                optimized_mod = torch.compile(model, backend=local_aot_ort, fullgraph=True)
-                with dump_onnx(
-                    "dort-llama-ort", folder="dump_eager_llama_mixed_small", clean=True
-                ):
-                    output = optimized_mod(input_ids, input_mask)
-                    output[0].sum().backward()
-
-        names = [_ for _ in os.listdir("dump_eager_llama_mixed_small") if _.endswith(".onnx")]
-        if VERBOSE:
-            print("------------------------------------------")
-            print(f"exported model: {names}")
-        for name in names:
-            if VERBOSE:
-                print()
-                print(f"NODES in {name!r}")
-            onx = onnx.load(os.path.join("dump_eager_llama_mixed_small", name))
-            if VERBOSE:
-                for i, node in enumerate(onx.graph.node):
-                    print(
-                        f"{i+1}/{len(onx.graph.node)}: "
-                        f"{node.op_type} {node.input} -> {node.output}"
-                    )
-            output_names = [o.name for o in onx.graph.output]
-
-            for o in output_names:
-                # This test fails if _unsafe_index_put is not supported, in that case,
-                # DORT detects that a graph break is needed and let torch execute this instruction.
-                # This is not desired.
-                assert not o.startswith(
-                    "new_zeros"
-                ), f"One output of the output is likely to be null, see {output_names}"
 
     @unittest.skipIf(not has_cuda(), reason="not available on cpu")
     def test_llama_mixed_precision_large(self):
-        import torch
-        import torch.onnx
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            from transformers import LlamaConfig
-            from transformers.models.llama.modeling_llama import LlamaModel
-
-        local_aot_ort, _ = make_aot_ort(dynamic=False, rewrite=True, verbose=1)
-
-        config = LlamaConfig(
+        self.common_llama_mixed_precision_small(
+            "large",
             hidden_size=4096,
             num_hidden_layers=1,
             vocab_size=32000,
@@ -384,50 +385,6 @@ class TestCustomOps(unittest.TestCase):
             max_position_embeddings=2048,
             num_attention_heads=32,
         )
-        config._attn_implementation = "eager"
-
-        model = LlamaModel(config).to("cuda")
-
-        batch, seq, vocab_size = 2, 1024, 1024
-        input_ids = ids_tensor([batch, seq], vocab_size).to("cuda")
-        input_mask = torch.tril(torch.ones(batch, seq, dtype=torch.float32)).to("cuda")
-
-        model(input_ids, input_mask)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            with torch.autocast(device_type="cuda", dtype=torch.float16):
-                optimized_mod = torch.compile(model, backend=local_aot_ort, fullgraph=True)
-                with dump_onnx(
-                    "dort-llama-ort", folder="dump_eager_llama_mixed_large", clean=True
-                ):
-                    output = optimized_mod(input_ids, input_mask)
-                    output[0].sum().backward()
-
-        names = [_ for _ in os.listdir("dump_eager_llama_mixed_large") if _.endswith(".onnx")]
-        if VERBOSE:
-            print("------------------------------------------")
-            print(f"exported model: {names}")
-        for name in names:
-            if VERBOSE:
-                print()
-                print(f"NODES in {name!r}")
-            onx = onnx.load(os.path.join("dump_eager_llama_mixed_large", name))
-            if VERBOSE:
-                for i, node in enumerate(onx.graph.node):
-                    print(
-                        f"{i+1}/{len(onx.graph.node)}: "
-                        f"{node.op_type} {node.input} -> {node.output}"
-                    )
-            output_names = [o.name for o in onx.graph.output]
-
-            for o in output_names:
-                # This test fails if _unsafe_index_put is not supported, in that case,
-                # DORT detects that a graph break is needed and let torch execute this instruction.
-                # This is not desired.
-                assert not o.startswith(
-                    "new_zeros"
-                ), f"One output of the output is likely to be null, see {output_names}"
 
     def test_mlp_dort(self):
         import torch
