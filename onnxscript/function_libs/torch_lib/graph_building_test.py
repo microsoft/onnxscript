@@ -3,7 +3,6 @@
 # mypy: disable-error-code="arg-type,type-arg,valid-type"
 from __future__ import annotations
 
-import os
 import unittest
 
 import torch
@@ -140,7 +139,6 @@ class TestTorchScriptGraph(unittest.TestCase):
 
 
 class TestModelSaving(unittest.TestCase):
-    @unittest.skipIf(os.getenv("CI") == "true", "CI is not ready to run dyanmo_export.")
     def test_save_initializer_to_files_for_large_model(self):
         class MLP(torch.nn.Module):
             def __init__(self, input_size, hidden_size, output_size):
@@ -166,6 +164,34 @@ class TestModelSaving(unittest.TestCase):
         model_proto = torch.onnx.dynamo_export(model, x).model_proto
         # Assert model is larger than 2GB (~=3GB)
         self.assertGreater(model_proto.ByteSize(), 2**31)
+
+    def test_input_output_and_initializer_are_not_stored_in_value_info(self):
+        class MLP(torch.nn.Module):
+            def __init__(self, input_size, hidden_size, output_size):
+                super().__init__()
+                self.fc1 = torch.nn.Linear(input_size, hidden_size)
+                self.fc2 = torch.nn.Linear(hidden_size, output_size)
+                self.relu = torch.nn.ReLU()
+
+            def forward(self, x):
+                out = self.fc1(x)
+                out = self.relu(out)
+                out = self.fc2(out)
+                return out
+
+        batch_size, input_size, hidden_size, output_size = 1, 4, 5, 10
+        model = MLP(input_size, hidden_size, output_size)
+        x = torch.randn(batch_size, input_size)
+
+        model_proto = torch.onnx.dynamo_export(model, x).model_proto
+        v_names = set(v.name for v in model_proto.graph.value_info)
+        print(v_names)
+        for i in model_proto.graph.input:
+            self.assertNotIn(i.name, v_names)
+        for o in model_proto.graph.output:
+            self.assertNotIn(o.name, v_names)
+        for i in model_proto.graph.initializer:
+            self.assertNotIn(i.name, v_names)
 
 
 if __name__ == "__main__":
