@@ -184,8 +184,8 @@ class TestModelSaving(unittest.TestCase):
         x = torch.randn(batch_size, input_size)
 
         model_proto = torch.onnx.dynamo_export(model, x).model_proto
-        v_names = set(v.name for v in model_proto.graph.value_info)
-        print(v_names)
+        v_names = {v.name for v in model_proto.graph.value_info}
+
         for i in model_proto.graph.input:
             self.assertNotIn(i.name, v_names)
         for o in model_proto.graph.output:
