@@ -60,6 +60,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 import onnx
 import onnx.external_data_helper
+import onnx.numpy_helper
 
 from onnxscript.ir import (
     _core,
@@ -76,7 +77,7 @@ _FUNCTION_VALUE_INFO_SUPPORTED_VERSION = (
 )
 
 
-class TensorProtoTensor(_core.TensorBase, _protocols.TensorProtocol):
+class TensorProtoTensor(_core.TensorBase):
     """A tensor initialized from a tensor proto."""
 
     def __init__(self, proto: onnx.TensorProto) -> None:
@@ -111,9 +112,6 @@ class TensorProtoTensor(_core.TensorBase, _protocols.TensorProtocol):
 
     def numpy(self) -> np.ndarray:
         """Return the tensor as a numpy array."""
-        # Do not import onnx at the top level to avoid bringing in additional protobuf dependencies
-        import onnx.numpy_helper
-
         return onnx.numpy_helper.to_array(self._proto)
 
     def tobytes(self) -> bytes:

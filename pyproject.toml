@@ -89,11 +89,13 @@ extend_skip_glob = [
 # This list is for vscode. Add new disables in pyproject_pylint.toml for lintrunner
 # Exclude patterns should be modified in .lintrunner.toml
 disable = [
+  "consider-using-from-import",
   "format",
   "import-error",
   "invalid-name",      # TODO: Add naming guidance and enable this check.
   "line-too-long",
   "no-name-in-module",
+  "unnecessary-ellipsis",
   "use-dict-literal",  # Sometime it is preferable when we construct kwargs
 ]
 
