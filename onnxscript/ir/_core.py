@@ -102,7 +102,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
 
             status_manager = rich.status.Status(f"Computing tensor stats for {self!r}")
 
-        from onnxrewriter._thirdparty import asciichartpy
+        from onnxscript._thirdparty import asciichartpy
 
         with status_manager:
             # Construct the text to display
