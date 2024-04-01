@@ -73,7 +73,8 @@ class DataType(enum.IntEnum):
         Raises:
             KeyError: If the data type is not supported by numpy.
         """
-        import onnx.helper
+        import onnx.helper  # pylint: disable=import-outside-toplevel
+        # Import here to avoid bringing in the onnx protobuf dependencies to the module
 
         return onnx.helper.tensor_dtype_to_np_dtype(self)
 

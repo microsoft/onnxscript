@@ -215,7 +215,7 @@ class DoubleDataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
         return np.array(self._proto.double_data, dtype=np.float64).tobytes()
 
 
-class UInt64DataTensor(TensorProtoTensor):  # pylint: disable=consider-using-with
+class UInt64DataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
     compatible_types = frozenset((_enums.DataType.UINT64, _enums.DataType.UINT32))
 
     def __init__(self, proto: onnx.TensorProto) -> None:

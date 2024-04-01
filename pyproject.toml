@@ -86,7 +86,7 @@ extend_skip_glob = [
 ]
 
 [tool.pylint.messages_control]
-# This list is for vscode. Add new disables in pyproject_pylint.toml for lintrunner
+# NOTE: This list is for vscode. Add new disables in pyproject_pylint.toml for lintrunner
 # Exclude patterns should be modified in .lintrunner.toml
 disable = [
   "consider-using-from-import",
