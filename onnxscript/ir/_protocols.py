@@ -1,7 +1,21 @@
-"""Protocols derived from onnx/onnx.proto3.
+"""Protocols for the ONNX IR.
 
-The protocols define read-only interfaces only. Mutating methods are not exposed
-to users.
+This file defines the interfaces for tools to interact with the IR. The interfaces
+are designed such that tools leveraging the IR can be decoupled from the IR
+implementation. This allows for the implementation to evolve independently of the
+tools.
+
+The file contains two sets of interfaces:
+1. Topologically immutable interfaces:
+    These interfaces provide a complete view of the ONNX model and allows mutation
+    against any metadata fields like shape, type, and node attributes. However, the
+    interfaces are topologically immutable, meaning that the structure of the graph
+    cannot be changed. This is useful for tools that need to analyze the model
+    without modifying how nodes are connected.
+2. Mutable interfaces:
+    These interfaces provide a mutable view of the ONNX model. They allow for
+    modification of the graph structure. This is useful for tools that need to
+    transform the model.
 """
 
 from __future__ import annotations
