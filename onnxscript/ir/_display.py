@@ -3,6 +3,7 @@
 NOTE: All third-party imports should be scoped and imported only when used to avoid
 importing unnecessary dependencies.
 """
+# pylint: disable=import-outside-toplevel
 
 from __future__ import annotations
 

@@ -98,11 +98,13 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         if rich is None:
             status_manager = contextlib.nullcontext()
         else:
-            import rich.status
+            import rich.status  # pylint: disable=import-outside-toplevel
 
             status_manager = rich.status.Status(f"Computing tensor stats for {self!r}")
 
-        from onnxscript._thirdparty import asciichartpy
+        from onnxscript._thirdparty import (  # pylint: disable=import-outside-toplevel
+            asciichartpy,
+        )
 
         with status_manager:
             # Construct the text to display
@@ -138,7 +140,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         if rich is None:
             print(text)
         elif page:
-            import rich.console
+            import rich.console  # pylint: disable=import-outside-toplevel
 
             console = rich.console.Console()
             with console.pager(styles=True):
@@ -704,6 +706,7 @@ class _TensorTypeBase(_protocols.TypeProtocol, _display.PrettyPrintable):
 
     @property
     def elem_type(self) -> None:
+        # TODO: docs: explain the None
         return None
 
     def __eq__(self, other: object) -> bool:
