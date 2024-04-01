@@ -123,7 +123,7 @@ class TensorProtoTensor(_core.TensorBase):
         return self._proto.raw_data
 
 
-class FloatDataTensor(TensorProtoTensor):
+class FloatDataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
     """Specialized tensor for float data.
 
     When serializing, the data can be stored in the float_data field.
@@ -145,7 +145,7 @@ class FloatDataTensor(TensorProtoTensor):
         return np.array(self._proto.float_data, dtype=np.float32).tobytes()
 
 
-class Int32DataTensor(TensorProtoTensor):
+class Int32DataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
     compatible_types = frozenset(
         (
             _enums.DataType.INT32,
@@ -181,7 +181,7 @@ class Int32DataTensor(TensorProtoTensor):
         return np.array(self._proto.int32_data, dtype=np.int32).tobytes()
 
 
-class Int64DataTensor(TensorProtoTensor):
+class Int64DataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
     compatible_types = frozenset((_enums.DataType.INT64,))
 
     def __init__(self, proto: onnx.TensorProto) -> None:
@@ -198,7 +198,7 @@ class Int64DataTensor(TensorProtoTensor):
         return np.array(self._proto.int64_data, dtype=np.int64).tobytes()
 
 
-class DoubleDataTensor(TensorProtoTensor):
+class DoubleDataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
     compatible_types = frozenset((_enums.DataType.DOUBLE, _enums.DataType.COMPLEX128))
 
     def __init__(self, proto: onnx.TensorProto) -> None:
@@ -215,7 +215,7 @@ class DoubleDataTensor(TensorProtoTensor):
         return np.array(self._proto.double_data, dtype=np.float64).tobytes()
 
 
-class UInt64DataTensor(TensorProtoTensor):
+class UInt64DataTensor(TensorProtoTensor):  # pylint: disable=consider-using-with
     compatible_types = frozenset((_enums.DataType.UINT64, _enums.DataType.UINT32))
 
     def __init__(self, proto: onnx.TensorProto) -> None:

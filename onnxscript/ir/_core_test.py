@@ -15,7 +15,7 @@ class ExternalTensorTest(unittest.TestCase):
     """Test the memory mapped external tensor class."""
 
     def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()
+        self.temp_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         self.external_data_name = "test_model.bin"
         self.base_path = self.temp_dir.name
         self.data = np.random.rand(2, 42).astype(np.float32)
