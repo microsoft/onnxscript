@@ -14,8 +14,8 @@ __all__ = [
 
 import onnx
 
-from onnxrewriter.ir import irbuilder, protobuilder
-from onnxrewriter.rewriter import function_rule, pattern
+from onnxscript.ir import irbuilder, protobuilder
+from onnxscript.rewriter import function_rule, pattern
 
 PatternRewriteRule = pattern.RewriteRule
 FunctionRewriteRule = function_rule.FunctionRewriteRule

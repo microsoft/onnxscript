@@ -9,13 +9,13 @@ import onnx
 import onnxruntime
 import parameterized
 
-from onnxrewriter import optimizer
-from onnxrewriter.utils import evaluation_utils
+from onnxscript import optimizer
+from onnxscript.utils import evaluation_utils
 
 _SKIP_TABLE = {}
 
 model_folder_path = (
-    pathlib.Path(__file__).resolve().parent.parent / "testdata" / "e2e_models"
+    pathlib.Path(__file__).resolve().parent.parent.parent / "testdata" / "e2e_models"
 )
 
 # List all entries in the directory and filter for directories

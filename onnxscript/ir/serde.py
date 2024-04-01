@@ -55,7 +55,7 @@ import collections
 import logging
 import os
 import typing
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, List
 
 import numpy as np
 import onnx
@@ -418,7 +418,7 @@ def _deserialize_graph(
 def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
     inputs = [_core.Input(name) for name in proto.input]
     values: dict[str, _core.Value] = {v.name: v for v in inputs}  # type: ignore[misc]
-    value_info = {info.name: info for info in proto.value_info}
+    value_info = {info.name: info for info in getattr(proto, "value_info", [])}
 
     # TODO(justinchuby): Handle unsorted nodes
     nodes = [_deserialize_node(node, [values], value_info=value_info) for node in proto.node]
@@ -431,7 +431,7 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
         doc_string=_get_field(proto, "doc_string"),
         opset_imports=deserialize_opset_import(proto.opset_import),
         name=(
-            f"{proto.name}_{proto.domain}" + f"__{proto.overload}" if proto.overload else ""
+            f"{proto.name}_{proto.domain}" + f"__{proto.overload}" if hasattr(proto, "overload") and proto.overload else ""
         ),
     )
     attributes = [_deserialize_attribute(attr, []) for attr in proto.attribute_proto]
@@ -442,9 +442,9 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
     return _core.Function(
         domain=proto.domain,
         name=proto.name,
-        overload=proto.overload,
+        overload=getattr(proto, "overload", ""),
         graph=graph,
-        attributes=typing.cast(list[_core.Attr], attributes),
+        attributes=typing.cast(List[_core.Attr], attributes),
     )
 
 
@@ -639,7 +639,7 @@ def _deserialize_node(
             break
         if not found:
             raise ValueError(
-                f"Input '{name}' of node '{proto.name}({proto.domain}::{proto.op_type}:{proto.overload})' not found in any scope"
+                f"Input '{name}' of node '{proto.name}({proto.domain}::{proto.op_type}:{getattr(proto, 'overload', '')})' not found in any scope"
                 f" (current depth: {len(scoped_values)})"
             )
     node = _core.Node(
@@ -647,7 +647,7 @@ def _deserialize_node(
         proto.op_type,
         node_inputs,
         [_deserialize_attribute(a, scoped_values) for a in proto.attribute],
-        overload=proto.overload,
+        overload=getattr(proto, "overload", ""),
         num_outputs=len(proto.output),
         name=_get_field(proto, "name"),
     )
@@ -664,7 +664,7 @@ def _deserialize_node(
                 proto.op_type,
             )
         scoped_values[-1][output] = value
-    for prop in proto.metadata_props:
+    for prop in getattr(proto, "metadata_props", []):
         node.metadata_props[prop.key] = prop.value
     return node
 

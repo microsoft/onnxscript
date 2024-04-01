@@ -4,7 +4,7 @@ import unittest
 
 import onnx
 
-from onnxrewriter.optimizer import remove_unused_function, simple_function_folding
+from onnxscript.optimizer import remove_unused_function, simple_function_folding
 
 
 class SingleNodeFunctionFoldingTest(unittest.TestCase):

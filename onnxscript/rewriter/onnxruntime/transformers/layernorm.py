@@ -6,7 +6,7 @@ import onnx
 import onnxscript
 from onnx import numpy_helper
 
-from onnxrewriter.rewriter import function_rule
+from onnxscript.rewriter import function_rule
 
 logger = logging.getLogger(__name__)
 

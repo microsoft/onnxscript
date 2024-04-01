@@ -3,8 +3,8 @@ import unittest
 import onnx.parser
 import parameterized
 
-from onnxrewriter.ir import irbuilder
-from onnxrewriter.rewriter import no_op
+from onnxscript.ir import irbuilder
+from onnxscript.rewriter import no_op
 
 
 class NoOpTest(unittest.TestCase):

@@ -3,8 +3,8 @@ import unittest
 import numpy as np
 import onnx.parser
 
-from onnxrewriter.ir import irbuilder
-from onnxrewriter.rewriter.onnxruntime import instance_to_group_normalization
+from onnxscript.ir import irbuilder
+from onnxscript.rewriter.onnxruntime import instance_to_group_normalization
 
 
 class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):

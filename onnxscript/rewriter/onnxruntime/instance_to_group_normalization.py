@@ -6,8 +6,8 @@ from typing import Any
 import numpy as np
 import onnx
 
-from onnxrewriter import ir
-from onnxrewriter.rewriter import pattern
+from onnxscript import ir
+from onnxscript.rewriter import pattern
 
 op = pattern.onnxop
 msft_op = pattern.msft_op

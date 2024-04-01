@@ -14,8 +14,8 @@ import numpy as np
 import onnx
 import onnx.reference.ops
 
-from onnxrewriter import ir
-from onnxrewriter.utils.utils import (
+from onnxscript import ir
+from onnxscript.utils.utils import (
     get_node_attr_value,
 )
 

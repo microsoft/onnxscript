@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from onnxrewriter.rewriter import function_rule
-from onnxrewriter.rewriter.onnxruntime.transformers import (
+from onnxscript.rewriter import function_rule
+from onnxscript.rewriter.onnxruntime.transformers import (
     fastgelu,
     layernorm,
     multihead_attention,

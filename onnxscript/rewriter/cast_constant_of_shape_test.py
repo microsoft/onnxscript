@@ -2,8 +2,8 @@ import unittest
 
 import onnx.parser
 
-from onnxrewriter.ir import irbuilder
-from onnxrewriter.rewriter import cast_constant_of_shape
+from onnxscript.ir import irbuilder
+from onnxscript.rewriter import cast_constant_of_shape
 
 
 class CastConstantOfShapeTest(unittest.TestCase):

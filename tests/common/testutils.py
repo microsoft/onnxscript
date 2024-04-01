@@ -1,19 +1,29 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 from __future__ import annotations
 
+import unittest
 import functools
 import os
 import pathlib
-import unittest
 
 import numpy as np
 import onnx
 import onnxruntime
 
-from onnxrewriter import optimizer
-from onnxrewriter.ir import visitor
-from onnxrewriter.rewriter import onnxruntime as ort_rewriter
-from onnxrewriter.utils import evaluation_utils
+from onnxscript import optimizer
+from onnxscript.ir import visitor
+from onnxscript.rewriter import onnxruntime as ort_rewriter
+from onnxscript.utils import evaluation_utils
 
+class TestBase(unittest.TestCase):
+    """The base class for testing ONNX Script functions for internal use."""
+
+    def validate(self, fn):
+        """Validate script function translation."""
+        return fn.to_function_proto()
 
 def skip_if_no_cuda(reason: str):
     def skip_dec(func):
@@ -50,7 +60,7 @@ def test_onnxruntime_rewrite(
     atol: float = 1e-2,
 ):
     dir_path = pathlib.Path(os.path.dirname(os.path.realpath(__file__)))
-    unittest_root_dir = dir_path.parent / "testdata" / "unittest_models"
+    unittest_root_dir = dir_path.parent.parent / "testdata" / "unittest_models"
     for model_index in range(model_count):
         model_name = f"{model_basename}_{model_index}"
         model_dir = unittest_root_dir / f"{model_name}"
@@ -70,7 +80,7 @@ def test_onnxruntime_rewrite(
         )
         rewritten = ort_rewriter.rewrite(optimized)
         # NOTE: uncomment this to save the optimized model.
-        onnx.save(rewritten, model_dir / f"{model_name}_opt.onnx")
+        # onnx.save(rewritten, model_dir / f"{model_name}_opt.onnx")
 
         # Check expected operator is found.
         optype_analysis = OpTypeAnalysisVisitor()

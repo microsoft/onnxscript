@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from tests import common
+from tests.common import testutils
 
 
 class LNParityTest(unittest.TestCase):
@@ -12,7 +12,7 @@ class LNParityTest(unittest.TestCase):
         np.random.seed(0)
 
     def test_ln_llama2(self):
-        common.test_onnxruntime_rewrite(
+        testutils.test_onnxruntime_rewrite(
             "ln_llama2", 4, {("", "SimplifiedLayerNormalization", "")}
         )
 

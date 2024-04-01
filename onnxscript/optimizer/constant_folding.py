@@ -7,10 +7,10 @@ import numpy as np
 import onnx
 import onnx.reference.ops
 
-from onnxrewriter import ir
-from onnxrewriter.ir import visitor
-from onnxrewriter.optimizer import evaluator
-from onnxrewriter.utils.utils import (
+from onnxscript import ir
+from onnxscript.ir import visitor
+from onnxscript.optimizer import evaluator
+from onnxscript.utils.utils import (
     is_control_flow_op,
     is_onnx_domain,
 )

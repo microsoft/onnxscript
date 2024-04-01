@@ -2,8 +2,8 @@ import unittest
 
 import onnx.parser
 
-from onnxrewriter.ir import irbuilder
-from onnxrewriter.rewriter import gemm_to_matmul_add
+from onnxscript.ir import irbuilder
+from onnxscript.rewriter import gemm_to_matmul_add
 
 
 class ReshapeGemmReshapeTest(unittest.TestCase):

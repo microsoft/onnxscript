@@ -1,6 +1,6 @@
 import math
 
-from onnxrewriter.rewriter import pattern
+from onnxscript.rewriter import pattern
 
 op = pattern.onnxop
 

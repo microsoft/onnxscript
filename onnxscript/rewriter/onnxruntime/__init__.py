@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import onnx
 
-from onnxrewriter.ir import irbuilder, protobuilder
-from onnxrewriter.optimizer import remove_unused
-from onnxrewriter.rewriter import function_rule, pattern
-from onnxrewriter.rewriter.onnxruntime import (
+from onnxscript.ir import irbuilder, protobuilder
+from onnxscript.optimizer import remove_unused
+from onnxscript.rewriter import function_rule, pattern
+from onnxscript.rewriter.onnxruntime import (
     instance_to_group_normalization,
     softmax,
     transformers,

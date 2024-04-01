@@ -5,8 +5,8 @@ from typing import Any
 
 import onnx
 
-from onnxrewriter import ir
-from onnxrewriter.rewriter import pattern
+from onnxscript import ir
+from onnxscript.rewriter import pattern
 
 op = pattern.onnxop
 logger = logging.getLogger(__name__)

@@ -4,7 +4,7 @@ import onnx
 import onnx.helper
 from onnx.helper import make_attribute
 
-from onnxrewriter import ir
+from onnxscript import ir
 
 
 class ModelProtoBuilder:

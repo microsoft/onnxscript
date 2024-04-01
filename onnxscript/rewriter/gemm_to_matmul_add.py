@@ -1,5 +1,5 @@
-from onnxrewriter.rewriter import pattern
-from onnxrewriter.rewriter.broadcast_to_matmul import check_if_need_reshape
+from onnxscript.rewriter import pattern
+from onnxscript.rewriter.broadcast_to_matmul import check_if_need_reshape
 
 op = pattern.onnxop
 

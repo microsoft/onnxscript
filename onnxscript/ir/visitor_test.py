@@ -2,7 +2,7 @@ import unittest
 
 import onnx
 
-from onnxrewriter.ir import visitor
+from onnxscript.ir import visitor
 
 
 class FunctionCallsiteProtoTransformerTest(unittest.TestCase):

@@ -21,7 +21,7 @@ def _value_info_key(value_info: onnx.ValueInfoProto) -> str:
 
 
 def _function_key(function: onnx.FunctionProto) -> tuple[str, str, str]:
-    return (function.domain, function.name, function.overload)
+    return (function.domain, function.name, getattr(function, "overload", ""))
 
 
 def _find_duplicates(with_duplicates: Collection[Any]) -> list[Any]:

@@ -7,8 +7,8 @@ from typing import Any, Sequence
 import numpy as np
 import onnx
 
-from onnxrewriter import ir
-from onnxrewriter.utils.utils import (
+from onnxscript import ir
+from onnxscript.utils.utils import (
     get_initializer_type,
     is_control_flow_op,
     normalize_domain,

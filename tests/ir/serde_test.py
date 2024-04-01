@@ -6,8 +6,8 @@ import unittest
 import onnx
 import parameterized
 
-import onnxrewriter.testing
-from onnxrewriter.experimental import intermediate_representation as ir
+import onnxscript.testing
+from onnxscript import ir
 
 model_folder_path = pathlib.Path(__file__).resolve().parent.parent.parent / "testdata"
 
@@ -23,7 +23,7 @@ class SerdeTest(unittest.TestCase):
         model = onnx.load(model_path)
         ir_model = ir.serde.deserialize_model(model)
         serialized = ir.serde.serialize_model(ir_model)
-        onnxrewriter.testing.assert_onnx_proto_equal(serialized, model)
+        onnxscript.testing.assert_onnx_proto_equal(serialized, model)
 
 
 if __name__ == "__main__":

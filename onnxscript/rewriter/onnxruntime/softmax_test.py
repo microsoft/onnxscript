@@ -3,8 +3,8 @@ import unittest
 import onnx.parser
 import parameterized
 
-from onnxrewriter.ir import irbuilder
-from onnxrewriter.rewriter.onnxruntime import softmax
+from onnxscript.ir import irbuilder
+from onnxscript.rewriter.onnxruntime import softmax
 
 
 class SoftmaxUpcastRemovalTest(unittest.TestCase):

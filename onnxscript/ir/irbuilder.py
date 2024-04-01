@@ -5,9 +5,9 @@ from typing import Any
 
 import onnx
 
-from onnxrewriter import ir
-from onnxrewriter.ir import visitor
-from onnxrewriter.utils import utils
+from onnxscript import ir
+from onnxscript.ir import visitor
+from onnxscript.utils import utils
 
 """ NOTE: IRBuilder and function visiting
 

@@ -3,7 +3,7 @@ import unittest
 import onnx
 import pytest
 
-from onnxrewriter import optimizer
+from onnxscript import optimizer
 
 
 class FoldConstantsTest(unittest.TestCase):

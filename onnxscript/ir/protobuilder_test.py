@@ -4,9 +4,9 @@ import numpy as np
 import onnx.checker
 import onnx.parser
 
-from onnxrewriter.ir import irbuilder, protobuilder
-from onnxrewriter.rewriter import pattern
-from onnxrewriter.rewriter.onnxruntime import instance_to_group_normalization
+from onnxscript.ir import irbuilder, protobuilder
+from onnxscript.rewriter import pattern
+from onnxscript.rewriter.onnxruntime import instance_to_group_normalization
 
 op = pattern.onnxop
 

@@ -5,7 +5,7 @@ import logging
 import onnx
 import onnxscript
 
-from onnxrewriter.rewriter import function_rule
+from onnxscript.rewriter import function_rule
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from tests import common
+from tests.common import testutils
 
 
 class FastGeluParityTest(unittest.TestCase):
@@ -12,7 +12,7 @@ class FastGeluParityTest(unittest.TestCase):
         np.random.seed(0)
 
     def test_gelu_phi_1_5(self):
-        common.test_onnxruntime_rewrite(
+        testutils.test_onnxruntime_rewrite(
             "gelu_phi_1_5", 4, {("com.microsoft", "FastGelu", "")}
         )
 

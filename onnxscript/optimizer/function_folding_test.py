@@ -2,7 +2,7 @@ import unittest
 
 import onnx
 
-from onnxrewriter import optimizer
+from onnxscript import optimizer
 
 
 class FunctionFoldingTest(unittest.TestCase):

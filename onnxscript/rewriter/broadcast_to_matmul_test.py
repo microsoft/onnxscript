@@ -2,8 +2,8 @@ import unittest
 
 import onnx.parser
 
-from onnxrewriter.ir import irbuilder
-from onnxrewriter.rewriter import broadcast_to_matmul
+from onnxscript.ir import irbuilder
+from onnxscript.rewriter import broadcast_to_matmul
 
 
 class TwoReshapesMatMulReshapeTest(unittest.TestCase):

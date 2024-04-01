@@ -4,9 +4,9 @@ from typing import Any
 
 import onnx
 
-import onnxrewriter.optimizer.remove_unused
-from onnxrewriter.ir import visitor
-from onnxrewriter.utils.utils import is_onnx_op
+import onnxscript.optimizer.remove_unused
+from onnxscript.ir import visitor
+from onnxscript.utils.utils import is_onnx_op
 
 
 class CopyPropagator(visitor.ProtoVisitor):
@@ -75,7 +75,7 @@ def do_copy_propagation(model: onnx.ModelProto, *, remove_unused: bool = True) -
     transformer = CopyPropagator()
     transformer.visit_model(model)
     if remove_unused:
-        onnxrewriter.optimizer.remove_unused_nodes(model)
+        onnxscript.optimizer.remove_unused_nodes(model)
 
 
 def do_sequence_simplification(
@@ -84,4 +84,4 @@ def do_sequence_simplification(
     transformer = SymbolicEvaluator()
     transformer.visit_model(model)
     if remove_unused:
-        onnxrewriter.optimizer.remove_unused_nodes(model)
+        onnxscript.optimizer.remove_unused_nodes(model)

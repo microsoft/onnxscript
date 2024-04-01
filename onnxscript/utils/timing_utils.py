@@ -2,9 +2,9 @@ import time
 
 import onnx
 
-from onnxrewriter import optimizer
+from onnxscript import optimizer
 
-# from onnxrewriter.rewriter.rules import all_rules
+# from onnxscript.rewriter.rules import all_rules
 
 
 def timeit(f, message):

@@ -3,7 +3,7 @@ numpy
 onnx-weekly>=1.16.0.dev20231204
 onnxruntime>=1.17.0
 typing_extensions
-rich
+rich>=13.7.1
 
 # Docs site
 furo

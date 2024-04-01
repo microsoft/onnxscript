@@ -3,19 +3,19 @@ from typing import Any
 
 import onnx
 
-from onnxrewriter import rewriter
-from onnxrewriter.optimizer.constant_folding import fold_constants
-from onnxrewriter.optimizer.copy_propagation import (
+from onnxscript import rewriter
+from onnxscript.optimizer.constant_folding import fold_constants
+from onnxscript.optimizer.copy_propagation import (
     do_copy_propagation,
     do_sequence_simplification,
 )
-from onnxrewriter.optimizer.remove_unused import remove_unused_nodes
-from onnxrewriter.optimizer.remove_unused_function import remove_unused_functions
-from onnxrewriter.optimizer.simple_function_folding import (
+from onnxscript.optimizer.remove_unused import remove_unused_nodes
+from onnxscript.optimizer.remove_unused_function import remove_unused_functions
+from onnxscript.optimizer.simple_function_folding import (
     inline_functions_with_unused_outputs,
     inline_simple_functions,
 )
-from onnxrewriter.rewriter import (
+from onnxscript.rewriter import (
     broadcast_to_matmul,
     cast_constant_of_shape,
     gemm_to_matmul_add,
