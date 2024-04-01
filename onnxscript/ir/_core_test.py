@@ -30,12 +30,8 @@ class ExternalTensorTest(unittest.TestCase):
     def _simple_model_with_external(
         self, base_path: str, external_data_name: str, data: np.ndarray
     ) -> onnx.ModelProto:
-        input = onnx.helper.make_tensor_value_info(
-            "input", onnx.TensorProto.FLOAT, [None]
-        )
-        output = onnx.helper.make_tensor_value_info(
-            "output", onnx.TensorProto.FLOAT, [None]
-        )
+        input = onnx.helper.make_tensor_value_info("input", onnx.TensorProto.FLOAT, [None])
+        output = onnx.helper.make_tensor_value_info("output", onnx.TensorProto.FLOAT, [None])
         raw_data = data.tobytes()
         tensor = onnx.helper.make_tensor(
             "input", onnx.TensorProto.FLOAT, data.shape, raw_data, raw=True

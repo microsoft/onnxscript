@@ -8,7 +8,7 @@ from onnxscript.ir import _core
 # NOTE(justinchuby): A graph may be specified with a set of inputs and outputs
 
 
-def topologically_equal(graph1: _core.Graph, graph2: _core.Graph) -> bool:  # noqa: ARG001
+def topologically_equal(graph1: _core.Graph, graph2: _core.Graph) -> bool:
     """Return true if the two graphs are topologically equivalent, without considering initializers.
 
     Args:

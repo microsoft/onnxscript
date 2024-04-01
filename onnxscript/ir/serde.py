@@ -322,9 +322,7 @@ def _deserialized_experimental_value_info_for_function_ir9(
     ] = collections.defaultdict(dict)
     for value_info_proto in value_info_protos:
         if (
-            parsed := _parse_experimental_function_value_info_name(
-                value_info_proto.name
-            )
+            parsed := _parse_experimental_function_value_info_name(value_info_proto.name)
         ) is None:
             continue
         function_domain, function_name, value_name = parsed
@@ -407,9 +405,7 @@ def _deserialize_graph(
     nodes = [_deserialize_node(node, scoped_values, value_info) for node in proto.node]
 
     # Fill in values for graph outputs
-    outputs = [
-        deserialize_value_info_proto(info, values[info.name]) for info in proto.output
-    ]
+    outputs = [deserialize_value_info_proto(info, values[info.name]) for info in proto.output]
     scoped_values.pop()
     return _core.Graph(
         inputs,
@@ -427,9 +423,7 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
     value_info = {info.name: info for info in proto.value_info}
 
     # TODO(justinchuby): Handle unsorted nodes
-    nodes = [
-        _deserialize_node(node, [values], value_info=value_info) for node in proto.node
-    ]
+    nodes = [_deserialize_node(node, [values], value_info=value_info) for node in proto.node]
     outputs = [values[name] for name in proto.output]
     graph = _core.Graph(
         inputs,
@@ -439,16 +433,13 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
         doc_string=_get_field(proto, "doc_string"),
         opset_imports=deserialize_opset_import(proto.opset_import),
         name=(
-            f"{proto.name}_{proto.domain}" + f"__{proto.overload}"
-            if proto.overload
-            else ""
+            f"{proto.name}_{proto.domain}" + f"__{proto.overload}" if proto.overload else ""
         ),
     )
     attributes = [_deserialize_attribute(attr, []) for attr in proto.attribute_proto]
     # Attributes without defaults
     attributes += [
-        _core.Attr(name, _enums.AttributeType.UNDEFINED, None)
-        for name in proto.attribute
+        _core.Attr(name, _enums.AttributeType.UNDEFINED, None) for name in proto.attribute
     ]
     return _core.Function(
         domain=proto.domain,
@@ -605,9 +596,7 @@ def _deserialize_attribute(
             name, [s.decode("utf-8") for s in proto.strings], doc_string=doc_string
         )
     if type_ == _enums.AttributeType.TENSOR:
-        return _core.AttrTensor(
-            name, deserialize_tensor(proto.t), doc_string=doc_string
-        )
+        return _core.AttrTensor(name, deserialize_tensor(proto.t), doc_string=doc_string)
     if type_ == _enums.AttributeType.GRAPH:
         return _core.AttrGraph(
             name, _deserialize_graph(proto.g, scoped_values), doc_string=doc_string
@@ -710,9 +699,7 @@ def serialize_model_into(
         _serialize_metadata_props_into(model_proto.metadata_props, from_.metadata_props)
     serialize_graph_into(model_proto.graph, from_.graph)
 
-    create_value_info_in_functions = (
-        from_.ir_version >= _FUNCTION_VALUE_INFO_SUPPORTED_VERSION
-    )
+    create_value_info_in_functions = from_.ir_version >= _FUNCTION_VALUE_INFO_SUPPORTED_VERSION
     for func in from_.functions.values():
         serialize_function_into(
             model_proto.functions.add(),
@@ -721,9 +708,7 @@ def serialize_model_into(
         )
         if not create_value_info_in_functions:
             # Create them in the main graph instead
-            _serialize_experimental_value_info_for_function_ir9_into(
-                model_proto.graph, func
-            )
+            _serialize_experimental_value_info_for_function_ir9_into(model_proto.graph, func)
     return model_proto
 
 
@@ -773,9 +758,7 @@ def _serialize_experimental_value_info_for_function_ir9_into(
         if not _should_create_value_info_for_value(input):
             # No need to serialize value info if it is not set
             continue
-        serialize_value_into(
-            graph_proto.value_info.add(), input, name=format_name(input.name)
-        )
+        serialize_value_into(graph_proto.value_info.add(), input, name=format_name(input.name))
     for node in function.nodes:
         for node_output in node.outputs:
             if not node_output.name:
@@ -796,9 +779,7 @@ def _serialize_experimental_value_info_for_function_ir9_into(
 
 
 def _serialize_opset_imports_into(
-    opset_ids: proto_containers.RepeatedCompositeFieldContainer[
-        onnx.OperatorSetIdProto
-    ],
+    opset_ids: proto_containers.RepeatedCompositeFieldContainer[onnx.OperatorSetIdProto],
     from_: Mapping[str, int],
 ) -> None:
     """Serialize opset imports into a repeated field of OperatorSetId protos.
@@ -908,9 +889,7 @@ def serialize_function_into(
         # Here we check for emptiness before serializing to keep the logic consistent
         _serialize_opset_imports_into(function_proto.opset_import, from_.opset_imports)
     if from_.metadata_props:
-        _serialize_metadata_props_into(
-            function_proto.metadata_props, from_.metadata_props
-        )
+        _serialize_metadata_props_into(function_proto.metadata_props, from_.metadata_props)
     for input_ in from_.inputs:
         function_proto.input.append(input_.name)
         if not _should_create_value_info_for_value(input_):
@@ -947,9 +926,7 @@ def serialize_node(node: _protocols.NodeProtocol) -> onnx.NodeProto:
     return node_proto
 
 
-def serialize_node_into(
-    node_proto: onnx.NodeProto, from_: _protocols.NodeProtocol
-) -> None:
+def serialize_node_into(node_proto: onnx.NodeProto, from_: _protocols.NodeProtocol) -> None:
     node_proto.op_type = from_.op_type
     if from_.domain:
         # If the domain is "", we can assume the default domain and not set it
@@ -1082,14 +1059,10 @@ def serialize_reference_attribute_into(
     attribute_proto.ref_attr_name = from_.ref_attr_name
     if from_.doc_string:
         attribute_proto.doc_string = from_.doc_string
-    attribute_proto.type = typing.cast(
-        onnx.AttributeProto.AttributeType, from_.type.value
-    )
+    attribute_proto.type = typing.cast(onnx.AttributeProto.AttributeType, from_.type.value)
 
 
-def serialize_value(
-    value: _protocols.ValueProtocol, *, name: str = ""
-) -> onnx.ValueInfoProto:
+def serialize_value(value: _protocols.ValueProtocol, *, name: str = "") -> onnx.ValueInfoProto:
     """Serialize a value into a ValueInfoProto.
 
     Args:
@@ -1120,18 +1093,14 @@ def serialize_value_into(
     else:
         value_info_proto.name = from_.name
     if from_.metadata_props:
-        _serialize_metadata_props_into(
-            value_info_proto.metadata_props, from_.metadata_props
-        )
+        _serialize_metadata_props_into(value_info_proto.metadata_props, from_.metadata_props)
     if from_.shape is not None:
         serialize_shape_into(value_info_proto.type, from_.shape)
     if from_.type is not None:
         serialize_type_into(value_info_proto.type, from_.type)
 
 
-def serialize_type_into(
-    type_proto: onnx.TypeProto, from_: _protocols.TypeProtocol
-) -> None:
+def serialize_type_into(type_proto: onnx.TypeProto, from_: _protocols.TypeProtocol) -> None:
     if from_.denotation:
         type_proto.denotation = from_.denotation
     if isinstance(from_, _core.TensorType):
@@ -1150,9 +1119,7 @@ def serialize_type_into(
         raise TypeError(f"Unsupported type: {from_}")
 
 
-def serialize_shape_into(
-    type_proto: onnx.TypeProto, from_: _protocols.ShapeProtocol
-) -> None:
+def serialize_shape_into(type_proto: onnx.TypeProto, from_: _protocols.ShapeProtocol) -> None:
     tensor_type_proto = type_proto.tensor_type
     for dim in from_:
         serialize_dimension_into(tensor_type_proto.shape.dim.add(), from_=dim)

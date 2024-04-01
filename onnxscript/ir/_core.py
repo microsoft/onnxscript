@@ -392,9 +392,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         # TODO: Support symbolic shapes with expressions?
         for dim in dims:
             if dim is not None and not isinstance(dim, (int, str, Dimension)):
-                raise TypeError(
-                    f"Expected int, str, None or Dimension, got '{type(dim)}'"
-                )
+                raise TypeError(f"Expected int, str, None or Dimension, got '{type(dim)}'")
         self._dims: list[Dimension] = [
             dim if isinstance(dim, Dimension) else Dimension(dim) for dim in dims
         ]
@@ -639,8 +637,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             raise ValueError(f"Index out of range: {index}")
         old_input = self.inputs[index]
         self._inputs = tuple(
-            new_input if i == index else old_input
-            for i, old_input in enumerate(self.inputs)
+            new_input if i == index else old_input for i, old_input in enumerate(self.inputs)
         )
         if old_input is not None:
             old_input.remove_user(self, index)
@@ -696,9 +693,7 @@ class _TensorTypeBase(_protocols.TypeProtocol, _display.PrettyPrintable):
 
     __slots__ = ("_dtype", "_elem_types", "denotation")
 
-    def __init__(
-        self, dtype: _enums.DataType, *, denotation: str | None = None
-    ) -> None:
+    def __init__(self, dtype: _enums.DataType, *, denotation: str | None = None) -> None:
         self._dtype = dtype
         self._elem_types = (self,)
         self.denotation = denotation
@@ -842,9 +837,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     @def_node.setter
     def def_node(self, _: Any) -> None:
-        raise AttributeError(
-            "def_node is immutable. Please create a new value instead."
-        )
+        raise AttributeError("def_node is immutable. Please create a new value instead.")
 
     @property
     def def_index(self) -> int | None:
@@ -852,9 +845,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     @def_index.setter
     def def_index(self, _: Any) -> None:
-        raise AttributeError(
-            "def_index is immutable. Please create a new value instead."
-        )
+        raise AttributeError("def_index is immutable. Please create a new value instead.")
 
     def users(self) -> frozenset[tuple[Node, int]]:
         return frozenset(self._users)
@@ -1071,9 +1062,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         initializers_text = ",\n".join(str(x) for x in self.initializers.values())
         if initializers_text:
             initializers_text = (
-                "\ninitializers=(\n"
-                + textwrap.indent(initializers_text, " " * 4)
-                + "\n),"
+                "\ninitializers=(\n" + textwrap.indent(initializers_text, " " * 4) + "\n),"
             )
         signature = f"""\
 graph(
@@ -1109,9 +1098,7 @@ graph(
         initializers_text = ",\n".join(str(x) for x in self.initializers.values())
         if initializers_text:
             initializers_text = (
-                "\ninitializers=(\n"
-                + textwrap.indent(initializers_text, " " * 4)
-                + "\n),"
+                "\ninitializers=(\n" + textwrap.indent(initializers_text, " " * 4) + "\n),"
             )
         return f"""\
 {self.__class__.__name__}(
@@ -1210,9 +1197,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
 >"""
         graph_text = str(self.graph)
         functions_text = ",\n\n".join(str(func) for func in self.functions.values())
-        return f"{signature}\n{graph_text}" + f"\n\n{functions_text}" * len(
-            self.functions
-        )
+        return f"{signature}\n{graph_text}" + f"\n\n{functions_text}" * len(self.functions)
 
     def __repr__(self) -> str:
         return f"""\
@@ -1259,9 +1244,7 @@ class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
         self._metadata_props: dict[str, str] | None = None
 
     def __str__(self) -> str:
-        full_name = f"{self.domain}::{self.name}" + f":{self.overload}" * (
-            self.overload != ""
-        )
+        full_name = f"{self.domain}::{self.name}" + f":{self.overload}" * (self.overload != "")
         inputs_text = ",\n".join(str(x) for x in self.inputs)
         outputs_text = ",\n".join(str(x) for x in self.outputs)
         attributes_text = ",\n".join(
@@ -1461,9 +1444,7 @@ class Attr(_protocols.AttributeProtocol, _display.PrettyPrintable):
         return str(self.value)
 
     def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}({self.name!r}, {self.type!r}, {self.value!r})"
-        )
+        return f"{self.__class__.__name__}({self.name!r}, {self.type!r}, {self.value!r})"
 
 
 # NOTE: The following classes are just supporting classes (partially applied) for convenience
