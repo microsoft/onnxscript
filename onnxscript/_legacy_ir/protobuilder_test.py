@@ -4,7 +4,7 @@ import numpy as np
 import onnx.checker
 import onnx.parser
 
-from onnxscript.ir import irbuilder, protobuilder
+from onnxscript._legacy_ir import irbuilder, protobuilder
 from onnxscript.rewriter import pattern
 from onnxscript.rewriter.onnxruntime import instance_to_group_normalization
 

@@ -8,7 +8,7 @@ import onnx
 import onnx.reference.ops
 
 from onnxscript import ir
-from onnxscript.ir import visitor
+from onnxscript._legacy_ir import visitor
 from onnxscript.optimizer import evaluator
 from onnxscript.utils.utils import (
     is_control_flow_op,

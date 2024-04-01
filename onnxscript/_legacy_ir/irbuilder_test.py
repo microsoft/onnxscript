@@ -2,7 +2,7 @@ import unittest
 
 import onnx.parser
 
-from onnxscript.ir import irbuilder
+from onnxscript._legacy_ir import irbuilder
 
 
 class IRBuilderTest(unittest.TestCase):

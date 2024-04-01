@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import onnx
 
-from onnxscript.ir import irbuilder, protobuilder
+from onnxscript._legacy_ir import irbuilder, protobuilder
 from onnxscript.optimizer import remove_unused
 from onnxscript.rewriter import function_rule, pattern
 from onnxscript.rewriter.onnxruntime import (

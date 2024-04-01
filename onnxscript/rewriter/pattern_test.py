@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 import onnx.parser
 
-from onnxscript.ir import irbuilder, protobuilder
+from onnxscript._legacy_ir import irbuilder, protobuilder
 from onnxscript.rewriter import cast_constant_of_shape, pattern
 
 logger = logging.getLogger(__name__)

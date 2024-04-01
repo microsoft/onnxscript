@@ -14,7 +14,7 @@ import onnx
 import onnxruntime
 
 from onnxscript import optimizer
-from onnxscript.ir import visitor
+from onnxscript._legacy_ir import visitor
 from onnxscript.rewriter import onnxruntime as ort_rewriter
 from onnxscript.utils import evaluation_utils
 

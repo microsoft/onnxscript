@@ -11,7 +11,7 @@ import onnx.numpy_helper
 import onnx.printer
 
 from onnxscript import ir
-from onnxscript.ir import irbuilder
+from onnxscript._legacy_ir import irbuilder
 
 # Overview of the pattern module: The classes below are used to define both
 # patterns (that we search for) and replacements for rewrite rules.

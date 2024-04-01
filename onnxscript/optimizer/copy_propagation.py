@@ -5,7 +5,7 @@ from typing import Any
 import onnx
 
 import onnxscript.optimizer.remove_unused
-from onnxscript.ir import visitor
+from onnxscript._legacy_ir import visitor
 from onnxscript.utils.utils import is_onnx_op
 
 

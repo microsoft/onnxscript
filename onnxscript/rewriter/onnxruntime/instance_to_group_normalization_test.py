@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import onnx.parser
 
-from onnxscript.ir import irbuilder
+from onnxscript._legacy_ir import irbuilder
 from onnxscript.rewriter.onnxruntime import instance_to_group_normalization
 
 

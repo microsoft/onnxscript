@@ -8,7 +8,7 @@ import onnxscript
 from packaging import version
 
 from onnxscript import ir
-from onnxscript.ir import visitor
+from onnxscript._legacy_ir import visitor
 from onnxscript.rewriter import pattern
 
 logger = logging.getLogger(__name__)

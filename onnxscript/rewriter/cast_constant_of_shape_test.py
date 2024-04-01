@@ -2,7 +2,7 @@ import unittest
 
 import onnx.parser
 
-from onnxscript.ir import irbuilder
+from onnxscript._legacy_ir import irbuilder
 from onnxscript.rewriter import cast_constant_of_shape
 
 
