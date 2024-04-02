@@ -13,7 +13,7 @@ COMMON_TEST_DEPENDENCIES = (
     "jinja2",
     "numpy==1.24.4",
     "typing_extensions",
-    "beartype!=0.16.0",
+    "beartype==0.17.2",
     "types-PyYAML",
     "expecttest==0.1.6",
     "hypothesis",
@@ -26,7 +26,7 @@ COMMON_TEST_DEPENDENCIES = (
     "pytest!=7.1.0",
     "pyyaml",
 )
-ONNX = "onnx==1.15.0"
+ONNX = "onnx==1.15"
 ONNX_RUNTIME = "onnxruntime==1.16.1"
 PYTORCH = "torch==2.1.0"
 TORCHVISON = "torchvision==0.16"

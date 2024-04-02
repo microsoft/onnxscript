@@ -23,11 +23,10 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "License :: OSI Approved :: MIT License",
 ]
-dependencies = ["numpy", "onnx>=1.14", "typing_extensions"]
+dependencies = ["numpy", "onnx>=1.15", "typing_extensions"]
 
 [tool.setuptools.packages.find]
 include = ["onnxscript*"]
-# Tests are by default excluded: https://setuptools.pypa.io/en/latest/userguide/package_discovery.html
 
 [tool.setuptools.package-data]
 onnxscript = ["py.typed"]
