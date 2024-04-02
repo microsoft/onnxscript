@@ -9,7 +9,7 @@ import dataclasses
 import numbers
 import unittest
 import warnings
-from typing import Any, Collection, Optional
+from typing import Any, Collection, Iterable, Optional, Sequence
 
 import numpy as np
 import onnx
@@ -32,6 +32,57 @@ class FunctionTestParams:
     input: list[Any] | dict[str, Any]
     output: list[Any]
     attrs: Optional[dict[str, Any]] = None
+
+
+def _make_model_from_function_proto(
+    function_proto: onnx.FunctionProto,
+    function_opset_version: int,
+    input_value_infos: Sequence[onnx.ValueInfoProto],
+    output_value_infos: Sequence[onnx.ValueInfoProto],
+    *,
+    ir_version: int,
+    **attrs: Any,
+) -> onnx.ModelProto:
+    """Creates a model containing a single call to a given
+    function with input and output value_infos, etc.
+
+    Args:
+        function_proto: function proto
+            representing a single call
+        function_opset_version:  function_proto's version
+        input_value_infos: function's input
+        output_value_infos: function's output
+        ir_version: IR version of the model
+        attrs: the attributes of the node for the function
+
+    Returns:
+        ModelProto
+    """
+
+    input_names = [vi.name for vi in input_value_infos]
+    output_names = [vi.name for vi in output_value_infos]
+    node = onnx.helper.make_node(
+        function_proto.name,
+        input_names,
+        output_names,
+        domain=function_proto.domain,
+        **attrs,
+    )
+    graph = onnx.helper.make_graph([node], "node_graph", input_value_infos, output_value_infos)
+    model_proto_opset: Iterable[onnx.OperatorSetIdProto] = function_proto.opset_import
+    if all(o.domain != function_proto.domain for o in model_proto_opset):
+        model_proto_opset = [
+            *model_proto_opset,
+            onnx.helper.make_opsetid(function_proto.domain, function_opset_version),
+        ]
+    model = onnx.helper.make_model(
+        graph,
+        functions=[function_proto],
+        producer_name="onnxscript",
+        opset_imports=model_proto_opset,
+        ir_version=ir_version,
+    )
+    return model
 
 
 class OnnxScriptTestCase(unittest.TestCase):
@@ -61,7 +112,7 @@ class OnnxScriptTestCase(unittest.TestCase):
             cls.all_test_cases = node_test.collect_testcases(None)  # type: ignore[attr-defined,arg-type]
 
     def _create_model_from_param(
-        self, param: FunctionTestParams, onnx_case_model: onnx.ModelProto
+        self, param: FunctionTestParams, onnx_case_model: onnx.ModelProto, *, ir_version: int
     ) -> onnx.ModelProto:
         local_function_proto = param.function.function_ir.to_function_proto()
         if not onnx_case_model:
@@ -95,7 +146,9 @@ class OnnxScriptTestCase(unittest.TestCase):
             # there is not way from the onnx test case's model and feed to get TypeProto
             # in order to build a model.
             # we have to resolve the TypeProto from script function.
-            local_function_model_proto = param.function.function_ir.to_model_proto()
+            local_function_model_proto = param.function.function_ir.to_model_proto(
+                ir_version=ir_version
+            )
             input_value_infos = []
             for i, input in enumerate(local_function_model_proto.graph.input):
                 vi = copy.deepcopy(input)
@@ -112,11 +165,12 @@ class OnnxScriptTestCase(unittest.TestCase):
 
         output_value_infos = utils.values_to_value_infos(zip(output_names, param.output))
 
-        return utils.make_model_from_function_proto(
+        return _make_model_from_function_proto(
             local_function_proto,
             self.local_function_opset_version,
             input_value_infos,
             output_value_infos,
+            ir_version=ir_version,
             **(param.attrs or {}),
         )
 
@@ -133,14 +187,25 @@ class OnnxScriptTestCase(unittest.TestCase):
         return test_cases
 
     def run_converter_test(
-        self, param: FunctionTestParams, onnx_case_model: Optional[onnx.ModelProto] = None
+        self,
+        param: FunctionTestParams,
+        onnx_case_model: Optional[onnx.ModelProto] = None,
+        *,
+        ir_version: int = 9,
     ):
-        # we need the latest version in onnx.ai domain
-        # to build a function
+        # FIXME(justinchuby): Defaulting to ir_version 9 because ONNX Runtime supports
+        # up to IR version 9 as of 4/2/2024. We should have a better mechanism to
+        # guard against ONNX version change while preserving the ability to test
+        # the latest ONNX IR version.
+
         if onnx_case_model:
-            model = self._create_model_from_param(param, onnx_case_model)
+            model = self._create_model_from_param(
+                param, onnx_case_model, ir_version=ir_version
+            )
         else:
-            model = param.function.function_ir.to_model_proto(producer_name="call_clip")
+            model = param.function.function_ir.to_model_proto(
+                producer_name="call_clip", ir_version=ir_version
+            )
         try:
             onnx.checker.check_model(model)
         except checker.ValidationError as e:
