@@ -13,7 +13,7 @@ COMMON_TEST_DEPENDENCIES = (
     "jinja2",
     "numpy==1.24.4",
     "typing_extensions",
-    "beartype!=0.16.0",
+    "beartype==0.17.2",
     "types-PyYAML",
     "expecttest==0.1.6",
     "hypothesis",
