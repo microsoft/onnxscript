@@ -13,6 +13,8 @@ from onnxscript import FLOAT, evaluator
 from onnxscript import opset18 as op
 from onnxscript.function_libs.torch_lib import graph_building, ops
 
+IS_WINDOWS = os.name == "nt"
+
 
 class TestTorchScriptTracingEvaluator(unittest.TestCase):
     def setUp(self):
@@ -138,6 +140,7 @@ class TestTorchScriptGraph(unittest.TestCase):
         graph.add_initializer("x", x_tensor)
 
 
+@unittest.skipIf(IS_WINDOWS, "dynamo_export not supported in Windows")
 class TestModelSaving(unittest.TestCase):
     def test_save_initializer_to_files_for_large_model(self):
         class MLP(torch.nn.Module):
