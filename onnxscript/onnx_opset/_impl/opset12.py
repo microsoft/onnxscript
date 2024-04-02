@@ -369,7 +369,7 @@ class Opset12(Opset11):
 
         ::
 
-            output[output-term] = reduce-sum( input1[term1] * input2[term] )
+            output[output-term] = reduce-sum( input1[term1] * input2[term2] )
 
 
 
@@ -664,20 +664,27 @@ class Opset12(Opset11):
          the tensor according to kernel sizes, stride sizes, and pad lengths.
          max pooling consisting of computing the max on all values of a
          subset of the input tensor according to the kernel size and downsampling the
-         data into the output tensor Y for further processing. The output spatial shape will be following:
+         data into the output tensor Y for further processing. The output spatial shape is calculated differently
+         depending on whether explicit padding is used, where pads is employed, or auto padding is used, where auto_pad is utilized.
+         With explicit padding (https://pytorch.org/docs/stable/generated/torch.nn.MaxPool2d.html?highlight=maxpool#torch.nn.MaxPool2d):
          ```
-         output_spatial_shape[i] = floor((input_spatial_shape[i] + pad_shape[i] - ((kernel_spatial_shape[i] - 1) * dilations[i] + 1)) / strides_spatial_shape[i] + 1)
+         output_spatial_shape[i] = floor((input_spatial_shape[i] + pad_shape[i] - dilation[i] * (kernel_shape[i] - 1) - 1) / strides_spatial_shape[i] + 1)
          ```
          or
          ```
-         output_spatial_shape[i] = ceil((input_spatial_shape[i] + pad_shape[i] - ((kernel_spatial_shape[i] - 1) * dilations[i] + 1)) / strides_spatial_shape[i] + 1)
+         output_spatial_shape[i] = ceil((input_spatial_shape[i] + pad_shape[i] - dilation[i] * (kernel_shape[i] - 1) - 1) / strides_spatial_shape[i] + 1)
          ```
-         if ceil_mode is enabled `pad_shape[i]` is the sum of pads along axis `i`.
+         if ceil_mode is enabled. `pad_shape[i]` is the sum of pads along axis `i`. Sliding windows that would start in the right padded region are ignored.
 
-         `auto_pad` is a DEPRECATED attribute. If you are using them currently, the output spatial shape will be following:
+         `auto_pad` is a DEPRECATED attribute. If you are using them currently, the output spatial shape will be following when ceil_mode is enabled:
          ```
          VALID: output_spatial_shape[i] = ceil((input_spatial_shape[i] - ((kernel_spatial_shape[i] - 1) * dilations[i] + 1) + 1) / strides_spatial_shape[i])
          SAME_UPPER or SAME_LOWER: output_spatial_shape[i] = ceil(input_spatial_shape[i] / strides_spatial_shape[i])
+         ```
+         or when ceil_mode is disabled (https://www.tensorflow.org/api_docs/python/tf/keras/layers/AveragePooling2D):
+         ```
+         VALID: output_spatial_shape[i] = floor((input_spatial_shape[i] - ((kernel_spatial_shape[i] - 1) * dilations[i] + 1)) / strides_spatial_shape[i]) + 1
+         SAME_UPPER or SAME_LOWER: output_spatial_shape[i] = floor((input_spatial_shape[i] - 1) / strides_spatial_shape[i]) + 1
          ```
          And pad shape will be following if `SAME_UPPER` or `SAME_LOWER`:
          ```
@@ -1018,7 +1025,7 @@ class Opset12(Opset11):
         shape(labels): (N) where each value is 0 <= labels[i] <= C-1, or (N, D1, D2,..., Dk),
                 with K >= 1 in case of K-dimensional loss.
 
-        The loss for one sample, l_i, can caculated as follows:
+        The loss for one sample, l_i, can calculated as follows:
             l[i][d1][d2]...[dk] = -y[i][c][d1][d2]..[dk], where i is the index of classes.
         or
             l[i][d1][d2]...[dk] = -y[i][c][d1][d2]..[dk] * weights[c], if 'weights' is provided.
