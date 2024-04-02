@@ -68,21 +68,21 @@ disallow_untyped_defs = true
 [[tool.mypy.overrides]]
 module = [
   "setup",
-  "onnxscript.tests.models.*",
-  "onnxscript.tests.onnx_backend_test_code.*",
+  "tests.models.*",
+  "tests.onnx_backend_test_code.*",
 ]
 ignore_errors = true
 
 [tool.black]
 target-version = ["py38", "py39", "py310", "py311"]
 # Black's extend-exclude needs to be a regex string
-extend-exclude = "/onnxscript/tests/models|/onnxscript/tests/onnx_backend_test_code"
+extend-exclude = "/tests/models|/tests/onnx_backend_test_code"
 line-length = 95
 
 [tool.isort]
 profile = "black"
 extend_skip_glob = [
-  "onnxscript/tests/onnx_backend_test_code/*.py",
+  "tests/onnx_backend_test_code/*.py",
 ]
 
 [tool.pylint.messages_control]

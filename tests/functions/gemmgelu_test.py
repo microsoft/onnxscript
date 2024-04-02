@@ -7,8 +7,8 @@ import unittest
 
 import numpy as np
 
-from onnxscript.tests.common import onnx_script_test_case
-from onnxscript.tests.functions import gemmgelu
+from tests.common import onnx_script_test_case
+from tests.functions import gemmgelu
 
 
 class TestGemmGelu(onnx_script_test_case.OnnxScriptTestCase):

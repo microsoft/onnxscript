@@ -2,8 +2,8 @@ import unittest
 
 import pytest
 
-from onnxscript.tests.common import onnx_script_test_case
-from onnxscript.tests.models import onnxfns1A
+from tests.common import onnx_script_test_case
+from tests.models import onnxfns1A
 
 
 class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
