@@ -26,7 +26,7 @@ COMMON_TEST_DEPENDENCIES = (
     "pytest!=7.1.0",
     "pyyaml",
 )
-ONNX = "onnx==1.14.1"
+ONNX = "onnx==1.15.0"
 ONNX_RUNTIME = "onnxruntime==1.16.1"
 PYTORCH = "torch==2.1.0"
 TORCHVISON = "torchvision==0.16"
