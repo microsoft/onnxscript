@@ -39,7 +39,9 @@ if typing.TYPE_CHECKING:
     import numpy as np
     from typing_extensions import TypeAlias
 
+# Representation of a dimension. int is a known axis, str represents a dynamic axis, None is an unnamed dynamic axis.
 SimpleDim: TypeAlias = Union[int, str, None]
+# Representation of a shape. Each element is a simple dimension.
 SimpleShape: TypeAlias = Sequence[SimpleDim]
 
 # An identifier that will uniquely identify an operator. E.g (domain, op_type, overload)
@@ -48,14 +50,23 @@ OperatorIdentifier: TypeAlias = Tuple[str, str, str]
 
 @typing.runtime_checkable
 class ArrayCompatible(Protocol):
-    """Protocol for array-like objects."""
+    """Protocol for array-like objects.
+
+    An example of an array-like object is a numpy array or a PyTorch array.
+    Read more at https://numpy.org/devdocs/user/basics.interoperability.html
+    """
 
     def __array__(self, dtype: Any) -> np.ndarray: ...
 
 
 @typing.runtime_checkable
 class DLPackCompatible(Protocol):
-    """Protocol objects that can support dlpack."""
+    """Protocol objects that can support dlpack.
+
+    Computation backends can call __dlpack__ to obtain the underlying data in a
+    tensor without copying the data. This allows use to use tensorflow tensors etc.
+    without copying the data.
+    """
 
     def __dlpack__(self, *, stream: Any = ...) -> Any:
         """Return PyCapsule."""
@@ -66,13 +77,25 @@ class DLPackCompatible(Protocol):
 class TensorProtocol(ArrayCompatible, Protocol):
     """Concrete tensor backed by data.
 
+    The protocol does not specify how the data is stored. That data is exposed
+    through the :attr:`raw` attribute for examination, but accessing :attr:`raw`
+    is typically not needed.
+
+    To use the tensor as a numpy array, call :meth:`numpy`. To convert the tensor
+    to a byte string for serialization, call :meth:`tobytes`.
+
+    It is recommended to check the size of the tensor first before accessing the
+    underlying data, because accessing the data may be expensive and incur IO
+    overhead.
+
     Attributes:
         name: The name of the tensor.
         shape: The shape of the tensor.
         dtype: The data type of the elements of the tensor.
         doc_string: Documentation string.
         raw: The raw data behind this tensor. It can be anything.
-        value: The tensor as a numpy array.
+        size: The number of elements in the tensor.
+        nbytes: The number of bytes in the tensor.
     """
 
     name: str
@@ -80,6 +103,12 @@ class TensorProtocol(ArrayCompatible, Protocol):
     dtype: _enums.DataType
     doc_string: str | None
     raw: Any
+
+    @property
+    def size(self) -> int: ...
+
+    @property
+    def nbytes(self) -> int: ...
 
     def numpy(self) -> np.ndarray:
         """Return the tensor as a numpy array."""
