@@ -210,8 +210,6 @@ class ConcatTest(unittest.TestCase):
 
 class RewriteRuleTest(unittest.TestCase):
     def test_commute(self):
-        op = pattern.onnxop
-
         def add_0(x):
             return x + 0
 
@@ -239,8 +237,6 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(nodes[1].op_type, "Identity")
 
     def test_const_value(self):
-        op = pattern.onnxop
-
         def reshape(x, newshape):
             return op.Reshape(x, newshape)
 
@@ -259,10 +255,7 @@ class RewriteRuleTest(unittest.TestCase):
 
             if len(oldshape) != len(newshape):
                 return False
-            for d1, d2 in zip(oldshape, newshape):
-                if d1 != d2 and d2 != -1:  # noqa: PLR1714
-                    return False
-            return True
+            return all(not (d1 != d2 and d2 != -1) for d1, d2 in zip(oldshape, newshape))
 
         def check_for_redundant_reshape(bindings):
             return _check_for_redundant_reshape(**bindings)
