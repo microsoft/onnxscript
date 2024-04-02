@@ -325,7 +325,7 @@ class Opset16(Opset15):
         If conditional
 
         Args:
-            cond: Condition for the if
+            cond: Condition for the if. The tensor must contain a single element.
 
             else_branch: Graph to run if condition is false. Has N outputs: values you
                 wish to be live-out to the enclosing scope. The number of outputs must
@@ -657,7 +657,7 @@ class Opset16(Opset15):
         Args:
             X: (differentiable) Input tensor
 
-            slope: (differentiable) Slope tensor. The shape of slope can be smaller then
+            slope: (differentiable) Slope tensor. The shape of slope can be smaller than
                 first input X; if so, its shape must be unidirectional broadcastable to
                 X
         """
