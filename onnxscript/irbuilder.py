@@ -31,7 +31,7 @@ def _format(seq: Sequence[Any], prefix: str, sep: str, suffix: str, formatter=st
     return prefix + sep.join([formatter(x) for x in seq]) + suffix
 
 
-def select_ir_version(version: int, domain: str = ""):
+def select_ir_version(version: int, domain: str = "") -> int:
     """Selects a suitable ONNX ir_version for a given opset version."""
     if domain == "":
         domain = "ai.onnx"
