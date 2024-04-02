@@ -3,6 +3,7 @@
 # mypy: disable-error-code="arg-type,type-arg,valid-type"
 from __future__ import annotations
 
+import os
 import unittest
 
 import torch
@@ -11,7 +12,10 @@ import onnxscript
 import onnxscript.testing
 from onnxscript import FLOAT, evaluator
 from onnxscript import opset18 as op
+from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib import graph_building, ops
+
+IS_WINDOWS = os.name == "nt"
 
 
 class TestTorchScriptTracingEvaluator(unittest.TestCase):
@@ -138,6 +142,10 @@ class TestTorchScriptGraph(unittest.TestCase):
         graph.add_initializer("x", x_tensor)
 
 
+@unittest.skipIf(
+    IS_WINDOWS and version_utils.torch_older_than("2.3"),
+    "dynamo_export not supported on Windows in PyTorch<2.3",
+)
 class TestModelSaving(unittest.TestCase):
     def test_save_initializer_to_files_for_large_model(self):
         class MLP(torch.nn.Module):

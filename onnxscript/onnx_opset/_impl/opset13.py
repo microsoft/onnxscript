@@ -1108,55 +1108,58 @@ class Opset13(Opset12):
 
         This operator is the inverse of `ScatterND`.
 
-        `Example 1`
+        **Example 1**
 
-          batch_dims = 0
+        ::
 
-          data    = [[0,1],[2,3]]   # data_shape = [2, 2]
+            batch_dims = 0
+            data    = [[0,1],[2,3]]   # data_shape    = [2, 2]
+            indices = [[0,0],[1,1]]   # indices_shape = [2, 2]
+            output  = [0,3]           # output_shape  = [2]
 
-          indices = [[0,0],[1,1]]   # indices_shape = [2, 2]
 
-          output  = [0,3]           # output_shape = [2]
 
-        `Example 2`
+        **Example 2**
 
-          batch_dims = 0
+        ::
 
-          data    = [[0,1],[2,3]]  # data_shape = [2, 2]
+            batch_dims = 0
+            data    = [[0,1],[2,3]]  # data_shape    = [2, 2]
+            indices = [[1],[0]]      # indices_shape = [2, 1]
+            output  = [[2,3],[0,1]]  # output_shape  = [2, 2]
 
-          indices = [[1],[0]]      # indices_shape = [2, 1]
 
-          output  = [[2,3],[0,1]]  # output_shape = [2, 2]
 
-        `Example 3`
+        **Example 3**
 
-          batch_dims = 0
+        ::
 
-          data    = [[[0,1],[2,3]],[[4,5],[6,7]]] # data_shape = [2, 2, 2]
+            batch_dims = 0
+            data    = [[[0,1],[2,3]],[[4,5],[6,7]]] # data_shape    = [2, 2, 2]
+            indices = [[0,1],[1,0]]                 # indices_shape = [2, 2]
+            output  = [[2,3],[4,5]]                 # output_shape  = [2, 2]
 
-          indices = [[0,1],[1,0]]                 # indices_shape = [2, 2]
 
-          output  = [[2,3],[4,5]]                 # output_shape = [2, 2]
 
-        `Example 4`
+        **Example 4**
 
-          batch_dims = 0
+        ::
 
-          data    = [[[0,1],[2,3]],[[4,5],[6,7]]] # data_shape = [2, 2, 2]
+            batch_dims = 0
+            data    = [[[0,1],[2,3]],[[4,5],[6,7]]] # data_shape    = [2, 2, 2]
+            indices = [[[0,1]],[[1,0]]]             # indices_shape = [2, 1, 2]
+            output  = [[[2,3]],[[4,5]]]             # output_shape  = [2, 1, 2]
 
-          indices = [[[0,1]],[[1,0]]]             # indices_shape = [2, 1, 2]
 
-          output  = [[[2,3]],[[4,5]]]             # output_shape = [2, 1, 2]
 
-        `Example 5`
+        **Example 5**
 
-          batch_dims = 1
+        ::
 
-          data    = [[[0,1],[2,3]],[[4,5],[6,7]]] # data_shape = [2, 2, 2]
-
-          indices = [[1],[0]]             # indices_shape = [2, 1]
-
-          output  = [[2,3],[4,5]]             # output_shape = [2, 2]
+            batch_dims = 1
+            data    = [[[0,1],[2,3]],[[4,5],[6,7]]] # data_shape    = [2, 2, 2]
+            indices = [[1],[0]]                     # indices_shape = [2, 1]
+            output  = [[2,3],[4,5]]                 # output_shape  = [2, 2]
 
 
 
@@ -1377,7 +1380,7 @@ class Opset13(Opset12):
         If conditional
 
         Args:
-            cond: Condition for the if
+            cond: Condition for the if. The tensor must contain a single element.
 
             else_branch: Graph to run if condition is false. Has N outputs: values you
                 wish to be live-out to the enclosing scope. The number of outputs must
@@ -1841,7 +1844,7 @@ class Opset13(Opset12):
         Args:
             X: (differentiable) Input tensor
 
-            axes: A list of integers, along which to reduce. The default is to caculate
+            axes: A list of integers, along which to reduce. The default is to calculate
                 along axes [0,2,3] for calculating mean and variance along each channel.
                 Two variables with the same C-coordinate are associated with the same
                 mean and variance.
@@ -2417,12 +2420,13 @@ class Opset13(Opset12):
 
 
         Computes the L1 norm of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields 0.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -2450,12 +2454,13 @@ class Opset13(Opset12):
 
 
         Computes the L2 norm of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields 0.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -2483,12 +2488,13 @@ class Opset13(Opset12):
 
 
         Computes the log sum of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields minus infinity (if supported by the datatype) or undefined otherwise.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -2520,12 +2526,13 @@ class Opset13(Opset12):
 
 
         Computes the log sum exponent of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields minus infinity (if supported by the datatype) or undefined otherwise.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -2563,12 +2570,13 @@ class Opset13(Opset12):
 
 
         Computes the max of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields minus infinity (if supported by the datatype) or the minimum value of the data type otherwise.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -2596,12 +2604,13 @@ class Opset13(Opset12):
 
 
         Computes the mean of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields undefined.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -2639,12 +2648,13 @@ class Opset13(Opset12):
 
 
         Computes the min of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields plus infinity (if supported by the datatype) or the maximum value of the data type otherwise.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -2672,12 +2682,13 @@ class Opset13(Opset12):
 
 
         Computes the product of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields 1.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -2710,12 +2721,13 @@ class Opset13(Opset12):
 
 
         Computes the sum of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields 0.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -2758,12 +2770,13 @@ class Opset13(Opset12):
 
 
         Computes the sum square of the input tensor's elements along the provided axes. The resulting
-        tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
+        tensor has the same rank as the input if `keepdims` equals 1. If `keepdims` equals 0, then
         the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
-        valid.
+        valid. Reduction over an empty set of values yields 0.
 
-        The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
-        False instead of True.
+
+        The above behavior is similar to numpy, with the exception that numpy defaults `keepdims`
+        to `False` instead of `True`.
 
         Args:
             data: (differentiable) An input tensor.
@@ -3361,16 +3374,16 @@ class Opset13(Opset12):
         Slice uses the `starts`, `ends`, `axes` and `steps` inputs to select a sub-tensor
         of its input `data` tensor.
 
-        An effective `start[i]`, `end[i]`, and `step[i]` must be computed for each `i`
+        An effective `starts[i]`, `ends[i]`, and `steps[i]` must be computed for each `i`
         in `[0, ... r-1]` where `r = rank(input)` as follows:
 
         If `axes` are omitted, they are set to `[0, ..., r-1]`.
         If `steps` are omitted, they are set to `[1, ..., 1]` of length `len(starts)`
 
-        The effective values are initialized as `start[i] = 0`, `end[i] = dims[i]` where
-        `dims` are the dimensions of `input` and `step[i] = `1.
+        The effective values are initialized as `start[i] = 0`, `ends[i] = dims[i]` where
+        `dims` are the dimensions of `input` and `steps[i] = 1`.
 
-        All negative elements of `axes` are made non-negatve by adding `r` to them, where
+        All negative elements of `axes` are made non-negative by adding `r` to them, where
         `r =rank(input)`.
 
         All negative values in `starts[i]` and `ends[i]` have `dims[axes[i]]` added to them,
@@ -3380,10 +3393,10 @@ class Opset13(Opset12):
 
         The clamping for the adjusted `ends[i]` depends on the sign of `steps[i]` and must
         accommodate copying 0 through `dims[axes[i]]` elements, so for positive stepping
-        `end[axes[i]]` is clamped to `[0, dims[axes[i]]]`, while for negative stepping it
+        `ends[axes[i]]` is clamped to `[0, dims[axes[i]]]`, while for negative stepping it
         is clamped to `[-1, dims[axes[i]]-1]`.
 
-        Finally, `step[axes[i]] = steps[i]`.
+        Finally, `steps[axes[i]] = steps[i]`.
 
         For slicing to the end of a dimension with unknown size, it is recommended to pass
         in `INT_MAX` when slicing forward and 'INT_MIN' when slicing backward.
@@ -3506,7 +3519,7 @@ class Opset13(Opset12):
         * shape(labels): (N) where each value is 0 <= labels[i] <= C-1, or (N, D1, D2,..., Dk),
           with K >= 1 in case of K-dimensional loss.
 
-        The loss for one sample, l_i, can caculated as follows:
+        The loss for one sample, l_i, can calculated as follows:
         ::
 
             l[i][d1][d2]...[dk] = -y[i][c][d1][d2]..[dk], where i is the index of classes.
