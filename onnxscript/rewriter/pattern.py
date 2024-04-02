@@ -34,14 +34,12 @@ class ConstantPattern:
     def matches(self, value: int | str | list) -> bool:
         return value == self.value
 
-    def to_ir(self, model, bindings=None) -> int | str | list:  # noqa: ARG002
+    def to_ir(self, model, bindings=None) -> int | str | list:
         return self.value
 
 
 class FloatConstantPattern:
-    def __init__(
-        self, value: float, rel_tol: float = 1e-5, abs_tol: float = 1e-8
-    ) -> None:
+    def __init__(self, value: float, rel_tol: float = 1e-5, abs_tol: float = 1e-8) -> None:
         self._value = value
         self._rel_tol = rel_tol
         self._abs_tol = abs_tol
@@ -51,11 +49,9 @@ class FloatConstantPattern:
         return self._value
 
     def matches(self, value: float):
-        return math.isclose(
-            value, self.value, rel_tol=self._rel_tol, abs_tol=self._abs_tol
-        )
+        return math.isclose(value, self.value, rel_tol=self._rel_tol, abs_tol=self._abs_tol)
 
-    def to_ir(self, model, bindings=None) -> float:  # noqa: ARG002
+    def to_ir(self, model, bindings=None) -> float:
         return self.value
 
 
@@ -83,7 +79,7 @@ class TensorConstantPattern:
             )
         )
 
-    def to_ir(self, model, bindings=None) -> onnx.TensorProto:  # noqa: ARG002
+    def to_ir(self, model, bindings=None) -> onnx.TensorProto:
         return onnx.helper.make_tensor(
             "",
             onnx.helper.np_dtype_to_tensor_dtype(self.value.dtype),
@@ -106,7 +102,7 @@ def _make_constant_pattern(
 
 
 class AnyPattern:
-    def matches(self, value) -> bool:  # noqa: ARG002
+    def matches(self, value) -> bool:
         return True
 
 
@@ -124,9 +120,7 @@ class AttrPattern:
             return self.value_pattern.matches(attr_val, model)
         return self.value_pattern.matches(attr_val)
 
-    def to_ir(
-        self, model: ir.Model, rewrite_cache: RewriteCache, bindings=None
-    ) -> ir.Val:
+    def to_ir(self, model: ir.Model, rewrite_cache: RewriteCache, bindings=None) -> ir.Val:
         if isinstance(self.value_pattern, Var):
             val, nodes = self.value_pattern.to_ir(
                 model, bindings, 1, rewrite_cache
@@ -174,9 +168,7 @@ class OpsetPattern:
 
     def matches(self, opset):
         domain, version = opset
-        return self.domain_pattern.matches(domain) and self.version_pattern.matches(
-            version
-        )
+        return self.domain_pattern.matches(domain) and self.version_pattern.matches(version)
 
     def to_ir(self, model, bindings=None) -> str:
         domain = self.domain_pattern.to_ir(model, bindings)
@@ -210,9 +202,7 @@ class OpPattern:
 
     """
 
-    def __init__(
-        self, opset_pattern: OpsetPattern, op_name_pattern: ConstantPattern
-    ) -> None:
+    def __init__(self, opset_pattern: OpsetPattern, op_name_pattern: ConstantPattern) -> None:
         self.opset_pattern = opset_pattern
         self.op_name_pattern = op_name_pattern
 
@@ -223,9 +213,7 @@ class OpPattern:
         else:
             num_outputs = 1
         attributes = {name: AttrPattern(value) for (name, value) in kwargs.items()}
-        node_pattern = NodePattern(
-            self.opset_pattern, self.op_name_pattern, args, attributes
-        )
+        node_pattern = NodePattern(self.opset_pattern, self.op_name_pattern, args, attributes)
         if num_outputs == 1:
             return NodeOutputPattern(node_pattern, 0)
         else:
@@ -293,7 +281,7 @@ class MatchResult:
         return self.success
 
     @classmethod
-    def FAIL(cls):  # noqa: N802
+    def FAIL(cls):
         return cls(None)
 
     @property
@@ -483,9 +471,7 @@ class NodePattern:
             name: attr_pattern.to_ir(model, rewrite_cache, bindings)
             for (name, attr_pattern) in self.attributes.items()
         }
-        newvals, newnode = _make_node(
-            model, domain, op, inputs, attributes, num_outputs
-        )
+        newvals, newnode = _make_node(model, domain, op, inputs, attributes, num_outputs)
         nodes.append(newnode)
         return newvals, nodes
 
@@ -507,10 +493,7 @@ class NodePattern:
             # TODO: handle cases where number of inputs is not 2.
             swapped = [[x[1], x[0]] for x in inputs]
             inputs.extend(swapped)
-        return [
-            NodePattern(self.domain, self.op, input, self.attributes)
-            for input in inputs
-        ]
+        return [NodePattern(self.domain, self.op, input, self.attributes) for input in inputs]
 
 
 class NodeOutputPattern(ValuePattern):
@@ -551,7 +534,7 @@ class Var(ValuePattern):
         self.pattern_var_name = name
         self.bound_value = None
 
-    def matches(self, value: ir.Value, model: ir.Model):  # noqa: ARG002
+    def matches(self, value: ir.Value, model: ir.Model):
         return MatchResult([], {self.pattern_var_name: value})
 
     def to_ir(
@@ -581,9 +564,7 @@ class Constant(ValuePattern):
         self.abs_tol = abs_tol
 
     def match_scalar(self, scalar_value, return_value: list[ir.Node]):
-        if math.isclose(
-            scalar_value, self.value, rel_tol=self.rel_tol, abs_tol=self.abs_tol
-        ):
+        if math.isclose(scalar_value, self.value, rel_tol=self.rel_tol, abs_tol=self.abs_tol):
             return MatchResult(return_value)
         else:
             return MatchResult.FAIL()
@@ -688,7 +669,7 @@ class TargetPatternFunction:
     def function(self) -> Callable:
         return self._function
 
-    def get_pattern(self, *vars: Sequence[Var]) -> tuple[NodePattern, int]:  # noqa: A002
+    def get_pattern(self, *vars: Sequence[Var]) -> tuple[NodePattern, int]:
         node_output_pattern = self._function(*vars)
         return _handle_pattern_return_value(node_output_pattern)
 
@@ -718,7 +699,7 @@ class ReplacementPatternFunction:
     # TODO: How do we merge it with to_ir function?
     def get_pattern(
         self,
-        *vars: Sequence[Var],  # noqa: A002
+        *vars: Sequence[Var],
         match_bindings: dict[str, ir.Value | Any] | None = None,
     ) -> tuple[NodePattern | None, int | None]:
         if self._delay_run:
@@ -732,9 +713,9 @@ class ReplacementPatternFunction:
 
 class RewriteCache:
     def __init__(self):
-        self._node_output_pattern_to_ir: dict[
-            NodeOutputPattern, tuple[ir.Value, ir.Node]
-        ] = dict()
+        self._node_output_pattern_to_ir: dict[NodeOutputPattern, tuple[ir.Value, ir.Node]] = (
+            dict()
+        )
 
     def get_node_output_pattern(
         self, node_output_pattern: NodeOutputPattern
@@ -788,20 +769,18 @@ class RewriteRule:
         self._condition_function = condition_function
 
         _pattern_vars = inspect.signature(self._target_pattern.function).parameters
-        _replacement_vars = inspect.signature(
-            self._replacement_pattern.function
-        ).parameters
+        _replacement_vars = inspect.signature(self._replacement_pattern.function).parameters
         # TODO: accept _replacement_vars being subset of _pattern_vars?
         assert len(_pattern_vars) == len(_replacement_vars)
 
         self._vars = [Var(v) for v in _pattern_vars]
         # Get the last node pattern and number of outputs from the pattern function
-        self._target_node_pattern, self._target_num_outputs = (
-            self._target_pattern.get_pattern(*self._vars)
+        self._target_node_pattern, self._target_num_outputs = self._target_pattern.get_pattern(
+            *self._vars
         )
         # NOTE: Return Nones if the replacement pattern is delayed running
-        self._replace_node_pattern, _replacement_num_outputs = (
-            replacement_pattern.get_pattern(*self._vars)
+        self._replace_node_pattern, _replacement_num_outputs = replacement_pattern.get_pattern(
+            *self._vars
         )
         if _replacement_num_outputs is not None:
             assert self._target_num_outputs == _replacement_num_outputs
@@ -906,9 +885,7 @@ def _apply_deltas(
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
         if commute:
-            rules = list(
-                itertools.chain.from_iterable([rule.commute() for rule in rules])
-            )
+            rules = list(itertools.chain.from_iterable([rule.commute() for rule in rules]))
         self.rules = rules
 
     def _apply_to_graph_or_function(

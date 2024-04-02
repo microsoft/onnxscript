@@ -23,7 +23,7 @@ def _check_if_simulated_instance_norm_is_used_impl(
     bias_for_norm,
     weight_full,
     bias_full,
-    **kwargs,  # noqa: ARG001
+    **kwargs,
 ) -> bool:
     if not np.all(weight_for_norm.value_as_np_array == 1):
         return False
@@ -33,14 +33,11 @@ def _check_if_simulated_instance_norm_is_used_impl(
     input_rank_minus_one = len(input_x.shape) - 1
     weight_full_rank = len(weight_full.shape)
     bias_full_rank = len(bias_full.shape)
-    if (
-        weight_full_rank != input_rank_minus_one
-        or bias_full_rank != input_rank_minus_one
-    ):
+    if weight_full_rank != input_rank_minus_one or bias_full_rank != input_rank_minus_one:
         return False
 
     input_rank = len(input_x.shape)
-    if input_rank != 4:  # noqa: PLR2004
+    if input_rank != 4:
         return False
 
     weight_full_shape = weight_full.shape
@@ -98,7 +95,7 @@ def instance_simulates_group_normalization_pattern(
     weight_full,
     bias_full,
     epsilon,
-    match_bindings: dict[str, ir.Value | Any] | None = None,  # noqa: ARG001
+    match_bindings: dict[str, ir.Value | Any] | None = None,
 ):
     adjusted_input = op.Reshape(input_x, adjusted_input_shape)
     inst_norm = op.InstanceNormalization(
@@ -111,10 +108,10 @@ def instance_simulates_group_normalization_pattern(
 
 def group_normalization(
     input_x,
-    adjusted_input_shape,  # noqa: ARG001
-    original_input_shape,  # noqa: ARG001
-    weight_for_norm,  # noqa: ARG001
-    bias_for_norm,  # noqa: ARG001
+    adjusted_input_shape,
+    original_input_shape,
+    weight_for_norm,
+    bias_for_norm,
     weight_full,
     bias_full,
     epsilon,

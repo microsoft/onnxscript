@@ -55,7 +55,7 @@ import collections
 import logging
 import os
 import typing
-from typing import Any, Mapping, Sequence, List
+from typing import Any, List, Mapping, Sequence
 
 import numpy as np
 import onnx
@@ -431,7 +431,9 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
         doc_string=_get_field(proto, "doc_string"),
         opset_imports=deserialize_opset_import(proto.opset_import),
         name=(
-            f"{proto.name}_{proto.domain}" + f"__{proto.overload}" if hasattr(proto, "overload") and proto.overload else ""
+            f"{proto.name}_{proto.domain}" + f"__{proto.overload}"
+            if hasattr(proto, "overload") and proto.overload
+            else ""
         ),
     )
     attributes = [_deserialize_attribute(attr, []) for attr in proto.attribute_proto]

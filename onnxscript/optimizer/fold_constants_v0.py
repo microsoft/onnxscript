@@ -32,7 +32,7 @@ def get_evaluator(domain: str, op: str, version: int) -> callable | None:
         return None
     try:
         op_impl_class = onnx.reference.ops.load_op(domain, op, version)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
     else:
         return op_impl_class.eval
@@ -63,9 +63,7 @@ def get_bool_value(val) -> bool | None:
 def get_shape_info(type: onnx.TypeProto) -> tuple[int, ...] | None:
     if type.HasField("tensor_type") and type.tensor_type.HasField("shape"):
         if all(d.HasField("dim_value") for d in type.tensor_type.shape.dim):
-            return np.array(
-                [d.dim_value for d in type.tensor_type.shape.dim], dtype=np.int64
-            )
+            return np.array([d.dim_value for d in type.tensor_type.shape.dim], dtype=np.int64)
     return None
 
 
@@ -131,12 +129,10 @@ def fold_constants(model: onnx.ModelProto):
     def new_constant(name, value):
         var_info.bind(name, value)
         tensor = onnx.numpy_helper.from_array(value, name=name)
-        node = onnx.helper.make_node(
-            "Constant", inputs=[], outputs=[name], value=tensor
-        )
+        node = onnx.helper.make_node("Constant", inputs=[], outputs=[name], value=tensor)
         return node
 
-    def lookup_version(domain: str, op: str) -> int:  # noqa: ARG001
+    def lookup_version(domain: str, op: str) -> int:
         for opset in model.opset_import:
             if opset.domain == domain:
                 return opset.version
@@ -146,9 +142,7 @@ def fold_constants(model: onnx.ModelProto):
         if is_onnx_op(node, "Transpose"):
             return [node]
         if is_onnx_op(node, "CastLike"):
-            value = (
-                var_info.lookup(node.input[0]) if len(node.input) > 0 else not_constant
-            )
+            value = var_info.lookup(node.input[0]) if len(node.input) > 0 else not_constant
             if value is not_constant:
                 return [node]
             type = type_info.lookup(node.input[1]) if len(node.input) > 1 else None
@@ -227,9 +221,7 @@ def fold_constants(model: onnx.ModelProto):
             return [replacement]
         else:
             add_count(op)
-            return [
-                new_constant(output, outputs[i]) for i, output in enumerate(node.output)
-            ]
+            return [new_constant(output, outputs[i]) for i, output in enumerate(node.output)]
 
     def transform_graph(graph: onnx.GraphProto):
         var_info.enter_scope()

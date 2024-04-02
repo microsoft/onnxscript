@@ -36,9 +36,7 @@ class IRBuilder:
         self._function_shape_env.load_from_model_proto(model_proto)
         self._ir_version = model_proto.ir_version
         version_map = {x.domain: x.version for x in model_proto.opset_import}
-        functions = [
-            self.visit_function(function) for function in model_proto.functions
-        ]
+        functions = [self.visit_function(function) for function in model_proto.functions]
         self.functions = {function.id: function for function in functions}
         graph = self.visit_graph(model_proto.graph)
         model = ir.Model()
@@ -148,13 +146,9 @@ class IRBuilder:
             node_ir.attributes[attr.name] = attr_val
         # Set constant-value for Constant node:
         if node.op_type == "Constant" and node.domain in {"", "ai.onnx"}:
-            node_ir.outputs[0].value = utils.get_constant_node_value(
-                node, node.output[0]
-            )
+            node_ir.outputs[0].value = utils.get_constant_node_value(node, node.output[0])
 
-    def process_attribute(
-        self, attr: onnx.AttributeProto
-    ) -> ir.Graph | list[ir.Graph] | Any:
+    def process_attribute(self, attr: onnx.AttributeProto) -> ir.Graph | list[ir.Graph] | Any:
         if attr.HasField("g"):
             return self.visit_graph(attr.g)
         elif len(attr.graphs) > 0:
@@ -188,9 +182,7 @@ class IRBuilder:
     def process_function_output(self, output: str):
         value = self.lookup(output)
         if value is None:
-            print(
-                f"WARNING: Function contains no definition for output '{output.name}'."
-            )
+            print(f"WARNING: Function contains no definition for output '{output.name}'.")
         else:
             value.is_output = True
 
@@ -201,7 +193,7 @@ class IRBuilder:
             existing_value.identity_merge_from(ir_value)
             ir_value = existing_value
 
-        if self._ir_version >= 10:  # noqa: PLR2004
+        if self._ir_version >= 10:
             # ONNX >= 1.16 where value_info can be defined in function
             self.bind(ir_value.name, ir_value)
         elif function_id is not None:

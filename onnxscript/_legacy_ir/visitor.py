@@ -70,7 +70,7 @@ class FunctionShapeEnv:
         self, value_info: onnx.ValueInfoProto
     ) -> tuple[ir.FunctionId | None, ir.Value]:
         name = value_info.name
-        if len(splits := name.split("/")) == 2:  # noqa: PLR2004
+        if len(splits := name.split("/")) == 2:
             # Experimental function value info format.
             # To be deprecated after ONNX 1.16, where value_info is introduced in FunctionProto.
             function_id, value_name = splits
@@ -79,7 +79,7 @@ class FunctionShapeEnv:
             # 'overload' is introduced in ONNX 1.16, consider it as empty string prior to that.
             # The code is for future proof, in case overload is encoded in this format.
             overload = ""
-            if len(splits) == 3:  # noqa: PLR2004
+            if len(splits) == 3:
                 overload = splits[2]
             function_id = (domain, function_name, overload)
         else:
@@ -96,19 +96,14 @@ class FunctionShapeEnv:
         function_id = f"{domain}::{function_name}"
 
         if value.type is not None:
-            return onnx.helper.make_value_info(
-                f"{function_id}/{value.name}", value.type
-            )
+            return onnx.helper.make_value_info(f"{function_id}/{value.name}", value.type)
         return None
 
     def lookup(self, function: onnx.FunctionProto, value_name: str) -> ir.Value | None:
         """Lookup ir value of 'value_name' inside 'function'."""
         function_id = ir.get_function_id(function)
         function_values = self._function_values.get(function_id)
-        if (
-            function_values is None
-            or (ir_value := function_values.get(value_name)) is None
-        ):
+        if function_values is None or (ir_value := function_values.get(value_name)) is None:
             logger.debug(
                 "Lookup Missed %s torch symbolic value info in function %s::%s.",
                 value_name,
@@ -124,9 +119,7 @@ class FunctionShapeEnv:
         )
         return ir_value
 
-    def bind(
-        self, value: ir.Value, domain: str, function_name: str, overload: str
-    ) -> None:
+    def bind(self, value: ir.Value, domain: str, function_name: str, overload: str) -> None:
         """Bind ir value 'value' to 'value_name' inside 'function'."""
         function_id = (domain, function_name, overload)
         self._function_values.setdefault(function_id, {})[value.name] = value
@@ -309,9 +302,7 @@ class ScopeStack:
 
     def exit_function_scope(self) -> SubScope:
         sub_scope = self.current_scope().exit_sub_scope()
-        assert isinstance(
-            sub_scope.owner, onnx.FunctionProto
-        ), "Expected function scope."
+        assert isinstance(sub_scope.owner, onnx.FunctionProto), "Expected function scope."
         self._scopes.pop()
         return sub_scope
 
@@ -483,9 +474,7 @@ class ProtoVisitor(ProtoVisitorCore):
         info = self.get_input(node, index)
         return info.element_type if info is not None else None
 
-    def input_shape(
-        self, node: onnx.NodeProto, index: int
-    ) -> onnx.TensorShapeProto | None:
+    def input_shape(self, node: onnx.NodeProto, index: int) -> onnx.TensorShapeProto | None:
         info = self.get_input(node, index)
         return info.tensor_shape_proto() if info is not None else None
 
@@ -570,13 +559,11 @@ class ProtoVisitor(ProtoVisitorCore):
             # TODO: handle optional inputs
             def get_constant_value(i: int) -> onnx.TensorProto | None:
                 value = self.input_const_value(node, i)
-                if isinstance(value, np.ndarray) and value.size < 20:  # noqa: PLR2004
+                if isinstance(value, np.ndarray) and value.size < 20:
                     return onnx.numpy_helper.from_array(value, node.input[i])
                 return None
 
-            input_types = {
-                x: self.input_type(node, i) for i, x in enumerate(node.input)
-            }
+            input_types = {x: self.input_type(node, i) for i, x in enumerate(node.input)}
             input_data = {x: get_constant_value(i) for i, x in enumerate(node.input)}
             input_data = {k: v for k, v in input_data.items() if v is not None}
             if any(t is None for t in input_types.values()):
@@ -593,7 +580,7 @@ class ProtoVisitor(ProtoVisitorCore):
                     output_types = onnx.shape_inference.infer_node_outputs(
                         schema, node, input_types, input_data
                     )
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:
                     logger.debug(
                         "Skipping shape inference for node %s due to exception: %s",
                         node.name,
@@ -854,9 +841,7 @@ class FunctionCallsiteProtoTransformer(ProtoTransformer):
 
         self.enter_function_scope(mutable_function)
         if logger.level <= logging.INFO:
-            printable_actual_input_value_infos = [
-                str(x) for x in actual_input_value_infos
-            ]
+            printable_actual_input_value_infos = [str(x) for x in actual_input_value_infos]
             logger.info(
                 "Actual input value infos: %s",
                 printable_actual_input_value_infos,

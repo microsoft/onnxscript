@@ -4,10 +4,10 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
-import unittest
 import functools
 import os
 import pathlib
+import unittest
 
 import numpy as np
 import onnx
@@ -18,12 +18,14 @@ from onnxscript._legacy_ir import visitor
 from onnxscript.rewriter import onnxruntime as ort_rewriter
 from onnxscript.utils import evaluation_utils
 
+
 class TestBase(unittest.TestCase):
     """The base class for testing ONNX Script functions for internal use."""
 
     def validate(self, fn):
         """Validate script function translation."""
         return fn.to_function_proto()
+
 
 def skip_if_no_cuda(reason: str):
     def skip_dec(func):
@@ -108,7 +110,7 @@ def test_onnxruntime_rewrite(
                 np.testing.assert_allclose(
                     baseline_output, optimized_output, rtol=rtol, atol=atol
                 )
-            except AssertionError as e:  # noqa: PERF203
+            except AssertionError as e:
                 print(
                     f"Failed for model {model_name} and output {i} with rtol={rtol} and atol={atol}\n{e}"
                 )

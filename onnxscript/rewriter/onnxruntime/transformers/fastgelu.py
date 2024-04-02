@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 
 import onnx
-import onnxscript
 
+import onnxscript
 from onnxscript.rewriter import function_rule
 
 logger = logging.getLogger(__name__)

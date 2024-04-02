@@ -58,7 +58,9 @@ exclude_patterns = [
     'onnxscript/rewriter/onnxruntime/transformers/multihead_attention.py',  # FIXME
     'onnxscript/tools/function_unittest_producer.py',  # FIXME
     'onnxscript/_legacy_ir/visitor.py',  # FIXME
+    'onnxscript/_legacy_ir/protobuilder.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/layernorm.py',  # FIXME
+    'onnxscript/ir/serde.py',  # FIXME
 ]
 command = [
     'python',
@@ -121,6 +123,9 @@ exclude_patterns = [
     'tests/functions/**',
     'tests/models/**',
     'tests/onnx_backend_test_code/**',
+    'onnxscript/optimizer/**',  # FIXME
+    'onnxscript/rewriter/**',  # FIXME
+    'onnxscript/_legacy_ir/**',  # FIXME
 ]
 command = [
     'python',
