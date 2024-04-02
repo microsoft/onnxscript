@@ -119,7 +119,7 @@ class Opset_ai_onnx_ml3(Opset_ai_onnx_ml2):
             nodes_missing_value_tracks_true: For each node, define what to do in the
                 presence of a missing value: if a value is missing (NaN), use the 'true'
                 or 'false' branch based on the value in this array.<br>This attribute
-                may be left undefined, and the defalt value is false (0) for all nodes.
+                may be left undefined, and the default value is false (0) for all nodes.
 
             nodes_modes: The node kind, that is, the comparison to make at the node.
                 There is no comparison to make at a leaf node.<br>One of 'BRANCH_LEQ',
@@ -224,13 +224,13 @@ class Opset_ai_onnx_ml3(Opset_ai_onnx_ml2):
             aggregate_function: Defines how to aggregate leaf values within a target.
                 <br>One of 'AVERAGE,' 'SUM,' 'MIN,' 'MAX.'
 
-            base_values: Base values for classification, added to final class score; the
-                size must be the same as the classes or can be left unassigned (assumed
-                0)
+            base_values: Base values for regression, added to final prediction after
+                applying aggregate_function; the size must be the same as the classes or
+                can be left unassigned (assumed 0)
 
-            base_values_as_tensor: Base values for classification, added to final class
-                score; the size must be the same as the classes or can be left
-                unassigned (assumed 0)
+            base_values_as_tensor: Base values for regression, added to final prediction
+                after applying aggregate_function; the size must be the same as the
+                classes or can be left unassigned (assumed 0)
 
             n_targets: The total number of targets.
 
@@ -247,7 +247,7 @@ class Opset_ai_onnx_ml3(Opset_ai_onnx_ml2):
             nodes_missing_value_tracks_true: For each node, define what to do in the
                 presence of a NaN: use the 'true' (if the attribute value is 1) or
                 'false' (if the attribute value is 0) branch based on the value in this
-                array.<br>This attribute may be left undefined and the defalt value is
+                array.<br>This attribute may be left undefined and the default value is
                 false (0) for all nodes.
 
             nodes_modes: The node kind, that is, the comparison to make at the node.
