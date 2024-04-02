@@ -31,9 +31,7 @@ def load_test_data(
         expected_outputs[idx] = onnx.numpy_helper.to_array(output_data)  # type: ignore[call-overload]
 
     assert all(name in inputs for name in input_names), "Some inputs are missing."
-    assert not any(
-        output is None for output in expected_outputs
-    ), "Some outputs are missing."
+    assert not any(output is None for output in expected_outputs), "Some outputs are missing."
 
     return inputs, expected_outputs  # type: ignore[return-value]
 
@@ -46,9 +44,7 @@ def generate_random_input(model: onnx.ModelProto) -> dict[str, np.ndarray]:
     inputs = {}
     for _, input in enumerate(model.graph.input):
         shape = [d.dim_value for d in input.type.tensor_type.shape.dim]
-        np_dtype = onnx_helper.tensor_dtype_to_np_dtype(
-            input.type.tensor_type.elem_type
-        )
+        np_dtype = onnx_helper.tensor_dtype_to_np_dtype(input.type.tensor_type.elem_type)
         if np_dtype is None:
             raise ValueError(f"Unsupported dtype: {input.type.tensor_type.elem_type}")
         if np_dtype in (np.float16, np.float32, np.float64):

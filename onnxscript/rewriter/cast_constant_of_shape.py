@@ -17,7 +17,7 @@ def cast_constant_of_shape(
     shape: Sequence[int],
     t: Any,
     dtype: int,
-    match_bindings: dict[str, ir.Value | Any] | None = None,  # noqa: ARG001
+    match_bindings: dict[str, ir.Value | Any] | None = None,
 ) -> pattern.OpPattern:
     constant = op.ConstantOfShape(shape, value=t)
     return op.Cast(constant, to=dtype)

@@ -56,11 +56,7 @@ class SymbolicEvaluator(CopyPropagator):
         if is_onnx_op(node, "ConcatFromSequence"):
             input = self.get_input(node, 0)
             new_axis = get_node_attr_value(node, "new_axis", 0)
-            if (
-                input is not None
-                and isinstance(input.symbolic_value, list)
-                and new_axis == 0
-            ):
+            if input is not None and isinstance(input.symbolic_value, list) and new_axis == 0:
                 node.op_type = "Concat"
                 node.input[:] = input.symbolic_value
                 for i in range(len(node.attribute)):
@@ -78,9 +74,7 @@ def do_copy_propagation(model: onnx.ModelProto, *, remove_unused: bool = True) -
         onnxscript.optimizer.remove_unused_nodes(model)
 
 
-def do_sequence_simplification(
-    model: onnx.ModelProto, *, remove_unused: bool = True
-) -> None:
+def do_sequence_simplification(model: onnx.ModelProto, *, remove_unused: bool = True) -> None:
     transformer = SymbolicEvaluator()
     transformer.visit_model(model)
     if remove_unused:

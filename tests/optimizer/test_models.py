@@ -60,9 +60,7 @@ class ModelTest(unittest.TestCase):
             outputs = sess.run(None, inputs)
 
             for output, expected_output in zip(outputs, expected_outputs):
-                np.testing.assert_allclose(
-                    output, expected_output, rtol=1e-3, atol=1e-3
-                )
+                np.testing.assert_allclose(output, expected_output, rtol=1e-3, atol=1e-3)
 
 
 if __name__ == "__main__":

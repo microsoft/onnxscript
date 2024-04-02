@@ -4,9 +4,9 @@ import functools
 import logging
 
 import onnx
-import onnxscript
 from packaging import version
 
+import onnxscript
 import onnxscript._legacy_ir as ir
 from onnxscript._legacy_ir import visitor
 from onnxscript.rewriter import pattern
@@ -38,9 +38,7 @@ MAX_VERSION = version.parse("9999")
 class VersionController:
     def __init__(self):
         # A dispatch table for rewrite implementation based on the function package version.
-        self.dispatch_table: dict[
-            tuple[version.Version, version.Version], callable
-        ] = {}
+        self.dispatch_table: dict[tuple[version.Version, version.Version], callable] = {}
 
     def register_version(
         self,
@@ -117,9 +115,7 @@ class FunctionRewriteRule(pattern.RewriteRule):
         if isinstance(self.FUNCTION_KEYWORD, str):
             return function.name.find(self.FUNCTION_KEYWORD) != -1
         elif isinstance(self.FUNCTION_KEYWORD, tuple):
-            return any(
-                function.name.find(keyword) != -1 for keyword in self.FUNCTION_KEYWORD
-            )
+            return any(function.name.find(keyword) != -1 for keyword in self.FUNCTION_KEYWORD)
         else:
             raise ValueError(  # noqa: TRY004
                 f"Function keyword must be str or tuple, got {self.FUNCTION_KEYWORD}"
@@ -198,9 +194,7 @@ class FunctionRewriteRule(pattern.RewriteRule):
         )
 
         try:
-            new_function, opset_imports = self.compose_new_function(
-                function, pkg_version
-            )
+            new_function, opset_imports = self.compose_new_function(function, pkg_version)
         except FunctionRewriteError as e:
             logger.warning("Could not rewrite function: %s", e)
             return False

@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-__all__ = ["assert_isomorphic", "assert_isomorphic_graph", "assert_isomorphic_function", "assert_onnx_proto_equal"]
+__all__ = [
+    "assert_isomorphic",
+    "assert_isomorphic_graph",
+    "assert_isomorphic_function",
+    "assert_onnx_proto_equal",
+]
 
 import difflib
-import typing
 from typing import Any, Collection, Sequence
 
 import google.protobuf.message
-
 import onnx
 from onnx import parser
 
 import onnxscript
-
-if typing.TYPE_CHECKING:
-    import onnx
 
 
 def assert_isomorphic(graph_or_function_1, graph_or_function_2):
@@ -347,7 +347,6 @@ def _to_function_or_graph(obj):
     raise TypeError(f"Cannot convert {type(obj)} to FunctionProto or GraphProto")
 
 
-
 def _opset_import_key(opset_import: onnx.OperatorSetIdProto) -> tuple[str, int]:
     return (opset_import.domain, opset_import.version)
 
@@ -387,7 +386,7 @@ def assert_onnx_proto_equal(
         a: The first ONNX proto.
         b: The second ONNX proto.
     """
-    assert type(a) == type(b), f"Type not equal: {type(a)} != {type(b)}"
+    assert type(a) == type(b), f"Type not equal: {type(a)} != {type(b)}"  # pylint: disable=unidiomatic-typecheck
 
     a_fields = {field.name: value for field, value in a.ListFields()}
     b_fields = {field.name: value for field, value in b.ListFields()}
@@ -430,19 +429,19 @@ def assert_onnx_proto_equal(
                     f"Duplicated a_keys: {_find_duplicates(a_keys)}, duplicated b_keys: {_find_duplicates(b_keys)}"
                 )
                 raise AssertionError(error_message)
-            elif len(a_value) != len(b_value):
+            if len(a_value) != len(b_value):
                 error_message = (
                     f"Field {field} not equal: len(a)={len(a_value)}, len(b)={len(b_value)} "
                     f"Field type: {type(a_value)}"
                 )
                 raise AssertionError(error_message)
             # Check every element
-            for i in range(len(a_value)):
+            for i in range(len(a_value)):  # pylint: disable=consider-using-enumerate
                 a_value_i = a_value[i]
                 b_value_i = b_value[i]
-                if isinstance(
-                    a_value_i, google.protobuf.message.Message
-                ) and isinstance(b_value_i, google.protobuf.message.Message):
+                if isinstance(a_value_i, google.protobuf.message.Message) and isinstance(
+                    b_value_i, google.protobuf.message.Message
+                ):
                     try:
                         assert_onnx_proto_equal(a_value_i, b_value_i)
                     except AssertionError as e:
@@ -460,7 +459,5 @@ def assert_onnx_proto_equal(
         ):
             assert_onnx_proto_equal(a_value, b_value)
         elif a_value != b_value:
-            error_message = (
-                f"Field {field} not equal. field_a: {a_value}, field_b: {b_value}"
-            )
+            error_message = f"Field {field} not equal. field_a: {a_value}, field_b: {b_value}"
             raise AssertionError(error_message)

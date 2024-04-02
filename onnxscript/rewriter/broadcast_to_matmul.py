@@ -35,9 +35,7 @@ def check_if_need_reshape(match_bindings: dict[str, ir.Value | Any]) -> bool:
     if shape_c is None:
         return False
     if not isinstance(shape_c, np.ndarray):
-        logger.info(
-            "Unexpected shape_c value. Expected np.ndarray, got %s", type(shape_c)
-        )
+        logger.info("Unexpected shape_c value. Expected np.ndarray, got %s", type(shape_c))
         return False
     if len(shape_c.shape) != 1:
         logger.info(
@@ -60,7 +58,7 @@ def check_if_need_reshape(match_bindings: dict[str, ir.Value | Any]) -> bool:
     # 1.a. If the first input is 1-D, check whether
     # the dim matches the last second dim of the second input.
     mimic_matmul_broadcast_behavior = False
-    if dim_a < 2:  # noqa: PLR2004
+    if dim_a < 2:
         if input_a_shape[-1] != input_b_shape[-2]:
             logger.info("Original shape is not MatMul compatible.")
             return False
@@ -70,7 +68,7 @@ def check_if_need_reshape(match_bindings: dict[str, ir.Value | Any]) -> bool:
             mimic_matmul_broadcast_behavior = True
     # 1.b. If the second input is 1-D, check whether
     # the dim matches the last dim of the first input.
-    if dim_b < 2:  # noqa: PLR2004
+    if dim_b < 2:
         if input_b_shape[-1] != input_a_shape[-1]:
             logger.info("Original shape is not MatMul compatible.")
             return False
@@ -111,9 +109,9 @@ def check_if_need_reshape(match_bindings: dict[str, ir.Value | Any]) -> bool:
     broadcast_matmul_output_shape = (
         longer_shape[: -len(shorter_shape)] + broadcast_matmul_output_shape
     )
-    if mimic_matmul_broadcast_behavior and dim_b == 2:  # noqa: PLR2004
+    if mimic_matmul_broadcast_behavior and dim_b == 2:
         broadcast_matmul_output_shape = broadcast_matmul_output_shape[:-1]
-    if mimic_matmul_broadcast_behavior and dim_a == 2:  # noqa: PLR2004
+    if mimic_matmul_broadcast_behavior and dim_a == 2:
         broadcast_matmul_output_shape.pop(-2)
     if shape_c != broadcast_matmul_output_shape:
         logger.info(

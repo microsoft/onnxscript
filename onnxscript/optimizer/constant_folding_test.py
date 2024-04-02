@@ -117,13 +117,9 @@ class FoldConstantsTest(unittest.TestCase):
         )
         optimized = optimizer.optimize(model, num_iterations=1)
         self.assertEqual(len(optimized.graph.node), 1)
-        then_graph = onnx.helper.get_node_attr_value(
-            optimized.graph.node[0], "then_branch"
-        )
+        then_graph = onnx.helper.get_node_attr_value(optimized.graph.node[0], "then_branch")
         self.assertEqual(len(then_graph.node), 2)
-        else_graph = onnx.helper.get_node_attr_value(
-            optimized.graph.node[0], "else_branch"
-        )
+        else_graph = onnx.helper.get_node_attr_value(optimized.graph.node[0], "else_branch")
         self.assertEqual(len(else_graph.node), 2)
 
     def test_fold_if_propagate(self):
@@ -198,9 +194,7 @@ class FoldConstantsTest(unittest.TestCase):
         """
         )
         # No optimizations expected. Just make sure it doesn't crash.
-        optimized = optimizer.optimize(
-            model, num_iterations=1, onnx_shape_inference=False
-        )
+        optimized = optimizer.optimize(model, num_iterations=1, onnx_shape_inference=False)
         self.assertEqual(len(optimized.graph.node), 6)
 
     def test_shape_inference(self):
@@ -336,9 +330,7 @@ func (float[1,3] x) => ( return_val) {
         self.assertEqual(len(optimized.graph.node), 7)
         self.assertEqual(len(optimized.graph.node[1].output), 3)
         self.assertEqual(optimized.graph.node[1].op_type, "Split")
-        self.assertEqual(
-            len([n for n in optimized.graph.node if n.op_type == "Squeeze"]), 3
-        )
+        self.assertEqual(len([n for n in optimized.graph.node if n.op_type == "Squeeze"]), 3)
 
     def test_static_split_to_sequence_with_uneven_split(self):
         model = onnx.parser.parse_model(

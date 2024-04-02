@@ -1,4 +1,5 @@
 """In-memory intermediate representation for ONNX graphs."""
+
 __all__ = [
     # Modules
     "serde",
