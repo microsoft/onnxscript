@@ -7,8 +7,8 @@ import unittest
 
 import numpy as np
 
-from onnxscript.tests.common import onnx_script_test_case
-from onnxscript.tests.models import if_statement
+from tests.common import onnx_script_test_case
+from tests.models import if_statement
 
 
 class TestOnnxIf(onnx_script_test_case.OnnxScriptTestCase):

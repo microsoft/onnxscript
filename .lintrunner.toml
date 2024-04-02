@@ -8,7 +8,7 @@ include_patterns = [
     '**/*.pyi',
 ]
 exclude_patterns = [
-    'onnxscript/tests/models/**',
+    'tests/models/**',
 ]
 command = [
     'python',
@@ -43,7 +43,7 @@ exclude_patterns = [
     'onnxscript/evaluator_test.py',
     'onnxscript/evaluator.py',
     'onnxscript/onnx_types.py',
-    'onnxscript/tests/**', # Skip linting test files for speed
+    'tests/**', # Skip linting test files for speed
     'onnxscript/**/*_test.py', # Skip linting test files for speed
     'onnxscript/function_libs/torch_lib/ops/**', # Operators typing do not play well with mypy
 ]
@@ -74,7 +74,7 @@ include_patterns = [
     '**/*.py',
 ]
 exclude_patterns = [
-    'onnxscript/tests/onnx_backend_test_code/**',
+    'tests/onnx_backend_test_code/**',
 ]
 command = [
     'python',
@@ -105,9 +105,9 @@ exclude_patterns = [
     'docs/examples/**',
     'docs/tutorial/examples/**',
     'onnxscript/converter_test.py',
-    'onnxscript/tests/functions/**',
-    'onnxscript/tests/models/**',
-    'onnxscript/tests/onnx_backend_test_code/**',
+    'tests/functions/**',
+    'tests/models/**',
+    'tests/onnx_backend_test_code/**',
 ]
 command = [
     'python',

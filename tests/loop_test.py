@@ -5,7 +5,7 @@ import numpy as np
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
-from onnxscript.tests.common import testutils
+from tests.common import testutils
 
 
 class LoopOpTest(testutils.TestBase):

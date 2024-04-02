@@ -54,7 +54,7 @@ from onnxscript.function_libs.torch_lib.ops import linalg as linalg_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
 from onnxscript.function_libs.torch_lib.ops import vision as vision_ops
-from onnxscript.tests.function_libs.torch_lib import extra_opinfo, ops_test_common
+from tests.function_libs.torch_lib import extra_opinfo, ops_test_common
 
 # Create a copy of the op_db to modify
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
