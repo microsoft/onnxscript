@@ -22,7 +22,7 @@ def remove_unused_optional_outputs(
             if opset.domain == n.domain:
                 onnx_opset_version = opset.version
         op_schema = onnx.defs.get_schema(n.op_type, onnx_opset_version, domain=n.domain)
-    except Exception:  # noqa: BLE001
+    except Exception:
         return
     # TODO: If current node is a BatchNormalization node,
     # based on training_mode atrribute, number of optional outputs and
@@ -34,9 +34,7 @@ def remove_unused_optional_outputs(
         # Current ops do not have optional outputs if they have variable number of outputs
         if o.option == onnx.defs.OpSchema.FormalParameterOption.Variadic:
             return
-        optional_info.append(
-            o.option == onnx.defs.OpSchema.FormalParameterOption.Optional
-        )
+        optional_info.append(o.option == onnx.defs.OpSchema.FormalParameterOption.Optional)
     # If no optional outputs in spec, skip delete operations
     if len([o == 1 for o in optional_info]) == 0:
         return

@@ -91,9 +91,7 @@ class ModelProtoBuilder:
             function_proto.value_info.append(val)
         return function_proto
 
-    def process_ir_node(
-        self, ir_node: ir.Node, node_proto: onnx.NodeProto
-    ) -> onnx.NodeProto:
+    def process_ir_node(self, ir_node: ir.Node, node_proto: onnx.NodeProto) -> onnx.NodeProto:
         node_proto.op_type = ir_node.op_type
         node_proto.domain = ir_node.domain
         # Copy over node properties

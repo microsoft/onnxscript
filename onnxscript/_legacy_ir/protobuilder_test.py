@@ -201,9 +201,7 @@ class ControlFlowSerializeTest(unittest.TestCase):
                 onnx.helper.make_tensor(
                     "weight", onnx.TensorProto.FLOAT16, [320, 1, 1], weight
                 ),
-                onnx.helper.make_tensor(
-                    "bias", onnx.TensorProto.FLOAT16, [320, 1, 1], bias
-                ),
+                onnx.helper.make_tensor("bias", onnx.TensorProto.FLOAT16, [320, 1, 1], bias),
             ]
         )
         ir = irbuilder.build_ir(model)

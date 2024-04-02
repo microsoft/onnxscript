@@ -32,7 +32,7 @@ class ReferenceEvaluator:
         try:
             op_impl_class = onnx.reference.ops.load_op(domain, op, version)
             return op_impl_class.eval  # noqa: TRY300
-        except Exception:  # noqa: BLE001
+        except Exception:
             return None
 
     def evaluate(self, domain: str, op: str, version: int, *args, **kwargs) -> Any:
@@ -59,9 +59,7 @@ class IRContext(Protocol):
 
     def get_output(self, node: onnx.NodeProto, index: int) -> ir.Value | None: ...
 
-    def input_const_value(
-        self, node: onnx.NodeProto, index: int
-    ) -> ir.ConcreteValue: ...
+    def input_const_value(self, node: onnx.NodeProto, index: int) -> ir.ConcreteValue: ...
 
     def input_shape(
         self, node: onnx.NodeProto, index: int
@@ -75,9 +73,7 @@ class IRContext(Protocol):
 
     def convert_attributes(self, attributes: Sequence[onnx.AttributeProto]) -> dict: ...
 
-    def new_constant(
-        self, name: str, value: Any
-    ) -> Sequence[onnx.NodeProto] | None: ...
+    def new_constant(self, name: str, value: Any) -> Sequence[onnx.NodeProto] | None: ...
 
 
 # A partial-evaluator function takes an IRContext and a node, and returns a list of
@@ -119,9 +115,7 @@ class PartialEvaluatorRegistry:
     def lookup_evaluators(self, domain: str, opname: str, version: int):
         evaluator_list = self.op_evaluators.get((domain, opname), [])
         return [
-            evaluator.function
-            for evaluator in evaluator_list
-            if evaluator.valid_for(version)
+            evaluator.function for evaluator in evaluator_list if evaluator.valid_for(version)
         ]
 
     def register(self, opname: str, domain: str = "", version=None):
@@ -427,9 +421,7 @@ def split_to_sequence(
 
 
 @register("SequenceAt")
-def sequence_at(
-    context: IRContext, node: onnx.NodeProto
-) -> Sequence[onnx.NodeProto] | None:
+def sequence_at(context: IRContext, node: onnx.NodeProto) -> Sequence[onnx.NodeProto] | None:
     input = context.get_input(node, 0)
     position = context.get_input(node, 1)
     output = context.get_output(node, 0)

@@ -73,10 +73,7 @@ class FunctionInliner(visitor.FunctionCallsiteProtoTransformer):
                     new_name = f"{node.name}_{name}"
                 logger.debug("renaming %s to %s", name, new_name)
                 if (ir_value := sub_scope.lookup(name)) is not None:
-                    if (
-                        ir_value.tensor_shape_proto() is not None
-                        and ir_value.type is not None
-                    ):
+                    if ir_value.tensor_shape_proto() is not None and ir_value.type is not None:
                         ir_value.name = new_name
                         self.bind(new_name, ir_value)
                 return new_name
@@ -174,9 +171,7 @@ class FindFunctionWithUnusedOutputsVisitor(visitor.ProtoVisitor):
 
     def visit_model(self, model: onnx.ModelProto) -> None:
         used_values = {output.name for output in model.graph.output}
-        target_nodes = self._find_nodes_with_any_unused_output(
-            model.graph.node, used_values
-        )
+        target_nodes = self._find_nodes_with_any_unused_output(model.graph.node, used_values)
 
         for function in model.functions:
             self._functions[
@@ -190,9 +185,7 @@ class FindFunctionWithUnusedOutputsVisitor(visitor.ProtoVisitor):
         for node in target_nodes:
             if visitor.is_local_function_node(node, self._functions):
                 function_id = (node.domain, node.op_type, getattr(node, "overload", ""))
-                self._function_with_unused_outputs[function_id] = self._functions[
-                    function_id
-                ]
+                self._function_with_unused_outputs[function_id] = self._functions[function_id]
 
         logger.info(
             "Found %s function nodes that have unused outputs.",

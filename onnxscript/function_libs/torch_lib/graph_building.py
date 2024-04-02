@@ -832,7 +832,7 @@ class TorchScriptGraph:
             new_value_info.pop(input.name, None)
         for output in onnx_model.graph.output:
             new_value_info.pop(output.name, None)
-        for tensor in onnx_model.graph.initializer:
+        for tensor in onnx_model.graph.initializer:  # type: ignore[assignment]
             new_value_info.pop(tensor.name, None)
         existing_value_info.update(new_value_info)
         onnx_model.graph.value_info.extend(existing_value_info.values())

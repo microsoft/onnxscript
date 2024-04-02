@@ -13,11 +13,9 @@ def reshape_gemm_reshape_pattern(input_a, input_b, input_c, shape_a, shape_c):
     return op.Reshape(gemm, shape_c)
 
 
-def matmul_add(input_a, input_b, input_c, shape_a, shape_d):  # noqa: ARG001
+def matmul_add(input_a, input_b, input_c, shape_a, shape_d):
     matmul = op.MatMul(input_a, input_b)
     return op.Add(matmul, input_c)
 
 
-rule = pattern.RewriteRule(
-    reshape_gemm_reshape_pattern, matmul_add, check_if_need_reshape
-)
+rule = pattern.RewriteRule(reshape_gemm_reshape_pattern, matmul_add, check_if_need_reshape)
