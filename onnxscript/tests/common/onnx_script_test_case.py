@@ -47,12 +47,13 @@ def _make_model_from_function_proto(
     function with input and output value_infos, etc.
 
     Args:
-        function_proto (FunctionProto): function proto
+        function_proto: function proto
             representing a single call
-        function_opset_version (int):  function_proto's version
-        input_value_infos (list of ValueInfoProto): function's input
-        output_value_infos (list of ValueInfoProto): function's output
-        **attrs (dict): the attributes of the node for the function
+        function_opset_version:  function_proto's version
+        input_value_infos: function's input
+        output_value_infos: function's output
+        ir_version: IR version of the model
+        attrs: the attributes of the node for the function
 
     Returns:
         ModelProto
