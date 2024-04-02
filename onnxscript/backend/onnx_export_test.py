@@ -88,10 +88,7 @@ SKIP_TESTS = (
         r"^test_range_int32_type_negative_delta_expanded",
         "Change when the converter supports support something like 'while i < n and cond:'",
     ),
-    skip(
-        r"^test_ai_onnx_ml_label_encoder",
-        "ONNX Runtime does not support Opset 21 at 1.17"
-    )
+    skip(r"^test_ai_onnx_ml_label_encoder", "ONNX Runtime does not support Opset 21 at 1.17"),
 )
 
 
