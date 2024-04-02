@@ -133,14 +133,23 @@ class OnnxScriptTestCase(unittest.TestCase):
         return test_cases
 
     def run_converter_test(
-        self, param: FunctionTestParams, onnx_case_model: Optional[onnx.ModelProto] = None
+        self,
+        param: FunctionTestParams,
+        onnx_case_model: Optional[onnx.ModelProto] = None,
+        *,
+        ir_version=9,
     ):
-        # we need the latest version in onnx.ai domain
-        # to build a function
+        # FIXME(justinchuby): Defaulting to ir_version 9 because ONNX Runtime supports
+        # up to IR version 9 as of 4/2/2024. We should have a better mechanism to
+        # guard against ONNX version change while preserving the ability to test
+        # the latest ONNX IR version.
+
         if onnx_case_model:
             model = self._create_model_from_param(param, onnx_case_model)
         else:
-            model = param.function.function_ir.to_model_proto(producer_name="call_clip")
+            model = param.function.function_ir.to_model_proto(
+                producer_name="call_clip", ir_version=ir_version
+            )
         try:
             onnx.checker.check_model(model)
         except checker.ValidationError as e:
