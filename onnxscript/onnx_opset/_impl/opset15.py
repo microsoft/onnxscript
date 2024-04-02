@@ -138,7 +138,7 @@ class Opset15(Opset14):
                 running_mean = running_mean * momentum + mean * (1 - momentum).
 
             training_mode: If set to true, it indicates BatchNormalization is being used
-                for training, and outputs 1, 2, 3, and 4 would be populated.
+                for training, and outputs 1 and 2 are to be computed.
         """
 
         schema = get_schema("BatchNormalization", 15, "")

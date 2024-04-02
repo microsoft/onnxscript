@@ -88,6 +88,7 @@ SKIP_TESTS = (
         r"^test_range_int32_type_negative_delta_expanded",
         "Change when the converter supports support something like 'while i < n and cond:'",
     ),
+    skip(r"^test_ai_onnx_ml_label_encoder", "ONNX Runtime does not support Opset 21 at 1.17"),
 )
 
 
@@ -247,37 +248,7 @@ class TestOnnxBackEnd(unittest.TestCase):
         functions = extract_functions(backend_test.name, code, self.test_folder)
         main_function = functions[f"bck_{backend_test.name}"]
         self.assertIsNotNone(main_function)
-        proto = main_function.to_model_proto()
-
-        # Opset may be different when an binary operator is used.
-        if backend_test.onnx_model.ir_version != proto.ir_version:
-            if (
-                not backend_test.name.startswith(  # pylint: disable=too-many-boolean-expressions
-                    "test_add"
-                )
-                and not backend_test.name.startswith("test_and")
-                and not backend_test.name.startswith("test_div")
-                and not backend_test.name.startswith("test_equal")
-                and not backend_test.name.startswith("test_greater")
-                and not backend_test.name.startswith("test_less")
-                and not backend_test.name.startswith("test_matmul")
-                and not backend_test.name.startswith("test_mod")
-                and not backend_test.name.startswith("test_mul")
-                and not backend_test.name.startswith("test_not")
-                and not backend_test.name.startswith("test_or")
-                and not backend_test.name.startswith("test_pow")
-                and not backend_test.name.startswith("test_sub")
-                and (backend_test.onnx_model.ir_version, proto.ir_version)
-                not in {(3, 4), (5, 6)}
-            ):
-                # Unexpected behavior for old opsets
-                raise AssertionError(
-                    f"Incompatible ir_version {(backend_test.onnx_model.ir_version)} !="
-                    f" {(proto.ir_version)}\n"
-                    f"{backend_test.onnx_model}\n"
-                    f"-----\n"
-                    f"{proto}"
-                )
+        proto = main_function.to_model_proto(ir_version=backend_test.onnx_model.ir_version)
 
         try:
             session = ort.InferenceSession(
