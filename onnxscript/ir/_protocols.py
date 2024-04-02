@@ -91,7 +91,7 @@ class TensorProtocol(ArrayCompatible, Protocol):
     Attributes:
         name: The name of the tensor.
         shape: The shape of the tensor.
-        dtype: The data type of the elements of the tensor.
+        dtype: The data type of the elements of the tensor. It is an :class:`ir.DataType` enum.
         doc_string: Documentation string.
         raw: The raw data behind this tensor. It can be anything.
         size: The number of elements in the tensor.
@@ -125,9 +125,24 @@ class TensorProtocol(ArrayCompatible, Protocol):
 
 @typing.runtime_checkable
 class ValueProtocol(Protocol):
-    """Protocol for ONNX values.
+    """Values.
 
-    A value is a named entity that can be used as an input or output of an operator.
+    A value is a named entity that can be used to represent an input or output of a graph,
+    a function, or a node. The information it stores corresponds to ValueInfoProto
+    in the ONNX specification.
+
+    A :class:`Value` is always not owned or owned by exactly one node. When the value is not
+    owned, it must be an input of a graph or a function. The def_node and def_index
+    attributes are None.
+
+    When the value is owned by a node, it is an output of the node.
+    The node that produces the value is stored in the :attr:`def_node` attribute.
+    The index of the output of the node that produces the value is stored in the
+    :attr:`def_index` attribute.
+
+    To find all the nodes that use this value as an input, call :meth:`users`.
+
+    To check if the value is an output of a graph, call :meth:`is_graph_output`.
 
     Attributes:
         name: The name of the value.
@@ -156,9 +171,12 @@ class ValueProtocol(Protocol):
 
 @typing.runtime_checkable
 class NodeProtocol(Protocol):
-    """Protocol for ONNX nodes.
+    """Nodes.
 
-    A node represents an operation in the computation graph.
+    A node represents an invocation of an operation on the :class:`Value`s in
+    the computational graph.
+
+    TODO: Continue
 
     Attributes:
         domain: The domain of the operator. E.g. "" for ONNX operators.
