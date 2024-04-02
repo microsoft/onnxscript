@@ -23,11 +23,10 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "License :: OSI Approved :: MIT License",
 ]
-dependencies = ["numpy", "onnx>=1.14", "typing_extensions"]
+dependencies = ["numpy", "onnx>=1.15", "typing_extensions"]
 
 [tool.setuptools.packages.find]
 include = ["onnxscript*"]
-# Tests are by default excluded: https://setuptools.pypa.io/en/latest/userguide/package_discovery.html
 
 [tool.setuptools.package-data]
 onnxscript = ["py.typed"]
@@ -38,20 +37,18 @@ filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]
 addopts = "-rsfEX --tb=short --color=yes"
 
 [tool.mypy]
-follow_imports = "silent"   # TODO: Remove when we fix all the mypy errors
-strict_optional = true
-warn_no_return = true
-warn_unused_ignores = false # TODO: CI and local are inconsistent when this is true. Investigate.
-warn_redundant_casts = true
-warn_incomplete_stub = true
-# TODO disallow_untyped_calls = true
-check_untyped_defs = true
-disallow_any_generics = false
 # TODO disallow_incomplete_defs = true
-# TODO disallow_subclassing_any = true
+check_untyped_defs = true
+disable_error_code = 'override,import-untyped'
+disallow_any_generics = false
 disallow_untyped_decorators = true
-warn_unused_configs = true
 show_column_numbers = true
+strict_optional = true
+warn_incomplete_stub = true
+warn_no_return = true
+warn_redundant_casts = true
+warn_unused_configs = true
+warn_unused_ignores = false
 
 [[tool.mypy.overrides]]
 module = [
@@ -88,14 +85,16 @@ extend_skip_glob = [
 ]
 
 [tool.pylint.messages_control]
-# This list is for vscode. Add new disables in pyproject_pylint.toml for lintrunner
+# NOTE: This list is for vscode. Add new disables in pyproject_pylint.toml for lintrunner
 # Exclude patterns should be modified in .lintrunner.toml
 disable = [
+  "consider-using-from-import",
   "format",
   "import-error",
   "invalid-name",      # TODO: Add naming guidance and enable this check.
   "line-too-long",
   "no-name-in-module",
+  "unnecessary-ellipsis",
   "use-dict-literal",  # Sometime it is preferable when we construct kwargs
 ]
 
@@ -113,12 +112,18 @@ select = [
     "G", # flake8-logging-format
     "I", # isort
     "ISC", # flake8-implicit-str-concat
+    "LOG", # flake8-logging
     "N", # pep8-naming
     "NPY", # modern numpy
     "PERF", # Perflint
+    "PIE", # flake8-pie
+    "PYI", # flake8-pyi
     "RUF", # Ruff-specific rules
+    "SIM", # flake8-simplify
+    "SLOT", # flake8-slot
     "T10", # flake8-debugger
-    "TID252", # Disallow relative imports
+    "TID", # Disallow relative imports
+    "TRY", # flake8-try-except-raise
     "UP", # pyupgrade
     "W", # pycodestyle
     "YTT", # flake8-2020
@@ -140,6 +145,12 @@ ignore = [
     "NPY002", # We may not always need a generator
     "PERF203", # try-except in loops sometimes necessary
     "PERF401", # List comprehension is not always readable
+    "PYI041", # int | float is more clear
+    "SIM102", # Collapible if statements are not always more readable
+    "SIM108", # We don't always encourage ternary operators
+    "SIM114", # Don't always combine if branches for debugability
+    "SIM116", # Don't use dict lookup to replace if-else
+    "TRY003", # Messages can be constructed in the exception
     "UP006", # keep-runtime-typing
     "UP007", # keep-runtime-typing
 ]

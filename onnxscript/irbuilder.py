@@ -31,7 +31,7 @@ def _format(seq: Sequence[Any], prefix: str, sep: str, suffix: str, formatter=st
     return prefix + sep.join([formatter(x) for x in seq]) + suffix
 
 
-def select_ir_version(version: int, domain: str = ""):
+def select_ir_version(version: int, domain: str = "") -> int:
     """Selects a suitable ONNX ir_version for a given opset version."""
     if domain == "":
         domain = "ai.onnx"
@@ -70,7 +70,7 @@ class IRVar:
 
     def __init__(self, varname: str, typeinfo: IRTypeLike, sourceinfo: SourceInfo) -> None:
         if not isinstance(varname, str):
-            raise ValueError(f"varname must be a string not {type(varname)!r}.")
+            raise TypeError(f"varname must be a string not {type(varname)!r}.")
         self.name = varname
         self.info = sourceinfo
         self.typeinfo = typeinfo
