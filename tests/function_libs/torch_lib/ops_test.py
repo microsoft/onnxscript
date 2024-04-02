@@ -38,7 +38,7 @@ from torch.utils import _pytree as pytree
 
 import onnxscript
 import onnxscript.evaluator
-from onnxscript.tests.function_libs.torch_lib import (
+from tests.function_libs.torch_lib import (
     error_reproduction,
     ops_test_common,
     ops_test_data,

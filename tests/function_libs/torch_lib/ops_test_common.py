@@ -32,7 +32,7 @@ from torch.testing._internal.opinfo import core as opinfo_core
 import onnxscript
 import onnxscript.evaluator
 from onnxscript.function_libs.torch_lib import graph_building
-from onnxscript.tests.function_libs.torch_lib import error_reproduction
+from tests.function_libs.torch_lib import error_reproduction
 
 T = TypeVar("T")
 

@@ -14,7 +14,7 @@ from onnx.helper import make_tensor
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import INT32, INT64
-from onnxscript.tests.common.onnx_script_test_case import FunctionTestParams
+from tests.common.onnx_script_test_case import FunctionTestParams
 
 x = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]], dtype=np.int32)
 zero = np.array(0, dtype=np.int64)
