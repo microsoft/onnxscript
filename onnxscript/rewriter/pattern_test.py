@@ -255,7 +255,7 @@ class RewriteRuleTest(unittest.TestCase):
 
             if len(oldshape) != len(newshape):
                 return False
-            return all(not (d1 != d2 and d2 != -1) for d1, d2 in zip(oldshape, newshape))
+            return all(not (d1 != d2 and d2 != -1) for d1, d2 in zip(oldshape, newshape))  # pylint: disable=consider-using-in
 
         def check_for_redundant_reshape(bindings):
             return _check_for_redundant_reshape(**bindings)
