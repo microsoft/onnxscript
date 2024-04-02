@@ -5,7 +5,7 @@ from typing import Any
 
 import numpy as np
 
-from onnxscript import ir
+import onnxscript._legacy_ir as ir
 from onnxscript.rewriter import pattern
 
 op = pattern.onnxop

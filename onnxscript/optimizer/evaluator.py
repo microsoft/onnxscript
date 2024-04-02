@@ -14,7 +14,7 @@ import numpy as np
 import onnx
 import onnx.reference.ops
 
-from onnxscript import ir
+import onnxscript._legacy_ir as ir
 from onnxscript.utils.utils import (
     get_node_attr_value,
 )

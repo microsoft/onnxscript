@@ -10,7 +10,7 @@ import onnx
 import onnx.numpy_helper
 import onnx.printer
 
-from onnxscript import ir
+import onnxscript._legacy_ir as ir
 from onnxscript._legacy_ir import irbuilder
 
 # Overview of the pattern module: The classes below are used to define both

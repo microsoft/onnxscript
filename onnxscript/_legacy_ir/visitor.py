@@ -7,7 +7,7 @@ from typing import Any, Sequence
 import numpy as np
 import onnx
 
-from onnxscript import ir
+import onnxscript._legacy_ir as ir
 from onnxscript.utils.utils import (
     get_initializer_type,
     is_control_flow_op,

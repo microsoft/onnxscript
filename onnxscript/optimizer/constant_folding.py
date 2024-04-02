@@ -7,7 +7,7 @@ import numpy as np
 import onnx
 import onnx.reference.ops
 
-from onnxscript import ir
+import onnxscript._legacy_ir as ir
 from onnxscript._legacy_ir import visitor
 from onnxscript.optimizer import evaluator
 from onnxscript.utils.utils import (
