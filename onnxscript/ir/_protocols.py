@@ -1,7 +1,21 @@
-"""Protocols derived from onnx/onnx.proto3.
+"""Protocols for the ONNX IR.
 
-The protocols define read-only interfaces only. Mutating methods are not exposed
-to users.
+This file defines the interfaces for tools to interact with the IR. The interfaces
+are designed such that tools leveraging the IR can be decoupled from the IR
+implementation. This allows for the implementation to evolve independently of the
+tools.
+
+The file contains two sets of interfaces:
+1. Topologically immutable interfaces:
+    These interfaces provide a complete view of the ONNX model and allows mutation
+    against any metadata fields like shape, type, and node attributes. However, the
+    interfaces are topologically immutable, meaning that the structure of the graph
+    cannot be changed. This is useful for tools that need to analyze the model
+    without modifying how nodes are connected.
+2. Mutable interfaces:
+    These interfaces provide a mutable view of the ONNX model. They allow for
+    modification of the graph structure. This is useful for tools that need to
+    transform the model.
 """
 
 from __future__ import annotations
@@ -25,7 +39,9 @@ if typing.TYPE_CHECKING:
     import numpy as np
     from typing_extensions import TypeAlias
 
+# Representation of a dimension. int is a known axis, str represents a dynamic axis, None is an unnamed dynamic axis.
 SimpleDim: TypeAlias = Union[int, str, None]
+# Representation of a shape. Each element is a simple dimension.
 SimpleShape: TypeAlias = Sequence[SimpleDim]
 
 # An identifier that will uniquely identify an operator. E.g (domain, op_type, overload)
@@ -34,14 +50,23 @@ OperatorIdentifier: TypeAlias = Tuple[str, str, str]
 
 @typing.runtime_checkable
 class ArrayCompatible(Protocol):
-    """Protocol for array-like objects."""
+    """Protocol for array-like objects.
+
+    An example of an array-like object is a numpy array or a PyTorch array.
+    Read more at https://numpy.org/devdocs/user/basics.interoperability.html
+    """
 
     def __array__(self, dtype: Any) -> np.ndarray: ...
 
 
 @typing.runtime_checkable
 class DLPackCompatible(Protocol):
-    """Protocol objects that can support dlpack."""
+    """Protocol objects that can support dlpack.
+
+    Computation backends can call __dlpack__ to obtain the underlying data in a
+    tensor without copying the data. This allows use to use tensorflow tensors etc.
+    without copying the data.
+    """
 
     def __dlpack__(self, *, stream: Any = ...) -> Any:
         """Return PyCapsule."""
@@ -52,13 +77,25 @@ class DLPackCompatible(Protocol):
 class TensorProtocol(ArrayCompatible, Protocol):
     """Concrete tensor backed by data.
 
+    The protocol does not specify how the data is stored. That data is exposed
+    through the :attr:`raw` attribute for examination, but accessing :attr:`raw`
+    is typically not needed.
+
+    To use the tensor as a numpy array, call :meth:`numpy`. To convert the tensor
+    to a byte string for serialization, call :meth:`tobytes`.
+
+    It is recommended to check the size of the tensor first before accessing the
+    underlying data, because accessing the data may be expensive and incur IO
+    overhead.
+
     Attributes:
         name: The name of the tensor.
         shape: The shape of the tensor.
-        dtype: The data type of the elements of the tensor.
+        dtype: The data type of the elements of the tensor. It is an :class:`ir.DataType` enum.
         doc_string: Documentation string.
         raw: The raw data behind this tensor. It can be anything.
-        value: The tensor as a numpy array.
+        size: The number of elements in the tensor.
+        nbytes: The number of bytes in the tensor.
     """
 
     name: str
@@ -66,6 +103,12 @@ class TensorProtocol(ArrayCompatible, Protocol):
     dtype: _enums.DataType
     doc_string: str | None
     raw: Any
+
+    @property
+    def size(self) -> int: ...
+
+    @property
+    def nbytes(self) -> int: ...
 
     def numpy(self) -> np.ndarray:
         """Return the tensor as a numpy array."""
@@ -82,12 +125,27 @@ class TensorProtocol(ArrayCompatible, Protocol):
 
 @typing.runtime_checkable
 class ValueProtocol(Protocol):
-    """Protocol for ONNX values.
+    """Values.
 
-    A value is a named entity that can be used as an input or output of an operator.
+    A value is a named entity that can be used to represent an input or output of a graph,
+    a function, or a node. The information it stores corresponds to ValueInfoProto
+    in the ONNX specification.
+
+    A :class:`Value` is always not owned or owned by exactly one node. When the value is not
+    owned, it must be an input of a graph or a function. The def_node and def_index
+    attributes are None.
+
+    When the value is owned by a node, it is an output of the node.
+    The node that produces the value is stored in the :attr:`def_node` attribute.
+    The index of the output of the node that produces the value is stored in the
+    :attr:`def_index` attribute.
+
+    To find all the nodes that use this value as an input, call :meth:`users`.
+
+    To check if the value is an output of a graph, call :meth:`is_graph_output`.
 
     Attributes:
-        name: The name of the value.
+        name: The name of the value. A value is always named when it is part of a graph.
         def_node: The node that produces this value.
         def_index: The index of the output of the node that produces this value.
         shape: The shape of the value.
@@ -113,39 +171,68 @@ class ValueProtocol(Protocol):
 
 @typing.runtime_checkable
 class NodeProtocol(Protocol):
-    """Protocol for ONNX nodes.
+    """Nodes.
 
-    A node represents an operation in the computation graph.
+    A node represents an invocation of an operation on the :class:`Value` s in
+    the computational graph.
+
+    A node can be optionally named. A name should typically be assigned when the
+    node is added to a graph.
+
+    :attr:`domain`, :attr:`op_type`, and :attr:`overload` together uniquely identify
+    the operator, and are always strings. For ONNX operators, :attr:`domain` and :attr:`overload`
+    are both empty strings.
+
+    :attr:`inputs` and :attr:`outputs` are the input and output values of the node.
+
+    :attr:`attributes` are the attributes of the node. The attributes are stored in an
+    ordered dictionary to preserve the order of the attributes. This is a deviation from
+    the current ONNX spec where attributes are unordered, but it is helpful for tools
+    that rely on the order of the attributes, e.g. those converting to and from Python
+    function keyword arguments.
+
+    :attr:`version` is unique to the IR and is not specified in the ONNX spec. This
+    allows the IR to represent a graph with mixed opset versions. Deserializers
+    should decide how to reconcile the different versions within the graph. A typical
+    graph will have a single version, declared in the :class:`Graph` object and
+    the nodes will have ``None`` as the version.
 
     Attributes:
-        domain: The domain of the operator. E.g. "" for ONNX operators.
-        version: The version of the operator.
+        domain: The domain of the operator. E.g. ``""`` for ONNX operators.
         op_type: The operator name.
         overload: The overload name when the node is invoking a function.
         inputs: Input values.
         outputs: Output values.
         attributes: The attributes of the operator.
+        version: The version of the operator.
         doc_string: Documentation string.
         metadata_props: Metadata.
     """
 
     name: str | None
     domain: str
-    version: int | None
     op_type: str
     overload: str
     inputs: Sequence[ValueProtocol]
     outputs: Sequence[ValueProtocol]
     attributes: OrderedDict[str, AttributeProtocol | ReferenceAttributeProtocol]
+    version: int | None
     doc_string: str | None
     metadata_props: Mapping[str, str]
 
 
 @typing.runtime_checkable
 class GraphProtocol(Protocol):
-    """Protocol for ONNX graphs.
+    """Graphs.
 
-    Graph represents a computation graph.
+    Graph represents a computation graph. In addition to the ONNX specification
+    specified fields, it also contains a mapping of :attr:`opset_imports`. This
+    allows different subgraphs to import different opsets. It is the responsibility
+    of the deserializer to reconcile the different opsets.
+
+    The :attr:`nodes` are not guaranteed to be topologically sorted. But the
+    iteration order should be deterministic across different runs. It is the
+    responsibility of the user to maintain a topological order of the nodes.
 
     Attributes:
         name: The name of the graph.
@@ -158,7 +245,7 @@ class GraphProtocol(Protocol):
         metadata_props: Metadata.
     """
 
-    # TODO(justinchuby): Support quantization_annotation and metadata_props
+    # TODO(justinchuby): Support quantization_annotation
     name: str | None
     inputs: Sequence[ValueProtocol]
     outputs: Sequence[ValueProtocol]
@@ -175,9 +262,10 @@ class GraphProtocol(Protocol):
 
 @typing.runtime_checkable
 class ModelProtocol(Protocol):
-    """Protocol for ONNX models.
+    """Models.
 
-    A model is a container for a graph and metadata.
+    A model is a container for a graph and metadata. It is the top-level object
+    that represents an ONNX model.
 
     Attributes:
         graph: The graph of the model.
@@ -224,6 +312,8 @@ class AttributeProtocol(Protocol):
 @typing.runtime_checkable
 class ReferenceAttributeProtocol(Protocol):
     """Protocol for a reference attribute.
+
+    A reference attribute can only appear inside the definition body of a function.
 
     Attributes:
         name: The name of the attribute.
@@ -312,6 +402,11 @@ class TypeProtocol(Protocol):
 
 @typing.runtime_checkable
 class MapTypeProtocol(Protocol):
+    """Protocol for ONNX map types.
+
+    TODO: This protocol is not yet implemented in the ONNX IR.
+    """
+
     key_type: typing.Literal[
         _enums.DataType.STRING,
         _enums.DataType.INT64,
@@ -329,6 +424,9 @@ class MapTypeProtocol(Protocol):
 @typing.runtime_checkable
 class FunctionProtocol(Protocol):
     """Protocol for ONNX functions.
+
+    Like a graph, a function can have nodes that are not topologically sorted. It is
+    the responsibility of the user to maintain a topological order of the nodes.
 
     Attributes:
         name: The function name.
@@ -350,10 +448,6 @@ class FunctionProtocol(Protocol):
     attributes: OrderedDict[str, AttributeProtocol]
     outputs: Sequence[ValueProtocol]
     doc_string: str
-    # opset_import is stored in a model, not a graph. However,
-    # In ONNX IR we store it in a graph to unify it with
-    # the function. This way a materialized function can still
-    # be used as a subgraph even if it imports a different opset.
     opset_imports: Mapping[str, int]
     nodes: Sequence[NodeProtocol]
     metadata_props: Mapping[str, str]

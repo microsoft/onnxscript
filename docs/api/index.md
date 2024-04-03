@@ -4,6 +4,5 @@
 decorator
 opsets
 converter
-utils
 values
 ```
