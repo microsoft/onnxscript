@@ -1,6 +1,6 @@
 # ONNX IR
 
 ```{eval-rst}
-.. autoclass:: onnxscript.ir
+.. autoclass:: onnxscript.ir._protocols
     :members:
 ```
