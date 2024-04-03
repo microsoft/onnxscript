@@ -123,14 +123,14 @@ class IRBuilder:
     def process_node(self, node):
         node_ir = ir.Node(node)
         self.current_graph_or_function.nodes.append(node_ir)
-        for input in node.input:
-            value = self.lookup(input)
+        for name in node.input:
+            value = self.lookup(name)
             node_ir.inputs.append(value)
             if value is not None:
                 value.uses.append(node_ir)
             else:
                 # TODO(titaiwang): Do something more than warnings?
-                warnings.warn(f"Use of undefined variable '{input}'.", stacklevel=1)
+                warnings.warn(f"Use of undefined variable {name!r}.", stacklevel=1)
         for index, output in enumerate(node.output):
             newvalue = ir.Value(name=output, node=node_ir, output_index=index)
             if self._current_function is not None:

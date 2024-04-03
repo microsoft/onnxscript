@@ -224,6 +224,14 @@ class Graph:
             ]
         )
 
+    @property
+    def input_names(self) -> list[str]:
+        return [_.name for _ in self.original_graph_proto.input]
+
+    @property
+    def output_names(self) -> list[str]:
+        return [_.name for _ in self.original_graph_proto.output]
+
 
 class Function:
     def __init__(self, function_proto: onnx.FunctionProto):
@@ -272,14 +280,44 @@ class RefAttr:
 
 
 class Node:
-    def __init__(self, node_proto: onnx.NodeProto) -> None:
+    def __init__(
+        self,
+        node_proto: onnx.NodeProto,
+        populate_io: bool = False,
+    ) -> None:
         self.original_node_proto = node_proto
         self.domain: str = node_proto.domain
         self.version: int | None = None
         self.op_type: str = node_proto.op_type
-        self.inputs: list[Value | None] = []
-        self.outputs: list[Value | None] = []
+        if populate_io:
+            self.inputs: list[Value | None] = [Value(i) for i in node_proto.input]
+            self.outputs: list[Value | None] = [Value(i) for i in node_proto.output]
+        else:
+            self.inputs: list[Value | None] = []
+            self.outputs: list[Value | None] = []
         self.attributes: dict[str, int | float | RefAttr | Graph | list[Graph]] = {}
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.op_type}({','.join(self.original_node_proto.input)})"
+            f"->{','.join(self.original_node_proto.output)}"
+        )
+
+    @property
+    def name(self) -> str:
+        return self.original_node_proto.name
+
+    @property
+    def input_names(self):
+        return self.original_node_proto.input
+
+    @property
+    def output_names(self):
+        return self.original_node_proto.output
+
+    @property
+    def attribute(self):
+        return self.original_node_proto.attribute
 
     def get_attribute(self, name: str) -> int | float | None:
         return self.attributes.get(name, None)

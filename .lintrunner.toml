@@ -61,6 +61,7 @@ exclude_patterns = [
     'onnxscript/_legacy_ir/protobuilder.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/layernorm.py',  # FIXME
     'onnxscript/ir/serde.py',  # FIXME
+    'onnxrewriter/rewriter/pattern/generic_pattern_test.py',  # FIXME
 ]
 command = [
     'python',
