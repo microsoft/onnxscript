@@ -1,5 +1,7 @@
-# API
+# ONNX IR
 
 ```{toctree}
-interfaces
+:maxdepth: 1
+
+ir_api
 ```

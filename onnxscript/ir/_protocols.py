@@ -173,7 +173,7 @@ class ValueProtocol(Protocol):
 class NodeProtocol(Protocol):
     """Nodes.
 
-    A node represents an invocation of an operation on the :class:`Value`s in
+    A node represents an invocation of an operation on the :class:`Value` s in
     the computational graph.
 
     A node can be optionally named. A name should typically be assigned when the
@@ -198,7 +198,7 @@ class NodeProtocol(Protocol):
     the nodes will have `None` as the version.
 
     Attributes:
-        domain: The domain of the operator. E.g. "" for ONNX operators.
+        domain: The domain of the operator. E.g. `""` for ONNX operators.
         op_type: The operator name.
         overload: The overload name when the node is invoking a function.
         inputs: Input values.
@@ -230,7 +230,7 @@ class GraphProtocol(Protocol):
     allows different subgraphs to import different opsets. It is the responsibility
     of the deserializer to reconcile the different opsets.
 
-    The :attr:`node`s are not guaranteed to be topologically sorted. But the
+    The :attr:`node` s are not guaranteed to be topologically sorted. But the
     iteration order should be deterministic across different runs. It is the
     responsibility of the user to maintain a topological order of the nodes.
 
