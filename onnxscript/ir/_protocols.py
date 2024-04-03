@@ -195,10 +195,10 @@ class NodeProtocol(Protocol):
     allows the IR to represent a graph with mixed opset versions. Deserializers
     should decide how to reconcile the different versions within the graph. A typical
     graph will have a single version, declared in the :class:`Graph` object and
-    the nodes will have `None` as the version.
+    the nodes will have ``None`` as the version.
 
     Attributes:
-        domain: The domain of the operator. E.g. `""` for ONNX operators.
+        domain: The domain of the operator. E.g. ``""`` for ONNX operators.
         op_type: The operator name.
         overload: The overload name when the node is invoking a function.
         inputs: Input values.
@@ -230,7 +230,7 @@ class GraphProtocol(Protocol):
     allows different subgraphs to import different opsets. It is the responsibility
     of the deserializer to reconcile the different opsets.
 
-    The :attr:`node` s are not guaranteed to be topologically sorted. But the
+    The :attr:`nodes` are not guaranteed to be topologically sorted. But the
     iteration order should be deterministic across different runs. It is the
     responsibility of the user to maintain a topological order of the nodes.
 
@@ -406,6 +406,7 @@ class MapTypeProtocol(Protocol):
 
     TODO: This protocol is not yet implemented in the ONNX IR.
     """
+
     key_type: typing.Literal[
         _enums.DataType.STRING,
         _enums.DataType.INT64,
