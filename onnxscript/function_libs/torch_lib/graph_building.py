@@ -822,7 +822,9 @@ class TorchScriptGraph:
         # nn.Modules exported by dynamo exporter have unique call sites, their function
         # op_type name can serve to form the unique identifier for value info.
         # Store inside top level GraphProto.
-        new_value_info = self.generate_maingraph_value_info_proto()
+        new_value_info = self.generate_subgraphs_value_info_proto()
+        # Insert value info for nodes in top level graph.
+        new_value_info.update(self.generate_maingraph_value_info_proto())
         # Do not store input, output or initializer into value_info
         for input in onnx_model.graph.input:
             new_value_info.pop(input.name, None)
@@ -908,7 +910,7 @@ class TorchScriptGraph:
         return named_value_info
 
     @runtime_typing.checked
-    def generate_subgraphs_value_info_proto(self) -> Mapping[str, onnx.ValueInfoProto]:
+    def generate_subgraphs_value_info_proto(self) -> Dict[str, onnx.ValueInfoProto]:
         """Unique naming strategies for values inside subgraphs, i.e. local functions.
 
             {function_domain::function_op_type}/{value_name}
