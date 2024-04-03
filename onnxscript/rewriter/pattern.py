@@ -534,6 +534,9 @@ class Var(ValuePattern):
         self.pattern_var_name = name
         self.bound_value = None
 
+    def __repr__(self) -> str:
+        return f"Var({self.pattern_var_name!r})"
+
     def matches(self, value: ir.Value, model: ir.Model):
         return MatchResult([], {self.pattern_var_name: value})
 
@@ -669,8 +672,8 @@ class TargetPatternFunction:
     def function(self) -> Callable:
         return self._function
 
-    def get_pattern(self, *vars: Sequence[Var]) -> tuple[NodePattern, int]:
-        node_output_pattern = self._function(*vars)
+    def get_pattern(self, *variables: Sequence[Var]) -> tuple[NodePattern, int]:
+        node_output_pattern = self._function(*variables)
         return _handle_pattern_return_value(node_output_pattern)
 
 
@@ -846,40 +849,99 @@ def _apply_deltas(
     graph_or_function: ir.Graph | ir.Function,
     deltas: list[tuple[int, tuple[list[ir.Node], list[ir.Node]]]],
 ):
+    """Applies deltas.
+
+    This code is valid is the considered pattern has only one output.
+    In case of multi output replacements, there is not need to rename
+    the outputs.
+
+    In case of multi-output design, the nodes may not be necessary inserted
+    all at the same position. To be convinced, you can take a pattern
+    producing two outputs, but the second one needs the first one and
+    another input appeared after the first outputs. What could be
+    the right place to inserted all of the node.
+
+    The current implementation insert all the nodes at the same position
+    but checks there is not inconsistency. In that case, it fails.
+    We could reorder (long) or do more clever changes.
+    The reordering would probably happen not very often.
+    """
     nodes = graph_or_function.nodes
+    existing_ids = {id(n): (i, n) for i, n in enumerate(nodes)}
+    to_delete = set()
+    to_insert = {}
+    path_2 = False
+
     for i, delta in reversed(deltas):
-        deleted_nodes, inserted_nodes = delta
-        # Replace deleted nodes with inserted nodes.
-        # However, we merge the last deleted node and last inserted node
-        # to avoid replacing the values produced by the last deleted node
-        # in all places where they are used. So, we reuse the output
-        # values from the last deleted node and replace the node itself
-        # TODO: simplify this
-        last_deleted = deleted_nodes[-1]
-        last_inserted = inserted_nodes[-1]
+        if len(delta) == 3:
+            # multi-outut strategy
+            n_matches, deleted_nodes, inserted_nodes = delta
+            for d in deleted_nodes:
+                assert id(d) in existing_ids
+                to_delete.add(id(d))
 
-        assert len(last_deleted.outputs) == len(last_inserted.outputs)
-        del last_inserted.outputs[:]
-        for v in last_deleted.outputs:
-            v.node = last_inserted
-            last_inserted.outputs.append(v)
+            # the position to insert must be chosen.
+            # we'll try position i
+            assert i not in to_insert  # conflicts should avoid that case
+            to_insert[i] = inserted_nodes
 
-        del nodes[i]
-        for item in reversed(inserted_nodes):
-            nodes.insert(i, item)
+        else:
+            deleted_nodes, inserted_nodes = delta
+            # Replace deleted nodes with inserted nodes.
+            # However, we merge the last deleted node and last inserted node
+            # to avoid replacing the values produced by the last deleted node
+            # in all places where they are used. So, we reuse the output
+            # values from the last deleted node and replace the node itself
+            # TODO: simplify this
+            last_deleted = deleted_nodes[-1]
+            last_inserted = inserted_nodes[-1]
 
-    for _, delta in deltas:
-        deleted_nodes, inserted_nodes = delta
-        inserted_input_output = []
-        for nd in inserted_nodes:
-            inserted_input_output += nd.inputs + nd.outputs
-        for n in deleted_nodes[0:-1]:
-            # Delete intermediary outputs from graph that are not used as
-            # outputs of the graph
-            for output in n.outputs:
-                if not output.is_output and output not in inserted_input_output:
-                    graph_or_function.values.pop(output.name)
-            nodes.remove(n)
+            assert len(last_deleted.outputs) == len(last_inserted.outputs)
+            del last_inserted.outputs[:]
+            for v in last_deleted.outputs:
+                v.node = last_inserted
+                last_inserted.outputs.append(v)
+
+            del nodes[i]  # that assumes unused nodes are removed (see below)
+            for item in reversed(inserted_nodes):
+                nodes.insert(i, item)
+            path_2 = True
+
+    assert not to_delete or not path_2, (
+        "Two different rules were applied. It will solved later. "
+        "Right now, the functions assumes all the changes come from one "
+        "rule."
+    )
+
+    if path_2:
+        for _, delta in deltas:
+            deleted_nodes, inserted_nodes = delta
+            inserted_input_output = []
+            for nd in inserted_nodes:
+                inserted_input_output += nd.inputs + nd.outputs
+            for n in deleted_nodes[0:-1]:
+                # Delete intermediary outputs from graph that are not used as
+                # outputs of the graph
+                for output in n.outputs:
+                    if not output.is_output and output not in inserted_input_output:
+                        graph_or_function.values.pop(output.name)
+                nodes.remove(n)
+
+    for i in to_delete:
+        position = existing_ids[i][0]
+        nodes[position] = None
+
+    for position, insert in sorted(to_insert.items(), reverse=True):
+        for v in reversed(insert):
+            nodes.insert(position, v)
+
+    position_to_delete = []
+    for i, n in enumerate(nodes):
+        if n is None:
+            position_to_delete.append(i)
+
+    for p in reversed(position_to_delete):
+        del nodes[p]
 
 
 class RewriteRuleSet:
@@ -895,13 +957,49 @@ class RewriteRuleSet:
     ) -> int:
         count = 0
         deltas = []
+        marked = set()
+        bridge = None
         for i, node in enumerate(graph_or_function.nodes):
             for rule in self.rules:
-                delta = rule.try_rewrite(model, node)
-                if delta is not None:
-                    deltas.append((i, delta))
-                    count += 1
-                    break
+                if hasattr(rule, "pattern"):
+                    from onnxscript.rewriter.generic_pattern import (
+                        GenericRewriteRule,
+                        ModelWithGraphStructure,
+                    )
+
+                    assert isinstance(
+                        rule, GenericRewriteRule
+                    ), f"Unexpected type {type(rule)}"
+                    # The successors and the predecessors do not change
+                    # until the deltas are applied. We cache the structure
+                    # to avoid building them again.
+                    if bridge is None:
+                        bridge = ModelWithGraphStructure(model)
+                    delta = rule.try_rewrite(bridge, node)
+                else:
+                    delta = rule.try_rewrite(model, node)
+                if delta is None:
+                    continue
+
+                matched_nodes, _ = delta[-2:]
+
+                conflict = False
+                for n in matched_nodes:
+                    if id(n) in marked:
+                        # The same node cannot be matched twice with different patterns.
+                        conflict = True
+                        break
+
+                if conflict:
+                    # Some nodes are already marked as rewritten.
+                    continue
+
+                marked |= set(map(id, matched_nodes))
+
+                deltas.append((i, delta))
+                count += 1
+                break
+
         _apply_deltas(graph_or_function, deltas)
         return count
 
