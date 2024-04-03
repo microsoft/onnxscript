@@ -145,7 +145,7 @@ class ValueProtocol(Protocol):
     To check if the value is an output of a graph, call :meth:`is_graph_output`.
 
     Attributes:
-        name: The name of the value.
+        name: The name of the value. A value is always named when it is part of a graph.
         def_node: The node that produces this value.
         def_index: The index of the output of the node that produces this value.
         shape: The shape of the value.
@@ -176,37 +176,63 @@ class NodeProtocol(Protocol):
     A node represents an invocation of an operation on the :class:`Value`s in
     the computational graph.
 
-    TODO: Continue
+    A node can be optionally named. A name should typically be assigned when the
+    node is added to a graph.
+
+    :attr:`domain`, :attr:`op_type`, and :attr:`overload` together uniquely identify
+    the operator, and are always strings. For ONNX operators, :attr:`domain` and :attr:`overload`
+    are both empty strings.
+
+    :attr:`inputs` and :attr:`outputs` are the input and output values of the node.
+
+    :attr:`attributes` are the attributes of the node. The attributes are stored in an
+    ordered dictionary to preserve the order of the attributes. This is a deviation from
+    the current ONNX spec where attributes are unordered, but it is helpful for tools
+    that rely on the order of the attributes, e.g. those converting to and from Python
+    function keyword arguments.
+
+    :attr:`version` is unique to the IR and is not specified in the ONNX spec. This
+    allows the IR to represent a graph with mixed opset versions. Deserializers
+    should decide how to reconcile the different versions within the graph. A typical
+    graph will have a single version, declared in the :class:`Graph` object and
+    the nodes will have `None` as the version.
 
     Attributes:
         domain: The domain of the operator. E.g. "" for ONNX operators.
-        version: The version of the operator.
         op_type: The operator name.
         overload: The overload name when the node is invoking a function.
         inputs: Input values.
         outputs: Output values.
         attributes: The attributes of the operator.
+        version: The version of the operator.
         doc_string: Documentation string.
         metadata_props: Metadata.
     """
 
     name: str | None
     domain: str
-    version: int | None
     op_type: str
     overload: str
     inputs: Sequence[ValueProtocol]
     outputs: Sequence[ValueProtocol]
     attributes: OrderedDict[str, AttributeProtocol | ReferenceAttributeProtocol]
+    version: int | None
     doc_string: str | None
     metadata_props: Mapping[str, str]
 
 
 @typing.runtime_checkable
 class GraphProtocol(Protocol):
-    """Protocol for ONNX graphs.
+    """Graphs.
 
-    Graph represents a computation graph.
+    Graph represents a computation graph. In addition to the ONNX specification
+    specified fields, it also contains a mapping of :attr:`opset_imports`. This
+    allows different subgraphs to import different opsets. It is the responsibility
+    of the deserializer to reconcile the different opsets.
+
+    The :attr:`node`s are not guaranteed to be topologically sorted. But the
+    iteration order should be deterministic across different runs. It is the
+    responsibility of the user to maintain a topological order of the nodes.
 
     Attributes:
         name: The name of the graph.
@@ -219,7 +245,7 @@ class GraphProtocol(Protocol):
         metadata_props: Metadata.
     """
 
-    # TODO(justinchuby): Support quantization_annotation and metadata_props
+    # TODO(justinchuby): Support quantization_annotation
     name: str | None
     inputs: Sequence[ValueProtocol]
     outputs: Sequence[ValueProtocol]
@@ -236,9 +262,10 @@ class GraphProtocol(Protocol):
 
 @typing.runtime_checkable
 class ModelProtocol(Protocol):
-    """Protocol for ONNX models.
+    """Models.
 
-    A model is a container for a graph and metadata.
+    A model is a container for a graph and metadata. It is the top-level object
+    that represents an ONNX model.
 
     Attributes:
         graph: The graph of the model.
@@ -285,6 +312,8 @@ class AttributeProtocol(Protocol):
 @typing.runtime_checkable
 class ReferenceAttributeProtocol(Protocol):
     """Protocol for a reference attribute.
+
+    A reference attribute can only appear inside the definition body of a function.
 
     Attributes:
         name: The name of the attribute.
@@ -373,6 +402,10 @@ class TypeProtocol(Protocol):
 
 @typing.runtime_checkable
 class MapTypeProtocol(Protocol):
+    """Protocol for ONNX map types.
+
+    TODO: This protocol is not yet implemented in the ONNX IR.
+    """
     key_type: typing.Literal[
         _enums.DataType.STRING,
         _enums.DataType.INT64,
@@ -390,6 +423,9 @@ class MapTypeProtocol(Protocol):
 @typing.runtime_checkable
 class FunctionProtocol(Protocol):
     """Protocol for ONNX functions.
+
+    Like a graph, a function can have nodes that are not topologically sorted. It is
+    the responsibility of the user to maintain a topological order of the nodes.
 
     Attributes:
         name: The function name.
@@ -411,10 +447,6 @@ class FunctionProtocol(Protocol):
     attributes: OrderedDict[str, AttributeProtocol]
     outputs: Sequence[ValueProtocol]
     doc_string: str
-    # opset_import is stored in a model, not a graph. However,
-    # In ONNX IR we store it in a graph to unify it with
-    # the function. This way a materialized function can still
-    # be used as a subgraph even if it imports a different opset.
     opset_imports: Mapping[str, int]
     nodes: Sequence[NodeProtocol]
     metadata_props: Mapping[str, str]
