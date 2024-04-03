@@ -41,9 +41,7 @@ def is_non_deterministic_op(node: onnx.NodeProto) -> bool:
 
 
 def is_constant_op(node: onnx.NodeProto) -> bool:
-    return node.op_type in {"Constant", "ConstantOfShape"} and is_onnx_domain(
-        node.domain
-    )
+    return node.op_type in {"Constant", "ConstantOfShape"} and is_onnx_domain(node.domain)
 
 
 class ConstantFolder(visitor.FunctionCallsiteProtoTransformer):
@@ -119,14 +117,10 @@ class ConstantFolder(visitor.FunctionCallsiteProtoTransformer):
         info.type = onnx.helper.make_tensor_type_proto(
             onnx.helper.np_dtype_to_tensor_dtype(value.dtype), value.shape
         )
-        node = onnx.helper.make_node(
-            "Constant", inputs=[], outputs=[name], value=tensor
-        )
+        node = onnx.helper.make_node("Constant", inputs=[], outputs=[name], value=tensor)
         return [node]
 
-    def convert_attributes(
-        self, attributes: Sequence[onnx.AttributeProto]
-    ) -> dict[str, Any]:
+    def convert_attributes(self, attributes: Sequence[onnx.AttributeProto]) -> dict[str, Any]:
         if self.scopes.current_scope().current_function_scope():
             # Need to resolve ref_attr_name if inside a function.
             attr_dict = {}
@@ -138,9 +132,7 @@ class ConstantFolder(visitor.FunctionCallsiteProtoTransformer):
                 )
                 if concrete_attribute is None:
                     continue
-                attr_dict[attribute.name] = onnx.helper.get_attribute_value(
-                    concrete_attribute
-                )
+                attr_dict[attribute.name] = onnx.helper.get_attribute_value(concrete_attribute)
             return attr_dict
         return {attr.name: onnx.helper.get_attribute_value(attr) for attr in attributes}
 
@@ -226,9 +218,7 @@ class ConstantFolder(visitor.FunctionCallsiteProtoTransformer):
             self.add_count(op, outputs.size)
             return replacement
         else:
-            logger.warning(
-                "Skipping constant folding for op %s with multiple outputs.", op
-            )
+            logger.warning("Skipping constant folding for op %s with multiple outputs.", op)
         return None
 
     def process_function_node(
@@ -241,9 +231,7 @@ class ConstantFolder(visitor.FunctionCallsiteProtoTransformer):
         # Replace function node with Constant if all outputs are constants
         ir_values = [self.lookup(output_name) for output_name in node.output]
         tensors = [
-            self.foldable_value(
-                output_name, ir_value.value if ir_value is not None else None
-            )
+            self.foldable_value(output_name, ir_value.value if ir_value is not None else None)
             for output_name, ir_value in zip(node.output, ir_values)
         ]
         if all(tensor is not None for tensor in tensors):
