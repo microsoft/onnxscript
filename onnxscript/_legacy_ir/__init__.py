@@ -319,6 +319,10 @@ class Node:
     def attribute(self):
         return self.original_node_proto.attribute
 
+    def set_version_if_custom_op(self, version_map: dict[str, int]) -> None:
+        if self.domain != "" and self.domain in version_map:
+            self.version = version_map[self.domain]
+
     def get_attribute(self, name: str) -> int | float | None:
         return self.attributes.get(name, None)
 

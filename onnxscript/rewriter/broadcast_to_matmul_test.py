@@ -36,7 +36,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             <ir_version: 7, opset_import: [ "" : 17, "pkg.custom": 1]>
             agraph (float[1, 4, 512, 512] input_x, float[1, 4, 512, 64] input_y) => (float[1, 4, 512, 64] output)
             {
-                output = afunction (input_x, input_y)
+                output = pkg.custom.afunction (input_x, input_y)
             }
             <domain: "pkg.custom", opset_import: [ "" : 17]>
             afunction (input_x, input_y) => (output)
