@@ -38,6 +38,23 @@ class ConstantPattern:
         return self.value
 
 
+class PrefixPattern:
+    """This pattern is used to simplify submodule opset pattern matching."""
+
+    def __init__(self, value: str) -> None:
+        self._value = value
+
+    @property
+    def value(self) -> str:
+        return self._value
+
+    def matches(self, value: str) -> bool:
+        return value.startswith(self.value)
+
+    def to_ir(self, model, bindings=None) -> str:
+        raise NotImplementedError("PrefixPattern should not be converted to IR")
+
+
 class FloatConstantPattern:
     def __init__(self, value: float, rel_tol: float = 1e-5, abs_tol: float = 1e-8) -> None:
         self._value = value
@@ -152,19 +169,23 @@ class OpsetPattern:
 
     def __init__(
         self,
-        domain_pattern: ConstantPattern,
+        domain_pattern: ConstantPattern | PrefixPattern,
         version_pattern: ConstantPattern | AnyPattern,
     ) -> None:
         self.domain_pattern = domain_pattern
         self.version_pattern = version_pattern
 
     @classmethod
-    def singleton(cls, domain: str, version: int):
+    def singleton(cls, domain: str, version: int) -> OpsetPattern:
         return cls(ConstantPattern(domain), ConstantPattern(version))
 
     @classmethod
     def domain(cls, domain: str) -> OpsetPattern:
         return cls(ConstantPattern(domain), AnyPattern())
+
+    @classmethod
+    def domain_prefix(cls, domain: str) -> OpsetPattern:
+        return cls(PrefixPattern(domain), AnyPattern())
 
     def matches(self, opset):
         domain, version = opset
@@ -180,12 +201,18 @@ class OpsetPattern:
     def __getattr__(self, name: str) -> Any:
         return OpPattern(self, ConstantPattern(name))
 
+    def submodule(self, name: str) -> Any:
+        """This method is used to match against submodule ops with prefix."""
+        return OpPattern(self, PrefixPattern(name))
+
 
 opset17 = OpsetPattern.singleton("", 17)
 
 onnxop = OpsetPattern.domain("")
 
 msft_op = OpsetPattern.singleton("com.microsoft", 1)
+
+torch_module_op = OpsetPattern.domain_prefix("pkg.torch")
 
 
 class OpPattern:
@@ -202,7 +229,11 @@ class OpPattern:
 
     """
 
-    def __init__(self, opset_pattern: OpsetPattern, op_name_pattern: ConstantPattern) -> None:
+    def __init__(
+        self,
+        opset_pattern: OpsetPattern,
+        op_name_pattern: ConstantPattern | PrefixPattern,
+    ) -> None:
         self.opset_pattern = opset_pattern
         self.op_name_pattern = op_name_pattern
 
@@ -366,7 +397,8 @@ def _make_node(
     outputs = [model.make_new_name() for i in range(num_outputs)]
     node = onnx.helper.make_node(op, inputnames, outputs, domain=domain, **attributes)
     newnode = ir.Node(node)
-    newvalues = [ir.Value(v, newnode, i) for i, v in enumerate(outputs)]
+    newnode.set_version_if_custom_op(model.version_map)
+    newvalues = [ir.Value(name=v, node=newnode, output_index=i) for i, v in enumerate(outputs)]
     newnode.inputs = input
     newnode.outputs = newvalues
     newnode.attributes = attributes  # TODO
@@ -902,9 +934,13 @@ def _apply_deltas(
                 v.node = last_inserted
                 last_inserted.outputs.append(v)
 
-            del nodes[i]  # that assumes unused nodes are removed (see below)
-            for item in reversed(inserted_nodes):
-                nodes.insert(i, item)
+            del nodes[i]
+
+            for new_node in reversed(inserted_nodes):
+                nodes.insert(i, new_node)
+                # bind the outputs to the graph
+                for output_name, value in zip(new_node.output_names, new_node.outputs):
+                    graph_or_function.values[output_name] = value
             path_2 = True
 
     assert not to_delete or not path_2, (
@@ -919,13 +955,13 @@ def _apply_deltas(
             inserted_input_output = []
             for nd in inserted_nodes:
                 inserted_input_output += nd.inputs + nd.outputs
-            for n in deleted_nodes[0:-1]:
+            for old_node in deleted_nodes[0:-1]:
                 # Delete intermediary outputs from graph that are not used as
                 # outputs of the graph
-                for output in n.outputs:
+                for output in old_node.outputs:
                     if not output.is_output and output not in inserted_input_output:
                         graph_or_function.values.pop(output.name)
-                nodes.remove(n)
+                nodes.remove(old_node)
 
     for i in to_delete:
         position = existing_ids[i][0]
@@ -956,11 +992,13 @@ class RewriteRuleSet:
         graph_or_function: ir.Graph | ir.Function,
     ) -> int:
         count = 0
-        deltas = []
         marked = set()
         bridge = None
-        for i, node in enumerate(graph_or_function.nodes):
-            for rule in self.rules:
+        # NOTE: Rules should be prioritized in the order they are added to the RewriteRuleSet.
+        # And the graph is applied in order.
+        for rule in self.rules:
+            deltas = []
+            for i, node in enumerate(graph_or_function.nodes):
                 if hasattr(rule, "pattern"):
                     from onnxscript.rewriter.generic_pattern import (
                         GenericRewriteRule,
@@ -998,9 +1036,8 @@ class RewriteRuleSet:
 
                 deltas.append((i, delta))
                 count += 1
-                break
 
-        _apply_deltas(graph_or_function, deltas)
+            _apply_deltas(graph_or_function, deltas)
         return count
 
     def apply_to_model(self, model: ir.Model) -> int:

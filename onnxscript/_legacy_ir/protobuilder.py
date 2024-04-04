@@ -70,6 +70,7 @@ class ModelProtoBuilder:
         # function_proto.metadata_props = ir_function.original_function_proto.metadata_props)
 
         for node in ir_function.nodes:
+            # TODO: deduplicate the opset import of function?
             operator_setid_proto = function_proto.opset_import.add()
             if node.domain in self.opset_imports:
                 operator_setid_proto.domain = self.opset_imports[node.domain].domain

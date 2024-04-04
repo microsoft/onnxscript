@@ -11,6 +11,7 @@ from onnxscript.rewriter import pattern
 
 op = pattern.onnxop
 msft_op = pattern.msft_op
+torch_module_op = pattern.torch_module_op
 
 logger = logging.getLogger(__name__)
 
@@ -146,4 +147,6 @@ instance_norm_to_group_norm_rule = pattern.RewriteRule(
     check_if_simulated_instance_norm_is_used,
 )
 
+# NOTE: instance_norm_to_group_norm_rule is subset of instance_norm_to_group_norm_with_silu_rule,
+# so we need to run instance_norm_to_group_norm_with_silu_rule first.
 rules = pattern.RewriteRuleSet([instance_norm_to_group_norm_rule])

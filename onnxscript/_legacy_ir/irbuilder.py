@@ -35,12 +35,12 @@ class IRBuilder:
         self._function_shape_env = visitor.FunctionShapeEnv()
         self._function_shape_env.load_from_model_proto(model_proto)
         self._ir_version = model_proto.ir_version
-        version_map = {x.domain: x.version for x in model_proto.opset_import}
+        self.version_map = {x.domain: x.version for x in model_proto.opset_import}
         functions = [self.visit_function(function) for function in model_proto.functions]
         self.functions = {function.id: function for function in functions}
         graph = self.visit_graph(model_proto.graph)
         model = ir.Model()
-        model.set(model_proto, graph, functions, version_map)
+        model.set(model_proto, graph, functions, self.version_map)
         return model
 
     def visit_graph(self, graph: onnx.GraphProto) -> ir.Graph:
@@ -122,6 +122,7 @@ class IRBuilder:
 
     def process_node(self, node):
         node_ir = ir.Node(node)
+        node_ir.set_version_if_custom_op(self.version_map)
         self.current_graph_or_function.nodes.append(node_ir)
         for name in node.input:
             value = self.lookup(name)
