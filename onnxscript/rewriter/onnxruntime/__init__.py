@@ -3,9 +3,10 @@ from __future__ import annotations
 import onnx
 
 from onnxscript._legacy_ir import irbuilder, protobuilder
-from onnxscript.optimizer import remove_unused
+from onnxscript.optimizer import remove_unused, remove_unused_function
 from onnxscript.rewriter import function_rule, pattern
 from onnxscript.rewriter.onnxruntime import (
+    group_normalization_merge_silu,
     instance_to_group_normalization,
     softmax,
     transformers,
@@ -16,6 +17,8 @@ ORT_FUNCTION_REWRITE_RULES = [*transformers.TRANSFORMERS_FUNCTION_REWRITE_RULES]
 ORT_PATTERN_REWRITE_RULES = [
     *softmax.rules.rules,
     *instance_to_group_normalization.rules.rules,
+    # NOTE: group normalization merge silu should be applied after instance to group normalization
+    *group_normalization_merge_silu.rules.rules,
 ]
 
 
@@ -49,5 +52,8 @@ def rewrite(
         count = pattern.RewriteRuleSet(pattern_rules).apply_to_model(model_ir)
         print(f"Applied {count} pattern rewrite rules.")
         model = protobuilder.build_model_proto(model_ir)
+    # TODO: Does it make more sense we run DCE after each rewrite rule applied?
+    # If so, we need IR to support DCE.
     remove_unused.remove_unused_nodes(model)
+    remove_unused_function.remove_unused_functions(model)
     return model
