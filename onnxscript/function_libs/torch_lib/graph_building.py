@@ -17,11 +17,15 @@ import torch
 from typing_extensions import TypeAlias
 
 import onnxscript
+
+# Q: Don't know why vscode only recognizes this import style instead of `from onnxscript import optimizer`.
+import onnxscript.optimizer as optimizer
 from onnxscript import evaluator
 from onnxscript import tensor as onnxscript_tensor
 from onnxscript._internal import param_manipulation, runtime_typing
 from onnxscript.function_libs.torch_lib import _flags
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
+from onnxscript.rewriter import onnxruntime as ort_rewriter
 
 __all__ = [
     "TorchScriptTensor",
@@ -1073,4 +1077,9 @@ class TorchScriptGraph:
                 common_ops.common_opset.domain, common_ops.common_opset.version
             )
         )
+
+        # Not the best integration point. Enables benchmarking the migration.
+        onnx_model = optimizer.optimize(onnx_model)
+        # This also creates contrib op in the model. So definitely not the best integration point.
+        onnx_model = ort_rewriter.rewrite(onnx_model)
         return onnx_model
