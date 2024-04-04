@@ -58,6 +58,7 @@ from .onnx_types import (
 
 # isort: on
 
+from . import ir
 from ._internal.utils import external_tensor
 from .values import OnnxFunction, TracedOnnxFunction
 
@@ -69,12 +70,13 @@ except importlib.metadata.PackageNotFoundError:
 
 __all__ = [
     "script",
+    "graph",
+    "ir",
     "export_onnx_lib",
     "OnnxFunction",
     "TracedOnnxFunction",
     "proto2python",
     "external_tensor",
-    "graph",
     "BFLOAT16",
     "FLOAT16",
     "FLOAT8E4M3FN",
