@@ -159,6 +159,7 @@ class ValueProtocol(Protocol):
     shape: ShapeProtocol | None
     type: TypeProtocol | None
     metadata_props: Mapping[str, str]
+    meta: Mapping[str, Any]
 
     def users(self) -> AbstractSet[tuple[NodeProtocol, int]]:
         """The set of (node, input_index) with node being those that use this value as an input."""
@@ -219,6 +220,62 @@ class NodeProtocol(Protocol):
     version: int | None
     doc_string: str | None
     metadata_props: Mapping[str, str]
+    meta: Mapping[str, Any]
+
+
+class MutableNodeProtocol(Protocol):
+    """Protocol for a topologically mutable node."""
+
+    # Block: Sync with NodeProtocol
+    name: str | None
+    domain: str
+    op_type: str
+    overload: str
+    inputs: Sequence[ValueProtocol]
+    outputs: Sequence[ValueProtocol]
+    attributes: OrderedDict[str, AttributeProtocol | ReferenceAttributeProtocol]
+    version: int | None
+    doc_string: str | None
+    metadata_props: Mapping[str, str]
+    meta: Mapping[str, Any]
+    # End Block
+
+    # A mutable node requires characteristics of a doubly linked list, which
+    # is not required by the NodeProtocol.
+
+    def set_input(self, index: int, value: ValueProtocol | None) -> None:
+        """Set the input at the given index to the given value, replacing the original value."""
+        ...
+
+    def prepend(self, node: MutableNodeProtocol) -> None:
+        """Insert a node before this node in the list of nodes in the graph.
+
+        Example::
+
+            Before: previous_node -> self
+                    previous_node' -> node -> next_node'
+            After:  previous_node -> node -> self
+                    previous_node' -> next_node'
+
+        Args:
+            node: The node to put before this node.
+        """
+        ...
+
+    def append(self, node: MutableNodeProtocol) -> None:
+        """Insert a node after this node in the list of nodes in the graph.
+
+        Example::
+
+            Before: previous_node -> self
+                    previous_node' -> node -> next_node'
+            After:  previous_node -> self -> node
+                    previous_node' -> next_node'
+
+        Args:
+            node: The node to put before this node.
+        """
+        ...
 
 
 @typing.runtime_checkable
@@ -254,6 +311,7 @@ class GraphProtocol(Protocol):
     doc_string: str
     opset_imports: Mapping[str, int]
     metadata_props: Mapping[str, str]
+    meta: Mapping[str, Any]
 
     def topologically_sorted_nodes(self) -> Sequence[NodeProtocol]:
         """Return the nodes in topological order."""
@@ -290,6 +348,7 @@ class ModelProtocol(Protocol):
     # TODO(justinchuby): Add training_info
     opset_imports: Mapping[str, int]
     metadata_props: Mapping[str, str]
+    meta: Mapping[str, Any]
 
 
 @typing.runtime_checkable
@@ -451,6 +510,7 @@ class FunctionProtocol(Protocol):
     opset_imports: Mapping[str, int]
     nodes: Sequence[NodeProtocol]
     metadata_props: Mapping[str, str]
+    meta: Mapping[str, Any]
 
     def identifier(self) -> OperatorIdentifier:
         """Return the unique identifier of the function."""
