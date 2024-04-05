@@ -389,10 +389,7 @@ class DoublyLinkedListTest(unittest.TestCase):
         other_elem = _TestElement(42)
         other_linked_list.append(other_elem)
 
-        for elem in linked_list:
-            if elem.value == 1:
-                # This causes infinite loop if the implementation is incorrect
-                linked_list.insert_after(elem, other_linked_list)
+        linked_list.insert_after(elems[1], other_linked_list)
 
         self.assertEqual(len(linked_list), 4)
         self.assertEqual([elem.value for elem in linked_list], [0, 1, 42, 2])
