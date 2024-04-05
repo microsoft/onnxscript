@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Iterator, Protocol, Sequence, TypeVar
+from typing import Callable, Generic, Iterable, Iterator, Protocol, Sequence, TypeVar
 
 
 class Linkable(Protocol):
@@ -19,28 +19,13 @@ class Linkable(Protocol):
 TLinkable = TypeVar("TLinkable", bound=Linkable)
 
 
-def _connect_linkables(prev: Linkable, next: Linkable) -> None:
-    """Connect two linkable values."""
-    prev._next = next
-    next._prev = prev
-
-
-def _connect_linkable_sequence(values: Sequence[Linkable]) -> None:
-    """Connect a sequence of linkable values."""
-    if len(values) <= 1:
-        # Nothing to connect
-        return
-    for i in range(len(values) - 1):
-        _connect_linkables(values[i], values[i + 1])
-
-
 def _remove_from_list(elem: Linkable) -> None:
     """Remove a Linkable object from a doubly linked list."""
     prev, next_ = elem._prev, elem._next
     prev._next, next_._prev = next_, prev
 
 
-class DoublyLinkedList(Sequence[TLinkable]):
+class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
     """A doubly linked list of nodes.
 
     This list supports adding and removing nodes from the list during iteration.
@@ -49,6 +34,7 @@ class DoublyLinkedList(Sequence[TLinkable]):
     # TODO(justinchuby): Make it a MutableSequence
 
     def __init__(self, root: TLinkable) -> None:
+        # Using the root node simplifies the mutation implementation a lot
         self._root: TLinkable = root
         self._length = 0
         self._elements = set()
@@ -98,14 +84,35 @@ class DoublyLinkedList(Sequence[TLinkable]):
             item = next(iterator)
         return item
 
-    def append(self, value: TLinkable) -> None:
+    def _insert_one_after(self, value: TLinkable, new_value: TLinkable) -> None:
+        """Insert a new value after the given value.
+
+        Example::
+            Before: A -> B -> C
+            Call: insert_after(B, D)
+            After: A -> B -> D -> C
+        Args:
+            value: The value after which the new value is to be inserted.
+            new_value: The new value to be inserted.
+        """
+        original_next = value._next
+        value._next = new_value
+        new_value._prev = new_value
+        new_value._next = original_next
+        original_next._prev = new_value
+        # Un-erase the value in case it was previously erased
+        new_value._erased = False
+        self._length += 1
+
+    def append(self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None) -> None:
         """Append a node to the list."""
-        self.insert_after(self._root._prev, (value,))
+        self._insert_one_after(self._root._prev, value)
 
-    def extend(self, values: Sequence[TLinkable]) -> None:
-        self.insert_after(self._root._prev, values)
+    def extend(self, values: Iterable[TLinkable]) -> None:
+        for value in values:
+            self.append(value)
 
-    def remove(self, value: TLinkable) -> None:
+    def remove(self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None) -> None:
         """Remove a node from the list."""
         if value._erased:
             warnings.warn(f"Element {value!r} is already erased", stacklevel=1)
@@ -116,39 +123,35 @@ class DoublyLinkedList(Sequence[TLinkable]):
         self._elements.remove(value)
         value._erased = True
         self._length -= 1
+        if property_modifier is not None:
+            property_modifier(value)
 
-    def insert_after(self, value: TLinkable, new_values: Sequence[TLinkable]) -> None:
-        """Insert new nodes after the given node."""
-        if len(new_values) == 0:
-            return
-        # Create a doubly linked list of new nodes by establishing the next and prev pointers
-        _connect_linkable_sequence(new_values)
+    def insert_after(self, value: TLinkable, new_values: Iterable[TLinkable], property_modifier: Callable[[TLinkable], None] | None = None) -> None:
+        """Insert new nodes after the given node.
 
-        next_value = value._next
-        # Insert the new nodes between the node and the next node
-        _connect_linkables(value, new_values[0])
-        _connect_linkables(new_values[-1], next_value)
+        Args:
+            value: The value after which the new values are to be inserted.
+            new_values: The new values to be inserted.
+            property_modifier: A function that modifies the properties of the new nodes.
+        """
+        insertion_point = value
+        for new_value in new_values:
+            self._insert_one_after(insertion_point, new_value)
+            insertion_point = new_value
+            if property_modifier is not None:
+                property_modifier(new_value)
 
-        for v in new_values:
-            # Bring the node back in case it was erased
-            v._erased = False
+    def insert_before(self, value: TLinkable, new_values: Iterable[TLinkable], property_modifier: Callable[[TLinkable], None] | None = None) -> None:
+        """Insert new nodes before the given node.
 
-        self._length += len(new_values)
-
-    def insert_before(self, value: TLinkable, new_values: Sequence[TLinkable]) -> None:
-        """Insert new nodes before the given node."""
-        if len(new_values) == 0:
-            return
-        # Create a doubly linked list of new nodes by establishing the next and prev pointers
-        _connect_linkable_sequence(new_values)
-        prev_node = value._prev
-
-        # Insert the new nodes between the prev node and the node
-        _connect_linkables(prev_node, new_values[0])
-        _connect_linkables(new_values[-1], value)
-
-        for v in new_values:
-            # Bring the node back in case it was erased
-            v._erased = False
-
-        self._length += len(new_values)
+        Args:
+            value: The value before which the new values are to be inserted.
+            new_values: The new values to be inserted.
+            property_modifier: A function that modifies the properties of the new nodes.
+        """
+        insertion_point = value._prev
+        for new_value in new_values:
+            self._insert_one_after(insertion_point, new_value)
+            insertion_point = new_value
+            if property_modifier is not None:
+                property_modifier(new_value)

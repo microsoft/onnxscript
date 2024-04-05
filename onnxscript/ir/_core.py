@@ -18,7 +18,6 @@ import os
 import sys
 import textwrap
 import typing
-import warnings
 from typing import (
     Any,
     Generic,
@@ -34,6 +33,7 @@ import numpy as np
 from onnxscript.ir import (
     _display,
     _enums,
+    _linked_list,
     _metadata,
     _protocols,
 )
@@ -465,7 +465,7 @@ def _quoted(string: str) -> str:
     return f'"{string}"'
 
 
-class Node(_protocols.MutableNodeProtocol, _display.PrettyPrintable):
+class Node(_protocols.MutableNodeProtocol, _linked_list.Linkable, _display.PrettyPrintable):
     """IR Node."""
 
     __slots__ = (
@@ -549,11 +549,11 @@ class Node(_protocols.MutableNodeProtocol, _display.PrettyPrintable):
 
         # For constructing the linked list of nodes
         # This list of nodes is constructed as a doubly linked list
-        self._prev: Node | None = None
-        self._next: Node | None = None
+        self._prev: Node = self
+        self._next: Node = self
         self._erased: bool = False
         if self._graph is not None:
-            self._graph.extend((self,))
+            self._graph.append(self)
 
         # Add the node as a user of the inputs
         for i, input_value in enumerate(self._inputs):
@@ -1046,9 +1046,10 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._opset_imports = opset_imports or {}
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
-        self._nodes = _NodesList(graph=self)
-        for node in self._nodes:
-            self._nodes.append(node)
+        self._nodes: _linked_list.DoublyLinkedList[Node] = _linked_list.DoublyLinkedList(
+            root=Node("__internal__", "root", ())
+        )
+        self._nodes.extend(nodes)
 
     @property
     def inputs(self) -> tuple[Value, ...]:
@@ -1078,17 +1079,38 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def nodes(self) -> Sequence[Node]:
         return tuple(self._nodes)
 
+    def __getitem__(self, index: int) -> Node:
+        return self._nodes[index]
+
+    def __len__(self) -> int:
+        return len(self._nodes)
+
+    def __iter__(self) -> Iterator[Node]:
+        return iter(self._nodes)
+
+    def __reversed__(self) -> Iterator[Node]:
+        return reversed(self._nodes)
+
+    def append(self, node: Node) -> None:
+        node._graph = self
+        self._nodes.append(node)
+
     def extend(self, nodes: Iterable[Node]) -> None:
-        nodes = tuple(nodes)
-        self._nodes.extend(nodes)
+        for node in nodes:
+            node._graph = self
+            # We cannot use _nodes.extend because if nodes is a generator, it will be consumed
+            self._nodes.append(node)
 
-    def erase(self, node: Node) -> None:
-        self._nodes.erase(node)
+    def remove(self, node: Node) -> None:
+        if node.graph is not self:
+            raise ValueError(f"The node {node} does not belong to this graph.")
+        node._graph = None
+        self._nodes.remove(node)
 
-    def insert_after(self, node: Node, new_nodes: Sequence[Node]) -> None:
+    def insert_after(self, node: Node, new_nodes: Iterator[Node]) -> None:
         self._nodes.insert_after(node, new_nodes)
 
-    def insert_before(self, node: Node, new_nodes: Sequence[Node]) -> None:
+    def insert_before(self, node: Node, new_nodes: Iterator[Node]) -> None:
         self._nodes.insert_before(node, new_nodes)
 
     def topologically_sorted_nodes(self) -> Sequence[Node]:
@@ -1110,15 +1132,6 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         if self._metadata_props is None:
             self._metadata_props = {}
         return self._metadata_props
-
-    def __getitem__(self, index: int) -> Node:
-        return self._nodes[index]
-
-    def __len__(self) -> int:
-        return len(self._nodes)
-
-    def __iter__(self) -> Iterator[Node]:
-        return iter(self._nodes)
 
     def __str__(self) -> str:
         # TODO(justinchuby): Show docstrings and metadata
