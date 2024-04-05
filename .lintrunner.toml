@@ -61,7 +61,8 @@ exclude_patterns = [
     'onnxscript/_legacy_ir/protobuilder.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/layernorm.py',  # FIXME
     'onnxscript/ir/serde.py',  # FIXME
-    'onnxrewriter/rewriter/pattern/generic_pattern_test.py',  # FIXME
+    'onnxrewriter/rewriter/generic_pattern_test.py',  # FIXME
+    'onnxrewriter/rewriter/generic_pattern.py',  # FIXME
 ]
 command = [
     'python',
@@ -118,6 +119,7 @@ include_patterns = [
     '**/*.py',
 ]
 exclude_patterns = [
+    'examples/**',  # TODO: Merge with docs/examples
     'docs/examples/**',
     'docs/tutorial/examples/**',
     'onnxscript/converter_test.py',
