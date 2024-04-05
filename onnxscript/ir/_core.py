@@ -484,6 +484,7 @@ class Node(_protocols.MutableNodeProtocol, _linked_list.Linkable, _display.Prett
         "_prev",
         "_next",
         "_erased",
+        "__list",
     )
 
     def __init__(
@@ -547,11 +548,13 @@ class Node(_protocols.MutableNodeProtocol, _linked_list.Linkable, _display.Prett
         self._graph: Graph | None = graph
         self.doc_string = doc_string
 
-        # For constructing the linked list of nodes
+        # Attributes _prev, _next, _erased, __list are used for the linked list
+        # and are modified by the DoublyLinkedList class. Do not modify them directly.
         # This list of nodes is constructed as a doubly linked list
         self._prev: Node = self
         self._next: Node = self
         self._erased: bool = False
+        self.__list = None
         if self._graph is not None:
             self._graph.append(self)
 
@@ -658,11 +661,6 @@ class Node(_protocols.MutableNodeProtocol, _linked_list.Linkable, _display.Prett
         if value is not None:
             value.add_user(self, index)
 
-    def pop(self) -> None:
-        if self._graph is None:
-            raise ValueError("The node does not belong to any graph.")
-        self._graph._nodes.erase(self)
-
     def prepend(self, node: Node) -> None:
         """Insert a node before this node in the list of nodes in the graph.
 
@@ -677,8 +675,8 @@ class Node(_protocols.MutableNodeProtocol, _linked_list.Linkable, _display.Prett
             node: The node to put before this node.
         """
         if self._graph is None:
-            raise ValueError("The node does not belong to any graph.")
-        self._graph._nodes.insert_before(self, (node,))
+            raise ValueError("The node to prepend to does not belong to any graph.")
+        self._graph.insert_before(self, (node,))
 
     def append(self, node: Node) -> None:
         """Insert a node after this node in the list of nodes in the graph.
@@ -694,8 +692,8 @@ class Node(_protocols.MutableNodeProtocol, _linked_list.Linkable, _display.Prett
             node: The node to put before this node.
         """
         if self._graph is None:
-            raise ValueError("The node does not belong to any graph.")
-        self._graph._nodes.insert_after(self, (node,))
+            raise ValueError("The node to append to does not belong to any graph.")
+        self._graph.insert_after(self, (node,))
 
     @property
     def outputs(self) -> Sequence[Value]:
@@ -1003,7 +1001,7 @@ class Input(Value):
         self._type = type
 
 
-class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
+class Graph(_protocols.MutableGraphProtocol, Sequence[Node], _display.PrettyPrintable):
     """IR Graph.
 
     The graph can be used as a sequence of nodes::
@@ -1036,6 +1034,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         name: str | None = None,
     ):
         self.name = name
+
+        # Private fields that are not to be accessed by any other classes
         self._inputs = tuple(inputs)
         self._outputs = tuple(outputs)
         for initializer in initializers:
@@ -1091,30 +1091,48 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def __reversed__(self) -> Iterator[Node]:
         return reversed(self._nodes)
 
-    def append(self, node: Node) -> None:
+    def _remove_graph_reference_from_node(self, node: Node) -> None:
+        """A private function to remove the graph reference from a node, used when mutating the graph by node_list."""
+        node._graph = None
+
+    def _add_graph_reference_to_node(self, node: Node) -> None:
+        """A private function to add the graph reference to a node, used when mutating the graph by node_list."""
+        if node._graph is not None:
+            node._graph.remove(node)
         node._graph = self
-        self._nodes.append(node)
+
+    # Mutation methods
+    def append(self, node: Node) -> None:
+        """Append a node to the graph in O(1) time."""
+        self._nodes.append(node, property_modifier=self._add_graph_reference_to_node)
 
     def extend(self, nodes: Iterable[Node]) -> None:
-        for node in nodes:
-            node._graph = self
-            # We cannot use _nodes.extend because if nodes is a generator, it will be consumed
-            self._nodes.append(node)
+        """Extend the graph with the given nodes in O(#new_nodes) time."""
+        self._nodes.extend(nodes, property_modifier=self._add_graph_reference_to_node)
 
     def remove(self, node: Node) -> None:
+        """Remove a node from the graph in O(1) time."""
         if node.graph is not self:
             raise ValueError(f"The node {node} does not belong to this graph.")
-        node._graph = None
-        self._nodes.remove(node)
+        self._nodes.remove(node, property_modifier=self._remove_graph_reference_from_node)
 
-    def insert_after(self, node: Node, new_nodes: Iterator[Node]) -> None:
-        self._nodes.insert_after(node, new_nodes)
+    def insert_after(self, node: Node, new_nodes: Iterable[Node]) -> None:
+        """Insert new nodes after the given node in O(#new_nodes) time."""
+        self._nodes.insert_after(
+            node, new_nodes, property_modifier=self._add_graph_reference_to_node
+        )
 
-    def insert_before(self, node: Node, new_nodes: Iterator[Node]) -> None:
-        self._nodes.insert_before(node, new_nodes)
+    def insert_before(self, node: Node, new_nodes: Iterable[Node]) -> None:
+        """Insert new nodes before the given node in O(#new_nodes) time."""
+        self._nodes.insert_before(
+            node, new_nodes, property_modifier=self._add_graph_reference_to_node
+        )
 
-    def topologically_sorted_nodes(self) -> Sequence[Node]:
+    def sort(self) -> None:
+        """Topologically sort the nodes in the graph."""
         raise NotImplementedError("Not implemented yet")
+
+    # End of mutation methods
 
     @property
     def meta(self) -> _metadata.MetadataStore:

@@ -9,20 +9,35 @@ from typing import Callable, Generic, Iterable, Iterator, Protocol, TypeVar
 
 
 class Linkable(Protocol):
-    """A link in a doubly linked list that has a reference to the actual object in the link."""
+    """A link in a doubly linked list that has a reference to the actual object in the link.
+
+    A fields are private and are managed by DoublyLinkedList
+
+    Attributes:
+        _prev: The previous element in the list.
+        _next: The next element in the list.
+        _erased: A flag to indicate if the element has been removed from the list.
+        __list: The DoublyLinkedList to which the element belongs.
+    """
 
     _prev: Linkable
     _next: Linkable
     _erased = False
+    __list: DoublyLinkedList | None
 
 
 TLinkable = TypeVar("TLinkable", bound=Linkable)
 
 
-def _remove_from_list(elem: Linkable) -> None:
-    """Remove a Linkable object from a doubly linked list."""
+def _break_from_list(elem: Linkable) -> None:
+    """Break the links of a Linkable object from a doubly linked list.
+
+    NOTE: This does not change the metadata of
+    """
     prev, next_ = elem._prev, elem._next
     prev._next, next_._prev = next_, prev
+    elem.__list = None
+    elem._erased = True
 
 
 class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
@@ -33,11 +48,15 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
 
     # TODO(justinchuby): Make it a MutableSequence
 
-    def __init__(self, root: TLinkable) -> None:
+    def __init__(self, root: Callable[[], TLinkable]) -> None:
         # Using the root node simplifies the mutation implementation a lot
-        self._root: TLinkable = root
+        root_ = root()
+        if root_._prev is not root_ or root_._next is not root_:
+            raise ValueError("Root node must be a self-loop")
+        root_.__list = self
+        self._root = root_
+        self._root: TLinkable = root_
         self._length = 0
-        self._elements = set()
 
     def __iter__(self) -> Iterator[TLinkable]:
         """Iterate over the elements in the list.
@@ -92,6 +111,8 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
     ) -> None:
         """Insert a new value after the given value.
 
+        All insertion methods should call this method to ensure that the list is updated correctly.
+
         Example::
             Before: A -> B -> C
             Call: insert_after(B, D)
@@ -101,16 +122,50 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
             new_value: The new value to be inserted.
             property_modifier: A function that modifies the properties of the new node.
         """
+        # Remove the new value from the list if it is already in a different list
+        if new_value.__list is not None:
+            new_value.__list.remove(new_value)
+        new_value.__list = self
+
+        # Update the links
         original_next = value._next
         value._next = new_value
         new_value._prev = new_value
         new_value._next = original_next
         original_next._prev = new_value
+
         # Un-erase the value in case it was previously erased
         new_value._erased = False
-        self._length += 1
+        # Call the property modifier in case the users want to modify the properties
+        # For example, when a node is added to a graph, we want to set its graph property
         if property_modifier is not None:
             property_modifier(value)
+
+        # Be sure to update the length
+        self._length += 1
+
+    def remove(
+        self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None
+    ) -> None:
+        """Remove a node from the list."""
+        if value._erased:
+            warnings.warn(f"Element {value!r} is already erased", stacklevel=1)
+            return
+        if value.__list is not self:
+            raise ValueError(f"Element {value!r} is not in the list")
+        value.__list = None
+
+        # Update the links
+        prev, next_ = value._prev, value._next
+        prev._next, next_._prev = next_, prev
+        value._erased = True
+        # Call the property modifier in case the users want to modify the properties
+        # For example, when a node is removed from a graph, we want to unset its graph property
+        if property_modifier is not None:
+            property_modifier(value)
+
+        # Be sure to update the length
+        self._length -= 1
 
     def append(
         self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None
@@ -125,22 +180,6 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
     ) -> None:
         for value in values:
             self.append(value, property_modifier=property_modifier)
-
-    def remove(
-        self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None
-    ) -> None:
-        """Remove a node from the list."""
-        if value._erased:
-            warnings.warn(f"Element {value!r} is already erased", stacklevel=1)
-            return
-        if value not in self._elements:
-            raise ValueError(f"Element {value!r} is not in the list")
-        _remove_from_list(value)
-        self._elements.remove(value)
-        value._erased = True
-        self._length -= 1
-        if property_modifier is not None:
-            property_modifier(value)
 
     def insert_after(
         self,

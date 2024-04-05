@@ -24,6 +24,7 @@ import typing
 from typing import (
     AbstractSet,
     Any,
+    Iterable,
     Iterator,
     Mapping,
     OrderedDict,
@@ -223,6 +224,7 @@ class NodeProtocol(Protocol):
     meta: Mapping[str, Any]
 
 
+@typing.runtime_checkable
 class MutableNodeProtocol(Protocol):
     """Protocol for a topologically mutable node."""
 
@@ -245,36 +247,6 @@ class MutableNodeProtocol(Protocol):
 
     def replace_input_with(self, index: int, value: ValueProtocol | None) -> None:
         """Set the input at the given index to the given value, replacing the original value."""
-        ...
-
-    def prepend(self, node: MutableNodeProtocol) -> None:
-        """Insert a node before this node in the list of nodes in the graph.
-
-        Example::
-
-            Before: previous_node -> self
-                    previous_node' -> node -> next_node'
-            After:  previous_node -> node -> self
-                    previous_node' -> next_node'
-
-        Args:
-            node: The node to put before this node.
-        """
-        ...
-
-    def append(self, node: MutableNodeProtocol) -> None:
-        """Insert a node after this node in the list of nodes in the graph.
-
-        Example::
-
-            Before: previous_node -> self
-                    previous_node' -> node -> next_node'
-            After:  previous_node -> self -> node
-                    previous_node' -> next_node'
-
-        Args:
-            node: The node to put before this node.
-        """
         ...
 
 
@@ -313,8 +285,67 @@ class GraphProtocol(Protocol):
     metadata_props: Mapping[str, str]
     meta: Mapping[str, Any]
 
-    def topologically_sorted_nodes(self) -> Sequence[NodeProtocol]:
-        """Return the nodes in topological order."""
+
+@typing.runtime_checkable
+class MutableGraphProtocol(Protocol):
+    """Topologically mutable graphs.
+
+    Graph represents a computation graph. In addition to the ONNX specification
+    specified fields, it also contains a mapping of :attr:`opset_imports`. This
+    allows different subgraphs to import different opsets. It is the responsibility
+    of the deserializer to reconcile the different opsets.
+
+    The :attr:`nodes` are not guaranteed to be topologically sorted. But the
+    iteration order should be deterministic across different runs. It is the
+    responsibility of the user to maintain a topological order of the nodes.
+
+    Attributes:
+        name: The name of the graph.
+        inputs: The input values of the graph.
+        outputs: The output values of the graph.
+        nodes: All nodes this graph directly owns. They do not have to be sorted.
+        initializers: The initializers in the graph.
+        doc_string: Documentation string.
+        opset_imports: Opsets imported by the graph.
+        metadata_props: Metadata.
+    """
+
+    # Block: Sync with NodeProtocol
+    # TODO(justinchuby): Support quantization_annotation
+    name: str | None
+    inputs: Sequence[ValueProtocol]
+    outputs: Sequence[ValueProtocol]
+    nodes: Sequence[NodeProtocol]
+    initializers: Mapping[str, TensorProtocol]
+    doc_string: str
+    opset_imports: Mapping[str, int]
+    metadata_props: Mapping[str, str]
+    meta: Mapping[str, Any]
+    # End Block
+
+    # Mutation methods
+    def append(self, node: NodeProtocol) -> None:
+        """Append a node to the graph."""
+        ...
+
+    def extend(self, nodes: Iterable[NodeProtocol]) -> None:
+        """Extend the graph with the given nodes."""
+        ...
+
+    def remove(self, node: NodeProtocol) -> None:
+        """Remove a node from the graph."""
+        ...
+
+    def insert_after(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol]) -> None:
+        """Insert new nodes after the given node."""
+        ...
+
+    def insert_before(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol]) -> None:
+        """Insert new nodes before the given node."""
+        ...
+
+    def sort(self) -> None:
+        """Topologically sort the nodes in the graph."""
         ...
 
 
