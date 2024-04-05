@@ -168,7 +168,7 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         # Call the property modifier in case the users want to modify the properties
         # For example, when a node is added to a graph, we want to set its graph property
         if property_modifier is not None:
-            property_modifier(value)
+            property_modifier(new_value)
 
         # Be sure to update the length
         self._length += 1

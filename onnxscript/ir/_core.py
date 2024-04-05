@@ -1047,9 +1047,7 @@ class Graph(_protocols.MutableGraphProtocol, Sequence[Node], _display.PrettyPrin
         self._opset_imports = opset_imports or {}
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
-        self._nodes: _linked_list.DoublyLinkedList[Node] = _linked_list.DoublyLinkedList(
-            root=_create_root_node_for_linked_list
-        )
+        self._nodes: _linked_list.DoublyLinkedList[Node] = _linked_list.DoublyLinkedList()
         # Call self.extend not self._nodes so the graph reference is added to the nodes
         self.extend(nodes)
 
