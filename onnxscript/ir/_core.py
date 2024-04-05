@@ -551,10 +551,12 @@ class Node(_protocols.MutableNodeProtocol, _linked_list.Linkable, _display.Prett
         # Attributes _prev, _next, _erased, __list are used for the linked list
         # and are modified by the DoublyLinkedList class. Do not modify them directly.
         # This list of nodes is constructed as a doubly linked list
+        # pylint: disable=unused-private-member
         self._prev: Node = self
         self._next: Node = self
         self._erased: bool = False
         self.__list = None
+        # pylint: enable=unused-private-member
         if self._graph is not None:
             self._graph.append(self)
 
@@ -1001,6 +1003,11 @@ class Input(Value):
         self._type = type
 
 
+def _create_root_node_for_linked_list() -> Node:
+    """Initialize a dummy node as root for the linked list."""
+    return Node("__internal__", "root", ())
+
+
 class Graph(_protocols.MutableGraphProtocol, Sequence[Node], _display.PrettyPrintable):
     """IR Graph.
 
@@ -1047,7 +1054,7 @@ class Graph(_protocols.MutableGraphProtocol, Sequence[Node], _display.PrettyPrin
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
         self._nodes: _linked_list.DoublyLinkedList[Node] = _linked_list.DoublyLinkedList(
-            root=Node("__internal__", "root", ())
+            root=_create_root_node_for_linked_list
         )
         self._nodes.extend(nodes)
 
@@ -1093,13 +1100,17 @@ class Graph(_protocols.MutableGraphProtocol, Sequence[Node], _display.PrettyPrin
 
     def _remove_graph_reference_from_node(self, node: Node) -> None:
         """A private function to remove the graph reference from a node, used when mutating the graph by node_list."""
+        # pylint: disable=protected-access
         node._graph = None
+        # pylint: enable=protected-access
 
     def _add_graph_reference_to_node(self, node: Node) -> None:
         """A private function to add the graph reference to a node, used when mutating the graph by node_list."""
+        # pylint: disable=protected-access
         if node._graph is not None:
             node._graph.remove(node)
         node._graph = self
+        # pylint: enable=protected-access
 
     # Mutation methods
     def append(self, node: Node) -> None:
@@ -1248,7 +1259,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
         doc_string: str | None = None,
         functions: Sequence[Function] = (),
     ) -> None:
-        self.graph: Graph = graph
+        self.graph: Graph = graph  # type: ignore[assignment]
         self.ir_version = ir_version
         self.producer_name = producer_name
         self.producer_version = producer_version

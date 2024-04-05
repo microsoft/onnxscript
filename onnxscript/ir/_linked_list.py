@@ -1,4 +1,6 @@
 """Mutable list for nodes in a graph with safe mutation properties."""
+# Disabled the following checks because this implementation makes heavy use of private members
+# pylint: disable=protected-access
 
 # Inspired by https://github.com/pytorch/pytorch/blob/064a650b635e6fdaa8cf1a0dbc7dbbd23a37265d/torch/fx/graph.py
 
@@ -20,10 +22,12 @@ class Linkable(Protocol):
         __list: The DoublyLinkedList to which the element belongs.
     """
 
+    # pylint: disable=unused-private-member
     _prev: Linkable
     _next: Linkable
-    _erased = False
+    _erased: bool = False
     __list: DoublyLinkedList | None
+    # pylint: enable=unused-private-member
 
 
 TLinkable = TypeVar("TLinkable", bound=Linkable)
@@ -46,15 +50,12 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
     This list supports adding and removing nodes from the list during iteration.
     """
 
-    # TODO(justinchuby): Make it a MutableSequence
-
     def __init__(self, root: Callable[[], TLinkable]) -> None:
         # Using the root node simplifies the mutation implementation a lot
         root_ = root()
         if root_._prev is not root_ or root_._next is not root_:
             raise ValueError("Root node must be a self-loop")
-        root_.__list = self
-        self._root = root_
+        root_.__list = self  # pylint: disable=unused-private-member
         self._root: TLinkable = root_
         self._length = 0
 
@@ -71,7 +72,7 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         elem = self._root._next
         while elem is not self._root:
             if not elem._erased:
-                yield elem
+                yield elem  # type: ignore[misc]
             elem = elem._next
 
     def __reversed__(self) -> Iterator[TLinkable]:
@@ -79,7 +80,7 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         elem = self._root._prev
         while elem is not self._root:
             if not elem._erased:
-                yield elem
+                yield elem  # type: ignore[misc]
             elem = elem._prev
 
     def __len__(self) -> int:
@@ -125,7 +126,7 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         # Remove the new value from the list if it is already in a different list
         if new_value.__list is not None:
             new_value.__list.remove(new_value)
-        new_value.__list = self
+        new_value.__list = self  # pylint: disable=unused-private-member
 
         # Update the links
         original_next = value._next
@@ -153,7 +154,7 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
             return
         if value.__list is not self:
             raise ValueError(f"Element {value!r} is not in the list")
-        value.__list = None
+        value.__list = None  # pylint: disable=unused-private-member
 
         # Update the links
         prev, next_ = value._prev, value._next
@@ -171,7 +172,7 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None
     ) -> None:
         """Append a node to the list."""
-        self._insert_one_after(self._root._prev, value, property_modifier=property_modifier)
+        self._insert_one_after(self._root._prev, value, property_modifier=property_modifier)  # type: ignore[arg-type]
 
     def extend(
         self,
@@ -217,6 +218,8 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         insertion_point = value._prev
         for new_value in new_values:
             self._insert_one_after(
-                insertion_point, new_value, property_modifier=property_modifier
+                insertion_point,  # type: ignore[arg-type]
+                new_value,
+                property_modifier=property_modifier,
             )
             insertion_point = new_value
