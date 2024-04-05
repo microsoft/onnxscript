@@ -59,6 +59,8 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         """
         elem = self._root._next
         while elem is not self._root:
+            if elem._list is not self:
+                raise RuntimeError(f"Element {elem!r} is not in the list")
             if not elem._erased:
                 yield elem  # type: ignore[misc]
             elem = elem._next

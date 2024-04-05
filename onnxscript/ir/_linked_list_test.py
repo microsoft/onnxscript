@@ -298,7 +298,7 @@ class DoublyLinkedListTest(unittest.TestCase):
         self.assertEqual([elem.value for elem in linked_list], [0])
         self.assertEqual([elem.value for elem in reversed(linked_list)], [0])
 
-    def test_iterator_supports_mutation_in_nested_iteration(self) -> None:
+    def test_iterator_supports_mutation_in_nested_iteration_right_of_iterator(self) -> None:
         linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
         elems = [_TestElement(i) for i in range(3)]
         linked_list.extend(elems)
@@ -338,7 +338,7 @@ class DoublyLinkedListTest(unittest.TestCase):
         self.assertEqual([elem.value for elem in linked_list], [1, 2])
         self.assertEqual([elem.value for elem in reversed(linked_list)], [2, 1])
 
-    def test_iterator_supports_mutation_in_nested_iteration_when_iter_is_self(self) -> None:
+    def test_iterator_supports_mutation_in_nested_iteration_left_of_iterator(self) -> None:
         linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
         elems = [_TestElement(i) for i in range(3)]
         linked_list.extend(elems)
@@ -360,6 +360,45 @@ class DoublyLinkedListTest(unittest.TestCase):
         self.assertEqual([elem.value for elem in linked_list], [1, 2])
         self.assertEqual([elem.value for elem in reversed(linked_list)], [2, 1])
 
+
+    def test_insert_after_supports_element_from_different_list_during_iteration(self) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elems = [_TestElement(i) for i in range(3)]
+        linked_list.extend(elems)
+
+        other_linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        other_elem = _TestElement(42)
+        other_linked_list.append(other_elem)
+
+        for elem in linked_list:
+            if elem.value == 1:
+                linked_list.insert_after(elem, [other_elem])
+
+        self.assertEqual(len(linked_list), 4)
+        self.assertEqual([elem.value for elem in linked_list], [0, 1, 42, 2])
+        self.assertEqual([elem.value for elem in reversed(linked_list)], [2, 42, 1, 0])
+        self.assertEqual(len(other_linked_list), 0)
+        self.assertEqual([elem.value for elem in other_linked_list], [])
+
+    def test_insert_after_supports_taking_elements_from_another_doubly_linked_list(self) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elems = [_TestElement(i) for i in range(3)]
+        linked_list.extend(elems)
+
+        other_linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        other_elem = _TestElement(42)
+        other_linked_list.append(other_elem)
+
+        for elem in linked_list:
+            if elem.value == 1:
+                # This causes infinite loop if the implementation is incorrect
+                linked_list.insert_after(elem, other_linked_list)
+
+        self.assertEqual(len(linked_list), 4)
+        self.assertEqual([elem.value for elem in linked_list], [0, 1, 42, 2])
+        self.assertEqual([elem.value for elem in reversed(linked_list)], [2, 42, 1, 0])
+        self.assertEqual(len(other_linked_list), 0)
+        self.assertEqual([elem.value for elem in other_linked_list], [])
 
 if __name__ == "__main__":
     unittest.main()
