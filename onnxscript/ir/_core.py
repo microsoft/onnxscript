@@ -481,10 +481,7 @@ class Node(_protocols.MutableNodeProtocol, _linked_list.Linkable, _display.Prett
         "_metadata",
         "_metadata_props",
         "_graph",
-        "_prev",
-        "_next",
-        "_erased",
-        "_list",
+        "_link_box",
     )
 
     def __init__(
@@ -548,14 +545,11 @@ class Node(_protocols.MutableNodeProtocol, _linked_list.Linkable, _display.Prett
         self._graph: Graph | None = graph
         self.doc_string = doc_string
 
-        # Attributes _prev, _next, _erased, _list are used for the linked list
-        # and are modified by the DoublyLinkedList class. Do not modify them directly.
+        # Attributes _link_box is used for the linked list
+        # and is modified by the DoublyLinkedList class. Do not modify them directly.
         # This list of nodes is constructed as a doubly linked list
         # pylint: disable=unused-private-member
-        self._prev: Node = self
-        self._next: Node = self
-        self._erased: bool = False
-        self._list = None
+        self._link_box: _linked_list.LinkBox | None = None
         # pylint: enable=unused-private-member
         if self._graph is not None:
             self._graph.append(self)
@@ -1053,9 +1047,7 @@ class Graph(_protocols.MutableGraphProtocol, Sequence[Node], _display.PrettyPrin
         self._opset_imports = opset_imports or {}
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
-        self._nodes: _linked_list.DoublyLinkedList[Node] = _linked_list.DoublyLinkedList(
-            root=_create_root_node_for_linked_list
-        )
+        self._nodes: _linked_list.DoublyLinkedList[Node] = _linked_list.DoublyLinkedList()
         # Call self.extend not self._nodes so the graph reference is added to the nodes
         self.extend(nodes)
 
