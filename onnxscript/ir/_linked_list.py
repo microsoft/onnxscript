@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import warnings
 from typing import Callable, Generic, Iterable, Iterator, Protocol, TypeVar
 
 
@@ -115,6 +114,9 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
             new_value: The new value to be inserted.
             property_modifier: A function that modifies the properties of the new node.
         """
+        if value is new_value:
+            # Do nothing if the new value is the same as the old value
+            return
         # Remove the new value from the list if it is already in a different list
         if new_value._list is not None:
             new_value._list.remove(new_value)
@@ -141,9 +143,6 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None
     ) -> None:
         """Remove a node from the list."""
-        if value._erased:
-            warnings.warn(f"Element {value!r} is already erased", stacklevel=1)
-            return
         if value._list is not self:
             raise ValueError(f"Element {value!r} is not in the list")
         value._list = None  # pylint: disable=unused-private-member

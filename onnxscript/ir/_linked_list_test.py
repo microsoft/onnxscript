@@ -119,6 +119,144 @@ class DoublyLinkedListTest(unittest.TestCase):
         self.assertEqual(len(linked_list), len(expected))
         self.assertEqual([elem.value for elem in linked_list], expected)
 
+    @parameterized.parameterized.expand(
+        [
+            ("single_element", [0], 0, [1], [1, 0]),
+            ("single_element_negative_index", [0], -1, [1], [1, 0]),
+            ("multiple_elements", [0], 0, [1, 3], [1, 3, 0]),
+            ("multiple_elements_negative_index", [0], -1, [1, 3], [1, 3, 0]),
+            (
+                "multiple_original_elements_insert_at_start",
+                [0, 1, 2],
+                0,
+                [42, 43],
+                [42, 43, 0, 1, 2],
+            ),
+            (
+                "multiple_original_elements_insert_at_middle",
+                [0, 1, 2],
+                1,
+                [42, 43],
+                [0, 42, 43, 1, 2],
+            ),
+            (
+                "multiple_original_elements_insert_at_end",
+                [0, 1, 2],
+                2,
+                [42, 43],
+                [0, 1, 42, 43, 2],
+            ),
+        ]
+    )
+    def test_insert_before(
+        self, _: str, original: list[int], location: int, insertion: list[int], expected: list
+    ) -> None:
+        # Construct the original list
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elems = [_TestElement(i) for i in original]
+        linked_list.extend(elems)
+
+        # Create the new elements
+        new_elements = [_TestElement(i) for i in insertion]
+        linked_list.insert_before(elems[location], new_elements)
+
+        # Check the list
+        self.assertEqual(len(linked_list), len(expected))
+        self.assertEqual([elem.value for elem in linked_list], expected)
+        self.assertEqual([elem.value for elem in reversed(linked_list)], expected[::-1])
+
+    @parameterized.parameterized.expand(
+        [
+            ("start", 0, [1, 2]),
+            ("middle", 1, [0, 2]),
+            ("end", 2, [0, 1]),
+            ("start_negative", -1, [0, 1]),
+            ("middle_negative", -2, [0, 2]),
+            ("end_negative", -3, [1, 2]),
+        ]
+    )
+    def test_remove(self, _: str, index: int, expected: list[int]) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elems = [_TestElement(i) for i in range(3)]
+        linked_list.extend(elems)
+
+        linked_list.remove(elems[index])
+
+        self.assertEqual(len(linked_list), 2)
+        self.assertEqual([elem.value for elem in linked_list], expected)
+        self.assertEqual([elem.value for elem in reversed(linked_list)], expected[::-1])
+
+    def test_remove_raises_when_element_not_found(self) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elems = [_TestElement(i) for i in range(3)]
+        linked_list.extend(elems)
+
+        with self.assertRaises(ValueError):
+            linked_list.remove(_TestElement(3))
+
+    def test_remove_raises_when_element_is_already_removed(self) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elem = _TestElement(0)
+        linked_list.append(elem)
+        linked_list.remove(elem)
+
+        with self.assertRaises(ValueError):
+            linked_list.remove(elem)
+
+    def test_append_self_does_nothing(self) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elem = _TestElement(0)
+        linked_list.append(elem)
+
+        linked_list.append(elem)
+
+        self.assertEqual(len(linked_list), 1)
+        self.assertEqual(linked_list[0], elem)
+        self.assertEqual(list(linked_list), [elem])
+        self.assertEqual(list(reversed(linked_list)), [elem])
+
+    def test_append_supports_appending_element_from_the_same_list(self) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elems = [_TestElement(i) for i in range(3)]
+        linked_list.extend(elems)
+
+        linked_list.append(elems[1])
+
+        self.assertEqual(len(linked_list), 3)
+        self.assertEqual([elem.value for elem in linked_list], [0, 2, 1])
+        self.assertEqual([elem.value for elem in reversed(linked_list)], [1, 2, 0])
+
+    def test_extend_supports_extending_elements_from_the_same_list(self) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elems = [_TestElement(i) for i in range(3)]
+        linked_list.extend(elems)
+
+        linked_list.extend(elems[::-1])
+
+        self.assertEqual(len(linked_list), 3)
+        self.assertEqual([elem.value for elem in linked_list], [2, 1, 0])
+        self.assertEqual([elem.value for elem in reversed(linked_list)], [0, 1, 2])
+
+    def test_insert_after_supports_inserting_element_from_the_same_list(self) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elems = [_TestElement(i) for i in range(3)]
+        linked_list.extend(elems)
+
+        linked_list.insert_after(elems[0], [elems[2]])
+
+        self.assertEqual(len(linked_list), 3)
+        self.assertEqual([elem.value for elem in linked_list], [0, 2, 1])
+
+    def test_insert_before_supports_inserting_element_from_the_same_list(self) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elems = [_TestElement(i) for i in range(3)]
+        linked_list.extend(elems)
+
+        linked_list.insert_before(elems[0], [elems[2]])
+
+        self.assertEqual(len(linked_list), 3)
+        self.assertEqual([elem.value for elem in linked_list], [2, 0, 1])
+
 
 if __name__ == "__main__":
     unittest.main()
