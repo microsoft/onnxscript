@@ -196,7 +196,8 @@ ignore-init-module-imports = true
 
 [tool.ruff.per-file-ignores]
 "__init__.py" = ["TID252"] # Allow relative imports in init files
-"**/{examples,tests,docs,tools,utils}/*" = ["TID251"] # pathlib is allowed in supporting code
+"setup.py" = ["TID251"] # pathlib is allowed in supporting code
+"**/{examples,tests,docs,tools,utils,opgen}/*" = ["TID251"] # pathlib is allowed in supporting code
 "**/*_test.py" = ["TID251"] # pathlib is allowed in tests
 "**/generic_pattern.py" = ["FBT003", "UP037"]  # inline ignoring fails
 "**/generic_pattern_test.py" = ["ARG001", "ARG002", "PLR2004"]
