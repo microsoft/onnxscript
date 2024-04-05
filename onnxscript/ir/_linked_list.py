@@ -19,14 +19,14 @@ class Linkable(Protocol):
         _prev: The previous element in the list.
         _next: The next element in the list.
         _erased: A flag to indicate if the element has been removed from the list.
-        __list: The DoublyLinkedList to which the element belongs.
+        _list: The DoublyLinkedList to which the element belongs.
     """
 
     # pylint: disable=unused-private-member
     _prev: Linkable
     _next: Linkable
     _erased: bool = False
-    __list: DoublyLinkedList | None
+    _list: DoublyLinkedList | None
     # pylint: enable=unused-private-member
 
 
@@ -44,7 +44,7 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         root_ = root()
         if root_._prev is not root_ or root_._next is not root_:
             raise ValueError("Root node must be a self-loop")
-        root_.__list = self  # pylint: disable=unused-private-member
+        root_._list = self  # pylint: disable=unused-private-member
         self._root: TLinkable = root_
         self._length = 0
 
@@ -116,9 +116,9 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
             property_modifier: A function that modifies the properties of the new node.
         """
         # Remove the new value from the list if it is already in a different list
-        if new_value.__list is not None:
-            new_value.__list.remove(new_value)
-        new_value.__list = self  # pylint: disable=unused-private-member
+        if new_value._list is not None:
+            new_value._list.remove(new_value)
+        new_value._list = self  # pylint: disable=unused-private-member
 
         # Update the links
         original_next = value._next
@@ -144,9 +144,9 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         if value._erased:
             warnings.warn(f"Element {value!r} is already erased", stacklevel=1)
             return
-        if value.__list is not self:
+        if value._list is not self:
             raise ValueError(f"Element {value!r} is not in the list")
-        value.__list = None  # pylint: disable=unused-private-member
+        value._list = None  # pylint: disable=unused-private-member
 
         # Update the links
         prev, next_ = value._prev, value._next
