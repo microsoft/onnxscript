@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Callable, Generic, Iterable, Iterator, Protocol, Sequence, TypeVar
+from typing import Callable, Generic, Iterable, Iterator, Protocol, TypeVar
 
 
 class Linkable(Protocol):
@@ -84,7 +84,12 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
             item = next(iterator)
         return item
 
-    def _insert_one_after(self, value: TLinkable, new_value: TLinkable) -> None:
+    def _insert_one_after(
+        self,
+        value: TLinkable,
+        new_value: TLinkable,
+        property_modifier: Callable[[TLinkable], None] | None = None,
+    ) -> None:
         """Insert a new value after the given value.
 
         Example::
@@ -94,6 +99,7 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         Args:
             value: The value after which the new value is to be inserted.
             new_value: The new value to be inserted.
+            property_modifier: A function that modifies the properties of the new node.
         """
         original_next = value._next
         value._next = new_value
@@ -103,16 +109,26 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         # Un-erase the value in case it was previously erased
         new_value._erased = False
         self._length += 1
+        if property_modifier is not None:
+            property_modifier(value)
 
-    def append(self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None) -> None:
+    def append(
+        self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None
+    ) -> None:
         """Append a node to the list."""
-        self._insert_one_after(self._root._prev, value)
+        self._insert_one_after(self._root._prev, value, property_modifier=property_modifier)
 
-    def extend(self, values: Iterable[TLinkable]) -> None:
+    def extend(
+        self,
+        values: Iterable[TLinkable],
+        property_modifier: Callable[[TLinkable], None] | None = None,
+    ) -> None:
         for value in values:
-            self.append(value)
+            self.append(value, property_modifier=property_modifier)
 
-    def remove(self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None) -> None:
+    def remove(
+        self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None
+    ) -> None:
         """Remove a node from the list."""
         if value._erased:
             warnings.warn(f"Element {value!r} is already erased", stacklevel=1)
@@ -126,7 +142,12 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         if property_modifier is not None:
             property_modifier(value)
 
-    def insert_after(self, value: TLinkable, new_values: Iterable[TLinkable], property_modifier: Callable[[TLinkable], None] | None = None) -> None:
+    def insert_after(
+        self,
+        value: TLinkable,
+        new_values: Iterable[TLinkable],
+        property_modifier: Callable[[TLinkable], None] | None = None,
+    ) -> None:
         """Insert new nodes after the given node.
 
         Args:
@@ -136,12 +157,17 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         """
         insertion_point = value
         for new_value in new_values:
-            self._insert_one_after(insertion_point, new_value)
+            self._insert_one_after(
+                insertion_point, new_value, property_modifier=property_modifier
+            )
             insertion_point = new_value
-            if property_modifier is not None:
-                property_modifier(new_value)
 
-    def insert_before(self, value: TLinkable, new_values: Iterable[TLinkable], property_modifier: Callable[[TLinkable], None] | None = None) -> None:
+    def insert_before(
+        self,
+        value: TLinkable,
+        new_values: Iterable[TLinkable],
+        property_modifier: Callable[[TLinkable], None] | None = None,
+    ) -> None:
         """Insert new nodes before the given node.
 
         Args:
@@ -151,7 +177,7 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         """
         insertion_point = value._prev
         for new_value in new_values:
-            self._insert_one_after(insertion_point, new_value)
+            self._insert_one_after(
+                insertion_point, new_value, property_modifier=property_modifier
+            )
             insertion_point = new_value
-            if property_modifier is not None:
-                property_modifier(new_value)
