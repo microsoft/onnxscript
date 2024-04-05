@@ -33,17 +33,6 @@ class Linkable(Protocol):
 TLinkable = TypeVar("TLinkable", bound=Linkable)
 
 
-def _break_from_list(elem: Linkable) -> None:
-    """Break the links of a Linkable object from a doubly linked list.
-
-    NOTE: This does not change the metadata of
-    """
-    prev, next_ = elem._prev, elem._next
-    prev._next, next_._prev = next_, prev
-    elem.__list = None
-    elem._erased = True
-
-
 class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
     """A doubly linked list of nodes.
 
