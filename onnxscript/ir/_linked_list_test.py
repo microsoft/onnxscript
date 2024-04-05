@@ -257,6 +257,109 @@ class DoublyLinkedListTest(unittest.TestCase):
         self.assertEqual(len(linked_list), 3)
         self.assertEqual([elem.value for elem in linked_list], [2, 0, 1])
 
+    def test_iterator_supports_mutation_during_iteration_current_element(self) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elems = [_TestElement(i) for i in range(3)]
+        linked_list.extend(elems)
+
+        for elem in linked_list:
+            if elem.value == 1:
+                linked_list.remove(elem)
+
+        self.assertEqual(len(linked_list), 2)
+        self.assertEqual([elem.value for elem in linked_list], [0, 2])
+        self.assertEqual([elem.value for elem in reversed(linked_list)], [2, 0])
+
+    def test_iterator_supports_mutation_during_iteration_previous_element(self) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elems = [_TestElement(i) for i in range(3)]
+        linked_list.extend(elems)
+
+        for elem in linked_list:
+            if elem.value == 1:
+                linked_list.remove(elem)
+                linked_list.remove(elems[0])
+
+        self.assertEqual(len(linked_list), 1)
+        self.assertEqual([elem.value for elem in linked_list], [2])
+        self.assertEqual([elem.value for elem in reversed(linked_list)], [2])
+
+    def test_iterator_supports_mutation_during_iteration_next_element(self) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elems = [_TestElement(i) for i in range(3)]
+        linked_list.extend(elems)
+
+        for elem in linked_list:
+            if elem.value == 1:
+                linked_list.remove(elems[2])
+                linked_list.remove(elem)
+
+        self.assertEqual(len(linked_list), 1)
+        self.assertEqual([elem.value for elem in linked_list], [0])
+        self.assertEqual([elem.value for elem in reversed(linked_list)], [0])
+
+    def test_iterator_supports_mutation_in_nested_iteration(self) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elems = [_TestElement(i) for i in range(3)]
+        linked_list.extend(elems)
+
+        iter1_visited = []
+        iter2_visited = []
+        for elem in linked_list:
+            iter1_visited.append(elem.value)
+            for elem2 in linked_list:
+                iter2_visited.append(elem2.value)
+                if elem2.value == 1:
+                    linked_list.remove(elem2)
+
+        self.assertEqual(len(linked_list), 2)
+        self.assertEqual(iter1_visited, [0, 2])
+        self.assertEqual(iter2_visited, [0, 1, 2, 0, 2])
+        self.assertEqual([elem.value for elem in linked_list], [0, 2])
+        self.assertEqual([elem.value for elem in reversed(linked_list)], [2, 0])
+
+    def test_iterator_supports_mutation_in_nested_iteration_when_iter_is_self(self) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elems = [_TestElement(i) for i in range(3)]
+        linked_list.extend(elems)
+
+        iter1_visited = []
+        iter2_visited = []
+        for elem in linked_list:
+            iter1_visited.append(elem.value)
+            for elem2 in linked_list:
+                iter2_visited.append(elem2.value)
+                if elem2.value == 0:  # Remove the element the current iterator points to
+                    linked_list.remove(elem2)
+
+        self.assertEqual(len(linked_list), 2)
+        self.assertEqual(iter1_visited, [0, 1, 2])
+        self.assertEqual(iter2_visited, [0, 1, 2, 1, 2, 1, 2])
+        self.assertEqual([elem.value for elem in linked_list], [1, 2])
+        self.assertEqual([elem.value for elem in reversed(linked_list)], [2, 1])
+
+    def test_iterator_supports_mutation_in_nested_iteration_when_iter_is_self(self) -> None:
+        linked_list = _linked_list.DoublyLinkedList(lambda: _TestElement(-1))
+        elems = [_TestElement(i) for i in range(3)]
+        linked_list.extend(elems)
+
+        iter1_visited = []
+        iter2_visited = []
+        for elem in linked_list:
+            iter1_visited.append(elem.value)
+            for elem2 in linked_list:
+                iter2_visited.append(elem2.value)
+                if (
+                    elem.value == 1 and elem2.value == 0
+                ):  # Remove the element before the current iterator points to
+                    linked_list.remove(elems[0])
+
+        self.assertEqual(len(linked_list), 2)
+        self.assertEqual(iter1_visited, [0, 1, 2])
+        self.assertEqual(iter2_visited, [0, 1, 2, 0, 1, 2, 1, 2])
+        self.assertEqual([elem.value for elem in linked_list], [1, 2])
+        self.assertEqual([elem.value for elem in reversed(linked_list)], [2, 1])
+
 
 if __name__ == "__main__":
     unittest.main()
