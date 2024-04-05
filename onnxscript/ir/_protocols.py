@@ -243,7 +243,7 @@ class MutableNodeProtocol(Protocol):
     # A mutable node requires characteristics of a doubly linked list, which
     # is not required by the NodeProtocol.
 
-    def set_input(self, index: int, value: ValueProtocol | None) -> None:
+    def replace_input_with(self, index: int, value: ValueProtocol | None) -> None:
         """Set the input at the given index to the given value, replacing the original value."""
         ...
 

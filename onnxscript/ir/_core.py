@@ -645,7 +645,7 @@ class Node(_protocols.MutableNodeProtocol, _display.PrettyPrintable):
             "Directly mutating the input sequence is unsupported. Please use Node.replace_input_with() instead."
         )
 
-    def set_input(self, index: int, value: Value | None) -> None:
+    def replace_input_with(self, index: int, value: Value | None) -> None:
         """Replace an input with a new value."""
         if index < 0 or index >= len(self.inputs):
             raise ValueError(f"Index out of range: {index}")
