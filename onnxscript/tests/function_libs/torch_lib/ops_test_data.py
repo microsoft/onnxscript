@@ -864,7 +864,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload only supports tensor(int) as indices",
     )
     .xfail(
-        enabled_if=version_utils.onnxruntime_older_than("1.18"),
+        enabled_if=version_utils.onnxruntime_older_than("1.19"),
         dtypes=(torch.float16,),
         matcher=lambda sample: sample.kwargs.get("accumulate") is True,
         reason="fixme: ORT only supports float32 when accumulate is True:  MLFloat16 data type is not supported with ScatterND when reduction is 'add'",

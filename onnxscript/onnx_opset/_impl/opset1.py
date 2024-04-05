@@ -1495,7 +1495,7 @@ class Opset1(Opset):
         If conditional
 
         Args:
-            cond: Condition for the if
+            cond: Condition for the if. The tensor must contain a single element.
 
             else_branch: Graph to run if condition is false. Has N outputs: values you
                 wish to be live-out to the enclosing scope. The number of outputs must
@@ -3011,7 +3011,8 @@ class Opset1(Opset):
 
         Computes the L1 norm of the input tensor's element along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equal 0, then
-        the resulted tensor have the reduced dimension pruned.
+        the resulted tensor have the reduced dimension pruned. Input tensors of rank zero are
+        valid. Reduction over an empty set of values yields 0.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3040,7 +3041,8 @@ class Opset1(Opset):
 
         Computes the L2 norm of the input tensor's element along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equal 0, then
-        the resulted tensor have the reduced dimension pruned.
+        the resulted tensor have the reduced dimension pruned. Input tensors of rank zero are
+        valid. Reduction over an empty set of values yields 0.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3071,7 +3073,8 @@ class Opset1(Opset):
 
         Computes the log sum of the input tensor's element along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equal 0, then
-        the resulted tensor have the reduced dimension pruned.
+        the resulted tensor have the reduced dimension pruned. Input tensors of rank zero are
+        valid. Reduction over an empty set of values yields minus infinity (if supported by the datatype) or undefined otherwise.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3106,7 +3109,8 @@ class Opset1(Opset):
 
         Computes the log sum exponent of the input tensor's element along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equal 0, then
-        the resulted tensor have the reduced dimension pruned.
+        the resulted tensor have the reduced dimension pruned. Input tensors of rank zero are
+        valid. Reduction over an empty set of values yields minus infinity (if supported by the datatype) or undefined otherwise.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3135,7 +3139,8 @@ class Opset1(Opset):
 
         Computes the max of the input tensor's element along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equal 0, then
-        the resulted tensor have the reduced dimension pruned.
+        the resulted tensor have the reduced dimension pruned. Input tensors of rank zero are
+        valid. Reduction over an empty set of values yields minus infinity (if supported by the datatype) or the minimum value of the data type otherwise.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3166,7 +3171,8 @@ class Opset1(Opset):
 
         Computes the mean of the input tensor's element along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equal 0, then
-        the resulted tensor have the reduced dimension pruned.
+        the resulted tensor have the reduced dimension pruned. Input tensors of rank zero are
+        valid. Reduction over an empty set of values yields undefined.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3195,7 +3201,8 @@ class Opset1(Opset):
 
         Computes the min of the input tensor's element along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equal 0, then
-        the resulted tensor have the reduced dimension pruned.
+        the resulted tensor have the reduced dimension pruned. Input tensors of rank zero are
+        valid. Reduction over an empty set of values yields plus infinity (if supported by the datatype) or the maximum value of the data type otherwise.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3226,7 +3233,8 @@ class Opset1(Opset):
 
         Computes the product of the input tensor's element along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equal 0, then
-        the resulted tensor have the reduced dimension pruned.
+        the resulted tensor have the reduced dimension pruned. Input tensors of rank zero are
+        valid. Reduction over an empty set of values yields 1.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3255,7 +3263,8 @@ class Opset1(Opset):
 
         Computes the sum of the input tensor's element along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equal 0, then
-        the resulted tensor have the reduced dimension pruned.
+        the resulted tensor have the reduced dimension pruned. Input tensors of rank zero are
+        valid. Reduction over an empty set of values yields 0.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3290,7 +3299,8 @@ class Opset1(Opset):
 
         Computes the sum square of the input tensor's element along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equal 0, then
-        the resulted tensor have the reduced dimension pruned.
+        the resulted tensor have the reduced dimension pruned. Input tensors of rank zero are
+        valid. Reduction over an empty set of values yields 0.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3903,10 +3913,10 @@ class Opset1(Opset):
 
 
         Retrieve the top-K elements along a specified axis. Given an input tensor of
-        shape [a_1, a_2, ..., a_n, r] and integer argument k, return two outputs:
-          -Value tensor of shape [a_1, a_2, ..., a_{axis-1}, k, a_{axis+1}, ... a_n]
+        shape [a_0, a_1, ..., a_{n-1}] and integer argument k, return two outputs:
+          -Value tensor of shape [a_0, a_1, ..., a_{axis-1}, k, a_{axis+1}, ... a_{n-1}]
             which contains the values of the top k elements along the specified axis
-          -Index tensor of shape [a_1, a_2, ..., a_{axis-1}, k, a_{axis+1}, ... a_n] which
+          -Index tensor of shape [a_0, a_1, ..., a_{axis-1}, k, a_{axis+1}, ... a_{n-1}] which
            contains the indices of the top k elements (original indices from the input
            tensor).
         Given two equivalent values, this operator uses the indices along the axis  as
@@ -3914,7 +3924,7 @@ class Opset1(Opset):
 
 
         Args:
-            X: Tensor of shape [a_1, a_2, ..., a_n, r]
+            X: Tensor of shape [a_0, a_1, ..., a_{n-1}]
 
             axis: Dimension on which to do the sort.
 
