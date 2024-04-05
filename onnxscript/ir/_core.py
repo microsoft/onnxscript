@@ -1056,7 +1056,8 @@ class Graph(_protocols.MutableGraphProtocol, Sequence[Node], _display.PrettyPrin
         self._nodes: _linked_list.DoublyLinkedList[Node] = _linked_list.DoublyLinkedList(
             root=_create_root_node_for_linked_list
         )
-        self._nodes.extend(nodes)
+        # Call self.extend not self._nodes so the graph reference is added to the nodes
+        self.extend(nodes)
 
     @property
     def inputs(self) -> tuple[Value, ...]:
