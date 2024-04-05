@@ -68,7 +68,6 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         """Iterate over the elements in the list in reverse order."""
         elem = self._root._prev
         while elem is not self._root:
-            print(elem)
             if not elem._erased:
                 yield elem  # type: ignore[misc]
             elem = elem._prev

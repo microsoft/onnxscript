@@ -1,6 +1,8 @@
-from onnxscript.ir import _linked_list
 import unittest
+
 import parameterized
+
+from onnxscript.ir import _linked_list
 
 
 class _TestElement(_linked_list.Linkable):
@@ -48,12 +50,12 @@ class DoublyLinkedListTest(unittest.TestCase):
             linked_list.append(elem)
 
         self.assertEqual(len(linked_list), 3)
-        self.assertEqual(linked_list[0], 0)
-        self.assertEqual(linked_list[1], 1)
-        self.assertEqual(linked_list[2], 2)
-        self.assertEqual(linked_list[-1], 2)
-        self.assertEqual(linked_list[-2], 1)
-        self.assertEqual(linked_list[-3], 0)
+        self.assertEqual(linked_list[0], elems[0])
+        self.assertEqual(linked_list[1], elems[1])
+        self.assertEqual(linked_list[2], elems[2])
+        self.assertEqual(linked_list[-1], elems[2])
+        self.assertEqual(linked_list[-2], elems[1])
+        self.assertEqual(linked_list[-3], elems[0])
         self.assertEqual(list(linked_list), elems)
         self.assertEqual(list(reversed(linked_list)), list(reversed(elems)))
 
@@ -63,12 +65,12 @@ class DoublyLinkedListTest(unittest.TestCase):
         linked_list.extend(elems)
 
         self.assertEqual(len(linked_list), 3)
-        self.assertEqual(linked_list[0], 0)
-        self.assertEqual(linked_list[1], 1)
-        self.assertEqual(linked_list[2], 2)
-        self.assertEqual(linked_list[-1], 2)
-        self.assertEqual(linked_list[-2], 1)
-        self.assertEqual(linked_list[-3], 0)
+        self.assertEqual(linked_list[0], elems[0])
+        self.assertEqual(linked_list[1], elems[1])
+        self.assertEqual(linked_list[2], elems[2])
+        self.assertEqual(linked_list[-1], elems[2])
+        self.assertEqual(linked_list[-2], elems[1])
+        self.assertEqual(linked_list[-3], elems[0])
         self.assertEqual(list(linked_list), elems)
         self.assertEqual(list(reversed(linked_list)), list(reversed(elems)))
 
@@ -95,7 +97,7 @@ class DoublyLinkedListTest(unittest.TestCase):
             (
                 "multiple_original_elements_insert_at_end",
                 [0, 1, 2],
-                1,
+                2,
                 [42, 43],
                 [0, 1, 2, 42, 43],
             ),
