@@ -484,7 +484,7 @@ class Node(_protocols.MutableNodeProtocol, _linked_list.Linkable, _display.Prett
         "_prev",
         "_next",
         "_erased",
-        "__list",
+        "_list",
     )
 
     def __init__(
@@ -548,14 +548,14 @@ class Node(_protocols.MutableNodeProtocol, _linked_list.Linkable, _display.Prett
         self._graph: Graph | None = graph
         self.doc_string = doc_string
 
-        # Attributes _prev, _next, _erased, __list are used for the linked list
+        # Attributes _prev, _next, _erased, _list are used for the linked list
         # and are modified by the DoublyLinkedList class. Do not modify them directly.
         # This list of nodes is constructed as a doubly linked list
         # pylint: disable=unused-private-member
         self._prev: Node = self
         self._next: Node = self
         self._erased: bool = False
-        self.__list = None
+        self._list = None
         # pylint: enable=unused-private-member
         if self._graph is not None:
             self._graph.append(self)
