@@ -1,11 +1,17 @@
+"""Mutable list for nodes in a graph with safe mutation properties."""
+
+# Inspired by https://github.com/pytorch/pytorch/blob/064a650b635e6fdaa8cf1a0dbc7dbbd23a37265d/torch/fx/graph.py
+
 from __future__ import annotations
 
 
-from typing import Generic, Iterator, Sequence, TypeVar
+from typing import Generic, Iterator, Protocol, Sequence, TypeVar
 import warnings
 
 
-T = TypeVar("T")
+
+
+
 
 
 def _connect_nodes(prev: Node | None, next: Node | None) -> None:
@@ -24,15 +30,29 @@ def _connect_node_sequence(nodes: Sequence[Node]) -> None:
         _connect_nodes(nodes[i], nodes[i + 1])
 
 
-class LinkedElement(Generic[T]):
-    """A linked element in a doubly linked list."""
+class _Linkable(Protocol):
+    """A class that can be attached to a linked box."""
 
-    def __init__(self, value: T, owning_list: DoublyLinkedList) -> None:
+    __link_box: LinkedBox | None = None
+
+
+TLinkable = TypeVar("T", bound=_Linkable)
+
+class LinkedBox(Generic[TLinkable]):
+    """A link in a doubly linked list that has a reference to the actual object in the link."""
+
+    def __init__(self, owning_list: DoublyLinkedList, value: TLinkable) -> None:
         self.owning_list = owning_list
         self._value = value
         self._prev = None
         self._next = None
         self._erased = False
+        if value.__link_box is not None:
+            raise ValueError(
+                f"Node {value!r} already belongs to a linked box '{value.__link_box!r}'. "
+                "Erase it from the list before adding it to another list."
+            )
+        value.__link_box = self
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._value})"
@@ -41,51 +61,79 @@ class LinkedElement(Generic[T]):
         return repr(self)
 
     @property
-    def value(self) -> T:
+    def value(self) -> TLinkable:
         return self._value
 
     @property
-    def prev(self) -> T | None:
+    def prev(self) -> TLinkable | None:
         return self._prev
 
     @property
-    def next(self) -> T | None:
+    def next(self) -> TLinkable | None:
         return self._next
 
+    @property
+    def erased(self) -> bool:
+        """Return whether the element is erased."""
+        return self._erased
+
     def erase(self) -> None:
-        """Remove the element from the list."""
+        """Remove the element from the list and detach the value from the linked box.
+
+        Invariants:
+            Ensures: self.erased is True
+            Ensures: self.value.__link_box is None
+        """
         if self._erased:
             warnings.warn(f"Node {self} is already erased", stacklevel=1)
             return
         self._erased = True
+        self._value.__link_box = None
 
-    def is_erased(self) -> bool:
-        """Return whether the element is erased."""
-        return self._erased
+    # def __init__(self, graph: 'Graph', direction: str = '_next'):
+    #     assert direction in ['_next', '_prev']
+    #     self.graph = graph
+    #     self.direction = direction
 
+    # def __len__(self):
+    #     return self.graph._len
 
-class DoublyLinkedList(Sequence[T]):
+    # def __iter__(self):
+    #     root = self.graph._root
+    #     if self.direction == "_next":
+    #         cur = root._next
+    #         while cur is not root:
+    #             if not cur._erased:
+    #                 yield cur
+    #             cur = cur._next
+    #     else:
+    #         assert self.direction == "_prev"
+    #         cur = root._prev
+    #         while cur is not root:
+    #             if not cur._erased:
+    #                 yield cur
+    #             cur = cur._prev
+
+    # def __reversed__(self):
+    #     return _node_list(self.graph, '_next' if self.direction == '_prev' else '_prev')
+
+class DoublyLinkedList(Sequence[TLinkable]):
     """A doubly linked list of nodes.
 
     This list supports adding and removing nodes from the list during iteration.
     """
 
     def __init__(self) -> None:
-        """Initialize the list.
-
-        Args:
-            graph: The :class:`Graph` that the list belongs to.
-        """
-        self._head: LinkedElement | None = None
-        self._tail: LinkedElement | None = None
+        self._head: LinkedBox | None = None
+        self._tail: LinkedBox | None = None
         self._length = 0
 
-    def __iter__(self) -> Iterator[T]:
-        """Iterate over the nodes in the list.
+    def __iter__(self) -> Iterator[TLinkable]:
+        """Iterate over the elements in the list.
 
-        - If new nodes are inserted after the current node, we will
+        - If new elements are inserted after the current node, we will
             iterate over them as well.
-        - If new nodes are inserted before the current node, they will
+        - If new elements are inserted before the current node, they will
             not be iterated over in this iteration.
         - If the current node is lifted and inserted in a different location,
             iteration will start from the "next" node at the new location.
@@ -100,7 +148,7 @@ class DoublyLinkedList(Sequence[T]):
     def __len__(self) -> int:
         return self._length
 
-    def __getitem__(self, index: int) -> T:
+    def __getitem__(self, index: int) -> TLinkable:
         if index >= len(self):
             # TODO: check negative index too
             raise IndexError("Index out of range")
@@ -131,15 +179,17 @@ class DoublyLinkedList(Sequence[T]):
     #             node._graph = None
     #         node = node._next
 
-    def append(self, node: Node) -> None:
+    def append(self, value: TLinkable) -> None:
         """Append a node to the list."""
+        # Remove the value from its original list of it is in a list
+        if value.__link_box is not None:
+            value.__link_box.erase()
         if len(self) == 0:
             assert self._head is None, "Bug: The head should be None when the length is 0"
             assert self._tail is None, "Bug: The tail should be None when the head is None"
-            self._head = node
-            self._tail = node
-            node._graph = self._graph
-            node._erased = False
+            link = LinkedBox(self, value)
+            self._head = link
+            self._tail = link
             self._length += 1
         else:
             assert self._head is not None
