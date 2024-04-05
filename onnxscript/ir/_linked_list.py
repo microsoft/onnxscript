@@ -10,26 +10,54 @@ from typing import Callable, Generic, Iterable, Iterator, Protocol, TypeVar
 
 
 class Linkable(Protocol):
+    # pylint: disable=unused-private-member
+    _link_box: LinkBox | None
+    # pylint: enable=unused-private-member
+
+
+TLinkable = TypeVar("TLinkable", bound=Linkable)
+
+
+class _EmptyValue(Linkable):
+    def __init__(self, link_box: LinkBox | None = None) -> None:
+        self._link_box: LinkBox | None = link_box
+
+
+class LinkBox(Generic[TLinkable]):
     """A link in a doubly linked list that has a reference to the actual object in the link.
 
     A fields are private and are managed by DoublyLinkedList
 
     Attributes:
-        _prev: The previous element in the list.
-        _next: The next element in the list.
-        _erased: A flag to indicate if the element has been removed from the list.
-        _list: The DoublyLinkedList to which the element belongs.
+        prev: The previous element in the list.
+        next: The next element in the list.
+        erased: A flag to indicate if the element has been removed from the list.
+        list: The DoublyLinkedList to which the element belongs.
     """
 
-    # pylint: disable=unused-private-member
-    _prev: Linkable
-    _next: Linkable
-    _erased: bool = False
-    _list: DoublyLinkedList | None
-    # pylint: enable=unused-private-member
+    def __init__(
+        self, owner: DoublyLinkedList[TLinkable], value: TLinkable | _EmptyValue
+    ) -> None:
+        self.prev: LinkBox[TLinkable] = self
+        self.next: LinkBox[TLinkable] = self
+        value._link_box = self  # pylint: disable=protected-access  # type: ignore
+        self.value: TLinkable | _EmptyValue = value
+        self._list: DoublyLinkedList[TLinkable] = owner
 
+    @property
+    def erased(self) -> bool:
+        return isinstance(self.value, _EmptyValue)
 
-TLinkable = TypeVar("TLinkable", bound=Linkable)
+    def erase(self) -> None:
+        """Remove the link from the list and detach the value from the box."""
+        # Update the links
+        prev, next_ = self.prev, self.next
+        prev.next, next_.prev = next_, prev
+        self.value._link_box = None  # pylint: disable=protected-access
+        self.value = _EmptyValue(self)
+
+    def __repr__(self) -> str:
+        return f"LinkBox({self.value!r}, erased={self.erased}, prev={self.prev.value!r}, next={self.next.value!r})"
 
 
 class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
@@ -38,13 +66,11 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
     This list supports adding and removing nodes from the list during iteration.
     """
 
-    def __init__(self, root: Callable[[], TLinkable]) -> None:
+    def __init__(self) -> None:
         # Using the root node simplifies the mutation implementation a lot
-        root_ = root()
-        if root_._prev is not root_ or root_._next is not root_:
-            raise ValueError("Root node must be a self-loop")
-        root_._list = self  # pylint: disable=unused-private-member
-        self._root: TLinkable = root_
+        root_ = LinkBox(self, _EmptyValue())
+        root_.value._link_box = root_  # pylint: disable=protected-access
+        self._root: LinkBox = root_
         self._length = 0
 
     def __iter__(self) -> Iterator[TLinkable]:
@@ -57,21 +83,21 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         - If the current node is lifted and inserted in a different location,
             iteration will start from the "next" node at the new location.
         """
-        elem = self._root._next
-        while elem is not self._root:
-            if elem._list is not self:
-                raise RuntimeError(f"Element {elem!r} is not in the list")
-            if not elem._erased:
-                yield elem  # type: ignore[misc]
-            elem = elem._next
+        box = self._root.next
+        while box is not self._root:
+            if box._list is not self:
+                raise RuntimeError(f"Element {box!r} is not in the list")
+            if not box.erased:
+                yield box.value
+            box = box.next
 
     def __reversed__(self) -> Iterator[TLinkable]:
         """Iterate over the elements in the list in reverse order."""
-        elem = self._root._prev
-        while elem is not self._root:
-            if not elem._erased:
-                yield elem  # type: ignore[misc]
-            elem = elem._prev
+        box = self._root.prev
+        while box is not self._root:
+            if not box.erased:
+                yield box.value
+            box = box.prev
 
     def __len__(self) -> int:
         return self._length
@@ -119,20 +145,26 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         if value is new_value:
             # Do nothing if the new value is the same as the old value
             return
+        if value._link_box is None or value._link_box._list is not self:
+            raise ValueError(f"Value {value!r} is not in the list")
+        assert value._link_box is not None
         # Remove the new value from the list if it is already in a different list
-        if new_value._list is not None:
-            new_value._list.remove(new_value)
-        new_value._list = self  # pylint: disable=unused-private-member
+        if new_value._link_box is not None:
+            new_value._link_box._list.remove(new_value)
 
-        # Update the links
-        original_next = value._next
-        value._next = new_value
-        new_value._prev = value
-        new_value._next = original_next
-        original_next._prev = new_value
+        # Create a new LinkBox for the new value
+        new_box = LinkBox(self, new_value)
+        new_value._link_box = new_box
+        # original_box <=> original_next
+        # becomes
+        # original_box <=> new_box <=> original_next
+        original_box = value._link_box
+        original_next = original_box.next
+        original_box.next = new_box
+        new_box.prev = original_box
+        new_box.next = original_next
+        original_next.prev = new_box
 
-        # Un-erase the value in case it was previously erased
-        new_value._erased = False
         # Call the property modifier in case the users want to modify the properties
         # For example, when a node is added to a graph, we want to set its graph property
         if property_modifier is not None:
@@ -145,14 +177,13 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None
     ) -> None:
         """Remove a node from the list."""
-        if value._list is not self:
+        if value._link_box is None:
+            raise ValueError(f"Value {value!r} does not belong to any list")
+        if value._link_box._list is not self:
             raise ValueError(f"Element {value!r} is not in the list")
-        value._list = None  # pylint: disable=unused-private-member
+        # Remove the link box and detach the value from the box
+        value._link_box.erase()
 
-        # Update the links
-        prev, next_ = value._prev, value._next
-        prev._next, next_._prev = next_, prev
-        value._erased = True
         # Call the property modifier in case the users want to modify the properties
         # For example, when a node is removed from a graph, we want to unset its graph property
         if property_modifier is not None:
@@ -165,7 +196,9 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None
     ) -> None:
         """Append a node to the list."""
-        self._insert_one_after(self._root._prev, value, property_modifier=property_modifier)  # type: ignore[arg-type]
+        self._insert_one_after(
+            self._root.prev.value, value, property_modifier=property_modifier
+        )  # type: ignore[arg-type]
 
     def extend(
         self,
@@ -208,7 +241,9 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
             new_values: The new values to be inserted.
             property_modifier: A function that modifies the properties of the new nodes.
         """
-        insertion_point = value._prev
+        if value._link_box is None:
+            raise ValueError(f"Value {value!r} does not belong to any list")
+        insertion_point = value._link_box.prev.value
         for new_value in new_values:
             self._insert_one_after(
                 insertion_point,  # type: ignore[arg-type]
