@@ -80,12 +80,15 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
 
         Complexity is O(n).
         """
-        if index >= len(self):
-            # TODO: check negative index too
+        if index >= len(self) or index < -len(self):
             raise IndexError("Index out of range")
         if index < 0:
             # Look up from the end of the list
-            raise NotImplementedError("Implement iteration from the back")
+            iterator = reversed(self)
+            item = next(iterator)
+            for _ in range(-index - 1):
+                item = next(iterator)
+            return item
 
         iterator = iter(self)
         item = next(iterator)
