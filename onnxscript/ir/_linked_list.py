@@ -32,10 +32,11 @@ class _LinkBox(Generic[TLinkable]):
     This is an internal class and should only be initialized by the :class:`DoublyLinkedList`.
 
     Attributes:
-        prev: The previous element in the list.
-        next: The next element in the list.
-        erased: A flag to indicate if the element has been removed from the list.
-        owning_list: The :class:`DoublyLinkedList` to which the element belongs.
+        prev: The previous box in the list.
+        next: The next box in the list.
+        erased: A flag to indicate if the box has been removed from the list.
+        owning_list: The :class:`DoublyLinkedList` to which the box belongs.
+        value: The actual object in the list.
     """
 
     __slots__ = ("prev", "next", "value", "owning_list")
