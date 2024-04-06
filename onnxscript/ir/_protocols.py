@@ -285,6 +285,11 @@ class GraphProtocol(Protocol):
     metadata_props: Mapping[str, str]
     meta: Mapping[str, Any]
 
+    def __getitem__(self, index: int) -> NodeProtocol: ...
+    def __len__(self) -> int: ...
+    def __iter__(self) -> Iterator[NodeProtocol]: ...
+    def __reversed__(self) -> Iterator[NodeProtocol]: ...
+
 
 @typing.runtime_checkable
 class MutableGraphProtocol(Protocol):
@@ -321,9 +326,14 @@ class MutableGraphProtocol(Protocol):
     opset_imports: Mapping[str, int]
     metadata_props: Mapping[str, str]
     meta: Mapping[str, Any]
-    # End Block
+
+    def __getitem__(self, index: int) -> NodeProtocol: ...
+    def __len__(self) -> int: ...
+    def __iter__(self) -> Iterator[NodeProtocol]: ...
+    def __reversed__(self) -> Iterator[NodeProtocol]: ...
 
     # Mutation methods
+    # End Block
     def append(self, node: NodeProtocol) -> None:
         """Append a node to the graph."""
         ...
@@ -547,6 +557,71 @@ class FunctionProtocol(Protocol):
         """Return the unique identifier of the function."""
         ...
 
-    def topologically_sorted_nodes(self) -> Sequence[NodeProtocol]:
-        """Return the nodes in topological order."""
+
+@typing.runtime_checkable
+class MutableFunctionProtocol(Protocol):
+    """Protocol for topologically mutable ONNX functions.
+
+    Like a graph, a function can have nodes that are not topologically sorted. It is
+    the responsibility of the user to maintain a topological order of the nodes.
+
+    Attributes:
+        name: The function name.
+        domain: The domain this function is defined in.
+        overload: The overload name when the function is overloaded.
+        inputs: The input values of the function.
+        attributes: The attributes this function defines.
+        outputs: The output values of the function.
+        opset_imports: Opsets imported by the function.
+        doc_string: Documentation string.
+        nodes: All nodes this function directly owns. They do not have to be sorted.
+        metadata_props: Metadata.
+    """
+
+    # Block: Sync with FunctionProtocol
+    name: str
+    domain: str
+    overload: str
+    inputs: Sequence[ValueProtocol]
+    attributes: OrderedDict[str, AttributeProtocol]
+    outputs: Sequence[ValueProtocol]
+    doc_string: str
+    opset_imports: Mapping[str, int]
+    nodes: Sequence[NodeProtocol]
+    metadata_props: Mapping[str, str]
+    meta: Mapping[str, Any]
+
+    def identifier(self) -> OperatorIdentifier:
+        """Return the unique identifier of the function."""
+        ...
+
+    def __getitem__(self, index: int) -> NodeProtocol: ...
+    def __len__(self) -> int: ...
+    def __iter__(self) -> Iterator[NodeProtocol]: ...
+    def __reversed__(self) -> Iterator[NodeProtocol]: ...
+
+    # Mutation methods
+    # End Block
+    def append(self, node: NodeProtocol) -> None:
+        """Append a node to the graph."""
+        ...
+
+    def extend(self, nodes: Iterable[NodeProtocol]) -> None:
+        """Extend the graph with the given nodes."""
+        ...
+
+    def remove(self, node: NodeProtocol) -> None:
+        """Remove a node from the graph."""
+        ...
+
+    def insert_after(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol]) -> None:
+        """Insert new nodes after the given node."""
+        ...
+
+    def insert_before(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol]) -> None:
+        """Insert new nodes before the given node."""
+        ...
+
+    def sort(self) -> None:
+        """Topologically sort the nodes in the graph."""
         ...
