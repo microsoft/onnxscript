@@ -1,3 +1,6 @@
+"""Unit tests for the _linked_list module."""
+from __future__ import annotations
+
 import unittest
 
 import parameterized
