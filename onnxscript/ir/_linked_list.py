@@ -36,6 +36,8 @@ class LinkBox(Generic[TLinkable]):
         owning_list: The DoublyLinkedList to which the element belongs.
     """
 
+    __slots__ = ("prev", "next", "value", "owning_list")
+
     def __init__(self, owner: DoublyLinkedList[TLinkable], value: TLinkable | None) -> None:
         """Create a new link box.
 
@@ -90,6 +92,8 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
         although accessing nodes at either end of the list is O(1). I.e. `list[0]` and `list[-1]`
         are O(1).
     """
+
+    __slots__ = ("_root", "_length")
 
     def __init__(self) -> None:
         # Using the root node simplifies the mutation implementation a lot
