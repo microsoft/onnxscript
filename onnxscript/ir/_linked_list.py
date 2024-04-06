@@ -9,8 +9,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Generic, Iterable, Iterator, Protocol, Sequence, TypeVar
-
+from typing import Generic, Iterable, Iterator, Sequence, TypeVar
 
 T = TypeVar("T")
 
