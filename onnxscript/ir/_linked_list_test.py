@@ -21,9 +21,9 @@ class DoublyLinkedListTest(unittest.TestCase):
         self.assertEqual(list(linked_list), [])
         self.assertEqual(list(reversed(linked_list)), [])
         with self.assertRaises(IndexError):
-            linked_list[0]
+            _ = linked_list[0]
         with self.assertRaises(IndexError):
-            linked_list[-1]
+            _ = linked_list[-1]
 
     def test_append_single_element(self):
         linked_list = _linked_list.DoublyLinkedList()
@@ -36,9 +36,9 @@ class DoublyLinkedListTest(unittest.TestCase):
         self.assertEqual(list(linked_list), [elem])
         self.assertEqual(list(reversed(linked_list)), [elem])
         with self.assertRaises(IndexError):
-            linked_list[1]
+            _ = linked_list[1]
         with self.assertRaises(IndexError):
-            linked_list[-2]
+            _ = linked_list[-2]
 
     def test_append_multiple_elements(self):
         linked_list = _linked_list.DoublyLinkedList()

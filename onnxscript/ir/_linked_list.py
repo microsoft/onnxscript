@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Generic, Iterable, Iterator, Protocol, TypeVar
+from typing import Callable, Generic, Iterable, Iterator, Protocol, Sequence, TypeVar
 
 
 class Linkable(Protocol):
@@ -18,76 +18,101 @@ class Linkable(Protocol):
 TLinkable = TypeVar("TLinkable", bound=Linkable)
 
 
-class _EmptyValue(Linkable):
-    def __init__(self, link_box: LinkBox | None = None) -> None:
-        self._link_box: LinkBox | None = link_box
-
-
 class LinkBox(Generic[TLinkable]):
     """A link in a doubly linked list that has a reference to the actual object in the link.
 
-    A fields are private and are managed by DoublyLinkedList
+    The :class:`LinkBox` is a container for the actual object in the list. It is used to
+    maintain the links between the elements in the linked list. The actual object is stored in the
+    :attr:`value` attribute.
+
+    By using a separate container for the actual object, we can safely remove the object from the
+    list without losing the links. This allows us to remove the object from the list during
+    iteration and place the object into a different list without breaking any chains.
 
     Attributes:
         prev: The previous element in the list.
         next: The next element in the list.
         erased: A flag to indicate if the element has been removed from the list.
-        list: The DoublyLinkedList to which the element belongs.
+        owning_list: The DoublyLinkedList to which the element belongs.
     """
 
-    def __init__(
-        self, owner: DoublyLinkedList[TLinkable], value: TLinkable | _EmptyValue
-    ) -> None:
+    def __init__(self, owner: DoublyLinkedList[TLinkable], value: TLinkable | None) -> None:
+        """Create a new link box.
+
+        Args:
+            owner: The linked list to which this box belongs.
+            value: The value to be stored in the link box. When the value is None,
+                the link box is considered erased (default). The root box of the list
+                should be created with a None value.
+        """
         self.prev: LinkBox[TLinkable] = self
         self.next: LinkBox[TLinkable] = self
-        value._link_box = self  # pylint: disable=protected-access  # type: ignore
-        self.value: TLinkable | _EmptyValue = value
-        self._list: DoublyLinkedList[TLinkable] = owner
+        if value is not None:
+            value._link_box = self  # pylint: disable=protected-access
+        self.value: TLinkable | None = value
+        self.owning_list: DoublyLinkedList[TLinkable] = owner
 
     @property
     def erased(self) -> bool:
-        return isinstance(self.value, _EmptyValue)
+        return self.value is None
 
     def erase(self) -> None:
         """Remove the link from the list and detach the value from the box."""
+        if self.value is None:
+            raise ValueError("LinkBox is already erased")
         # Update the links
         prev, next_ = self.prev, self.next
         prev.next, next_.prev = next_, prev
+        # Detach the value
         self.value._link_box = None  # pylint: disable=protected-access
-        self.value = _EmptyValue(self)
+        self.value = None
 
     def __repr__(self) -> str:
         return f"LinkBox({self.value!r}, erased={self.erased}, prev={self.prev.value!r}, next={self.next.value!r})"
 
 
-class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
+class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
     """A doubly linked list of nodes.
 
-    This list supports adding and removing nodes from the list during iteration.
+    Adding and removing elements from the list during iteration is safe. Moving elements
+    from one list to another is also safe.
+
+    During the iteration:
+    - If new elements are inserted after the current node, the iterator will
+        iterate over them as well.
+    - If new elements are inserted before the current node, they will
+        not be iterated over in this iteration.
+    - If the current node is lifted and inserted in a different location,
+        iteration will start from the "next" node at the _original_ location.
+
+    Time complexity:
+        Inserting and removing nodes from the list is O(1). Accessing nodes by index is O(n),
+        although accessing nodes at either end of the list is O(1). I.e. `list[0]` and `list[-1]`
+        are O(1).
     """
 
     def __init__(self) -> None:
         # Using the root node simplifies the mutation implementation a lot
-        root_ = LinkBox(self, _EmptyValue())
-        root_.value._link_box = root_  # pylint: disable=protected-access
+        root_ = LinkBox(self, None)
         self._root: LinkBox = root_
         self._length = 0
 
     def __iter__(self) -> Iterator[TLinkable]:
         """Iterate over the elements in the list.
 
-        - If new elements are inserted after the current node, we will
+        - If new elements are inserted after the current node, the iterator will
             iterate over them as well.
         - If new elements are inserted before the current node, they will
             not be iterated over in this iteration.
         - If the current node is lifted and inserted in a different location,
-            iteration will start from the "next" node at the new location.
+            iteration will start from the "next" node at the _original_ location.
         """
         box = self._root.next
         while box is not self._root:
-            if box._list is not self:
+            if box.owning_list is not self:
                 raise RuntimeError(f"Element {box!r} is not in the list")
             if not box.erased:
+                assert box.value is not None
                 yield box.value
             box = box.next
 
@@ -96,6 +121,7 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         box = self._root.prev
         while box is not self._root:
             if not box.erased:
+                assert box.value is not None
                 yield box.value
             box = box.prev
 
@@ -107,25 +133,26 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
 
         Complexity is O(n).
         """
-        if index >= len(self) or index < -len(self):
-            raise IndexError("Index out of range")
+        if index >= self._length or index < -self._length:
+            raise IndexError(
+                f"Index out of range: {index} not in range [-{self._length}, {self._length})"
+            )
         if index < 0:
             # Look up from the end of the list
             iterator = reversed(self)
             item = next(iterator)
             for _ in range(-index - 1):
                 item = next(iterator)
-            return item
-
-        iterator = iter(self)
-        item = next(iterator)
-        for _ in range(index):
+        else:
+            iterator = iter(self)  # type: ignore[assignment]
             item = next(iterator)
+            for _ in range(index):
+                item = next(iterator)
         return item
 
     def _insert_one_after(
         self,
-        value: TLinkable,
+        box: LinkBox[TLinkable],
         new_value: TLinkable,
         property_modifier: Callable[[TLinkable], None] | None = None,
     ) -> None:
@@ -137,20 +164,20 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
             Before: A -> B -> C
             Call: insert_after(B, D)
             After: A -> B -> D -> C
+
         Args:
-            value: The value after which the new value is to be inserted.
+            box: The box which the new value is to be inserted.
             new_value: The new value to be inserted.
             property_modifier: A function that modifies the properties of the new node.
         """
-        if value is new_value:
+        if box.value is new_value:
             # Do nothing if the new value is the same as the old value
             return
-        if value._link_box is None or value._link_box._list is not self:
-            raise ValueError(f"Value {value!r} is not in the list")
-        assert value._link_box is not None
+        if box.owning_list is not self:
+            raise ValueError(f"Value {box.value!r} is not in the list")
         # Remove the new value from the list if it is already in a different list
         if new_value._link_box is not None:
-            new_value._link_box._list.remove(new_value)
+            new_value._link_box.owning_list.remove(new_value)
 
         # Create a new LinkBox for the new value
         new_box = LinkBox(self, new_value)
@@ -158,10 +185,9 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         # original_box <=> original_next
         # becomes
         # original_box <=> new_box <=> original_next
-        original_box = value._link_box
-        original_next = original_box.next
-        original_box.next = new_box
-        new_box.prev = original_box
+        original_next = box.next
+        box.next = new_box
+        new_box.prev = box
         new_box.next = original_next
         original_next.prev = new_box
 
@@ -179,8 +205,8 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         """Remove a node from the list."""
         if value._link_box is None:
             raise ValueError(f"Value {value!r} does not belong to any list")
-        if value._link_box._list is not self:
-            raise ValueError(f"Element {value!r} is not in the list")
+        if value._link_box.owning_list is not self:
+            raise ValueError(f"Value {value!r} is not in the list")
         # Remove the link box and detach the value from the box
         value._link_box.erase()
 
@@ -196,9 +222,7 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None
     ) -> None:
         """Append a node to the list."""
-        self._insert_one_after(
-            self._root.prev.value, value, property_modifier=property_modifier
-        )  # type: ignore[arg-type]
+        self._insert_one_after(self._root.prev, value, property_modifier=property_modifier)  # type: ignore[arg-type]
 
     def extend(
         self,
@@ -221,12 +245,17 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
             new_values: The new values to be inserted.
             property_modifier: A function that modifies the properties of the new nodes.
         """
-        insertion_point = value
+        if value._link_box is None:
+            raise ValueError(f"Value {value!r} does not belong to any list")
+        if value._link_box.owning_list is not self:
+            raise ValueError(f"Value {value!r} is not in the list")
+        insertion_point = value._link_box
         for new_value in new_values:
             self._insert_one_after(
                 insertion_point, new_value, property_modifier=property_modifier
             )
-            insertion_point = new_value
+            assert new_value._link_box is not None
+            insertion_point = new_value._link_box
 
     def insert_before(
         self,
@@ -243,11 +272,14 @@ class DoublyLinkedList(Generic[TLinkable], Iterable[TLinkable]):
         """
         if value._link_box is None:
             raise ValueError(f"Value {value!r} does not belong to any list")
-        insertion_point = value._link_box.prev.value
+        if value._link_box.owning_list is not self:
+            raise ValueError(f"Value {value!r} is not in the list")
+        insertion_point = value._link_box.prev
         for new_value in new_values:
             self._insert_one_after(
-                insertion_point,  # type: ignore[arg-type]
+                insertion_point,
                 new_value,
                 property_modifier=property_modifier,
             )
-            insertion_point = new_value
+            assert new_value._link_box is not None
+            insertion_point = new_value._link_box
