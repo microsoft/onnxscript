@@ -161,15 +161,17 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
         box: _LinkBox[TLinkable],
         new_value: TLinkable,
         property_modifier: Callable[[TLinkable], None] | None = None,
-    ) -> None:
-        """Insert a new value after the given value.
+    ) -> _LinkBox[TLinkable]:
+        """Insert a new value after the given box.
 
         All insertion methods should call this method to ensure that the list is updated correctly.
 
         Example::
-            Before: A -> B -> C
-            Call: insert_after(B, D)
-            After: A -> B -> D -> C
+            Before: A  <->  B  <->  C
+                    ^v0     ^v1     ^v2
+            Call: _insert_one_after(B, v3)
+            After:  A  <->  B  <->  new_box  <->  C
+                    ^v0     ^v1       ^v3         ^v2
 
         Args:
             box: The box which the new value is to be inserted.
@@ -178,7 +180,7 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
         """
         if box.value is new_value:
             # Do nothing if the new value is the same as the old value
-            return
+            return box
         if box.owning_list is not self:
             raise ValueError(f"Value {box.value!r} is not in the list")
         # Remove the new value from the list if it is already in a different list
@@ -205,6 +207,21 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
         # Be sure to update the length
         self._length += 1
 
+        return new_box
+
+    def _insert_many_after(
+        self,
+        box: _LinkBox[TLinkable],
+        new_values: Iterable[TLinkable],
+        property_modifier: Callable[[TLinkable], None] | None = None,
+    ):
+        """Insert multiple new values after the given box."""
+        insertion_point = box
+        for new_value in new_values:
+            insertion_point = self._insert_one_after(
+                insertion_point, new_value, property_modifier=property_modifier
+            )
+
     def remove(
         self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None
     ) -> None:
@@ -228,7 +245,7 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
         self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None
     ) -> None:
         """Append a node to the list."""
-        self._insert_one_after(self._root.prev, value, property_modifier=property_modifier)
+        _ = self._insert_one_after(self._root.prev, value, property_modifier=property_modifier)
 
     def extend(
         self,
@@ -256,12 +273,9 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
         if value._link_box.owning_list is not self:
             raise ValueError(f"Value {value!r} is not in the list")
         insertion_point = value._link_box
-        for new_value in new_values:
-            self._insert_one_after(
-                insertion_point, new_value, property_modifier=property_modifier
-            )
-            assert new_value._link_box is not None
-            insertion_point = new_value._link_box
+        return self._insert_many_after(
+            insertion_point, new_values, property_modifier=property_modifier
+        )
 
     def insert_before(
         self,
@@ -281,11 +295,6 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
         if value._link_box.owning_list is not self:
             raise ValueError(f"Value {value!r} is not in the list")
         insertion_point = value._link_box.prev
-        for new_value in new_values:
-            self._insert_one_after(
-                insertion_point,
-                new_value,
-                property_modifier=property_modifier,
-            )
-            assert new_value._link_box is not None
-            insertion_point = new_value._link_box
+        return self._insert_many_after(
+            insertion_point, new_values, property_modifier=property_modifier
+        )
