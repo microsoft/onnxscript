@@ -13,16 +13,11 @@ from __future__ import annotations
 from typing import Callable, Generic, Iterable, Iterator, Protocol, Sequence, TypeVar
 
 
-class Linkable(Protocol):
-    # pylint: disable=unused-private-member
-    _link_box: _LinkBox | None
-    # pylint: enable=unused-private-member
+
+T = TypeVar("T")
 
 
-TLinkable = TypeVar("TLinkable", bound=Linkable)
-
-
-class _LinkBox(Generic[TLinkable]):
+class _LinkBox(Generic[T]):
     """A link in a doubly linked list that has a reference to the actual object in the link.
 
     The :class:`_LinkBox` is a container for the actual object in the list. It is used to
@@ -45,7 +40,7 @@ class _LinkBox(Generic[TLinkable]):
 
     __slots__ = ("prev", "next", "value", "owning_list")
 
-    def __init__(self, owner: DoublyLinkedList[TLinkable], value: TLinkable | None) -> None:
+    def __init__(self, owner: DoublyLinkedList[T], value: T | None) -> None:
         """Create a new link box.
 
         Args:
@@ -54,12 +49,10 @@ class _LinkBox(Generic[TLinkable]):
                 the link box is considered erased (default). The root box of the list
                 should be created with a None value.
         """
-        self.prev: _LinkBox[TLinkable] = self
-        self.next: _LinkBox[TLinkable] = self
-        if value is not None:
-            value._link_box = self  # pylint: disable=protected-access
-        self.value: TLinkable | None = value
-        self.owning_list: DoublyLinkedList[TLinkable] = owner
+        self.prev: _LinkBox[T] = self
+        self.next: _LinkBox[T] = self
+        self.value: T | None = value
+        self.owning_list: DoublyLinkedList[T] = owner
 
     @property
     def erased(self) -> bool:
@@ -73,14 +66,13 @@ class _LinkBox(Generic[TLinkable]):
         prev, next_ = self.prev, self.next
         prev.next, next_.prev = next_, prev
         # Detach the value
-        self.value._link_box = None  # pylint: disable=protected-access
         self.value = None
 
     def __repr__(self) -> str:
         return f"_LinkBox({self.value!r}, erased={self.erased}, prev={self.prev.value!r}, next={self.next.value!r})"
 
 
-class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
+class DoublyLinkedList(Generic[T], Sequence[T]):
     """A doubly linked list of nodes.
 
     Adding and removing elements from the list during iteration is safe. Moving elements
@@ -108,7 +100,7 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
         self._root: _LinkBox = root_
         self._length = 0
 
-    def __iter__(self) -> Iterator[TLinkable]:
+    def __iter__(self) -> Iterator[T]:
         """Iterate over the elements in the list.
 
         - If new elements are inserted after the current node, the iterator will
@@ -127,7 +119,7 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
                 yield box.value
             box = box.next
 
-    def __reversed__(self) -> Iterator[TLinkable]:
+    def __reversed__(self) -> Iterator[T]:
         """Iterate over the elements in the list in reverse order."""
         box = self._root.prev
         while box is not self._root:
@@ -139,7 +131,7 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
     def __len__(self) -> int:
         return self._length
 
-    def __getitem__(self, index: int) -> TLinkable:
+    def __getitem__(self, index: int) -> T:
         """Get the node at the given index.
 
         Complexity is O(n).
@@ -163,10 +155,10 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
 
     def _insert_one_after(
         self,
-        box: _LinkBox[TLinkable],
-        new_value: TLinkable,
-        property_modifier: Callable[[TLinkable], None] | None = None,
-    ) -> _LinkBox[TLinkable]:
+        box: _LinkBox[T],
+        new_value: T,
+        property_modifier: Callable[[T], None] | None = None,
+    ) -> _LinkBox[T]:
         """Insert a new value after the given box.
 
         All insertion methods should call this method to ensure that the list is updated correctly.
@@ -216,9 +208,9 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
 
     def _insert_many_after(
         self,
-        box: _LinkBox[TLinkable],
-        new_values: Iterable[TLinkable],
-        property_modifier: Callable[[TLinkable], None] | None = None,
+        box: _LinkBox[T],
+        new_values: Iterable[T],
+        property_modifier: Callable[[T], None] | None = None,
     ):
         """Insert multiple new values after the given box."""
         insertion_point = box
@@ -228,7 +220,7 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
             )
 
     def remove(
-        self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None
+        self, value: T, property_modifier: Callable[[T], None] | None = None
     ) -> None:
         """Remove a node from the list."""
         if value._link_box is None:
@@ -247,24 +239,24 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
         self._length -= 1
 
     def append(
-        self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None
+        self, value: T, property_modifier: Callable[[T], None] | None = None
     ) -> None:
         """Append a node to the list."""
         _ = self._insert_one_after(self._root.prev, value, property_modifier=property_modifier)
 
     def extend(
         self,
-        values: Iterable[TLinkable],
-        property_modifier: Callable[[TLinkable], None] | None = None,
+        values: Iterable[T],
+        property_modifier: Callable[[T], None] | None = None,
     ) -> None:
         for value in values:
             self.append(value, property_modifier=property_modifier)
 
     def insert_after(
         self,
-        value: TLinkable,
-        new_values: Iterable[TLinkable],
-        property_modifier: Callable[[TLinkable], None] | None = None,
+        value: T,
+        new_values: Iterable[T],
+        property_modifier: Callable[[T], None] | None = None,
     ) -> None:
         """Insert new nodes after the given node.
 
@@ -284,9 +276,9 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
 
     def insert_before(
         self,
-        value: TLinkable,
-        new_values: Iterable[TLinkable],
-        property_modifier: Callable[[TLinkable], None] | None = None,
+        value: T,
+        new_values: Iterable[T],
+        property_modifier: Callable[[T], None] | None = None,
     ) -> None:
         """Insert new nodes before the given node.
 
