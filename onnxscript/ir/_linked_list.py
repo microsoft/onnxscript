@@ -4,14 +4,12 @@
 # --------------------------------------------------------------------------
 """Mutable list for nodes in a graph with safe mutation properties."""
 # Disabled the following checks because this implementation makes heavy use of private members
-# pylint: disable=protected-access
 
 # Inspired by https://github.com/pytorch/pytorch/blob/064a650b635e6fdaa8cf1a0dbc7dbbd23a37265d/torch/fx/graph.py
 
 from __future__ import annotations
 
 from typing import Callable, Generic, Iterable, Iterator, Protocol, Sequence, TypeVar
-
 
 
 T = TypeVar("T")
@@ -28,19 +26,19 @@ class _LinkBox(Generic[T]):
     list without losing the links. This allows us to remove the object from the list during
     iteration and place the object into a different list without breaking any chains.
 
-    This is an internal class and should only be initialized by the :class:`DoublyLinkedList`.
+    This is an internal class and should only be initialized by the :class:`DoublyLinkedHashList`.
 
     Attributes:
         prev: The previous box in the list.
         next: The next box in the list.
         erased: A flag to indicate if the box has been removed from the list.
-        owning_list: The :class:`DoublyLinkedList` to which the box belongs.
+        owning_list: The :class:`DoublyLinkedHashList` to which the box belongs.
         value: The actual object in the list.
     """
 
     __slots__ = ("prev", "next", "value", "owning_list")
 
-    def __init__(self, owner: DoublyLinkedList[T], value: T | None) -> None:
+    def __init__(self, owner: DoublyLinkedHashList[T], value: T | None) -> None:
         """Create a new link box.
 
         Args:
@@ -52,7 +50,7 @@ class _LinkBox(Generic[T]):
         self.prev: _LinkBox[T] = self
         self.next: _LinkBox[T] = self
         self.value: T | None = value
-        self.owning_list: DoublyLinkedList[T] = owner
+        self.owning_list: DoublyLinkedHashList[T] = owner
 
     @property
     def erased(self) -> bool:
@@ -72,7 +70,7 @@ class _LinkBox(Generic[T]):
         return f"_LinkBox({self.value!r}, erased={self.erased}, prev={self.prev.value!r}, next={self.next.value!r})"
 
 
-class DoublyLinkedList(Generic[T], Sequence[T]):
+class DoublyLinkedHashList(Generic[T], Sequence[T]):
     """A doubly linked list of nodes.
 
     Adding and removing elements from the list during iteration is safe. Moving elements
@@ -92,13 +90,16 @@ class DoublyLinkedList(Generic[T], Sequence[T]):
         are O(1).
     """
 
-    __slots__ = ("_root", "_length")
+    __slots__ = ("_root", "_length", "_values_to_boxes")
 
-    def __init__(self) -> None:
+    def __init__(self, values: Iterable[T] | None = None) -> None:
         # Using the root node simplifies the mutation implementation a lot
         root_ = _LinkBox(self, None)
         self._root: _LinkBox = root_
         self._length = 0
+        self._values_to_boxes: dict[T, _LinkBox] = {}
+        if values is not None:
+            self.extend(values)
 
     def __iter__(self) -> Iterator[T]:
         """Iterate over the elements in the list.
@@ -157,7 +158,6 @@ class DoublyLinkedList(Generic[T], Sequence[T]):
         self,
         box: _LinkBox[T],
         new_value: T,
-        property_modifier: Callable[[T], None] | None = None,
     ) -> _LinkBox[T]:
         """Insert a new value after the given box.
 
@@ -180,13 +180,13 @@ class DoublyLinkedList(Generic[T], Sequence[T]):
             return box
         if box.owning_list is not self:
             raise ValueError(f"Value {box.value!r} is not in the list")
-        # Remove the new value from the list if it is already in a different list
-        if new_value._link_box is not None:
-            new_value._link_box.owning_list.remove(new_value)
+
+        if new_value in self._values_to_boxes:
+            # If the value is already in the list, remove it first
+            self.remove(new_value)
 
         # Create a new _LinkBox for the new value
         new_box = _LinkBox(self, new_value)
-        new_value._link_box = new_box
         # original_box <=> original_next
         # becomes
         # original_box <=> new_box <=> original_next
@@ -196,13 +196,9 @@ class DoublyLinkedList(Generic[T], Sequence[T]):
         new_box.next = original_next
         original_next.prev = new_box
 
-        # Call the property modifier in case the users want to modify the properties
-        # For example, when a node is added to a graph, we want to set its graph property
-        if property_modifier is not None:
-            property_modifier(new_value)
-
-        # Be sure to update the length
+        # Be sure to update the length and mapping
         self._length += 1
+        self._values_to_boxes[new_value] = new_box
 
         return new_box
 
@@ -210,53 +206,39 @@ class DoublyLinkedList(Generic[T], Sequence[T]):
         self,
         box: _LinkBox[T],
         new_values: Iterable[T],
-        property_modifier: Callable[[T], None] | None = None,
     ):
         """Insert multiple new values after the given box."""
         insertion_point = box
         for new_value in new_values:
-            insertion_point = self._insert_one_after(
-                insertion_point, new_value, property_modifier=property_modifier
-            )
+            insertion_point = self._insert_one_after(insertion_point, new_value)
 
-    def remove(
-        self, value: T, property_modifier: Callable[[T], None] | None = None
-    ) -> None:
+    def remove(self, value: T) -> None:
         """Remove a node from the list."""
-        if value._link_box is None:
-            raise ValueError(f"Value {value!r} does not belong to any list")
-        if value._link_box.owning_list is not self:
+        if value not in self._values_to_boxes:
             raise ValueError(f"Value {value!r} is not in the list")
+        box = self._values_to_boxes[value]
         # Remove the link box and detach the value from the box
-        value._link_box.erase()
+        box.erase()
 
-        # Call the property modifier in case the users want to modify the properties
-        # For example, when a node is removed from a graph, we want to unset its graph property
-        if property_modifier is not None:
-            property_modifier(value)
-
-        # Be sure to update the length
+        # Be sure to update the length and mapping
         self._length -= 1
+        del self._values_to_boxes[value]
 
-    def append(
-        self, value: T, property_modifier: Callable[[T], None] | None = None
-    ) -> None:
+    def append(self, value: T) -> None:
         """Append a node to the list."""
-        _ = self._insert_one_after(self._root.prev, value, property_modifier=property_modifier)
+        _ = self._insert_one_after(self._root.prev, value)
 
     def extend(
         self,
         values: Iterable[T],
-        property_modifier: Callable[[T], None] | None = None,
     ) -> None:
         for value in values:
-            self.append(value, property_modifier=property_modifier)
+            self.append(value)
 
     def insert_after(
         self,
         value: T,
         new_values: Iterable[T],
-        property_modifier: Callable[[T], None] | None = None,
     ) -> None:
         """Insert new nodes after the given node.
 
@@ -265,20 +247,15 @@ class DoublyLinkedList(Generic[T], Sequence[T]):
             new_values: The new values to be inserted.
             property_modifier: A function that modifies the properties of the new nodes.
         """
-        if value._link_box is None:
-            raise ValueError(f"Value {value!r} does not belong to any list")
-        if value._link_box.owning_list is not self:
+        if value not in self._values_to_boxes:
             raise ValueError(f"Value {value!r} is not in the list")
-        insertion_point = value._link_box
-        return self._insert_many_after(
-            insertion_point, new_values, property_modifier=property_modifier
-        )
+        insertion_point = self._values_to_boxes[value]
+        return self._insert_many_after(insertion_point, new_values)
 
     def insert_before(
         self,
         value: T,
         new_values: Iterable[T],
-        property_modifier: Callable[[T], None] | None = None,
     ) -> None:
         """Insert new nodes before the given node.
 
@@ -287,11 +264,7 @@ class DoublyLinkedList(Generic[T], Sequence[T]):
             new_values: The new values to be inserted.
             property_modifier: A function that modifies the properties of the new nodes.
         """
-        if value._link_box is None:
-            raise ValueError(f"Value {value!r} does not belong to any list")
-        if value._link_box.owning_list is not self:
+        if value not in self._values_to_boxes:
             raise ValueError(f"Value {value!r} is not in the list")
-        insertion_point = value._link_box.prev
-        return self._insert_many_after(
-            insertion_point, new_values, property_modifier=property_modifier
-        )
+        insertion_point = self._values_to_boxes[value].prev
+        return self._insert_many_after(insertion_point, new_values)

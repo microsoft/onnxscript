@@ -469,7 +469,7 @@ def _quoted(string: str) -> str:
     return f'"{string}"'
 
 
-class Node(_protocols.NodeProtocol, _linked_list.Linkable, _display.PrettyPrintable):
+class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     """IR Node."""
 
     __slots__ = (
@@ -1046,9 +1046,9 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._opset_imports = opset_imports or {}
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
-        self._nodes: _linked_list.DoublyLinkedList[Node] = _linked_list.DoublyLinkedList()
-        # Call self.extend not self._nodes.extend so the graph reference is added to the nodes
-        self.extend(nodes)
+        self._nodes: _linked_list.DoublyLinkedHashList[Node] = (
+            _linked_list.DoublyLinkedHashList(nodes)
+        )
 
     @property
     def inputs(self) -> tuple[Value, ...]:
@@ -1090,46 +1090,40 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def __reversed__(self) -> Iterator[Node]:
         return reversed(self._nodes)
 
-    def _remove_graph_reference_from_node(self, node: Node) -> None:
+    def _move_node_from_other_graph(self, node: Node) -> Node:
         """A private function to remove the graph reference from a node, used when mutating the graph by node_list."""
-        # pylint: disable=protected-access
-        node._graph = None
-        # pylint: enable=protected-access
-
-    def _add_graph_reference_to_node(self, node: Node) -> None:
-        """A private function to add the graph reference to a node, used when mutating the graph by node_list."""
-        # pylint: disable=protected-access
-        if node._graph is not None:
-            node._graph.remove(node)
-        node._graph = self
-        # pylint: enable=protected-access
+        if node.graph is not None and node.graph is not self:
+            node.graph.remove(node)
+            node._graph = self
+        return node
 
     # Mutation methods
     def append(self, node: Node) -> None:
         """Append a node to the graph in O(1) time."""
-        self._nodes.append(node, property_modifier=self._add_graph_reference_to_node)
+        self._move_node_from_other_graph(node)
+        self._nodes.append(node)
 
     def extend(self, nodes: Iterable[Node]) -> None:
         """Extend the graph with the given nodes in O(#new_nodes) time."""
-        self._nodes.extend(nodes, property_modifier=self._add_graph_reference_to_node)
+        nodes = [self._move_node_from_other_graph(node) for node in nodes]
+        self._nodes.extend(nodes)
 
     def remove(self, node: Node) -> None:
         """Remove a node from the graph in O(1) time."""
         if node.graph is not self:
             raise ValueError(f"The node {node} does not belong to this graph.")
-        self._nodes.remove(node, property_modifier=self._remove_graph_reference_from_node)
+        node._graph = None
+        self._nodes.remove(node)
 
     def insert_after(self, node: Node, new_nodes: Iterable[Node]) -> None:
         """Insert new nodes after the given node in O(#new_nodes) time."""
-        self._nodes.insert_after(
-            node, new_nodes, property_modifier=self._add_graph_reference_to_node
-        )
+        new_nodes = [self._move_node_from_other_graph(node) for node in new_nodes]
+        self._nodes.insert_after(node, new_nodes)
 
     def insert_before(self, node: Node, new_nodes: Iterable[Node]) -> None:
         """Insert new nodes before the given node in O(#new_nodes) time."""
-        self._nodes.insert_before(
-            node, new_nodes, property_modifier=self._add_graph_reference_to_node
-        )
+        new_nodes = [self._move_node_from_other_graph(node) for node in new_nodes]
+        self._nodes.insert_before(node, new_nodes)
 
     def sort(self) -> None:
         """Topologically sort the nodes in the graph."""
