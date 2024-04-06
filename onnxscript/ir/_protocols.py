@@ -603,15 +603,15 @@ class MutableFunctionProtocol(Protocol):
     # Mutation methods
     # End Block
     def append(self, node: NodeProtocol) -> None:
-        """Append a node to the graph."""
+        """Append a node to the function."""
         ...
 
     def extend(self, nodes: Iterable[NodeProtocol]) -> None:
-        """Extend the graph with the given nodes."""
+        """Extend the function with the given nodes."""
         ...
 
     def remove(self, node: NodeProtocol) -> None:
-        """Remove a node from the graph."""
+        """Remove a node from the function."""
         ...
 
     def insert_after(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol]) -> None:
@@ -623,5 +623,5 @@ class MutableFunctionProtocol(Protocol):
         ...
 
     def sort(self) -> None:
-        """Topologically sort the nodes in the graph."""
+        """Topologically sort the nodes in the function."""
         ...

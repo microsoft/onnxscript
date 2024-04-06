@@ -11,17 +11,17 @@ from typing import Callable, Generic, Iterable, Iterator, Protocol, Sequence, Ty
 
 class Linkable(Protocol):
     # pylint: disable=unused-private-member
-    _link_box: LinkBox | None
+    _link_box: _LinkBox | None
     # pylint: enable=unused-private-member
 
 
 TLinkable = TypeVar("TLinkable", bound=Linkable)
 
 
-class LinkBox(Generic[TLinkable]):
+class _LinkBox(Generic[TLinkable]):
     """A link in a doubly linked list that has a reference to the actual object in the link.
 
-    The :class:`LinkBox` is a container for the actual object in the list. It is used to
+    The :class:`_LinkBox` is a container for the actual object in the list. It is used to
     maintain the links between the elements in the linked list. The actual object is stored in the
     :attr:`value` attribute.
 
@@ -29,11 +29,13 @@ class LinkBox(Generic[TLinkable]):
     list without losing the links. This allows us to remove the object from the list during
     iteration and place the object into a different list without breaking any chains.
 
+    This is an internal class and should only be initialized by the :class:`DoublyLinkedList`.
+
     Attributes:
         prev: The previous element in the list.
         next: The next element in the list.
         erased: A flag to indicate if the element has been removed from the list.
-        owning_list: The DoublyLinkedList to which the element belongs.
+        owning_list: The :class:`DoublyLinkedList` to which the element belongs.
     """
 
     __slots__ = ("prev", "next", "value", "owning_list")
@@ -47,8 +49,8 @@ class LinkBox(Generic[TLinkable]):
                 the link box is considered erased (default). The root box of the list
                 should be created with a None value.
         """
-        self.prev: LinkBox[TLinkable] = self
-        self.next: LinkBox[TLinkable] = self
+        self.prev: _LinkBox[TLinkable] = self
+        self.next: _LinkBox[TLinkable] = self
         if value is not None:
             value._link_box = self  # pylint: disable=protected-access
         self.value: TLinkable | None = value
@@ -61,7 +63,7 @@ class LinkBox(Generic[TLinkable]):
     def erase(self) -> None:
         """Remove the link from the list and detach the value from the box."""
         if self.value is None:
-            raise ValueError("LinkBox is already erased")
+            raise ValueError("_LinkBox is already erased")
         # Update the links
         prev, next_ = self.prev, self.next
         prev.next, next_.prev = next_, prev
@@ -70,7 +72,7 @@ class LinkBox(Generic[TLinkable]):
         self.value = None
 
     def __repr__(self) -> str:
-        return f"LinkBox({self.value!r}, erased={self.erased}, prev={self.prev.value!r}, next={self.next.value!r})"
+        return f"_LinkBox({self.value!r}, erased={self.erased}, prev={self.prev.value!r}, next={self.next.value!r})"
 
 
 class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
@@ -97,8 +99,8 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
 
     def __init__(self) -> None:
         # Using the root node simplifies the mutation implementation a lot
-        root_ = LinkBox(self, None)
-        self._root: LinkBox = root_
+        root_ = _LinkBox(self, None)
+        self._root: _LinkBox = root_
         self._length = 0
 
     def __iter__(self) -> Iterator[TLinkable]:
@@ -156,7 +158,7 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
 
     def _insert_one_after(
         self,
-        box: LinkBox[TLinkable],
+        box: _LinkBox[TLinkable],
         new_value: TLinkable,
         property_modifier: Callable[[TLinkable], None] | None = None,
     ) -> None:
@@ -183,8 +185,8 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
         if new_value._link_box is not None:
             new_value._link_box.owning_list.remove(new_value)
 
-        # Create a new LinkBox for the new value
-        new_box = LinkBox(self, new_value)
+        # Create a new _LinkBox for the new value
+        new_box = _LinkBox(self, new_value)
         new_value._link_box = new_box
         # original_box <=> original_next
         # becomes

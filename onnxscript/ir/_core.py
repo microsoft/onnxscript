@@ -549,7 +549,7 @@ class Node(_protocols.MutableNodeProtocol, _linked_list.Linkable, _display.Prett
         # and is modified by the DoublyLinkedList class. Do not modify them directly.
         # This list of nodes is constructed as a doubly linked list
         # pylint: disable=unused-private-member
-        self._link_box: _linked_list.LinkBox | None = None
+        self._link_box: _linked_list._LinkBox | None = None
         # pylint: enable=unused-private-member
         if self._graph is not None:
             self._graph.append(self)
