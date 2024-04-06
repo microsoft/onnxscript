@@ -106,59 +106,25 @@ confusion among users writing rewrite-rules. (The implementations of the
 pattern-matching can vary, depending on the complexity of the pattern,
 such as whether it is single-output or multiple-output, etc.)
 
-```py
-@overload
-def MakeRewriteRule (target: onnx.FunctionProto, replacement: onnx.FunctionProto) -> RewriteRule:
-    ...
+Proposal:
 
-@overload
-def MakeRewriteRule (
-    target: TargetPatternFunction,
-    replacement: ReplacementPatternFunction
-    ) -> RewriteRule:
-    ...
+* The rewrite-rule constructor takes two parameters, one to specify the
+pattern, and one to specify the replacement. We can provide a version with
+an extra condition parameter (as a convenience feature).
 
-# Other overloads, including support for extra validation conditions
-```
+* The pattern can be either a FunctionProto (or, equivalently, an ONNX Script
+function) or a function that constructs a pattern-graph or a pattern-graph.
+In the first two cases, they are converted into a pattern-graph.
 
-## The Replacement Pattern and Conditions
+* The replacement is a function that accepts an expanded match-bindings
+(that is, `**match_bindings`) and returns either `None` (in case of failure)
+or a representation of the modification to the graph (in terms of removed
+and added nodes/values).
 
-In a simplified setting, the replacement pattern can be thought of as a function (FunctionProto)
-that has the same signature as the target pattern: so, they have the same number of inputs
-and outputs, of the same type and kind (eg., attribute parameters and input parameters).
-
-In a conditional rewrite-rule, we can specify an extra predicate-function as a parameter
-when constructing the rewrite-rule. The predicate is evaluated for every successful match
-to decide whether the rewrite-transformation should be applied. For example, we may wish
-to apply the transformation only if certain shape-conditions are met. The predicate
-function gets information about the match as its input parameter. In general, the result
-of a successful match is represented by its _match-bindings_, which is a dictionary that
-binds various variables used in the target-pattern to the values (and attributes) in the
-graph that are matched against it. For example, for the gemm-like pattern presented above,
-the match-bindings will provide the values bound to "A" as well as "term1", allowing the
-predicate to check the type and shape of these values if desired (as well as any other
-information available from the underlying graph IR). (Note: some of this is yet to be
-implemented. Currently, the dictionary doesn't yet include bindings for intermediate
-variables.)
-
-This leads to the following overloads:
-```py
-@overload
-def MakeRewriteRule (
-    target: onnx.FunctionProto,
-    replacement: onnx.FunctionProto,
-    condition: MatchPredicate,
-    ) -> RewriteRule:
-    ...
-
-@overload
-def MakeRewriteRule (
-    target: TargetPatternFunction,
-    replacement: ReplacementPatternFunction,
-    condition: MatchPredicate,
-    ) -> RewriteRule:
-    ...
-```
+* We may benefit from using a trace-mode onnxscript function above. In
+particular, we may be able to improve upon the replacement function by
+integrating the graph-modification cleanly into a generalization of the
+trace-mode onnxscript.
 
 
 
