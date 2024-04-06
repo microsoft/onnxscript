@@ -129,6 +129,9 @@ class DoublyLinkedHashList(Generic[T], Sequence[T]):
             box = box.prev
 
     def __len__(self) -> int:
+        assert self._length == len(
+            self._values_to_boxes
+        ), "Bug in the implementation: length mismatch"
         return self._length
 
     def __getitem__(self, index: int) -> T:
@@ -267,3 +270,6 @@ class DoublyLinkedHashList(Generic[T], Sequence[T]):
             raise ValueError(f"Value {value!r} is not in the list")
         insertion_point = self._values_to_boxes[value].prev
         return self._insert_many_after(insertion_point, new_values)
+
+    def __repr__(self) -> str:
+        return f"DoublyLinkedHashList({list(self)})"
