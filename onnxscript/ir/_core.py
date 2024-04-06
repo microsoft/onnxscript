@@ -1308,7 +1308,7 @@ Model(
 )"""
 
 
-class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
+class Function(_protocols.MutableFunctionProtocol, _display.PrettyPrintable):
     __slots__ = (
         "_domain",
         "_name",
