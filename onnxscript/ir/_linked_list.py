@@ -222,7 +222,7 @@ class DoublyLinkedList(Generic[TLinkable], Sequence[TLinkable]):
         self, value: TLinkable, property_modifier: Callable[[TLinkable], None] | None = None
     ) -> None:
         """Append a node to the list."""
-        self._insert_one_after(self._root.prev, value, property_modifier=property_modifier)  # type: ignore[arg-type]
+        self._insert_one_after(self._root.prev, value, property_modifier=property_modifier)
 
     def extend(
         self,
