@@ -997,11 +997,6 @@ class Input(Value):
         self._type = type
 
 
-def _create_root_node_for_linked_list() -> Node:
-    """Initialize a dummy node as root for the linked list."""
-    return Node("__internal__", "root", ())
-
-
 class Graph(_protocols.MutableGraphProtocol, Sequence[Node], _display.PrettyPrintable):
     """IR Graph.
 
@@ -1343,53 +1338,6 @@ class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
 
-    def __str__(self) -> str:
-        full_name = f"{self.domain}::{self.name}" + f":{self.overload}" * (self.overload != "")
-        inputs_text = ",\n".join(str(x) for x in self.inputs)
-        outputs_text = ",\n".join(str(x) for x in self.outputs)
-        attributes_text = ",\n".join(
-            attr.name + f": {attr.type}" + f"= {attr.value}" * (attr.value is None)
-            for attr in self.attributes.values()
-        )
-        if attributes_text:
-            attributes_text = (
-                "\nattributes={\n" + textwrap.indent(attributes_text, " " * 4) + "\n}"
-            )
-        signature = f"""\
-<
-    opset_imports={self.opset_imports!r},
->
-def {full_name}(
-    inputs=(
-{textwrap.indent(inputs_text, ' '*8)}
-    ),{textwrap.indent(attributes_text, ' '*4)}
-    outputs=(
-{textwrap.indent(outputs_text, ' '*8)}
-    ),
-)"""
-        node_count = len(self.nodes)
-        number_width = len(str(node_count))
-        node_lines = []
-        for i, node in enumerate(self.nodes):
-            node_name = node.name if node.name else f":anonymous_node:{id(node)}"
-            node_text = f"# {node_name}\n{node}"
-            indented_node_text = textwrap.indent(node_text, " " * (number_width + 4))
-            # Remove the leading spaces
-            indented_node_text = indented_node_text.strip()
-            node_lines.append(f"{i:>{number_width}} |  {indented_node_text}")
-        returns = ", ".join(str(x) for x in self.outputs)
-        body = (
-            "{\n"
-            + textwrap.indent("\n".join(node_lines), " " * 4)
-            + textwrap.indent(f"\nreturn {returns}", " " * 4)
-            + "\n}"
-        )
-
-        return f"{signature} {body}"
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.domain!r}, {self.name!r}, {self.overload!r}, inputs={self.inputs!r}, attributes={self.attributes!r}), outputs={self.outputs!r})"
-
     def identifier(self) -> _protocols.OperatorIdentifier:
         return self.domain, self.name, self.overload
 
@@ -1460,6 +1408,80 @@ def {full_name}(
         if self._metadata_props is None:
             self._metadata_props = {}
         return self._metadata_props
+
+    # Mutation methods
+    def append(self, node: Node) -> None:
+        """Append a node to the function in O(1) time."""
+        self._graph.append(node)
+
+    def extend(self, nodes: Iterable[Node]) -> None:
+        """Extend the function with the given nodes in O(#new_nodes) time."""
+        self._graph.extend(nodes)
+
+    def remove(self, node: Node) -> None:
+        """Remove a node from the function in O(1) time."""
+        self._graph.remove(node)
+
+    def insert_after(self, node: Node, new_nodes: Iterable[Node]) -> None:
+        """Insert new nodes after the given node in O(#new_nodes) time."""
+        self._graph.insert_after(node, new_nodes)
+
+    def insert_before(self, node: Node, new_nodes: Iterable[Node]) -> None:
+        """Insert new nodes before the given node in O(#new_nodes) time."""
+        self._graph.insert_before(node, new_nodes)
+
+    def sort(self) -> None:
+        """Topologically sort the nodes in the function."""
+        self._graph.sort()
+
+    # End of mutation methods
+
+    def __str__(self) -> str:
+        full_name = f"{self.domain}::{self.name}" + f":{self.overload}" * (self.overload != "")
+        inputs_text = ",\n".join(str(x) for x in self.inputs)
+        outputs_text = ",\n".join(str(x) for x in self.outputs)
+        attributes_text = ",\n".join(
+            attr.name + f": {attr.type}" + f"= {attr.value}" * (attr.value is None)
+            for attr in self.attributes.values()
+        )
+        if attributes_text:
+            attributes_text = (
+                "\nattributes={\n" + textwrap.indent(attributes_text, " " * 4) + "\n}"
+            )
+        signature = f"""\
+<
+    opset_imports={self.opset_imports!r},
+>
+def {full_name}(
+    inputs=(
+{textwrap.indent(inputs_text, ' '*8)}
+    ),{textwrap.indent(attributes_text, ' '*4)}
+    outputs=(
+{textwrap.indent(outputs_text, ' '*8)}
+    ),
+)"""
+        node_count = len(self.nodes)
+        number_width = len(str(node_count))
+        node_lines = []
+        for i, node in enumerate(self.nodes):
+            node_name = node.name if node.name else f":anonymous_node:{id(node)}"
+            node_text = f"# {node_name}\n{node}"
+            indented_node_text = textwrap.indent(node_text, " " * (number_width + 4))
+            # Remove the leading spaces
+            indented_node_text = indented_node_text.strip()
+            node_lines.append(f"{i:>{number_width}} |  {indented_node_text}")
+        returns = ", ".join(str(x) for x in self.outputs)
+        body = (
+            "{\n"
+            + textwrap.indent("\n".join(node_lines), " " * 4)
+            + textwrap.indent(f"\nreturn {returns}", " " * 4)
+            + "\n}"
+        )
+
+        return f"{signature} {body}"
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.domain!r}, {self.name!r}, {self.overload!r}, inputs={self.inputs!r}, attributes={self.attributes!r}), outputs={self.outputs!r})"
 
 
 class RefAttr(_protocols.ReferenceAttributeProtocol, _display.PrettyPrintable):
