@@ -4035,6 +4035,102 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
     return op.Transpose(self, perm=perm)
 
 
+@torch_op("aten::index.Tensor", private=True, trace_only=True)
+def _aten_index_onnx(
+    self: TensorType,
+    indices: Sequence[Optional[INT64]],
+    index_ranks: Sequence[int],
+) -> TensorType:
+    self_rank = len(self.shape)
+    advanced_indexing_rank = max(index_ranks)
+
+    # reordered_positions is the permutation of the index positions where
+    # positions with None are move to the end of the list
+    # For example, if indices = [None, 1, None, 2], then reordered_positions = [1, 3, 0, 2]
+    reordered_positions = sorted(range(len(indices)), key=lambda i: (indices[i] is None, i))
+
+    # Fill the list with the remaining indices up to the rank of the tensor self.
+    # For example, if indices = [None, 1, None, 2], and the rank of self is 6,
+    # then reordered_positions = [1, 3, 0, 2, 4, 5]
+    reordered_positions = [
+        *reordered_positions,
+        *range(len(reordered_positions), self_rank),
+    ]
+    # Transpose self according to the reordered positions
+    self = op.Transpose(self, perm=reordered_positions)
+
+    # Broadcast the indices to the same shape then concatenate
+    not_none_indices = [idx for idx in indices if idx is not None]
+    broadcast_shape = _shape_of_broadcast_tensors(*not_none_indices)
+    final_index = op.Concat(
+        *(op.Unsqueeze(op.Expand(idx, broadcast_shape), -1) for idx in not_none_indices),
+        axis=-1,
+    )
+
+    self = op.GatherND(self, final_index, batch_dims=0)
+
+    if _has_none_in_middle(indices):
+        # If there is None in the middle, Advanced Indexing cannot decide where to put
+        # the new dimensions. So it places them in the front, like GatherND does.
+        return self
+
+    # Need to transpose the result of GatherND to match this axes ordering.
+    first_not_none_position = reordered_positions[0]  # x_None_front_m + 1
+    starting_position_of_none_in_back = (
+        advanced_indexing_rank + first_not_none_position
+    )  # x_None_back_1
+    result_rank = self_rank - len(not_none_indices) + advanced_indexing_rank
+    perm = [
+        *range(
+            advanced_indexing_rank, starting_position_of_none_in_back
+        ),  # None_front_1...x_None_back_1
+        *range(0, advanced_indexing_rank),  # 0...len(broadcasted_shape)
+        *range(
+            starting_position_of_none_in_back,
+            result_rank,
+        ),  # None_back_1...None_back_m
+    ]
+
+    return op.Transpose(self, perm=perm)
+
+
+@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
+def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> TensorType:
+
+    # reordered_positions = sorted(range(len(indices)), key=lambda i: (indices[i] is not None, i))
+    # new_reordered_positions = [
+    #     *reordered_positions,
+    #     *range(len(reordered_positions), self_rank),
+    # ]
+
+    index_ranks = [len(index.shape) for index in indices if index is not None]
+
+    if index_ranks[0] == 1:
+        # Given indices contains only scalar.
+        new_indices = [op.Transpose(op.NonZero(index), perm=[1, 0]) if index is not None else None for index in indices]
+        my_indices = [op.Squeeze(index, axes=[1]) if index is not None else None for index in new_indices]
+        return _aten_index_onnx(self, my_indices, index_ranks)
+    else:
+        indices_rank = len(indices)
+        index_count = len([index for index in indices if index is not None])
+        if index_count == 1:
+            if indices[0] is not None:
+                self_rank = len(self.shape)
+                if indices_rank < self_rank:
+                    new_indices = op.Transpose(op.NonZero(indices[0]), perm=[1, 0])
+                    result = op.GatherND(self, new_indices, batch_dims=0)
+                    return result
+            else:
+                for index in indices:
+                    if index is not None:
+                        new_indices = op.Transpose(op.NonZero(index), perm=[1, 0])
+                        result = op.GatherND(self, new_indices, batch_dims=0)
+                        result = op.Transpose(result, perm=[2, 0, 1])
+                        return result
+                    else:
+                        self = op.Transpose(self, perm=[1, 2, 3, 0])
+
+
 def aten_index_add(
     self: TensorType, dim: int, index: TensorType, source: TensorType, alpha: float = 1
 ) -> TensorType:

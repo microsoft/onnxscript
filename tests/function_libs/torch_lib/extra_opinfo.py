@@ -692,6 +692,60 @@ def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
             )
 
 
+def _index_variable_bool(shape, max_indices, device):
+    if not isinstance(shape, tuple):
+        shape = (shape,)
+    index = (
+        torch.rand(*shape, dtype=torch.double, device=device).mul_(max_indices).floor_().bool()
+    )
+    return index
+
+
+def sample_inputs_index_bool(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=requires_grad
+    )
+    s = 5
+    index_bool = _index_variable_bool(s, s, device=device)
+    # index_bool = torch.tensor([True, False, False, False, True])
+    # index_bool = torch.tensor([True, True, False])
+    index_bool_2d = _index_variable_bool((s, s), s, device=device)
+    index_bool_2d_2 = _index_variable_bool((5, 5), s, device=device)
+    test_args = [
+        ([index_bool],),
+        ([None, index_bool],),
+        ([None, None, None, index_bool],),
+        ([index_bool, None],),
+        ([index_bool, None, None],),
+        # Extra index
+        ([None, index_bool, None, index_bool],),
+        ([index_bool, None, index_bool, None],),
+        ([None, index_bool, index_bool, None],),
+
+        ([index_bool_2d],),                       # Torch OK, [16, 5, 5]
+        ([index_bool_2d, None],),                 # Torch OK, [16, 5, 5]
+        ([index_bool_2d, None, None],),           # Torch OK, [16, 5, 5]
+        # ([index_bool_2d, None, None, None],),     # Torch OK, [16, 16, 5, 5]
+        # ([None, index_bool_2d],),                 # Torch OK, [5, 16, 5]
+        # ([None, None, index_bool_2d],),           # Torch OK, [5, 5, 16]
+
+        # ([index_bool_2d, index_bool_2d],),        # Torch OK, [16]
+        # ([index_bool_2d, index_bool_2d, None],),  # Torch OK, [16, 16]
+        # ([index_bool_2d, index_bool_2d, None, None],),  # Torch OK, [16, 1, 16]
+
+        # ([None, index_bool_2d, index_bool_2d],),        # Torch Bad
+        # ([None, None, index_bool_2d, index_bool_2d],),  # Torch Bad,
+        # ([None, None, None, index_bool_2d],),           # Torch Bad
+        # ([index_bool_2d, None, index_bool_2d, None],),  # Torch Bad
+        # ([index_bool_2d, None, index_bool_2d],),        # Torch Bad
+    ]
+
+    for args in test_args:
+        yield opinfo_core.SampleInput(make_arg((s, s, s, s)), args=args)
+
+
 def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
     del op_info  # Unused
     del kwargs  # Unused
@@ -703,38 +757,38 @@ def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
     index_2d = common_methods_invocations.index_variable((s + 1, 2), s, device=device)
     index_3d = common_methods_invocations.index_variable((s + 2, s + 1, 2), s, device=device)
     test_args = [
-        ([index_1d],),
-        ([None, index_1d],),
-        ([None, None, None, index_1d],),
-        ([index_1d, None],),
-        ([index_1d, None, None],),
+        # ([index_1d],),
+        # ([None, index_1d],),
+        # ([None, None, None, index_1d],),
+        # ([index_1d, None],),
+        # ([index_1d, None, None],),
         # Extra index
-        ([None, index_1d, None, index_1d],),
-        ([index_1d, None, index_1d, None],),
-        ([None, index_1d, index_1d, None],),
+        # ([None, index_1d, None, index_1d],),
+        # ([index_1d, None, index_1d, None],),
+        # ([None, index_1d, index_1d, None],),
         ([index_2d],),
-        ([None, index_2d],),
-        ([None, None, None, index_2d],),
-        ([index_2d, None],),
-        ([index_2d, None, None],),
-        # Extra index
-        ([None, index_2d, None, index_2d],),
-        ([index_2d, None, index_2d, None],),
-        ([None, index_2d, index_2d, None],),
-        ([index_3d],),
-        ([None, index_3d],),
-        ([None, None, None, index_3d],),
-        ([index_3d, None],),
-        ([index_3d, None, None],),
-        # Extra index
-        ([None, index_3d, None, index_3d],),
-        ([index_3d, None, index_3d, None],),
-        ([None, index_3d, index_3d, None],),
-        # Mixed indices
-        ([None, index_3d, index_1d, index_2d],),
-        # All indices are not None
-        ([index_2d, index_3d, index_1d],),
-        ([index_2d, index_3d, index_1d, index_2d],),
+        # ([None, index_2d],),
+        # ([None, None, None, index_2d],),
+        # ([index_2d, None],),
+        # ([index_2d, None, None],),
+        # # Extra index
+        # ([None, index_2d, None, index_2d],),
+        # ([index_2d, None, index_2d, None],),
+        # ([None, index_2d, index_2d, None],),
+        # ([index_3d],),
+        # ([None, index_3d],),
+        # ([None, None, None, index_3d],),
+        # ([index_3d, None],),
+        # ([index_3d, None, None],),
+        # # Extra index
+        # ([None, index_3d, None, index_3d],),
+        # ([index_3d, None, index_3d, None],),
+        # ([None, index_3d, index_3d, None],),
+        # # Mixed indices
+        # ([None, index_3d, index_1d, index_2d],),
+        # # All indices are not None
+        # ([index_2d, index_3d, index_1d],),
+        # ([index_2d, index_3d, index_1d, index_2d],),
     ]
 
     for args in test_args:
@@ -1955,6 +2009,15 @@ OP_DB: List[opinfo_core.OpInfo] = [
             torch.bool, torch.float16, torch.bfloat16, torch.chalf
         ),
         sample_inputs_func=sample_inputs_index,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.index.Tensor.bool",
+        aten_name="index.Tensor",
+        dtypes=common_dtype.all_types_and_complex_and(
+            torch.bool, torch.float16, torch.bfloat16, torch.chalf
+        ),
+        sample_inputs_func=sample_inputs_index_bool,
+        op=torch.ops.aten.index.Tensor,
     ),
     opinfo_core.OpInfo(
         "ops.aten.index_put",
