@@ -655,8 +655,10 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         if value is not None:
             value.add_user(self, index)
 
-    def prepend(self, node: Node) -> None:
+    def prepend(self, /, nodes: Node | Iterable[Node]) -> None:
         """Insert a node before this node in the list of nodes in the graph.
+
+        It is the same as calling ``graph.insert_before(self, nodes)``.
 
         Example::
 
@@ -666,14 +668,16 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
                     previous_node' -> next_node'
 
         Args:
-            node: The node to put before this node.
+            nodes: A node or a sequence of nodes to put before this node.
         """
         if self._graph is None:
             raise ValueError("The node to prepend to does not belong to any graph.")
-        self._graph.insert_before(self, (node,))
+        self._graph.insert_before(self, nodes)
 
-    def append(self, node: Node) -> None:
+    def append(self, /, nodes: Node | Iterable[Node]) -> None:
         """Insert a node after this node in the list of nodes in the graph.
+
+        It is the same as calling ``graph.insert_after(self, nodes)``.
 
         Example::
 
@@ -683,11 +687,11 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
                     previous_node' -> next_node'
 
         Args:
-            node: The node to put before this node.
+            nodes:  A node or a sequence of nodes to put after this node.
         """
         if self._graph is None:
             raise ValueError("The node to append to does not belong to any graph.")
-        self._graph.insert_after(self, (node,))
+        self._graph.insert_after(self, nodes)
 
     @property
     def outputs(self) -> Sequence[Value]:
@@ -1094,7 +1098,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         return node
 
     # Mutation methods
-    def append(self, node: Node) -> None:
+    def append(self, /, node: Node) -> None:
         """Append a node to the graph in O(1) time.
 
         Args:
@@ -1106,7 +1110,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._set_node_graph_to_self(node)
         self._nodes.append(node)
 
-    def extend(self, nodes: Iterable[Node]) -> None:
+    def extend(self, /, nodes: Iterable[Node]) -> None:
         """Extend the graph with the given nodes in O(#new_nodes) time.
 
         Args:
@@ -1118,7 +1122,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         nodes = [self._set_node_graph_to_self(node) for node in nodes]
         self._nodes.extend(nodes)
 
-    def remove(self, node: Node) -> None:
+    def remove(self, /, node: Node) -> None:
         """Remove a node from the graph in O(1) time.
 
         Args:
@@ -1132,7 +1136,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         node._graph = None  # pylint: disable=protected-access
         self._nodes.remove(node)
 
-    def insert_after(self, node: Node, new_nodes: Iterable[Node]) -> None:
+    def insert_after(self, node: Node, /, new_nodes: Iterable[Node] | Node) -> None:
         """Insert new nodes after the given node in O(#new_nodes) time.
 
         Args:
@@ -1142,10 +1146,12 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         Raises:
             ValueError: If any node belongs to another graph.
         """
+        if isinstance(new_nodes, Node):
+            new_nodes = (new_nodes,)
         new_nodes = [self._set_node_graph_to_self(node) for node in new_nodes]
         self._nodes.insert_after(node, new_nodes)
 
-    def insert_before(self, node: Node, new_nodes: Iterable[Node]) -> None:
+    def insert_before(self, node: Node, /, new_nodes: Iterable[Node] | Node) -> None:
         """Insert new nodes before the given node in O(#new_nodes) time.
 
         Args:
@@ -1155,6 +1161,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         Raises:
             ValueError: If any node belongs to another graph.
         """
+        if isinstance(new_nodes, Node):
+            new_nodes = (new_nodes,)
         new_nodes = [self._set_node_graph_to_self(node) for node in new_nodes]
         self._nodes.insert_before(node, new_nodes)
 
