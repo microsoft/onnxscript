@@ -549,19 +549,14 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._graph: Graph | None = graph
         self.doc_string = doc_string
 
-        # Attributes _link_box is used for the linked list
-        # and is modified by the DoublyLinkedList class. Do not modify them directly.
-        # This list of nodes is constructed as a doubly linked list
-        # pylint: disable=unused-private-member
-        self._link_box: _linked_list._LinkBox | None = None
-        # pylint: enable=unused-private-member
-        if self._graph is not None:
-            self._graph.append(self)
-
         # Add the node as a user of the inputs
         for i, input_value in enumerate(self._inputs):
             if input_value is not None:
                 input_value.add_user(self, i)
+
+        # Add the node to the graph if graph is specified
+        if self._graph is not None:
+            self._graph.append(self)
 
     def __str__(self) -> str:
         node_type_text = f"{self._domain}::{self._op_type}" + f":{self._overload}" * (
@@ -1098,7 +1093,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             raise ValueError(
                 f"The node {node} belongs to another graph. Please remove it first with Graph.remove()."
             )
-        node._graph = self
+        node._graph = self  # pylint: disable=protected-access
         return node
 
     # Mutation methods
@@ -1137,7 +1132,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         """
         if node.graph is not self:
             raise ValueError(f"The node {node} does not belong to this graph.")
-        node._graph = None
+        node._graph = None  # pylint: disable=protected-access
         self._nodes.remove(node)
 
     def insert_after(self, node: Node, new_nodes: Iterable[Node]) -> None:
