@@ -3,9 +3,6 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 """Mutable list for nodes in a graph with safe mutation properties."""
-# Disabled the following checks because this implementation makes heavy use of private members
-
-# Inspired by https://github.com/pytorch/pytorch/blob/064a650b635e6fdaa8cf1a0dbc7dbbd23a37265d/torch/fx/graph.py
 
 from __future__ import annotations
 
