@@ -15,6 +15,7 @@ __all__ = [
 import onnx
 
 from onnxscript._legacy_ir import irbuilder, protobuilder
+from onnxscript.optimizer import remove_unused, remove_unused_function
 from onnxscript.rewriter import function_rule, pattern
 
 PatternRewriteRule = pattern.RewriteRule
@@ -36,4 +37,8 @@ def rewrite(
         count = pattern.RewriteRuleSet(pattern_rewrite_rules).apply_to_model(model_ir)
         print(f"Applied {count} pattern rewrite rules.")
         model = protobuilder.build_model_proto(model_ir)
+    # TODO: Does it make more sense we run DCE after each rewrite rule applied?
+    # If so, we need IR to support DCE.
+    remove_unused.remove_unused_nodes(model)
+    remove_unused_function.remove_unused_functions(model)
     return model
