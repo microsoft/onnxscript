@@ -119,12 +119,15 @@ In the first two cases, they are converted into a pattern-graph.
 * The replacement is a function that accepts an expanded match-bindings
 (that is, `**match_bindings`) and returns either `None` (in case of failure)
 or a representation of the modification to the graph (in terms of removed
-and added nodes/values).
+and added nodes/values or a FunctionProto representing the new subgraph).
 
 * We may benefit from using a trace-mode onnxscript function above. In
 particular, we may be able to improve upon the replacement function by
 integrating the graph-modification cleanly into a generalization of the
 trace-mode onnxscript.
+
+* The implementation should provide some logging/tracing info to help
+debug patterns.
 
 
 
