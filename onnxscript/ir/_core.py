@@ -465,7 +465,7 @@ def _quoted(string: str) -> str:
     return f'"{string}"'
 
 
-class Node(_protocols.MutableNodeProtocol, _linked_list.Linkable, _display.PrettyPrintable):
+class Node(_protocols.NodeProtocol, _linked_list.Linkable, _display.PrettyPrintable):
     """IR Node."""
 
     __slots__ = (
@@ -997,7 +997,7 @@ class Input(Value):
         self._type = type
 
 
-class Graph(_protocols.MutableGraphProtocol, Sequence[Node], _display.PrettyPrintable):
+class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     """IR Graph.
 
     The graph can be used as a sequence of nodes::
@@ -1308,7 +1308,7 @@ Model(
 )"""
 
 
-class Function(_protocols.MutableFunctionProtocol, _display.PrettyPrintable):
+class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
     __slots__ = (
         "_domain",
         "_name",

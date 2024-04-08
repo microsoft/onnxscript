@@ -4,18 +4,6 @@ This file defines the interfaces for tools to interact with the IR. The interfac
 are designed such that tools leveraging the IR can be decoupled from the IR
 implementation. This allows for the implementation to evolve independently of the
 tools.
-
-The file contains two sets of interfaces:
-1. Topologically immutable interfaces:
-    These interfaces provide a complete view of the ONNX model and allows mutation
-    against any metadata fields like shape, type, and node attributes. However, the
-    interfaces are topologically immutable, meaning that the structure of the graph
-    cannot be changed. This is useful for tools that need to analyze the model
-    without modifying how nodes are connected.
-2. Mutable interfaces:
-    These interfaces provide a mutable view of the ONNX model. They allow for
-    modification of the graph structure. This is useful for tools that need to
-    transform the model.
 """
 
 from __future__ import annotations
@@ -223,28 +211,6 @@ class NodeProtocol(Protocol):
     metadata_props: Mapping[str, str]
     meta: Mapping[str, Any]
 
-
-@typing.runtime_checkable
-class MutableNodeProtocol(Protocol):
-    """Protocol for a topologically mutable node."""
-
-    # Block: Sync with NodeProtocol
-    name: str | None
-    domain: str
-    op_type: str
-    overload: str
-    inputs: Sequence[ValueProtocol]
-    outputs: Sequence[ValueProtocol]
-    attributes: OrderedDict[str, AttributeProtocol | ReferenceAttributeProtocol]
-    version: int | None
-    doc_string: str | None
-    metadata_props: Mapping[str, str]
-    meta: Mapping[str, Any]
-    # End Block
-
-    # A mutable node requires characteristics of a doubly linked list, which
-    # is not required by the NodeProtocol.
-
     def replace_input_with(self, index: int, value: ValueProtocol | None) -> None:
         """Set the input at the given index to the given value, replacing the original value."""
         ...
@@ -290,50 +256,7 @@ class GraphProtocol(Protocol):
     def __iter__(self) -> Iterator[NodeProtocol]: ...
     def __reversed__(self) -> Iterator[NodeProtocol]: ...
 
-
-@typing.runtime_checkable
-class MutableGraphProtocol(Protocol):
-    """Topologically mutable graphs.
-
-    Graph represents a computation graph. In addition to the ONNX specification
-    specified fields, it also contains a mapping of :attr:`opset_imports`. This
-    allows different subgraphs to import different opsets. It is the responsibility
-    of the deserializer to reconcile the different opsets.
-
-    The :attr:`nodes` are not guaranteed to be topologically sorted. But the
-    iteration order should be deterministic across different runs. It is the
-    responsibility of the user to maintain a topological order of the nodes.
-
-    Attributes:
-        name: The name of the graph.
-        inputs: The input values of the graph.
-        outputs: The output values of the graph.
-        nodes: All nodes this graph directly owns. They do not have to be sorted.
-        initializers: The initializers in the graph.
-        doc_string: Documentation string.
-        opset_imports: Opsets imported by the graph.
-        metadata_props: Metadata.
-    """
-
-    # Block: Sync with NodeProtocol
-    # TODO(justinchuby): Support quantization_annotation
-    name: str | None
-    inputs: Sequence[ValueProtocol]
-    outputs: Sequence[ValueProtocol]
-    nodes: Sequence[NodeProtocol]
-    initializers: Mapping[str, TensorProtocol]
-    doc_string: str
-    opset_imports: Mapping[str, int]
-    metadata_props: Mapping[str, str]
-    meta: Mapping[str, Any]
-
-    def __getitem__(self, index: int) -> NodeProtocol: ...
-    def __len__(self) -> int: ...
-    def __iter__(self) -> Iterator[NodeProtocol]: ...
-    def __reversed__(self) -> Iterator[NodeProtocol]: ...
-
     # Mutation methods
-    # End Block
     def append(self, node: NodeProtocol) -> None:
         """Append a node to the graph."""
         ...
@@ -553,52 +476,13 @@ class FunctionProtocol(Protocol):
     metadata_props: Mapping[str, str]
     meta: Mapping[str, Any]
 
-    def identifier(self) -> OperatorIdentifier:
-        """Return the unique identifier of the function."""
-        ...
-
-
-@typing.runtime_checkable
-class MutableFunctionProtocol(Protocol):
-    """Protocol for topologically mutable ONNX functions.
-
-    Like a graph, a function can have nodes that are not topologically sorted. It is
-    the responsibility of the user to maintain a topological order of the nodes.
-
-    Attributes:
-        name: The function name.
-        domain: The domain this function is defined in.
-        overload: The overload name when the function is overloaded.
-        inputs: The input values of the function.
-        attributes: The attributes this function defines.
-        outputs: The output values of the function.
-        opset_imports: Opsets imported by the function.
-        doc_string: Documentation string.
-        nodes: All nodes this function directly owns. They do not have to be sorted.
-        metadata_props: Metadata.
-    """
-
-    # Block: Sync with FunctionProtocol
-    name: str
-    domain: str
-    overload: str
-    inputs: Sequence[ValueProtocol]
-    attributes: OrderedDict[str, AttributeProtocol]
-    outputs: Sequence[ValueProtocol]
-    doc_string: str
-    opset_imports: Mapping[str, int]
-    nodes: Sequence[NodeProtocol]
-    metadata_props: Mapping[str, str]
-    meta: Mapping[str, Any]
-
-    def identifier(self) -> OperatorIdentifier:
-        """Return the unique identifier of the function."""
-        ...
-
     def __getitem__(self, index: int) -> NodeProtocol: ...
     def __len__(self) -> int: ...
     def __iter__(self) -> Iterator[NodeProtocol]: ...
     def __reversed__(self) -> Iterator[NodeProtocol]: ...
+    def identifier(self) -> OperatorIdentifier:
+        """Return the unique identifier of the function."""
+        ...
 
     # Mutation methods
     # End Block
