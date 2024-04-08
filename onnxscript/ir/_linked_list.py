@@ -175,7 +175,6 @@ class DoublyLinkedHashList(Generic[T], Sequence[T]):
         Args:
             box: The box which the new value is to be inserted.
             new_value: The new value to be inserted.
-            property_modifier: A function that modifies the properties of the new node.
         """
         if box.value is new_value:
             # Do nothing if the new value is the same as the old value
@@ -247,7 +246,6 @@ class DoublyLinkedHashList(Generic[T], Sequence[T]):
         Args:
             value: The value after which the new values are to be inserted.
             new_values: The new values to be inserted.
-            property_modifier: A function that modifies the properties of the new nodes.
         """
         if value not in self._values_to_boxes:
             raise ValueError(f"Value {value!r} is not in the list")
@@ -264,7 +262,6 @@ class DoublyLinkedHashList(Generic[T], Sequence[T]):
         Args:
             value: The value before which the new values are to be inserted.
             new_values: The new values to be inserted.
-            property_modifier: A function that modifies the properties of the new nodes.
         """
         if value not in self._values_to_boxes:
             raise ValueError(f"Value {value!r} is not in the list")
