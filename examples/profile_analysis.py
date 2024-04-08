@@ -55,11 +55,7 @@ class ModelProfile:
     def filter_op_profiles(self, op_types: set[str]) -> ModelProfile:
         """Return a new ModelProfile with only the op types in op_types."""
         return ModelProfile(
-            [
-                op_profile
-                for op_profile in self.op_profiles
-                if op_profile.op_type in op_types
-            ],
+            [op_profile for op_profile in self.op_profiles if op_profile.op_type in op_types],
             self.iteration,
             self.model_name,
             self.compiler_name,
@@ -81,9 +77,7 @@ class ModelProfile:
         )
 
     def total_op_count(self) -> int:
-        return sum(
-            [op_profile.total_count(self.iteration) for op_profile in self.op_profiles]
-        )
+        return sum([op_profile.total_count(self.iteration) for op_profile in self.op_profiles])
 
     def total_duration(self) -> float:
         """Total duration of all ops in the model in ms."""
@@ -195,9 +189,7 @@ def analyze_profile(profile_path: str):
         report.setdefault(op_type, ProfileEntry(op_type, []))
         report[op_type].entries.append((entry["name"], entry["dur"]))
 
-    sorted_node_report = sorted(
-        report.values(), key=lambda x: x.total_duration, reverse=True
-    )
+    sorted_node_report = sorted(report.values(), key=lambda x: x.total_duration, reverse=True)
     for node_report in sorted_node_report:
         print(
             f"Node {node_report.op_type} has {node_report.total_count()} instances and total duration {node_report.total_duration()} ms"

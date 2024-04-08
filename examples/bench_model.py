@@ -196,14 +196,12 @@ def check_and_run_model(
             outputs, run_time = timed_ort_callable()
             total_time += run_time
 
-        print(
-            f"Running {qual_model_name} model took {total_time / iterations} seconds."
-        )
+        print(f"Running {qual_model_name} model took {total_time / iterations} seconds.")
 
         for output, expected_output in zip(outputs, expected_outputs):
             np.testing.assert_allclose(output, expected_output, rtol=5e-1, atol=5e-1)
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"========== {qual_model_name} failed: {e}")
     else:
         print(f"========== {qual_model_name} passed")
@@ -230,9 +228,7 @@ def analyze_ort_logs(stderr_output: str) -> ORTAnalysis:
 
         # Example:
         # [V:onnxruntime:, session_state.cc:1149 VerifyEachNodeIsAssignedToAnEp]  All nodes placed on [CPUExecutionProvider]. Number of nodes: 25
-        match = re.search(
-            r"All nodes placed on \[(\w+)\]. Number of nodes: (\d+)", line
-        )
+        match = re.search(r"All nodes placed on \[(\w+)\]. Number of nodes: (\d+)", line)
         if match:
             ep = match.group(1)
             num_nodes = int(match.group(2))
@@ -296,9 +292,7 @@ if __name__ == "__main__":
         for compiler_model_folder in compiler_model_folders:
             compiler_name = compiler_model_folder.stem
             model_name = pathlib.Path(model_dir).stem
-            with open(
-                f".logs/stderr_{model_name}_{compiler_name}.log", "w"
-            ) as stderr_file:
+            with open(f".logs/stderr_{model_name}_{compiler_name}.log", "w") as stderr_file:
                 # Capture stderr which contains ORT logs.
                 subprocess_args = [
                     "python",

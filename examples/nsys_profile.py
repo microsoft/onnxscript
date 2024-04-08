@@ -107,9 +107,7 @@ if __name__ == "__main__":
 
         nsys_profile_benchmark(compiler, model_dir, iteration, report_name, nsys_path)
         nsys_export_benchmark(report_name, nsys_path)
-        reports.append(
-            analyze_nsys_json_report(iteration, report_name, model_name, compiler)
-        )
+        reports.append(analyze_nsys_json_report(iteration, report_name, model_name, compiler))
 
     if len(compilers) > 1:
         profile_analysis.compare_node_reports(

@@ -20,12 +20,7 @@ from onnxscript.rewriter import onnxruntime as ort_rewriter
 logger = logging.getLogger(__name__)
 
 
-def ort_rewrite(
-    model_name: str,
-    compiler_name: str,
-    model_dir: str
-    ):
-
+def ort_rewrite(model_name: str, compiler_name: str, model_dir: str):
     old_model_folder = f"{model_dir}/{model_name}/{compiler_name}"
     old_model_name = f"{model_name}_{compiler_name}"
 
@@ -33,9 +28,7 @@ def ort_rewrite(
     new_model_folder = f"{model_dir}/{model_name}/{compiler_name}_{post_process_name}"
     new_model_name = f"{old_model_name}_{post_process_name}"
 
-    model = onnx.load(
-        f"{old_model_folder}/{old_model_name}.onnx", load_external_data=True
-    )
+    model = onnx.load(f"{old_model_folder}/{old_model_name}.onnx", load_external_data=True)
     ort_rewritten_model = ort_rewriter.rewrite(model)
 
     with contextlib.suppress(FileNotFoundError):
@@ -55,6 +48,7 @@ def ort_rewrite(
         save_as_external_data=True,
         all_tensors_to_one_file=True,
     )
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
