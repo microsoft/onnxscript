@@ -99,4 +99,4 @@ onnxscript/tests/mylib.onnxlib
 **/onnx_backend_test_code/**
 *.onnxlib
 *.onnx
-examples/onnx_models/*
+tools/onnx_models/*

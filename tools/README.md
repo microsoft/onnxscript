@@ -3,7 +3,7 @@
 ### Setup Environment
 
 1. Setup access to vm with GPU.
-2. Install PyTorch, ONNX, ONNXScript, onnx-rewriter, etc.
+2. Install PyTorch, ONNX, ONNXScript, onnx-script, etc.
 3. Build ONNXRuntime from source, with nvtx profiling enabled.
     ```
     # Under onnxruntime root folder
@@ -20,9 +20,9 @@
 2. Prepare ONNX model.
     <!-- - (Optional) Run torchbench locally to retrieve exported model.  -->
     - Download ONNX model from [benchmark pipeline](https://dev.azure.com/onnxconverter/ONNXConverter/_build?definitionId=7&_a=summary). Navigate to the latest run, and download selected models from the artifacts.
-    - The models should be put under `onnx-script/examples/onnx_models/`. It is **important** to follow the exact folder format, since it is assumed by many analysis tools. It should look like:
+    - The models should be put under `onnx-script/tools/onnx_models/`. It is **important** to follow the exact folder format, since it is assumed by many analysis tools. It should look like:
         ```
-        onnx-script/examples/onnx_models/<model_name>
+        onnx-script/tools/onnx_models/<model_name>
         ├── dynamo
         │   ├── <model_name>_dynamo.onnx
         │   ├── test_data_set_0
@@ -39,7 +39,7 @@
 4. Investigate the root cause of performance gap.
     - Run nsys profiling analysis for detailed performance per operator. For example:
         ```
-        # Under onnx-rewriter/examples
+        # Under onnx-script/tools
         CUDA_VISIBLE_DEVICES="3" python nsys_profile.py --compiler torchscript --compiler dynamo_ort_rewritten --model-dir onnx_models/stable_diffusion_unet/ --iteration 20
         ```
         This script generates a sorted report of per operation performance. (WIP: more features to come including comparison table)
@@ -51,7 +51,7 @@
         Generating '/tmp/nsys-report-11e4.qdstrm'
         [1/1] [========================100%] _torchscript_20_20240408_231410.nsys-rep
         Generated:
-            /root/onnx-script/examples/.logs/_torchscript_20_20240408_231410.nsys-rep
+            /root/onnx-script/tools/.logs/_torchscript_20_20240408_231410.nsys-rep
         Processing 147374 events: [================================================100%]
         Node Batch- Forward has 1.0 instances and total duration 75.96109084999999 ms
         Node MatMul has 256.0 instances and total duration 19.619553800000002 ms
@@ -85,7 +85,7 @@
         Generating '/tmp/nsys-report-0832.qdstrm'
         [1/1] [========================100%] _dynamo_ort_rewritten_20_20240408_231449.nsys-rep
         Generated:
-            /root/onnx-script/examples/.logs/_dynamo_ort_rewritten_20_20240408_231449.nsys-rep
+            /root/onnx-script/tools/.logs/_dynamo_ort_rewritten_20_20240408_231449.nsys-rep
         Processing 138089 events: [================================================100%]
         Node Batch- Forward has 1.0 instances and total duration 71.85810679999999 ms
         Node GroupNorm has 61.0 instances and total duration 17.643069600000004 ms
@@ -114,12 +114,12 @@
         ```
     - Run benchmark for high level performance metrics. For example:
         ```
-        # Under onnx-rewriter/examples
+        # Under onnx-script/tools
         CUDA_VISIBLE_DEVICES="2" python bench_model.py --model-dir ./onnx_models/stable_diffusion_unet --device cuda -i 20 --compiler torchscript
         ```
         Or omit `--compiler` to run all compilers.
         ```
-        # Under onnx-rewriter/examples
+        # Under onnx-script/tools
         CUDA_VISIBLE_DEVICES="2" python bench_model.py --model-dir ./onnx_models/stable_diffusion_unet --device cuda -i 20
         ```
     - Load and inspect model in Netron.
@@ -127,15 +127,15 @@
         - Load `dynamo_ort_rewritten` model to inspect inlined graph after onnxruntime rewriter.
 
 5. Develop optimization code.
-    - `onnx-rewriter/onnxrewriter/optimizer`: Optimizations such as constant folding, inlining, dead code elimination etc.
-    - `onnx-rewriter/onnxrewriter/rewriter`: Pattern based fusions.
-    - `onnx-rewriter/onnxrewriter/rewriter/functions`: Function based fusions.
+    - `onnx-script/onnxscript/optimizer`: Optimizations such as constant folding, inlining, dead code elimination etc.
+    - `onnx-script/onnxscript/rewriter`: Pattern based fusions.
+    - `onnx-script/onnxscript/rewriter/functions`: Function based fusions.
         - Use function unittest producer tool to create function fusion unittest. Example command to distill 4 unittests for function `LlamaSdpaAttention` from `llama_v2_7b` `dynamo` model. The unittest models are named with prefix `sdpa_llama2`:
             ```
-            # Under onnx-rewriter/onnxrewriter/rewriter/transformers
-            CUDA_VISIBLE_DEVICES="3" python tools/function_unittest_producer.py --model-path ../../../examples/onnx_models/llama_v2_7b_16h/dynamo_ort_rewritten/llama_v2_7b_16h_dynamo_ort_rewritten.onnx --function LlamaSdpaAttention --output-dir ../../testing/rewriter/transformers/unittest_models/ --max-outputs 4 --name sdpa_llama2
+            # Under onnx-script/onnxscript/rewriter/transformers
+            CUDA_VISIBLE_DEVICES="3" python tools/function_unittest_producer.py --model-path ../../../tools/onnx_models/llama_v2_7b_16h/dynamo_ort_rewritten/llama_v2_7b_16h_dynamo_ort_rewritten.onnx --function LlamaSdpaAttention --output-dir ../../testing/rewriter/transformers/unittest_models/ --max-outputs 4 --name sdpa_llama2
             ```
-        - Create new testcase under `onnx-rewriter/onnxrewriter/rewriter/transformers` with the generated unittest models.
+        - Create new testcase under `onnx-script/onnxscript/rewriter/transformers` with the generated unittest models.
             ```python
                 def test_sdpa_llama2(self):
                     common.test_function_rewrite("sdpa_llama2", 4)
