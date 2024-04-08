@@ -179,7 +179,7 @@ class DoublyLinkedSet(Generic[T], Sequence[T]):
             new_value: The new value to be inserted.
         """
         if new_value is None:
-            raise TypeError("DoublyLinkedSet does not support None values")
+            raise TypeError(f"{self.__class__.__name__} does not support None values")
         if box.value is new_value:
             # Do nothing if the new value is the same as the old value
             return box
