@@ -1,3 +1,7 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 """Mutable list for nodes in a graph with safe mutation properties."""
 # Disabled the following checks because this implementation makes heavy use of private members
 # pylint: disable=protected-access
