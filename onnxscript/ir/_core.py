@@ -1041,8 +1041,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._opset_imports = opset_imports or {}
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
-        self._nodes: _linked_list.DoublyLinkedHashList[Node] = (
-            _linked_list.DoublyLinkedHashList()
+        self._nodes: _linked_list.DoublyLinkedSet[Node] = (
+            _linked_list.DoublyLinkedSet()
         )
         # Call self.extend not self._nodes.extend so the graph reference is added to the nodes
         self.extend(nodes)

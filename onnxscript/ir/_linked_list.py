@@ -25,19 +25,19 @@ class _LinkBox(Generic[T]):
     list without losing the links. This allows us to remove the object from the list during
     iteration and place the object into a different list without breaking any chains.
 
-    This is an internal class and should only be initialized by the :class:`DoublyLinkedHashList`.
+    This is an internal class and should only be initialized by the :class:`DoublyLinkedSet`.
 
     Attributes:
         prev: The previous box in the list.
         next: The next box in the list.
         erased: A flag to indicate if the box has been removed from the list.
-        owning_list: The :class:`DoublyLinkedHashList` to which the box belongs.
+        owning_list: The :class:`DoublyLinkedSet` to which the box belongs.
         value: The actual object in the list.
     """
 
     __slots__ = ("prev", "next", "value", "owning_list")
 
-    def __init__(self, owner: DoublyLinkedHashList[T], value: T | None) -> None:
+    def __init__(self, owner: DoublyLinkedSet[T], value: T | None) -> None:
         """Create a new link box.
 
         Args:
@@ -49,7 +49,7 @@ class _LinkBox(Generic[T]):
         self.prev: _LinkBox[T] = self
         self.next: _LinkBox[T] = self
         self.value: T | None = value
-        self.owning_list: DoublyLinkedHashList[T] = owner
+        self.owning_list: DoublyLinkedSet[T] = owner
 
     @property
     def erased(self) -> bool:
@@ -69,7 +69,7 @@ class _LinkBox(Generic[T]):
         return f"_LinkBox({self.value!r}, erased={self.erased}, prev={self.prev.value!r}, next={self.next.value!r})"
 
 
-class DoublyLinkedHashList(Generic[T], Sequence[T]):
+class DoublyLinkedSet(Generic[T], Sequence[T]):
     """A doubly linked list of nodes.
 
     Adding and removing elements from the list during iteration is safe. Moving elements
@@ -87,6 +87,8 @@ class DoublyLinkedHashList(Generic[T], Sequence[T]):
         Inserting and removing nodes from the list is O(1). Accessing nodes by index is O(n),
         although accessing nodes at either end of the list is O(1). I.e. `list[0]` and `list[-1]`
         are O(1).
+
+    Values need to be hashable. `None` is not a valid value in the list.
     """
 
     __slots__ = ("_root", "_length", "_values_to_boxes")
@@ -176,6 +178,8 @@ class DoublyLinkedHashList(Generic[T], Sequence[T]):
             box: The box which the new value is to be inserted.
             new_value: The new value to be inserted.
         """
+        if new_value is None:
+            raise TypeError("DoublyLinkedSet does not support None values")
         if box.value is new_value:
             # Do nothing if the new value is the same as the old value
             return box
@@ -269,4 +273,4 @@ class DoublyLinkedHashList(Generic[T], Sequence[T]):
         return self._insert_many_after(insertion_point, new_values)
 
     def __repr__(self) -> str:
-        return f"DoublyLinkedHashList({list(self)})"
+        return f"DoublyLinkedSet({list(self)})"

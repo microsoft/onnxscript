@@ -21,9 +21,9 @@ class _TestElement:
         return f"_TestElement({self.value})"
 
 
-class DoublyLinkedHashListTest(unittest.TestCase):
+class DoublyLinkedSetTest(unittest.TestCase):
     def test_empty_list(self):
-        linked_list = _linked_list.DoublyLinkedHashList()
+        linked_list = _linked_list.DoublyLinkedSet()
         self.assertEqual(len(linked_list), 0)
         self.assertEqual(list(linked_list), [])
         self.assertEqual(list(reversed(linked_list)), [])
@@ -33,7 +33,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
             _ = linked_list[-1]
 
     def test_append_single_element(self):
-        linked_list = _linked_list.DoublyLinkedHashList()
+        linked_list = _linked_list.DoublyLinkedSet()
         elem = _TestElement(0)
         linked_list.append(elem)
 
@@ -48,7 +48,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
             _ = linked_list[-2]
 
     def test_append_multiple_elements(self):
-        linked_list = _linked_list.DoublyLinkedHashList()
+        linked_list = _linked_list.DoublyLinkedSet()
         elems = [_TestElement(i) for i in range(3)]
         for elem in elems:
             linked_list.append(elem)
@@ -65,7 +65,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
 
     def test_extend(self):
         elems = [_TestElement(i) for i in range(3)]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
+        linked_list = _linked_list.DoublyLinkedSet(elems)
         self.assertEqual(len(linked_list), 3)
         self.assertEqual(linked_list[0], elems[0])
         self.assertEqual(linked_list[1], elems[1])
@@ -110,7 +110,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
     ) -> None:
         # Construct the original list
         elems = [_TestElement(i) for i in original]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
+        linked_list = _linked_list.DoublyLinkedSet(elems)
 
         # Create the new elements
         new_elements = [_TestElement(i) for i in insertion]
@@ -154,7 +154,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
     ) -> None:
         # Construct the original list
         elems = [_TestElement(i) for i in original]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
+        linked_list = _linked_list.DoublyLinkedSet(elems)
 
         # Create the new elements
         new_elements = [_TestElement(i) for i in insertion]
@@ -177,7 +177,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
     )
     def test_remove(self, _: str, index: int, expected: list[int]) -> None:
         elems = [_TestElement(i) for i in range(3)]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
+        linked_list = _linked_list.DoublyLinkedSet(elems)
 
         linked_list.remove(elems[index])
 
@@ -187,13 +187,13 @@ class DoublyLinkedHashListTest(unittest.TestCase):
 
     def test_remove_raises_when_element_not_found(self) -> None:
         elems = [_TestElement(i) for i in range(3)]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
+        linked_list = _linked_list.DoublyLinkedSet(elems)
 
         with self.assertRaises(ValueError):
             linked_list.remove(_TestElement(3))
 
     def test_remove_raises_when_element_is_already_removed(self) -> None:
-        linked_list = _linked_list.DoublyLinkedHashList()
+        linked_list = _linked_list.DoublyLinkedSet()
         elem = _TestElement(0)
         linked_list.append(elem)
         linked_list.remove(elem)
@@ -202,7 +202,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
             linked_list.remove(elem)
 
     def test_append_self_does_nothing(self) -> None:
-        linked_list = _linked_list.DoublyLinkedHashList()
+        linked_list = _linked_list.DoublyLinkedSet()
         elem = _TestElement(0)
         linked_list.append(elem)
 
@@ -215,7 +215,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
 
     def test_append_supports_appending_element_from_the_same_list(self) -> None:
         elems = [_TestElement(i) for i in range(3)]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
+        linked_list = _linked_list.DoublyLinkedSet(elems)
 
         linked_list.append(elems[1])
 
@@ -225,7 +225,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
 
     def test_extend_supports_extending_elements_from_the_same_list(self) -> None:
         elems = [_TestElement(i) for i in range(3)]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
+        linked_list = _linked_list.DoublyLinkedSet(elems)
         linked_list.extend(elems[::-1])
 
         self.assertEqual(len(linked_list), 3)
@@ -234,7 +234,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
 
     def test_insert_after_supports_inserting_element_from_the_same_list(self) -> None:
         elems = [_TestElement(i) for i in range(3)]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
+        linked_list = _linked_list.DoublyLinkedSet(elems)
         linked_list.insert_after(elems[0], [elems[2]])
 
         self.assertEqual(len(linked_list), 3)
@@ -242,7 +242,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
 
     def test_insert_before_supports_inserting_element_from_the_same_list(self) -> None:
         elems = [_TestElement(i) for i in range(3)]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
+        linked_list = _linked_list.DoublyLinkedSet(elems)
         linked_list.insert_before(elems[0], [elems[2]])
 
         self.assertEqual(len(linked_list), 3)
@@ -250,7 +250,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
 
     def test_iterator_supports_mutation_during_iteration_current_element(self) -> None:
         elems = [_TestElement(i) for i in range(3)]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
+        linked_list = _linked_list.DoublyLinkedSet(elems)
         for elem in linked_list:
             if elem.value == 1:
                 linked_list.remove(elem)
@@ -261,7 +261,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
 
     def test_iterator_supports_mutation_during_iteration_previous_element(self) -> None:
         elems = [_TestElement(i) for i in range(3)]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
+        linked_list = _linked_list.DoublyLinkedSet(elems)
         for elem in linked_list:
             if elem.value == 1:
                 linked_list.remove(elem)
@@ -273,7 +273,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
 
     def test_iterator_supports_mutation_during_iteration_next_element(self) -> None:
         elems = [_TestElement(i) for i in range(3)]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
+        linked_list = _linked_list.DoublyLinkedSet(elems)
         for elem in linked_list:
             if elem.value == 1:
                 linked_list.remove(elems[2])
@@ -285,7 +285,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
 
     def test_iterator_supports_mutation_in_nested_iteration_right_of_iterator(self) -> None:
         elems = [_TestElement(i) for i in range(3)]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
+        linked_list = _linked_list.DoublyLinkedSet(elems)
         iter1_visited = []
         iter2_visited = []
         for elem in linked_list:
@@ -303,7 +303,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
 
     def test_iterator_supports_mutation_in_nested_iteration_when_iter_is_self(self) -> None:
         elems = [_TestElement(i) for i in range(3)]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
+        linked_list = _linked_list.DoublyLinkedSet(elems)
         iter1_visited = []
         iter2_visited = []
         for elem in linked_list:
@@ -321,7 +321,7 @@ class DoublyLinkedHashListTest(unittest.TestCase):
 
     def test_iterator_supports_mutation_in_nested_iteration_left_of_iterator(self) -> None:
         elems = [_TestElement(i) for i in range(3)]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
+        linked_list = _linked_list.DoublyLinkedSet(elems)
         iter1_visited = []
         iter2_visited = []
         for elem in linked_list:
@@ -341,8 +341,8 @@ class DoublyLinkedHashListTest(unittest.TestCase):
 
     def test_insert_after_supports_element_from_different_list_during_iteration(self) -> None:
         elems = [_TestElement(i) for i in range(3)]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
-        other_linked_list = _linked_list.DoublyLinkedHashList()
+        linked_list = _linked_list.DoublyLinkedSet(elems)
+        other_linked_list = _linked_list.DoublyLinkedSet()
         other_elem = _TestElement(42)
         other_linked_list.append(other_elem)
 
@@ -361,8 +361,8 @@ class DoublyLinkedHashListTest(unittest.TestCase):
         self,
     ) -> None:
         elems = [_TestElement(i) for i in range(3)]
-        linked_list = _linked_list.DoublyLinkedHashList(elems)
-        other_linked_list = _linked_list.DoublyLinkedHashList()
+        linked_list = _linked_list.DoublyLinkedSet(elems)
+        other_linked_list = _linked_list.DoublyLinkedSet()
         other_elem = _TestElement(42)
         other_linked_list.append(other_elem)
 
