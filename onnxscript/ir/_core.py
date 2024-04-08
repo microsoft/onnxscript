@@ -469,7 +469,7 @@ def _quoted(string: str) -> str:
     return f'"{string}"'
 
 
-class Node(_protocols.NodeProtocol, _linked_list.Linkable, _display.PrettyPrintable):
+class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     """IR Node."""
 
     __slots__ = (
@@ -549,19 +549,14 @@ class Node(_protocols.NodeProtocol, _linked_list.Linkable, _display.PrettyPrinta
         self._graph: Graph | None = graph
         self.doc_string = doc_string
 
-        # Attributes _link_box is used for the linked list
-        # and is modified by the DoublyLinkedList class. Do not modify them directly.
-        # This list of nodes is constructed as a doubly linked list
-        # pylint: disable=unused-private-member
-        self._link_box: _linked_list._LinkBox | None = None
-        # pylint: enable=unused-private-member
-        if self._graph is not None:
-            self._graph.append(self)
-
         # Add the node as a user of the inputs
         for i, input_value in enumerate(self._inputs):
             if input_value is not None:
                 input_value.add_user(self, i)
+
+        # Add the node to the graph if graph is specified
+        if self._graph is not None:
+            self._graph.append(self)
 
     def __str__(self) -> str:
         node_type_text = f"{self._domain}::{self._op_type}" + f":{self._overload}" * (
@@ -1046,7 +1041,9 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._opset_imports = opset_imports or {}
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
-        self._nodes: _linked_list.DoublyLinkedList[Node] = _linked_list.DoublyLinkedList()
+        self._nodes: _linked_list.DoublyLinkedSet[Node] = (
+            _linked_list.DoublyLinkedSet()
+        )
         # Call self.extend not self._nodes.extend so the graph reference is added to the nodes
         self.extend(nodes)
 
@@ -1090,46 +1087,79 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def __reversed__(self) -> Iterator[Node]:
         return reversed(self._nodes)
 
-    def _remove_graph_reference_from_node(self, node: Node) -> None:
-        """A private function to remove the graph reference from a node, used when mutating the graph by node_list."""
-        # pylint: disable=protected-access
-        node._graph = None
-        # pylint: enable=protected-access
-
-    def _add_graph_reference_to_node(self, node: Node) -> None:
-        """A private function to add the graph reference to a node, used when mutating the graph by node_list."""
-        # pylint: disable=protected-access
-        if node._graph is not None:
-            node._graph.remove(node)
-        node._graph = self
-        # pylint: enable=protected-access
+    def _set_node_graph_to_self(self, node: Node) -> Node:
+        """Set the graph reference for the node."""
+        if node.graph is not None and node.graph is not self:
+            raise ValueError(
+                f"The node {node} belongs to another graph. Please remove it first with Graph.remove()."
+            )
+        node._graph = self  # pylint: disable=protected-access
+        return node
 
     # Mutation methods
     def append(self, node: Node) -> None:
-        """Append a node to the graph in O(1) time."""
-        self._nodes.append(node, property_modifier=self._add_graph_reference_to_node)
+        """Append a node to the graph in O(1) time.
+
+        Args:
+            node: The node to append.
+
+        Raises:
+            ValueError: If the node belongs to another graph.
+        """
+        self._set_node_graph_to_self(node)
+        self._nodes.append(node)
 
     def extend(self, nodes: Iterable[Node]) -> None:
-        """Extend the graph with the given nodes in O(#new_nodes) time."""
-        self._nodes.extend(nodes, property_modifier=self._add_graph_reference_to_node)
+        """Extend the graph with the given nodes in O(#new_nodes) time.
+
+        Args:
+            nodes: The nodes to extend the graph with.
+
+        Raises:
+            ValueError: If any node belongs to another graph.
+        """
+        nodes = [self._set_node_graph_to_self(node) for node in nodes]
+        self._nodes.extend(nodes)
 
     def remove(self, node: Node) -> None:
-        """Remove a node from the graph in O(1) time."""
+        """Remove a node from the graph in O(1) time.
+
+        Args:
+            node: The node to remove.
+
+        Raises:
+            ValueError: If the node does not belong to this graph.
+        """
         if node.graph is not self:
             raise ValueError(f"The node {node} does not belong to this graph.")
-        self._nodes.remove(node, property_modifier=self._remove_graph_reference_from_node)
+        node._graph = None  # pylint: disable=protected-access
+        self._nodes.remove(node)
 
     def insert_after(self, node: Node, new_nodes: Iterable[Node]) -> None:
-        """Insert new nodes after the given node in O(#new_nodes) time."""
-        self._nodes.insert_after(
-            node, new_nodes, property_modifier=self._add_graph_reference_to_node
-        )
+        """Insert new nodes after the given node in O(#new_nodes) time.
+
+        Args:
+            node: The node to insert after.
+            new_nodes: The new nodes to insert.
+
+        Raises:
+            ValueError: If any node belongs to another graph.
+        """
+        new_nodes = [self._set_node_graph_to_self(node) for node in new_nodes]
+        self._nodes.insert_after(node, new_nodes)
 
     def insert_before(self, node: Node, new_nodes: Iterable[Node]) -> None:
-        """Insert new nodes before the given node in O(#new_nodes) time."""
-        self._nodes.insert_before(
-            node, new_nodes, property_modifier=self._add_graph_reference_to_node
-        )
+        """Insert new nodes before the given node in O(#new_nodes) time.
+
+        Args:
+            node: The node to insert before.
+            new_nodes: The new nodes to insert.
+
+        Raises:
+            ValueError: If any node belongs to another graph.
+        """
+        new_nodes = [self._set_node_graph_to_self(node) for node in new_nodes]
+        self._nodes.insert_before(node, new_nodes)
 
     def sort(self) -> None:
         """Topologically sort the nodes in the graph."""
