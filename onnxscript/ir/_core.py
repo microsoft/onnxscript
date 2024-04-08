@@ -1046,7 +1046,9 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._opset_imports = opset_imports or {}
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
-        self._nodes: _linked_list.DoublyLinkedHashList[Node] = _linked_list.DoublyLinkedHashList()
+        self._nodes: _linked_list.DoublyLinkedHashList[Node] = (
+            _linked_list.DoublyLinkedHashList()
+        )
         # Call self.extend not self._nodes.extend so the graph reference is added to the nodes
         self.extend(nodes)
 
@@ -1090,39 +1092,78 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def __reversed__(self) -> Iterator[Node]:
         return reversed(self._nodes)
 
-    def _move_node_from_other_graph(self, node: Node) -> Node:
-        """A private function to remove the graph reference from a node, used when mutating the graph by node_list."""
+    def _set_node_graph_to_self(self, node: Node) -> Node:
+        """Set the graph reference for the node."""
         if node.graph is not None and node.graph is not self:
-            node.graph.remove(node)
-            node._graph = self
+            raise ValueError(
+                f"The node {node} belongs to another graph. Please remove it first with Graph.remove()."
+            )
+        node._graph = self
         return node
 
     # Mutation methods
     def append(self, node: Node) -> None:
-        """Append a node to the graph in O(1) time."""
-        self._move_node_from_other_graph(node)
+        """Append a node to the graph in O(1) time.
+
+        Args:
+            node: The node to append.
+
+        Raises:
+            ValueError: If the node belongs to another graph.
+        """
+        self._set_node_graph_to_self(node)
         self._nodes.append(node)
 
     def extend(self, nodes: Iterable[Node]) -> None:
-        """Extend the graph with the given nodes in O(#new_nodes) time."""
-        nodes = [self._move_node_from_other_graph(node) for node in nodes]
+        """Extend the graph with the given nodes in O(#new_nodes) time.
+
+        Args:
+            nodes: The nodes to extend the graph with.
+
+        Raises:
+            ValueError: If any node belongs to another graph.
+        """
+        nodes = [self._set_node_graph_to_self(node) for node in nodes]
         self._nodes.extend(nodes)
 
     def remove(self, node: Node) -> None:
-        """Remove a node from the graph in O(1) time."""
+        """Remove a node from the graph in O(1) time.
+
+        Args:
+            node: The node to remove.
+
+        Raises:
+            ValueError: If the node does not belong to this graph.
+        """
         if node.graph is not self:
             raise ValueError(f"The node {node} does not belong to this graph.")
         node._graph = None
         self._nodes.remove(node)
 
     def insert_after(self, node: Node, new_nodes: Iterable[Node]) -> None:
-        """Insert new nodes after the given node in O(#new_nodes) time."""
-        new_nodes = [self._move_node_from_other_graph(node) for node in new_nodes]
+        """Insert new nodes after the given node in O(#new_nodes) time.
+
+        Args:
+            node: The node to insert after.
+            new_nodes: The new nodes to insert.
+
+        Raises:
+            ValueError: If any node belongs to another graph.
+        """
+        new_nodes = [self._set_node_graph_to_self(node) for node in new_nodes]
         self._nodes.insert_after(node, new_nodes)
 
     def insert_before(self, node: Node, new_nodes: Iterable[Node]) -> None:
-        """Insert new nodes before the given node in O(#new_nodes) time."""
-        new_nodes = [self._move_node_from_other_graph(node) for node in new_nodes]
+        """Insert new nodes before the given node in O(#new_nodes) time.
+
+        Args:
+            node: The node to insert before.
+            new_nodes: The new nodes to insert.
+
+        Raises:
+            ValueError: If any node belongs to another graph.
+        """
+        new_nodes = [self._set_node_graph_to_self(node) for node in new_nodes]
         self._nodes.insert_before(node, new_nodes)
 
     def sort(self) -> None:
