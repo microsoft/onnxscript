@@ -70,10 +70,14 @@ class _LinkBox(Generic[T]):
 
 
 class DoublyLinkedSet(Generic[T], Sequence[T]):
-    """A doubly linked list of nodes.
+    """A doubly linked ordered set of nodes.
 
-    Adding and removing elements from the list during iteration is safe. Moving elements
-    from one list to another is also safe.
+    The container can be viewed as a set as it does not allow duplicate values. The order of the
+    elements is maintained. One can typically treat it as a doubly linked list with list-like
+    methods implemented.
+
+    Adding and removing elements from the set during iteration is safe. Moving elements
+    from one set to another is also safe.
 
     During the iteration:
     - If new elements are inserted after the current node, the iterator will
@@ -84,21 +88,21 @@ class DoublyLinkedSet(Generic[T], Sequence[T]):
         iteration will start from the "next" node at the _original_ location.
 
     Time complexity:
-        Inserting and removing nodes from the list is O(1). Accessing nodes by index is O(n),
-        although accessing nodes at either end of the list is O(1). I.e. `list[0]` and `list[-1]`
-        are O(1).
+        Inserting and removing nodes from the set is O(1). Accessing nodes by index is O(n),
+        although accessing nodes at either end of the set is O(1). I.e.
+        ``linked_set[0]`` and ``linked_set[-1]`` are O(1).
 
-    Values need to be hashable. `None` is not a valid value in the list.
+    Values need to be hashable. ``None`` is not a valid value in the set.
     """
 
-    __slots__ = ("_root", "_length", "_values_to_boxes")
+    __slots__ = ("_root", "_length", "_value_ids_to_boxes")
 
     def __init__(self, values: Iterable[T] | None = None) -> None:
         # Using the root node simplifies the mutation implementation a lot
         root_ = _LinkBox(self, None)
         self._root: _LinkBox = root_
         self._length = 0
-        self._values_to_boxes: dict[T, _LinkBox] = {}
+        self._value_ids_to_boxes: dict[int, _LinkBox] = {}
         if values is not None:
             self.extend(values)
 
@@ -132,7 +136,7 @@ class DoublyLinkedSet(Generic[T], Sequence[T]):
 
     def __len__(self) -> int:
         assert self._length == len(
-            self._values_to_boxes
+            self._value_ids_to_boxes
         ), "Bug in the implementation: length mismatch"
         return self._length
 
@@ -186,7 +190,7 @@ class DoublyLinkedSet(Generic[T], Sequence[T]):
         if box.owning_list is not self:
             raise ValueError(f"Value {box.value!r} is not in the list")
 
-        if new_value in self._values_to_boxes:
+        if (new_value_id := id(new_value)) in self._value_ids_to_boxes:
             # If the value is already in the list, remove it first
             self.remove(new_value)
 
@@ -203,7 +207,7 @@ class DoublyLinkedSet(Generic[T], Sequence[T]):
 
         # Be sure to update the length and mapping
         self._length += 1
-        self._values_to_boxes[new_value] = new_box
+        self._value_ids_to_boxes[new_value_id] = new_box
 
         return new_box
 
@@ -219,15 +223,15 @@ class DoublyLinkedSet(Generic[T], Sequence[T]):
 
     def remove(self, value: T) -> None:
         """Remove a node from the list."""
-        if value not in self._values_to_boxes:
+        if (value_id := id(value)) not in self._value_ids_to_boxes:
             raise ValueError(f"Value {value!r} is not in the list")
-        box = self._values_to_boxes[value]
+        box = self._value_ids_to_boxes[value_id]
         # Remove the link box and detach the value from the box
         box.erase()
 
         # Be sure to update the length and mapping
         self._length -= 1
-        del self._values_to_boxes[value]
+        del self._value_ids_to_boxes[value_id]
 
     def append(self, value: T) -> None:
         """Append a node to the list."""
@@ -251,9 +255,9 @@ class DoublyLinkedSet(Generic[T], Sequence[T]):
             value: The value after which the new values are to be inserted.
             new_values: The new values to be inserted.
         """
-        if value not in self._values_to_boxes:
+        if (value_id := id(value)) not in self._value_ids_to_boxes:
             raise ValueError(f"Value {value!r} is not in the list")
-        insertion_point = self._values_to_boxes[value]
+        insertion_point = self._value_ids_to_boxes[value_id]
         return self._insert_many_after(insertion_point, new_values)
 
     def insert_before(
@@ -267,9 +271,9 @@ class DoublyLinkedSet(Generic[T], Sequence[T]):
             value: The value before which the new values are to be inserted.
             new_values: The new values to be inserted.
         """
-        if value not in self._values_to_boxes:
+        if (value_id := id(value)) not in self._value_ids_to_boxes:
             raise ValueError(f"Value {value!r} is not in the list")
-        insertion_point = self._values_to_boxes[value].prev
+        insertion_point = self._value_ids_to_boxes[value_id].prev
         return self._insert_many_after(insertion_point, new_values)
 
     def __repr__(self) -> str:
