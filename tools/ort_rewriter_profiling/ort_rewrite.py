@@ -50,7 +50,7 @@ def ort_rewrite(model_name: str, compiler_name: str, model_dir: str):
     )
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--compiler", type=str, default="dynamo")
@@ -67,3 +67,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=log_level)
 
     ort_rewrite(model_name, compiler_name, model_dir)
+
+
+if __name__ == "__main__":
+    main()

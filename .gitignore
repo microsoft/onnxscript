@@ -100,3 +100,4 @@ onnxscript/tests/mylib.onnxlib
 *.onnxlib
 *.onnx
 tools/ort_rewriter_profiling/onnx_models/*
+tools/ort_rewriter_profiling/.logs/*

@@ -64,7 +64,7 @@ def analyze_nsys_json_report(
     )
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--compiler",
@@ -114,3 +114,7 @@ if __name__ == "__main__":
             reports[0],
             reports[1],
         )
+
+
+if __name__ == "__main__":
+    main()

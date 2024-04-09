@@ -24,7 +24,7 @@ class ProfileEntry:
         return len(self.entries) / iteration
 
     def total_duration(self, iteration: int = 1) -> int:
-        return sum([entry[1] for entry in self.entries]) / iteration / 1000 / 1000
+        return sum(entry[1] for entry in self.entries) / iteration / 1000 / 1000
 
 
 @dataclasses.dataclass
@@ -77,16 +77,14 @@ class ModelProfile:
         )
 
     def total_op_count(self) -> int:
-        return sum([op_profile.total_count(self.iteration) for op_profile in self.op_profiles])
+        return sum(op_profile.total_count(self.iteration) for op_profile in self.op_profiles)
 
     def total_duration(self) -> float:
         """Total duration of all ops in the model in ms."""
         return sum(
-            [
-                op_profile.total_duration(self.iteration)
-                for op_profile in self.op_profiles
-                if not op_profile.op_type.startswith("Batch-")
-            ]
+            op_profile.total_duration(self.iteration)
+            for op_profile in self.op_profiles
+            if not op_profile.op_type.startswith("Batch-")
         )
 
     @property
@@ -178,7 +176,7 @@ def tabulate_diff(
 
 
 def analyze_profile(profile_path: str):
-    with open(profile_path) as f:
+    with open(profile_path, encoding="utf-8") as f:
         profile = f.read()
     profile_json = json.loads(profile)
     report = {}
@@ -195,7 +193,7 @@ def analyze_profile(profile_path: str):
             f"Node {node_report.op_type} has {node_report.total_count()} instances and total duration {node_report.total_duration()} ms"
         )
     print(
-        f"Total duration: {sum([node_report.total_duration() for node_report in sorted_node_report])} ms"
+        f"Total duration: {sum(node_report.total_duration() for node_report in sorted_node_report)} ms"
     )
 
 
@@ -206,7 +204,7 @@ def analyze_profile_nvtx(
     compiler_name: str | None = None,
 ) -> ModelProfile:
     report = {}
-    with open(profile_path) as f:
+    with open(profile_path, encoding="utf-8") as f:
         line = f.readline()
 
         while line:
@@ -264,7 +262,7 @@ def compare_node_reports(
     )
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--profile-path", "--profile_path", help="Path to profile file", required=True
@@ -290,3 +288,7 @@ if __name__ == "__main__":
         analyze_profile_nvtx(profile_path, iteration)
     else:
         raise ValueError(f"Unknown profile type {type}")
+
+
+if __name__ == "__main__":
+    main()

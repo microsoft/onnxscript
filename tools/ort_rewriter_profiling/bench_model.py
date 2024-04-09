@@ -113,9 +113,7 @@ def create_timed_ort_run_callable(
     provider: str,
 ) -> Callable[[], tuple[list[np.ndarray], float]]:
     if provider == "CUDAExecutionProvider":
-        iobindings, bound_inputs, bound_outputs = create_iobinding(
-            sess, inputs, expected_outputs
-        )
+        iobindings, _, bound_outputs = create_iobinding(sess, inputs, expected_outputs)
         run_options = onnxruntime.RunOptions()
         # run_options.only_execute_path_to_fetches = True
 
@@ -201,7 +199,7 @@ def check_and_run_model(
         for output, expected_output in zip(outputs, expected_outputs):
             np.testing.assert_allclose(output, expected_output, rtol=5e-1, atol=5e-1)
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         print(f"========== {qual_model_name} failed: {e}")
     else:
         print(f"========== {qual_model_name} passed")
@@ -253,7 +251,7 @@ def run_model(compiler_name: str, model_dir: str, iterations: int, device: str) 
     )
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--compiler",
@@ -292,7 +290,9 @@ if __name__ == "__main__":
         for compiler_model_folder in compiler_model_folders:
             compiler_name = compiler_model_folder.stem
             model_name = pathlib.Path(model_dir).stem
-            with open(f".logs/stderr_{model_name}_{compiler_name}.log", "w") as stderr_file:
+            with open(
+                f".logs/stderr_{model_name}_{compiler_name}.log", "w", encoding="utf-8"
+            ) as stderr_file:
                 # Capture stderr which contains ORT logs.
                 subprocess_args = [
                     "python",
@@ -327,3 +327,7 @@ if __name__ == "__main__":
                 stderr_file.write(stderr_output)
     else:
         run_model(compiler, model_dir, iter_, device)
+
+
+if __name__ == "__main__":
+    main()
