@@ -985,6 +985,13 @@ class RewriteRuleSet:
         if commute:
             rules = list(itertools.chain.from_iterable([rule.commute() for rule in rules]))
         self.rules = rules
+        self.rule_mapping = {}
+        for rule in self.rules:
+            target_node_op_type = rule._target_node_pattern.op._value
+            if target_node_op_type not in self.rule_mapping:
+                self.rule_mapping[target_node_op_type] = [rule]
+            else:
+                self.rule_mapping[target_node_op_type].append(rule)
 
     def _apply_to_graph_or_function(
         self,
@@ -999,6 +1006,11 @@ class RewriteRuleSet:
         for rule in self.rules:
             deltas = []
             for i, node in enumerate(graph_or_function.nodes):
+                if (
+                    node.op_type not in self.rule_mapping
+                    or rule not in self.rule_mapping[node.op_type]
+                ):
+                    continue
                 if hasattr(rule, "pattern"):
                     from onnxscript.rewriter.generic_pattern import (
                         GenericRewriteRule,
