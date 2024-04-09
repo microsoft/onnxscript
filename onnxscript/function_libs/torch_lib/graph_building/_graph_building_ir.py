@@ -1,4 +1,4 @@
-"""Graph building functions for torchscript graph backend."""
+"""Graph building functions using the ONNX IR, compatible with the original TorchScriptGraph usage."""
 
 from __future__ import annotations
 
@@ -129,10 +129,16 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
     def shape(self, shape: Union[torch.Size, Tuple[int | str | None, ...]]):
         # Normalize torch symbolic dimension size to str.
         torch_sym_types = (torch.SymInt, torch.SymFloat, torch.SymBool)
-        super().shape = tuple(
-            str(dim.node) if isinstance(dim, torch_sym_types) else dim  # type: ignore[union-attr]
+        self._shape = ir.Shape(tuple(
+            str(dim.node) if isinstance(dim, torch_sym_types) else dim
             for dim in shape
-        )
+        ))
+
+    def dtype(self) -> torch.dtype | None:
+        dtype = super().dtype
+        if dtype is None:
+            return None
+        return _onnx_dtype_to_torch_dtype(dtype)
 
     @property
     def is_complex(self) -> bool:
@@ -144,12 +150,10 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
 
     @property
     def onnx_dtype(self) -> int:
-        if self.type is None:
-            raise RuntimeError("Type is not set.")
-        return self.type.dtype
+        raise NotImplementedError("onnx_dtype is not supported for TorchScriptTensor.")
 
     def value_info(self) -> Optional[onnx.ValueInfoProto]:
-        return ir.serde.serialize_value(self)
+        raise NotImplementedError("value_info is not supported for TorchScriptTensor.")
 
 
 class _Node(ir.Node):
@@ -715,15 +719,11 @@ class TorchScriptGraph:
             functions=[*function_dict.values(), *_shared_functions()],
         )
 
-        # `_export_onnx` only exports opset_imports that is visible to it. It does not
-        # export opset_imports for nested functions, since it does not have access to
-        # them. We manually add them back and merge with existing opset_imports in the
-        # model proto.
         onnx_model.opset_imports.update(unique_custom_domains)
         # Include the library shared opset domain
         # TODO: Remove after https://github.com/microsoft/onnxscript/issues/834 is fixed
         onnx_model.opset_imports[common_ops.common_opset.domain] = (
             common_ops.common_opset.version
         )
-
+        # print(onnx_model)
         return ir.serde.serialize_model(onnx_model)
