@@ -416,12 +416,12 @@ class TypeProtocol(Protocol):
             Refer to https://github.com/onnx/onnx/blob/main/docs/TypeDenotation.md#type-denotation-definition
             for pre-defined type denotations.
         elem_type: The type of its elements for nested types like Sequence[Optional] tensors.
-            Or None if the type is not nested.
+            Or the DataType if the type is not nested.
         dtype: The data type of the tensor or the nested tensor.
     """
 
     denotation: str | None
-    elem_type: TypeProtocol | None
+    elem_type: TypeProtocol | _enums.DataType
     dtype: _enums.DataType
 
     def __eq__(self, __value: object) -> bool: ...
