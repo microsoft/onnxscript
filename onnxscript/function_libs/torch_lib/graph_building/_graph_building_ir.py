@@ -18,6 +18,7 @@ from typing_extensions import TypeAlias
 
 import onnxscript
 from onnxscript import evaluator, ir
+from onnxscript.ir import convenience
 from onnxscript import tensor as onnxscript_tensor
 from onnxscript._internal import param_manipulation, runtime_typing
 from onnxscript.function_libs.torch_lib import _flags
@@ -97,66 +98,52 @@ def _function_id(domain: str | None, name: str) -> str:
     return f"{domain if domain is not None else ''}::{name}"
 
 
-class TorchScriptTensor(onnxscript_tensor.Tensor):
+class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
     """A onnxscript tensor that wraps a torchscript Value."""
 
     def __init__(
         self,
-        value: ir.Value,
+        _=None
     ):
-        super().__init__(None)
-        self._value: ir.Value = value
-        self._concrete_value: Optional[np.ndarray] = None
+        onnxscript_tensor.Tensor.__init__(self, None)
+        ir.Value.__init__(self, None, def_index=None)
         self._torch_dtype: Optional[torch.dtype] = None
         self._is_complex: bool = False
 
     def __repr__(self):
-        return f"TorchScriptTensor('{self._value!r}')"
+        return f"TorchScriptTensor('{super().__repr__()}')"
 
     @property  # type: ignore[override]
     def value(self) -> Optional[np.ndarray]:
-        return self._concrete_value
+        return self.const_value.numpy() if self.const_value is not None else None
 
     @value.setter
     def value(self, value: np.ndarray):
-        self._concrete_value = value
-
-    @property
-    @runtime_typing.checked
-    def name(self) -> str:
-        # TODO(justinchuby): Make sure there's always a name
-        return self._value.name
-
-    @name.setter
-    @runtime_typing.checked
-    def name(self, name: str):
-        self._value.name = name
+        self.const_value = ir.Tensor(
+            value, dtype=ir.DataType(onnx.helper.np_dtype_to_tensor_dtype(value.dtype))
+        )
 
     @property  # type: ignore[override]
     def rank(self) -> int | None:
-        if self._value.shape is None:
+        if self.shape is None:
             return None
-        return self._value.shape.rank()
+        return len(self.shape)
 
     @property  # type: ignore[override]
     def shape(self) -> Sequence[int | str | None] | None:
-        if self._value.shape is None:
+        shape_ = super().shape
+        if shape_ is None:
             return None
-        return self._value.shape.simple()
+        return shape_.simple()
 
     @shape.setter
     def shape(self, shape: Union[torch.Size, Tuple[int | str | None, ...]]):
         # Normalize torch symbolic dimension size to str.
         torch_sym_types = (torch.SymInt, torch.SymFloat, torch.SymBool)
-        self._shape = tuple(
+        super().shape = tuple(
             str(dim.node) if isinstance(dim, torch_sym_types) else dim  # type: ignore[union-attr]
             for dim in shape
         )
-        # jit api does not support assigning symbolic shapes,
-        # hence symbols are replaced as None.
-        jit_shape = tuple(dim if isinstance(dim, int) else None for dim in shape)
-        # TODO(justinchuby): Support symbolic shapes
-        self._value.shape = jit_shape
 
     @property  # type: ignore[override]
     def dtype(self) -> torch.dtype | None:
@@ -188,84 +175,80 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
 
     @property
     def onnx_dtype(self) -> int:
-        if self._value.type is None:
+        if self.type is None:
             raise RuntimeError("Type is not set.")
-        return self._value.type.dtype
-
-    def symbolic_value(self) -> torch.Value:
-        """The symbolic Value in torch.Graph."""
-        return self._torch_value
+        return self.type.dtype
 
     def value_info(self) -> Optional[onnx.ValueInfoProto]:
-        return ir.serde.serialize_value(self._value)
+        return ir.serde.serialize_value(self)
 
 
-@runtime_typing.checked
-def _unwrap_tensor_to_torch_value(
-    value: Union[
-        ValidArgumentType, Mapping[str, ValidArgumentType], Sequence[ValidArgumentType]
-    ],
-) -> Union[
-    ValidTorchValueType,
-    Dict[str, ValidTorchValueType],
-    List[ValidTorchValueType],
-    Tuple[ValidTorchValueType, ...],
-]:
-    """Unwrap the TorchScriptTensor to torch.Value."""
-    if isinstance(value, TorchScriptTensor):
-        return value.symbolic_value()
-    if isinstance(value, dict):
-        return {k: _unwrap_tensor_to_torch_value(v) for k, v in value.items()}  # type: ignore[misc,return-value]
-    if isinstance(value, list):
-        return [_unwrap_tensor_to_torch_value(v) for v in value]  # type: ignore[misc,return-value]
-    if isinstance(value, tuple):
-        return tuple(_unwrap_tensor_to_torch_value(v) for v in value)  # type: ignore[misc,return-value]
+# @runtime_typing.checked
+# def _unwrap_tensor_to_torch_value(
+#     value: Union[
+#         ValidArgumentType, Mapping[str, ValidArgumentType], Sequence[ValidArgumentType]
+#     ],
+# ) -> Union[
+#     ValidTorchValueType,
+#     Dict[str, ValidTorchValueType],
+#     List[ValidTorchValueType],
+#     Tuple[ValidTorchValueType, ...],
+# ]:
+#     """Unwrap the TorchScriptTensor to torch.Value."""
+#     if isinstance(value, TorchScriptTensor):
+#         return value.symbolic_value()
+#     if isinstance(value, dict):
+#         return {k: _unwrap_tensor_to_torch_value(v) for k, v in value.items()}  # type: ignore[misc,return-value]
+#     if isinstance(value, list):
+#         return [_unwrap_tensor_to_torch_value(v) for v in value]  # type: ignore[misc,return-value]
+#     if isinstance(value, tuple):
+#         return tuple(_unwrap_tensor_to_torch_value(v) for v in value)  # type: ignore[misc,return-value]
 
-    # A normal python value
-    return value  # type: ignore[return-value]
-
-
-@runtime_typing.checked
-def _wrap_torch_value_to_tensor(
-    value: Union[
-        torch.Value, Mapping[str, ValidTorchValueType], Sequence[ValidTorchValueType]
-    ],
-    *,
-    shape: Optional[Union[torch.Size, Tuple[Union[int, str, None], ...]]] = None,
-    dtype: Optional[torch.dtype] = None,
-) -> Union[
-    ValidArgumentType,
-    Dict[str, ValidArgumentType],
-    List[ValidArgumentType],
-    Tuple[ValidArgumentType, ...],
-]:
-    """Wrap torch.Value to TorchScriptTensor."""
-    if isinstance(value, torch.Value):
-        tensor = TorchScriptTensor(value)
-        if shape is not None:
-            tensor.shape = shape
-        if dtype is not None:
-            tensor.dtype = dtype
-        return tensor
-    if isinstance(value, dict):
-        return {k: _wrap_torch_value_to_tensor(v) for k, v in value.items()}  # type: ignore[misc,return-value]
-    if isinstance(value, list):
-        return [_wrap_torch_value_to_tensor(v) for v in value]  # type: ignore[misc,return-value]
-    if isinstance(value, tuple):
-        return tuple(_wrap_torch_value_to_tensor(v) for v in value)  # type: ignore[misc,return-value]
-
-    return value  # type: ignore[return-value]
+#     # A normal python value
+#     return value  # type: ignore[return-value]
 
 
-def _unwrap_tensors_to_torch_values(tensors):
-    # TODO(justinchuby): Do we really need this?
-    if isinstance(tensors, Sequence):
-        return [_unwrap_tensor_to_torch_value(output) for output in tensors]
-    return _unwrap_tensor_to_torch_value(tensors)
+# @runtime_typing.checked
+# def _wrap_ir_value_to_tensor(
+#     value: Union[
+#         ir.Value, Mapping[str, ValidTorchValueType], Sequence[ValidTorchValueType]
+#     ],
+#     *,
+#     shape: Optional[Union[torch.Size, Tuple[Union[int, str, None], ...]]] = None,
+#     dtype: Optional[torch.dtype] = None,
+# ) -> Union[
+#     ValidArgumentType,
+#     Dict[str, ValidArgumentType],
+#     List[ValidArgumentType],
+#     Tuple[ValidArgumentType, ...],
+# ]:
+#     """Wrap torch.Value to TorchScriptTensor."""
+#     if isinstance(value, torch.Value):
+#         tensor = TorchScriptTensor(value)
+#         if shape is not None:
+#             tensor.shape = shape
+#         if dtype is not None:
+#             tensor.dtype = dtype
+#         return tensor
+#     if isinstance(value, dict):
+#         return {k: _wrap_ir_value_to_tensor(v) for k, v in value.items()}  # type: ignore[misc,return-value]
+#     if isinstance(value, list):
+#         return [_wrap_ir_value_to_tensor(v) for v in value]  # type: ignore[misc,return-value]
+#     if isinstance(value, tuple):
+#         return tuple(_wrap_ir_value_to_tensor(v) for v in value)  # type: ignore[misc,return-value]
+
+#     return value  # type: ignore[return-value]
+
+
+# def _unwrap_tensors_to_torch_values(tensors):
+#     # TODO(justinchuby): Do we really need this?
+#     if isinstance(tensors, Sequence):
+#         return [_unwrap_tensor_to_torch_value(output) for output in tensors]
+#     return _unwrap_tensor_to_torch_value(tensors)
 
 
 class TorchScriptTracingEvaluator(evaluator.Evaluator):
-    """An onnxscript Evaluator that captures the graph into torchscript."""
+    """An onnxscript Evaluator that captures the graph."""
 
     def __init__(self, graph: TorchScriptGraph):
         self._graph: TorchScriptGraph = graph
@@ -381,42 +364,44 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
 
 
 @runtime_typing.checked
-def _add_attribute_to_torchscript_node(
-    node: torch.Node,
+def _build_attribute(
     key: str,
-    value: Union[float, int, str, bytes, Sequence[float], Sequence[int], torch.Tensor],
+    value: Union[float, int, str, Sequence[float], Sequence[int], torch.Tensor],
 ):
     """Initializes the right attribute based on type of value."""
     if isinstance(value, float):
-        return node.f_(key, value)
+        return ir.AttrFloat32(key, value)
     if isinstance(value, int):
-        return node.i_(key, value)
-    if isinstance(value, (str, bytes)):
-        return node.s_(key, value)  # type: ignore[arg-type]
+        return ir.AttrInt64(key, value)
+    if isinstance(value, str):
+        return ir.AttrString(key, value)
     if isinstance(value, torch.Tensor):
-        return node.t_(key, value)
+        return ir.AttrTensor(
+            key, ir.Tensor(value, dtype=_torch_dtype_to_onnx_dtype(value.dtype))
+        )
     if isinstance(value, Sequence):
         if not value:
             # Treat empty sequences as empty list tensors
             # TODO(justinchuby): Revisit ways to determine the type of the empty list
-            return node.is_(key, list(value))  # type: ignore[attr-defined]
+            return ir.AttrInt64s(key, [])
         if isinstance(value[0], float):
-            return node.fs_(key, list(value))  # type: ignore[arg-type]
+            return ir.AttrFloat32s(key, list(value))
         if isinstance(value[0], int):
-            return node.is_(key, list(value))  # type: ignore[attr-defined]
+            return ir.AttrInt64s(key, list(value))
         raise TypeError(f"Unsupported sequence type '{type(value)}' for attribute '{key}'")
     raise TypeError(f"Unsupported attribute type '{type(value)}' for attribute '{key}'")
 
 
 @runtime_typing.checked
-def _create_op_call_in_torch_graph(
-    graph: torch.Graph,
-    opname: str,
+def _create_op_call_in_graph(
+    graph: ir.Graph,
+    domain: str,
+    op_type: str,
     *,
-    inputs: Sequence[torch.Value],
+    inputs: Sequence[ir.Value],
     attributes: Mapping[str, Any],
     n_outputs: int = 1,
-) -> Tuple[torch.Value, ...]:
+) -> Sequence[ir.Value]:
     """Creates a node representing an onnx op in `graph`.
 
     Args:
@@ -433,16 +418,18 @@ def _create_op_call_in_torch_graph(
     # now they can pass through None attributes, and have them not show up
     attributes = {k: v for k, v in attributes.items() if v is not None}
 
-    node = graph.create(opname, inputs, n_outputs)
-    node = graph.insertNode(node)
-    node_ouputs = tuple(node.outputs())
+    node = ir.Node(
+        domain,
+        op_type,
+        inputs=inputs,
+        attributes=[
+            _build_attribute(key, value) for key, value in sorted(attributes.items())
+        ],
+        num_outputs=n_outputs,
+        graph=graph,
+    )
 
-    assert len(node_ouputs) == n_outputs
-    # Add all attributes
-    for key, value in sorted(attributes.items()):
-        _add_attribute_to_torchscript_node(node, key, value)
-
-    return node_ouputs
+    return node.outputs
 
 
 def _tensor_rawdata_size(tensor: torch.Tensor) -> int:
@@ -473,7 +460,7 @@ class TorchScriptGraph:
         parent_torch_script_graph: Optional[TorchScriptGraph] = None,
         domain_name: Optional[str] = None,
     ):
-        self._torch_graph = torch.Graph()
+        self._graph = ir.Graph((), (), nodes=())
         # All the functions used, deduplicated by name
         # key: (name, domain)
         self._function_store: Dict[Tuple[str, str], onnxscript.OnnxFunction] = {}
@@ -509,10 +496,6 @@ class TorchScriptGraph:
             )
 
     @property
-    def torch_graph(self):
-        return self._torch_graph
-
-    @property
     def initializers(self) -> Mapping[str, torch.Tensor]:
         return self._initializers
 
@@ -533,7 +516,7 @@ class TorchScriptGraph:
 
     @property
     def num_outputs(self) -> int:
-        return len(list(self._torch_graph.outputs()))
+        return len(self._graph.outputs)
 
     @property
     def domain_name(self) -> Optional[str]:
@@ -545,31 +528,25 @@ class TorchScriptGraph:
         input_name: Optional[str],
         shape: Optional[Union[torch.Size, Tuple[Union[int, str, None], ...]]] = None,
         dtype: Optional[torch.dtype] = None,
-    ) -> TorchScriptTensor:
+    ) -> TorchScriptTensor | None:
         if input_name is None:
             # This input argument is None, which is mapped
             # to a NULL value in TorchScript type system.
-            torch_value = _create_op_call_in_torch_graph(
-                self._torch_graph, "prim::Constant", inputs=(), attributes={}
-            )[0]
-            torch_value.setType(torch.OptionalType.ofTensor())
+            value = None
         else:
-            torch_value = self._torch_graph.addInput(input_name)
-            torch_value.setType(torch_value.type().with_dtype(dtype))  # type: ignore[arg-type]
+            value = TorchScriptTensor()
+            value.name = input_name
+            value.shape = shape
+            value.type = ir.TensorType(_torch_dtype_to_onnx_dtype(dtype))
             # TODO(titaiwang): This approach loses the information that "same SymInts
             # indicates same shape", for example, [symint0, symint0, symint1]
             # would all be [None, None, None]
-            torch_value.setType(
-                torch_value.type().with_sizes(
-                    [dim if isinstance(dim, int) else None for dim in shape]  # type: ignore[union-attr]
-                )
-            )
-        tensor_value = _wrap_torch_value_to_tensor(torch_value, shape=shape, dtype=dtype)
-        if isinstance(tensor_value, TorchScriptTensor):
-            # NOTE: Only track value that maps to tensor.
-            # Value that maps to Sequence/Dict of tensors is not tracked.
-            self._value_to_tensor[torch_value] = tensor_value
-        return tensor_value  # type: ignore[return-value]
+            # torch_value.setType(
+            #     torch_value.type().with_sizes(
+            #         [dim if isinstance(dim, int) else None for dim in shape]  # type: ignore[union-attr]
+            #     )
+            # )
+        return value
 
     @runtime_typing.checked
     def add_initializer(self, name: str, value: torch.Tensor) -> TorchScriptTensor:
@@ -595,13 +572,9 @@ class TorchScriptGraph:
         else:
             self._initializers[name] = value
 
+        # TODO(justinchuby): Be able to add input
         torch_value = self._torch_graph.addInput(name)
         torch_value.setType(torch.TensorType.create_from_tensor(value))
-        tensor_value = _wrap_torch_value_to_tensor(
-            torch_value, shape=value.shape, dtype=value.dtype
-        )
-        if isinstance(tensor_value, TorchScriptTensor):
-            self._value_to_tensor[torch_value] = tensor_value
         self._initializers_inputs[name] = tensor_value  # type: ignore[assignment]
         return tensor_value  # type: ignore[return-value]
 
@@ -621,14 +594,9 @@ class TorchScriptGraph:
             self._torch_graph.registerOutput(ts_output)
         return
 
-    def _add_constant_to_graph(self, constant) -> torch.Value:
+    def _add_constant_to_graph(self, constant) -> ir.Value:
         if constant is None:
-            value = _create_op_call_in_torch_graph(
-                self._torch_graph, "prim::Constant", inputs=(), attributes={}
-            )[0]
-            value.setType(torch.OptionalType.ofTensor())
-            value.setDebugName(_rename_intermediate_value(value.debugName()))
-            return value
+            return None
 
         if isinstance(constant, bool):
             # Be sure to put bool before int, because bool is a subclass of int
@@ -653,27 +621,27 @@ class TorchScriptGraph:
             raise TypeError(
                 f"Constant input '{constant}' of type '{type(constant)}' is not supported"
             )
-        value = _create_op_call_in_torch_graph(
-            self._torch_graph,
-            "onnx::Constant",
+        value = _create_op_call_in_graph(
+            self._graph,
+            "",
+            "Constant",
             inputs=(),
             attributes=dict(value=constant_tensor),
         )[0]
-        value.setDebugName(_rename_intermediate_value(value.debugName()))
         return value
 
     @runtime_typing.checked
     def _add_torchscript_op_call(
         self,
-        name: str,
+        domain: str,
+        op_type: str,
         onnx_inputs: Sequence[ValidInputType],
         onnx_attributes: Mapping[str, ValidArgumentType],
         n_outputs: int,
     ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
-        unwrapped_inputs = _unwrap_tensors_to_torch_values(onnx_inputs)
         graph_inputs = []
-        assert isinstance(unwrapped_inputs, Sequence)
-        for input in unwrapped_inputs:
+        assert isinstance(onnx_inputs, Sequence)
+        for input in onnx_inputs:
             # NOTE(titaiwang): input could be empty list
             if (
                 isinstance(input, Sequence)
@@ -682,9 +650,10 @@ class TorchScriptGraph:
             ):
                 # If all elements in the Sequence are torch.Values we know it
                 # should be a Sequence input in ONNX.
-                input_sequence = _create_op_call_in_torch_graph(
-                    self._torch_graph,
-                    "onnx::SequenceConstruct",
+                input_sequence = _create_op_call_in_graph(
+                    self._graph,
+                    "",
+                    "SequenceConstruct",
                     inputs=input,
                     attributes={},
                 )[0]
@@ -697,26 +666,18 @@ class TorchScriptGraph:
             assert not isinstance(
                 value, TorchScriptTensor
             ), f"ONNX attribute must not be a TorchScriptTensor, got {key}: {value}."
-        result = _create_op_call_in_torch_graph(
-            self._torch_graph,
-            name,
+        tensors = _create_op_call_in_graph(
+            self._graph,
+            domain,
+            op_type,
             inputs=graph_inputs,
             attributes=onnx_attributes,
             n_outputs=n_outputs,
         )
-        assert result, "Expected at least one output from ONNX op call."
+        assert tensors, "Expected at least one output from ONNX op call."
         # NOTE: TorchScriptTensor is created here, however neither dtype nor shape is
         # set. It is expected that exporter will modify the tensor being returned and
         # set these info.
-        if len(result) == 1:
-            tensor = TorchScriptTensor(result[0])
-            tensor.name = _rename_intermediate_value(tensor.name)
-            self._value_to_tensor[result[0]] = tensor
-            return tensor
-        tensors = tuple(TorchScriptTensor(v) for v in result)
-        self._value_to_tensor.update(dict(zip(result, tensors)))
-        for tensor in tensors:
-            tensor.name = _rename_intermediate_value(tensor.name)
         return tensors
 
     @runtime_typing.checked
