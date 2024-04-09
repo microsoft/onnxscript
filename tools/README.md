@@ -33,7 +33,7 @@
 
 3. Run optimization. Example command to apply optimizations on `stable_diffusion_unet` `dynamo` model and produces `dynamo_ort_rewritten` model under the same folder. `CUDA_VISIBLE_DEVICES` is used to specify GPU device to avoid the device others are using.
     ```
-    CUDA_VISIBLE_DEVICES="3" python ort_rewrite.py.py  --model stable_diffusion_unet --model-dir ./onnx_models/ --log-level 20 --fusion
+    CUDA_VISIBLE_DEVICES="3" python ort_rewrite.py  --model stable_diffusion_unet --model-dir ./onnx_models/ --log-level 20 --fusion
     ```
 
 4. Investigate the root cause of performance gap.
