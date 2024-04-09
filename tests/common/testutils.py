@@ -14,9 +14,9 @@ import onnx
 import onnxruntime
 
 from onnxscript import optimizer
+from onnxscript._internal.utils import evaluation_utils
 from onnxscript._legacy_ir import visitor
 from onnxscript.rewriter import onnxruntime as ort_rewriter
-from onnxscript.utils import evaluation_utils
 
 
 class TestBase(unittest.TestCase):

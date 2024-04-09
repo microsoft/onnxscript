@@ -10,7 +10,7 @@ import onnxruntime
 import parameterized
 
 from onnxscript import optimizer
-from onnxscript.utils import evaluation_utils
+from onnxscript._internal.utils import evaluation_utils
 
 _SKIP_TABLE = {}
 

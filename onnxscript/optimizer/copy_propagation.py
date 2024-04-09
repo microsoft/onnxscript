@@ -5,8 +5,8 @@ from typing import Any
 import onnx
 
 import onnxscript.optimizer.remove_unused
+from onnxscript._internal.utils import utils
 from onnxscript._legacy_ir import visitor
-from onnxscript.utils.utils import is_onnx_op
 
 
 class CopyPropagator(visitor.ProtoVisitor):
@@ -20,7 +20,7 @@ class CopyPropagator(visitor.ProtoVisitor):
             if input is not None and input.is_copy():
                 node.input[i] = input.symbolic_value  # type: ignore[assignment]
 
-        if is_onnx_op(node, "Identity"):
+        if utils.is_onnx_op(node, "Identity"):
             input = self.get_input(node, 0)
             output = self.get_output(node, 0)
             if input is not None and output is not None:
@@ -48,12 +48,12 @@ class SymbolicEvaluator(CopyPropagator):
     def visit_node(self, node: onnx.NodeProto) -> None:
         super().visit_node(node)
 
-        if is_onnx_op(node, "SequenceConstruct"):
+        if utils.is_onnx_op(node, "SequenceConstruct"):
             output = self.get_output(node, 0)
             if output is not None:
                 output.symbolic_value = list(node.input)
 
-        if is_onnx_op(node, "ConcatFromSequence"):
+        if utils.is_onnx_op(node, "ConcatFromSequence"):
             input = self.get_input(node, 0)
             new_axis = get_node_attr_value(node, "new_axis", 0)
             if input is not None and isinstance(input.symbolic_value, list) and new_axis == 0:

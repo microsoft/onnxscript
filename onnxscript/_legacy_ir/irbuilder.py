@@ -6,8 +6,8 @@ from typing import Any
 import onnx
 
 import onnxscript._legacy_ir as ir
+from onnxscript._internal.utils import utils
 from onnxscript._legacy_ir import visitor
-from onnxscript.utils import utils
 
 """ NOTE: IRBuilder and function visiting
 

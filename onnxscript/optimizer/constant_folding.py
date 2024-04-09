@@ -8,12 +8,9 @@ import onnx
 import onnx.reference.ops
 
 import onnxscript._legacy_ir as ir
+from onnxscript._internal.utils import utils
 from onnxscript._legacy_ir import visitor
 from onnxscript.optimizer import evaluator
-from onnxscript.utils.utils import (
-    is_control_flow_op,
-    is_onnx_domain,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +34,13 @@ onnx_domain = frozenset({"", "onnx.ai"})
 
 
 def is_non_deterministic_op(node: onnx.NodeProto) -> bool:
-    return node.op_type in non_deterministic_ops and is_onnx_domain(node.domain)
+    return node.op_type in non_deterministic_ops and utils.is_onnx_domain(node.domain)
 
 
 def is_constant_op(node: onnx.NodeProto) -> bool:
-    return node.op_type in {"Constant", "ConstantOfShape"} and is_onnx_domain(node.domain)
+    return node.op_type in {"Constant", "ConstantOfShape"} and utils.is_onnx_domain(
+        node.domain
+    )
 
 
 class ConstantFolder(visitor.FunctionCallsiteProtoTransformer):
@@ -200,7 +199,7 @@ class ConstantFolder(visitor.FunctionCallsiteProtoTransformer):
                 self.add_count(node.op_type, output.size)
                 return self.new_constant(node.output[0], output)
 
-        if is_control_flow_op(node) or is_non_deterministic_op(node):
+        if utils.is_control_flow_op(node) or is_non_deterministic_op(node):
             return None
 
         input_values = [x.value if x is not None else None for x in inputs]

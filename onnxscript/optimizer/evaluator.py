@@ -15,7 +15,7 @@ import onnx
 import onnx.reference.ops
 
 import onnxscript._legacy_ir as ir
-from onnxscript.utils.utils import (
+from onnxscript._internal.utils.utils import (
     get_node_attr_value,
 )
 

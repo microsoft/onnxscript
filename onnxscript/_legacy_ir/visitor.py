@@ -8,11 +8,7 @@ import numpy as np
 import onnx
 
 import onnxscript._legacy_ir as ir
-from onnxscript.utils.utils import (
-    get_initializer_type,
-    is_control_flow_op,
-    normalize_domain,
-)
+from onnxscript._internal.utils import utils
 
 logger = logging.getLogger(__name__)
 
@@ -430,11 +426,11 @@ class ProtoVisitor(ProtoVisitorCore):
         self.modified = False
 
     def process_opset_import(self, opset: onnx.OperatorSetIdProto):
-        domain = normalize_domain(opset.domain)
+        domain = utils.normalize_domain(opset.domain)
         self.version_map[domain] = opset.version
 
     def lookup_version(self, domain: str) -> int:
-        domain = normalize_domain(domain)
+        domain = utils.normalize_domain(domain)
         return self.version_map.get(domain, 1)  # TODO: handle missing domain
 
     def lookup(self, name: str) -> ir.Value | None:
@@ -539,7 +535,7 @@ class ProtoVisitor(ProtoVisitorCore):
         array = onnx.numpy_helper.to_array(init, self.external_data_folder)
         self.bind(
             init.name,
-            ir.Value(name=init.name, value=array, type=get_initializer_type(init)),
+            ir.Value(name=init.name, value=array, type=utils.get_initializer_type(init)),
         )
 
     def process_graph_input(self, input: onnx.ValueInfoProto):
@@ -554,7 +550,7 @@ class ProtoVisitor(ProtoVisitorCore):
 
     def process_node(self, node: onnx.NodeProto) -> Sequence[onnx.NodeProto] | None:
         output_types = {}
-        if self.do_shape_inference and not is_control_flow_op(node):
+        if self.do_shape_inference and not utils.is_control_flow_op(node):
             # Control-flow ops are more complicated. Not supported here yet.
             # TODO: handle optional inputs
             def get_constant_value(i: int) -> onnx.TensorProto | None:
