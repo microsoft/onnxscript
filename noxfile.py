@@ -118,7 +118,7 @@ def test_experimental_torchlib_tracing(session):
     session.run("pip", "list")
     session.run(
         "pytest",
-        "onnxscript/tests/function_libs/torch_lib/ops_test.py",
+        "tests/function_libs/torch_lib/ops_test.py",
         *session.posargs,
         env={"TORCHLIB_EXPERIMENTAL_PREFER_TRACING": "1"},
     )
