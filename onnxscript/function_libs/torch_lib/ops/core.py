@@ -4109,7 +4109,6 @@ def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> Tens
         index_count = len([index for index in indices if index is not None])
         if index_count == 1:
             self_rank = len(self.shape)
-            count_of_none = 0
             # Prepare perm for transposing self tensor.
             # In indices, None meaning skip the corresponding dimension,
             # so we need to move this dimension to the end of the list.
@@ -4119,6 +4118,7 @@ def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> Tens
             # the final result's shape should be [5, 16, 5].
             trans_perm = [i for i in range(self_rank)]
             trans_perm.append(trans_perm.pop(0))
+            count_of_none = 0
             for index in indices:
                 if index is None:
                     self = op.Transpose(self, perm=trans_perm)
