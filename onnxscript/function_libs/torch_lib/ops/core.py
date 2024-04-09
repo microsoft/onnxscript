@@ -4097,12 +4097,6 @@ def _aten_index_onnx(
 @torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
 def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> TensorType:
 
-    # reordered_positions = sorted(range(len(indices)), key=lambda i: (indices[i] is not None, i))
-    # new_reordered_positions = [
-    #     *reordered_positions,
-    #     *range(len(reordered_positions), self_rank),
-    # ]
-
     index_ranks = [len(index.shape) for index in indices if index is not None]
 
     if index_ranks[0] == 1:
@@ -4114,21 +4108,32 @@ def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> Tens
         indices_rank = len(indices)
         index_count = len([index for index in indices if index is not None])
         if index_count == 1:
-            if indices[0] is not None:
-                self_rank = len(self.shape)
-                if indices_rank < self_rank:
-                    new_indices = op.Transpose(op.NonZero(indices[0]), perm=[1, 0])
-                    result = op.GatherND(self, new_indices, batch_dims=0)
-                    return result
-            else:
-                for index in indices:
-                    if index is not None:
+            self_rank = len(self.shape)
+            count_of_none = 0
+            # Prepare perm for transposing self tensor.
+            # In indices, None meaning skip the corresponding dimension,
+            # so we need to move this dimension to the end of the list.
+            # After we gathered the final results, we transpose it back.
+            # For example,
+            # self's shape is [5, 5, 5, 5], indices is [None, (5, 5)]
+            # the final result's shape should be [5, 16, 5].
+            trans_perm = [i for i in range(self_rank)]
+            trans_perm.append(trans_perm.pop(0))
+            for index in indices:
+                if index is None:
+                    self = op.Transpose(self, perm=trans_perm)
+                    count_of_none += 1
+                else:
+                    if indices_rank < self_rank:
                         new_indices = op.Transpose(op.NonZero(index), perm=[1, 0])
                         result = op.GatherND(self, new_indices, batch_dims=0)
-                        result = op.Transpose(result, perm=[2, 0, 1])
+                        finla_rank = self_rank - (len(index.shape) - 1)
+                        trans_perm = [i for i in range(finla_rank)]
+                        trans_perm = trans_perm[-1:] + trans_perm[:-1]
+                        while count_of_none > 0:
+                            result = op.Transpose(result, perm=trans_perm)
+                            count_of_none -= 1
                         return result
-                    else:
-                        self = op.Transpose(self, perm=[1, 2, 3, 0])
 
 
 def aten_index_add(
