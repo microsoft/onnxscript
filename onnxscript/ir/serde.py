@@ -1,3 +1,7 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 """Serialize and deserialize the intermediate representation to/from ONNX protos."""
 
 # NOTES for developers:

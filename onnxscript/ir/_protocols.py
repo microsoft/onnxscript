@@ -1,21 +1,13 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 """Protocols for the ONNX IR.
 
 This file defines the interfaces for tools to interact with the IR. The interfaces
 are designed such that tools leveraging the IR can be decoupled from the IR
 implementation. This allows for the implementation to evolve independently of the
 tools.
-
-The file contains two sets of interfaces:
-1. Topologically immutable interfaces:
-    These interfaces provide a complete view of the ONNX model and allows mutation
-    against any metadata fields like shape, type, and node attributes. However, the
-    interfaces are topologically immutable, meaning that the structure of the graph
-    cannot be changed. This is useful for tools that need to analyze the model
-    without modifying how nodes are connected.
-2. Mutable interfaces:
-    These interfaces provide a mutable view of the ONNX model. They allow for
-    modification of the graph structure. This is useful for tools that need to
-    transform the model.
 """
 
 from __future__ import annotations
@@ -24,6 +16,7 @@ import typing
 from typing import (
     AbstractSet,
     Any,
+    Iterable,
     Iterator,
     Mapping,
     OrderedDict,
@@ -159,6 +152,7 @@ class ValueProtocol(Protocol):
     shape: ShapeProtocol | None
     type: TypeProtocol | None
     metadata_props: Mapping[str, str]
+    meta: Mapping[str, Any]
 
     def users(self) -> AbstractSet[tuple[NodeProtocol, int]]:
         """The set of (node, input_index) with node being those that use this value as an input."""
@@ -219,6 +213,11 @@ class NodeProtocol(Protocol):
     version: int | None
     doc_string: str | None
     metadata_props: Mapping[str, str]
+    meta: Mapping[str, Any]
+
+    def replace_input_with(self, index: int, value: ValueProtocol | None) -> None:
+        """Set the input at the given index to the given value, replacing the original value."""
+        ...
 
 
 @typing.runtime_checkable
@@ -254,9 +253,36 @@ class GraphProtocol(Protocol):
     doc_string: str
     opset_imports: Mapping[str, int]
     metadata_props: Mapping[str, str]
+    meta: Mapping[str, Any]
 
-    def topologically_sorted_nodes(self) -> Sequence[NodeProtocol]:
-        """Return the nodes in topological order."""
+    def __getitem__(self, index: int) -> NodeProtocol: ...
+    def __len__(self) -> int: ...
+    def __iter__(self) -> Iterator[NodeProtocol]: ...
+    def __reversed__(self) -> Iterator[NodeProtocol]: ...
+
+    # Mutation methods
+    def append(self, node: NodeProtocol, /) -> None:
+        """Append a node to the graph."""
+        ...
+
+    def extend(self, nodes: Iterable[NodeProtocol], /) -> None:
+        """Extend the graph with the given nodes."""
+        ...
+
+    def remove(self, node: NodeProtocol, /) -> None:
+        """Remove a node from the graph."""
+        ...
+
+    def insert_after(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol], /) -> None:
+        """Insert new nodes after the given node."""
+        ...
+
+    def insert_before(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol], /) -> None:
+        """Insert new nodes before the given node."""
+        ...
+
+    def sort(self) -> None:
+        """Topologically sort the nodes in the graph."""
         ...
 
 
@@ -290,6 +316,7 @@ class ModelProtocol(Protocol):
     # TODO(justinchuby): Add training_info
     opset_imports: Mapping[str, int]
     metadata_props: Mapping[str, str]
+    meta: Mapping[str, Any]
 
 
 @typing.runtime_checkable
@@ -451,11 +478,38 @@ class FunctionProtocol(Protocol):
     opset_imports: Mapping[str, int]
     nodes: Sequence[NodeProtocol]
     metadata_props: Mapping[str, str]
+    meta: Mapping[str, Any]
 
+    def __getitem__(self, index: int) -> NodeProtocol: ...
+    def __len__(self) -> int: ...
+    def __iter__(self) -> Iterator[NodeProtocol]: ...
+    def __reversed__(self) -> Iterator[NodeProtocol]: ...
     def identifier(self) -> OperatorIdentifier:
         """Return the unique identifier of the function."""
         ...
 
-    def topologically_sorted_nodes(self) -> Sequence[NodeProtocol]:
-        """Return the nodes in topological order."""
+    # Mutation methods
+    # End Block
+    def append(self, node: NodeProtocol, /) -> None:
+        """Append a node to the function."""
+        ...
+
+    def extend(self, nodes: Iterable[NodeProtocol], /) -> None:
+        """Extend the function with the given nodes."""
+        ...
+
+    def remove(self, node: NodeProtocol, /) -> None:
+        """Remove a node from the function."""
+        ...
+
+    def insert_after(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol], /) -> None:
+        """Insert new nodes after the given node."""
+        ...
+
+    def insert_before(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol], /) -> None:
+        """Insert new nodes before the given node."""
+        ...
+
+    def sort(self) -> None:
+        """Topologically sort the nodes in the function."""
         ...
