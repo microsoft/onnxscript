@@ -375,12 +375,48 @@ class Dimension(_protocols.DimensionProtocol, _display.PrettyPrintable):
         self._value = value
         self._denotation = denotation
 
-    def __index__(self) -> int:
+    def __int__(self) -> int:
         if not isinstance(self.value, int):
             raise TypeError(
-                f"The value of this dim is not int, but {type(self.value)} ({self.value})"
+                f"The value of this Dimension is not int, but {type(self.value)} ({self.value})"
             )
         return self.value
+
+    def __index__(self) -> int:
+        return int(self)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, (int, str)) or other is None:
+            return self.value == other
+        if not isinstance(other, Dimension):
+            return False
+        return self.value == other.value
+
+    def __ne__(self, value: object) -> bool:
+        return not self.__eq__(value)
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, (int, Dimension)):
+            raise TypeError(f"Expected other to be Dimension or int, got {type(other)}")
+        return int(self) < int(other)
+
+    def __le__(self, other: object) -> bool:
+        if not isinstance(other, (int, Dimension)):
+            raise TypeError(f"Expected other to be Dimension or int, got {type(other)}")
+        return int(self) <= int(other)
+
+    def __gt__(self, other: object) -> bool:
+        if not isinstance(other, (int, Dimension)):
+            raise TypeError(f"Expected other to be Dimension or int, got {type(other)}")
+        return int(self) > int(other)
+
+    def __ge__(self, other: object) -> bool:
+        if not isinstance(other, (int, Dimension)):
+            raise TypeError(f"Expected other to be Dimension or int, got {type(other)}")
+        return int(self) >= int(other)
+
+    def __hash__(self) -> int:
+        return hash(self.value)
 
     @property
     def value(self) -> int | str | None:
@@ -742,21 +778,24 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 class _TensorTypeBase(_protocols.TypeProtocol, _display.PrettyPrintable):
     """Tensor types that are non recursive types."""
 
-    __slots__ = ("_dtype", "_elem_types", "denotation")
+    __slots__ = ("_dtype", "denotation")
 
     def __init__(self, dtype: _enums.DataType, *, denotation: str | None = None) -> None:
         self._dtype = dtype
-        self._elem_types = (self,)
         self.denotation = denotation
 
     @property
     def dtype(self) -> _enums.DataType:
         return self._dtype
 
+    @dtype.setter
+    def dtype(self, value: _enums.DataType) -> None:
+        self._dtype = value
+
     @property
-    def elem_type(self) -> None:
-        # TODO: docs: explain the None
-        return None
+    def elem_type(self) -> _enums.DataType:
+        """Return the element type of the tensor type"""
+        return self.dtype
 
     def __eq__(self, other: object) -> bool:
         if self.__class__ is not other.__class__:
@@ -783,18 +822,21 @@ class SparseTensorType(_TensorTypeBase):
 class _RecursiveTypeBase(_protocols.TypeProtocol, _display.PrettyPrintable):
     """Base for recursive types like Optional and Sequence."""
 
-    __slots__ = ("_dtype", "_elem_type", "denotation")
+    __slots__ = ("_elem_type", "denotation")
 
     def __init__(
         self, elem_type: _protocols.TypeProtocol, *, denotation: str | None = None
     ) -> None:
-        self._dtype = elem_type.dtype
         self._elem_type = elem_type
         self.denotation = denotation
 
     @property
     def dtype(self) -> _enums.DataType:
-        return self._dtype
+        return self._elem_type.dtype
+
+    @dtype.setter
+    def dtype(self, value: _enums.DataType) -> None:
+        self._elem_type.dtype = value
 
     @property
     def elem_type(self) -> _protocols.TypeProtocol:
@@ -867,12 +909,13 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
+        def_node = self.def_node()
         def_node_text = (
-            self.def_node.name or "anonymous_node:" + str(id(self.def_node))
-            if self.def_node is not None
+            def_node.name or "anonymous_node:" + str(id(def_node))
+            if def_node is not None
             else None
         )
-        return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, def_node={def_node_text}, def_index={self.def_index})"
+        return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, def_node={def_node_text}, def_index={self.def_index()})"
 
     def __str__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
@@ -883,21 +926,13 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # that make them hard to read
         return f"%{_quoted(value_name)}<{type_text},{shape_text}>"
 
-    @property
     def def_node(self) -> Node | None:
+        """The node that produces this value."""
         return self._def_node
 
-    @def_node.setter
-    def def_node(self, _: Any) -> None:
-        raise AttributeError("def_node is immutable. Please create a new value instead.")
-
-    @property
     def def_index(self) -> int | None:
+        """The index of the output of the defining node."""
         return self._def_index
-
-    @def_index.setter
-    def def_index(self, _: Any) -> None:
-        raise AttributeError("def_index is immutable. Please create a new value instead.")
 
     def users(self) -> frozenset[tuple[Node, int]]:
         return frozenset(self._users)
@@ -919,11 +954,37 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     @property
     def type(self) -> _protocols.TypeProtocol | None:
+        """The type of the tensor.
+
+        Example types can be ``TensorType``, ``SparseTensorType``, ``SequenceType``, ``OptionalType``.
+        To obtain the data type of the tensor, use ``type.dtype`` or conveniently
+        :attribute:`dtype`.
+        """
         return self._type
 
     @type.setter
     def type(self, value: _protocols.TypeProtocol | None) -> None:
         self._type = value
+
+    @property
+    def dtype(self) -> _enums.DataType | None:
+        """The data type of the tensor."""
+        if self._type is None:
+            return None
+        return self._type.dtype
+
+    @dtype.setter
+    def dtype(self, value: _enums.DataType) -> None:
+        """Set the data type of the tensor.
+
+        If the type is not set, it will be initialized to a new TensorType. To
+        set the type as other types like ``SequenceType``, initialize the type
+        then set :attribute:`type` instead.
+        """
+        if self._type is None:
+            self._type = TensorType(value)
+        else:
+            self._type.dtype = value
 
     @property
     def shape(self) -> Shape | None:
@@ -976,11 +1037,12 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def is_graph_output(self) -> bool:
         """Whether the value is an output of a graph."""
-        if self.def_node is None:
+        def_node = self.def_node()
+        if def_node is None:
             return False
-        if self.def_node.graph is None:
+        if def_node.graph is None:
             return False
-        return self in self.def_node.graph.outputs
+        return self in def_node.graph.outputs
 
 
 class Input(Value):
@@ -1036,8 +1098,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self.name = name
 
         # Private fields that are not to be accessed by any other classes
-        self._inputs = tuple(inputs)
-        self._outputs = tuple(outputs)
+        self._inputs = list(inputs)
+        self._outputs = list(outputs)
         for initializer in initializers:
             if initializer.name is None:
                 raise ValueError(f"Initializer must have a name: {initializer}")
@@ -1051,11 +1113,11 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self.extend(nodes)
 
     @property
-    def inputs(self) -> tuple[Value, ...]:
+    def inputs(self) -> list[Input]:
         return self._inputs
 
     @property
-    def outputs(self) -> tuple[Value, ...]:
+    def outputs(self) -> list[Value]:
         return self._outputs
 
     @property
@@ -1096,7 +1158,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             raise ValueError(
                 f"The node {node} belongs to another graph. Please remove it first with Graph.remove()."
             )
-        node._graph = self  # pylint: disable=protected-access
+        node.graph = self
         return node
 
     # Mutation methods
@@ -1135,7 +1197,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         """
         if node.graph is not self:
             raise ValueError(f"The node {node} does not belong to this graph.")
-        node._graph = None  # pylint: disable=protected-access
+        node.graph = None
         self._nodes.remove(node)
 
     def insert_after(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
@@ -1407,11 +1469,11 @@ class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
         self._overload = value
 
     @property
-    def inputs(self) -> Sequence[Value]:
+    def inputs(self) -> list[Input]:
         return self._graph.inputs
 
     @property
-    def outputs(self) -> Sequence[Value]:
+    def outputs(self) -> list[Value]:
         return self._graph.outputs
 
     @property
@@ -1422,8 +1484,17 @@ class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
     def nodes(self) -> Sequence[Node]:
         return self._graph.nodes
 
-    def topologically_sorted_nodes(self) -> Sequence[Node]:
-        raise NotImplementedError("Not implemented yet")
+    def __getitem__(self, index: int) -> Node:
+        return self._graph.__getitem__(index)
+
+    def __len__(self) -> int:
+        return self._graph.__len__()
+
+    def __iter__(self) -> Iterator[Node]:
+        return self._graph.__iter__()
+
+    def __reversed__(self) -> Iterator[Node]:
+        return self._graph.__reversed__()
 
     @property
     def doc_string(self) -> str | None:
