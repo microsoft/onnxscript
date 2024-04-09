@@ -1158,7 +1158,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             raise ValueError(
                 f"The node {node} belongs to another graph. Please remove it first with Graph.remove()."
             )
-        node._graph = self  # pylint: disable=protected-access
+        node.graph = self
         return node
 
     # Mutation methods
@@ -1197,7 +1197,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         """
         if node.graph is not self:
             raise ValueError(f"The node {node} does not belong to this graph.")
-        node._graph = None  # pylint: disable=protected-access
+        node.graph = None
         self._nodes.remove(node)
 
     def insert_after(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
