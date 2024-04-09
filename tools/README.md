@@ -3,7 +3,7 @@
 ### Setup Environment
 
 1. Setup access to vm with GPU.
-2. Install PyTorch, ONNX, ONNXScript, onnx-script, etc.
+2. Install PyTorch, ONNX, ONNXScript, etc.
 3. Build ONNXRuntime from source, with nvtx profiling enabled.
     ```
     # Under onnxruntime root folder
