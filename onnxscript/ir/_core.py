@@ -137,7 +137,9 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
             lines.append("Histogram:")
             hist, bin_edges = np.histogram(finite_numbers, bins=80, density=False)
             lines.append(
-                asciichartpy.plot(hist, bin_edges, {"height": 8, "format": "{:8.0f}"})
+                asciichartpy.plot(
+                    hist, bin_edges=bin_edges, cfg={"height": 8, "format": "{:8.0f}"}
+                )
             )
 
             text = "\n".join(lines)
