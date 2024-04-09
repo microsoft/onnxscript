@@ -74,20 +74,32 @@ _LARGE_MODEL_SIZE_THRESHOLD = int(2**30 * 1.8)  # 1.8GB
 # TODO(justinchuby): Build a context manager to handle source information.
 
 
-def _rename_intermediate_value(name: str) -> str:
-    """Prepend `_val_` to a numeric tensor name make it valid in ONNX.
+_TORCH_DTYPE_TO_ONNX: dict[torch.dtype, ir.DataType] = {
+    torch.float32: ir.DataType.FLOAT,
+    torch.float64: ir.DataType.DOUBLE,
+    torch.float16: ir.DataType.FLOAT16,
+    torch.int8: ir.DataType.INT8,
+    torch.int16: ir.DataType.INT16,
+    torch.int32: ir.DataType.INT32,
+    torch.int64: ir.DataType.INT64,
+    torch.uint8: ir.DataType.UINT8,
+    torch.bool: ir.DataType.BOOL,
+    torch.complex64: ir.DataType.COMPLEX64,
+    torch.complex128: ir.DataType.COMPLEX128,
+    torch.bfloat16: ir.DataType.BFLOAT16,
+}
 
-    The TorchScript graph creates numeric value names by default. e.g. `0`, `1`.
-    These are not legal ONNX tensor names, since ONNX requires the names to be valid
-    C variable names.
+_ONNX_DTYPE_TO_TORCH: dict[ir.DataType, torch.dtype] = {
+    value: key for key, value in _TORCH_DTYPE_TO_ONNX.items()
+}
 
-    It also improves readability by making the names less likely to be confused
-    with shape values.
-    """
-    if name.isdigit():
-        # Prefix with `_` to avoid name collision
-        return f"_val_{name}"
-    return name
+
+def _torch_dtype_to_onnx_dtype(dtype: torch.dtype) -> ir.DataType:
+    return _TORCH_DTYPE_TO_ONNX[dtype]
+
+
+def _onnx_dtype_to_torch_dtype(dtype: ir.DataType) -> torch.dtype:
+    return _ONNX_DTYPE_TO_TORCH[dtype]
 
 
 def _function_id(domain: str | None, name: str) -> str:
@@ -103,11 +115,12 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
 
     def __init__(
         self,
-        _=None
+        _=None,
+        def_index=None,
+        name: str | None = None,
     ):
         onnxscript_tensor.Tensor.__init__(self, None)
-        ir.Value.__init__(self, None, def_index=None)
-        self._torch_dtype: Optional[torch.dtype] = None
+        ir.Value.__init__(self, None, def_index=def_index, name=name)
         self._is_complex: bool = False
 
     def __repr__(self):
@@ -145,26 +158,6 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
             for dim in shape
         )
 
-    @property  # type: ignore[override]
-    def dtype(self) -> torch.dtype | None:
-        if self._torch_dtype is not None:
-            return self._torch_dtype
-
-        # TODO(justinchuby): Map onnx type to torch type
-
-        torch_dtype = _type_utils.JitScalarType(  # type: ignore[attr-defined]
-            self._torch_value, default=_type_utils.JitScalarType.UNDEFINED
-        )
-        if torch_dtype == _type_utils.JitScalarType.UNDEFINED:
-            return None
-        self._torch_dtype = torch_dtype.dtype()
-        return self._torch_dtype
-
-    @dtype.setter
-    def dtype(self, dtype: torch.dtype):
-        self._torch_dtype = dtype
-        self._torch_value.setType(self._torch_value.type().with_dtype(dtype))
-
     @property
     def is_complex(self) -> bool:
         return self._is_complex
@@ -181,6 +174,42 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
 
     def value_info(self) -> Optional[onnx.ValueInfoProto]:
         return ir.serde.serialize_value(self)
+
+
+class _Node(ir.Node):
+    """A node that will produce TorchScriptTensor as outputs for compatibility."""
+
+    def __init__(
+        self,
+        domain: str,
+        op_type: str,
+        inputs: Sequence[ir.Value | None],
+        attributes: Sequence[ir.Attr | ir.RefAttr] = (),
+        *,
+        overload: str = "",
+        num_outputs: int = 1,
+        version: int | None = None,
+        name: str | None = None,
+        doc_string: str | None = None,
+    ):
+        super().__init__(
+            domain=domain,
+            op_type=op_type,
+            inputs=inputs,
+            attributes=attributes,
+            overload=overload,
+            num_outputs=num_outputs,
+            version=version,
+            name=name,
+            doc_string=doc_string,
+        )
+        self._outputs: tuple[TorchScriptTensor, ...] = tuple(
+            TorchScriptTensor(self, def_index=i) for i in range(num_outputs)
+        )
+
+    @property
+    def outputs(self) -> Sequence[TorchScriptTensor]:
+        return self._outputs
 
 
 # @runtime_typing.checked
@@ -401,12 +430,13 @@ def _create_op_call_in_graph(
     inputs: Sequence[ir.Value],
     attributes: Mapping[str, Any],
     n_outputs: int = 1,
-) -> Sequence[ir.Value]:
+) -> Sequence[TorchScriptTensor]:
     """Creates a node representing an onnx op in `graph`.
 
     Args:
         graph: The torch graph to add the node to.
-        opname: The name of the op to add. E.g. "onnx::Add".
+        domain: The domain of the op.
+        op_type: The name of the op. E.g. "Add".
         inputs: The onnx inputs to the op.
         attributes: The onnx attributes to the op.
         n_outputs: The number of outputs the op has.
@@ -418,16 +448,14 @@ def _create_op_call_in_graph(
     # now they can pass through None attributes, and have them not show up
     attributes = {k: v for k, v in attributes.items() if v is not None}
 
-    node = ir.Node(
+    node = _Node(
         domain,
         op_type,
         inputs=inputs,
-        attributes=[
-            _build_attribute(key, value) for key, value in sorted(attributes.items())
-        ],
+        attributes=[_build_attribute(key, value) for key, value in sorted(attributes.items())],
         num_outputs=n_outputs,
-        graph=graph,
     )
+    graph.append(node)
 
     return node.outputs
 
@@ -464,11 +492,9 @@ class TorchScriptGraph:
         # All the functions used, deduplicated by name
         # key: (name, domain)
         self._function_store: Dict[Tuple[str, str], onnxscript.OnnxFunction] = {}
-        # Mapping from intializer name to data(torch.Tensor).
-        self._initializers: Dict[str, torch.Tensor] = {}
-        # Mapping from intializer name to input(TorchScriptTensor).
+        # Mapping from initializer name to input(TorchScriptTensor).
         self._initializers_inputs: Dict[str, TorchScriptTensor] = {}
-        # Mapping from intializer name to input(TorchScriptTensor) from parent graph.
+        # Mapping from initializer name to input(TorchScriptTensor) from parent graph.
         self._initializers_inputs_from_parent: Dict[str, TorchScriptTensor] = {}
         # Mapping from model local function type name to function graph.
         # Local function type name is expected to be unique. Converter creates
@@ -537,7 +563,8 @@ class TorchScriptGraph:
             value = TorchScriptTensor()
             value.name = input_name
             value.shape = shape
-            value.type = ir.TensorType(_torch_dtype_to_onnx_dtype(dtype))
+            if dtype is not None:
+                value.dtype = _torch_dtype_to_onnx_dtype(dtype)
             # TODO(titaiwang): This approach loses the information that "same SymInts
             # indicates same shape", for example, [symint0, symint0, symint1]
             # would all be [None, None, None]
@@ -573,10 +600,11 @@ class TorchScriptGraph:
             self._initializers[name] = value
 
         # TODO(justinchuby): Be able to add input
-        torch_value = self._torch_graph.addInput(name)
-        torch_value.setType(torch.TensorType.create_from_tensor(value))
-        self._initializers_inputs[name] = tensor_value  # type: ignore[assignment]
-        return tensor_value  # type: ignore[return-value]
+        input = TorchScriptTensor(name=name)
+        initializer = ir.Tensor(value, dtype=_torch_dtype_to_onnx_dtype(value.dtype))
+        self._initializers_inputs[name] = input
+        self._graph.initializers[name] = initializer
+        return input
 
     @runtime_typing.checked
     def register_outputs(
