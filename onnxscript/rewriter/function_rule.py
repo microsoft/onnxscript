@@ -7,7 +7,7 @@ import onnx
 from packaging import version
 
 import onnxscript
-import onnxscript._legacy_ir as ir
+from onnxscript import ir
 from onnxscript._legacy_ir import visitor
 from onnxscript.rewriter import pattern
 

@@ -6,7 +6,7 @@ from typing import Any, Sequence
 import numpy as np
 import onnx
 
-import onnxscript._legacy_ir as ir
+from onnxscript import ir
 from onnxscript.rewriter import pattern
 
 op = pattern.onnxop

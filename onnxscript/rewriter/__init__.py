@@ -14,7 +14,7 @@ __all__ = [
 
 import onnx
 
-from onnxscript._legacy_ir import irbuilder, protobuilder
+from onnxscript.ir import serde
 from onnxscript.optimizer import remove_unused, remove_unused_function
 from onnxscript.rewriter import function_rule, pattern
 
@@ -28,17 +28,16 @@ def rewrite(
     pattern_rewrite_rules: Sequence[PatternRewriteRule] = (),
 ) -> onnx.ModelProto:
     if function_rewrite_rules:
-        model_ir = irbuilder.build_ir(model)
+        model_ir = serde.deserialize_model(model)
         for rule_cls in function_rewrite_rules:
             rule_cls().apply_to_model(model_ir)
-        model = model_ir.original_model_proto
+        # TODO: Avoid serializing and deserializing the model?
+        model = serde.serialize_model(model_ir)
     if pattern_rewrite_rules:
-        model_ir = irbuilder.build_ir(model)
+        model_ir = serde.deserialize_model(model)
         count = pattern.RewriteRuleSet(pattern_rewrite_rules).apply_to_model(model_ir)
-        print(f"Applied {count} pattern rewrite rules.")
-        model = protobuilder.build_model_proto(model_ir)
-    # TODO: Does it make more sense we run DCE after each rewrite rule applied?
-    # If so, we need IR to support DCE.
+        print(f"Applied {count} of general pattern rewrite rules.")
+        model = serde.serialize_model(model_ir)
     remove_unused.remove_unused_nodes(model)
     remove_unused_function.remove_unused_functions(model)
     return model

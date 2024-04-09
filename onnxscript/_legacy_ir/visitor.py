@@ -7,7 +7,7 @@ from typing import Any, Sequence
 import numpy as np
 import onnx
 
-import onnxscript._legacy_ir as ir
+from onnxscript import ir
 from onnxscript.utils.utils import (
     get_initializer_type,
     is_control_flow_op,
@@ -86,7 +86,7 @@ class FunctionShapeEnv:
             # Standard main graph value info format.
             function_id = None
             value_name = name
-        return function_id, ir.Value(value_name, type=value_info.type)
+        return function_id, ir.Value(name=value_name, type=value_info.type)
 
     def save_to_value_info(
         self, value: ir.Value, domain: str, function_name: str, overload: str
@@ -852,7 +852,7 @@ class FunctionCallsiteProtoTransformer(ProtoTransformer):
         for actual_input_value_info, formal_input in zip(
             actual_input_value_infos, function.input
         ):
-            formal_info = ir.Value(formal_input)
+            formal_info = ir.Value(name=formal_input)
             if actual_input_value_info is not None:
                 formal_info.identity_merge_from(actual_input_value_info)
             self.bind(formal_input, formal_info)

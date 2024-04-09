@@ -5,7 +5,7 @@ from typing import Any
 
 import numpy as np
 
-import onnxscript._legacy_ir as ir
+from onnxscript import ir
 from onnxscript.rewriter import pattern
 
 op = pattern.onnxop
@@ -31,17 +31,24 @@ def check_if_need_reshape(match_bindings: dict[str, ir.Value | Any]) -> bool:
     """
     input_a_shape = match_bindings["input_a"].shape
     input_b_shape = match_bindings["input_b"].shape
-    shape_c = match_bindings["shape_c"].value_as_np_array
+    # TODO: Get a helper func to get const_value
+    match_bindings["shape_c"].const_value = (
+        match_bindings["shape_c"].def_node.attributes["value"].value
+    )
+    shape_c = match_bindings["shape_c"].const_value.numpy()
     if shape_c is None:
+        print("Shape C is None")
         return False
     if not isinstance(shape_c, np.ndarray):
         logger.info("Unexpected shape_c value. Expected np.ndarray, got %s", type(shape_c))
+        print("Shape C is not an ndarray")
         return False
     if len(shape_c.shape) != 1:
         logger.info(
             "Unexpected final shape. The shape of 'shape' value is %s",
             shape_c.shape,
         )
+        print("Shape C is not 1D")
         return False
     shape_c = shape_c.tolist()
 
@@ -49,6 +56,7 @@ def check_if_need_reshape(match_bindings: dict[str, ir.Value | Any]) -> bool:
     # information. So, we need to check if the shape is None and return False.
     if input_a_shape is None or input_b_shape is None or shape_c is None:
         logger.info("Shape information is not available for the inputs and outputs.")
+        print("Shape information is not available for the inputs and outputs.")
         return False
 
     dim_a = len(input_a_shape)
@@ -61,6 +69,7 @@ def check_if_need_reshape(match_bindings: dict[str, ir.Value | Any]) -> bool:
     if dim_a < 2:
         if input_a_shape[-1] != input_b_shape[-2]:
             logger.info("Original shape is not MatMul compatible.")
+            print("Original shape is not MatMul compatible.")
             return False
         else:
             input_a_shape = [1, *input_a_shape]
@@ -71,6 +80,7 @@ def check_if_need_reshape(match_bindings: dict[str, ir.Value | Any]) -> bool:
     if dim_b < 2:
         if input_b_shape[-1] != input_a_shape[-1]:
             logger.info("Original shape is not MatMul compatible.")
+            print("Original shape is not MatMul compatible.")
             return False
         else:
             input_b_shape = [*input_b_shape, 1]
@@ -91,6 +101,10 @@ def check_if_need_reshape(match_bindings: dict[str, ir.Value | Any]) -> bool:
     ):
         if dim_from_a not in {1, dim_from_b}:
             logger.info("Original shape is not broadcastable.")
+            print("Original shape is not broadcastable.")
+            import pdb
+
+            pdb.set_trace()
             return False
         elif idx > 0:
             broadcast_matmul_output_shape = [
@@ -119,6 +133,7 @@ def check_if_need_reshape(match_bindings: dict[str, ir.Value | Any]) -> bool:
             shape_c,
             broadcast_matmul_output_shape,
         )
+        print("Final output shape is not the same.")
         return False
 
     return True

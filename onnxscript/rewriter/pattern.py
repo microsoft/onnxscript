@@ -10,8 +10,8 @@ import onnx
 import onnx.numpy_helper
 import onnx.printer
 
-import onnxscript._legacy_ir as ir
-from onnxscript._legacy_ir import irbuilder
+from onnxscript import ir
+from onnxscript.ir import serde
 
 # Overview of the pattern module: The classes below are used to define both
 # patterns (that we search for) and replacements for rewrite rules.
@@ -382,29 +382,6 @@ class ValuePattern:
         return onnxop.Pow(self, other)
 
 
-# NOTE(bowbao): Based on reading code, this is (nearly) the only place where `model` is used
-# for (nearly) all the functions that passes `model` around. It seems the goal is to be able
-# create unique value names.
-def _make_node(
-    model: ir.Model,
-    domain: str,
-    op: str,
-    input,
-    attributes,
-    num_outputs: int,
-) -> tuple[list[ir.Value], ir.Node]:
-    inputnames = [x.name for x in input]
-    outputs = [model.make_new_name() for i in range(num_outputs)]
-    node = onnx.helper.make_node(op, inputnames, outputs, domain=domain, **attributes)
-    newnode = ir.Node(node)
-    newnode.set_version_if_custom_op(model.version_map)
-    newvalues = [ir.Value(name=v, node=newnode, output_index=i) for i, v in enumerate(outputs)]
-    newnode.inputs = input
-    newnode.outputs = newvalues
-    newnode.attributes = attributes  # TODO
-    return newvalues, newnode
-
-
 class NodePattern:
     """Represents a pattern that matches against a Node.
 
@@ -433,7 +410,7 @@ class NodePattern:
                 return MatchResult([])
             else:
                 return MatchResult.FAIL()
-        node = value.def_node()
+        node = value.def_node
         if node is None:
             # Eg., value could be an input parameter, which will not match a value
             # computed by the op in this pattern.
@@ -503,9 +480,15 @@ class NodePattern:
             name: attr_pattern.to_ir(model, rewrite_cache, bindings)
             for (name, attr_pattern) in self.attributes.items()
         }
-        newvals, newnode = _make_node(model, domain, op, inputs, attributes, num_outputs)
+        newnode = ir.Node(
+            domain=domain,
+            op_type=op,
+            inputs=inputs,
+            attributes=attributes,
+            num_outputs=num_outputs,
+        )
         nodes.append(newnode)
-        return newvals, nodes
+        return newnode.outputs, nodes
 
     def commute(self) -> list[ValuePattern]:
         list_of_lists = [pattern.commute() for pattern in self.inputs]
@@ -541,10 +524,10 @@ class NodeOutputPattern(ValuePattern):
 
     def matches(self, value: ir.Value, model: ir.Model):
         """Match the StaticValueInfo from IR with the `matches_node()` in node pattern."""
-        node = value.def_node()
+        node = value.def_node
         if node is None:
             return MatchResult.FAIL()
-        if value.def_index() != self.output_index:
+        if value.def_index != self.output_index:
             return MatchResult.FAIL()
         return self.node_pattern.matches_node(node, model)
 
@@ -1043,7 +1026,7 @@ class RewriteRuleSet:
     def apply_to_model(self, model: ir.Model) -> int:
         assert isinstance(model, ir.Model)
         count = self._apply_to_graph_or_function(model, model.graph)
-        for function in model.functions:
+        for function in model.functions.values():
             count += self._apply_to_graph_or_function(model, function)
         return count
 
@@ -1060,7 +1043,7 @@ class RewriteRuleSet:
 
     def count_matches(self, model: onnx.ModelProto | ir.Model):
         if isinstance(model, onnx.ModelProto):
-            model = irbuilder.build_ir(model)
+            model = serde.deserialize_model(model)
         else:
             assert isinstance(model, ir.Model)
         count = self._count_matches_in_graph_or_function(model, model.graph)

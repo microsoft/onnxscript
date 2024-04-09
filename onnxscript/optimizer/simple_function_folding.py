@@ -7,7 +7,7 @@ from typing import Sequence
 
 import onnx
 
-import onnxscript._legacy_ir as ir
+from onnxscript import ir
 from onnxscript._legacy_ir import visitor
 from onnxscript.optimizer import remove_unused
 

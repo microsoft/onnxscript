@@ -9,12 +9,12 @@ import typing
 import onnx
 import onnx.helper as oh
 
-import onnxscript._legacy_ir as oir
 import onnxscript.rewriter.pattern as orp
+from onnxscript import ir
 
 
 def enumerate_subgraphs(
-    node: oir.Node,
+    node: ir.Node,
 ) -> typing.Iterator[tuple[typing.Any, ...]]:
     """Returns the subgraphs inside a graph."""
     for att in node.attribute:
@@ -33,9 +33,9 @@ class _GraphStructureAPI:
     def __init__(self):
         self.predecessors_: dict[str, int] = {}
         self.successors_: dict[str, list[int]] = {}
-        self.nodes_: dict[int, oir.Node] = {}
+        self.nodes_: dict[int, ir.Node] = {}
 
-    def node_before(self, name: str) -> oir.Node | None:
+    def node_before(self, name: str) -> ir.Node | None:
         """
         Returns the node producing this output.
 
@@ -46,7 +46,7 @@ class _GraphStructureAPI:
         predecessor = self.predecessors_[name]
         return self.nodes_[predecessor]
 
-    def next_nodes(self, name: str) -> list[oir.Node] | None:
+    def next_nodes(self, name: str) -> list[ir.Node] | None:
         """Returns the node consuming the given results."""
         if name not in self.successors_:
             return []
@@ -65,19 +65,19 @@ class BuilderWithGraphStructure(_GraphStructureAPI):
         self.bridge: ModelWithGraphStructure = bridge
         self.input_names: list[str] = []
         self.output_names: list[str] = []
-        self.nodes: list[oir.Node] = []
+        self.nodes: list[ir.Node] = []
 
     def _build(self) -> None:
         self.predecessors_: dict[str, int] = {}
         self.successors_: dict[str, list[int]] = {}
-        self.nodes_: dict[int, oir.Node] = {}
+        self.nodes_: dict[int, ir.Node] = {}
 
         self.outputs_ = set(self.output_names)
         for node in self.nodes:
             self.nodes_[id(node)] = node
 
         for k, v in self.nodes_.items():
-            assert isinstance(v, oir.Node), f"Unexpected type {type(v)} for node {k}"
+            assert isinstance(v, ir.Node), f"Unexpected type {type(v)} for node {k}"
             for o in v.output_names:
                 self.predecessors_[o] = k
             for i in v.input_names:
@@ -114,7 +114,7 @@ class BuilderWithGraphStructure(_GraphStructureAPI):
         return self.make_node(op_type, *args, output_names=output_names, **kwargs)
 
     def make_node_with_proto(self, node_proto: onnx.NodeProto) -> tuple[str] | str:
-        node = oir.Node(node_proto, True)
+        node = ir.Node(node_proto, True)
         self.nodes.append(node)
         assert node.output_names, f"No output in node {node}. This can't be true."
         if len(node.output_names) == 1:
@@ -130,7 +130,7 @@ class BuilderWithGraphStructure(_GraphStructureAPI):
         name: str | None = None,
         **kwargs: typing.Any,
     ) -> str | tuple[str]:
-        node = oir.Node(
+        node = ir.Node(
             self.bridge.make_node(
                 op_type, input_names, output_names, domain=domain, name=name, **kwargs
             ),
@@ -143,15 +143,15 @@ class BuilderWithGraphStructure(_GraphStructureAPI):
         return tuple(node.output_names)
 
 
-class ModelWithGraphStructure(oir.Model, _GraphStructureAPI):
+class ModelWithGraphStructure(ir.Model, _GraphStructureAPI):
     """Implements all the necessary API it needs to work.
 
     Wraps a :class:`Model` and builds successors and predecessors on
     top of it.
     """
 
-    def __init__(self, model: oir.Model, verbose: int = 0):
-        oir.Model.__init__(self)
+    def __init__(self, model: ir.Model, verbose: int = 0):
+        ir.Model.__init__(self)
         _GraphStructureAPI.__init__(self)
         self.model = model
         if hasattr(self.model, "graph"):
@@ -180,7 +180,7 @@ class ModelWithGraphStructure(oir.Model, _GraphStructureAPI):
         # TODO: # initiliazer are missing
         self._unique_names = set(self.input_names) | set(self.output_names)
         for k, v in self.nodes_.items():
-            assert isinstance(v, oir.Node), f"Unexpected type {type(v)} for node {k}"
+            assert isinstance(v, ir.Node), f"Unexpected type {type(v)} for node {k}"
             for o in v.output_names:
                 self.predecessors_[o] = k
             for i in v.input_names:
@@ -304,14 +304,14 @@ class GenericRewriteRule(orp.RewriteRule):
     def __init__(self, pattern: GenericPattern):
         self.pattern = pattern
 
-    def matches(self, node: oir.Node, model: oir.Model) -> orp.MatchResult:
+    def matches(self, node: ir.Node, model: ir.Model) -> orp.MatchResult:
         del model
         del node
         raise RuntimeError(f"This pattern {self} is meant to replace not to only match.")
 
     def try_rewrite(
-        self, model: oir.Model, node: oir.Node
-    ) -> tuple[int, list[oir.Node], list[oir.Node]] | None:
+        self, model: ir.Model, node: ir.Node
+    ) -> tuple[int, list[ir.Node], list[ir.Node]] | None:
         """See :meth:`RewriteRule.try_rewrite`."""
         if isinstance(model, ModelWithGraphStructure):
             bridge = model
@@ -322,7 +322,7 @@ class GenericRewriteRule(orp.RewriteRule):
         marked = set()
         matched = 0
         for matched_nodes in self.pattern.enumerate_matches(bridge, node):
-            assert all(isinstance(i, oir.Node) for i in matched_nodes)
+            assert all(isinstance(i, ir.Node) for i in matched_nodes)
             conflict = False
             for node in matched_nodes:
                 if id(node) in marked:
@@ -335,7 +335,7 @@ class GenericRewriteRule(orp.RewriteRule):
             # Let's build the new nodes
             new_nodes = self.pattern.apply(bridge, *matched_nodes)
             assert all(
-                isinstance(i, oir.Node) for i in new_nodes
+                isinstance(i, ir.Node) for i in new_nodes
             ), f"Unexpected types {[type(n) for n in new_nodes]}"
 
             if not self.pattern.validate_mapping(bridge, matched_nodes, new_nodes):
@@ -351,7 +351,7 @@ class GenericRewriteRule(orp.RewriteRule):
             return matched, deleted_nodes, added_nodes
         return None
 
-    def count_matches(self, model: oir.Model, *, commute: bool = False) -> int:
+    def count_matches(self, model: ir.Model, *, commute: bool = False) -> int:
         """See :meth:`RewriteRule.count_matches`."""
         raise NotImplementedError("Not supported yet.")
 
@@ -359,7 +359,7 @@ class GenericRewriteRule(orp.RewriteRule):
         """See :meth:`RewriteRule.commute`."""
         raise RuntimeError("Not supported (yet?). It could lead to many patterns.")
 
-    def apply_to_model(self, model: oir.Model, *, commute: bool = False) -> int:
+    def apply_to_model(self, model: ir.Model, *, commute: bool = False) -> int:
         """See :meth:`RewriteRule.apply_to_model`."""
         return orp.RewriteRuleSet([self], commute=commute).apply_to_model(model)
 
@@ -379,7 +379,7 @@ class GenericPattern:
         self._cache: dict = {}
 
     def validate_mapping(
-        self, g: oir.Model, deleted_nodes: list[oir.Node], added_nodes: list[oir.Node]
+        self, g: ir.Model, deleted_nodes: list[ir.Node], added_nodes: list[ir.Node]
     ) -> bool:
         """Evaluates the consistency of the replacements."""
         raise NotImplementedError(
@@ -388,7 +388,7 @@ class GenericPattern:
         )
 
     def enumerate_matches(
-        self, g: ModelWithGraphStructure, node: oir.Node | None = None
+        self, g: ModelWithGraphStructure, node: ir.Node | None = None
     ) -> typing.Iterator:
         """Enumerates all the matches."""
         if node is None:
@@ -405,7 +405,7 @@ class GenericPattern:
 
     def none(
         self,
-        node: oir.Node | None = None,
+        node: ir.Node | None = None,
         lineno: int | None = None,
         msg: str = "",
     ) -> None:
@@ -471,7 +471,7 @@ class GenericPattern:
         g: ModelWithGraphStructure,
         *args: str,
         **kwargs: typing.Any,
-    ) -> list[oir.Node] | None:
+    ) -> list[ir.Node] | None:
         """Builds the pattern to match."""
         raise NotImplementedError(
             f"Class {cls.__name__!r} must overwrite method match_pattern."
@@ -541,7 +541,7 @@ class GenericPattern:
             )
         return "\n".join(rows)
 
-    def print_match(self, n1: oir.Node, n2: oir.Node) -> str:
+    def print_match(self, n1: ir.Node, n2: ir.Node) -> str:
         s1 = f"{n1.op_type}({','.join(n1.input_names)})"
         s2 = f"{n2.op_type}({','.join(n2.input_names)})"
         return f"match {s1} with {s2} (pattern)"
@@ -555,8 +555,8 @@ class GenericPattern:
                 return s
             return f"{s[:15]}...{s[-15:]}"
 
-        def _p(n: oir.Node, full: bool = False) -> str:
-            if isinstance(n, (oir.Node, onnx.NodeProto)):
+        def _p(n: ir.Node, full: bool = False) -> str:
+            if isinstance(n, (ir.Node, onnx.NodeProto)):
                 if full:
                     return (
                         f"{n.op_type}({', '.join(map(_s, n.input_names))}) "
@@ -596,12 +596,12 @@ class GenericPattern:
     def _match_backward(
         self,
         g: ModelWithGraphStructure,
-        node: oir.Node,
+        node: ir.Node,
         pat: ModelWithGraphStructure,
-        marked: dict[int, tuple[oir.Node, oir.Node]],
+        marked: dict[int, tuple[ir.Node, ir.Node]],
         stacked: list[int],
-        n: oir.Node,
-        pn: oir.Node,
+        n: ir.Node,
+        pn: ir.Node,
     ) -> int | None:
         """
         Matches backward.
@@ -662,12 +662,12 @@ class GenericPattern:
     def _match_forward(
         self,
         g: ModelWithGraphStructure,
-        node: oir.Node,
+        node: ir.Node,
         pat: ModelWithGraphStructure,
-        marked: dict[int, tuple[oir.Node, oir.Node]],
+        marked: dict[int, tuple[ir.Node, ir.Node]],
         stacked: list[int],
-        n: oir.Node,
-        pn: oir.Node,
+        n: ir.Node,
+        pn: ir.Node,
     ) -> int | None:
         """
         Matches forward.
@@ -828,8 +828,8 @@ class GenericPattern:
     def match(
         self,
         g: ModelWithGraphStructure,
-        node: oir.Node,
-    ) -> list[oir.Node] | None:
+        node: ir.Node,
+    ) -> list[ir.Node] | None:
         self._debug = {}
 
         pat = self._get_match_pattern(g)
@@ -933,7 +933,7 @@ class GenericPattern:
         g: ModelWithGraphStructure,
         *args: typing.Any,
         **kwargs: typing.Any,
-    ) -> list[oir.Node]:
+    ) -> list[ir.Node]:
         """Applies the replacement."""
         raise NotImplementedError(
             f"Class {cls.__name__!r} must overwrite method 'apply_pattern'."
@@ -942,9 +942,9 @@ class GenericPattern:
     def apply(
         self,
         g: ModelWithGraphStructure,
-        *nodes: typing.Sequence[oir.Node],
-    ) -> list[oir.Node]:
-        assert all(isinstance(n, oir.Node) for n in nodes)
+        *nodes: typing.Sequence[ir.Node],
+    ) -> list[ir.Node]:
+        assert all(isinstance(n, ir.Node) for n in nodes)
         pat = self._build_pattern(g, self.match_pattern)
         assert len(nodes) == len(pat.nodes), (
             f"Mismatch matched nodes pattern has {len(pat.nodes)} != {len(nodes)} = "
@@ -959,7 +959,7 @@ class GenericPattern:
             f"Not the same number of outputs, matched outputs={pat.output_names}, "
             f"got {new_pat.output_names} in the applied pattern."
         )
-        assert all(isinstance(n, oir.Node) for n in pat.nodes)
+        assert all(isinstance(n, ir.Node) for n in pat.nodes)
 
         if g.verbose > 5:
             print(
@@ -1042,7 +1042,7 @@ class GenericPattern:
                     new_outputs.append(n)
             new_node = g.make_node(node.op_type, new_inputs, new_outputs, domain=node.domain)
             new_node.attribute.extend(node.attribute)
-            new_nodes.append(oir.Node(new_node, True))
+            new_nodes.append(ir.Node(new_node, True))
 
         if g.verbose > 5:
             print(f"[GenericPattern.apply] done with {len(new_nodes)} nodes")
@@ -1080,7 +1080,7 @@ class OnnxGenericPattern(GenericPattern):
         self._cache = {}
 
     def validate_mapping(
-        self, g: oir.Model, deleted_nodes: list[oir.Node], added_nodes: list[oir.Node]
+        self, g: ir.Model, deleted_nodes: list[ir.Node], added_nodes: list[ir.Node]
     ) -> bool:
         """Evaluates the consistency of the replacements."""
         return self._validate_mapping(g, deleted_nodes, added_nodes)

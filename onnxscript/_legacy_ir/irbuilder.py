@@ -5,7 +5,7 @@ from typing import Any
 
 import onnx
 
-import onnxscript._legacy_ir as ir
+from onnxscript import ir
 from onnxscript._legacy_ir import visitor
 from onnxscript.utils import utils
 
