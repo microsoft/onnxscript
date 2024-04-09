@@ -211,8 +211,8 @@ class GraphTest(unittest.TestCase):
             nodes=(node,),
             opset_imports={"": 1},
         )
-        self.assertEqual(graph.inputs, (v0, v1))
-        self.assertEqual(graph.outputs, node.outputs)
+        self.assertEqual(graph.inputs, [v0, v1])
+        self.assertEqual(graph.outputs, [*node.outputs])
         self.assertEqual(graph.opset_imports, {"": 1})
         self.assertEqual(graph.initializers, {})
         self.assertIsNone(graph.doc_string)
