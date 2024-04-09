@@ -261,23 +261,23 @@ class GraphProtocol(Protocol):
     def __reversed__(self) -> Iterator[NodeProtocol]: ...
 
     # Mutation methods
-    def append(self, node: NodeProtocol) -> None:
+    def append(self, /, node: NodeProtocol) -> None:
         """Append a node to the graph."""
         ...
 
-    def extend(self, nodes: Iterable[NodeProtocol]) -> None:
+    def extend(self, /, nodes: Iterable[NodeProtocol]) -> None:
         """Extend the graph with the given nodes."""
         ...
 
-    def remove(self, node: NodeProtocol) -> None:
+    def remove(self, /, node: NodeProtocol) -> None:
         """Remove a node from the graph."""
         ...
 
-    def insert_after(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol]) -> None:
+    def insert_after(self, /, node: NodeProtocol, new_nodes: Iterator[NodeProtocol]) -> None:
         """Insert new nodes after the given node."""
         ...
 
-    def insert_before(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol]) -> None:
+    def insert_before(self, /, node: NodeProtocol, new_nodes: Iterator[NodeProtocol]) -> None:
         """Insert new nodes before the given node."""
         ...
 
