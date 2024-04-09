@@ -11,8 +11,6 @@
     # After build complete
     pip install build/Linux/RelWithDebInfo/dist/onnxruntime_gpu-*.whl
     ```
-<!-- 3. (Optional) Install torchbenchmark and related dependencies. -->
-<!-- 4. (Optional) git clone ONNXConverter. -->
 
 ### Model Optimization
 
@@ -129,7 +127,8 @@
 5. Develop optimization code.
     - `onnx-script/onnxscript/optimizer`: Optimizations such as constant folding, inlining, dead code elimination etc.
     - `onnx-script/onnxscript/rewriter`: Pattern based fusions.
-    - `onnx-script/onnxscript/rewriter/functions`: Function based fusions.
+    - `onnx-script/onnxscript/rewriter/onnxruntime`: Onnxruntime specific pattern based fusions.
+    - `onnx-script/onnxscript/rewriter/onnxruntime/transformers`: Onnxruntime specific function based fusions.
         - Use function unittest producer tool to create function fusion unittest. Example command to distill 4 unittests for function `LlamaSdpaAttention` from `llama_v2_7b` `dynamo` model. The unittest models are named with prefix `sdpa_llama2`:
             ```
             # Under onnx-script/onnxscript/rewriter/transformers
