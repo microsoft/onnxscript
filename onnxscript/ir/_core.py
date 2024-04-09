@@ -375,12 +375,48 @@ class Dimension(_protocols.DimensionProtocol, _display.PrettyPrintable):
         self._value = value
         self._denotation = denotation
 
-    def __index__(self) -> int:
+    def __int__(self) -> int:
         if not isinstance(self.value, int):
             raise TypeError(
-                f"The value of this dim is not int, but {type(self.value)} ({self.value})"
+                f"The value of this Dimension is not int, but {type(self.value)} ({self.value})"
             )
         return self.value
+
+    def __index__(self) -> int:
+        return int(self)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, (int, str)) or other is None:
+            return self.value == other
+        if not isinstance(other, Dimension):
+            return False
+        return self.value == other.value
+
+    def __ne__(self, value: object) -> bool:
+        return not self.__eq__(value)
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, (int, Dimension)):
+            raise TypeError(f"Expected other to be Dimension or int, got {type(other)}")
+        return int(self) < int(other)
+
+    def __le__(self, other: object) -> bool:
+        if not isinstance(other, (int, Dimension)):
+            raise TypeError(f"Expected other to be Dimension or int, got {type(other)}")
+        return int(self) <= int(other)
+
+    def __gt__(self, other: object) -> bool:
+        if not isinstance(other, (int, Dimension)):
+            raise TypeError(f"Expected other to be Dimension or int, got {type(other)}")
+        return int(self) > int(other)
+
+    def __ge__(self, other: object) -> bool:
+        if not isinstance(other, (int, Dimension)):
+            raise TypeError(f"Expected other to be Dimension or int, got {type(other)}")
+        return int(self) >= int(other)
+
+    def __hash__(self) -> int:
+        return hash(self.value)
 
     @property
     def value(self) -> int | str | None:
