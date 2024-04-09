@@ -99,3 +99,5 @@ onnxscript/tests/mylib.onnxlib
 **/onnx_backend_test_code/**
 *.onnxlib
 *.onnx
+tools/ort_rewriter_profiling/onnx_models/*
+tools/ort_rewriter_profiling/.logs/*
