@@ -54,7 +54,7 @@ class ArrayCompatible(Protocol):
 
 @typing.runtime_checkable
 class DLPackCompatible(Protocol):
-    """Protocol objects that can support dlpack.
+    """Protocol for objects that can support dlpack.
 
     Computation backends can call __dlpack__ to obtain the underlying data in a
     tensor without copying the data. This allows use to use tensorflow tensors etc.
@@ -118,20 +118,20 @@ class TensorProtocol(ArrayCompatible, Protocol):
 
 @typing.runtime_checkable
 class ValueProtocol(Protocol):
-    """Values.
+    """Protocol for values.
 
     A value is a named entity that can be used to represent an input or output of a graph,
-    a function, or a node. The information it stores corresponds to ValueInfoProto
+    a function, or a node. The information it stores corresponds to ``ValueInfoProto``
     in the ONNX specification.
 
     A :class:`Value` is always not owned or owned by exactly one node. When the value is not
-    owned, it must be an input of a graph or a function. The def_node and def_index
-    attributes are None.
+    owned, it must be an input of a graph or a function. ``def_node`` and ``def_index``
+    are ``None``.
 
     When the value is owned by a node, it is an output of the node.
-    The node that produces the value is stored in the :attr:`def_node` attribute.
-    The index of the output of the node that produces the value is stored in the
-    :attr:`def_index` attribute.
+    The node that produces the value can be accessed with :method:`def_node`.
+    The index of the output of the node that produces the value can be accessed with
+    :method:`def_index`.
 
     To find all the nodes that use this value as an input, call :meth:`users`.
 
@@ -139,20 +139,24 @@ class ValueProtocol(Protocol):
 
     Attributes:
         name: The name of the value. A value is always named when it is part of a graph.
-        def_node: The node that produces this value.
-        def_index: The index of the output of the node that produces this value.
         shape: The shape of the value.
         type: The type of the value.
         metadata_props: Metadata.
     """
 
     name: str
-    def_node: NodeProtocol | None
-    def_index: int | None
     shape: ShapeProtocol | None
     type: TypeProtocol | None
     metadata_props: Mapping[str, str]
     meta: Mapping[str, Any]
+
+    def def_node(self) -> NodeProtocol | None:
+        """The node that produces this value."""
+        ...
+
+    def def_index(self) -> int | None:
+        """The index of the output of the node that produces this value."""
+        ...
 
     def users(self) -> AbstractSet[tuple[NodeProtocol, int]]:
         """The set of (node, input_index) with node being those that use this value as an input."""
@@ -165,7 +169,7 @@ class ValueProtocol(Protocol):
 
 @typing.runtime_checkable
 class NodeProtocol(Protocol):
-    """Nodes.
+    """Protocol for nodes.
 
     A node represents an invocation of an operation on the :class:`Value` s in
     the computational graph.
@@ -222,7 +226,7 @@ class NodeProtocol(Protocol):
 
 @typing.runtime_checkable
 class GraphProtocol(Protocol):
-    """Graphs.
+    """Protocol for graphs.
 
     Graph represents a computation graph. In addition to the ONNX specification
     specified fields, it also contains a mapping of :attr:`opset_imports`. This
@@ -288,7 +292,7 @@ class GraphProtocol(Protocol):
 
 @typing.runtime_checkable
 class ModelProtocol(Protocol):
-    """Models.
+    """Protocol for models.
 
     A model is a container for a graph and metadata. It is the top-level object
     that represents an ONNX model.

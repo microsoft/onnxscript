@@ -873,12 +873,13 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
+        def_node = self.def_node()
         def_node_text = (
-            self.def_node.name or "anonymous_node:" + str(id(self.def_node))
-            if self.def_node is not None
+            def_node.name or "anonymous_node:" + str(id(def_node))
+            if def_node is not None
             else None
         )
-        return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, def_node={def_node_text}, def_index={self.def_index})"
+        return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, def_node={def_node_text}, def_index={self.def_index()})"
 
     def __str__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
@@ -889,21 +890,13 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # that make them hard to read
         return f"%{_quoted(value_name)}<{type_text},{shape_text}>"
 
-    @property
     def def_node(self) -> Node | None:
+        """The node that produces this value."""
         return self._def_node
 
-    @def_node.setter
-    def def_node(self, _: Any) -> None:
-        raise AttributeError("def_node is immutable. Please create a new value instead.")
-
-    @property
     def def_index(self) -> int | None:
+        """The index of the output of the defining node."""
         return self._def_index
-
-    @def_index.setter
-    def def_index(self, _: Any) -> None:
-        raise AttributeError("def_index is immutable. Please create a new value instead.")
 
     def users(self) -> frozenset[tuple[Node, int]]:
         return frozenset(self._users)
@@ -1008,11 +1001,12 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def is_graph_output(self) -> bool:
         """Whether the value is an output of a graph."""
-        if self.def_node is None:
+        def_node = self.def_node()
+        if def_node is None:
             return False
-        if self.def_node.graph is None:
+        if def_node.graph is None:
             return False
-        return self in self.def_node.graph.outputs
+        return self in def_node.graph.outputs
 
 
 class Input(Value):
