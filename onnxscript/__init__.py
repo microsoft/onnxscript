@@ -58,7 +58,7 @@ from .onnx_types import (
 
 # isort: on
 
-from . import ir
+from . import ir, optimizer, rewriter
 from ._internal.utils import external_tensor
 from .values import OnnxFunction, TracedOnnxFunction
 
@@ -72,6 +72,8 @@ __all__ = [
     "script",
     "graph",
     "ir",
+    "optimizer",
+    "rewriter",
     "export_onnx_lib",
     "OnnxFunction",
     "TracedOnnxFunction",
