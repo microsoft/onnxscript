@@ -129,9 +129,9 @@ class ValueProtocol(Protocol):
     are ``None``.
 
     When the value is owned by a node, it is an output of the node.
-    The node that produces the value can be accessed with :method:`def_node`.
+    The node that produces the value can be accessed with :meth:`def_node`.
     The index of the output of the node that produces the value can be accessed with
-    :method:`def_index`.
+    :meth:`def_index`.
 
     To find all the nodes that use this value as an input, call :meth:`users`.
 

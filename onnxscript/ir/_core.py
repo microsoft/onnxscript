@@ -237,7 +237,30 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
 
 
 class ExternalTensor(TensorBase, _protocols.TensorProtocol):
-    """A tensor with the data as external data on disk."""
+    """An immutable concrete tensor with its data store on disk.
+
+    This class uses memory mapping to avoid loading the tensor into memory,
+    when the data type is supported by numpy. Otherwise, the tensor is loaded
+    into memory lazily when accessed.
+
+    Calling :attr:`shape` does not incur IO. Checking shape before loading
+    the tensor is recommended if IO overhead and memory usage is a concern.
+
+    To obtain an array, call :meth:`numpy`. To obtain the bytes,
+    call :meth:`tobytes`.
+
+    The :attribute:`path` can be a relative path or an absolute path.
+    Serializers should handle the path correctly to conform with the ONNX spec.
+
+    Attributes:
+        path: The path to the data file. This can be a relative path or an absolute path.
+        offset: The offset in bytes from the start of the file.
+        length: The length of the data in bytes.
+        dtype: The data type of the tensor.
+        shape: The shape of the tensor.
+        name: The name of the tensor. It must be specified.
+        doc_string: The documentation string.
+    """
 
     __slots__ = (
         "_path",
@@ -262,30 +285,6 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         name: str,
         doc_string: str | None = None,
     ) -> None:
-        """An immutable concrete tensor with its data store on disk.
-
-        This class uses memory mapping to avoid loading the tensor into memory,
-        when the data type is supported by numpy. Otherwise, the tensor is loaded
-        into memory lazily when accessed.
-
-        Calling :attr:`shape` does not incur IO. Checking shape before loading
-        the tensor is recommended if IO overhead and memory usage is a concern.
-
-        To obtain an array, call :method:`numpy`. To obtain the bytes,
-        call :method:`tobytes`.
-
-        The :attribute:`path` can be a relative path or an absolute path.
-        Serializers should handle the path correctly to conform with the ONNX spec.
-
-        Args:
-            path: The path to the data file. This can be a relative path or an absolute path.
-            offset: The offset in bytes from the start of the file.
-            length: The length of the data in bytes.
-            dtype: The data type of the tensor.
-            shape: The shape of the tensor.
-            name: The name of the tensor. It must be specified.
-            doc_string: The documentation string.
-        """
         self._path = path
         self._offset: int | None = offset
         self._length: int | None = length
@@ -350,6 +349,10 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         return f"{self._repr_base()}(path='{self._path}', name={self.name!r}, offset={self._offset!r}), length={self._length!r})"
 
     def numpy(self) -> np.ndarray:
+        """Return the tensor as a numpy array.
+
+        The data will be memory mapped into memory and will not taken up physical memory space.
+        """
         if self._array is None:
             self._load()
         assert self._array is not None
@@ -508,7 +511,19 @@ def _quoted(string: str) -> str:
 
 
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
-    """IR Node."""
+    """IR Node.
+
+    When the node is initialized, it does not belong to any graph. It is the
+    responsibility of the caller to add the node to a graph, by calling :func:`Graph.absorb_nodes`.
+
+    After the node is initialized, it will add itself as a user of the input values.
+
+    The output values of the node are created during node initialization and are immutable.
+    To change the output values, create a new node and replace the output.users.inputs with
+    the new output values by calling :meth:`replace_input_with` on the user nodes
+    of this node's outputs.
+
+    """
 
     __slots__ = (
         "_name",
@@ -540,16 +555,6 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         doc_string: str | None = None,
     ):
         """Initialize a node and add it as a user of the input values.
-
-        When the node is initialized, it does not belong to any graph. It is the
-        responsibility of the caller to add the node to a graph, by calling :func:`Graph.absorb_nodes`.
-
-        After the node is initialized, it will add itself as a user of the input values.
-
-        The output values of the node are created during node initialization and are immutable.
-        To change the output values, create a new node and replace the output.users.inputs with
-        the new output values by calling :method:`replace_input_with` on the user nodes
-        of this node's outputs.
 
         Args:
             domain: The domain of the operator. For onnx operators, this is an empty string.
