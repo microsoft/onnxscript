@@ -1377,8 +1377,8 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
         name: str | None = None,
     ):
         self.name = name
-        self.inputs = list(inputs)
-        self.outputs = list(outputs)
+        self.inputs = tuple(inputs)
+        self.outputs = tuple(outputs)
         for initializer in initializers:
             if initializer.name is None:
                 raise ValueError(f"Initializer must have a name: {initializer}")
@@ -1387,7 +1387,7 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
         self.opset_imports = opset_imports or {}
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
-        self.nodes: list[Node] = list(nodes)
+        self.nodes: tuple[Node, ...] = tuple(nodes)
 
     def __getitem__(self, index: int) -> Node:
         return self.nodes[index]
