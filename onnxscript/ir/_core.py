@@ -513,8 +513,9 @@ def _quoted(string: str) -> str:
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     """IR Node.
 
-    When the node is initialized, it does not belong to any graph. It is the
-    responsibility of the caller to add the node to a graph, by calling :func:`Graph.absorb_nodes`.
+    If the ``graph`` is provided, the node will be added to the graph. Otherwise,
+    user is responsible to call ``graph.append(node)`` (or other mutation methods
+    in :class:`Graph`) to add the node to the graph.
 
     After the node is initialized, it will add itself as a user of the input values.
 
@@ -1330,7 +1331,8 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
     The GraphView is useful for analysis of a subgraph. It can be initialized
     with a subset of nodes from a :class:`Graph`. Creating GraphView does not
     change the ownership of the nodes, and so it is possible to create multiple
-    GraphViews that contain the same nodes.
+    GraphViews that contain the same nodes. If the underlying nodes / connections
+    are mutated, the mutation will be reflected in all views as well.
 
     The graph view can be serialized to ONNX::
 
