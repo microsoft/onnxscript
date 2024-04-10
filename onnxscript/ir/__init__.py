@@ -56,6 +56,8 @@ __all__ = [
     # Enums
     "AttributeType",
     "DataType",
+    # Types
+    "OperatorIdentifier",
 ]
 
 from onnxscript.ir import serde
@@ -104,6 +106,7 @@ from onnxscript.ir._protocols import (
     MapTypeProtocol,
     ModelProtocol,
     NodeProtocol,
+    OperatorIdentifier,
     ReferenceAttributeProtocol,
     ShapeProtocol,
     SparseTensorProtocol,
