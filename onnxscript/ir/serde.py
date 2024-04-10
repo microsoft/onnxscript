@@ -814,14 +814,14 @@ def _serialize_metadata_props_into(
         string_string_entries.add(key=key, value=from_[key])
 
 
-def serialize_graph(graph: _protocols.GraphProtocol) -> onnx.GraphProto:
+def serialize_graph(graph: _protocols.GraphProtocol | _core.GraphView) -> onnx.GraphProto:
     graph_proto = onnx.GraphProto()
     serialize_graph_into(graph_proto, from_=graph)
     return graph_proto
 
 
 def serialize_graph_into(
-    graph_proto: onnx.GraphProto, from_: _protocols.GraphProtocol
+    graph_proto: onnx.GraphProto, from_: _protocols.GraphProtocol | _core.GraphView
 ) -> None:
     if from_.name:
         graph_proto.name = from_.name

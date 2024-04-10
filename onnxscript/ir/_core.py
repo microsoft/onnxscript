@@ -1073,7 +1073,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     """
 
     __slots__ = (
-        "_name",
+        "name",
         "_inputs",
         "_outputs",
         "_initializers",
@@ -1254,59 +1254,159 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         return self._metadata_props
 
     def __str__(self) -> str:
-        # TODO(justinchuby): Show docstrings and metadata
-        inputs_text = "\n" + ",\n".join(str(x) for x in self.inputs)
-        outputs_text = "\n" + ",\n".join(str(x) for x in self.outputs)
-        initializers_text = ",\n".join(str(x) for x in self.initializers.values())
-        if initializers_text:
-            initializers_text = (
-                "\ninitializers=(\n" + textwrap.indent(initializers_text, " " * 4) + "\n),"
-            )
-        signature = f"""\
-graph(
-    name={self.name or ':anonymous_graph:' + str(id(self))},
-    inputs=({textwrap.indent(inputs_text, ' '*8)}
-    ),
-    outputs=({textwrap.indent(outputs_text, ' '*8)}
-    ),{textwrap.indent(initializers_text, ' '*4)}
-)"""
-        node_count = len(self._nodes)
-        number_width = len(str(node_count))
-        node_lines = []
-        for i, node in enumerate(self._nodes):
-            node_name = node.name if node.name else f":anonymous_node:{id(node)}"
-            node_text = f"# {node_name}\n{node}"
-            indented_node_text = textwrap.indent(node_text, " " * (number_width + 4))
-            # Remove the leading spaces
-            indented_node_text = indented_node_text.strip()
-            node_lines.append(f"{i:>{number_width}} |  {indented_node_text}")
-        returns = ", ".join(str(x) for x in self.outputs)
-        body = (
-            "{\n"
-            + textwrap.indent("\n".join(node_lines), " " * 4)
-            + textwrap.indent(f"\nreturn {returns}", " " * 4)
-            + "\n}"
-        )
-
-        return f"{signature} {body}"
+        return _graph_str(self)
 
     def __repr__(self) -> str:
-        inputs_text = "\n" + ",\n".join(str(x) for x in self.inputs)
-        outputs_text = "\n" + ",\n".join(str(x) for x in self.outputs)
-        initializers_text = ",\n".join(str(x) for x in self.initializers.values())
-        if initializers_text:
-            initializers_text = (
-                "\ninitializers=(\n" + textwrap.indent(initializers_text, " " * 4) + "\n),"
-            )
-        return f"""\
-{self.__class__.__name__}(
-    name={self.name or ':anonymous_graph:' + str(id(self))!r},
+        return _graph_repr(self)
+
+
+def _graph_str(graph: Graph | GraphView) -> str:
+    """Return a string representation of the graph."""
+    # TODO(justinchuby): Show docstrings and metadata
+    inputs_text = "\n" + ",\n".join(str(x) for x in graph.inputs)
+    outputs_text = "\n" + ",\n".join(str(x) for x in graph.outputs)
+    initializers_text = ",\n".join(str(x) for x in graph.initializers.values())
+    if initializers_text:
+        initializers_text = (
+            "\ninitializers=(\n" + textwrap.indent(initializers_text, " " * 4) + "\n),"
+        )
+    signature = f"""\
+graph(
+name={graph.name or 'anonymous_graph:' + str(id(graph))},
+inputs=({textwrap.indent(inputs_text, ' '*8)}
+),
+outputs=({textwrap.indent(outputs_text, ' '*8)}
+),{textwrap.indent(initializers_text, ' '*4)}
+)"""
+    node_count = len(graph)
+    number_width = len(str(node_count))
+    node_lines = []
+    for i, node in enumerate(graph.nodes):
+        node_name = node.name if node.name else f":anonymous_node:{id(node)}"
+        node_text = f"# {node_name}\n{node}"
+        indented_node_text = textwrap.indent(node_text, " " * (number_width + 4))
+        # Remove the leading spaces
+        indented_node_text = indented_node_text.strip()
+        node_lines.append(f"{i:>{number_width}} |  {indented_node_text}")
+    returns = ", ".join(str(x) for x in graph.outputs)
+    body = (
+        "{\n"
+        + textwrap.indent("\n".join(node_lines), " " * 4)
+        + textwrap.indent(f"\nreturn {returns}", " " * 4)
+        + "\n}"
+    )
+
+    return f"{signature} {body}"
+
+
+def _graph_repr(graph: Graph | GraphView) -> str:
+    """Return an repr string of the graph."""
+    inputs_text = "\n" + ",\n".join(str(x) for x in graph.inputs)
+    outputs_text = "\n" + ",\n".join(str(x) for x in graph.outputs)
+    initializers_text = ",\n".join(str(x) for x in graph.initializers.values())
+    if initializers_text:
+        initializers_text = (
+            "\ninitializers=(\n" + textwrap.indent(initializers_text, " " * 4) + "\n),"
+        )
+    return f"""\
+{graph.__class__.__name__}(
+    name={graph.name or 'anonymous_graph:' + str(id(graph))!r},
     inputs=({textwrap.indent(inputs_text, ' '*8)}
     ),
     outputs=({textwrap.indent(outputs_text, ' '*8)}
     ),{textwrap.indent(initializers_text, ' '*4)}
-    len(nodes)={len(self._nodes)}
+    len()={len(graph)}
 )"""
+
+
+class GraphView(Sequence[Node], _display.PrettyPrintable):
+    """A read-only view on a graph.
+
+    The GraphView is useful for analysis of a subgraph. It can be initialized
+    with a subset of nodes from a :class:`Graph`. Creating GraphView does not
+    change the ownership of the nodes, and so it is possible to create multiple
+    GraphViews that contain the same nodes.
+
+    The graph view can be serialized to ONNX::
+
+            graph_proto = ir.serde.serialize_graph(graph_view)
+
+    It can also be used to create a model::
+
+            model = ir.Model(graph_view, ir_version=8)
+            model_proto = ir.serde.serialize_model(model)
+    """
+
+    __slots__ = (
+        "name",
+        "inputs",
+        "outputs",
+        "initializers",
+        "doc_string",
+        "opset_imports",
+        "nodes",
+        "metadata",
+        "metadata_props",
+    )
+
+    def __init__(
+        self,
+        inputs: Sequence[Value],
+        outputs: Sequence[Value],
+        *,
+        nodes: Iterable[Node],
+        initializers: Sequence[_protocols.TensorProtocol] = (),
+        doc_string: str | None = None,
+        opset_imports: dict[str, int] | None = None,
+        name: str | None = None,
+    ):
+        self.name = name
+        self.inputs = list(inputs)
+        self.outputs = list(outputs)
+        for initializer in initializers:
+            if initializer.name is None:
+                raise ValueError(f"Initializer must have a name: {initializer}")
+        self.initializers = {tensor.name: tensor for tensor in initializers}
+        self.doc_string = doc_string
+        self.opset_imports = opset_imports or {}
+        self._metadata: _metadata.MetadataStore | None = None
+        self._metadata_props: dict[str, str] | None = None
+        self.nodes: list[Node] = list(nodes)
+
+    def __getitem__(self, index: int) -> Node:
+        return self.nodes[index]
+
+    def __len__(self) -> int:
+        return len(self.nodes)
+
+    def __iter__(self) -> Iterator[Node]:
+        return iter(self.nodes)
+
+    def __reversed__(self) -> Iterator[Node]:
+        return reversed(self.nodes)
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
+
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
+
+    def __str__(self) -> str:
+        return _graph_str(self)
+
+    def __repr__(self) -> str:
+        return _graph_repr(self)
 
 
 class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
@@ -1340,7 +1440,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
 
     def __init__(
         self,
-        graph: Graph,
+        graph: Graph | GraphView,
         *,
         ir_version: int,
         producer_name: str | None = None,
@@ -1350,7 +1450,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
         doc_string: str | None = None,
         functions: Sequence[Function] = (),
     ) -> None:
-        self.graph: Graph = graph  # type: ignore[assignment]
+        self.graph: Graph | GraphView = graph  # type: ignore[assignment]
         self.ir_version = ir_version
         self.producer_name = producer_name
         self.producer_version = producer_version
@@ -1553,7 +1653,7 @@ class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
         inputs_text = ",\n".join(str(x) for x in self.inputs)
         outputs_text = ",\n".join(str(x) for x in self.outputs)
         attributes_text = ",\n".join(
-            attr.name + f": {attr.type}" + f"= {attr.value}" * (attr.value is None)
+            attr.name + f": {attr.type}" + f" = {attr.value}" * (attr.value is None)
             for attr in self.attributes.values()
         )
         if attributes_text:
