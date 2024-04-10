@@ -194,8 +194,8 @@ class OpsetPattern:
     def to_ir(self, model, bindings=None) -> str:
         domain = self.domain_pattern.to_ir(model, bindings)
         # TODO: Should we ban other custom domains?
-        if domain not in model.version_map:
-            model.version_map[self.domain_pattern.value] = self.version_pattern.value
+        if domain not in model.opset_imports:
+            model.opset_imports[self.domain_pattern.value] = self.version_pattern.value
         return domain
 
     def __getattr__(self, name: str) -> Any:
@@ -664,10 +664,10 @@ def _valid_to_replace(matched_nodes: Sequence[ir.Node]) -> bool:
     deleted_nodes = matched_nodes[:-1]
     for n in deleted_nodes:
         for v in n.outputs:
-            if v.is_output:
+            if v.is_graph_output():
                 # value is an output-value of the graph/function.
                 return False
-            for use in v.uses:
+            for use, _ in v.users():
                 if use not in matched_nodes:
                     return False
     return True
@@ -911,13 +911,12 @@ def _apply_deltas(
             last_deleted = deleted_nodes[-1]
             last_inserted = inserted_nodes[-1]
 
+            # TODO: Use `replace_input_with`
             assert len(last_deleted.outputs) == len(last_inserted.outputs)
-            del last_inserted.outputs[:]
-            for v in last_deleted.outputs:
-                v.node = last_inserted
-                last_inserted.outputs.append(v)
-
-            del nodes[i]
+            for idx, value in enumerate(last_deleted.outputs):
+                # value.remove_user(last_deleted, idx)
+                last_inserted.replace_input_with(idx, value)
+            graph_or_function.remove(nodes[i])
 
             for new_node in reversed(inserted_nodes):
                 nodes.insert(i, new_node)
@@ -942,7 +941,7 @@ def _apply_deltas(
                 # Delete intermediary outputs from graph that are not used as
                 # outputs of the graph
                 for output in old_node.outputs:
-                    if not output.is_output and output not in inserted_input_output:
+                    if not output.is_graph_output() and output not in inserted_input_output:
                         graph_or_function.values.pop(output.name)
                 nodes.remove(old_node)
 

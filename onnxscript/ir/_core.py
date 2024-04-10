@@ -393,19 +393,6 @@ class Dimension(_protocols.DimensionProtocol, _display.PrettyPrintable):
     def __repr__(self) -> str:
         return f"{self._value}"
 
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, (int, str)) or other is None:
-            return self.value == other
-        if not isinstance(other, Dimension):
-            return False
-        return self.value == other.value
-
-    def __ne__(self, value: object) -> bool:
-        return not self.__eq__(value)
-
-    def __hash__(self) -> int:
-        return hash(self.value)
-
 
 class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
     __slots__ = ("_dims",)

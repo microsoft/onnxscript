@@ -58,6 +58,8 @@ def check_if_need_reshape(match_bindings: dict[str, ir.Value | Any]) -> bool:
         logger.info("Shape information is not available for the inputs and outputs.")
         print("Shape information is not available for the inputs and outputs.")
         return False
+    input_a_shape = list(input_a_shape.simple())
+    input_b_shape = list(input_b_shape.simple())
 
     dim_a = len(input_a_shape)
     dim_b = len(input_b_shape)
@@ -101,10 +103,6 @@ def check_if_need_reshape(match_bindings: dict[str, ir.Value | Any]) -> bool:
     ):
         if dim_from_a not in {1, dim_from_b}:
             logger.info("Original shape is not broadcastable.")
-            print("Original shape is not broadcastable.")
-            import pdb
-
-            pdb.set_trace()
             return False
         elif idx > 0:
             broadcast_matmul_output_shape = [
