@@ -53,9 +53,11 @@ __all__ = [
     "opset17",
     "opset18",
     "opset19",
+    "opset20",
     "opset_ai_onnx_ml1",
     "opset_ai_onnx_ml2",
     "opset_ai_onnx_ml3",
+    "opset_ai_onnx_ml4",
 ]
 
 import importlib.metadata
@@ -84,9 +86,11 @@ from .onnx_opset import (
     opset17,
     opset18,
     opset19,
+    opset20,
     opset_ai_onnx_ml1,
     opset_ai_onnx_ml2,
     opset_ai_onnx_ml3,
+    opset_ai_onnx_ml4,
 )
 
 from .onnx_types import (
