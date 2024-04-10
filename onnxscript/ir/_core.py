@@ -1341,6 +1341,8 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
 
             model = ir.Model(graph_view, ir_version=8)
             model_proto = ir.serde.serialize_model(model)
+            
+    The model created with a GraphView will have a fixed topology, and its graph will stay read-only as a GraphView. No copying will be done during the initialization process
 
     Attributes:
         name: The name of the graph.
