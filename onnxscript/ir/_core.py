@@ -523,7 +523,6 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     To change the output values, create a new node and replace the output.users.inputs with
     the new output values by calling :meth:`replace_input_with` on the user nodes
     of this node's outputs.
-
     """
 
     __slots__ = (
