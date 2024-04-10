@@ -1350,8 +1350,8 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
         "doc_string",
         "opset_imports",
         "nodes",
-        "metadata",
-        "metadata_props",
+        "_metadata",
+        "_metadata_props",
     )
 
     def __init__(
