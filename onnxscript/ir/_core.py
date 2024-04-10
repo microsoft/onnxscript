@@ -1340,6 +1340,16 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
 
             model = ir.Model(graph_view, ir_version=8)
             model_proto = ir.serde.serialize_model(model)
+
+    Attributes:
+        name: The name of the graph.
+        inputs: The input values of the graph.
+        outputs: The output values of the graph.
+        nodes: All nodes visible in this view. They do not have to be sorted.
+        initializers: The initializers in the graph.
+        doc_string: Documentation string.
+        opset_imports: Opsets imported by the graph.
+        metadata_props: Metadata.
     """
 
     __slots__ = (
