@@ -571,7 +571,7 @@ class GenericPatternTest(unittest.TestCase):
             transpose_transpose_apply_pattern,
             transpose_transpose_mapping,
             verbose=0,
-            trace_only=True,
+            use_onnxscript=False,
         )
 
         rule.apply_to_model(ir_model)

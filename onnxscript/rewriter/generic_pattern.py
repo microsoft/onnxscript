@@ -1088,6 +1088,11 @@ class OnnxGenericPattern(GenericPattern):
     :param match_proto: the onnx function defining the matching pattern
     :param apply_proto: the onnx function defining the new pattern
     :param validate_mapping: the function used to validate a pattern
+    :param use_onnxscript: tells if the apply_proto is an onnxscript function or
+        a regular function returning a FunctionProto
+    :param opsets: opset to consider when converting the function into ONNX,
+        if not specified, it is opset 18 for the main opset, and opset 1
+        for domain com.microsoft.
     :param verbose: in [0, 10], increase the verbosity to understand why a pattern
         does not match
     """
@@ -1097,12 +1102,16 @@ class OnnxGenericPattern(GenericPattern):
         match_proto: onnx.FunctionProto,
         apply_proto: onnx.FunctionProto | typing.Callable,
         validate_mapping: typing.Callable,
+        use_onnxscript: bool = True,
+        opsets: dict[str, "onnxscript.Opset"] | None = None,  # noqa: F821
         verbose: int = 0,
     ):
         super().__init__(verbose=verbose)
         self.match_proto = match_proto
         self._validate_mapping = validate_mapping
         self.apply_proto = apply_proto
+        self.use_onnxscript = use_onnxscript
+        self.opsets = opsets
         self._cache = {}
 
     def validate_mapping(self, g: oir.Model, match_result: PatternMatchResult) -> bool:
@@ -1128,13 +1137,18 @@ class OnnxGenericPattern(GenericPattern):
         if match:
             onx = self.match_proto
         elif callable(self.apply_proto):
-            sig = inspect.signature(self.apply_proto)
-            args = []
-            for p in sig.parameters.values():
-                if p.default is not inspect._empty:
-                    continue
-                args.append(p.name)
-            onx = self.apply_proto(*args, **kwargs)
+            if self.use_onnxscript:
+                import onnxscript
+
+                onx = onnxscript.script(**self.opsets)(self.apply_proto).to_function_proto()
+            else:
+                sig = inspect.signature(self.apply_proto)
+                args = []
+                for p in sig.parameters.values():
+                    if p.default is not inspect._empty:
+                        continue
+                    args.append(p.name)
+                onx = self.apply_proto(*args, **kwargs)
         self._cache[key] = onx
 
         g2 = g.make_opset()
@@ -1154,7 +1168,7 @@ def make_pattern_rule(
     apply_pattern: typing.Callable | onnx.FunctionProto,
     validate_mapping: typing.Callable | None = None,
     verbose: int = 0,
-    trace_only: bool = False,
+    use_onnxscript: bool = True,
     opsets: dict[str, "onnxscript.Opset"] | None = None,  # noqa: F821
 ) -> orp.RewriteRule:
     """
@@ -1172,7 +1186,8 @@ def make_pattern_rule(
     :param opsets: opset to consider when converting the function into ONNX,
         if not specified, it is opset 18 for the main opset, and opset 1
         for domain com.microsoft.
-    :param trace_only: use trace_only model to convert the function into ONNX
+    :param use_onnxscript: tells if the apply_proto is an onnxscript function or
+        a regular function returning a FunctionProto
     :return: the rewriting rule
     """
     import onnxscript
@@ -1181,18 +1196,12 @@ def make_pattern_rule(
         opsets = dict(
             op=onnxscript.opset18, msft_op=onnxscript.values.Opset("com.microsoft", 1)
         )
-        opset = onnxscript.opset18
-    else:
-        opset = onnxscript.value.Opset("", opsets[""])
 
     if verbose > 5:
         print(f"[make_pattern_rule] Converting {match_pattern} into ONNX.")
+
     if isinstance(match_pattern, onnx.FunctionProto):
         match = match_pattern
-    elif trace_only:
-        match = onnxscript.values.TracedOnnxFunction(
-            opset, match_pattern
-        ).function_ir.to_function_proto()
     else:
         match = onnxscript.script(**opsets)(match_pattern).to_function_proto()
     assert match.node, f"The match pattern has no node, function={match_pattern}."
@@ -1202,5 +1211,7 @@ def make_pattern_rule(
         apply_pattern,
         validate_mapping or (lambda *_, **__: True),
         verbose=verbose,
+        use_onnxscript=use_onnxscript,
+        opsets=opsets,
     )
     return pat.make_rule()
