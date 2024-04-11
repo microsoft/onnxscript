@@ -1341,7 +1341,7 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
 
             model = ir.Model(graph_view, ir_version=8)
             model_proto = ir.serde.serialize_model(model)
-            
+
     The model created with a GraphView will have a fixed topology, and its graph
     will remain read-only as a GraphView. No copying will be done during the
     initialization process.
@@ -1673,7 +1673,7 @@ class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
         inputs_text = ",\n".join(str(x) for x in self.inputs)
         outputs_text = ",\n".join(str(x) for x in self.outputs)
         attributes_text = ",\n".join(
-            attr.name + f": {attr.type}" + f" = {attr.value}" * (attr.value is None)
+            f"{attr.name}: {attr.type}" + f" = {attr.value}" * (attr.value is None)
             for attr in self.attributes.values()
         )
         if attributes_text:
