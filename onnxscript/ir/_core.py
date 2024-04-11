@@ -1139,10 +1139,9 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
         self._nodes: _linked_list.DoublyLinkedSet[Node] = _linked_list.DoublyLinkedSet()
+        self._name_authority = _name_authority.NameAuthority()
         # Call self.extend not self._nodes.extend so the graph reference is added to the nodes
         self.extend(nodes)
-
-        self._name_authority = _name_authority.NameAuthority()
 
     @property
     def inputs(self) -> list[Input]:
