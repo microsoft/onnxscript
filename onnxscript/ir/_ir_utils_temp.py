@@ -2,34 +2,42 @@
 
 from __future__ import annotations
 
+from typing import Tuple
+
 import numpy as np
+import onnx
 
 from onnxscript import ir
 from onnxscript.ir import serde
-import onnx
-from typing import Tuple
 
 FunctionId = Tuple[str, str, str]
+
 
 def get_function_id(function: onnx.FunctionProto) -> FunctionId:
     return (function.domain, function.name, getattr(function, "overload", ""))
 
+
 def get_function_id_from_node(node: onnx.NodeProto) -> FunctionId:
     return (node.domain, node.op_type, getattr(node, "overload", ""))
+
 
 def propogate_const_value(ir_value: ir.Value) -> ir.Value:
     node = ir_value.def_node()
     if ir_value.const_value is None and node is not None and node.op_type == "Constant":
-        if (
-            ((attr_value := node.attributes.get("value_float")) is not None)
-            or ((attr_value := node.attributes.get("value_int")) is not None)
-            or ((attr_value := node.attributes.get("value_string")) is not None)
-            or ((attr_value := node.attributes.get("value")) is not None)
-            or ((attr_value := node.attributes.get("value_floats")) is not None)
-            or ((attr_value := node.attributes.get("value_ints")) is not None)
-            or ((attr_value := node.attributes.get("value_strings")) is not None)
-        ):
-            ir_value.const_value = attr_value.value  # type: ignore[union-attr]
+        attr_names = [
+            "value_float",
+            "value_int",
+            "value_string",
+            "value",
+            "value_floats",
+            "value_ints",
+            "value_strings",
+        ]
+        for attr_name in attr_names:
+            attr_value = node.attributes.get(attr_name)
+            if attr_value is not None:
+                ir_value.const_value = attr_value.value  # type: ignore[union-attr]
+                break
     return ir_value
 
 
@@ -42,12 +50,12 @@ def get_numpy_from_ir_value(value: ir.Value) -> np.ndarray | None:
     return constant_value
 
 
-# This is a temporary utility to assist new ir.Value naming
+# TODO: This is a temporary utility to assist new ir.Value naming
 GEN_VAR_COUNTER: int = 0
 
 
 def _make_new_name() -> str:
-    global GEN_VAR_COUNTER
+    global GEN_VAR_COUNTER  # pylint: disable=global-statement
     GEN_VAR_COUNTER += 1
     return f"_gen_{GEN_VAR_COUNTER}"
 

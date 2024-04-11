@@ -990,7 +990,6 @@ def _apply_deltas(
     existing_ids = {id(n): (i, n) for i, n in enumerate(graph_or_function.nodes)}
     to_delete = set()
     to_insert = {}
-    path_2 = False
 
     for i, delta in reversed(deltas):
         if len(delta) == 3:
@@ -1024,12 +1023,13 @@ def _apply_deltas(
                     node.replace_input_with(index, last_inserted_output)
 
             # insert new nodes after the index node
+            # TODO(justinchuby): Do not access by index [i]
             graph_or_function.insert_after(graph_or_function.nodes[i], inserted_nodes)
 
             for old_node in deleted_nodes:
                 graph_or_function.remove(old_node)
 
-    assert not to_delete or not path_2, (
+    assert not to_delete, (
         "Two different rules were applied. It will solved later. "
         "Right now, the functions assumes all the changes come from one "
         "rule."

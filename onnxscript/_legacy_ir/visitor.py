@@ -7,7 +7,7 @@ from typing import Any, Sequence
 import numpy as np
 import onnx
 
-from onnxscript import ir
+from onnxscript import _legacy_ir as ir
 from onnxscript.ir import _ir_utils_temp
 from onnxscript.utils.utils import (
     get_initializer_type,
