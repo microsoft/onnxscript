@@ -17,6 +17,7 @@ class NameAuthority:
     user to ensure that the names are unique (typically by running a name-fixing pass
     on the graph).
     """
+
     def __init__(self):
         self._value_counter = 0
         self._node_counter = 0
