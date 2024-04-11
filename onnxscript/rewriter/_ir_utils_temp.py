@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import numpy as np
+
 from onnxscript import ir
 from onnxscript.ir import serde
-import numpy as np
 
 
 def propogate_const_value(value: ir.Value) -> ir.Value:
@@ -22,6 +23,7 @@ def propogate_const_value(value: ir.Value) -> ir.Value:
             value.const_value = attr_value.value
     return value
 
+
 def get_numpy_from_ir_value(value: ir.Value) -> np.ndarray | None:
     constant_value = value.const_value
     if constant_value is not None:
@@ -31,12 +33,15 @@ def get_numpy_from_ir_value(value: ir.Value) -> np.ndarray | None:
             constant_value = np.array(constant_value)
     return constant_value
 
+
 GEN_VAR_COUNTER: int = 0
+
 
 def _make_new_name() -> str:
     global GEN_VAR_COUNTER
     GEN_VAR_COUNTER += 1
     return f"_gen_{GEN_VAR_COUNTER}"
+
 
 def post_node_output_naming(node: ir.Node) -> None:
     for output in node.outputs:
