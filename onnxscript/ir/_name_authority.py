@@ -26,6 +26,6 @@ class NameAuthority:
         value.name = f"val_{self._value_counter}"
         self._value_counter += 1
 
-    def name_node(self, node: _core.Node):
+    def name_node(self, node: _core.Node) -> None:
         node.name = f"node_{node.op_type}_{self._node_counter}"
         self._node_counter += 1
