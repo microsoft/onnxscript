@@ -533,9 +533,13 @@ class NodePattern:
             logger.info(
                 f"Node domain: {node.domain} vs pattern domain: {self.domain.domain_pattern.value}"
             )
-            logger.info(f"Node version: {node_version} vs pattern version: {self.domain}")
+            if not isinstance(self.domain.version_pattern, AnyPattern):
+                logger.info(
+                    f"Node version: {node_version} vs pattern version: {self.domain.version_pattern.value}"
+                )
             return MatchResult.FAIL()
         if not self.op.matches(node.op_type):
+            logger.info(f"Node op_type: {node.op_type} vs pattern op_type: {self.op.value}")
             return MatchResult.FAIL()
         match = MatchResult([])
         # TODO: We should add filtered logging starting from here to emit why
@@ -543,6 +547,7 @@ class NodePattern:
         # because at least the starting node op_type is already matched.
         for arg_value, previous_node_output_pattern in zip(node.inputs, self.inputs):
             # previous_node_output_pattern could be a Var, if it's the original arg.
+            logger.info(f"Matching input {arg_value} against {previous_node_output_pattern}")
             sub_match = previous_node_output_pattern.matches(arg_value, model)
             match.extend(sub_match, model)
             if not match:  # If sub-match failed,
@@ -649,6 +654,7 @@ class NodeOutputPattern(ValuePattern):
             return MatchResult.FAIL()
         if value.def_index() != self.output_index:
             return MatchResult.FAIL()
+        logger.info(f"Matching output {value} against {self.node_pattern}")
         return self.node_pattern.matches_node(node, model)
 
     def to_ir(

@@ -136,7 +136,7 @@ def group_normalization(
     bias_full = op.Cast(bias_full, to=onnx.TensorProto.FLOAT)
     bias_full = op.Reshape(bias_full, reshape_to_1d)
     # re-obtain attribute groups
-    groups = match_bindings["weight_for_norm"].shape[0]
+    groups = match_bindings["weight_for_norm"].shape[0].value
     output = msft_op.GroupNorm(
         nhwc_input,
         weight_full,
