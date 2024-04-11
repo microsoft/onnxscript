@@ -2,7 +2,7 @@ import unittest
 
 import onnx.parser
 
-from onnxscript._legacy_ir import irbuilder
+from onnxscript.ir import serde
 from onnxscript.rewriter import cast_constant_of_shape
 
 
@@ -18,11 +18,12 @@ class CastConstantOfShapeTest(unittest.TestCase):
             }
             """
         )
-        ir = irbuilder.build_ir(model)
-        count = cast_constant_of_shape.rules.apply_to_model(ir)
+        model = onnx.shape_inference.infer_shapes(model)
+        model_ir = serde.deserialize_model(model)
+        count = cast_constant_of_shape.rules.apply_to_model(model_ir)
         self.assertEqual(count, 1)
-        self.assertEqual(len(ir.graph.nodes), 1)
-        self.assertEqual(ir.graph.nodes[0].attributes["value"].data_type, 10)
+        self.assertEqual(len(model_ir.graph.nodes), 1)
+        self.assertEqual(model_ir.graph.nodes[0].attributes["value"].value.dtype, 10)
 
     def test_cast_after_constant_of_shape_without_value_is_fused(self):
         model = onnx.parser.parse_model(
@@ -35,11 +36,12 @@ class CastConstantOfShapeTest(unittest.TestCase):
             }
             """
         )
-        ir = irbuilder.build_ir(model)
-        count = cast_constant_of_shape.rules.apply_to_model(ir)
+        model = onnx.shape_inference.infer_shapes(model)
+        model_ir = serde.deserialize_model(model)
+        count = cast_constant_of_shape.rules.apply_to_model(model_ir)
         self.assertEqual(count, 1)
-        self.assertEqual(len(ir.graph.nodes), 1)
-        self.assertEqual(ir.graph.nodes[0].attributes["value"].data_type, 10)
+        self.assertEqual(len(model_ir.graph.nodes), 1)
+        self.assertEqual(model_ir.graph.nodes[0].attributes["value"].value.dtype, 10)
 
 
 if __name__ == "__main__":
