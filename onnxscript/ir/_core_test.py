@@ -253,6 +253,10 @@ class ShapeTest(unittest.TestCase):
         shape_2 = _core.Shape(dims_2)
         self.assertNotEqual(shape_1, shape_2)
 
+    def test_ne_with_random_object(self):
+        shape = _core.Shape((42,))
+        self.assertNotEqual(shape, 42)
+
 
 class ValueTest(unittest.TestCase):
     def test_initialize(self):
