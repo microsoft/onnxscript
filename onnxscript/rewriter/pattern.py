@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import inspect
 import itertools
-import logging
 import math
 from typing import Any, Callable, Sequence
 
@@ -14,8 +13,6 @@ import onnx.printer
 from onnxscript import ir
 from onnxscript.ir import serde
 from onnxscript.rewriter import _ir_utils_temp
-
-logger = logging.getLogger(__name__)
 
 # Overview of the pattern module: The classes below are used to define both
 # patterns (that we search for) and replacements for rewrite rules.
@@ -336,7 +333,7 @@ class OpPattern:
     def __init__(
         self,
         opset_pattern: OpsetPattern,
-        op_name_pattern: ConstantPattern | PrefixPattern,
+        op_name_pattern: StringConstantPattern | PrefixPattern,
     ) -> None:
         self.opset_pattern = opset_pattern
         self.op_name_pattern = op_name_pattern
@@ -513,16 +510,13 @@ class NodePattern:
         if self.bound_value is not None:
             # DAG-matching, not Tree-matching.
             if self.bound_value.is_same_as(value):
-                logger.info(f"Matched bound value {value}")
                 return MatchResult([])
             else:
-                logger.info(f"Match failed: bound value {value} != {self.bound_value}")
                 return MatchResult.FAIL()
         node = value.def_node()
         if node is None:
             # Eg., value could be an input parameter, which will not match a value
             # computed by the op in this pattern.
-            logger.info(f"Match failed: value {value} is not a node")
             return MatchResult.FAIL()
         return self.matches_node(node, model)
 
@@ -530,16 +524,8 @@ class NodePattern:
         """Examine if the IR node matches the self pattern."""
         node_version = model.graph.opset_imports.get(node.domain, 0)
         if not self.domain.matches((node.domain, node_version)):
-            logger.info(
-                f"Node domain: {node.domain} vs pattern domain: {self.domain.domain_pattern.value}"
-            )
-            if not isinstance(self.domain.version_pattern, AnyPattern):
-                logger.info(
-                    f"Node version: {node_version} vs pattern version: {self.domain.version_pattern.value}"
-                )
             return MatchResult.FAIL()
         if not self.op.matches(node.op_type):
-            logger.info(f"Node op_type: {node.op_type} vs pattern op_type: {self.op.value}")
             return MatchResult.FAIL()
         match = MatchResult([])
         # TODO: We should add filtered logging starting from here to emit why
@@ -547,19 +533,14 @@ class NodePattern:
         # because at least the starting node op_type is already matched.
         for arg_value, previous_node_output_pattern in zip(node.inputs, self.inputs):
             # previous_node_output_pattern could be a Var, if it's the original arg.
-            logger.info(f"Matching input {arg_value} against {previous_node_output_pattern}")
             sub_match = previous_node_output_pattern.matches(arg_value, model)
             match.extend(sub_match, model)
             if not match:  # If sub-match failed,
-                logger.info(
-                    f"Match failed: input {arg_value} != {previous_node_output_pattern}"
-                )
                 return match
         # Sub-graphs not handled yet.
         for name, attr_pattern in self.attributes.items():
             attr_value = node.attributes.get(name)
             if attr_value is None:
-                logger.info(f"Match failed: attribute {name} not found")
                 return MatchResult.FAIL()
             sub_match = attr_pattern.matches(attr_value, model)
             if not sub_match:
@@ -568,7 +549,6 @@ class NodePattern:
         for name in node.attributes:
             # TODO: Support matching default values for attributes.
             if name not in self.attributes:
-                logger.info(f"Match failed: attribute {name} not expected")
                 return MatchResult.FAIL()
         match.values.append(node)
         return match
@@ -654,7 +634,6 @@ class NodeOutputPattern(ValuePattern):
             return MatchResult.FAIL()
         if value.def_index() != self.output_index:
             return MatchResult.FAIL()
-        logger.info(f"Matching output {value} against {self.node_pattern}")
         return self.node_pattern.matches_node(node, model)
 
     def to_ir(
@@ -940,7 +919,6 @@ class RewriteRule:
             and match
             and not self._condition_function(match.bindings)
         ):
-            logger.info(f"Condition function failed for the node: {node.op_type}")
             return MatchResult.FAIL()
         return match
 

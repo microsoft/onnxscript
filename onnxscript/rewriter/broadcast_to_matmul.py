@@ -33,7 +33,7 @@ def check_if_need_reshape(match_bindings: dict[str, ir.Value | Any]) -> bool:
     input_b_shape = match_bindings["input_b"].shape
     # TODO: Get a helper func to get const_value
     shape_c_value = _ir_utils_temp.propogate_const_value(match_bindings["shape_c"])
-    shape_c = shape_c_value.const_value.numpy()
+    shape_c = shape_c_value.const_value.numpy()  # type: ignore[union-attr]
     if shape_c is None:
         return False
     if not isinstance(shape_c, np.ndarray):

@@ -8,9 +8,9 @@ from onnxscript import ir
 from onnxscript.ir import serde
 
 
-def propogate_const_value(value: ir.Value) -> ir.Value:
-    node = value.def_node()
-    if value.const_value is None and node is not None and node.op_type == "Constant":
+def propogate_const_value(ir_value: ir.Value) -> ir.Value:
+    node = ir_value.def_node()
+    if ir_value.const_value is None and node is not None and node.op_type == "Constant":
         if (
             ((attr_value := node.attributes.get("value_float")) is not None)
             or ((attr_value := node.attributes.get("value_int")) is not None)
@@ -20,17 +20,16 @@ def propogate_const_value(value: ir.Value) -> ir.Value:
             or ((attr_value := node.attributes.get("value_ints")) is not None)
             or ((attr_value := node.attributes.get("value_strings")) is not None)
         ):
-            value.const_value = attr_value.value
-    return value
+            ir_value.const_value = attr_value.value  # type: ignore[union-attr]
+    return ir_value
 
 
 def get_numpy_from_ir_value(value: ir.Value) -> np.ndarray | None:
     constant_value = value.const_value
     if constant_value is not None:
         if isinstance(constant_value, serde.TensorProtoTensor):
-            constant_value = constant_value.numpy()
-        else:
-            constant_value = np.array(constant_value)
+            return constant_value.numpy()
+        return np.array(constant_value)
     return constant_value
 
 
