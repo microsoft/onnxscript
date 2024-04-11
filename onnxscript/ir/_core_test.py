@@ -183,6 +183,77 @@ class DimensionTest(unittest.TestCase):
             op(dim, dim2)
 
 
+class ShapeTest(unittest.TestCase):
+    @parameterized.parameterized.expand(
+        [
+            ("empty", (), ()),
+            ("1d", (42,), (42,)),
+            ("int", (42, 42), (42, 42)),
+            ("str", ("any string", "any string"), ("any string", "any string")),
+            ("None", (None, None), (None, None)),
+        ]
+    )
+    def test_eq_with_other_shapes(
+        self, _: str, dims_1: tuple[Any, ...], dims_2: tuple[Any, ...]
+    ):
+        shape_1 = _core.Shape(dims_1)
+        shape_2 = _core.Shape(dims_2)
+        self.assertEqual(shape_1, shape_2)
+
+    @parameterized.parameterized.expand(
+        [
+            ("empty", ()),
+            ("1d", (42,)),
+            ("int", (42, 42)),
+            ("str", ("any string", "any string")),
+            ("None", (None, None)),
+        ]
+    )
+    def test_eq_with_tuple(self, _: str, dims: tuple[Any, ...]):
+        shape = _core.Shape(dims)
+        self.assertEqual(shape, dims)
+
+    @parameterized.parameterized.expand(
+        [
+            ("empty", []),
+            (
+                "1d",
+                [
+                    42,
+                ],
+            ),
+            ("int", [42, 42]),
+            ("str", ["any string", "any string"]),
+            ("None", [None, None]),
+        ]
+    )
+    def test_eq_with_list(self, _: str, dims: list[Any]):
+        shape = _core.Shape(dims)
+        self.assertEqual(shape, dims)
+
+    def test_eq_with_np_shape(self):
+        dims = (42,)
+        array = np.zeros(dims)
+        shape = _core.Shape(dims)
+        self.assertEqual(shape, array.shape)
+
+    @parameterized.parameterized.expand(
+        [
+            ("empty", (), (1,)),
+            ("d", (42,), (0,)),
+            ("rank", (42, 42), (42, 42, 42)),
+            ("str", ("any string",), (42,)),
+            ("None", (None, None), (None, 42)),
+        ]
+    )
+    def test_ne_with_other_shapes(
+        self, _: str, dims_1: tuple[Any, ...], dims_2: tuple[Any, ...]
+    ):
+        shape_1 = _core.Shape(dims_1)
+        shape_2 = _core.Shape(dims_2)
+        self.assertNotEqual(shape_1, shape_2)
+
+
 class ValueTest(unittest.TestCase):
     def test_initialize(self):
         _ = _core.Value(None, def_index=0)

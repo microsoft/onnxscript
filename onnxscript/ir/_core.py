@@ -499,7 +499,18 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         return f"[{','.join([str(dim) for dim in self._dims])}]"
 
     def __eq__(self, other: object) -> bool:
-        raise NotImplementedError("Not implemented yet")
+        """Return True if the shapes are equal.
+
+        Two shapes are eqaul if all their dimensions are equal.
+        """
+        if isinstance(other, Shape):
+            return self._dims == other._dims
+        if not isinstance(other, Iterable):
+            return False
+        return self.dims == tuple(other)
+
+    def __ne__(self, other: object) -> bool:
+        return not self.__eq__(other)
 
 
 def _quoted(string: str) -> str:
