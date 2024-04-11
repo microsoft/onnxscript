@@ -32,7 +32,7 @@ class ModelTest(unittest.TestCase):
         model_dir = f"{model_folder_path}/{model_name}/dynamo"
         model_path = f"{model_dir}/{model_name}_dynamo.onnx"
         if not pathlib.Path(model_path).exists():
-            self.skipTest(f"Model {model_name} does not exist")
+            self.skipTest(f"Model {model_name!r} does not exist")
         model = onnx.load(model_path)
         model = optimizer.optimize(
             model,
