@@ -966,7 +966,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         self._users.add((user, index))
 
     def _remove_user(self, user: Node, index: int) -> None:
-        """Reduce a user node.
+        """Remove a node from the users of this value.
 
         This is an internal method. It should only be called by the Node class.
         """
