@@ -7,7 +7,7 @@ import numpy as np
 import onnx
 
 from onnxscript import ir
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter import _ir_utils_temp, pattern
 
 op = pattern.onnxop
 msft_op = pattern.msft_op
@@ -26,9 +26,15 @@ def _check_if_simulated_instance_norm_is_used_impl(
     bias_full,
     **kwargs,
 ) -> bool:
-    if not np.all(weight_for_norm.value_as_np_array == 1):
+    weight_for_norm = _ir_utils_temp.propogate_const_value(weight_for_norm)
+    weight_for_norm = _ir_utils_temp.get_numpy_from_ir_value(weight_for_norm)
+
+    bias_for_norm = _ir_utils_temp.propogate_const_value(bias_for_norm)
+    bias_for_norm = _ir_utils_temp.get_numpy_from_ir_value(bias_for_norm)
+
+    if not np.all(weight_for_norm == 1):
         return False
-    if not np.all(bias_for_norm.value_as_np_array == 0):
+    if not np.all(bias_for_norm == 0):
         return False
 
     input_rank_minus_one = len(input_x.shape) - 1
@@ -48,13 +54,16 @@ def _check_if_simulated_instance_norm_is_used_impl(
     if not all(dim == 1 for dim in bias_full_shape[1:]):
         return False
 
-    adjusted_input_shape = adjusted_input_shape.value_as_np_array
+    adjusted_input_shape = _ir_utils_temp.propogate_const_value(adjusted_input_shape)
+    adjusted_input_shape = _ir_utils_temp.get_numpy_from_ir_value(adjusted_input_shape)
+
     g = weight_for_norm.shape[0]
     if adjusted_input_shape is None or adjusted_input_shape.tolist() != [0, g, -1]:
         return False
 
     # NOTE: Restrict the rule to only support constant shape
-    original_input_shape = original_input_shape.value_as_np_array
+    original_input_shape = _ir_utils_temp.propogate_const_value(original_input_shape)
+    original_input_shape = _ir_utils_temp.get_numpy_from_ir_value(original_input_shape)
     if original_input_shape is None or original_input_shape.tolist() != input_x.shape:
         return False
 

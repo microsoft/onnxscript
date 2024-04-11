@@ -34,6 +34,7 @@ def get_numpy_from_ir_value(value: ir.Value) -> np.ndarray | None:
     return constant_value
 
 
+# This is a temporary utility to assist new ir.Value naming
 GEN_VAR_COUNTER: int = 0
 
 

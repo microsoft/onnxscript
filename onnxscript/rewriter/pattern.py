@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import itertools
+import logging
 import math
 from typing import Any, Callable, Sequence
 
@@ -13,6 +14,8 @@ import onnx.printer
 from onnxscript import ir
 from onnxscript.ir import serde
 from onnxscript.rewriter import _ir_utils_temp
+
+logger = logging.getLogger(__name__)
 
 # Overview of the pattern module: The classes below are used to define both
 # patterns (that we search for) and replacements for rewrite rules.
@@ -510,19 +513,27 @@ class NodePattern:
         if self.bound_value is not None:
             # DAG-matching, not Tree-matching.
             if self.bound_value.is_same_as(value):
+                logger.info(f"Matched bound value {value}")
                 return MatchResult([])
             else:
+                logger.info(f"Match failed: bound value {value} != {self.bound_value}")
                 return MatchResult.FAIL()
         node = value.def_node()
         if node is None:
             # Eg., value could be an input parameter, which will not match a value
             # computed by the op in this pattern.
+            logger.info(f"Match failed: value {value} is not a node")
             return MatchResult.FAIL()
         return self.matches_node(node, model)
 
     def matches_node(self, node: ir.Node, model: ir.Model) -> MatchResult:
         """Examine if the IR node matches the self pattern."""
-        if not self.domain.matches((node.domain, node.version)):
+        node_version = model.graph.opset_imports.get(node.domain, 0)
+        if not self.domain.matches((node.domain, node_version)):
+            logger.info(
+                f"Node domain: {node.domain} vs pattern domain: {self.domain.domain_pattern.value}"
+            )
+            logger.info(f"Node version: {node_version} vs pattern version: {self.domain}")
             return MatchResult.FAIL()
         if not self.op.matches(node.op_type):
             return MatchResult.FAIL()
@@ -535,11 +546,15 @@ class NodePattern:
             sub_match = previous_node_output_pattern.matches(arg_value, model)
             match.extend(sub_match, model)
             if not match:  # If sub-match failed,
+                logger.info(
+                    f"Match failed: input {arg_value} != {previous_node_output_pattern}"
+                )
                 return match
         # Sub-graphs not handled yet.
         for name, attr_pattern in self.attributes.items():
             attr_value = node.attributes.get(name)
             if attr_value is None:
+                logger.info(f"Match failed: attribute {name} not found")
                 return MatchResult.FAIL()
             sub_match = attr_pattern.matches(attr_value, model)
             if not sub_match:
@@ -548,6 +563,7 @@ class NodePattern:
         for name in node.attributes:
             # TODO: Support matching default values for attributes.
             if name not in self.attributes:
+                logger.info(f"Match failed: attribute {name} not expected")
                 return MatchResult.FAIL()
         match.values.append(node)
         return match
@@ -918,6 +934,7 @@ class RewriteRule:
             and match
             and not self._condition_function(match.bindings)
         ):
+            logger.info(f"Condition function failed for the node: {node.op_type}")
             return MatchResult.FAIL()
         return match
 
@@ -1016,10 +1033,11 @@ def _apply_deltas(
             last_inserted = inserted_nodes[-1]
             assert len(last_deleted.outputs) == len(last_inserted.outputs)
             # Move the deleted node outputs to the inserted node
-            for idx, value in enumerate(last_deleted.outputs):
-                if not value.is_graph_output():
-                    value.remove_user(last_deleted, idx)
-                last_inserted.replace_input_with(idx, value)
+            for idx, (last_deleted_output, last_inserted_output) in enumerate(
+                zip(last_deleted.outputs, last_inserted.outputs)
+            ):
+                for value_user in last_deleted_output.users():
+                    last_inserted_output.add_user(value_user, idx)
 
             # insert new nodes after the index node
             for new_node in reversed(inserted_nodes):
@@ -1027,9 +1045,10 @@ def _apply_deltas(
                 # bind the outputs to the graph
                 for output in new_node.outputs:
                     if output.is_graph_output():
-                        graph_or_function.outputs.append(value)
+                        graph_or_function.outputs.append(output)
 
             # Delete the index node
+            # TODO: remove this user from other ir.Values?
             graph_or_function.remove(graph_or_function.nodes[i])
             path_2 = True
 
