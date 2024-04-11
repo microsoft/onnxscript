@@ -605,7 +605,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         # Add the node as a user of the inputs
         for i, input_value in enumerate(self._inputs):
             if input_value is not None:
-                input_value.add_user(self, i)
+                input_value._add_user(self, i)  # pylint: disable=protected-access
 
         # Add the node to the graph if graph is specified
         if self._graph is not None:
@@ -705,9 +705,9 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             value if i == index else old_input for i, old_input in enumerate(self.inputs)
         )
         if old_input is not None:
-            old_input.remove_user(self, index)
+            old_input._remove_user(self, index)  # pylint: disable=protected-access
         if value is not None:
-            value.add_user(self, index)
+            value._add_user(self, index)  # pylint: disable=protected-access
 
     def prepend(self, /, nodes: Node | Iterable[Node]) -> None:
         """Insert a node before this node in the list of nodes in the graph.
@@ -951,13 +951,25 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         return self._def_index
 
     def users(self) -> frozenset[tuple[Node, int]]:
+        """Return a set of users of the value.
+
+        The set contains tuples of ``(Node, index)`` where the index is the index of the input
+        of the node. For example, if ``node.inputs[1] == value``, then the user is ``(node, 1)``.
+        """
         return frozenset(self._users)
 
-    def add_user(self, user: Node, index: int) -> None:
+    def _add_user(self, user: Node, index: int) -> None:
+        """Add a user node.
+
+        This is an internal method. It should only be called by the Node class.
+        """
         self._users.add((user, index))
 
-    def remove_user(self, user: Node, index: int) -> None:
-        """Reduce a user node."""
+    def _remove_user(self, user: Node, index: int) -> None:
+        """Reduce a user node.
+
+        This is an internal method. It should only be called by the Node class.
+        """
         self._users.remove((user, index))
 
     @property
