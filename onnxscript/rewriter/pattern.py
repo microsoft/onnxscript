@@ -11,8 +11,7 @@ import onnx.numpy_helper
 import onnx.printer
 
 from onnxscript import ir
-from onnxscript.ir import serde
-from onnxscript.rewriter import _ir_utils_temp
+from onnxscript.ir import _ir_utils_temp, serde
 
 # Overview of the pattern module: The classes below are used to define both
 # patterns (that we search for) and replacements for rewrite rules.
@@ -968,6 +967,7 @@ class RewriteRule:
 
 def _apply_deltas(
     graph_or_function: ir.Graph | ir.Function,
+    # TODO(jutinchuby): Use a more descriptive data structure to store deltas
     deltas: list[tuple[int, tuple[list[ir.Node], list[ir.Node]]]],
 ):
     """Applies deltas.
@@ -1016,40 +1016,24 @@ def _apply_deltas(
             last_deleted = deleted_nodes[-1]
             last_inserted = inserted_nodes[-1]
             assert len(last_deleted.outputs) == len(last_inserted.outputs)
-            # Move the deleted node outputs to the inserted node
-            for idx, (last_deleted_output, last_inserted_output) in enumerate(
-                zip(last_deleted.outputs, last_inserted.outputs)
+            # Reconnect the users of the deleted node to use the new outputs
+            for last_deleted_output, last_inserted_output in zip(
+                last_deleted.outputs, last_inserted.outputs
             ):
-                for value_user in last_deleted_output.users():
-                    last_inserted_output.add_user(value_user, idx)
+                for node, index in last_deleted_output.users():
+                    node.replace_input_with(index, last_inserted_output)
 
             # insert new nodes after the index node
-            for new_node in reversed(inserted_nodes):
-                graph_or_function.insert_after(graph_or_function.nodes[i], new_node)
-                # bind the outputs to the graph
-                for output in new_node.outputs:
-                    if output.is_graph_output():
-                        graph_or_function.outputs.append(output)
+            graph_or_function.insert_after(graph_or_function.nodes[i], inserted_nodes)
 
-            # Delete the index node
-            # TODO: remove this user from other ir.Values?
-            graph_or_function.remove(graph_or_function.nodes[i])
-            path_2 = True
+            for old_node in deleted_nodes:
+                graph_or_function.remove(old_node)
 
     assert not to_delete or not path_2, (
         "Two different rules were applied. It will solved later. "
         "Right now, the functions assumes all the changes come from one "
         "rule."
     )
-
-    if path_2:
-        for _, delta in deltas:
-            deleted_nodes, inserted_nodes = delta
-            inserted_input_output = []
-            for nd in inserted_nodes:
-                inserted_input_output += nd.inputs + nd.outputs
-            for old_node in deleted_nodes[0:-1]:
-                graph_or_function.remove(old_node)
 
     for i in to_delete:
         position = existing_ids[i][0]

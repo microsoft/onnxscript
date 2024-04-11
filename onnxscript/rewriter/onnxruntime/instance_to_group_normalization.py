@@ -7,7 +7,8 @@ import numpy as np
 import onnx
 
 from onnxscript import ir
-from onnxscript.rewriter import _ir_utils_temp, pattern
+from onnxscript.ir import _ir_utils_temp
+from onnxscript.rewriter import pattern
 
 op = pattern.onnxop
 msft_op = pattern.msft_op

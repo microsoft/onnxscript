@@ -4,8 +4,8 @@ import unittest
 import numpy as np
 import onnx.parser
 
-from onnxscript.ir import serde
-from onnxscript.rewriter import _ir_utils_temp, cast_constant_of_shape, pattern
+from onnxscript.ir import _ir_utils_temp, serde
+from onnxscript.rewriter import cast_constant_of_shape, pattern
 
 logger = logging.getLogger(__name__)
 op = pattern.onnxop

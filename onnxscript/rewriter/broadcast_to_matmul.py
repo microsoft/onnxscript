@@ -6,7 +6,8 @@ from typing import Any
 import numpy as np
 
 from onnxscript import ir
-from onnxscript.rewriter import _ir_utils_temp, pattern
+from onnxscript.ir import _ir_utils_temp
+from onnxscript.rewriter import pattern
 
 op = pattern.onnxop
 logger = logging.getLogger(__name__)

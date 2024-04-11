@@ -7,7 +7,8 @@ from typing import Any, Sequence
 import numpy as np
 import onnx
 
-from onnxscript import _legacy_ir as ir
+from onnxscript import ir
+from onnxscript.ir import _ir_utils_temp
 from onnxscript.utils.utils import (
     get_initializer_type,
     is_control_flow_op,
@@ -29,15 +30,15 @@ def _override_inferred_value_type_with_symbolic_value_type(
 
 
 def is_local_function_node(
-    node: onnx.NodeProto, functions: dict[ir.FunctionId, onnx.FunctionProto]
+    node: onnx.NodeProto, functions: dict[_ir_utils_temp.FunctionId, onnx.FunctionProto]
 ) -> bool:
-    return ir.get_function_id_from_node(node) in functions
+    return _ir_utils_temp.get_function_id_from_node(node) in functions
 
 
 class FunctionShapeEnv:
     def __init__(self):
         # Mapping from (domain, function_name, overload) to {value_name: ir_value}
-        self._function_values: dict[ir.FunctionId, dict[str, ir.Value]] = {}
+        self._function_values: dict[_ir_utils_temp.FunctionId, dict[str, ir.Value]] = {}
 
     def load_from_model_proto(self, model_proto: onnx.ModelProto) -> None:
         for value_info in model_proto.graph.value_info:
@@ -68,7 +69,7 @@ class FunctionShapeEnv:
 
     def process_value_info(
         self, value_info: onnx.ValueInfoProto
-    ) -> tuple[ir.FunctionId | None, ir.Value]:
+    ) -> tuple[_ir_utils_temp.FunctionId | None, ir.Value]:
         name = value_info.name
         if len(splits := name.split("/")) == 2:
             # Experimental function value info format.
@@ -101,7 +102,7 @@ class FunctionShapeEnv:
 
     def lookup(self, function: onnx.FunctionProto, value_name: str) -> ir.Value | None:
         """Lookup ir value of 'value_name' inside 'function'."""
-        function_id = ir.get_function_id(function)
+        function_id = _ir_utils_temp.get_function_id(function)
         function_values = self._function_values.get(function_id)
         if function_values is None or (ir_value := function_values.get(value_name)) is None:
             logger.debug(
@@ -126,7 +127,7 @@ class FunctionShapeEnv:
 
     def get_ir_values(self, function: onnx.FunctionProto) -> dict[str, ir.Value]:
         """Get all ir values inside 'function'."""
-        function_id = ir.get_function_id(function)
+        function_id = _ir_utils_temp.get_function_id(function)
         return self._function_values.get(function_id, {})
 
 
@@ -532,7 +533,7 @@ class ProtoVisitor(ProtoVisitorCore):
         # Sync ir value back to function_shape_env
         function_scope = self.scopes.exit_function_scope()
         for ir_value in function_scope.values.values():
-            self.function_shape_env.bind(ir_value, *ir.get_function_id(function))
+            self.function_shape_env.bind(ir_value, *_ir_utils_temp.get_function_id(function))
         return function_scope
 
     def process_initializer(self, init: onnx.TensorProto):
@@ -664,8 +665,8 @@ class FunctionCallsiteAnalysis(ProtoVisitor):
 
     def __init__(self):
         super().__init__()
-        self.functions: dict[ir.FunctionId, onnx.FunctionProto] = {}
-        self.function_calls: dict[ir.FunctionId, list[onnx.NodeProto]] = {}
+        self.functions: dict[_ir_utils_temp.FunctionId, onnx.FunctionProto] = {}
+        self.function_calls: dict[_ir_utils_temp.FunctionId, list[onnx.NodeProto]] = {}
 
     def visit_function(self, function: onnx.FunctionProto):
         # Do not visit function via model.functions.
@@ -675,14 +676,14 @@ class FunctionCallsiteAnalysis(ProtoVisitor):
 
     def visit_node(self, node: onnx.NodeProto) -> None:
         if is_local_function_node(node, self.functions):
-            function_id = ir.get_function_id_from_node(node)
+            function_id = _ir_utils_temp.get_function_id_from_node(node)
             self.function_calls.setdefault(function_id, []).append(node)
             for subnode in self.functions[function_id].node:
                 self.visit_node(subnode)
 
     def visit_model(self, model: onnx.ModelProto) -> None:
         for function in model.functions:
-            self.functions[ir.get_function_id(function)] = function
+            self.functions[_ir_utils_temp.get_function_id(function)] = function
 
         super().visit_model(model)
 
@@ -713,8 +714,8 @@ class FunctionCallsiteProtoTransformer(ProtoTransformer):
     This allows transforming and constructing specialized functions based on callsite context.
     """
 
-    _functions: dict[ir.FunctionId, onnx.FunctionProto]
-    _function_callsites: dict[ir.FunctionId, list[onnx.NodeProto]]
+    _functions: dict[_ir_utils_temp.FunctionId, onnx.FunctionProto]
+    _function_callsites: dict[_ir_utils_temp.FunctionId, list[onnx.NodeProto]]
     _new_functions: list[onnx.FunctionProto]
     _function_renamer: FunctionRenamer
 
@@ -783,7 +784,7 @@ class FunctionCallsiteProtoTransformer(ProtoTransformer):
 
     def visit_node(self, node: onnx.NodeProto) -> list[onnx.NodeProto] | None:
         if is_local_function_node(node, self._functions):
-            function_id = ir.get_function_id_from_node(node)
+            function_id = _ir_utils_temp.get_function_id_from_node(node)
             if function_id not in self._functions:
                 # Do not recursively visit new functions.
                 return None
@@ -817,7 +818,7 @@ class FunctionCallsiteProtoTransformer(ProtoTransformer):
     def process_function_node(
         self, node: onnx.NodeProto
     ) -> tuple[list[onnx.NodeProto] | None, onnx.FunctionProto | None]:
-        function_id = ir.get_function_id_from_node(node)
+        function_id = _ir_utils_temp.get_function_id_from_node(node)
         function = self._functions[function_id]
 
         is_unique_callsite = len(self._function_callsites[function_id]) == 1

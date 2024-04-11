@@ -7,7 +7,6 @@ from typing import Sequence
 
 import onnx
 
-from onnxscript import _legacy_ir as ir
 from onnxscript._legacy_ir import visitor
 from onnxscript.optimizer import remove_unused
 
@@ -15,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class FunctionInliner(visitor.FunctionCallsiteProtoTransformer):
-    counts: dict[ir.FunctionId, int]
+    counts: dict[visitor.FunctionId, int]
 
     def __init__(self, node_count: int) -> None:
         super().__init__()
@@ -149,8 +148,8 @@ class SelectedFunctionInliner(FunctionInliner):
 class FindFunctionWithUnusedOutputsVisitor(visitor.ProtoVisitor):
     def __init__(self) -> None:
         super().__init__()
-        self._function_with_unused_outputs: dict[ir.FunctionId, onnx.FunctionProto] = {}
-        self._functions: dict[ir.FunctionId, onnx.FunctionProto] = {}
+        self._function_with_unused_outputs: dict[visitor.FunctionId, onnx.FunctionProto] = {}
+        self._functions: dict[visitor.FunctionId, onnx.FunctionProto] = {}
         self._used_nodes: list[onnx.NodeProto] = []
 
     def _find_nodes_with_any_unused_output(
@@ -195,7 +194,7 @@ class FindFunctionWithUnusedOutputsVisitor(visitor.ProtoVisitor):
             logger.info("Function node with unused outputs: %s::%s", key[0], key[1])
 
     @property
-    def function_with_unused_outputs(self) -> dict[ir.FunctionId, onnx.FunctionProto]:
+    def function_with_unused_outputs(self) -> dict[visitor.FunctionId, onnx.FunctionProto]:
         return self._function_with_unused_outputs
 
 

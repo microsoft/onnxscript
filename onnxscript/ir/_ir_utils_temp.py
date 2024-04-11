@@ -6,7 +6,16 @@ import numpy as np
 
 from onnxscript import ir
 from onnxscript.ir import serde
+import onnx
+from typing import Tuple
 
+FunctionId = Tuple[str, str, str]
+
+def get_function_id(function: onnx.FunctionProto) -> FunctionId:
+    return (function.domain, function.name, getattr(function, "overload", ""))
+
+def get_function_id_from_node(node: onnx.NodeProto) -> FunctionId:
+    return (node.domain, node.op_type, getattr(node, "overload", ""))
 
 def propogate_const_value(ir_value: ir.Value) -> ir.Value:
     node = ir_value.def_node()
