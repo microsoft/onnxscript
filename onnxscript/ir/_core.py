@@ -1111,6 +1111,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         "_nodes",
         "_metadata",
         "_metadata_props",
+        "_name_authority",
     )
 
     def __init__(
