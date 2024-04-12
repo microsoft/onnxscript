@@ -19,6 +19,7 @@ from typing import (
     Iterable,
     Iterator,
     Mapping,
+    MutableSequence,
     OrderedDict,
     Protocol,
     Sequence,
@@ -129,9 +130,9 @@ class ValueProtocol(Protocol):
     are ``None``.
 
     When the value is owned by a node, it is an output of the node.
-    The node that produces the value can be accessed with :method:`def_node`.
+    The node that produces the value can be accessed with :meth:`def_node`.
     The index of the output of the node that produces the value can be accessed with
-    :method:`def_index`.
+    :meth:`def_index`.
 
     To find all the nodes that use this value as an input, call :meth:`users`.
 
@@ -250,8 +251,8 @@ class GraphProtocol(Protocol):
 
     # TODO(justinchuby): Support quantization_annotation
     name: str | None
-    inputs: Sequence[ValueProtocol]
-    outputs: Sequence[ValueProtocol]
+    inputs: MutableSequence[ValueProtocol]
+    outputs: MutableSequence[ValueProtocol]
     nodes: Sequence[NodeProtocol]
     initializers: Mapping[str, TensorProtocol]
     doc_string: str
@@ -288,6 +289,42 @@ class GraphProtocol(Protocol):
     def sort(self) -> None:
         """Topologically sort the nodes in the graph."""
         ...
+
+
+@typing.runtime_checkable
+class GraphViewProtocol(Protocol):
+    """Protocol for a read-only view on a graph.
+
+    The GraphView is useful for analysis of a subgraph. It can be initialized
+    with a subset of nodes from a :class:`Graph`. Creating GraphView does not
+    change the ownership of the nodes, and so it is possible to create multiple
+    GraphViews that contain the same nodes.
+
+    Attributes:
+        name: The name of the graph.
+        inputs: The input values of the graph.
+        outputs: The output values of the graph.
+        nodes: All nodes this graph directly owns. They do not have to be sorted.
+        initializers: The initializers in the graph.
+        doc_string: Documentation string.
+        opset_imports: Opsets imported by the graph.
+        metadata_props: Metadata.
+    """
+
+    name: str | None
+    inputs: Sequence[ValueProtocol]
+    outputs: Sequence[ValueProtocol]
+    nodes: Sequence[NodeProtocol]
+    initializers: Mapping[str, TensorProtocol]
+    doc_string: str
+    opset_imports: Mapping[str, int]
+    metadata_props: Mapping[str, str]
+    meta: Mapping[str, Any]
+
+    def __getitem__(self, index: int) -> NodeProtocol: ...
+    def __len__(self) -> int: ...
+    def __iter__(self) -> Iterator[NodeProtocol]: ...
+    def __reversed__(self) -> Iterator[NodeProtocol]: ...
 
 
 @typing.runtime_checkable

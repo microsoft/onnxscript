@@ -39,6 +39,7 @@ from onnxscript.ir import (
     _enums,
     _linked_list,
     _metadata,
+    _name_authority,
     _protocols,
 )
 
@@ -237,7 +238,30 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
 
 
 class ExternalTensor(TensorBase, _protocols.TensorProtocol):
-    """A tensor with the data as external data on disk."""
+    """An immutable concrete tensor with its data store on disk.
+
+    This class uses memory mapping to avoid loading the tensor into memory,
+    when the data type is supported by numpy. Otherwise, the tensor is loaded
+    into memory lazily when accessed.
+
+    Calling :attr:`shape` does not incur IO. Checking shape before loading
+    the tensor is recommended if IO overhead and memory usage is a concern.
+
+    To obtain an array, call :meth:`numpy`. To obtain the bytes,
+    call :meth:`tobytes`.
+
+    The :attribute:`path` can be a relative path or an absolute path.
+    Serializers should handle the path correctly to conform with the ONNX spec.
+
+    Attributes:
+        path: The path to the data file. This can be a relative path or an absolute path.
+        offset: The offset in bytes from the start of the file.
+        length: The length of the data in bytes.
+        dtype: The data type of the tensor.
+        shape: The shape of the tensor.
+        name: The name of the tensor. It must be specified.
+        doc_string: The documentation string.
+    """
 
     __slots__ = (
         "_path",
@@ -262,30 +286,6 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         name: str,
         doc_string: str | None = None,
     ) -> None:
-        """An immutable concrete tensor with its data store on disk.
-
-        This class uses memory mapping to avoid loading the tensor into memory,
-        when the data type is supported by numpy. Otherwise, the tensor is loaded
-        into memory lazily when accessed.
-
-        Calling :attr:`shape` does not incur IO. Checking shape before loading
-        the tensor is recommended if IO overhead and memory usage is a concern.
-
-        To obtain an array, call :method:`numpy`. To obtain the bytes,
-        call :method:`tobytes`.
-
-        The :attribute:`path` can be a relative path or an absolute path.
-        Serializers should handle the path correctly to conform with the ONNX spec.
-
-        Args:
-            path: The path to the data file. This can be a relative path or an absolute path.
-            offset: The offset in bytes from the start of the file.
-            length: The length of the data in bytes.
-            dtype: The data type of the tensor.
-            shape: The shape of the tensor.
-            name: The name of the tensor. It must be specified.
-            doc_string: The documentation string.
-        """
         self._path = path
         self._offset: int | None = offset
         self._length: int | None = length
@@ -350,6 +350,10 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         return f"{self._repr_base()}(path='{self._path}', name={self.name!r}, offset={self._offset!r}), length={self._length!r})"
 
     def numpy(self) -> np.ndarray:
+        """Return the tensor as a numpy array.
+
+        The data will be memory mapped into memory and will not taken up physical memory space.
+        """
         if self._array is None:
             self._load()
         assert self._array is not None
@@ -496,7 +500,18 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         return f"[{','.join([str(dim) for dim in self._dims])}]"
 
     def __eq__(self, other: object) -> bool:
-        raise NotImplementedError("Not implemented yet")
+        """Return True if the shapes are equal.
+
+        Two shapes are eqaul if all their dimensions are equal.
+        """
+        if isinstance(other, Shape):
+            return self._dims == other._dims
+        if not isinstance(other, Iterable):
+            return False
+        return self.dims == tuple(other)
+
+    def __ne__(self, other: object) -> bool:
+        return not self.__eq__(other)
 
 
 def _quoted(string: str) -> str:
@@ -508,7 +523,19 @@ def _quoted(string: str) -> str:
 
 
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
-    """IR Node."""
+    """IR Node.
+
+    If the ``graph`` is provided, the node will be added to the graph. Otherwise,
+    user is responsible to call ``graph.append(node)`` (or other mutation methods
+    in :class:`Graph`) to add the node to the graph.
+
+    After the node is initialized, it will add itself as a user of the input values.
+
+    The output values of the node are created during node initialization and are immutable.
+    To change the output values, create a new node and replace the output.users.inputs with
+    the new output values by calling :meth:`replace_input_with` on the user nodes
+    of this node's outputs.
+    """
 
     __slots__ = (
         "_name",
@@ -540,16 +567,6 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         doc_string: str | None = None,
     ):
         """Initialize a node and add it as a user of the input values.
-
-        When the node is initialized, it does not belong to any graph. It is the
-        responsibility of the caller to add the node to a graph, by calling :func:`Graph.absorb_nodes`.
-
-        After the node is initialized, it will add itself as a user of the input values.
-
-        The output values of the node are created during node initialization and are immutable.
-        To change the output values, create a new node and replace the output.users.inputs with
-        the new output values by calling :method:`replace_input_with` on the user nodes
-        of this node's outputs.
 
         Args:
             domain: The domain of the operator. For onnx operators, this is an empty string.
@@ -589,7 +606,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         # Add the node as a user of the inputs
         for i, input_value in enumerate(self._inputs):
             if input_value is not None:
-                input_value.add_user(self, i)
+                input_value._add_user(self, i)  # pylint: disable=protected-access
 
         # Add the node to the graph if graph is specified
         if self._graph is not None:
@@ -689,9 +706,9 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             value if i == index else old_input for i, old_input in enumerate(self.inputs)
         )
         if old_input is not None:
-            old_input.remove_user(self, index)
+            old_input._remove_user(self, index)  # pylint: disable=protected-access
         if value is not None:
-            value.add_user(self, index)
+            value._add_user(self, index)  # pylint: disable=protected-access
 
     def prepend(self, /, nodes: Node | Iterable[Node]) -> None:
         """Insert a node before this node in the list of nodes in the graph.
@@ -935,13 +952,25 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         return self._def_index
 
     def users(self) -> frozenset[tuple[Node, int]]:
+        """Return a set of users of the value.
+
+        The set contains tuples of ``(Node, index)`` where the index is the index of the input
+        of the node. For example, if ``node.inputs[1] == value``, then the user is ``(node, 1)``.
+        """
         return frozenset(self._users)
 
-    def add_user(self, user: Node, index: int) -> None:
+    def _add_user(self, user: Node, index: int) -> None:
+        """Add a user node.
+
+        This is an internal method. It should only be called by the Node class.
+        """
         self._users.add((user, index))
 
-    def remove_user(self, user: Node, index: int) -> None:
-        """Reduce a user node."""
+    def _remove_user(self, user: Node, index: int) -> None:
+        """Remove a node from the users of this value.
+
+        This is an internal method. It should only be called by the Node class.
+        """
         self._users.remove((user, index))
 
     @property
@@ -1073,7 +1102,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     """
 
     __slots__ = (
-        "_name",
+        "name",
         "_inputs",
         "_outputs",
         "_initializers",
@@ -1082,6 +1111,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         "_nodes",
         "_metadata",
         "_metadata_props",
+        "_name_authority",
     )
 
     def __init__(
@@ -1109,6 +1139,9 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
         self._nodes: _linked_list.DoublyLinkedSet[Node] = _linked_list.DoublyLinkedSet()
+        # Be sure the initialize the name authority before extending the nodes
+        # because it is used to name the nodes and their outputs
+        self._name_authority = _name_authority.NameAuthority()
         # Call self.extend not self._nodes.extend so the graph reference is added to the nodes
         self.extend(nodes)
 
@@ -1152,12 +1185,18 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def __reversed__(self) -> Iterator[Node]:
         return reversed(self._nodes)
 
-    def _set_node_graph_to_self(self, node: Node) -> Node:
-        """Set the graph reference for the node."""
+    def _set_node_graph_to_self_and_assign_names(self, node: Node) -> Node:
+        """Set the graph reference for the node and assign names to it and its outputs if they don't have one."""
         if node.graph is not None and node.graph is not self:
             raise ValueError(
                 f"The node {node} belongs to another graph. Please remove it first with Graph.remove()."
             )
+        # Give the node and its output values names if they don't not have one
+        if node.name is None:
+            self._name_authority.name_node(node)
+        for value in node._outputs:  # pylint: disable=protected-access
+            if value.name is None:
+                self._name_authority.name_value(value)
         node.graph = self
         return node
 
@@ -1171,7 +1210,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         Raises:
             ValueError: If the node belongs to another graph.
         """
-        self._set_node_graph_to_self(node)
+        self._set_node_graph_to_self_and_assign_names(node)
         self._nodes.append(node)
 
     def extend(self, nodes: Iterable[Node], /) -> None:
@@ -1183,7 +1222,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         Raises:
             ValueError: If any node belongs to another graph.
         """
-        nodes = [self._set_node_graph_to_self(node) for node in nodes]
+        nodes = [self._set_node_graph_to_self_and_assign_names(node) for node in nodes]
         self._nodes.extend(nodes)
 
     def remove(self, node: Node, /) -> None:
@@ -1212,7 +1251,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         """
         if isinstance(new_nodes, Node):
             new_nodes = (new_nodes,)
-        new_nodes = [self._set_node_graph_to_self(node) for node in new_nodes]
+        new_nodes = [self._set_node_graph_to_self_and_assign_names(node) for node in new_nodes]
         self._nodes.insert_after(node, new_nodes)
 
     def insert_before(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
@@ -1227,7 +1266,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         """
         if isinstance(new_nodes, Node):
             new_nodes = (new_nodes,)
-        new_nodes = [self._set_node_graph_to_self(node) for node in new_nodes]
+        new_nodes = [self._set_node_graph_to_self_and_assign_names(node) for node in new_nodes]
         self._nodes.insert_before(node, new_nodes)
 
     def sort(self) -> None:
@@ -1254,59 +1293,174 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         return self._metadata_props
 
     def __str__(self) -> str:
-        # TODO(justinchuby): Show docstrings and metadata
-        inputs_text = "\n" + ",\n".join(str(x) for x in self.inputs)
-        outputs_text = "\n" + ",\n".join(str(x) for x in self.outputs)
-        initializers_text = ",\n".join(str(x) for x in self.initializers.values())
-        if initializers_text:
-            initializers_text = (
-                "\ninitializers=(\n" + textwrap.indent(initializers_text, " " * 4) + "\n),"
-            )
-        signature = f"""\
-graph(
-    name={self.name or ':anonymous_graph:' + str(id(self))},
-    inputs=({textwrap.indent(inputs_text, ' '*8)}
-    ),
-    outputs=({textwrap.indent(outputs_text, ' '*8)}
-    ),{textwrap.indent(initializers_text, ' '*4)}
-)"""
-        node_count = len(self._nodes)
-        number_width = len(str(node_count))
-        node_lines = []
-        for i, node in enumerate(self._nodes):
-            node_name = node.name if node.name else f":anonymous_node:{id(node)}"
-            node_text = f"# {node_name}\n{node}"
-            indented_node_text = textwrap.indent(node_text, " " * (number_width + 4))
-            # Remove the leading spaces
-            indented_node_text = indented_node_text.strip()
-            node_lines.append(f"{i:>{number_width}} |  {indented_node_text}")
-        returns = ", ".join(str(x) for x in self.outputs)
-        body = (
-            "{\n"
-            + textwrap.indent("\n".join(node_lines), " " * 4)
-            + textwrap.indent(f"\nreturn {returns}", " " * 4)
-            + "\n}"
-        )
-
-        return f"{signature} {body}"
+        return _graph_str(self)
 
     def __repr__(self) -> str:
-        inputs_text = "\n" + ",\n".join(str(x) for x in self.inputs)
-        outputs_text = "\n" + ",\n".join(str(x) for x in self.outputs)
-        initializers_text = ",\n".join(str(x) for x in self.initializers.values())
-        if initializers_text:
-            initializers_text = (
-                "\ninitializers=(\n" + textwrap.indent(initializers_text, " " * 4) + "\n),"
-            )
-        return f"""\
-{self.__class__.__name__}(
-    name={self.name or ':anonymous_graph:' + str(id(self))!r},
+        return _graph_repr(self)
+
+
+def _graph_str(graph: Graph | GraphView) -> str:
+    """Return a string representation of the graph."""
+    # TODO(justinchuby): Show docstrings and metadata
+    inputs_text = "\n" + ",\n".join(str(x) for x in graph.inputs)
+    outputs_text = "\n" + ",\n".join(str(x) for x in graph.outputs)
+    initializers_text = ",\n".join(str(x) for x in graph.initializers.values())
+    if initializers_text:
+        initializers_text = (
+            "\ninitializers=(\n" + textwrap.indent(initializers_text, " " * 4) + "\n),"
+        )
+    signature = f"""\
+graph(
+name={graph.name or 'anonymous_graph:' + str(id(graph))},
+inputs=({textwrap.indent(inputs_text, ' '*8)}
+),
+outputs=({textwrap.indent(outputs_text, ' '*8)}
+),{textwrap.indent(initializers_text, ' '*4)}
+)"""
+    node_count = len(graph)
+    number_width = len(str(node_count))
+    node_lines = []
+    for i, node in enumerate(graph.nodes):
+        node_name = node.name if node.name else f":anonymous_node:{id(node)}"
+        node_text = f"# {node_name}\n{node}"
+        indented_node_text = textwrap.indent(node_text, " " * (number_width + 4))
+        # Remove the leading spaces
+        indented_node_text = indented_node_text.strip()
+        node_lines.append(f"{i:>{number_width}} |  {indented_node_text}")
+    returns = ", ".join(str(x) for x in graph.outputs)
+    body = (
+        "{\n"
+        + textwrap.indent("\n".join(node_lines), " " * 4)
+        + textwrap.indent(f"\nreturn {returns}", " " * 4)
+        + "\n}"
+    )
+
+    return f"{signature} {body}"
+
+
+def _graph_repr(graph: Graph | GraphView) -> str:
+    """Return an repr string of the graph."""
+    inputs_text = "\n" + ",\n".join(str(x) for x in graph.inputs)
+    outputs_text = "\n" + ",\n".join(str(x) for x in graph.outputs)
+    initializers_text = ",\n".join(str(x) for x in graph.initializers.values())
+    if initializers_text:
+        initializers_text = (
+            "\ninitializers=(\n" + textwrap.indent(initializers_text, " " * 4) + "\n),"
+        )
+    return f"""\
+{graph.__class__.__name__}(
+    name={graph.name or 'anonymous_graph:' + str(id(graph))!r},
     inputs=({textwrap.indent(inputs_text, ' '*8)}
     ),
     outputs=({textwrap.indent(outputs_text, ' '*8)}
     ),{textwrap.indent(initializers_text, ' '*4)}
-    len(nodes)={len(self._nodes)}
+    len()={len(graph)}
 )"""
+
+
+class GraphView(Sequence[Node], _display.PrettyPrintable):
+    """A read-only view on a graph.
+
+    The GraphView is useful for analysis of a subgraph. It can be initialized
+    with a subset of nodes from a :class:`Graph`. Creating GraphView does not
+    change the ownership of the nodes, and so it is possible to create multiple
+    GraphViews that contain the same nodes. If the underlying nodes / connections
+    are mutated, the mutation will be reflected in all views as well.
+
+    The graph view can be serialized to ONNX::
+
+            graph_proto = ir.serde.serialize_graph(graph_view)
+
+    It can also be used to create a model::
+
+            model = ir.Model(graph_view, ir_version=8)
+            model_proto = ir.serde.serialize_model(model)
+
+    The model created with a GraphView will have a fixed topology, and its graph
+    will remain read-only as a GraphView. No copying will be done during the
+    initialization process.
+
+    Attributes:
+        name: The name of the graph.
+        inputs: The input values of the graph.
+        outputs: The output values of the graph.
+        nodes: All nodes visible in this view. They do not have to be sorted.
+        initializers: The initializers in the graph.
+        doc_string: Documentation string.
+        opset_imports: Opsets imported by the graph.
+        metadata_props: Metadata.
+    """
+
+    __slots__ = (
+        "name",
+        "inputs",
+        "outputs",
+        "initializers",
+        "doc_string",
+        "opset_imports",
+        "nodes",
+        "_metadata",
+        "_metadata_props",
+    )
+
+    def __init__(
+        self,
+        inputs: Sequence[Value],
+        outputs: Sequence[Value],
+        *,
+        nodes: Iterable[Node],
+        initializers: Sequence[_protocols.TensorProtocol] = (),
+        doc_string: str | None = None,
+        opset_imports: dict[str, int] | None = None,
+        name: str | None = None,
+    ):
+        self.name = name
+        self.inputs = tuple(inputs)
+        self.outputs = tuple(outputs)
+        for initializer in initializers:
+            if initializer.name is None:
+                raise ValueError(f"Initializer must have a name: {initializer}")
+        self.initializers = {tensor.name: tensor for tensor in initializers}
+        self.doc_string = doc_string
+        self.opset_imports = opset_imports or {}
+        self._metadata: _metadata.MetadataStore | None = None
+        self._metadata_props: dict[str, str] | None = None
+        self.nodes: tuple[Node, ...] = tuple(nodes)
+
+    def __getitem__(self, index: int) -> Node:
+        return self.nodes[index]
+
+    def __len__(self) -> int:
+        return len(self.nodes)
+
+    def __iter__(self) -> Iterator[Node]:
+        return iter(self.nodes)
+
+    def __reversed__(self) -> Iterator[Node]:
+        return reversed(self.nodes)
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
+
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
+
+    def __str__(self) -> str:
+        return _graph_str(self)
+
+    def __repr__(self) -> str:
+        return _graph_repr(self)
 
 
 class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
@@ -1340,7 +1494,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
 
     def __init__(
         self,
-        graph: Graph,
+        graph: Graph | GraphView,
         *,
         ir_version: int,
         producer_name: str | None = None,
@@ -1350,7 +1504,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
         doc_string: str | None = None,
         functions: Sequence[Function] = (),
     ) -> None:
-        self.graph: Graph = graph  # type: ignore[assignment]
+        self.graph: Graph | GraphView = graph  # type: ignore[assignment]
         self.ir_version = ir_version
         self.producer_name = producer_name
         self.producer_version = producer_version
@@ -1553,7 +1707,7 @@ class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
         inputs_text = ",\n".join(str(x) for x in self.inputs)
         outputs_text = ",\n".join(str(x) for x in self.outputs)
         attributes_text = ",\n".join(
-            attr.name + f": {attr.type}" + f"= {attr.value}" * (attr.value is None)
+            f"{attr.name}: {attr.type}" + f" = {attr.value}" * (attr.value is None)
             for attr in self.attributes.values()
         )
         if attributes_text:
