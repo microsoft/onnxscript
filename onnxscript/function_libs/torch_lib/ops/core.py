@@ -3937,104 +3937,6 @@ def _shape_of_broadcast_tensors(*args: TensorType) -> INT64:
     return op.Shape(broadcasted)
 
 
-@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
-def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
-    """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
-
-    NOTE: Understanding `aten::index`
-    For `arg0` with shape `[7, 3, 4, 5, 6]`
-    The indexing operation `arg0[0, :, 1:2, tensor([[4,5]])]` will be translated to
-
-    ```
-    +>  select: i64[3, 4, 5, 6] = torch.ops.aten.select.int(arg0, 0, 0);
-    +>  slice_1: i64[3, 4, 5, 6] = torch.ops.aten.slice.Tensor(select, 0, 0, 9223372036854775807);
-    +>  slice_2: i64[3, 1, 5, 6] = torch.ops.aten.slice.Tensor(slice_1, 1, 1, 2);
-    +>  index: i64[3, 1, 1, 2, 6] = torch.ops.aten.index.Tensor(slice_2, [None, None, arg1]);
-    ```
-
-    Here,
-    - `indices = [None, None, arg1]` is equivalent to `indices = [None, None, arg1, None]`
-    - The operation `arg0[0, :, 1:2, tensor([[4,5]])]` is equivalent to `arg0[0, :, 1:2, tensor([[4,5]]), :]`
-
-    None in `indices` are like fillers for dimensions that cannot be removed in the process.
-    """
-
-    self_rank = len(self.shape)
-    index_ranks = [len(index.shape) for index in indices if index is not None]
-    advanced_indexing_rank = max(index_ranks)
-
-    # reordered_positions is the permutation of the index positions where
-    # positions with None are move to the end of the list
-    # For example, if indices = [None, 1, None, 2], then reordered_positions = [1, 3, 0, 2]
-    reordered_positions = sorted(range(len(indices)), key=lambda i: (indices[i] is None, i))
-    # Fill the list with the remaining indices up to the rank of the tensor self.
-    # For example, if indices = [None, 1, None, 2], and the rank of self is 6,
-    # then reordered_positions = [1, 3, 0, 2, 4, 5]
-    reordered_positions = [
-        *reordered_positions,
-        *range(len(reordered_positions), self_rank),
-    ]
-    # Transpose self according to the reordered positions
-    self = op.Transpose(self, perm=reordered_positions)
-
-    # Broadcast the indices to the same shape then concatenate
-    not_none_indices = [idx for idx in indices if idx is not None]
-    broadcast_shape = _shape_of_broadcast_tensors(*not_none_indices)
-    final_index = op.Concat(
-        *(op.Unsqueeze(op.Expand(idx, broadcast_shape), -1) for idx in not_none_indices),
-        axis=-1,
-    )
-
-    self = op.GatherND(self, final_index, batch_dims=0)
-
-    if _has_none_in_middle(indices):
-        # If there is None in the middle, Advanced Indexing cannot decide where to put
-        # the new dimensions. So it places them in the front, like GatherND does.
-        return self
-
-    # When the indices are consecutive, Advanced Indexing will place the new dimensions
-    # (aka. the broadcasted shape) in the middle, replacing the original [x1, ..., xk] axes.
-    #
-    # Input index axes (three parts):
-    #   [
-    #      x_None_front_1, ... x_None_front_m,
-    #      x1, ..., xk,
-    #      x_None_back_1, ..., x_None_back_m
-    #   ]
-    # GatherND result axes:
-    #   [
-    #      *broadcasted_shape(x1, x2, ..., xk),
-    #      x_None_front_1, ... x_None_front_m,
-    #      x_None_back_1, ..., x_None_back_m
-    #   ]
-    # (Transpose here)
-    # Advanced indexing result axes:
-    #   [
-    #      x_None_front_1, ... x_None_front_m,
-    #      *brocasted_shape(x1, x2, ..., xk),
-    #      x_None_back_1, ..., x_None_back_m
-    #   ]
-    #
-    # Need to transpose the result of GatherND to match this axes ordering.
-    first_not_none_position = reordered_positions[0]  # x_None_front_m + 1
-    starting_position_of_none_in_back = (
-        advanced_indexing_rank + first_not_none_position
-    )  # x_None_back_1
-    result_rank = self_rank - len(not_none_indices) + advanced_indexing_rank
-    perm = [
-        *range(
-            advanced_indexing_rank, starting_position_of_none_in_back
-        ),  # None_front_1...x_None_back_1
-        *range(advanced_indexing_rank),  # 0...len(broadcasted_shape)
-        *range(
-            starting_position_of_none_in_back,
-            result_rank,
-        ),  # None_back_1...None_back_m
-    ]
-
-    return op.Transpose(self, perm=perm)
-
-
 @torch_op("aten::index.Tensor", private=True, trace_only=True)
 def _aten_index_onnx(
     self: TensorType,
@@ -4084,7 +3986,7 @@ def _aten_index_onnx(
         *range(
             advanced_indexing_rank, starting_position_of_none_in_back
         ),  # None_front_1...x_None_back_1
-        *range(0, advanced_indexing_rank),  # 0...len(broadcasted_shape)
+        *range(advanced_indexing_rank),  # 0...len(broadcasted_shape)
         *range(
             starting_position_of_none_in_back,
             result_rank,
@@ -4095,6 +3997,33 @@ def _aten_index_onnx(
 
 
 @torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
+def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
+    """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
+
+    NOTE: Understanding `aten::index`
+    For `arg0` with shape `[7, 3, 4, 5, 6]`
+    The indexing operation `arg0[0, :, 1:2, tensor([[4,5]])]` will be translated to
+
+    ```
+    +>  select: i64[3, 4, 5, 6] = torch.ops.aten.select.int(arg0, 0, 0);
+    +>  slice_1: i64[3, 4, 5, 6] = torch.ops.aten.slice.Tensor(select, 0, 0, 9223372036854775807);
+    +>  slice_2: i64[3, 1, 5, 6] = torch.ops.aten.slice.Tensor(slice_1, 1, 1, 2);
+    +>  index: i64[3, 1, 1, 2, 6] = torch.ops.aten.index.Tensor(slice_2, [None, None, arg1]);
+    ```
+
+    Here,
+    - `indices = [None, None, arg1]` is equivalent to `indices = [None, None, arg1, None]`
+    - The operation `arg0[0, :, 1:2, tensor([[4,5]])]` is equivalent to `arg0[0, :, 1:2, tensor([[4,5]]), :]`
+
+    None in `indices` are like fillers for dimensions that cannot be removed in the process.
+    """
+
+    index_ranks = [len(index.shape) for index in indices if index is not None]
+
+    return _aten_index_onnx(self, indices, index_ranks)
+
+
+@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
 def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> TensorType:
 
     index_ranks = [len(index.shape) for index in indices if index is not None]
@@ -4102,8 +4031,8 @@ def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> Tens
     if index_ranks[0] == 1:
         # indices contains scalar only.
         new_indices = [op.Transpose(op.NonZero(index), perm=[1, 0]) if index is not None else None for index in indices]
-        my_indices = [op.Squeeze(index, axes=[1]) if index is not None else None for index in new_indices]
-        return _aten_index_onnx(self, my_indices, index_ranks)
+        new_indices = [op.Squeeze(index, axes=[1]) if index is not None else None for index in new_indices]
+        return _aten_index_onnx(self, new_indices, index_ranks)
     else:
         indices_rank = len(indices)
         input_rank = len(self.shape)
