@@ -295,21 +295,30 @@ class ModelWithGraphStructure(oir.Model, _GraphStructureAPI):
 
 
 class PatternMatchResult:
-    """Stores information about a match if a match was successful."""
+    """Stores information about a match if a match was successful.
+
+    * pattern: the instance of :class:`GenericPattern` which found this result
+    * model_nodes: matched nodes coming from the model
+    * pattern_nodes: corresponding nodes coming from the pattern
+    * pattern_input_names: input names of the pattern
+    * pattern_ouptut_names: output names of the pattern
+    * kwargs: additional attributes the user may add through the method
+        :meth:`PatternMatchResult.add_kwargs`
+
+    The class creates one attributes `matched_pattern_to_model_name`,
+    which maps every result name from the pattern to the corresponding
+    result name in the model.
+    """
 
     def __init__(
         self,
-        pattern: "GenericPattern",
+        pattern: GenericPattern,
         model_nodes: typing.Sequence[oir.Node],
         pattern_nodes: typing.Sequence[oir.Node],
         pattern_input_names: typing.Sequence[str],
         pattern_output_names: typing.Sequence[str],
     ):
-        assert len(model_nodes) == len(pattern_nodes), (
-            f"The number of matched nodes in the model {len(model_nodes)} "
-            f"should the same as the number of nodes in the pattern "
-            f"{len(pattern_nodes)}."
-        )
+        assert len(model_nodes) == len(pattern_nodes)
         self.pattern = pattern
         self.model_nodes = model_nodes
         self.pattern_nodes = pattern_nodes
@@ -356,6 +365,9 @@ class PatternMatchResult:
         self.matched_pattern_to_model_name = matched_pattern_to_model_name
 
     def add_kwargs(self, name: str, value: typing.Any):
+        """Adds an attribute, it can be done when the match is being validated,
+        this attribute can be used when building the replacement nodes.
+        """
         self.kwargs[name] = value
 
     def __repr__(self) -> str:
