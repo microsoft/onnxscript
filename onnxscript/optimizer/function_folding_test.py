@@ -1,6 +1,7 @@
 import unittest
 
 import onnx
+
 import onnxscript.testing
 from onnxscript import optimizer
 
@@ -66,7 +67,8 @@ class FunctionFoldingTest(unittest.TestCase):
         self.assertEqual(function_node[2].op_type, "Concat")
 
     def test_sequence_at(self):
-        model = onnx.parser.parse_model("""
+        model = onnx.parser.parse_model(
+            """
             <ir_version: 7, opset_import: ["" : 17]>
             agraph (float[N] x) => (float[M] z) {
                 t0 = Add (x, x)
@@ -75,19 +77,22 @@ class FunctionFoldingTest(unittest.TestCase):
                 one = Constant <value = int64 {1}> ()
                 z = SequenceAt (s, one)
             }
-        """)
+        """
+        )
         optimized = optimizer.optimize(
             model,
             onnx_shape_inference=False,
             num_iterations=1,
         )
-        expected = onnx.parser.parse_model("""
+        expected = onnx.parser.parse_model(
+            """
             <ir_version: 7, opset_import: ["" : 17]>
             agraph (float[N] x) => (float[M] z) {
                 t0 = Add (x, x)
                 z = Identity (t0)
             }
-        """)
+        """
+        )
         onnxscript.testing.assert_isomorphic_graph(optimized.graph, expected.graph)
 
     def test_single_user_function_is_modified_inplace_after_folding(self):
