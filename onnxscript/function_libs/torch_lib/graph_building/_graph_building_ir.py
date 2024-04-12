@@ -92,11 +92,12 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
     def __init__(
         self,
         _=None,
+        def_node=None,
         def_index=None,
         name: str | None = None,
     ):
         onnxscript_tensor.Tensor.__init__(self, None)
-        ir.Value.__init__(self, None, def_index=def_index, name=name)
+        ir.Value.__init__(self, def_node, def_index=def_index, name=name)
         self._is_complex: bool = False
 
     @property  # type: ignore[override]
@@ -186,7 +187,7 @@ class _Node(ir.Node):
             doc_string=doc_string,
         )
         self._outputs: tuple[TorchScriptTensor, ...] = tuple(
-            TorchScriptTensor(self, def_index=i) for i in range(num_outputs)
+            TorchScriptTensor(def_node=self, def_index=i) for i in range(num_outputs)
         )
 
     @property
@@ -724,13 +725,14 @@ class TorchScriptGraph:
             functions=[*function_dict.values(), *_shared_functions()],
         )
 
-        print(onnx_model)
-
         onnx_model.opset_imports.update(unique_custom_domains)
         # Include the library shared opset domain
         # TODO: Remove after https://github.com/microsoft/onnxscript/issues/834 is fixed
         onnx_model.opset_imports[common_ops.common_opset.domain] = (
             common_ops.common_opset.version
         )
+        model_proto = ir.serde.serialize_model(onnx_model)
+        # import google.protobuf.text_format as text_format
+        # print(text_format.MessageToString(model_proto))
         # print(onnx_model)
-        return ir.serde.serialize_model(onnx_model)
+        return model_proto
