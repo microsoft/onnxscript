@@ -625,7 +625,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
                 [
                     (
                         f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}"
-                        if x
+                        if x is not None
                         else "None"
                     )
                     for x in self._inputs
