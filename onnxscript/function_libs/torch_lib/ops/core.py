@@ -4100,40 +4100,37 @@ def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> Tens
     index_ranks = [len(index.shape) for index in indices if index is not None]
 
     if index_ranks[0] == 1:
-        # Given indices contains only scalar.
+        # indices contains scalar only.
         new_indices = [op.Transpose(op.NonZero(index), perm=[1, 0]) if index is not None else None for index in indices]
         my_indices = [op.Squeeze(index, axes=[1]) if index is not None else None for index in new_indices]
         return _aten_index_onnx(self, my_indices, index_ranks)
     else:
         indices_rank = len(indices)
-        index_count = len([index for index in indices if index is not None])
-        if index_count == 1:
-            self_rank = len(self.shape)
-            # Prepare perm for transposing self tensor.
-            # In indices, None meaning skip the corresponding dimension,
-            # so we need to move this dimension to the end of the list.
-            # After we gathered the final results, we transpose it back.
-            # For example,
-            # self's shape is [5, 5, 5, 5], indices is [None, (5, 5)]
-            # the final result's shape should be [5, 16, 5].
-            trans_perm = [i for i in range(self_rank)]
-            trans_perm.append(trans_perm.pop(0))
-            count_of_none = 0
-            for index in indices:
-                if index is None:
-                    self = op.Transpose(self, perm=trans_perm)
-                    count_of_none += 1
-                else:
-                    if indices_rank < self_rank:
-                        new_indices = op.Transpose(op.NonZero(index), perm=[1, 0])
-                        result = op.GatherND(self, new_indices, batch_dims=0)
-                        finla_rank = self_rank - (len(index.shape) - 1)
-                        trans_perm = [i for i in range(finla_rank)]
-                        trans_perm = trans_perm[-1:] + trans_perm[:-1]
-                        while count_of_none > 0:
-                            result = op.Transpose(result, perm=trans_perm)
-                            count_of_none -= 1
-                        return result
+        input_rank = len(self.shape)
+        # Prepare perm for transposing self tensor.
+        # In indices, None meaning skip the corresponding dimension,
+        # so we need to move this dimension to the end of the list.
+        # After we gathered the final results, we transpose it back.
+        # For example,
+        # self's shape is [5, 5, 5, 5], indices is [None, (5, 5)]
+        # the final result's shape should be [5, 16, 5].
+        trans_perm = [i for i in range(input_rank)]
+        trans_perm.append(trans_perm.pop(0))
+        count_of_none = 0
+        for index in indices:
+            if index is None:
+                self = op.Transpose(self, perm=trans_perm)
+                count_of_none += 1
+            else:
+                new_indices = op.Transpose(op.NonZero(index), perm=[1, 0])
+                result = op.GatherND(self, new_indices, batch_dims=0)
+                finla_rank = input_rank - (len(index.shape) - 1)
+                trans_perm = [i for i in range(finla_rank)]
+                trans_perm = trans_perm[-1:] + trans_perm[:-1]
+                while count_of_none > 0:
+                    result = op.Transpose(result, perm=trans_perm)
+                    count_of_none -= 1
+                return result
 
 
 def aten_index_add(
