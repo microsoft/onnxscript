@@ -10,13 +10,15 @@ import numpy as np
 import onnx
 import onnx.helper as oh
 import onnx.numpy_helper as onh
+import onnx.shape_inference
 from numpy.testing import assert_almost_equal
 from onnx.reference import ReferenceEvaluator
 from onnx.reference.op_run import OpRun
 
-import onnxscript._legacy_ir as oir
 import onnxscript._legacy_ir.protobuilder as oip
 import onnxscript.rewriter.generic_pattern as org
+from onnxscript import ir as oir
+from onnxscript.ir import serde
 
 TFLOAT = onnx.TensorProto.FLOAT
 
@@ -36,7 +38,9 @@ class GenericPatternTest(unittest.TestCase):
             }
         """
         )
-        org.ModelWithGraphStructure(oir.irbuilder.build_ir(model))
+        model = onnx.shape_inference.infer_shapes(model)
+        ir_model = serde.deserialize_model(model)
+        org.ModelWithGraphStructure(ir_model)
 
     def _range(self, *shape, bias: float | None = None):
         n = np.prod(shape)
@@ -96,7 +100,8 @@ class GenericPatternTest(unittest.TestCase):
         )
         onnx.checker.check_model(model)
 
-        ir_model = oir.irbuilder.build_ir(model)
+        model = onnx.shape_inference.infer_shapes(model)
+        ir_model = serde.deserialize_model(model)
 
         pattern = AddAddPattern(verbose=0)
         rule = pattern.make_rule()
@@ -191,7 +196,8 @@ class GenericPatternTest(unittest.TestCase):
         )
         onnx.checker.check_model(model)
 
-        ir_model = oir.irbuilder.build_ir(model)
+        model = onnx.shape_inference.infer_shapes(model)
+        ir_model = serde.deserialize_model(model)
 
         pattern = AddAddAddAddPattern(verbose=0)
         rule = pattern.make_rule()
@@ -342,7 +348,8 @@ class GenericPatternTest(unittest.TestCase):
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
             # back to ir
-            ir_model = oir.irbuilder.build_ir(model)
+            model = onnx.shape_inference.infer_shapes(model)
+            ir_model = serde.deserialize_model(model)
 
             # starts matching
             pattern = RotaryEmbeddingPattern(verbose=10)
@@ -399,7 +406,8 @@ class GenericPatternTest(unittest.TestCase):
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
             # back to ir
-            ir_model = oir.irbuilder.build_ir(model)
+            model = onnx.shape_inference.infer_shapes(model)
+            ir_model = serde.deserialize_model(model)
 
             # starts matching
             rule = org.make_pattern_rule(
@@ -461,8 +469,8 @@ class GenericPatternTest(unittest.TestCase):
             raise unittest.SkipTest(f"{model!r} is missing")
 
         begin = time.perf_counter()
-        onx = onnx.load(model)
-        ir_model = oir.irbuilder.build_ir(onx)
+        model = onnx.shape_inference.infer_shapes(model)
+        ir_model = serde.deserialize_model(model)
         if __name__ == "__main__":
             print(f"Loading done in {time.perf_counter() - begin}s")
 

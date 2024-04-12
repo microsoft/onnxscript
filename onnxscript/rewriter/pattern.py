@@ -1035,9 +1035,9 @@ def _apply_deltas(
         "rule."
     )
 
-    for i in to_delete:
-        position = existing_ids[i][0]
-        nodes[position] = None
+    # for i in to_delete:
+    #     position = existing_ids[i][0]
+    #     nodes[position] = None
 
     for position, insert in sorted(to_insert.items(), reverse=True):
         for v in reversed(insert):

@@ -11,13 +11,16 @@ import onnx.helper as oh
 
 import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
+from onnxscript.ir import serde
 
 
 def enumerate_subgraphs(
     node: ir.Node,
 ) -> typing.Iterator[tuple[typing.Any, ...]]:
     """Returns the subgraphs inside a graph."""
-    for att in node.attribute:
+    for att in node.attributes.values():
+        # TODO: improve this
+        att = serde.serialize_attribute(att)
         if att.type == onnx.AttributeProto.GRAPH and att.g:
             this = node, att.name, att.g
             yield this
@@ -114,7 +117,7 @@ class BuilderWithGraphStructure(_GraphStructureAPI):
         return self.make_node(op_type, *args, output_names=output_names, **kwargs)
 
     def make_node_with_proto(self, node_proto: onnx.NodeProto) -> tuple[str] | str:
-        node = ir.Node(node_proto, True)
+        node = serde.deserialize_node(node_proto)
         self.nodes.append(node)
         assert node.output_names, f"No output in node {node}. This can't be true."
         if len(node.output_names) == 1:
@@ -130,12 +133,10 @@ class BuilderWithGraphStructure(_GraphStructureAPI):
         name: str | None = None,
         **kwargs: typing.Any,
     ) -> str | tuple[str]:
-        node = ir.Node(
-            self.bridge.make_node(
-                op_type, input_names, output_names, domain=domain, name=name, **kwargs
-            ),
-            True,
+        node_proto = self.bridge.make_node(
+            op_type, input_names, output_names, domain=domain, name=name, **kwargs
         )
+        node = serde.deserialize_node(node_proto)
         self.nodes.append(node)
         assert node.output_names, f"No output in node {node}. This can't be true."
         if len(node.output_names) == 1:
@@ -151,13 +152,22 @@ class ModelWithGraphStructure(ir.Model, _GraphStructureAPI):
     """
 
     def __init__(self, model: ir.Model, verbose: int = 0):
-        ir.Model.__init__(self)
+        ir.Model.__init__(
+            self,
+            graph=model.graph,
+            ir_version=model.ir_version,
+            producer_name=model.producer_name,
+            domain=model.domain,
+            doc_string=model.doc_string,
+            model_version=model.model_version,
+            functions=model.functions,
+        )
         _GraphStructureAPI.__init__(self)
         self.model = model
         if hasattr(self.model, "graph"):
             self.nodes = list(model.graph.nodes)
-            self.input_names = list(model.graph.input_names)
-            self.output_names = list(model.graph.output_names)
+            self.input_names = [input.name for input in model.graph.inputs]
+            self.output_names = [output.name for output in model.graph.outputs]
             self._build()
         else:
             # empty graph
@@ -181,12 +191,12 @@ class ModelWithGraphStructure(ir.Model, _GraphStructureAPI):
         self._unique_names = set(self.input_names) | set(self.output_names)
         for k, v in self.nodes_.items():
             assert isinstance(v, ir.Node), f"Unexpected type {type(v)} for node {k}"
-            for o in v.output_names:
-                self.predecessors_[o] = k
-            for i in v.input_names:
-                if i not in self.successors_:
-                    self.successors_[i] = []
-                self.successors_[i].append(k)
+            for o in v.outputs:
+                self.predecessors_[o.name] = k
+            for i in v.inputs:
+                if i.name not in self.successors_:
+                    self.successors_[i.name] = []
+                self.successors_[i.name].append(k)
 
             for sub in enumerate_subgraphs(v):
                 g = sub[-1]
@@ -241,7 +251,7 @@ class ModelWithGraphStructure(ir.Model, _GraphStructureAPI):
     @property
     def opsets(self) -> dict:
         """Property."""
-        return self.model.version_map
+        return self.model.opset_imports
 
     def make_node(
         self,
