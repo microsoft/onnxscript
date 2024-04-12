@@ -257,7 +257,7 @@ class RewriteRuleTest(unittest.TestCase):
             oldshape = x.shape
             if not isinstance(oldshape.simple(), tuple):
                 return False
-            newshape = _ir_utils_temp.propogate_const_value(newshape)
+            newshape = _ir_utils_temp.propagate_const_value(newshape)
             newshape = _ir_utils_temp.get_numpy_from_ir_value(newshape)
             if not isinstance(newshape, np.ndarray):
                 return False

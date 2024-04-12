@@ -21,7 +21,7 @@ def get_function_id_from_node(node: onnx.NodeProto) -> FunctionId:
     return (node.domain, node.op_type, getattr(node, "overload", ""))
 
 
-def propogate_const_value(ir_value: ir.Value) -> ir.Value:
+def propagate_const_value(ir_value: ir.Value) -> ir.Value:
     node = ir_value.def_node()
     if ir_value.const_value is None and node is not None and node.op_type == "Constant":
         attr_names = [

@@ -692,7 +692,7 @@ class Constant(ValuePattern):
             return MatchResult.FAIL()
 
     def matches(self, value: ir.Value, model: ir.Model):
-        value = _ir_utils_temp.propogate_const_value(value)
+        value = _ir_utils_temp.propagate_const_value(value)
         constant_value = _ir_utils_temp.get_numpy_from_ir_value(value)
 
         if isinstance(constant_value, np.ndarray):

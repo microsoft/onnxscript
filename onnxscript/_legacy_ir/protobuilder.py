@@ -4,7 +4,7 @@ import onnx
 import onnx.helper
 from onnx.helper import make_attribute
 
-from onnxscript import ir
+from onnxscript import _legacy_ir as ir
 
 
 class ModelProtoBuilder:
