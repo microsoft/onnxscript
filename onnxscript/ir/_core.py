@@ -1318,7 +1318,7 @@ graph(
     inputs=({textwrap.indent(inputs_text, ' '*8)}
     ),
     outputs=({textwrap.indent(outputs_text, ' '*8)}
-),{textwrap.indent(initializers_text, ' '*4)}
+    ),{textwrap.indent(initializers_text, ' '*4)}
 )"""
     node_count = len(graph)
     number_width = len(str(node_count))
