@@ -430,8 +430,11 @@ class Dimension(_protocols.DimensionProtocol, _display.PrettyPrintable):
     def denotation(self) -> str | None:
         return self._denotation
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         return f"{self._value}"
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self._value}, {self._denotation})"
 
 
 class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
@@ -490,7 +493,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         )
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self._dims})"
+        return f"{self.__class__.__name__}({self._dims!r})"
 
     def __str__(self) -> str:
         """Return a string representation of the shape.

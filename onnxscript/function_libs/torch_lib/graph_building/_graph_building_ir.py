@@ -119,20 +119,16 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
         return len(self.shape)
 
     @property  # type: ignore[override]
-    def shape(self) -> Sequence[int | str | None] | None:
-        shape_ = super().shape
-        if shape_ is None:
-            return None
-        return shape_.simple()
+    def shape(self) -> ir.Shape | None:
+        return super().shape
 
     @shape.setter
     def shape(self, shape: Union[torch.Size, Tuple[int | str | None, ...]]):
         # Normalize torch symbolic dimension size to str.
         torch_sym_types = (torch.SymInt, torch.SymFloat, torch.SymBool)
-        self._shape = ir.Shape(tuple(
-            str(dim.node) if isinstance(dim, torch_sym_types) else dim
-            for dim in shape
-        ))
+        self._shape = ir.Shape(
+            tuple(str(dim.node) if isinstance(dim, torch_sym_types) else dim for dim in shape)
+        )
 
     def dtype(self) -> torch.dtype | None:
         dtype = super().dtype
@@ -301,6 +297,8 @@ def _build_attribute(
         return ir.AttrTensor(
             key, ir.Tensor(value, dtype=_torch_dtype_to_onnx_dtype(value.dtype))
         )
+    if isinstance(value, ir.TensorProtocol):
+        return ir.AttrTensor(key, value)
     if isinstance(value, Sequence):
         if not value:
             # Treat empty sequences as empty list tensors
@@ -381,7 +379,7 @@ class TorchScriptGraph:
         parent_torch_script_graph: Optional[TorchScriptGraph] = None,
         domain_name: Optional[str] = None,
     ):
-        self._graph = ir.Graph((), (), nodes=())
+        self._graph = ir.Graph((), (), nodes=(), name="main_graph")
         # All the functions used, deduplicated by name
         # key: (name, domain)
         self._function_store: Dict[ir.OperatorIdentifier, ir.Function] = {}
@@ -700,7 +698,7 @@ class TorchScriptGraph:
         function_dict: Mapping[ir.OperatorIdentifier, ir.Function] = self._fetch_function_dict(
             opset_version
         )
-        unique_custom_domains: Dict[str, int] = {}
+        unique_custom_domains: Dict[str, int] = {"": opset_version}
 
         for function in function_dict.values():
             # TODO(BowenBao): All local function domain versions are hardcoded as 1.
@@ -718,6 +716,8 @@ class TorchScriptGraph:
             producer_name="pkg.torch",
             functions=[*function_dict.values(), *_shared_functions()],
         )
+
+        print(onnx_model)
 
         onnx_model.opset_imports.update(unique_custom_domains)
         # Include the library shared opset domain
