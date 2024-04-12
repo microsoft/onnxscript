@@ -99,9 +99,6 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
         ir.Value.__init__(self, None, def_index=def_index, name=name)
         self._is_complex: bool = False
 
-    def __repr__(self):
-        return f"TorchScriptTensor('{super().__repr__()}')"
-
     @property  # type: ignore[override]
     def value(self) -> Optional[np.ndarray]:
         return self.const_value.numpy() if self.const_value is not None else None
@@ -130,11 +127,20 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
             tuple(str(dim.node) if isinstance(dim, torch_sym_types) else dim for dim in shape)
         )
 
+    @property
     def dtype(self) -> torch.dtype | None:
         dtype = super().dtype
         if dtype is None:
             return None
         return _onnx_dtype_to_torch_dtype(dtype)
+
+    @dtype.setter
+    def dtype(self, dtype: torch.dtype):
+        onnx_dtype = _torch_dtype_to_onnx_dtype(dtype)
+        if self._type is None:
+            self._type = ir.TensorType(onnx_dtype)
+        else:
+            self._type.dtype = onnx_dtype
 
     @property
     def is_complex(self) -> bool:
@@ -444,7 +450,7 @@ class TorchScriptGraph:
             value = TorchScriptTensor(name=input_name)
             value.shape = shape
             if dtype is not None:
-                value.dtype = _torch_dtype_to_onnx_dtype(dtype)
+                value.dtype = dtype
             # TODO(titaiwang): This approach loses the information that "same SymInts
             # indicates same shape", for example, [symint0, symint0, symint1]
             # would all be [None, None, None]
@@ -453,6 +459,7 @@ class TorchScriptGraph:
             #         [dim if isinstance(dim, int) else None for dim in shape]  # type: ignore[union-attr]
             #     )
             # )
+            self._graph.inputs.append(value)
         return value
 
     @runtime_typing.checked
