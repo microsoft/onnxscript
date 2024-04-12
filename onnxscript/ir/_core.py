@@ -419,6 +419,51 @@ class Dimension(_protocols.DimensionProtocol, _display.PrettyPrintable):
             raise TypeError(f"Expected other to be Dimension or int, got {type(other)}")
         return int(self) >= int(other)
 
+    def __neg__(self) -> int:
+        return -int(self)
+
+    def __add__(self, other):
+        return int(self) + other
+
+    def __radd__(self, other):
+        return other + int(self)
+
+    def __mul__(self, other):
+        return int(self) * other
+
+    def __rmul__(self, other):
+        return other * int(self)
+
+    def __matmul__(self, other):
+        return int(self) @ other
+
+    def __rmatmul__(self, other):
+        return other @ int(self)
+
+    def __sub__(self, other):
+        return int(self) - other
+
+    def __rsub__(self, other):
+        return other - int(self)
+
+    def __floordiv__(self, other):
+        return int(self) // other
+
+    def __rfloordiv__(self, other):
+        return other // int(self)
+
+    def __truediv__(self, other):
+        return int(self).__truediv__(other)
+
+    def __rtruediv__(self, other):
+        return int(self).__rtruediv__(other)
+
+    def __mod__(self, other):
+        return int(self) % other
+
+    def __rmod__(self, other):
+        return other % int(self)
+
     def __hash__(self) -> int:
         return hash(self.value)
 
