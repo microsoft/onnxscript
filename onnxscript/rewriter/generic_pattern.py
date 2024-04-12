@@ -7,11 +7,10 @@ import textwrap
 import typing
 
 import onnx
-import onnx.helper as oh
 
 import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
-from onnxscript.ir import serde
+from onnxscript.ir import _ir_utils_temp, serde
 
 
 def enumerate_subgraphs(
@@ -81,12 +80,12 @@ class BuilderWithGraphStructure(_GraphStructureAPI):
 
         for k, v in self.nodes_.items():
             assert isinstance(v, ir.Node), f"Unexpected type {type(v)} for node {k}"
-            for o in v.output_names:
-                self.predecessors_[o] = k
-            for i in v.input_names:
-                if i not in self.successors_:
-                    self.successors_[i] = []
-                self.successors_[i].append(k)
+            for o in v.outputs:
+                self.predecessors_[o.name] = k
+            for i in v.inputs:
+                if i.name not in self.successors_:
+                    self.successors_[i.name] = []
+                self.successors_[i.name].append(k)
 
     def make_input(self, name: str) -> None:
         self.input_names.append(name)
@@ -119,29 +118,47 @@ class BuilderWithGraphStructure(_GraphStructureAPI):
     def make_node_with_proto(self, node_proto: onnx.NodeProto) -> tuple[str] | str:
         node = serde.deserialize_node(node_proto)
         self.nodes.append(node)
-        assert node.output_names, f"No output in node {node}. This can't be true."
-        if len(node.output_names) == 1:
-            return node.output_names[0]
-        return tuple(node.output_names)
+        assert node.outputs, f"No output in node {node}. This can't be true."
+        if len(node.outputs) == 1:
+            return node.outputs[0].name
+        return tuple([output.name for output in node.outputs])
 
+    # TODO: multiple dtype in one argument. We should improve this
     def make_node(
         self,
         op_type: str,
-        *input_names: str,
+        *input_names: ir.Value | str,
         output_names: int | list[str] | str | None = None,
         domain: str = "",
         name: str | None = None,
         **kwargs: typing.Any,
     ) -> str | tuple[str]:
-        node_proto = self.bridge.make_node(
-            op_type, input_names, output_names, domain=domain, name=name, **kwargs
-        )
-        node = serde.deserialize_node(node_proto)
+        inputs = [
+            ir.Value(name=name, def_node=None, def_index=None)
+            if isinstance(name, str)
+            else name
+            for name in input_names
+        ]
+        # TODO: support attributes?
+        if isinstance(output_names, int):
+            node = ir.Node(
+                domain=domain, op_type=op_type, inputs=inputs, num_outputs=output_names
+            )
+            _ir_utils_temp.post_node_output_naming(node)
+        elif isinstance(output_names, str):
+            node = ir.Node(domain=domain, op_type=op_type, inputs=inputs, num_outputs=1)
+            node.outputs[0].name = output_names
+        elif isinstance(output_names, list):
+            node = ir.Node(
+                domain=domain, op_type=op_type, inputs=inputs, num_outputs=len(output_names)
+            )
+            for output, name in zip(node.outputs, output_names):
+                output.name = name
         self.nodes.append(node)
-        assert node.output_names, f"No output in node {node}. This can't be true."
-        if len(node.output_names) == 1:
-            return node.output_names[0]
-        return tuple(node.output_names)
+        assert node.outputs, f"No output in node {node}. This can't be true."
+        if len(node.outputs) == 1:
+            return node.outputs[0].name
+        return tuple([output.name for output in node.outputs])
 
 
 class ModelWithGraphStructure(ir.Model, _GraphStructureAPI):
@@ -262,7 +279,7 @@ class ModelWithGraphStructure(ir.Model, _GraphStructureAPI):
         attributes: list[onnx.AttributeProto] | None = None,
         name: str | None = None,
         **kwargs: typing.Any,
-    ) -> onnx.NodeProto:
+    ) -> ir.Node:
         """
         Creates a node without adding it to the graph.
 
@@ -287,21 +304,21 @@ class ModelWithGraphStructure(ir.Model, _GraphStructureAPI):
         elif isinstance(output_names, str):
             output_names = [self.unique_name(output_names)]
 
-        proto = oh.make_node(
-            op_type,
-            (
-                input_names
-                if isinstance(input_names, (list, tuple))
-                else ([input_names] if isinstance(input_names, str) else None)
-            ),
-            output_names,
-            domain=domain,
-            name=name,
-            **kwargs,
+        inputs = [
+            ir.Value(name=name, def_node=None, def_index=None)
+            if isinstance(name, str)
+            else name
+            for name in input_names
+        ]
+        node = ir.Node(
+            domain=domain, op_type=op_type, inputs=inputs, num_outputs=len(output_names)
         )
-        if attributes:
-            proto.attribute.extend(attributes)
-        return proto
+        for output, name in zip(node.outputs, output_names):
+            output.name = name
+
+        # if attributes:
+        #     proto.attribute.extend(attributes)
+        return node
 
 
 class GenericRewriteRule(orp.RewriteRule):
@@ -510,12 +527,17 @@ class GenericPattern:
         g2 = g.make_opset()
         for name in args:
             g2.make_input(name)
-        output = fct(g2, *args, **kwargs)
-        if isinstance(output, str):
-            g2.make_output(output)
+        outputs = fct(g2, *args, **kwargs)
+        if isinstance(outputs, ir.Value):
+            g2.make_output(outputs.name)
+        elif isinstance(outputs, str):
+            g2.make_output(outputs)
         else:
-            for name in output:
-                g2.make_output(name)
+            for output in outputs:
+                if isinstance(output, ir.Value):
+                    g2.make_output(output.name)
+                elif isinstance(output, str):
+                    g2.make_output(output)
         g2._build()
         return g2
 
@@ -546,14 +568,17 @@ class GenericPattern:
         )
         for node in pat.nodes:
             rows.append(
-                f"{node.op_type}({', '.join(node.input_names)}) -> "
-                f"{', '.join(node.output_names)}"
+                f"{node.op_type}({', '.join([input.name for input in node.inputs])}) -> "
+                f"{', '.join([output.name for output in node.outputs])}"
             )
         return "\n".join(rows)
 
     def print_match(self, n1: ir.Node, n2: ir.Node) -> str:
-        s1 = f"{n1.op_type}({','.join(n1.input_names)})"
-        s2 = f"{n2.op_type}({','.join(n2.input_names)})"
+        n1_input_names = [input.name for input in n1.inputs]
+        n2_input_names = [input.name for input in n2.inputs]
+
+        s1 = f"{n1.op_type}({','.join(n1_input_names)})"
+        s2 = f"{n2.op_type}({','.join(n2_input_names)})"
         return f"match {s1} with {s2} (pattern)"
 
     def _debug_print(self) -> str:
@@ -566,13 +591,16 @@ class GenericPattern:
             return f"{s[:15]}...{s[-15:]}"
 
         def _p(n: ir.Node, full: bool = False) -> str:
+            n_input_names = [input.name for input in n.inputs]
+            n_output_names = [output.name for output in n.outputs]
+
             if isinstance(n, (ir.Node, onnx.NodeProto)):
                 if full:
                     return (
-                        f"{n.op_type}({', '.join(map(_s, n.input_names))}) "
-                        f"-> ({', '.join(map(_s, n.output_names))})"
+                        f"{n.op_type}({', '.join(map(_s, n_input_names))}) "
+                        f"-> ({', '.join(map(_s, n_output_names))})"
                     )
-                return f"{n.op_type}({','.join(map(_s, n.input_names))})"
+                return f"{n.op_type}({','.join(map(_s, n_input_names))})"
             return str(n)
 
         rows = []
@@ -629,7 +657,7 @@ class GenericPattern:
         res = 0
 
         # predecessors
-        if len(n.input_names) != len(pn.input_names):
+        if len(n.inputs) != len(pn.inputs):
             # not the same number of inputs
             self._hint(
                 "BACKWARD: not the same number of inputs",
@@ -639,7 +667,9 @@ class GenericPattern:
                 n,
             )
             return self.none(node, inspect.currentframe().f_lineno)
-        for i, pi in zip(n.input_names, pn.input_names):
+        for i, pi in zip(n.inputs, pn.inputs):
+            i = i.name
+            pi = pi.name
             ppred = pat.node_before(pi)
             if ppred is None:
                 # ppred is None means the pattern ends here.
@@ -695,7 +725,7 @@ class GenericPattern:
         res = 0
 
         # successors
-        if len(n.output_names) != len(pn.output_names):
+        if len(n.outputs) != len(pn.outputs):
             # not the same number of outputs
             self._hint(
                 "FORWARD: not the same number of output_names",
@@ -706,7 +736,9 @@ class GenericPattern:
             )
             return self.none(node, inspect.currentframe().f_lineno)
 
-        for o, op in zip(n.output_names, pn.output_names):
+        for o, op in zip(n.outputs, pn.outputs):
+            o = o.name
+            op = op.name
             ns = g.next_nodes(o)
             pns = pat.next_nodes(op)
             if len(pns) == 0:
@@ -855,7 +887,7 @@ class GenericPattern:
         if self.verbose > 5:
             print(
                 f"[GenericPattern.match] starts with "
-                f"{node.op_type}({', '.join(node.input_names)})"
+                f"{node.op_type}({', '.join([input.name for input in node.inputs])})"
             )
             if self.verbose >= 10:
                 print("[GenericPattern.match] match pattern")
@@ -965,6 +997,7 @@ class GenericPattern:
             f"Not the same number of inputs, matched inputs={len(new_pat.input_names)}, "
             f"got {len(pat.input_names)} in the applied pattern."
         )
+
         assert len(new_pat.output_names) == len(pat.output_names), (
             f"Not the same number of outputs, matched outputs={pat.output_names}, "
             f"got {new_pat.output_names} in the applied pattern."
@@ -989,13 +1022,15 @@ class GenericPattern:
 
         matched_pairs = list(zip(nodes, pat.nodes))
         for gn, pn in matched_pairs:
+            gn_input_names = [i.name for i in gn.inputs]
+            pn_input_names = [i.name for i in pn.inputs]
             assert (
                 gn.op_type == pn.op_type
             ), f"Unexpected type mismatch {gn.op_type!r} != {pn.op_type!r}"
-            assert len(gn.input_names) == len(
-                pn.input_names
+            assert len(gn_input_names) == len(
+                pn_input_names
             ), f"Unexpected number of inputs for type {gn.op_type}"
-            for a, b in zip(gn.input_names, pn.input_names):
+            for a, b in zip(gn_input_names, pn_input_names):
                 if b not in input_names or b == "":
                     # optional input or not an interesting input
                     continue
@@ -1007,10 +1042,13 @@ class GenericPattern:
                 else:
                     matched_pattern_to_graph_name[b] = a
 
-            assert len(gn.output_names) == len(
-                pn.output_names
+            gn_output_names = [o.name for o in gn.outputs]
+            pn_output_names = [o.name for o in pn.outputs]
+
+            assert len(gn_output_names) == len(
+                pn_output_names
             ), f"Unexpected number of outputs for type {gn.op_type}"
-            for a, b in zip(gn.output_names, pn.output_names):
+            for a, b in zip(gn_output_names, pn_output_names):
                 if b not in output_names or b == "":
                     # Only final outputs are interesting.
                     continue
@@ -1032,17 +1070,18 @@ class GenericPattern:
         replacements = {}
         for k, v in matched_pattern_to_graph_name.items():
             replacements[matched_pattern_to_applied_pattern[k]] = v
-
         # Creation of the new node.
         new_nodes = []
         for node in new_pat.nodes:
             new_inputs = []
-            for i in node.input_names:
+            for i in node.inputs:
+                i = i.name
                 assert i in replacements, f"Unable to find {i!r} in {replacements}"
                 ni = replacements[i]
                 new_inputs.append(ni)
             new_outputs = []
-            for o in node.output_names:
+            for o in node.outputs:
+                o = o.name
                 if o in replacements:
                     new_outputs.append(replacements[o])
                 else:
@@ -1051,8 +1090,8 @@ class GenericPattern:
                     replacements[o] = n
                     new_outputs.append(n)
             new_node = g.make_node(node.op_type, new_inputs, new_outputs, domain=node.domain)
-            new_node.attribute.extend(node.attribute)
-            new_nodes.append(ir.Node(new_node, True))
+            # new_node.attributes.extend(node.attribute)
+            new_nodes.append(new_node)
 
         if g.verbose > 5:
             print(f"[GenericPattern.apply] done with {len(new_nodes)} nodes")

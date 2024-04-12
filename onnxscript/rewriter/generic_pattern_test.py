@@ -15,7 +15,6 @@ from numpy.testing import assert_almost_equal
 from onnx.reference import ReferenceEvaluator
 from onnx.reference.op_run import OpRun
 
-import onnxscript._legacy_ir.protobuilder as oip
 import onnxscript.rewriter.generic_pattern as org
 from onnxscript import ir as oir
 from onnxscript.ir import serde
@@ -111,10 +110,8 @@ class GenericPatternTest(unittest.TestCase):
             [n.op_type for n in ir_model.graph.nodes],
         )
         # TODO: do that in pattern.py.
-        ir_model.version_map["ZZZ"] = 1
-
-        builder = oip.ModelProtoBuilder()
-        opt_onx = builder.visit_ir_model(ir_model)
+        ir_model.opset_imports["ZZZ"] = 1
+        opt_onx = serde.serialize_model(ir_model)
 
         self.assertEqual(
             ["AddAdd"],
@@ -207,10 +204,9 @@ class GenericPatternTest(unittest.TestCase):
             [n.op_type for n in ir_model.graph.nodes],
         )
         # TODO: do that in pattern.py.
-        ir_model.version_map["ZZZ"] = 1
+        ir_model.opset_imports["ZZZ"] = 1
 
-        builder = oip.ModelProtoBuilder()
-        opt_onx = builder.visit_ir_model(ir_model)
+        opt_onx = serde.serialize_model(ir_model)
 
         self.assertEqual(
             ["AddAddAddAdd"],
@@ -357,8 +353,7 @@ class GenericPatternTest(unittest.TestCase):
             rule.apply_to_model(ir_model)
             ir_model.version_map["com.microsoft"] = 1
 
-            builder = oip.ModelProtoBuilder()
-            opt_onx = builder.visit_ir_model(ir_model)
+            opt_onx = serde.serialize_model(ir_model)
 
         expected = ["Constant", "Constant", "RotaryEmbedding"]
         self.assertEqual(expected, [n.op_type for n in opt_onx.graph.node])
@@ -420,8 +415,7 @@ class GenericPatternTest(unittest.TestCase):
             rule.apply_to_model(ir_model)
             ir_model.version_map["com.microsoft"] = 1
 
-            builder = oip.ModelProtoBuilder()
-            opt_onx = builder.visit_ir_model(ir_model)
+            opt_onx = serde.serialize_model(ir_model)
 
         expected = ["Constant", "Constant", "RotaryEmbedding"]
         self.assertEqual(expected, [n.op_type for n in opt_onx.graph.node])
@@ -491,8 +485,7 @@ class GenericPatternTest(unittest.TestCase):
         ir_model.version_map["ZZZ"] = 1
 
         begin = time.perf_counter()
-        builder = oip.ModelProtoBuilder()
-        opt_onx = builder.visit_ir_model(ir_model)
+        opt_onx = serde.serialize_model(ir_model)
         if __name__ == "__main__":
             print(f"Building done in {time.perf_counter() - begin}s")
 

@@ -997,7 +997,7 @@ def _apply_deltas(
             n_matches, deleted_nodes, inserted_nodes = delta
             for d in deleted_nodes:
                 assert id(d) in existing_ids
-                to_delete.add(id(d))
+                to_delete.add(d)
 
             # the position to insert must be chosen.
             # we'll try position i
@@ -1029,27 +1029,12 @@ def _apply_deltas(
             for old_node in deleted_nodes:
                 graph_or_function.remove(old_node)
 
-    assert not to_delete, (
-        "Two different rules were applied. It will solved later. "
-        "Right now, the functions assumes all the changes come from one "
-        "rule."
-    )
+    for position, insert in sorted(to_insert.items()):
+        for v in insert:
+            graph_or_function.insert_after(graph_or_function.nodes[position], v)
 
-    # for i in to_delete:
-    #     position = existing_ids[i][0]
-    #     nodes[position] = None
-
-    for position, insert in sorted(to_insert.items(), reverse=True):
-        for v in reversed(insert):
-            graph_or_function.insert_before(graph_or_function.nodes[position], v)
-
-    position_to_delete = []
-    for i, n in enumerate(graph_or_function.nodes):
-        if n is None:
-            position_to_delete.append(i)
-
-    for p in reversed(position_to_delete):
-        graph_or_function.remove(graph_or_function.nodes[p])
+    for n in to_delete:
+        graph_or_function.remove(n)
 
 
 class RewriteRuleSet:
