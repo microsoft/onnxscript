@@ -39,6 +39,7 @@ from onnxscript.ir import (
     _enums,
     _linked_list,
     _metadata,
+    _name_authority,
     _protocols,
 )
 
@@ -605,7 +606,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         # Add the node as a user of the inputs
         for i, input_value in enumerate(self._inputs):
             if input_value is not None:
-                input_value.add_user(self, i)
+                input_value._add_user(self, i)  # pylint: disable=protected-access
 
         # Add the node to the graph if graph is specified
         if self._graph is not None:
@@ -705,9 +706,9 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             value if i == index else old_input for i, old_input in enumerate(self.inputs)
         )
         if old_input is not None:
-            old_input.remove_user(self, index)
+            old_input._remove_user(self, index)  # pylint: disable=protected-access
         if value is not None:
-            value.add_user(self, index)
+            value._add_user(self, index)  # pylint: disable=protected-access
 
     def prepend(self, /, nodes: Node | Iterable[Node]) -> None:
         """Insert a node before this node in the list of nodes in the graph.
@@ -951,13 +952,25 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         return self._def_index
 
     def users(self) -> frozenset[tuple[Node, int]]:
+        """Return a set of users of the value.
+
+        The set contains tuples of ``(Node, index)`` where the index is the index of the input
+        of the node. For example, if ``node.inputs[1] == value``, then the user is ``(node, 1)``.
+        """
         return frozenset(self._users)
 
-    def add_user(self, user: Node, index: int) -> None:
+    def _add_user(self, user: Node, index: int) -> None:
+        """Add a user node.
+
+        This is an internal method. It should only be called by the Node class.
+        """
         self._users.add((user, index))
 
-    def remove_user(self, user: Node, index: int) -> None:
-        """Reduce a user node."""
+    def _remove_user(self, user: Node, index: int) -> None:
+        """Remove a node from the users of this value.
+
+        This is an internal method. It should only be called by the Node class.
+        """
         self._users.remove((user, index))
 
     @property
@@ -1098,6 +1111,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         "_nodes",
         "_metadata",
         "_metadata_props",
+        "_name_authority",
     )
 
     def __init__(
@@ -1125,6 +1139,9 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
         self._nodes: _linked_list.DoublyLinkedSet[Node] = _linked_list.DoublyLinkedSet()
+        # Be sure the initialize the name authority before extending the nodes
+        # because it is used to name the nodes and their outputs
+        self._name_authority = _name_authority.NameAuthority()
         # Call self.extend not self._nodes.extend so the graph reference is added to the nodes
         self.extend(nodes)
 
@@ -1168,12 +1185,18 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def __reversed__(self) -> Iterator[Node]:
         return reversed(self._nodes)
 
-    def _set_node_graph_to_self(self, node: Node) -> Node:
-        """Set the graph reference for the node."""
+    def _set_node_graph_to_self_and_assign_names(self, node: Node) -> Node:
+        """Set the graph reference for the node and assign names to it and its outputs if they don't have one."""
         if node.graph is not None and node.graph is not self:
             raise ValueError(
                 f"The node {node} belongs to another graph. Please remove it first with Graph.remove()."
             )
+        # Give the node and its output values names if they don't not have one
+        if node.name is None:
+            self._name_authority.name_node(node)
+        for value in node._outputs:  # pylint: disable=protected-access
+            if value.name is None:
+                self._name_authority.name_value(value)
         node.graph = self
         return node
 
@@ -1187,7 +1210,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         Raises:
             ValueError: If the node belongs to another graph.
         """
-        self._set_node_graph_to_self(node)
+        self._set_node_graph_to_self_and_assign_names(node)
         self._nodes.append(node)
 
     def extend(self, nodes: Iterable[Node], /) -> None:
@@ -1199,7 +1222,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         Raises:
             ValueError: If any node belongs to another graph.
         """
-        nodes = [self._set_node_graph_to_self(node) for node in nodes]
+        nodes = [self._set_node_graph_to_self_and_assign_names(node) for node in nodes]
         self._nodes.extend(nodes)
 
     def remove(self, node: Node, /) -> None:
@@ -1228,7 +1251,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         """
         if isinstance(new_nodes, Node):
             new_nodes = (new_nodes,)
-        new_nodes = [self._set_node_graph_to_self(node) for node in new_nodes]
+        new_nodes = [self._set_node_graph_to_self_and_assign_names(node) for node in new_nodes]
         self._nodes.insert_after(node, new_nodes)
 
     def insert_before(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
@@ -1243,7 +1266,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         """
         if isinstance(new_nodes, Node):
             new_nodes = (new_nodes,)
-        new_nodes = [self._set_node_graph_to_self(node) for node in new_nodes]
+        new_nodes = [self._set_node_graph_to_self_and_assign_names(node) for node in new_nodes]
         self._nodes.insert_before(node, new_nodes)
 
     def sort(self) -> None:
