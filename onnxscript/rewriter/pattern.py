@@ -1029,8 +1029,8 @@ def _apply_deltas(
             for old_node in deleted_nodes:
                 graph_or_function.remove(old_node)
 
-    for position, insert in sorted(to_insert.items()):
-        for v in insert:
+    for position, insert in sorted(to_insert.items(), reverse=True):
+        for v in reversed(insert):
             graph_or_function.insert_after(graph_or_function.nodes[position], v)
 
     for n in to_delete:

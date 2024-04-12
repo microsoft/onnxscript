@@ -116,12 +116,13 @@ class BuilderWithGraphStructure(_GraphStructureAPI):
         return self.make_node(op_type, *args, output_names=output_names, **kwargs)
 
     def make_node_with_proto(self, node_proto: onnx.NodeProto) -> tuple[str] | str:
-        node = serde.deserialize_node(node_proto)
-        self.nodes.append(node)
-        assert node.outputs, f"No output in node {node}. This can't be true."
-        if len(node.outputs) == 1:
-            return node.outputs[0].name
-        return tuple([output.name for output in node.outputs])
+        return self.make_node(
+            node_proto.op_type,
+            *node_proto.input,
+            output_names=list(node_proto.output),
+            name=node_proto.name,
+            domain=node_proto.domain,
+        )
 
     # TODO: multiple dtype in one argument. We should improve this
     def make_node(
@@ -154,6 +155,8 @@ class BuilderWithGraphStructure(_GraphStructureAPI):
             )
             for output, name in zip(node.outputs, output_names):
                 output.name = name
+        else:
+            raise TypeError(f"Unexpected type {type(output_names)} for output_names")
         self.nodes.append(node)
         assert node.outputs, f"No output in node {node}. This can't be true."
         if len(node.outputs) == 1:
@@ -619,7 +622,8 @@ class GenericPattern:
             if k == "hint":
                 rows.append(f"--hint--: {v[0]}")
                 for i in v[1:]:
-                    rows.append("  " + _p(i, full=True))
+                    if isinstance(i, ir.Node):
+                        rows.append("  " + _p(i, full=True))
                 continue
             if k in {"node", "pattern", "pattern_node", "pattern_nodes"}:
                 continue

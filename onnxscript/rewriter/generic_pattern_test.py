@@ -351,7 +351,7 @@ class GenericPatternTest(unittest.TestCase):
             pattern = RotaryEmbeddingPattern(verbose=10)
             rule = pattern.make_rule()
             rule.apply_to_model(ir_model)
-            ir_model.version_map["com.microsoft"] = 1
+            ir_model.opset_imports["com.microsoft"] = 1
 
             opt_onx = serde.serialize_model(ir_model)
 
@@ -413,7 +413,7 @@ class GenericPatternTest(unittest.TestCase):
             )
 
             rule.apply_to_model(ir_model)
-            ir_model.version_map["com.microsoft"] = 1
+            ir_model.opset_imports["com.microsoft"] = 1
 
             opt_onx = serde.serialize_model(ir_model)
 
@@ -482,7 +482,7 @@ class GenericPatternTest(unittest.TestCase):
             print(f"Matching done in {time.perf_counter() - begin}s")
 
         # TODO: do that in pattern.py.
-        ir_model.version_map["ZZZ"] = 1
+        ir_model.opset_imports["ZZZ"] = 1
 
         begin = time.perf_counter()
         opt_onx = serde.serialize_model(ir_model)
