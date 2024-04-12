@@ -1314,10 +1314,10 @@ def _graph_str(graph: Graph | GraphView) -> str:
         )
     signature = f"""\
 graph(
-name={graph.name or 'anonymous_graph:' + str(id(graph))},
-inputs=({textwrap.indent(inputs_text, ' '*8)}
-),
-outputs=({textwrap.indent(outputs_text, ' '*8)}
+    name={graph.name or 'anonymous_graph:' + str(id(graph))},
+    inputs=({textwrap.indent(inputs_text, ' '*8)}
+    ),
+    outputs=({textwrap.indent(outputs_text, ' '*8)}
 ),{textwrap.indent(initializers_text, ' '*4)}
 )"""
     node_count = len(graph)
