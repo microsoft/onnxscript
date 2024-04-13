@@ -205,7 +205,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
     def graph(self) -> TorchScriptGraph:
         return self._graph
 
-    def eval(self, schema, inputs: ValidInputType, attributes):
+    def eval(self, schema, inputs: Sequence[ValidInputType], attributes):
         return self._graph.add_op_call(schema, inputs, attributes)
 
     @runtime_typing.checked
@@ -547,6 +547,7 @@ class TorchScriptGraph:
     @runtime_typing.checked
     def _add_ir_graph_op_call(
         self,
+        *,
         domain: str,
         op_type: str,
         onnx_inputs: Sequence[ValidInputType],
@@ -573,6 +574,7 @@ class TorchScriptGraph:
                 )[0]
                 graph_inputs.append(input_sequence)
             elif not isinstance(input, TorchScriptTensor):
+                print("taking this route")
                 graph_inputs.append(self._add_constant_to_graph(input))
             else:
                 # TODO(justinchuby): What is this case?
@@ -630,10 +632,10 @@ class TorchScriptGraph:
         # Compute outputs from the onnx_op op schema
         n_outputs = evaluator.compute_num_outputs(onnx_op_schema, onnx_inputs, onnx_attributes)
         result = self._add_ir_graph_op_call(
-            "",
-            onnx_op_schema.name,
-            onnx_inputs,
-            onnx_attributes,
+            domain="",
+            op_type=onnx_op_schema.name,
+            onnx_inputs=onnx_inputs,
+            onnx_attributes=onnx_attributes,
             n_outputs=n_outputs,
         )
 
@@ -651,10 +653,10 @@ class TorchScriptGraph:
 
         # Compute outputs from the function schema
         result = self._add_ir_graph_op_call(
-            ir_function.domain,
-            ir_function.name,
-            onnx_inputs,
-            onnx_attributes,
+            domain=ir_function.domain,
+            op_type=ir_function.name,
+            onnx_inputs=onnx_inputs,
+            onnx_attributes=onnx_attributes,
             n_outputs=len(onnx_function.function_ir.outputs),
         )
 
@@ -671,8 +673,8 @@ class TorchScriptGraph:
         domain_name = sub_torch_script_graph.domain_name
         assert domain_name is not None
         return self._add_ir_graph_op_call(
-            domain_name,
-            name,
+            domain=domain_name,
+            op_type=name,
             onnx_inputs=(
                 *onnx_inputs,
                 *sub_torch_script_graph.initializers_inputs_from_parent.values(),
