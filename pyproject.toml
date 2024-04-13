@@ -34,7 +34,7 @@ onnx = ["py.typed"]
 
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]
-addopts = "-rsfEX --tb=short --color=yes --doctest-modules"
+addopts = "-rsfEX --tb=short --color=yes"
 
 [tool.mypy]
 # TODO disallow_incomplete_defs = true

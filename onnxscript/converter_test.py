@@ -273,7 +273,7 @@ class TestConverter(testutils.TestBase):
 
     @pytest.mark.xfail(
         strict=True,
-        reason="default_opset must be specified in script for functions that do not contain any use of an ONNX op",
+        reason="optional output is not yet implemented",
     )
     def test_opt_output(self):
         from tests.models import opt_output
