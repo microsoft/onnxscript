@@ -29,9 +29,9 @@ class ModelTest(unittest.TestCase):
         if (skip_reason := _SKIP_TABLE.get(test_id)) is not None:
             self.skipTest(skip_reason)
 
-        model_dir = f"{model_folder_path}/{model_name}/dynamo"
-        model_path = f"{model_dir}/{model_name}_dynamo.onnx"
-        if not pathlib.Path(model_path).exists():
+        model_dir = pathlib.Path(model_folder_path) / model_name / "dynamo"
+        model_path = model_dir / f"{model_name}_dynamo.onnx"
+        if not model_path.exists():
             self.skipTest(f"Model {model_name!r} does not exist")
         model = onnx.load(model_path)
         model = optimizer.optimize(
@@ -40,7 +40,8 @@ class ModelTest(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as tmp_folder:
-            optimized_model_path = f"{tmp_folder}/{model_name}_opt.onnx"
+            tmp_folder = pathlib.Path(tmp_folder)
+            optimized_model_path = tmp_folder / f"{model_name}_opt.onnx"
             onnx.save(
                 model,
                 optimized_model_path,
@@ -48,19 +49,18 @@ class ModelTest(unittest.TestCase):
                 all_tensors_to_one_file=True,
             )
 
-            sess = onnxruntime.InferenceSession(
-                optimized_model_path,
-                providers=["CPUExecutionProvider"],
+            session = onnxruntime.InferenceSession(
+                optimized_model_path, providers=("CPUExecutionProvider",)
             )
 
             inputs, expected_outputs = evaluation_utils.load_test_data(
                 model_dir, [i.name for i in model.graph.input]
             )
 
-            input_names = [i.name for i in sess.get_inputs()]
+            input_names = [i.name for i in session.get_inputs()]
             assert set(input_names) == set(inputs.keys())
 
-            outputs = sess.run(None, inputs)
+            outputs = session.run(None, inputs)
 
             for output, expected_output in zip(outputs, expected_outputs):
                 np.testing.assert_allclose(output, expected_output, rtol=1e-3, atol=1e-3)
