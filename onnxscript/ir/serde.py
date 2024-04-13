@@ -1128,6 +1128,8 @@ def serialize_type_into(type_proto: onnx.TypeProto, from_: _protocols.TypeProtoc
 
 def serialize_shape_into(type_proto: onnx.TypeProto, from_: _protocols.ShapeProtocol) -> None:
     tensor_type_proto = type_proto.tensor_type
+    # When from is empty, we still need to set the shape field to an empty list by touching it
+    tensor_type_proto.shape.ClearField("dim")
     for dim in from_:
         serialize_dimension_into(tensor_type_proto.shape.dim.add(), from_=dim)
 
