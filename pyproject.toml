@@ -72,6 +72,7 @@ module = [
 ]
 ignore_errors = true
 
+# FIXME(#1378): Remove this overrides section
 [[tool.mypy.overrides]]
 module = [
   "onnxrewriter.rewriter.generic_pattern_test.*",
@@ -85,10 +86,10 @@ show_column_numbers = true
 strict_optional = true
 warn_incomplete_stub = true
 warn_no_return = true
-warn_redundant_casts = true
 warn_unused_configs = true
 warn_unused_ignores = false
 
+# FIXME(#1378): Remove this overrides section
 [[tool.mypy.overrides]]
 module = [
   "onnxrewriter.rewriter.generic_pattern.*",
@@ -102,7 +103,6 @@ show_column_numbers = true
 strict_optional = true
 warn_incomplete_stub = true
 warn_no_return = true
-warn_redundant_casts = true
 warn_unused_configs = true
 warn_unused_ignores = false
 
