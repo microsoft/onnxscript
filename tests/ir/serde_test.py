@@ -21,9 +21,13 @@ class SerdeTest(unittest.TestCase):
         self, _: str, model_path: pathlib.Path
     ) -> None:
         model = onnx.load(model_path)
+        # Fix the missing graph name of some test models
+        model.graph.name = "main_graph"
+        onnx.checker.check_model(model)
         ir_model = ir.serde.deserialize_model(model)
         serialized = ir.serde.serialize_model(ir_model)
         onnxscript.testing.assert_onnx_proto_equal(serialized, model)
+        onnx.checker.check_model(serialized)
 
 
 if __name__ == "__main__":
