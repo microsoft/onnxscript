@@ -30,7 +30,8 @@ def rewrite(
     if function_rewrite_rules:
         model_ir = serde.deserialize_model(model)
         for rule_cls in function_rewrite_rules:
-            rule_cls().apply_to_model(model_ir)
+            count, model_ir = rule_cls().apply_to_model(model_ir)
+            print(f"Applied {count} of onnxruntime specific function rewrite rules.")
         # TODO: Avoid serializing and deserializing the model?
         model = serde.serialize_model(model_ir)
     if pattern_rewrite_rules:

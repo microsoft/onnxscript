@@ -2,23 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Tuple
-
 import numpy as np
-import onnx
 
 from onnxscript import ir
 from onnxscript.ir import serde
-
-FunctionId = Tuple[str, str, str]
-
-
-def get_function_id(function: onnx.FunctionProto) -> FunctionId:
-    return (function.domain, function.name, getattr(function, "overload", ""))
-
-
-def get_function_id_from_node(node: onnx.NodeProto) -> FunctionId:
-    return (node.domain, node.op_type, getattr(node, "overload", ""))
 
 
 def propagate_const_value(ir_value: ir.Value) -> ir.Value:
@@ -36,8 +23,10 @@ def propagate_const_value(ir_value: ir.Value) -> ir.Value:
         for attr_name in attr_names:
             attr_value = node.attributes.get(attr_name)
             if attr_value is not None:
-                ir_value.const_value = attr_value.value  # type: ignore[union-attr]
-                break
+                # TODO: RefAttr should be also supported?
+                if isinstance(attr_value, ir.Attr):
+                    ir_value.const_value = attr_value.value  # type: ignore[union-attr]
+                    break
     return ir_value
 
 
