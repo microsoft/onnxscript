@@ -39,7 +39,7 @@ class ModelTest(unittest.TestCase):
             onnx_shape_inference=False,
         )
 
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_folder:
+        with tempfile.TemporaryDirectory() as tmp_folder:
             tmp_folder = pathlib.Path(tmp_folder)
             optimized_model_path = tmp_folder / f"{model_name}_opt.onnx"
             onnx.save(
@@ -61,6 +61,8 @@ class ModelTest(unittest.TestCase):
             assert set(input_names) == set(inputs.keys())
 
             outputs = session.run(None, inputs)
+            # Free the session so the model file is no longer used
+            del session
 
             for output, expected_output in zip(outputs, expected_outputs):
                 np.testing.assert_allclose(output, expected_output, rtol=1e-3, atol=1e-3)
