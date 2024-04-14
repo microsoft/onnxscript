@@ -127,6 +127,7 @@ class TensorProtoTensor(_core.TensorBase):
             )
         return self._proto.raw_data
 
+    @property
     def metadata_props(self) -> dict[str, str]:
         return self._metadata_props
 
@@ -554,10 +555,10 @@ def deserialize_tensor(
             path=os.path.join(base_path, external_info.location),
             offset=external_info.offset,
             length=external_info.length,
-            dtype=_enums.DataType(tensor.data_type),
-            name=tensor.name,
-            shape=_core.Shape(tensor.dims),
-            doc_string=tensor.doc_string,
+            dtype=_enums.DataType(proto.data_type),
+            name=proto.name,
+            shape=_core.Shape(proto.dims),
+            doc_string=proto.doc_string,
         )
         tensor.metadata_props.update(deserialize_metadata_props(proto.metadata_props))
         return tensor
@@ -579,7 +580,6 @@ def deserialize_tensor(
     raise ValueError(
         f"TensorProto(name={proto.name}) does not have any data fields set and is not an external tensor."
     )
-
 
 
 def deserialize_metadata_props(proto: Sequence[onnx.StringStringEntryProto]) -> dict[str, str]:

@@ -243,6 +243,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
             self._metadata_props = {}
         return self._metadata_props
 
+
 class ExternalTensor(TensorBase, _protocols.TensorProtocol):
     """An immutable concrete tensor with its data store on disk.
 
@@ -381,6 +382,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         length = self._length or self.nbytes
         return self.raw[offset : offset + length]
 
+    @property
     def metadata_props(self) -> dict[str, str]:
         if self._metadata_props is None:
             self._metadata_props = {}
