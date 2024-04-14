@@ -160,7 +160,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
 class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
     """An immutable concrete value."""
 
-    __slots__ = ("_raw", "_dtype", "_shape", "name", "doc_string")
+    __slots__ = ("_raw", "_dtype", "_shape", "name", "doc_string", "_metadata_props")
 
     def __init__(
         self,
@@ -170,6 +170,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         shape: Shape | None = None,
         name: str = "",
         doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
     ) -> None:
         # NOTE: We should not do any copying here for performance reasons
         if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
@@ -184,6 +185,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         self._shape = Shape(getattr(value, "shape"))  # noqa: B009
         self.name = name
         self.doc_string = doc_string
+        self._metadata_props = metadata_props
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         # TODO(justinchuby): Support numpy unsupported types
@@ -236,6 +238,10 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
             return array.view(array.dtype.newbyteorder("<")).tobytes()
         return array.tobytes()
 
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
 
 class ExternalTensor(TensorBase, _protocols.TensorProtocol):
     """An immutable concrete tensor with its data store on disk.
@@ -261,6 +267,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         shape: The shape of the tensor.
         name: The name of the tensor. It must be specified.
         doc_string: The documentation string.
+        metadata_props: The metadata properties.
     """
 
     __slots__ = (
@@ -273,6 +280,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         "doc_string",
         "_array",
         "raw",
+        "_metadata_props",
     )
 
     def __init__(
@@ -285,6 +293,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         shape: Shape,
         name: str,
         doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
     ) -> None:
         self._path = path
         self._offset: int | None = offset
@@ -295,6 +304,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         self.doc_string: str | None = doc_string  # mutable
         self._array: np.ndarray | None = None
         self.raw: mmap.mmap | None = None
+        self._metadata_props = metadata_props
 
     @property
     def path(self) -> str | os.PathLike:
@@ -370,6 +380,11 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         offset = self._offset or 0
         length = self._length or self.nbytes
         return self.raw[offset : offset + length]
+
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
 
 
 class Dimension(_protocols.DimensionProtocol, _display.PrettyPrintable):
@@ -1124,6 +1139,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         doc_string: str | None = None,
         opset_imports: dict[str, int] | None = None,
         name: str | None = None,
+        metadata_props: dict[str, str] | None = None,
     ):
         self.name = name
 
@@ -1137,7 +1153,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._doc_string = doc_string
         self._opset_imports = opset_imports or {}
         self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = None
+        self._metadata_props: dict[str, str] | None = metadata_props
         self._nodes: _linked_list.DoublyLinkedSet[Node] = _linked_list.DoublyLinkedSet()
         # Be sure the initialize the name authority before extending the nodes
         # because it is used to name the nodes and their outputs
@@ -1503,6 +1519,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
         model_version: int | None = None,
         doc_string: str | None = None,
         functions: Sequence[Function] = (),
+        meta_data_props: dict[str, str] | None = None,
     ) -> None:
         self.graph: Graph | GraphView = graph  # type: ignore[assignment]
         self.ir_version = ir_version
@@ -1513,7 +1530,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
         self.doc_string = doc_string
         self._functions = {func.identifier(): func for func in functions}
         self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = None
+        self._metadata_props: dict[str, str] | None = meta_data_props
 
     @property
     def functions(self) -> dict[_protocols.OperatorIdentifier, Function]:
@@ -1586,6 +1603,7 @@ class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
         # and not from an outer scope
         graph: Graph,
         attributes: Sequence[Attr],
+        metadata_props: dict[str, str] | None = None,
     ) -> None:
         self._domain = domain
         self._name = name
@@ -1593,7 +1611,7 @@ class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
         self._graph = graph
         self._attributes = OrderedDict((attr.name, attr) for attr in attributes)
         self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = None
+        self._metadata_props: dict[str, str] | None = metadata_props
 
     def identifier(self) -> _protocols.OperatorIdentifier:
         return self.domain, self.name, self.overload

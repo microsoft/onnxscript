@@ -86,6 +86,7 @@ class TensorProtoTensor(_core.TensorBase):
 
     def __init__(self, proto: onnx.TensorProto) -> None:
         self._proto = proto
+        self._metadata_props: dict[str, str] = deserialize_metadata_props(proto.metadata_props)
 
     @property
     def name(self) -> str:
@@ -125,6 +126,9 @@ class TensorProtoTensor(_core.TensorBase):
                 "Cannot convert non-raw tensor to bytes. Use a specialized tensor class like FloatDataTensor instead."
             )
         return self._proto.raw_data
+
+    def metadata_props(self) -> dict[str, str]:
+        return self._metadata_props
 
 
 class FloatDataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
@@ -297,6 +301,7 @@ def deserialize_model(proto: onnx.ModelProto) -> _core.Model:
         model_version=_get_field(proto, "model_version"),
         doc_string=_get_field(proto, "doc_string"),
         functions=functions,
+        meta_data_props=deserialize_metadata_props(proto.metadata_props),
     )
 
     # Handle experimental value info for functions created by the dynamo exporter in IR version 9
@@ -416,6 +421,7 @@ def _deserialize_graph(
         initializers=initializers,
         doc_string=_get_field(proto, "doc_string"),
         name=_get_field(proto, "name"),
+        metadata_props=deserialize_metadata_props(proto.metadata_props),
     )
 
 
@@ -451,6 +457,7 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
         overload=getattr(proto, "overload", ""),
         graph=graph,
         attributes=typing.cast(List[_core.Attr], attributes),
+        metadata_props=deserialize_metadata_props(proto.metadata_props),
     )
 
 
@@ -462,6 +469,7 @@ def deserialize_value_info_proto(
         value.name = proto.name
     value.shape = deserialize_type_proto_for_shape(proto.type)
     value.type = deserialize_type_proto_for_type(proto.type)
+    value.metadata_props.update(deserialize_metadata_props(proto.metadata_props))
     return value
 
 
@@ -537,12 +545,12 @@ def deserialize_dimension(proto: onnx.TensorShapeProto.Dimension) -> _core.Dimen
 
 
 def deserialize_tensor(
-    tensor: onnx.TensorProto, base_path: str | os.PathLike = ""
+    proto: onnx.TensorProto, base_path: str | os.PathLike = ""
 ) -> _protocols.TensorProtocol:
     # TODO: Sanitize base_path
-    if tensor.data_location == onnx.TensorProto.EXTERNAL:
-        external_info = onnx.external_data_helper.ExternalDataInfo(tensor)
-        return _core.ExternalTensor(
+    if proto.data_location == onnx.TensorProto.EXTERNAL:
+        external_info = onnx.external_data_helper.ExternalDataInfo(proto)
+        tensor = _core.ExternalTensor(
             path=os.path.join(base_path, external_info.location),
             offset=external_info.offset,
             length=external_info.length,
@@ -551,24 +559,31 @@ def deserialize_tensor(
             shape=_core.Shape(tensor.dims),
             doc_string=tensor.doc_string,
         )
+        tensor.metadata_props.update(deserialize_metadata_props(proto.metadata_props))
+        return tensor
     # Check for the raw_data filed first. The rest of the repeating fields can be
     # empty and still valid, so we don't need to check their length
     # For example, int32_data can be empty and still be a valid tensor.
-    if tensor.HasField("raw_data"):
-        return TensorProtoTensor(tensor)
-    if tensor.data_type in FloatDataTensor.compatible_types:
-        return FloatDataTensor(tensor)
-    if tensor.data_type in Int32DataTensor.compatible_types:
-        return Int32DataTensor(tensor)
-    if tensor.data_type in Int64DataTensor.compatible_types:
-        return Int64DataTensor(tensor)
-    if tensor.data_type in DoubleDataTensor.compatible_types:
-        return DoubleDataTensor(tensor)
-    if tensor.data_type in UInt64DataTensor.compatible_types:
-        return UInt64DataTensor(tensor)
+    if proto.HasField("raw_data"):
+        return TensorProtoTensor(proto)
+    if proto.data_type in FloatDataTensor.compatible_types:
+        return FloatDataTensor(proto)
+    if proto.data_type in Int32DataTensor.compatible_types:
+        return Int32DataTensor(proto)
+    if proto.data_type in Int64DataTensor.compatible_types:
+        return Int64DataTensor(proto)
+    if proto.data_type in DoubleDataTensor.compatible_types:
+        return DoubleDataTensor(proto)
+    if proto.data_type in UInt64DataTensor.compatible_types:
+        return UInt64DataTensor(proto)
     raise ValueError(
-        f"TensorProto(name={tensor.name}) does not have any data fields set and is not an external tensor."
+        f"TensorProto(name={proto.name}) does not have any data fields set and is not an external tensor."
     )
+
+
+
+def deserialize_metadata_props(proto: Sequence[onnx.StringStringEntryProto]) -> dict[str, str]:
+    return {entry.key: entry.value for entry in proto}
 
 
 def deserialize_attribute(proto: onnx.AttributeProto) -> _core.Attr | _core.RefAttr:
@@ -982,6 +997,8 @@ def serialize_tensor_into(
     if isinstance(from_, TensorProtoTensor):
         # Directly copy from the tensor proto if it is available
         tensor_proto.CopyFrom(from_.raw)
+        if from_.metadata_props:
+            _serialize_metadata_props_into(tensor_proto.metadata_props, from_.metadata_props)
         return
 
     tensor_proto.name = from_.name
