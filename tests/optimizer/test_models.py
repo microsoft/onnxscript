@@ -39,7 +39,7 @@ class ModelTest(unittest.TestCase):
             onnx_shape_inference=False,
         )
 
-        with tempfile.TemporaryDirectory() as tmp_folder:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_folder:
             tmp_folder = pathlib.Path(tmp_folder)
             optimized_model_path = tmp_folder / f"{model_name}_opt.onnx"
             onnx.save(
