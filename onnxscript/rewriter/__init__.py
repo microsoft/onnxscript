@@ -27,18 +27,17 @@ def rewrite(
     function_rewrite_rules: Sequence[type[FunctionRewriteRule]] = (),
     pattern_rewrite_rules: Sequence[PatternRewriteRule] = (),
 ) -> onnx.ModelProto:
+    print(f"len(value_info): {len(model.graph.value_info)}")
+    model_ir = serde.deserialize_model(model)
     if function_rewrite_rules:
-        model_ir = serde.deserialize_model(model)
         for rule_cls in function_rewrite_rules:
             count, model_ir = rule_cls().apply_to_model(model_ir)
             print(f"Applied {count} of onnxruntime specific function rewrite rules.")
-        # TODO: Avoid serializing and deserializing the model?
-        model = serde.serialize_model(model_ir)
     if pattern_rewrite_rules:
-        model_ir = serde.deserialize_model(model)
         count = pattern.RewriteRuleSet(pattern_rewrite_rules).apply_to_model(model_ir)
         print(f"Applied {count} of general pattern rewrite rules.")
-        model = serde.serialize_model(model_ir)
+    model = serde.serialize_model(model_ir)
     remove_unused.remove_unused_nodes(model)
     remove_unused_function.remove_unused_functions(model)
+    print(f"len(value_info): {len(model.graph.value_info)}")
     return model

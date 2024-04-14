@@ -41,19 +41,16 @@ def rewrite(
     """
     function_rules = function_rules or ORT_FUNCTION_REWRITE_RULES
     pattern_rules = pattern_rules or ORT_PATTERN_REWRITE_RULES
+    model_ir = serde.deserialize_model(model)
     # TODO: Function rules first, or pattern rules first?
     if function_rules:
-        model_ir = serde.deserialize_model(model)
         for rule_cls in function_rules:
             count, model_ir = rule_cls().apply_to_model(model_ir)
             print(f"Applied {count} of onnxruntime specific function rewrite rules.")
-        # TODO: Avoid serializing and deserializing the model multiple times
-        model = serde.serialize_model(model_ir)
     if pattern_rules:
-        model_ir = serde.deserialize_model(model)
         count = pattern.RewriteRuleSet(pattern_rules).apply_to_model(model_ir)
         print(f"Applied {count} of onnxruntime specific pattern rewrite rules.")
-        model = serde.serialize_model(model_ir)
+    model = serde.serialize_model(model_ir)
     remove_unused.remove_unused_nodes(model)
     remove_unused_function.remove_unused_functions(model)
     return model
