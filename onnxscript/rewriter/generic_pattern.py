@@ -140,7 +140,6 @@ class BuilderWithGraphStructure(_GraphStructureAPI):
             else name
             for name in input_names
         ]
-        # TODO: support attributes?
         if isinstance(output_names, int):
             node = ir.Node(
                 domain=domain, op_type=op_type, inputs=inputs, num_outputs=output_names
@@ -279,7 +278,7 @@ class ModelWithGraphStructure(ir.Model, _GraphStructureAPI):
         input_names: str | typing.Sequence[str] | None,
         output_names: int | typing.Sequence[str] | str | None = 1,
         domain: str = "",
-        attributes: list[onnx.AttributeProto] | None = None,
+        attributes: tuple[ir.Attr | ir.RefAttr] | None = None,
         name: str | None = None,
         **kwargs: typing.Any,
     ) -> ir.Node:
@@ -313,14 +312,16 @@ class ModelWithGraphStructure(ir.Model, _GraphStructureAPI):
             else name
             for name in input_names
         ]
+        # TODO: Add a test for attributes
         node = ir.Node(
-            domain=domain, op_type=op_type, inputs=inputs, num_outputs=len(output_names)
+            domain=domain,
+            op_type=op_type,
+            inputs=inputs,
+            attributes=attributes,
+            num_outputs=len(output_names),
         )
         for output, name in zip(node.outputs, output_names):
             output.name = name
-
-        # if attributes:
-        #     proto.attribute.extend(attributes)
         return node
 
 
@@ -1093,8 +1094,14 @@ class GenericPattern:
                     n = g.unique_name(o)
                     replacements[o] = n
                     new_outputs.append(n)
-            new_node = g.make_node(node.op_type, new_inputs, new_outputs, domain=node.domain)
-            # new_node.attributes.extend(node.attribute)
+            # TODO: Add a test for attributes.
+            new_node = g.make_node(
+                node.op_type,
+                new_inputs,
+                new_outputs,
+                attributes=node.attributes,
+                domain=node.domain,
+            )
             new_nodes.append(new_node)
 
         if g.verbose > 5:
