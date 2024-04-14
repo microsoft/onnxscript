@@ -551,7 +551,7 @@ def deserialize_tensor(
     # TODO: Sanitize base_path
     if proto.data_location == onnx.TensorProto.EXTERNAL:
         external_info = onnx.external_data_helper.ExternalDataInfo(proto)
-        tensor = _core.ExternalTensor(
+        return _core.ExternalTensor(
             path=os.path.join(base_path, external_info.location),
             offset=external_info.offset,
             length=external_info.length,
@@ -559,9 +559,8 @@ def deserialize_tensor(
             name=proto.name,
             shape=_core.Shape(proto.dims),
             doc_string=proto.doc_string,
+            metadata_props=deserialize_metadata_props(proto.metadata_props),
         )
-        tensor.metadata_props.update(deserialize_metadata_props(proto.metadata_props))
-        return tensor
     # Check for the raw_data filed first. The rest of the repeating fields can be
     # empty and still valid, so we don't need to check their length
     # For example, int32_data can be empty and still be a valid tensor.
@@ -1020,6 +1019,7 @@ def serialize_tensor_into(
                 entry.value = str(v)
     else:
         tensor_proto.raw_data = from_.tobytes()
+    _serialize_metadata_props_into(tensor_proto.metadata_props, from_.metadata_props)
 
 
 def serialize_attribute(attribute: _protocols.AttributeProtocol) -> onnx.AttributeProto:
