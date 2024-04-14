@@ -225,7 +225,7 @@ class FunctionRewriteRule(pattern.RewriteRule):
 
     def apply_to_model(
         self, model: ir.Model, *, commute: bool = False
-    ) -> tuple[int.onnx.ModelProto]:
+    ) -> tuple[int, onnx.ModelProto]:
         del commute  # unused
         model_proto: onnx.ModelProto = serde.serialize_model(model)
         self._function_shape_env = visitor.FunctionShapeEnv()

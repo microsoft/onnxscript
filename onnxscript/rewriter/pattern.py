@@ -694,10 +694,6 @@ class Constant(ValuePattern):
     def matches(self, value: ir.Value, model: ir.Model):
         value = _ir_utils_temp.propagate_const_value(value)
         constant_value = _ir_utils_temp.get_numpy_from_ir_value(value)
-        if value.name == "alpha" and constant_value is not None:
-            import pdb
-
-            pdb.set_trace()
         if isinstance(constant_value, np.ndarray):
             # TODO (rama): allow users to specify shape requirement, if desired.
             if constant_value.size != 1:
