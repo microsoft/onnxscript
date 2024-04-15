@@ -28,7 +28,7 @@ def MeanDiff(x):
 
 
 # A call to a function with an optional output:
-@script()
+@script(default_opset=op)
 def MeanDiffCaller(x):
     diff, _ = MeanDiff(x)
     return diff * diff
@@ -51,7 +51,7 @@ def MeanDiffCaller(x):
 # the one below:
 
 
-@script()
+@script(default_opset=op)
 def ConditionalOptOutput(x, y, flag: bool):
     if flag:
         z1 = x + y
