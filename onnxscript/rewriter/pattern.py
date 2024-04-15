@@ -590,7 +590,6 @@ class NodePattern:
             attributes=attributes,
             num_outputs=num_outputs,
         )
-        _ir_utils_temp.post_node_output_naming(newnode)
         nodes.append(newnode)
         return newnode.outputs, nodes
 
