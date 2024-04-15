@@ -87,19 +87,17 @@ def rotary_match_pattern(x, pos_ids, axis):
     return cast1, cast2
 
 
-def validate_rotary_mapping(g, matched_nodes, added_nodes) -> bool:
+def validate_rotary_mapping(g, match_result) -> bool:
     """The validation post matching.
 
     Returns True to validate the replacement,
     False not to apply it.
 
     :param g: model
-    :param matched_nodes: matched nodes
-    :param added_nodes: nodes replacing the matched nodes
+    :param match_result: matched nodes
     """
     del g
-    del matched_nodes
-    del added_nodes
+    del match_result
     return True
 
 

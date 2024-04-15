@@ -108,6 +108,9 @@ class ModelProtoBuilder:
         for attr in ir_node.attributes.items():
             attr_proto = self.process_attribute(attr)
             node_proto.attribute.append(attr_proto)
+        if len(ir_node.attributes) == 0 and len(ir_node.original_node_proto.attribute) > 0:
+            # ir_node.attributes is never populated.
+            node_proto.attribute.extend(ir_node.original_node_proto.attribute)
         return node_proto
 
     def process_attribute(self, attr):
