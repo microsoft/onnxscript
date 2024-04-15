@@ -83,7 +83,6 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -123,7 +122,6 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -161,7 +159,6 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -199,7 +196,6 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -237,7 +233,6 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320],
         )
 
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -275,7 +270,6 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -315,7 +309,6 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -355,7 +348,6 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 2, 3],
         )
 
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -395,7 +387,6 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -435,7 +426,6 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)

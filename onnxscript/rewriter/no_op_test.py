@@ -10,7 +10,6 @@ from onnxscript.rewriter import no_op
 class NoOpTest(unittest.TestCase):
     def _check(self, model_text: str) -> None:
         model = onnx.parser.parse_model(model_text)
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = no_op.rules.apply_to_model(ir)
         self.assertEqual(count, 1)

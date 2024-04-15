@@ -51,7 +51,6 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             ]
         )
 
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = group_normalization_merge_silu.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -118,7 +117,6 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             ]
         )
 
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         count += group_normalization_merge_silu.rules.apply_to_model(ir)

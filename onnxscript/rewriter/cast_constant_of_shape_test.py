@@ -18,7 +18,6 @@ class CastConstantOfShapeTest(unittest.TestCase):
             }
             """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         model_ir = serde.deserialize_model(model)
         count = cast_constant_of_shape.rules.apply_to_model(model_ir)
         self.assertEqual(count, 1)
@@ -36,7 +35,6 @@ class CastConstantOfShapeTest(unittest.TestCase):
             }
             """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         model_ir = serde.deserialize_model(model)
         count = cast_constant_of_shape.rules.apply_to_model(model_ir)
         self.assertEqual(count, 1)

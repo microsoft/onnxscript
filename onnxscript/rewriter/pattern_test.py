@@ -35,7 +35,6 @@ class ReciprocalMulTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = self.rule().apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -54,7 +53,6 @@ class ReciprocalMulTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = self.rule().apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -84,7 +82,6 @@ class ReciprocalMulTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = self.rule().apply_to_model(ir)
         self.assertEqual(count, 2)
@@ -147,7 +144,6 @@ class FastGeluTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = rule.apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -183,7 +179,6 @@ class ConcatTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = self.rule().apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -205,7 +200,6 @@ class ConcatTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = self.rule().apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -236,7 +230,6 @@ class RewriteRuleTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = pattern.RewriteRuleSet([add_0_rule], commute=True).apply_to_model(ir)
         optimized_model = serde.serialize_model(ir)
@@ -282,7 +275,6 @@ class RewriteRuleTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = pattern.RewriteRuleSet([rule]).apply_to_model(ir)
         optimized_model = serde.serialize_model(ir)
@@ -304,7 +296,6 @@ class RewriteRuleTest(unittest.TestCase):
             }
             """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = cast_constant_of_shape.rules.apply_to_model(ir)
         self.assertEqual(count, 2)

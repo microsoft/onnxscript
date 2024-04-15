@@ -24,7 +24,6 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -66,7 +65,6 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
                 "pkg.custom::afunction/input_y", onnx.TensorProto.FLOAT, [1, 4, 512, 64]
             )
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -94,7 +92,6 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -143,7 +140,6 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -167,7 +163,6 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -191,7 +186,6 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -215,7 +209,6 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -264,7 +257,6 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -286,7 +278,6 @@ class OneReshapeMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 1)

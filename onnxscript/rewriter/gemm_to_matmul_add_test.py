@@ -22,7 +22,6 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         """
         )
 
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -68,7 +67,6 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             )
         )
 
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -95,7 +93,6 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -117,7 +114,6 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -139,7 +135,6 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -163,7 +158,6 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -187,7 +181,6 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -209,7 +202,6 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -233,7 +225,6 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -255,7 +246,6 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 0)

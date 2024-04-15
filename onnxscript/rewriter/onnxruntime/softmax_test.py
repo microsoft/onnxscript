@@ -28,7 +28,6 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
             }}
             """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = softmax.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
@@ -54,7 +53,6 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
             }}
             """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = softmax.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
@@ -82,7 +80,6 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
             }}
             """
         )
-        model = onnx.shape_inference.infer_shapes(model)
         ir = serde.deserialize_model(model)
         count = softmax.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
