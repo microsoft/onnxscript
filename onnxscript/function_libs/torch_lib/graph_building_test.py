@@ -189,6 +189,10 @@ class TestModelSaving(unittest.TestCase):
         for i in model_proto.graph.initializer:
             self.assertNotIn(i.name, v_names)
 
+    @unittest.skipIf(
+        not version_utils.torch_older_than("2.4"),
+        "PyTorch 2.4-preview optimizes the functions away",
+    )
     def test_experimental_function_value_info_are_stored_in_graph_value_info(self):
         batch_size, input_size, hidden_size, output_size = 1, 4, 5, 10
         model = _MLP(input_size, hidden_size, output_size)

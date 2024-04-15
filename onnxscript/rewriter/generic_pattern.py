@@ -8,6 +8,7 @@ import typing
 
 import onnx
 
+import onnxscript
 import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
 from onnxscript.ir import _ir_utils_temp, serde
@@ -1180,7 +1181,7 @@ def make_pattern_rule(
     apply_pattern: typing.Callable,
     validate_mapping: typing.Callable | None = None,
     verbose: int = 0,
-    opsets: dict[str, "onnxscript.Opset"] | None = None,  # noqa: F821
+    opsets: dict[str, onnxscript.values.Opset] | None = None,
 ) -> orp.RewriteRule:
     """
     Creates a rewriting rule.
