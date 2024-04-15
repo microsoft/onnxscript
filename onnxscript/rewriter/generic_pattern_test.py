@@ -66,12 +66,10 @@ class GenericPatternTest(unittest.TestCase):
             def validate_mapping(
                 self,
                 g: oir.Model,
-                deleted_nodes: list[oir.Node],
-                added_nodes: list[oir.Node],
+                match_result: org.PatternMatchResult,
             ) -> bool:
                 assert g
-                assert len(deleted_nodes) == 2
-                assert len(added_nodes) == 1
+                assert len(match_result.model_nodes) == 2
                 return True
 
         class AddAdd(OpRun):
@@ -155,12 +153,10 @@ class GenericPatternTest(unittest.TestCase):
             def validate_mapping(
                 self,
                 g: oir.Model,
-                deleted_nodes: list[oir.Node],
-                added_nodes: list[oir.Node],
+                match_result: org.PatternMatchResult,
             ) -> bool:
                 assert g
-                assert len(deleted_nodes) == 3
-                assert len(added_nodes) == 1
+                assert len(match_result.model_nodes) == 3
                 return True
 
         class AddAddAddAdd(OpRun):
@@ -317,8 +313,10 @@ class GenericPatternTest(unittest.TestCase):
                 cast2 = op.Cast(cos, to=onnx.TensorProto.FLOAT)
                 return cast1, cast2
 
-            def validate_mapping(self, g, deleted_nodes, added_nodes) -> bool:
+            def validate_mapping(self, g, match_result) -> bool:
                 # If some pattern needs to be rejected.
+                del g
+                del match_result
                 return True
 
             @classmethod
@@ -382,8 +380,10 @@ class GenericPatternTest(unittest.TestCase):
             cast2 = op.Cast(cos, to=onnx.TensorProto.FLOAT)
             return cast1, cast2
 
-        def validate_rotary_mapping(g, deleted_nodes, added_nodes) -> bool:
+        def validate_rotary_mapping(g, match_result) -> bool:
             # If some pattern needs to be rejected.
+            del g
+            del match_result
             return True
 
         def rotary_apply_pattern(x, pos_ids, axis):
@@ -444,8 +444,10 @@ class GenericPatternTest(unittest.TestCase):
             cast2 = op.Cast(cos, to=onnx.TensorProto.FLOAT)
             return cast1, cast2
 
-        def validate_rotary_mapping(g, deleted_nodes, added_nodes) -> bool:
+        def validate_rotary_mapping(g, match_result) -> bool:
             # If some pattern needs to be rejected.
+            del g
+            del match_result
             return True
 
         def rotary_apply_pattern(x, pos_ids, axis):
@@ -496,6 +498,95 @@ class GenericPatternTest(unittest.TestCase):
         if __name__ == "__main__":
             print(f"Saving done in {time.perf_counter() - begin}s")
         self.check_with_ort(opt_onx)
+
+    def test_transpose_transpose_onnxscript(self):
+        # The test work on a model if it has the expected name.
+        # A dummy model is used if not present (not implemented yet).
+        transpose_transpose_pattern = oh.make_function(
+            "any",
+            "transpose_transpose_pattern",
+            ["X"],
+            ["Y"],
+            [
+                oh.make_node("Transpose", ["X"], ["xt"]),
+                oh.make_node("Transpose", ["xt"], ["Y"]),
+            ],
+            [oh.make_opsetid("", 18)],
+        )
+
+        def transpose_transpose_mapping(g, match_result) -> bool:
+            # If some pattern needs to be rejected.
+            del g
+            perms = []
+            for n in match_result.model_nodes:
+                perms.append(list(n.attribute[0].ints))
+            perm = perms[0]
+            new_perm = [0 for p in perm]
+            for i, p in enumerate(perms[1]):
+                new_perm[i] = perm[p]
+            match_result.add_kwargs("perm", new_perm)
+            return True
+
+        def transpose_transpose_apply_pattern(x, perm=None):
+            if perm is None:
+                return oh.make_function(
+                    "any",
+                    "id",
+                    ["X"],
+                    ["Y"],
+                    [
+                        oh.make_node("Identity", ["X"], ["Y"]),
+                    ],
+                    [oh.make_opsetid("", 18)],
+                )
+            return oh.make_function(
+                "any",
+                "id",
+                ["X"],
+                ["Y"],
+                [
+                    oh.make_node("Transpose", ["X"], ["Y"], perm=perm),
+                ],
+                [oh.make_opsetid("", 18)],
+            )
+
+        model = oh.make_model(
+            oh.make_graph(
+                [
+                    oh.make_node("Transpose", ["X"], ["xt"], perm=[1, 2, 0]),
+                    oh.make_node("Transpose", ["xt"], ["Y"], perm=[1, 2, 0]),
+                ],
+                "name",
+                [oh.make_tensor_value_info("X", TFLOAT, [None, None, None])],
+                [oh.make_tensor_value_info("Y", TFLOAT, [None, None, None])],
+            ),
+            opset_imports=[oh.make_opsetid("", 18)],
+        )
+
+        # back to ir
+        ir_model = oir.irbuilder.build_ir(model)
+
+        # starts matching
+        rule = org.make_pattern_rule(
+            transpose_transpose_pattern,
+            transpose_transpose_apply_pattern,
+            transpose_transpose_mapping,
+            verbose=0,
+            use_onnxscript=False,
+        )
+
+        rule.apply_to_model(ir_model)
+
+        builder = oip.ModelProtoBuilder()
+        opt_onx = builder.visit_ir_model(ir_model)
+
+        expected = ["Transpose"]
+        self.assertEqual(expected, [n.op_type for n in opt_onx.graph.node])
+        node = opt_onx.graph.node[0]
+        self.assertEqual(len(node.attribute), 1)
+        att = node.attribute[0]
+        self.assertEqual(att.name, "perm")
+        self.assertEqual(list(att.ints), [2, 0, 1])
 
 
 if __name__ == "__main__":
