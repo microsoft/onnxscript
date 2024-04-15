@@ -1116,7 +1116,7 @@ class OnnxGenericPattern(GenericPattern):
         apply_proto: onnx.FunctionProto | typing.Callable,
         validate_mapping: typing.Callable,
         use_onnxscript: bool = True,
-        opsets: dict[str, "onnxscript.Opset"] | None = None,  # noqa: F821
+        opsets: dict[str, onnxscript.values.Opset] | None = None,
         verbose: int = 0,
     ):
         super().__init__(verbose=verbose)
@@ -1151,8 +1151,6 @@ class OnnxGenericPattern(GenericPattern):
             onx = self.match_proto
         elif callable(self.apply_proto):
             if self.use_onnxscript:
-                import onnxscript
-
                 onx = onnxscript.script(**self.opsets)(self.apply_proto).to_function_proto()
             else:
                 sig = inspect.signature(self.apply_proto)
@@ -1182,7 +1180,7 @@ def make_pattern_rule(
     validate_mapping: typing.Callable | None = None,
     verbose: int = 0,
     use_onnxscript: bool = True,
-    opsets: dict[str, onnxscript.values.Opset] | None = None,  # noqa: F821
+    opsets: dict[str, onnxscript.values.Opset] | None = None,
 ) -> orp.RewriteRule:
     """
     Creates a rewriting rule.
