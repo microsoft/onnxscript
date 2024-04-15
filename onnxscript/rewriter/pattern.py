@@ -987,7 +987,7 @@ def _apply_deltas(
     """
     existing_ids = {id(n): (i, n) for i, n in enumerate(graph_or_function.nodes)}
     to_delete = set()
-    to_insert = {}
+    to_insert = []
 
     for i, delta in reversed(deltas):
         if len(delta) == 3:
@@ -1000,7 +1000,7 @@ def _apply_deltas(
             # the position to insert must be chosen.
             # we'll try position i
             assert i not in to_insert  # conflicts should avoid that case
-            to_insert[i] = inserted_nodes
+            to_insert.append((graph_or_function.nodes[i], inserted_nodes))
 
         else:
             deleted_nodes, inserted_nodes = delta
@@ -1020,6 +1020,12 @@ def _apply_deltas(
                 for node, index in last_deleted_output.users():
                     node.replace_input_with(index, last_inserted_output)
 
+                # Update graph/function outputs if the node genrates output
+                for old_output, new_output in zip(last_deleted.outputs, last_inserted.outputs):
+                    for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
+                        if graph_or_function_output is old_output:
+                            graph_or_function.outputs[idx] = new_output
+
             # insert new nodes after the index node
             # TODO(justinchuby): Do not access by index [i]
             graph_or_function.insert_after(graph_or_function.nodes[i], inserted_nodes)
@@ -1027,8 +1033,8 @@ def _apply_deltas(
             for old_node in deleted_nodes:
                 graph_or_function.remove(old_node)
 
-    for position, insert in sorted(to_insert.items(), reverse=True):
-        graph_or_function.insert_after(graph_or_function.nodes[position], insert)
+    for replaced_node, inserted_nodes in to_insert:
+        graph_or_function.insert_after(replaced_node, inserted_nodes)
 
     for n in to_delete:
         graph_or_function.remove(n)
