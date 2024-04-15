@@ -37,13 +37,13 @@ include_patterns = [
     'onnxscript/**/*.pyi',
 ]
 exclude_patterns = [
+    'tests/**', # Skip linting test files for speed
     # FIXME: Fix typing annotations in these files
     'onnxscript/converter_test.py',
     'onnxscript/converter.py',
     'onnxscript/evaluator_test.py',
     'onnxscript/evaluator.py',
     'onnxscript/onnx_types.py',
-    'tests/**', # Skip linting test files for speed
     'onnxscript/**/*_test.py', # Skip linting test files for speed
     'onnxscript/function_libs/torch_lib/ops/**', # Operators typing do not play well with mypy
     'onnxscript/optimizer/evaluator.py',  # FIXME
@@ -60,7 +60,6 @@ exclude_patterns = [
     'onnxscript/_legacy_ir/visitor.py',  # FIXME
     'onnxscript/_legacy_ir/protobuilder.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/layernorm.py',  # FIXME
-    'onnxscript/ir/serde.py',  # FIXME
     'onnxscript/rewriter/generic_pattern_test.py',  # FIXME
     'onnxscript/rewriter/generic_pattern.py',  # FIXME
 ]

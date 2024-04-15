@@ -469,14 +469,13 @@ def deserialize_type_proto_for_shape(proto: onnx.TypeProto) -> _core.Shape | Non
     if proto.HasField("tensor_type"):
         if (shape_proto := _get_field(proto.tensor_type, "shape")) is None:
             return None
-        if not (dim_protos := shape_proto.dim):
-            return None
+        # This logic handles when the shape is [] as well
+        dim_protos = shape_proto.dim
         return _core.Shape([deserialize_dimension(d) for d in dim_protos])
     if proto.HasField("sparse_tensor_type"):
         if (shape_proto := _get_field(proto.sparse_tensor_type, "shape")) is None:
             return None
-        if not (dim_protos := shape_proto.dim):
-            return None
+        dim_protos = shape_proto.dim
         return _core.Shape([deserialize_dimension(d) for d in dim_protos])
     if proto.HasField("sequence_type"):
         if (elem_type := _get_field(proto.sequence_type, "elem_type")) is None:
@@ -655,7 +654,7 @@ def _deserialize_node(
         [_deserialize_attribute(a, scoped_values) for a in proto.attribute],
         overload=getattr(proto, "overload", ""),
         num_outputs=len(proto.output),
-        name=_get_field(proto, "name"),
+        name=proto.name,
     )
 
     for output, value in zip(proto.output, node.outputs):
@@ -1128,6 +1127,8 @@ def serialize_type_into(type_proto: onnx.TypeProto, from_: _protocols.TypeProtoc
 
 def serialize_shape_into(type_proto: onnx.TypeProto, from_: _protocols.ShapeProtocol) -> None:
     tensor_type_proto = type_proto.tensor_type
+    # When from is empty, we still need to set the shape field to an empty list by touching it
+    tensor_type_proto.shape.ClearField("dim")
     for dim in from_:
         serialize_dimension_into(tensor_type_proto.shape.dim.add(), from_=dim)
 
