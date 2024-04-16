@@ -529,11 +529,11 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     user is responsible to call ``graph.append(node)`` (or other mutation methods
     in :class:`Graph`) to add the node to the graph.
 
-    After the node is initialized, it will add itself as a user of the input values.
+    After the node is initialized, it will add itself as a consumer of the input values.
 
     The output values of the node are created during node initialization and are immutable.
     To change the output values, create a new node and replace the each of the inputs of ``output.consumers`` with
-    the new output values by calling :meth:`replace_input_with` on the user nodes
+    the new output values by calling :meth:`replace_input_with` on the consumer nodes
     of this node's outputs.
     """
 
@@ -566,7 +566,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         name: str | None = None,
         doc_string: str | None = None,
     ):
-        """Initialize a node and add it as a user of the input values.
+        """Initialize a node and add it as a consumer of the input values.
 
         Args:
             domain: The domain of the operator. For onnx operators, this is an empty string.
@@ -603,10 +603,10 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._graph: Graph | None = graph
         self.doc_string = doc_string
 
-        # Add the node as a user of the inputs
+        # Add the node as a consumer of the inputs
         for i, input_value in enumerate(self._inputs):
             if input_value is not None:
-                input_value._add_user(self, i)  # pylint: disable=protected-access
+                input_value._add_consumer(self, i)  # pylint: disable=protected-access
 
         # Add the node to the graph if graph is specified
         if self._graph is not None:
@@ -706,9 +706,9 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             value if i == index else old_input for i, old_input in enumerate(self.inputs)
         )
         if old_input is not None:
-            old_input._remove_user(self, index)  # pylint: disable=protected-access
+            old_input._remove_consumer(self, index)  # pylint: disable=protected-access
         if value is not None:
-            value._add_user(self, index)  # pylint: disable=protected-access
+            value._add_consumer(self, index)  # pylint: disable=protected-access
 
     def prepend(self, /, nodes: Node | Iterable[Node]) -> None:
         """Insert a node before this node in the list of nodes in the graph.
@@ -979,23 +979,23 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         """Return a set of consumers of the value.
 
         The set contains tuples of ``(Node, index)`` where the index is the index of the input
-        of the node. For example, if ``node.inputs[1] == value``, then the user is ``(node, 1)``.
+        of the node. For example, if ``node.inputs[1] == value``, then the consumer is ``(node, 1)``.
         """
         return frozenset(self._consumers)
 
-    def _add_user(self, user: Node, index: int) -> None:
-        """Add a user node.
+    def _add_consumer(self, consumer: Node, index: int) -> None:
+        """Add a consumer node.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._consumers.add((user, index))
+        self._consumers.add((consumer, index))
 
-    def _remove_user(self, user: Node, index: int) -> None:
+    def _remove_consumer(self, consumer: Node, index: int) -> None:
         """Remove a node from the consumers of this value.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._consumers.remove((user, index))
+        self._consumers.remove((consumer, index))
 
     @property
     def name(self) -> str | None:
