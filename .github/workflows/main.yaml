@@ -35,9 +35,6 @@ jobs:
           - py311-ort-nightly
           - py311-experimental-torchlib-tracing
         include:
-          - name: py312
-            python-version: "3.12"
-            nox-tag: test
           - name: py311
             python-version: "3.11"
             nox-tag: test build
@@ -50,6 +47,9 @@ jobs:
           - name: py38
             python-version: "3.8"
             nox-tag: test
+          - name: py312-torch-nightly
+            python-version: "3.12"
+            nox-tag: test-torch-nightly
           - name: py311-torch-nightly
             python-version: "3.11"
             nox-tag: test-torch-nightly
