@@ -23,24 +23,6 @@ TFLOAT = onnx.TensorProto.FLOAT
 
 
 class GenericPatternTest(unittest.TestCase):
-    def test_bridge_model(self):
-        model = onnx.parser.parse_model(
-            """
-            <ir_version: 7, opset_import: [ "" : 17]>
-            agraph (float[2, 3, 5, 4] input_x, float[5] input_y, float[2, 3, 5] input_z) => (float[2, 4, 6] output)
-            {
-                shape_a = Constant<value: tensor = int64[4] {2, 3, 5, 4}>()
-                reshape_x = Reshape (input_x, shape_a)
-                gemm = Gemm<alpha=1.0, beta=1.0> (reshape_x, input_y, input_z)
-                shape_d = Constant<value: tensor = int64[3] {2, 4, 6}>()
-                output = Reshape (gemm, shape_d)
-            }
-        """
-        )
-        model = onnx.shape_inference.infer_shapes(model)
-        ir_model = serde.deserialize_model(model)
-        org.ModelWithGraphStructure(ir_model)
-
     def _range(self, *shape, bias: float | None = None):
         n = np.prod(shape)
         x = np.arange(n).astype(np.float32) / n
@@ -527,7 +509,8 @@ class GenericPatternTest(unittest.TestCase):
             match_result.add_kwargs("perm", new_perm)
             return True
 
-        def transpose_transpose_apply_pattern(x, perm=None):
+        # FIXME(justinchuby): Support matched result binding
+        def transpose_transpose_apply_pattern(perm=None):
             if perm is None:
                 return oh.make_function(
                     "any",
@@ -564,20 +547,18 @@ class GenericPatternTest(unittest.TestCase):
         )
 
         # back to ir
-        ir_model = oir.irbuilder.build_ir(model)
+        ir_model = serde.deserialize_model(model)
 
         # starts matching
         rule = org.make_pattern_rule(
             transpose_transpose_pattern,
-            transpose_transpose_apply_pattern,
+            transpose_transpose_apply_pattern(),
             transpose_transpose_mapping,
             verbose=0,
         )
 
         rule.apply_to_model(ir_model)
-
-        builder = oip.ModelProtoBuilder()
-        opt_onx = builder.visit_ir_model(ir_model)
+        opt_onx = serde.serialize_model(ir_model)
 
         expected = ["Transpose"]
         self.assertEqual(expected, [n.op_type for n in opt_onx.graph.node])

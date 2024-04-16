@@ -4,7 +4,7 @@ import collections
 import inspect
 import os
 import textwrap
-from typing import Sequence, Any, Iterator
+from typing import Any, Callable, Iterator, Sequence
 
 import onnx
 
@@ -14,8 +14,10 @@ from onnxscript import ir
 from onnxscript.ir import serde
 from onnxscript.rewriter import _tape
 
+
 class _SimpleBuilder:
     """temporary adaptor for building 'generic patterns'."""
+
     # TODO(justinchuby): Merge with the rest of pattern building methods
     def __init__(self):
         self.tape = _tape.Tape()
@@ -30,10 +32,12 @@ class _SimpleBuilder:
             num_outputs = len(output_names)
         else:
             assert isinstance(output_names, int)
-            num_outputs = num_outputs
+            num_outputs = output_names
         if num_outputs == 1:
             return self.tape.op(op_type, inputs=inputs, attributes=kwargs, domain=domain)
-        return self.tape.op_multi_output(op_type, inputs=inputs, attributes=kwargs, domain=domain, num_outputs=num_outputs)
+        return self.tape.op_multi_output(
+            op_type, inputs=inputs, attributes=kwargs, domain=domain, num_outputs=num_outputs
+        )
 
     @property
     def nodes(self) -> Sequence[ir.Node]:
@@ -54,90 +58,6 @@ def enumerate_subgraphs(
             for no in att.g.node:
                 for tu in enumerate_subgraphs(no):
                     yield this + tu
-
-
-class PatternMatchResult:
-    """Stores information about a match if a match was successful.
-
-    * pattern: the instance of :class:`GenericPattern` which found this result
-    * model_nodes: matched nodes coming from the model
-    * pattern_nodes: corresponding nodes coming from the pattern
-    * pattern_input_names: input names of the pattern
-    * pattern_ouptut_names: output names of the pattern
-    * kwargs: additional attributes the user may add through the method
-        :meth:`PatternMatchResult.add_kwargs`
-
-    The class creates one attributes `matched_pattern_to_model_name`,
-    which maps every result name from the pattern to the corresponding
-    result name in the model.
-    """
-
-    def __init__(
-        self,
-        pattern: GenericPattern,
-        model_nodes: Sequence[ir.Node],
-        pattern_nodes: Sequence[ir.Node],
-        pattern_input_names: Sequence[str],
-        pattern_output_names: Sequence[str],
-    ):
-        assert len(model_nodes) == len(pattern_nodes)
-        self.pattern = pattern
-        self.model_nodes = model_nodes
-        self.pattern_nodes = pattern_nodes
-        self.pattern_input_names = pattern_input_names
-        self.pattern_output_names = pattern_output_names
-        self.kwargs = {}
-
-        matched_pattern_to_model_name: dict[str, str] = {}
-        for gn, pn in zip(model_nodes, pattern_nodes):
-            assert (
-                gn.op_type == pn.op_type
-            ), f"Unexpected type mismatch {gn.op_type!r} != {pn.op_type!r}"
-            assert len(gn.input_names) == len(
-                pn.input_names
-            ), f"Unexpected number of inputs for type {gn.op_type}"
-            for a, b in zip(gn.input_names, pn.input_names):
-                if b == "":
-                    # optional input or not an interesting input
-                    continue
-                if b in matched_pattern_to_model_name:
-                    assert matched_pattern_to_model_name[b] == a, (
-                        f"Ambiguities, pattern name {b!r} means "
-                        f"{a!r} or {matched_pattern_to_model_name[b]}"
-                    )
-                else:
-                    matched_pattern_to_model_name[b] = a
-
-            assert len(gn.output_names) == len(
-                pn.output_names
-            ), f"Unexpected number of outputs for type {gn.op_type}"
-            for a, b in zip(gn.output_names, pn.output_names):
-                if b == "":
-                    # Only final outputs are interesting.
-                    continue
-                assert a != "", f"{a!r} cannot be optional"
-                if b in matched_pattern_to_model_name:
-                    assert matched_pattern_to_model_name[b] == a, (
-                        f"Ambiguities, pattern name {b!r} means "
-                        f"{a!r} or {matched_pattern_to_model_name[b]}"
-                    )
-                else:
-                    matched_pattern_to_model_name[b] = a
-
-        self.matched_pattern_to_model_name = matched_pattern_to_model_name
-
-    def add_kwargs(self, name: str, value: Any):
-        """Adds an attribute, it can be done when the match is being validated,
-        this attribute can be used when building the replacement nodes.
-        """
-        self.kwargs[name] = value
-
-    def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}([{self.pattern.__class__.__name__}], "
-            f"... {len(self.model_nodes)} nodes ..., {self.pattern_input_names}, "
-            f"{self.pattern_output_names})"
-        )
 
 
 class PatternMatchResult:
@@ -308,17 +228,14 @@ class GenericPattern:
         self.verbose = verbose
         self._cache: dict = {}
 
-    def validate_mapping(
-        self, g: ir.Model, match_result: PatternMatchResult) -> bool:
+    def validate_mapping(self, g: ir.Model, match_result: PatternMatchResult) -> bool:
         """Evaluates the consistency of the replacements."""
         raise NotImplementedError(
             "This method could return True but it is better to let you know "
             "that it exists. You need to overwrite it to return True."
         )
 
-    def enumerate_matches(
-        self, g: ir.Graph, node: ir.Node | None = None
-    ) -> Iterator:
+    def enumerate_matches(self, g: ir.Graph, node: ir.Node | None = None) -> Iterator:
         """Enumerates all the matches."""
         if node is None:
             matched = []
@@ -440,7 +357,7 @@ class GenericPattern:
         if isinstance(outputs, ir.Value):
             outputs = [outputs]
         graph = ir.Graph(inputs=inputs, outputs=outputs, nodes=builder.nodes)
-        graph.outputs = outputs
+        graph.outputs[:] = outputs
         return graph
 
     def _get_match_pattern(self, g: ir.Graph) -> ir.Graph:
@@ -453,7 +370,6 @@ class GenericPattern:
         return pat
 
     def print_match(self, n1: ir.Node, n2: ir.Node) -> str:
-
         s1 = f"{n1.op_type}({n1.inputs})"
         s2 = f"{n2.op_type}({n2.inputs})"
         return f"match {s1} with {s2} (pattern)"
@@ -547,7 +463,7 @@ class GenericPattern:
             if ppred is None:
                 # ppred is None means the pattern ends here.
                 continue
-            pred = i.def_nnode()
+            pred = i.def_node()
             if pred is None:
                 # No node in the graph.
                 return self.none(node, inspect.currentframe().f_lineno)
@@ -756,10 +672,7 @@ class GenericPattern:
 
         check_ids = {id(n) for n in pat.nodes}
         if self.verbose > 5:
-            print(
-                f"[GenericPattern.match] starts with "
-                f"{node.op_type}({node.inputs})"
-            )
+            print(f"[GenericPattern.match] starts with {node.op_type}({node.inputs})")
             if self.verbose >= 10:
                 print(f"[GenericPattern.match] match pattern {self!r}")
 
@@ -934,7 +847,8 @@ class GenericPattern:
 
 
 class FunctionPattern(GenericPattern):
-    def __init__(self,
+    def __init__(
+        self,
         match_pattern: ir.Function,
         apply_pattern: ir.Function,
         validate_mapping,
@@ -947,7 +861,6 @@ class FunctionPattern(GenericPattern):
 
     def _get_match_pattern(self, *_, **__):
         return self.match_pattern
-
 
 
 def make_pattern_rule(
@@ -986,7 +899,7 @@ def make_pattern_rule(
     if not isinstance(match_pattern, onnx.FunctionProto):
         match_pattern = onnxscript.script(**opsets)(match_pattern).to_function_proto()
 
-    match_function = serde.deserialize_function(match_function)
+    match_function = serde.deserialize_function(match_pattern)
     apply_function = serde.deserialize_function(apply_pattern)
 
     pat = FunctionPattern(

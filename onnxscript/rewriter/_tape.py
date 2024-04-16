@@ -72,9 +72,7 @@ class Tape(collections.abc.Iterable[ir.Node]):
             attrs = ()
         else:
             attrs = _convert_attributes(attributes)
-        node = ir.Node(
-            domain, op_type, inputs, attributes=attrs, num_outputs=num_outputs
-        )
+        node = ir.Node(domain, op_type, inputs, attributes=attrs, num_outputs=num_outputs)
         self._nodes.append(node)
 
         return node.outputs

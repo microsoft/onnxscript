@@ -1053,7 +1053,6 @@ class RewriteRuleSet:
     ) -> int:
         count = 0
         marked = set()
-        bridge = None
         # NOTE: Rules should be prioritized in the order they are added to the RewriteRuleSet.
         # And the graph is applied in order.
         for rule in self.rules:
