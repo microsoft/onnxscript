@@ -19,6 +19,7 @@ from typing import (
     Iterable,
     Iterator,
     Mapping,
+    MutableMapping,
     MutableSequence,
     OrderedDict,
     Protocol,
@@ -97,6 +98,7 @@ class TensorProtocol(ArrayCompatible, Protocol):
     dtype: _enums.DataType
     doc_string: str | None
     raw: Any
+    metadata_props: MutableMapping[str, str]
 
     @property
     def size(self) -> int: ...
@@ -148,8 +150,8 @@ class ValueProtocol(Protocol):
     name: str
     shape: ShapeProtocol | None
     type: TypeProtocol | None
-    metadata_props: Mapping[str, str]
-    meta: Mapping[str, Any]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
     def def_node(self) -> NodeProtocol | None:
         """The node that produces this value."""
@@ -217,8 +219,8 @@ class NodeProtocol(Protocol):
     attributes: OrderedDict[str, AttributeProtocol | ReferenceAttributeProtocol]
     version: int | None
     doc_string: str | None
-    metadata_props: Mapping[str, str]
-    meta: Mapping[str, Any]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
     def replace_input_with(self, index: int, value: ValueProtocol | None) -> None:
         """Set the input at the given index to the given value, replacing the original value."""
@@ -257,8 +259,8 @@ class GraphProtocol(Protocol):
     initializers: Mapping[str, TensorProtocol]
     doc_string: str
     opset_imports: Mapping[str, int]
-    metadata_props: Mapping[str, str]
-    meta: Mapping[str, Any]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
     def __getitem__(self, index: int) -> NodeProtocol: ...
     def __len__(self) -> int: ...
@@ -318,8 +320,8 @@ class GraphViewProtocol(Protocol):
     initializers: Mapping[str, TensorProtocol]
     doc_string: str
     opset_imports: Mapping[str, int]
-    metadata_props: Mapping[str, str]
-    meta: Mapping[str, Any]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
     def __getitem__(self, index: int) -> NodeProtocol: ...
     def __len__(self) -> int: ...
@@ -356,8 +358,8 @@ class ModelProtocol(Protocol):
     functions: Mapping[str, FunctionProtocol]
     # TODO(justinchuby): Add training_info
     opset_imports: Mapping[str, int]
-    metadata_props: Mapping[str, str]
-    meta: Mapping[str, Any]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
 
 @typing.runtime_checkable
@@ -518,8 +520,8 @@ class FunctionProtocol(Protocol):
     doc_string: str
     opset_imports: Mapping[str, int]
     nodes: Sequence[NodeProtocol]
-    metadata_props: Mapping[str, str]
-    meta: Mapping[str, Any]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
     def __getitem__(self, index: int) -> NodeProtocol: ...
     def __len__(self) -> int: ...
