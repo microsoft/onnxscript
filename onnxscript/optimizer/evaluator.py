@@ -430,5 +430,9 @@ def sequence_at(context: IRContext, node: onnx.NodeProto) -> Sequence[onnx.NodeP
         position_val = position.value
         if isinstance(input_vals, list) and position_val is not None:
             output.symbolic_value = input_vals[position_val]
-            logger.debug("SquenceAt %s => %s", input, output.symbolic_value)
+            logger.debug("SequenceAt %s => %s", input, output.symbolic_value)
+            new_node = onnx.helper.make_node(
+                "Identity", [output.symbolic_value], [output.name]
+            )
+            return [new_node]
     return None
