@@ -13,7 +13,8 @@ COMMON_TEST_DEPENDENCIES = (
     "beartype==0.17.2",
     "expecttest==0.1.6",
     "hypothesis",
-    "numpy==1.24.4",
+    'numpy==1.24.4; python_version<"3.12"',
+    'numpy==1.26.0; python_version>="3.12"',
     "packaging",
     "parameterized",
     "pyinstrument",
@@ -23,7 +24,6 @@ COMMON_TEST_DEPENDENCIES = (
     "pytest-xdist",
     "pytest!=7.1.0",
     "pyyaml",
-    "setuptools",
     "types-PyYAML",
     "typing_extensions",
 )
