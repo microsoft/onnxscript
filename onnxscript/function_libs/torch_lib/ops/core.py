@@ -2457,7 +2457,7 @@ def aten_diagflat(self: TensorType, offset: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::diagonal", trace_only=True)
+@torch_op(("aten::diagonal", "aten::diagonal_copy"), trace_only=True)
 def aten_diagonal(self: TReal, offset: int = 0, dim1: int = 0, dim2: int = 1) -> TReal:
     """diagonal(Tensor(a) self, int offset=0, int dim1=0, int dim2=1) -> Tensor(a)"""
 
