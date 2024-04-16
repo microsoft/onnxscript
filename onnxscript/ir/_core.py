@@ -885,7 +885,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     """IR Value.
 
     A value is a named entity that can be used to represent an input or output of a graph,
-    a function, or a node. The information it stores corresponds to ``ValueInfoProto``
+    a function, or a node. The information it stores generalizes over ``ValueInfoProto``
     in the ONNX specification.
 
     A :class:`Value` is always not owned or owned by exactly one node. When the value is not
