@@ -430,15 +430,8 @@ class Dimension(_protocols.DimensionProtocol, _display.PrettyPrintable):
     def denotation(self) -> str | None:
         return self._denotation
 
-    def __str__(self) -> str:
-        return f"{self._value}"
-
     def __repr__(self) -> str:
-        if self.denotation is not None:
-            denotation_text = f", denotation={self.denotation!r}"
-        else:
-            denotation_text = ""
-        return f"{self.__class__.__name__}({self._value}{denotation_text})"
+        return f"{self._value}"
 
 
 class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
@@ -497,7 +490,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         )
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self._dims!r})"
+        return f"{self.__class__.__name__}({self._dims})"
 
     def __str__(self) -> str:
         """Return a string representation of the shape.
@@ -629,7 +622,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
                 [
                     (
                         f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}"
-                        if x is not None
+                        if x
                         else "None"
                     )
                     for x in self._inputs
@@ -1342,11 +1335,11 @@ def _graph_str(graph: Graph | GraphView) -> str:
         )
     signature = f"""\
 graph(
-    name={graph.name or 'anonymous_graph:' + str(id(graph))},
-    inputs=({textwrap.indent(inputs_text, ' '*8)}
-    ),
-    outputs=({textwrap.indent(outputs_text, ' '*8)}
-    ),{textwrap.indent(initializers_text, ' '*4)}
+name={graph.name or 'anonymous_graph:' + str(id(graph))},
+inputs=({textwrap.indent(inputs_text, ' '*8)}
+),
+outputs=({textwrap.indent(outputs_text, ' '*8)}
+),{textwrap.indent(initializers_text, ' '*4)}
 )"""
     node_count = len(graph)
     number_width = len(str(node_count))
