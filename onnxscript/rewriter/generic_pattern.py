@@ -9,6 +9,7 @@ import typing
 import onnx
 import onnx.helper as oh
 
+import onnxscript
 import onnxscript._legacy_ir as oir
 import onnxscript.rewriter.pattern as orp
 
@@ -294,6 +295,90 @@ class ModelWithGraphStructure(oir.Model, _GraphStructureAPI):
         return proto
 
 
+class PatternMatchResult:
+    """Stores information about a match if a match was successful.
+
+    * pattern: the instance of :class:`GenericPattern` which found this result
+    * model_nodes: matched nodes coming from the model
+    * pattern_nodes: corresponding nodes coming from the pattern
+    * pattern_input_names: input names of the pattern
+    * pattern_ouptut_names: output names of the pattern
+    * kwargs: additional attributes the user may add through the method
+        :meth:`PatternMatchResult.add_kwargs`
+
+    The class creates one attributes `matched_pattern_to_model_name`,
+    which maps every result name from the pattern to the corresponding
+    result name in the model.
+    """
+
+    def __init__(
+        self,
+        pattern: GenericPattern,
+        model_nodes: typing.Sequence[oir.Node],
+        pattern_nodes: typing.Sequence[oir.Node],
+        pattern_input_names: typing.Sequence[str],
+        pattern_output_names: typing.Sequence[str],
+    ):
+        assert len(model_nodes) == len(pattern_nodes)
+        self.pattern = pattern
+        self.model_nodes = model_nodes
+        self.pattern_nodes = pattern_nodes
+        self.pattern_input_names = pattern_input_names
+        self.pattern_output_names = pattern_output_names
+        self.kwargs = {}
+
+        matched_pattern_to_model_name: dict[str, str] = {}
+        for gn, pn in zip(model_nodes, pattern_nodes):
+            assert (
+                gn.op_type == pn.op_type
+            ), f"Unexpected type mismatch {gn.op_type!r} != {pn.op_type!r}"
+            assert len(gn.input_names) == len(
+                pn.input_names
+            ), f"Unexpected number of inputs for type {gn.op_type}"
+            for a, b in zip(gn.input_names, pn.input_names):
+                if b == "":
+                    # optional input or not an interesting input
+                    continue
+                if b in matched_pattern_to_model_name:
+                    assert matched_pattern_to_model_name[b] == a, (
+                        f"Ambiguities, pattern name {b!r} means "
+                        f"{a!r} or {matched_pattern_to_model_name[b]}"
+                    )
+                else:
+                    matched_pattern_to_model_name[b] = a
+
+            assert len(gn.output_names) == len(
+                pn.output_names
+            ), f"Unexpected number of outputs for type {gn.op_type}"
+            for a, b in zip(gn.output_names, pn.output_names):
+                if b == "":
+                    # Only final outputs are interesting.
+                    continue
+                assert a != "", f"{a!r} cannot be optional"
+                if b in matched_pattern_to_model_name:
+                    assert matched_pattern_to_model_name[b] == a, (
+                        f"Ambiguities, pattern name {b!r} means "
+                        f"{a!r} or {matched_pattern_to_model_name[b]}"
+                    )
+                else:
+                    matched_pattern_to_model_name[b] = a
+
+        self.matched_pattern_to_model_name = matched_pattern_to_model_name
+
+    def add_kwargs(self, name: str, value: typing.Any):
+        """Adds an attribute, it can be done when the match is being validated,
+        this attribute can be used when building the replacement nodes.
+        """
+        self.kwargs[name] = value
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}([{self.pattern.__class__.__name__}], "
+            f"... {len(self.model_nodes)} nodes ..., {self.pattern_input_names}, "
+            f"{self.pattern_output_names})"
+        )
+
+
 class GenericRewriteRule(orp.RewriteRule):
     """
     Defines a rewriting rule.
@@ -321,10 +406,9 @@ class GenericRewriteRule(orp.RewriteRule):
         added_nodes = []
         marked = set()
         matched = 0
-        for matched_nodes in self.pattern.enumerate_matches(bridge, node):
-            assert all(isinstance(i, oir.Node) for i in matched_nodes)
+        for match_result in self.pattern.enumerate_matches(bridge, node):
             conflict = False
-            for node in matched_nodes:
+            for node in match_result.model_nodes:
                 if id(node) in marked:
                     conflict = True
                     break
@@ -333,18 +417,21 @@ class GenericRewriteRule(orp.RewriteRule):
                 continue
 
             # Let's build the new nodes
-            new_nodes = self.pattern.apply(bridge, *matched_nodes)
+            if not self.pattern.validate_mapping(bridge, match_result):
+                match_result._hint(
+                    "validate_mapping", "The pattern was rejected by the validation function."
+                )
+                continue
+
+            new_nodes = self.pattern.apply(bridge, match_result)
             assert all(
                 isinstance(i, oir.Node) for i in new_nodes
             ), f"Unexpected types {[type(n) for n in new_nodes]}"
 
-            if not self.pattern.validate_mapping(bridge, matched_nodes, new_nodes):
-                continue
-
             # Everything is good.
-            marked |= set(map(id, matched_nodes))
+            marked |= set(map(id, match_result.model_nodes))
             added_nodes.extend(new_nodes)
-            deleted_nodes.extend(matched_nodes)
+            deleted_nodes.extend(match_result.model_nodes)
             matched += 1
 
         if matched > 0:
@@ -378,9 +465,7 @@ class GenericPattern:
         self.verbose = verbose
         self._cache: dict = {}
 
-    def validate_mapping(
-        self, g: oir.Model, deleted_nodes: list[oir.Node], added_nodes: list[oir.Node]
-    ) -> bool:
+    def validate_mapping(self, g: oir.Model, match_result: PatternMatchResult) -> bool:
         """Evaluates the consistency of the replacements."""
         raise NotImplementedError(
             "This method could return True but it is better to let you know "
@@ -477,10 +562,19 @@ class GenericPattern:
             f"Class {cls.__name__!r} must overwrite method match_pattern."
         )
 
-    @classmethod
     def _build_pattern(
-        cls, g: ModelWithGraphStructure, fct: typing.Callable
+        self,
+        g: ModelWithGraphStructure,
+        fct: typing.Callable | None = None,
+        match: bool = True,
+        kwargs: dict[str, typing.Any] | None = None,
     ) -> BuilderWithGraphStructure:
+        del match
+        assert fct, f"Not implemented if fct is None in class {self.__class__.__name__}"
+        assert not kwargs, (
+            f"Not implemented when kwargs is not empty but {kwargs} "
+            f"in class {self.__class__.__name__}"
+        )
         kwargs = {}
         args = []
 
@@ -514,7 +608,7 @@ class GenericPattern:
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        pat = self._build_pattern(g, self.match_pattern)
+        pat = self._build_pattern(g, fct=self.match_pattern, match=True)
         self._cache[cache_key] = pat
         return pat
 
@@ -523,23 +617,9 @@ class GenericPattern:
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        pat = self._build_pattern(g, self.apply_pattern)
+        pat = self._build_pattern(g, fct=self.apply_pattern, match=False)
         self._cache[cache_key] = pat
         return pat
-
-    def display_pattern(self, g: ModelWithGraphStructure, fct: typing.Callable) -> str:
-        """Shows the pattern to match or to apply."""
-        pat = self._build_pattern(g, fct)
-        rows = []
-        rows.append(
-            f"{fct.__name__}({', '.join(pat.input_names)}) -> {', '.join(pat.output_names)}"
-        )
-        for node in pat.nodes:
-            rows.append(
-                f"{node.op_type}({', '.join(node.input_names)}) -> "
-                f"{', '.join(node.output_names)}"
-            )
-        return "\n".join(rows)
 
     def print_match(self, n1: oir.Node, n2: oir.Node) -> str:
         s1 = f"{n1.op_type}({','.join(n1.input_names)})"
@@ -829,7 +909,7 @@ class GenericPattern:
         self,
         g: ModelWithGraphStructure,
         node: oir.Node,
-    ) -> list[oir.Node] | None:
+    ) -> PatternMatchResult | None:
         self._debug = {}
 
         pat = self._get_match_pattern(g)
@@ -848,8 +928,7 @@ class GenericPattern:
                 f"{node.op_type}({', '.join(node.input_names)})"
             )
             if self.verbose >= 10:
-                print("[GenericPattern.match] match pattern")
-                print(textwrap.indent(self.display_pattern(g, self.match_pattern), "    "))
+                print(f"[GenericPattern.match] match pattern {self!r}")
 
         marked = {id(p_node): (node, p_node)}
         stacked = [id(p_node)]
@@ -925,7 +1004,9 @@ class GenericPattern:
         # We order the matched nodes in the same order than the pattern
         # to let next functions to be able to build the matching again.
         matched_nodes = [marked[id(n)][0] for i, n in enumerate(pat.nodes)]
-        return matched_nodes
+        return PatternMatchResult(
+            self, matched_nodes, pat.nodes, pat.input_names, pat.output_names
+        )
 
     @classmethod
     def apply_pattern(
@@ -942,76 +1023,28 @@ class GenericPattern:
     def apply(
         self,
         g: ModelWithGraphStructure,
-        *nodes: typing.Sequence[oir.Node],
+        match_result: PatternMatchResult,
     ) -> list[oir.Node]:
-        assert all(isinstance(n, oir.Node) for n in nodes)
-        pat = self._build_pattern(g, self.match_pattern)
-        assert len(nodes) == len(pat.nodes), (
-            f"Mismatch matched nodes pattern has {len(pat.nodes)} != {len(nodes)} = "
-            f"the number of matched nodes"
+        assert isinstance(match_result, PatternMatchResult)
+        new_pat = self._build_pattern(
+            g, fct=self.apply_pattern, kwargs=match_result.kwargs, match=False
         )
-        new_pat = self._build_pattern(g, self.apply_pattern)
-        assert len(new_pat.input_names) == len(pat.input_names), (
-            f"Not the same number of inputs, matched inputs={len(new_pat.input_names)}, "
-            f"got {len(pat.input_names)} in the applied pattern."
+        assert len(new_pat.input_names) == len(match_result.pattern_input_names), (
+            f"Not the same number of inputs, "
+            f"matched inputs={len(new_pat.input_names)}, "
+            f"got {len(match_result.pattern_input_names)} in the applied pattern."
         )
-        assert len(new_pat.output_names) == len(pat.output_names), (
-            f"Not the same number of outputs, matched outputs={pat.output_names}, "
+        assert len(new_pat.output_names) == len(match_result.pattern_output_names), (
+            f"Not the same number of outputs, matched "
+            f"outputs={match_result.pattern_output_names}, "
             f"got {new_pat.output_names} in the applied pattern."
         )
-        assert all(isinstance(n, oir.Node) for n in pat.nodes)
 
         if g.verbose > 5:
             print(
-                f"[GenericPattern.apply] replace {len(nodes)} nodes, "
+                f"[GenericPattern.apply] replace {len(match_result.model_nodes)} nodes, "
                 f"applied {self.display_pattern(g, self.apply_pattern)}"
             )
-
-        matched_pattern_to_applied_pattern = {}
-        for i, j in zip(pat.input_names, new_pat.input_names):
-            matched_pattern_to_applied_pattern[i] = j
-        for i, j in zip(pat.output_names, new_pat.output_names):
-            matched_pattern_to_applied_pattern[i] = j
-
-        matched_pattern_to_graph_name: dict = {}
-        input_names = set(pat.input_names)
-        output_names = set(pat.output_names)
-
-        matched_pairs = list(zip(nodes, pat.nodes))
-        for gn, pn in matched_pairs:
-            assert (
-                gn.op_type == pn.op_type
-            ), f"Unexpected type mismatch {gn.op_type!r} != {pn.op_type!r}"
-            assert len(gn.input_names) == len(
-                pn.input_names
-            ), f"Unexpected number of inputs for type {gn.op_type}"
-            for a, b in zip(gn.input_names, pn.input_names):
-                if b not in input_names or b == "":
-                    # optional input or not an interesting input
-                    continue
-                if b in matched_pattern_to_graph_name:
-                    assert matched_pattern_to_graph_name[b] == a, (
-                        f"Ambiguities, pattern name {b!r} means "
-                        f"{a!r} or {matched_pattern_to_graph_name[b]}"
-                    )
-                else:
-                    matched_pattern_to_graph_name[b] = a
-
-            assert len(gn.output_names) == len(
-                pn.output_names
-            ), f"Unexpected number of outputs for type {gn.op_type}"
-            for a, b in zip(gn.output_names, pn.output_names):
-                if b not in output_names or b == "":
-                    # Only final outputs are interesting.
-                    continue
-                assert a != "", f"{a!r} cannot be optional"
-                if b in matched_pattern_to_graph_name:
-                    assert matched_pattern_to_graph_name[b] == a, (
-                        f"Ambiguities, pattern name {b!r} means "
-                        f"{a!r} or {matched_pattern_to_graph_name[b]}"
-                    )
-                else:
-                    matched_pattern_to_graph_name[b] = a
 
         # TODO: handle initializers here
         # for name, init in pattern.initializers.items():
@@ -1019,9 +1052,15 @@ class GenericPattern:
         #   new_name = g.make_initializer(name, init)
         #   replacements[new_name] = name
 
+        applied_pattern_to_match_pattern = {}
+        for i, j in zip(match_result.pattern_input_names, new_pat.input_names):
+            applied_pattern_to_match_pattern[j] = i
+        for i, j in zip(match_result.pattern_output_names, new_pat.output_names):
+            applied_pattern_to_match_pattern[j] = i
+
         replacements = {}
-        for k, v in matched_pattern_to_graph_name.items():
-            replacements[matched_pattern_to_applied_pattern[k]] = v
+        for k, v in applied_pattern_to_match_pattern.items():
+            replacements[k] = match_result.matched_pattern_to_model_name[v]
 
         # Creation of the new node.
         new_nodes = []
@@ -1041,7 +1080,7 @@ class GenericPattern:
                     replacements[o] = n
                     new_outputs.append(n)
             new_node = g.make_node(node.op_type, new_inputs, new_outputs, domain=node.domain)
-            new_node.attribute.extend(node.attribute)
+            new_node.attribute.extend(node.original_node_proto.attribute)
             new_nodes.append(oir.Node(new_node, True))
 
         if g.verbose > 5:
@@ -1062,6 +1101,11 @@ class OnnxGenericPattern(GenericPattern):
     :param match_proto: the onnx function defining the matching pattern
     :param apply_proto: the onnx function defining the new pattern
     :param validate_mapping: the function used to validate a pattern
+    :param use_onnxscript: tells if the apply_proto is an onnxscript function or
+        a regular function returning a FunctionProto
+    :param opsets: opset to consider when converting the function into ONNX,
+        if not specified, it is opset 18 for the main opset, and opset 1
+        for domain com.microsoft.
     :param verbose: in [0, 10], increase the verbosity to understand why a pattern
         does not match
     """
@@ -1069,39 +1113,54 @@ class OnnxGenericPattern(GenericPattern):
     def __init__(
         self,
         match_proto: onnx.FunctionProto,
-        apply_proto: onnx.FunctionProto,
+        apply_proto: onnx.FunctionProto | typing.Callable,
         validate_mapping: typing.Callable,
+        use_onnxscript: bool = True,
+        opsets: dict[str, onnxscript.values.Opset] | None = None,
         verbose: int = 0,
     ):
         super().__init__(verbose=verbose)
         self.match_proto = match_proto
         self._validate_mapping = validate_mapping
         self.apply_proto = apply_proto
+        self.use_onnxscript = use_onnxscript
+        self.opsets = opsets
         self._cache = {}
 
-    def validate_mapping(
-        self, g: oir.Model, deleted_nodes: list[oir.Node], added_nodes: list[oir.Node]
-    ) -> bool:
+    def validate_mapping(self, g: oir.Model, match_result: PatternMatchResult) -> bool:
         """Evaluates the consistency of the replacements."""
-        return self._validate_mapping(g, deleted_nodes, added_nodes)
+        return self._validate_mapping(g, match_result)
 
     def _build_pattern(
-        self, g: ModelWithGraphStructure, fct: typing.Callable
+        self,
+        g: ModelWithGraphStructure,
+        fct: typing.Callable | None = None,
+        kwargs: dict[str, typing.Any] | None = None,
+        match: bool = True,
     ) -> BuilderWithGraphStructure:
-        if fct == self.match_pattern:
-            key = id(g), "match"
-            if key in self._cache:
-                return self._cache[key]
-            onx = self.match_proto
-        elif fct == self.apply_pattern:
-            key = id(g), "apply"
-            if key in self._cache:
-                return self._cache[key]
-            onx = self.apply_proto
+        del fct
+        if match:
+            key = id(g), match, str(kwargs)
         else:
-            raise AssertionError(
-                f"Function {fct} is not {self.match_pattern} or {self.apply_pattern}."
-            )
+            key = id(g), match, str(kwargs)
+            assert not callable(self.apply_proto) or isinstance(kwargs, dict)
+        if key in self._cache:
+            return self._cache[key]
+
+        if match:
+            onx = self.match_proto
+        elif callable(self.apply_proto):
+            if self.use_onnxscript:
+                onx = onnxscript.script(**self.opsets)(self.apply_proto).to_function_proto()
+            else:
+                sig = inspect.signature(self.apply_proto)
+                args = []
+                for p in sig.parameters.values():
+                    if p.default is not inspect._empty:
+                        continue
+                    args.append(p.name)
+                onx = self.apply_proto(*args, **kwargs)
+        self._cache[key] = onx
 
         g2 = g.make_opset()
         for name in onx.input:
@@ -1116,11 +1175,12 @@ class OnnxGenericPattern(GenericPattern):
 
 
 def make_pattern_rule(
-    match_pattern: typing.Callable,
-    apply_pattern: typing.Callable,
+    match_pattern: typing.Callable | onnx.FunctionProto,
+    apply_pattern: typing.Callable | onnx.FunctionProto,
     validate_mapping: typing.Callable | None = None,
     verbose: int = 0,
-    opsets: dict[str, "onnxscript.Opset"] | None = None,  # noqa: F821
+    use_onnxscript: bool = True,
+    opsets: dict[str, onnxscript.values.Opset] | None = None,
 ) -> orp.RewriteRule:
     """
     Creates a rewriting rule.
@@ -1137,6 +1197,8 @@ def make_pattern_rule(
     :param opsets: opset to consider when converting the function into ONNX,
         if not specified, it is opset 18 for the main opset, and opset 1
         for domain com.microsoft.
+    :param use_onnxscript: tells if the apply_proto is an onnxscript function or
+        a regular function returning a FunctionProto
     :return: the rewriting rule
     """
     import onnxscript
@@ -1148,18 +1210,19 @@ def make_pattern_rule(
 
     if verbose > 5:
         print(f"[make_pattern_rule] Converting {match_pattern} into ONNX.")
-    match = onnxscript.script(**opsets)(match_pattern).to_function_proto()
-    if verbose > 5:
-        print("[make_pattern_rule] done.")
-        print(f"[make_pattern_rule] Converting {apply_pattern} into ONNX.")
-    apply = onnxscript.script(**opsets)(apply_pattern).to_function_proto()
-    if verbose > 5:
-        print("[make_pattern_rule] done.")
+
+    if isinstance(match_pattern, onnx.FunctionProto):
+        match = match_pattern
+    else:
+        match = onnxscript.script(**opsets)(match_pattern).to_function_proto()
+    assert match.node, f"The match pattern has no node, function={match_pattern}."
 
     pat = OnnxGenericPattern(
         match,
-        apply,
+        apply_pattern,
         validate_mapping or (lambda *_, **__: True),
         verbose=verbose,
+        use_onnxscript=use_onnxscript,
+        opsets=opsets,
     )
     return pat.make_rule()
