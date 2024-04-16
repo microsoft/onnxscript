@@ -3937,36 +3937,20 @@ def _shape_of_broadcast_tensors(*args: TensorType) -> INT64:
     return op.Shape(broadcasted)
 
 
-@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
-def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
-    """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
-
-    NOTE: Understanding `aten::index`
-    For `arg0` with shape `[7, 3, 4, 5, 6]`
-    The indexing operation `arg0[0, :, 1:2, tensor([[4,5]])]` will be translated to
-
-    ```
-    +>  select: i64[3, 4, 5, 6] = torch.ops.aten.select.int(arg0, 0, 0);
-    +>  slice_1: i64[3, 4, 5, 6] = torch.ops.aten.slice.Tensor(select, 0, 0, 9223372036854775807);
-    +>  slice_2: i64[3, 1, 5, 6] = torch.ops.aten.slice.Tensor(slice_1, 1, 1, 2);
-    +>  index: i64[3, 1, 1, 2, 6] = torch.ops.aten.index.Tensor(slice_2, [None, None, arg1]);
-    ```
-
-    Here,
-    - `indices = [None, None, arg1]` is equivalent to `indices = [None, None, arg1, None]`
-    - The operation `arg0[0, :, 1:2, tensor([[4,5]])]` is equivalent to `arg0[0, :, 1:2, tensor([[4,5]]), :]`
-
-    None in `indices` are like fillers for dimensions that cannot be removed in the process.
-    """
-
+@torch_op("aten::index.Tensor", private=True, trace_only=True)
+def _aten_index_onnx(
+    self: TensorType,
+    indices: Sequence[Optional[INT64]],
+    index_ranks: Sequence[int],
+) -> TensorType:
     self_rank = len(self.shape)
-    index_ranks = [len(index.shape) for index in indices if index is not None]
     advanced_indexing_rank = max(index_ranks)
 
     # reordered_positions is the permutation of the index positions where
     # positions with None are move to the end of the list
     # For example, if indices = [None, 1, None, 2], then reordered_positions = [1, 3, 0, 2]
     reordered_positions = sorted(range(len(indices)), key=lambda i: (indices[i] is None, i))
+
     # Fill the list with the remaining indices up to the rank of the tensor self.
     # For example, if indices = [None, 1, None, 2], and the rank of self is 6,
     # then reordered_positions = [1, 3, 0, 2, 4, 5]
@@ -4033,6 +4017,74 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
     ]
 
     return op.Transpose(self, perm=perm)
+
+
+@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
+def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
+    """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
+
+    NOTE: Understanding `aten::index`
+    For `arg0` with shape `[7, 3, 4, 5, 6]`
+    The indexing operation `arg0[0, :, 1:2, tensor([[4,5]])]` will be translated to
+
+    ```
+    +>  select: i64[3, 4, 5, 6] = torch.ops.aten.select.int(arg0, 0, 0);
+    +>  slice_1: i64[3, 4, 5, 6] = torch.ops.aten.slice.Tensor(select, 0, 0, 9223372036854775807);
+    +>  slice_2: i64[3, 1, 5, 6] = torch.ops.aten.slice.Tensor(slice_1, 1, 1, 2);
+    +>  index: i64[3, 1, 1, 2, 6] = torch.ops.aten.index.Tensor(slice_2, [None, None, arg1]);
+    ```
+
+    Here,
+    - `indices = [None, None, arg1]` is equivalent to `indices = [None, None, arg1, None]`
+    - The operation `arg0[0, :, 1:2, tensor([[4,5]])]` is equivalent to `arg0[0, :, 1:2, tensor([[4,5]]), :]`
+
+    None in `indices` are like fillers for dimensions that cannot be removed in the process.
+    """
+
+    index_ranks = [len(index.shape) for index in indices if index is not None]
+
+    return _aten_index_onnx(self, indices, index_ranks)
+
+
+@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
+def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> TensorType:  # pylint: disable=inconsistent-return-statements
+    index_ranks = [len(index.shape) for index in indices if index is not None]
+
+    if index_ranks[0] == 1:
+        # indices contains scalar only.
+        new_indices = [
+            op.Transpose(op.NonZero(index), perm=[1, 0]) if index is not None else None
+            for index in indices
+        ]
+        new_indices = [
+            op.Squeeze(index, axes=[1]) if index is not None else None for index in new_indices
+        ]
+        return _aten_index_onnx(self, new_indices, index_ranks)
+    else:
+        input_rank = len(self.shape)
+        # Prepare perm for transposing self tensor.
+        # In indices, None meaning skip the corresponding dimension,
+        # so we need to move this dimension to the end of the list.
+        # After we gathered the final results, we transpose it back.
+        # For example,
+        # self's shape is [5, 5, 5, 5], indices is [None, (5, 5)]
+        # the final result's shape should be [5, 16, 5].
+        trans_perm = list(range(input_rank))
+        trans_perm.append(trans_perm.pop(0))
+        count_of_none = 0
+        for index in indices:
+            if index is None:
+                self = op.Transpose(self, perm=trans_perm)
+                count_of_none += 1
+            else:
+                new_indices = op.Transpose(op.NonZero(index), perm=[1, 0])
+                result = op.GatherND(self, new_indices, batch_dims=0)
+                finla_rank = input_rank - (len(index.shape) - 1)
+                trans_perm = list(range(finla_rank))
+                trans_perm = trans_perm[-1:] + trans_perm[:-1]
+                for _ in range(count_of_none):
+                    result = op.Transpose(result, perm=trans_perm)
+                return result
 
 
 def aten_index_add(
@@ -5788,29 +5840,37 @@ def aten__native_batch_norm_legit_functional(
     # We have to split to two private functions, because BatchNormalization returns
     # three outputs when training_mode=True and one when it is False.
     if training:
-        norm, input_mean, input_rstd, running_mean, running_var = (
-            _aten_native_batch_norm_training_onnx(
-                input,
-                weight,
-                bias,
-                running_mean,
-                running_var,
-                axes,
-                momentum=1.0 - momentum,
-                eps=eps,
-            )
+        (
+            norm,
+            input_mean,
+            input_rstd,
+            running_mean,
+            running_var,
+        ) = _aten_native_batch_norm_training_onnx(
+            input,
+            weight,
+            bias,
+            running_mean,
+            running_var,
+            axes,
+            momentum=1.0 - momentum,
+            eps=eps,
         )
     else:
-        norm, input_mean, input_rstd, running_mean, running_var = (
-            _aten_native_batch_norm_inference_onnx(
-                input,
-                weight,
-                bias,
-                running_mean,
-                running_var,
-                momentum=1.0 - momentum,
-                eps=eps,
-            )
+        (
+            norm,
+            input_mean,
+            input_rstd,
+            running_mean,
+            running_var,
+        ) = _aten_native_batch_norm_inference_onnx(
+            input,
+            weight,
+            bias,
+            running_mean,
+            running_var,
+            momentum=1.0 - momentum,
+            eps=eps,
         )
 
     return norm, input_mean, input_rstd, running_mean, running_var
