@@ -532,7 +532,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     After the node is initialized, it will add itself as a user of the input values.
 
     The output values of the node are created during node initialization and are immutable.
-    To change the output values, create a new node and replace the output.users.inputs with
+    To change the output values, create a new node and replace the each of the inputs of ``output.consumers`` with
     the new output values by calling :meth:`replace_input_with` on the user nodes
     of this node's outputs.
     """
@@ -590,7 +590,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._inputs: tuple[Value | None, ...] = tuple(inputs)
         # Values belong to their defining nodes. The values list is immutable
         self._outputs: tuple[Value, ...] = tuple(
-            Value(self, def_index=i) for i in range(num_outputs)
+            Value(self, index=i) for i in range(num_outputs)
         )
         self._attributes: OrderedDict[str, Attr | RefAttr] = OrderedDict(
             (attr.name, attr) for attr in attributes
@@ -882,25 +882,48 @@ class OptionalType(_RecursiveTypeBase):
 
 
 class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
-    """IR Value."""
+    """IR Value.
 
+    A value is a named entity that can be used to represent an input or output of a graph,
+    a function, or a node. The information it stores corresponds to ``ValueInfoProto``
+    in the ONNX specification.
+
+    A :class:`Value` is always not owned or owned by exactly one node. When the value is not
+    owned, it must be an input of a graph or a function. ``producer`` and ``index``
+    are ``None``.
+
+    When the value is owned by a node, it is an output of the node.
+    The node that produces the value can be accessed with :meth:`producer`.
+    The index of the output of the node that produces the value can be accessed with
+    :meth:`index`.
+
+    To find all the nodes that use this value as an input, call :meth:`consumers`.
+
+    To check if the value is an output of a graph, call :meth:`is_graph_output`.
+
+    Attributes:
+        name: The name of the value. A value is always named when it is part of a graph.
+        shape: The shape of the value.
+        type: The type of the value.
+        metadata_props: Metadata.
+    """
     __slots__ = (
-        "_def_node",
-        "_def_index",
+        "_producer",
+        "_index",
         "_metadata",
         "_metadata_props",
         "_name",
         "_shape",
         "_type",
         "_const_value",
-        "_users",
+        "_consumers",
     )
 
     def __init__(
         self,
-        def_node: Node | None,
+        producer: Node | None,
         *,
-        def_index: int | None,
+        index: int | None,
         name: str | None = None,
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
@@ -908,9 +931,9 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         | Sequence[_protocols.TensorProtocol]
         | None = None,
     ) -> None:
-        # def_node is None when the value is an input or an initializer
-        self._def_node: Node | None = def_node
-        self._def_index: int | None = def_index
+        # producer is None when the value is an input or an initializer
+        self._producer: Node | None = producer
+        self._index: int | None = index
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
 
@@ -920,19 +943,19 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # TODO(justinchuby): Handle initialization when a const value is provided
         # We can get shape and type information from the const value
         self._const_value = const_value
-        # Use a collection of (Node, int) to store users. This is needed
-        # because a single user can use the same value multiple times.
-        self._users: set[tuple[Node, int]] = set()
+        # Use a collection of (Node, int) to store consumers. This is needed
+        # because a single consumer can use the same value multiple times.
+        self._consumers: set[tuple[Node, int]] = set()
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
-        def_node = self.def_node()
-        def_node_text = (
-            def_node.name or "anonymous_node:" + str(id(def_node))
-            if def_node is not None
+        producer = self.producer()
+        producer_text = (
+            producer.name or "anonymous_node:" + str(id(producer))
+            if producer is not None
             else None
         )
-        return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, def_node={def_node_text}, def_index={self.def_index()})"
+        return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, producer={producer_text}, index={self.index()})"
 
     def __str__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
@@ -943,35 +966,35 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # that make them hard to read
         return f"%{_quoted(value_name)}<{type_text},{shape_text}>"
 
-    def def_node(self) -> Node | None:
+    def producer(self) -> Node | None:
         """The node that produces this value."""
-        return self._def_node
+        return self._producer
 
-    def def_index(self) -> int | None:
+    def index(self) -> int | None:
         """The index of the output of the defining node."""
-        return self._def_index
+        return self._index
 
-    def users(self) -> frozenset[tuple[Node, int]]:
-        """Return a set of users of the value.
+    def consumers(self) -> frozenset[tuple[Node, int]]:
+        """Return a set of consumers of the value.
 
         The set contains tuples of ``(Node, index)`` where the index is the index of the input
         of the node. For example, if ``node.inputs[1] == value``, then the user is ``(node, 1)``.
         """
-        return frozenset(self._users)
+        return frozenset(self._consumers)
 
     def _add_user(self, user: Node, index: int) -> None:
         """Add a user node.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._users.add((user, index))
+        self._consumers.add((user, index))
 
     def _remove_user(self, user: Node, index: int) -> None:
-        """Remove a node from the users of this value.
+        """Remove a node from the consumers of this value.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._users.remove((user, index))
+        self._consumers.remove((user, index))
 
     @property
     def name(self) -> str | None:
@@ -1066,12 +1089,12 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def is_graph_output(self) -> bool:
         """Whether the value is an output of a graph."""
-        def_node = self.def_node()
-        if def_node is None:
+        producer = self.producer()
+        if producer is None:
             return False
-        if def_node.graph is None:
+        if producer.graph is None:
             return False
-        return self in def_node.graph.outputs
+        return self in producer.graph.outputs
 
 
 class Input(Value):
@@ -1086,7 +1109,7 @@ class Input(Value):
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
     ) -> None:
-        super().__init__(None, def_index=None)
+        super().__init__(None, index=None)
         self._name = name
         self._shape = shape
         self._type = type

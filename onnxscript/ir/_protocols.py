@@ -126,13 +126,13 @@ class ValueProtocol(Protocol):
     in the ONNX specification.
 
     A :class:`Value` is always not owned or owned by exactly one node. When the value is not
-    owned, it must be an input of a graph or a function. ``def_node`` and ``def_index``
+    owned, it must be an input of a graph or a function. ``producer`` and ``index``
     are ``None``.
 
     When the value is owned by a node, it is an output of the node.
-    The node that produces the value can be accessed with :meth:`def_node`.
+    The node that produces the value can be accessed with :meth:`producer`.
     The index of the output of the node that produces the value can be accessed with
-    :meth:`def_index`.
+    :meth:`index`.
 
     To find all the nodes that use this value as an input, call :meth:`users`.
 
@@ -151,15 +151,15 @@ class ValueProtocol(Protocol):
     metadata_props: Mapping[str, str]
     meta: Mapping[str, Any]
 
-    def def_node(self) -> NodeProtocol | None:
+    def producer(self) -> NodeProtocol | None:
         """The node that produces this value."""
         ...
 
-    def def_index(self) -> int | None:
+    def index(self) -> int | None:
         """The index of the output of the node that produces this value."""
         ...
 
-    def users(self) -> AbstractSet[tuple[NodeProtocol, int]]:
+    def consumers(self) -> AbstractSet[tuple[NodeProtocol, int]]:
         """The set of (node, input_index) with node being those that use this value as an input."""
         ...
 
