@@ -1059,23 +1059,8 @@ class RewriteRuleSet:
         for rule in self.rules:
             deltas = []
             for i, node in enumerate(graph_or_function.nodes):
-                if hasattr(rule, "pattern"):
-                    from onnxscript.rewriter.generic_pattern import (
-                        GenericRewriteRule,
-                        ModelWithGraphStructure,
-                    )
+                delta = rule.try_rewrite(model, node)
 
-                    assert isinstance(
-                        rule, GenericRewriteRule
-                    ), f"Unexpected type {type(rule)}"
-                    # The successors and the predecessors do not change
-                    # until the deltas are applied. We cache the structure
-                    # to avoid building them again.
-                    if bridge is None:
-                        bridge = ModelWithGraphStructure(model)
-                    delta = rule.try_rewrite(bridge, node)
-                else:
-                    delta = rule.try_rewrite(model, node)
                 if delta is None:
                     continue
 

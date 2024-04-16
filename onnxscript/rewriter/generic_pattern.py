@@ -4,19 +4,45 @@ import collections
 import inspect
 import os
 import textwrap
-import typing
+from typing import Sequence, Any, Iterator
 
 import onnx
 
 import onnxscript
 import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
-from onnxscript.ir import _ir_utils_temp, serde
+from onnxscript.ir import serde
+from onnxscript.rewriter import _tape
+
+class _SimpleBuilder:
+    """temporary adaptor for building 'generic patterns'."""
+    # TODO(justinchuby): Merge with the rest of pattern building methods
+    def __init__(self):
+        self.tape = _tape.Tape()
+
+    def __getattr__(self, op_type: str) -> Any:
+        return lambda *args, **kwargs: self._make_node(op_type, args, kwargs)
+
+    def _make_node(self, op_type: int, inputs: Sequence[ir.Value], kwargs: dict[str, Any]):
+        domain = kwargs.pop("domain", "")
+        output_names = kwargs.pop("output_names", 1)
+        if isinstance(output_names, Sequence):
+            num_outputs = len(output_names)
+        else:
+            assert isinstance(output_names, int)
+            num_outputs = num_outputs
+        if num_outputs == 1:
+            return self.tape.op(op_type, inputs=inputs, attributes=kwargs, domain=domain)
+        return self.tape.op_multi_output(op_type, inputs=inputs, attributes=kwargs, domain=domain, num_outputs=num_outputs)
+
+    @property
+    def nodes(self) -> Sequence[ir.Node]:
+        return self.tape.nodes
 
 
 def enumerate_subgraphs(
     node: ir.Node,
-) -> typing.Iterator[tuple[typing.Any, ...]]:
+) -> Iterator[tuple[Any, ...]]:
     """Returns the subgraphs inside a graph."""
     for att in node.attributes.values():
         # TODO: improve this
@@ -28,302 +54,6 @@ def enumerate_subgraphs(
             for no in att.g.node:
                 for tu in enumerate_subgraphs(no):
                     yield this + tu
-
-
-class _GraphStructureAPI:
-    """Common accessors to predecessors and successors."""
-
-    def __init__(self):
-        self.predecessors_: dict[str, int] = {}
-        self.successors_: dict[str, list[int]] = {}
-        self.nodes_: dict[int, ir.Node] = {}
-
-    def node_before(self, name: str) -> ir.Node | None:
-        """
-        Returns the node producing this output.
-
-        Returns None if it is an input or an initializer.
-        """
-        if name not in self.predecessors_:
-            return None
-        predecessor = self.predecessors_[name]
-        return self.nodes_[predecessor]
-
-    def next_nodes(self, name: str) -> list[ir.Node] | None:
-        """Returns the node consuming the given results."""
-        if name not in self.successors_:
-            return []
-        return [self.nodes_[i] for i in self.successors_[name]]
-
-
-class BuilderWithGraphStructure(_GraphStructureAPI):
-    """Very concise graph builder.
-
-    It wraps an ONNX graph
-    and builds successors and predecessors on top of it.
-    """
-
-    def __init__(self, bridge: ModelWithGraphStructure):
-        super().__init__()
-        self.bridge: ModelWithGraphStructure = bridge
-        self.input_names: list[str] = []
-        self.output_names: list[str] = []
-        self.nodes: list[ir.Node] = []
-
-    def _build(self) -> None:
-        self.predecessors_: dict[str, int] = {}
-        self.successors_: dict[str, list[int]] = {}
-        self.nodes_: dict[int, ir.Node] = {}
-
-        self.outputs_ = set(self.output_names)
-        for node in self.nodes:
-            self.nodes_[id(node)] = node
-
-        for k, v in self.nodes_.items():
-            assert isinstance(v, ir.Node), f"Unexpected type {type(v)} for node {k}"
-            for o in v.outputs:
-                self.predecessors_[o.name] = k
-            for i in v.inputs:
-                if i.name not in self.successors_:
-                    self.successors_[i.name] = []
-                self.successors_[i.name].append(k)
-
-    def make_input(self, name: str) -> None:
-        self.input_names.append(name)
-
-    def make_output(self, name: str) -> None:
-        self.output_names.append(name)
-
-    def __getattr__(self, name: str) -> typing.Any:
-        if name in self.__dict__:
-            return self.__dict__[name]
-
-        # unknown name
-        assert (
-            name[0].upper() == name[0]
-        ), f"A node type must starts with an upper letter but it is {name!r}"
-        return lambda *args, _name=name, **kwargs: self._make_node(_name, *args, **kwargs)
-
-    def _make_node(
-        self,
-        op_type: str,
-        *args: str,
-        output_names: list[str] | int | None = None,
-        **kwargs: typing.Any,
-    ) -> str | tuple[str]:
-        if output_names is None:
-            # We assume there is only one outputs, we could also check into the schema.
-            output_names = 1
-        return self.make_node(op_type, *args, output_names=output_names, **kwargs)
-
-    def make_node_with_proto(self, node_proto: onnx.NodeProto) -> tuple[str] | str:
-        return self.make_node(
-            node_proto.op_type,
-            *node_proto.input,
-            output_names=list(node_proto.output),
-            name=node_proto.name,
-            domain=node_proto.domain,
-        )
-
-    # TODO: multiple dtype in one argument. We should improve this
-    def make_node(
-        self,
-        op_type: str,
-        *input_names: ir.Value | str,
-        output_names: int | list[str] | str | None = None,
-        domain: str = "",
-        name: str | None = None,
-        **kwargs: typing.Any,
-    ) -> str | tuple[str]:
-        inputs = [
-            ir.Value(name=name, def_node=None, def_index=None)
-            if isinstance(name, str)
-            else name
-            for name in input_names
-        ]
-        if isinstance(output_names, int):
-            node = ir.Node(
-                domain=domain, op_type=op_type, inputs=inputs, num_outputs=output_names
-            )
-            _ir_utils_temp.post_node_output_naming(node)
-        elif isinstance(output_names, str):
-            node = ir.Node(domain=domain, op_type=op_type, inputs=inputs, num_outputs=1)
-            node.outputs[0].name = output_names
-        elif isinstance(output_names, list):
-            node = ir.Node(
-                domain=domain, op_type=op_type, inputs=inputs, num_outputs=len(output_names)
-            )
-            for output, name in zip(node.outputs, output_names):
-                output.name = name
-        else:
-            raise TypeError(f"Unexpected type {type(output_names)} for output_names")
-        self.nodes.append(node)
-        assert node.outputs, f"No output in node {node}. This can't be true."
-        if len(node.outputs) == 1:
-            return node.outputs[0].name
-        return tuple([output.name for output in node.outputs])
-
-
-class ModelWithGraphStructure(ir.Model, _GraphStructureAPI):
-    """Implements all the necessary API it needs to work.
-
-    Wraps a :class:`Model` and builds successors and predecessors on
-    top of it.
-    """
-
-    def __init__(self, model: ir.Model, verbose: int = 0):
-        ir.Model.__init__(
-            self,
-            graph=model.graph,
-            ir_version=model.ir_version,
-            producer_name=model.producer_name,
-            domain=model.domain,
-            doc_string=model.doc_string,
-            model_version=model.model_version,
-            functions=model.functions,
-        )
-        _GraphStructureAPI.__init__(self)
-        self.model = model
-        if hasattr(self.model, "graph"):
-            self.nodes = list(model.graph.nodes)
-            self.input_names = [input.name for input in model.graph.inputs]
-            self.output_names = [output.name for output in model.graph.outputs]
-            self._build()
-        else:
-            # empty graph
-            self._unique_names: set = set()
-            self._unique_node_names: set = set()
-        self.verbose = verbose
-
-    def _build(self) -> None:
-        """Builds successor and predecessor."""
-        self.nodes_ = {}
-        self.outputs_ = set(self.output_names)
-        self._unique_node_names = set()
-        for node in self.nodes:
-            self.nodes_[id(node)] = node
-            if node.name:
-                self._unique_node_names.add(node.name)
-
-        self.predecessors_: dict = {}
-        self.successors_: dict = {}
-        # TODO: # initiliazer are missing
-        self._unique_names = set(self.input_names) | set(self.output_names)
-        for k, v in self.nodes_.items():
-            assert isinstance(v, ir.Node), f"Unexpected type {type(v)} for node {k}"
-            for o in v.outputs:
-                self.predecessors_[o.name] = k
-            for i in v.inputs:
-                if i.name not in self.successors_:
-                    self.successors_[i.name] = []
-                self.successors_[i.name].append(k)
-
-            for sub in enumerate_subgraphs(v):
-                g = sub[-1]
-                sub_knowns = set()
-                for n in g.input:
-                    sub_knowns.add(n.name)
-                for n in g.initializer:
-                    sub_knowns.add(n.name)
-                for n in g.sparse_initializer:
-                    sub_knowns.add(n.name)
-                for n in g.node:
-                    for i in n.input:
-                        if i not in sub_knowns:
-                            # an input coming from the parent
-                            self._unique_names.add(i)
-                    for i in n.output:
-                        sub_knowns.add(i)
-
-    def unique_name(self, prefix: str) -> str:
-        """Generates a unique result name.
-
-        That excludes existing names as well.
-        """
-        if prefix in self._unique_names:
-            i = 2
-            sug = f"{prefix}2"
-            while sug in self._unique_names:
-                i += 1
-                sug = f"{prefix}{i}"
-            self._unique_names.add(sug)
-            return sug
-        self._unique_names.add(prefix)
-        return prefix
-
-    def unique_node_name(self, name: str | None) -> str:
-        """Creates a unique node name."""
-        name = name or ""
-        if name in self._unique_node_names:
-            i = 2
-            sug = f"{name}2"
-            while sug in self._unique_node_names:
-                i += 1
-                sug = f"{name}{i}"
-            self._unique_node_names.add(sug)
-            return sug
-        self._unique_node_names.add(name)
-        return name
-
-    def make_opset(self) -> BuilderWithGraphStructure:
-        return BuilderWithGraphStructure(self)
-
-    @property
-    def opsets(self) -> dict:
-        """Property."""
-        return self.model.opset_imports
-
-    def make_node(
-        self,
-        op_type: str,
-        input_names: str | typing.Sequence[str] | None,
-        output_names: int | typing.Sequence[str] | str | None = 1,
-        domain: str = "",
-        attributes: tuple[ir.Attr | ir.RefAttr] | None = None,
-        name: str | None = None,
-        **kwargs: typing.Any,
-    ) -> ir.Node:
-        """
-        Creates a node without adding it to the graph.
-
-        :param op_type: operator type
-        :param input_names: input names
-        :param output_names: outputs names, if one integer, creates n unique names,
-            if str, creates one unique names, if a list, use the name
-        :param domain: node domain
-        :param attributes: list of attributes
-        :param name: node name
-        :param kwargs: other attributes
-        :return: a node
-        """
-        name = self.unique_node_name(name)
-        if isinstance(output_names, int):
-            if output_names == 1:
-                output_names = [self.unique_name(f"{op_type.lower()}")]
-            else:
-                output_names = [
-                    self.unique_name(f"{op_type.lower()}-{i}") for i in range(output_names)
-                ]
-        elif isinstance(output_names, str):
-            output_names = [self.unique_name(output_names)]
-
-        inputs = [
-            ir.Value(name=name, def_node=None, def_index=None)
-            if isinstance(name, str)
-            else name
-            for name in input_names
-        ]
-        # TODO: Add a test for attributes
-        node = ir.Node(
-            domain=domain,
-            op_type=op_type,
-            inputs=inputs,
-            attributes=attributes,
-            num_outputs=len(output_names),
-        )
-        for output, name in zip(node.outputs, output_names):
-            output.name = name
-        return node
 
 
 class PatternMatchResult:
@@ -345,10 +75,10 @@ class PatternMatchResult:
     def __init__(
         self,
         pattern: GenericPattern,
-        model_nodes: typing.Sequence[ir.Node],
-        pattern_nodes: typing.Sequence[ir.Node],
-        pattern_input_names: typing.Sequence[str],
-        pattern_output_names: typing.Sequence[str],
+        model_nodes: Sequence[ir.Node],
+        pattern_nodes: Sequence[ir.Node],
+        pattern_input_names: Sequence[str],
+        pattern_output_names: Sequence[str],
     ):
         assert len(model_nodes) == len(pattern_nodes)
         self.pattern = pattern
@@ -396,7 +126,7 @@ class PatternMatchResult:
 
         self.matched_pattern_to_model_name = matched_pattern_to_model_name
 
-    def add_kwargs(self, name: str, value: typing.Any):
+    def add_kwargs(self, name: str, value: Any):
         """Adds an attribute, it can be done when the match is being validated,
         this attribute can be used when building the replacement nodes.
         """
@@ -429,10 +159,10 @@ class PatternMatchResult:
     def __init__(
         self,
         pattern: GenericPattern,
-        model_nodes: typing.Sequence[ir.Node],
-        pattern_nodes: typing.Sequence[ir.Node],
-        pattern_input_names: typing.Sequence[str],
-        pattern_output_names: typing.Sequence[str],
+        model_nodes: Sequence[ir.Node],
+        pattern_nodes: Sequence[ir.Node],
+        pattern_input_names: Sequence[str],
+        pattern_output_names: Sequence[str],
     ):
         assert len(model_nodes) == len(pattern_nodes)
         self.pattern = pattern
@@ -480,7 +210,7 @@ class PatternMatchResult:
 
         self.matched_pattern_to_model_name = matched_pattern_to_model_name
 
-    def add_kwargs(self, name: str, value: typing.Any):
+    def add_kwargs(self, name: str, value: Any):
         """Adds an attribute, it can be done when the match is being validated,
         this attribute can be used when building the replacement nodes.
         """
@@ -503,6 +233,7 @@ class GenericRewriteRule(orp.RewriteRule):
 
     def __init__(self, pattern: GenericPattern):
         self.pattern = pattern
+        self.verbose: int = 0  # TODO: remove this
 
     def matches(self, node: ir.Node, model: ir.Model) -> orp.MatchResult:
         del model
@@ -513,15 +244,12 @@ class GenericRewriteRule(orp.RewriteRule):
         self, model: ir.Model, node: ir.Node
     ) -> tuple[int, list[ir.Node], list[ir.Node]] | None:
         """See :meth:`RewriteRule.try_rewrite`."""
-        if isinstance(model, ModelWithGraphStructure):
-            bridge = model
-        else:
-            bridge = ModelWithGraphStructure(model)
+
         deleted_nodes = []
         added_nodes = []
         marked = set()
         matched = 0
-        for match_result in self.pattern.enumerate_matches(bridge, node):
+        for match_result in self.pattern.enumerate_matches(model, node):
             conflict = False
             for node in match_result.model_nodes:
                 if id(node) in marked:
@@ -532,13 +260,13 @@ class GenericRewriteRule(orp.RewriteRule):
                 continue
 
             # Let's build the new nodes
-            if not self.pattern.validate_mapping(bridge, match_result):
+            if not self.pattern.validate_mapping(model, match_result):
                 match_result._hint(
                     "validate_mapping", "The pattern was rejected by the validation function."
                 )
                 continue
 
-            new_nodes = self.pattern.apply(bridge, match_result)
+            new_nodes = self.pattern.apply(model, match_result, verbose=self.verbose)
             assert all(
                 isinstance(i, ir.Node) for i in new_nodes
             ), f"Unexpected types {[type(n) for n in new_nodes]}"
@@ -589,8 +317,8 @@ class GenericPattern:
         )
 
     def enumerate_matches(
-        self, g: ModelWithGraphStructure, node: ir.Node | None = None
-    ) -> typing.Iterator:
+        self, g: ir.Graph, node: ir.Node | None = None
+    ) -> Iterator:
         """Enumerates all the matches."""
         if node is None:
             matched = []
@@ -669,9 +397,9 @@ class GenericPattern:
     @classmethod
     def match_pattern(
         cls,
-        g: ModelWithGraphStructure,
+        g: ir.Graph,
         *args: str,
-        **kwargs: typing.Any,
+        **kwargs: Any,
     ) -> list[ir.Node] | None:
         """Builds the pattern to match."""
         raise NotImplementedError(
@@ -680,11 +408,10 @@ class GenericPattern:
 
     def _build_pattern(
         self,
-        g: ModelWithGraphStructure,
-        fct: typing.Callable | None = None,
+        fct: Callable | None = None,
         match: bool = True,
-        kwargs: dict[str, typing.Any] | None = None,
-    ) -> BuilderWithGraphStructure:
+        kwargs: dict[str, Any] | None = None,
+    ) -> ir.Graph:
         del match
         assert fct, f"Not implemented if fct is None in class {self.__class__.__name__}"
         assert not kwargs, (
@@ -707,48 +434,28 @@ class GenericPattern:
 
         assert len(kwargs) == 0, f"Attributes are not supported yet but kwargs={kwargs}"
 
-        g2 = g.make_opset()
-        for name in args:
-            g2.make_input(name)
-        outputs = fct(g2, *args, **kwargs)
+        inputs = [ir.Input(name=name) for name in args]
+        builder = _SimpleBuilder()
+        outputs = fct(builder, *inputs, **kwargs)
         if isinstance(outputs, ir.Value):
-            g2.make_output(outputs.name)
-        elif isinstance(outputs, str):
-            g2.make_output(outputs)
-        else:
-            for output in outputs:
-                if isinstance(output, ir.Value):
-                    g2.make_output(output.name)
-                elif isinstance(output, str):
-                    g2.make_output(output)
-        g2._build()
-        return g2
+            outputs = [outputs]
+        graph = ir.Graph(inputs=inputs, outputs=outputs, nodes=builder.nodes)
+        graph.outputs = outputs
+        return graph
 
-    def _get_match_pattern(self, g: ModelWithGraphStructure) -> BuilderWithGraphStructure:
-        cache_key = 0, tuple(sorted(g.opsets.items()))
+    def _get_match_pattern(self, g: ir.Graph) -> ir.Graph:
+        cache_key = 0, tuple(sorted(g.opset_imports.items()))
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        pat = self._build_pattern(g, fct=self.match_pattern, match=True)
+        pat = self._build_pattern(fct=self.match_pattern, match=True)
         self._cache[cache_key] = pat
         return pat
-
-    def _get_apply_pattern(self, g: ModelWithGraphStructure) -> BuilderWithGraphStructure:
-        cache_key = 1, tuple(sorted(g.opsets.items()))
-        if cache_key in self._cache:
-            return self._cache[cache_key]
-
-        pat = self._build_pattern(g, fct=self.apply_pattern, match=False)
-        self._cache[cache_key] = pat
-        return pat
-
 
     def print_match(self, n1: ir.Node, n2: ir.Node) -> str:
-        n1_input_names = [input.name for input in n1.inputs]
-        n2_input_names = [input.name for input in n2.inputs]
 
-        s1 = f"{n1.op_type}({','.join(n1_input_names)})"
-        s2 = f"{n2.op_type}({','.join(n2_input_names)})"
+        s1 = f"{n1.op_type}({n1.inputs})"
+        s2 = f"{n2.op_type}({n2.inputs})"
         return f"match {s1} with {s2} (pattern)"
 
     def _debug_print(self) -> str:
@@ -761,16 +468,13 @@ class GenericPattern:
             return f"{s[:15]}...{s[-15:]}"
 
         def _p(n: ir.Node, full: bool = False) -> str:
-            n_input_names = [input.name for input in n.inputs]
-            n_output_names = [output.name for output in n.outputs]
-
             if isinstance(n, (ir.Node, onnx.NodeProto)):
                 if full:
                     return (
-                        f"{n.op_type}({', '.join(map(_s, n_input_names))}) "
-                        f"-> ({', '.join(map(_s, n_output_names))})"
+                        f"{n.op_type}({', '.join(map(_s, n.inputs))}) "
+                        f"-> ({', '.join(map(_s, n.inputs))})"
                     )
-                return f"{n.op_type}({','.join(map(_s, n_input_names))})"
+                return f"{n.op_type}({','.join(map(_s, n.inputs))})"
             return str(n)
 
         rows = []
@@ -798,15 +502,15 @@ class GenericPattern:
 
         return "\n".join(rows)
 
-    def _hint(self, *args: typing.Any) -> None:
+    def _hint(self, *args: Any) -> None:
         """Add debugging information to help users."""
         self._debug["hint"] = args
 
     def _match_backward(
         self,
-        g: ModelWithGraphStructure,
+        g: ir.Graph,
         node: ir.Node,
-        pat: ModelWithGraphStructure,
+        pat: ir.Graph,
         marked: dict[int, tuple[ir.Node, ir.Node]],
         stacked: list[int],
         n: ir.Node,
@@ -839,13 +543,11 @@ class GenericPattern:
             )
             return self.none(node, inspect.currentframe().f_lineno)
         for i, pi in zip(n.inputs, pn.inputs):
-            i = i.name
-            pi = pi.name
-            ppred = pat.node_before(pi)
+            ppred = pi.def_node()
             if ppred is None:
                 # ppred is None means the pattern ends here.
                 continue
-            pred = g.node_before(i)
+            pred = i.def_nnode()
             if pred is None:
                 # No node in the graph.
                 return self.none(node, inspect.currentframe().f_lineno)
@@ -872,9 +574,9 @@ class GenericPattern:
 
     def _match_forward(
         self,
-        g: ModelWithGraphStructure,
+        g: ir.Graph,
         node: ir.Node,
-        pat: ModelWithGraphStructure,
+        pat: ir.Graph,
         marked: dict[int, tuple[ir.Node, ir.Node]],
         stacked: list[int],
         n: ir.Node,
@@ -908,10 +610,8 @@ class GenericPattern:
             return self.none(node, inspect.currentframe().f_lineno)
 
         for o, op in zip(n.outputs, pn.outputs):
-            o = o.name
-            op = op.name
-            ns = g.next_nodes(o)
-            pns = pat.next_nodes(op)
+            ns = o.users()
+            pns = op.users()
             if len(pns) == 0:
                 # The pattern has no node forward, the matching stops.
                 continue
@@ -1040,7 +740,7 @@ class GenericPattern:
 
     def match(
         self,
-        g: ModelWithGraphStructure,
+        g: ir.Graph,
         node: ir.Node,
     ) -> PatternMatchResult | None:
         self._debug = {}
@@ -1058,7 +758,7 @@ class GenericPattern:
         if self.verbose > 5:
             print(
                 f"[GenericPattern.match] starts with "
-                f"{node.op_type}({', '.join([input.name for input in node.inputs])})"
+                f"{node.op_type}({node.inputs})"
             )
             if self.verbose >= 10:
                 print(f"[GenericPattern.match] match pattern {self!r}")
@@ -1144,9 +844,9 @@ class GenericPattern:
     @classmethod
     def apply_pattern(
         cls,
-        g: ModelWithGraphStructure,
-        *args: typing.Any,
-        **kwargs: typing.Any,
+        g: ir.Model,
+        *args: Any,
+        **kwargs: Any,
     ) -> list[ir.Node]:
         """Applies the replacement."""
         raise NotImplementedError(
@@ -1155,12 +855,13 @@ class GenericPattern:
 
     def apply(
         self,
-        g: ModelWithGraphStructure,
+        model: ir.Model,
         match_result: PatternMatchResult,
+        verbose: int = 0,
     ) -> list[ir.Node]:
         assert isinstance(match_result, PatternMatchResult)
         new_pat = self._build_pattern(
-            g, fct=self.apply_pattern, kwargs=match_result.kwargs, match=False
+            fct=self.apply_pattern, kwargs=match_result.kwargs, match=False
         )
         assert len(new_pat.input_names) == len(match_result.pattern_input_names), (
             f"Not the same number of inputs, "
@@ -1173,10 +874,10 @@ class GenericPattern:
             f"got {new_pat.output_names} in the applied pattern."
         )
 
-        if g.verbose > 5:
+        if verbose > 5:
             print(
                 f"[GenericPattern.apply] replace {len(match_result.model_nodes)} nodes, "
-                f"applied {self.display_pattern(g, self.apply_pattern)}"
+                f"applied {self.display_pattern(model, self.apply_pattern)}"
             )
 
         # TODO: handle initializers here
@@ -1200,22 +901,20 @@ class GenericPattern:
         for node in new_pat.nodes:
             new_inputs = []
             for i in node.inputs:
-                i = i.name
                 assert i in replacements, f"Unable to find {i!r} in {replacements}"
                 ni = replacements[i]
                 new_inputs.append(ni)
             new_outputs = []
             for o in node.outputs:
-                o = o.name
                 if o in replacements:
                     new_outputs.append(replacements[o])
                 else:
                     # We give it a new name.
-                    n = g.unique_name(o)
+                    n = model.unique_name(o)
                     replacements[o] = n
                     new_outputs.append(n)
             # TODO: Add a test for attributes.
-            new_node = g.make_node(
+            new_node = model.make_node(
                 node.op_type,
                 new_inputs,
                 new_outputs,
@@ -1224,7 +923,7 @@ class GenericPattern:
             )
             new_nodes.append(new_node)
 
-        if g.verbose > 5:
+        if verbose > 5:
             print(f"[GenericPattern.apply] done with {len(new_nodes)} nodes")
 
         return new_nodes
@@ -1234,97 +933,32 @@ class GenericPattern:
         return GenericRewriteRule(self)
 
 
-class OnnxGenericPattern(GenericPattern):
-    """An instance of GenericPattern taking onnx model.
-
-    It defines the matching pattern and its replacement.
-
-    :param match_proto: the onnx function defining the matching pattern
-    :param apply_proto: the onnx function defining the new pattern
-    :param validate_mapping: the function used to validate a pattern
-    :param use_onnxscript: tells if the apply_proto is an onnxscript function or
-        a regular function returning a FunctionProto
-    :param opsets: opset to consider when converting the function into ONNX,
-        if not specified, it is opset 18 for the main opset, and opset 1
-        for domain com.microsoft.
-    :param verbose: in [0, 10], increase the verbosity to understand why a pattern
-        does not match
-    """
-
-    def __init__(
-        self,
-        match_proto: onnx.FunctionProto,
-        apply_proto: onnx.FunctionProto | typing.Callable,
-        validate_mapping: typing.Callable,
-        use_onnxscript: bool = True,
-        opsets: dict[str, onnxscript.values.Opset] | None = None,
+class FunctionPattern(GenericPattern):
+    def __init__(self,
+        match_pattern: ir.Function,
+        apply_pattern: ir.Function,
+        validate_mapping,
         verbose: int = 0,
     ):
-        super().__init__(verbose=verbose)
-        self.match_proto = match_proto
-        self._validate_mapping = validate_mapping
-        self.apply_proto = apply_proto
-        self.use_onnxscript = use_onnxscript
-        self.opsets = opsets
-        self._cache = {}
+        self.match_pattern = match_pattern
+        self.apply_pattern = apply_pattern
+        self.validate_mapping = validate_mapping
+        self.verbose = verbose
 
-    def validate_mapping(self, g: ir.Model, match_result: PatternMatchResult) -> bool:
-        """Evaluates the consistency of the replacements."""
-        return self._validate_mapping(g, match_result)
+    def _get_match_pattern(self, *_, **__):
+        return self.match_pattern
 
-    def _build_pattern(
-        self,
-        g: ModelWithGraphStructure,
-        fct: typing.Callable | None = None,
-        kwargs: dict[str, typing.Any] | None = None,
-        match: bool = True,
-    ) -> BuilderWithGraphStructure:
-        del fct
-        if match:
-            key = id(g), match, str(kwargs)
-        else:
-            key = id(g), match, str(kwargs)
-            assert not callable(self.apply_proto) or isinstance(kwargs, dict)
-        if key in self._cache:
-            return self._cache[key]
-
-        if match:
-            onx = self.match_proto
-        elif callable(self.apply_proto):
-            if self.use_onnxscript:
-                onx = onnxscript.script(**self.opsets)(self.apply_proto).to_function_proto()
-            else:
-                sig = inspect.signature(self.apply_proto)
-                args = []
-                for p in sig.parameters.values():
-                    if p.default is not inspect._empty:
-                        continue
-                    args.append(p.name)
-                onx = self.apply_proto(*args, **kwargs)
-        self._cache[key] = onx
-
-        g2 = g.make_opset()
-        for name in onx.input:
-            g2.make_input(name)
-        for node in onx.node:
-            g2.make_node_with_proto(node)
-        for name in onx.output:
-            g2.make_output(name)
-        g2._build()
-        self._cache[key] = g2
-        return g2
 
 
 def make_pattern_rule(
-    match_pattern: typing.Callable | onnx.FunctionProto,
-    apply_pattern: typing.Callable | onnx.FunctionProto,
-    validate_mapping: typing.Callable | None = None,
+    match_pattern: Callable | onnx.FunctionProto,
+    apply_pattern: Callable | onnx.FunctionProto,
+    validate_mapping: Callable | None = None,
     verbose: int = 0,
-    use_onnxscript: bool = True,
     opsets: dict[str, onnxscript.values.Opset] | None = None,
 ) -> orp.RewriteRule:
     """
-    Creates a rewriting rule.
+    Creates a rewriting rule from a callable or a function proto.
 
     :param match_pattern: a function interpreted by onnx-script
         and converted into an onnx model, this model defines the
@@ -1338,32 +972,27 @@ def make_pattern_rule(
     :param opsets: opset to consider when converting the function into ONNX,
         if not specified, it is opset 18 for the main opset, and opset 1
         for domain com.microsoft.
-    :param use_onnxscript: tells if the apply_proto is an onnxscript function or
-        a regular function returning a FunctionProto
     :return: the rewriting rule
     """
-    import onnxscript
 
     if opsets is None:
         opsets = dict(
             op=onnxscript.opset18, msft_op=onnxscript.values.Opset("com.microsoft", 1)
         )
 
-    if verbose > 5:
-        print(f"[make_pattern_rule] Converting {match_pattern} into ONNX.")
+    if not isinstance(apply_pattern, onnx.FunctionProto):
+        apply_pattern = onnxscript.script(**opsets)(apply_pattern).to_function_proto()
 
-    if isinstance(match_pattern, onnx.FunctionProto):
-        match = match_pattern
-    else:
-        match = onnxscript.script(**opsets)(match_pattern).to_function_proto()
-    assert match.node, f"The match pattern has no node, function={match_pattern}."
+    if not isinstance(match_pattern, onnx.FunctionProto):
+        match_pattern = onnxscript.script(**opsets)(match_pattern).to_function_proto()
 
-    pat = OnnxGenericPattern(
-        match,
-        apply_pattern,
+    match_function = serde.deserialize_function(match_function)
+    apply_function = serde.deserialize_function(apply_pattern)
+
+    pat = FunctionPattern(
+        match_function,
+        apply_function,
         validate_mapping or (lambda *_, **__: True),
         verbose=verbose,
-        use_onnxscript=use_onnxscript,
-        opsets=opsets,
     )
     return pat.make_rule()
