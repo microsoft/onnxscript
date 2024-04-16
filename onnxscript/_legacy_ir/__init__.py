@@ -295,6 +295,7 @@ class Node:
         else:
             self.inputs: list[Value | None] = []
             self.outputs: list[Value | None] = []
+        # TODO: attributes are never populated.
         self.attributes: dict[str, int | float | RefAttr | Graph | list[Graph]] = {}
 
     def __repr__(self) -> str:
