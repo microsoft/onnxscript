@@ -134,7 +134,7 @@ class ValueProtocol(Protocol):
     The index of the output of the node that produces the value can be accessed with
     :meth:`index`.
 
-    To find all the nodes that use this value as an input, call :meth:`users`.
+    To find all the nodes that use this value as an input, call :meth:`consumers`.
 
     To check if the value is an output of a graph, call :meth:`is_graph_output`.
 
