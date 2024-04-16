@@ -28,6 +28,7 @@ pytest-xdist
 pytest!=7.1.0
 pyyaml
 torch>=2.1
+pyinstrument
 
 # Lint
 lintrunner>=0.10.7
