@@ -260,13 +260,13 @@ class ShapeTest(unittest.TestCase):
 
 class ValueTest(unittest.TestCase):
     def test_initialize(self):
-        _ = _core.Value(None, def_index=0)
+        _ = _core.Value(None, index=0)
 
 
 class NodeTest(unittest.TestCase):
     def test_initialize_with_values(self):
-        v0 = _core.Value(None, def_index=None)
-        v1 = _core.Value(None, def_index=None)
+        v0 = _core.Value(None, index=None)
+        v1 = _core.Value(None, index=None)
         node = _core.Node("test", "TestOp", inputs=(v0, v1), num_outputs=3)
         self.assertEqual(node.domain, "test")
         self.assertEqual(node.op_type, "TestOp")
