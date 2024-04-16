@@ -25,6 +25,7 @@ class SerdeTest(unittest.TestCase):
         # Fix the missing graph name of some test models
         model.graph.name = "main_graph"
         onnx.checker.check_model(model)
+
         # Profile the serialization and deserialization process
         profiler = pyinstrument.Profiler()
         profiler.start()

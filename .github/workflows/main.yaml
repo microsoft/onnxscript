@@ -91,6 +91,12 @@ jobs:
         with:
           name: Error reports (${{ matrix.name }}-${{ matrix.os }})
           path: error_reports
+      - name: Upload IR profiling results
+        if: matrix.name == 'py310'
+        uses: actions/upload-artifact@v3
+        with:
+          name: IR profiling results
+          path: tests/ir/serde_test_profiles
 
   build_docs:
     strategy:
