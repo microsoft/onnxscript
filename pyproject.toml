@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "License :: OSI Approved :: MIT License",
 ]
-dependencies = ["numpy", "onnx>=1.15", "typing_extensions"]
+dependencies = ["numpy", "onnx>=1.16", "typing_extensions"]
 
 [tool.setuptools.packages.find]
 include = ["onnxscript*"]
