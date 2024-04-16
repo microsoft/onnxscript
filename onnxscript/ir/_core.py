@@ -907,6 +907,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         type: The type of the value.
         metadata_props: Metadata.
     """
+
     __slots__ = (
         "_producer",
         "_index",
