@@ -24,8 +24,8 @@ class MetadataStore(collections.UserDict):
         super().__init__(data)
         self._invalid_keys: set[str] = set()
 
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.data[key] = value
+    def __setitem__(self, key: str, item: Any) -> None:
+        self.data[key] = item
         self._invalid_keys.discard(key)
 
     def invalidate(self, key: str) -> None:
