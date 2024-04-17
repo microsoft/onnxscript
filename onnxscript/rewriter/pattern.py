@@ -224,16 +224,20 @@ class AttrPattern:
         if isinstance(value, Var):
             self.value_pattern = value
         elif isinstance(value, (int, float, Sequence, ir.TensorProtocol)):
-            self.value_pattern = _make_constant_pattern(value, name)
+            self.value_pattern = _make_constant_pattern(value, name)  # type: ignore[assignment]
         else:
             raise TypeError(f"Cannot convert {type(value)} to AttrPattern")
 
-    def matches(self, attr_val: int | float | Sequence, model: ir.Model) -> MatchResult:
+    def matches(
+        self,
+        attr_val: int | float | Sequence | Var | ir.TensorProtocol | ir.Value,
+        model: ir.Model,
+    ) -> MatchResult:
         if isinstance(self.value_pattern, Var):
-            return self.value_pattern.matches(attr_val, model)
+            return self.value_pattern.matches(attr_val, model)  # type: ignore[arg-type]
         return self.value_pattern.matches(attr_val)
 
-    def to_ir(self, model: ir.Model, rewrite_cache: RewriteCache, bindings=None) -> ir.Val:
+    def to_ir(self, model: ir.Model, rewrite_cache: RewriteCache, bindings=None) -> ir.Value:
         if isinstance(self.value_pattern, Var):
             val, nodes = self.value_pattern.to_ir(
                 model, bindings, 1, rewrite_cache
@@ -289,8 +293,12 @@ class OpsetPattern:
 
     def to_ir(self, model, bindings=None) -> str:
         domain = self.domain_pattern.to_ir(model, bindings)
+        assert isinstance(domain, str), f"Expected str, got {type(domain)}"
         # TODO: Should we ban other custom domains?
         if domain not in model.opset_imports:
+            assert not isinstance(
+                self.version_pattern, AnyPattern
+            ), f"Cannot match against any version of custom domain {domain}"
             model.opset_imports[self.domain_pattern.value] = self.version_pattern.value
         return domain
 
@@ -328,7 +336,7 @@ class OpPattern:
     def __init__(
         self,
         opset_pattern: OpsetPattern,
-        op_name_pattern: StringConstantPattern | PrefixPattern,
+        op_name_pattern: PythonPattern | PrefixPattern,
     ) -> None:
         self.opset_pattern = opset_pattern
         self.op_name_pattern = op_name_pattern
@@ -349,7 +357,9 @@ class OpPattern:
             return [NodeOutputPattern(node_pattern, i) for i in range(num_outputs)]
 
 
-def _to_value_pattern(x: ValuePattern | int | float) -> ValuePattern:
+def _to_value_pattern(
+    x: ValuePattern | int | float,
+) -> NodeOutputPattern | Constant | Var | ValuePattern:
     """Promotes an input-value used to construct a NodePattern to a ValuePattern.
 
     Example usage:
@@ -439,7 +449,8 @@ class MatchResult:
                     return
             else:
                 self.bindings[var] = val
-        self.matched_values.extend(other.matched_values)
+        assert self.matched_values is not None, "matched_values should not be None."
+        self.matched_values.extend(other.matched_values)  # type: ignore[attr-defined]
 
 
 class ValuePattern:
@@ -491,7 +502,7 @@ class NodePattern:
     def __init__(
         self,
         domain: OpsetPattern,
-        op: PythonPattern,
+        op: PythonPattern | PrefixPattern,
         inputs: Sequence[int | float | ValuePattern],
         attributes: dict[str, AttrPattern],
     ):
@@ -528,7 +539,7 @@ class NodePattern:
         # because at least the starting node op_type is already matched.
         for arg_value, previous_node_output_pattern in zip(node.inputs, self.inputs):
             # previous_node_output_pattern could be a Var, if it's the original arg.
-            sub_match = previous_node_output_pattern.matches(arg_value, model)
+            sub_match = previous_node_output_pattern.matches(arg_value, model)  # type: ignore[attr-defined]
             match.extend(sub_match, model)
             if not match:  # If sub-match failed,
                 return match
@@ -537,7 +548,7 @@ class NodePattern:
             attr_value = node.attributes.get(name)
             if attr_value is None:
                 return MatchResult.FAIL()
-            sub_match = attr_pattern.matches(attr_value, model)
+            sub_match = attr_pattern.matches(attr_value, model)  # type: ignore[arg-type]
             if not sub_match:
                 return MatchResult.FAIL()
             match.extend(sub_match, model)
@@ -545,7 +556,8 @@ class NodePattern:
             # TODO: Support matching default values for attributes.
             if name not in self.attributes:
                 return MatchResult.FAIL()
-        match.values.append(node)
+        assert match.values is not None, "Matched values should not be None."
+        match.values.append(node)  #  type: ignore[attr-defined]
         return match
 
     def to_ir(
@@ -557,17 +569,18 @@ class NodePattern:
     ) -> tuple[Sequence[ir.Value], Sequence[ir.Node]]:
         domain = self.domain.to_ir(model)
         op = self.op.to_ir(model)
+        assert isinstance(op, str), f"Expected str, got {type(op)}"
         inputs = []
-        nodes = []
+        nodes: list[ir.Node] = []
         for val_pattern in self.inputs:
             if (
-                value_and_node := rewrite_cache.get_node_output_pattern(val_pattern)
+                value_and_node := rewrite_cache.get_node_output_pattern(val_pattern)  # type: ignore[arg-type]
             ) is not None:
                 val, n = value_and_node
             else:
-                val, n = val_pattern.to_ir(model, bindings, 1, rewrite_cache)
-                rewrite_cache.set_node_output_pattern_with_ir(val_pattern, val, n)
-                nodes.extend(n)
+                val, n = val_pattern.to_ir(model, bindings, 1, rewrite_cache)  # type: ignore[attr-defined]
+                rewrite_cache.set_node_output_pattern_with_ir(val_pattern, val, n)  # type: ignore[arg-type]
+                nodes.extend(n)  # type: ignore[arg-type]
             # If one of the inputs was a the output of a previous node,
             # unpack the new output ir value that is created for that node
             if isinstance(val, tuple):
@@ -583,14 +596,14 @@ class NodePattern:
             domain=domain,
             op_type=op,
             inputs=inputs,
-            attributes=attributes,
+            attributes=attributes,  # type: ignore[arg-type]
             num_outputs=num_outputs,
         )
         nodes.append(new_node)
         return new_node.outputs, nodes
 
-    def commute(self) -> Sequence[ValuePattern]:
-        list_of_lists = [pattern.commute() for pattern in self.inputs]
+    def commute(self) -> Sequence[NodePattern]:
+        list_of_lists = [pattern.commute() for pattern in self.inputs]  # type: ignore[attr-defined]
 
         def enumerate_inputs(inputs, index):
             if index >= len(inputs):
@@ -754,7 +767,7 @@ def _handle_pattern_return_value(
 _handle_replacement_return_value = _handle_pattern_return_value
 
 
-def _valid_to_replace(matched_nodes: Sequence[ir.Node]) -> bool:
+def _valid_to_replace(matched_nodes: Sequence[Any]) -> bool:
     """Check that values computed by the matched_nodes, except for the last one, are used only by the matched_nodes."""
     # * Must check that all values matched by pattern are used only by pattern,
     # except for the value that is replaced.
@@ -893,11 +906,11 @@ class RewriteRule:
         self._vars = [Var(v) for v in _pattern_vars]
         # Get the last node pattern and number of outputs from the pattern function
         self._target_node_pattern, self._target_num_outputs = self._target_pattern.get_pattern(
-            *self._vars
+            *self._vars  # type: ignore[arg-type]
         )
         # NOTE: Return Nones if the replacement pattern is delayed running
         self._replace_node_pattern, _replacement_num_outputs = replacement_pattern.get_pattern(
-            *self._vars
+            *self._vars  # type: ignore[arg-type]
         )
         if _replacement_num_outputs is not None:
             assert self._target_num_outputs == _replacement_num_outputs
@@ -917,26 +930,29 @@ class RewriteRule:
 
     def try_rewrite(
         self, model: ir.Model, node: ir.Node
-    ) -> tuple[Sequence[ir.Node], Sequence[ir.Node]] | None:
+    ) -> tuple[Sequence[Any], Sequence[ir.Node]] | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
         match = self.matches(node, model)
         if match:
+            assert match.values is not None, "Matched values should not be None."
             if _valid_to_replace(match.values):
                 # NOTE: delayed running as the replacement pattern needs bindings
                 if self._replacement_pattern.delay_run:
                     # bindings will be consumed by the replacement function
                     self._replace_node_pattern, _replacement_num_outputs = (
                         self._replacement_pattern.get_pattern(
-                            *self._vars[:-1], match_bindings=match.bindings
+                            *self._vars[:-1],  # type: ignore[arg-type]
+                            match_bindings=match.bindings,
                         )
                     )
                     assert self._target_num_outputs == _replacement_num_outputs
                 rewrite_cache = RewriteCache()
+                assert self._replace_node_pattern is not None, "Replacement pattern is None."
                 _, _to_insert = self._replace_node_pattern.to_ir(
                     model, match.bindings, self._target_num_outputs, rewrite_cache
                 )
 
-                return (match.values, _to_insert)
+                return (match.values, _to_insert)  # type: ignore[return-value]
         return None
 
     def apply_to_model(self, model: ir.Model, *, commute: bool = False):
@@ -983,7 +999,7 @@ def _apply_deltas(
     """
     existing_ids = {id(n): (i, n) for i, n in enumerate(graph_or_function.nodes)}
     to_delete: set[ir.Node] = set()
-    to_insert: list[ir.Node] = []
+    to_insert: list[tuple[ir.Node, list[ir.Node]]] = []
 
     for i, delta in reversed(deltas):
         if len(delta) == 3:
