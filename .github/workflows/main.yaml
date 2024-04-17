@@ -25,38 +25,42 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         name:
+          - py312-torch-nightly
+          - py311
+          - py311-torch-nightly
+          - py311-onnx-weekly
+          - py311-ort-nightly
+          - py311-experimental-torchlib-tracing
           - py310
           - py39
           - py38
-          - py310-torch-nightly
-          - py310-onnx-weekly
-          - py310-ort-nightly
-          - py311-ort-nightly
-          - py310-experimental-torchlib-tracing
         include:
+          - name: py311
+            python-version: "3.11"
+            nox-tag: test build
           - name: py310
             python-version: "3.10"
-            nox-tag: test build
+            nox-tag: test
           - name: py39
             python-version: "3.9"
             nox-tag: test
           - name: py38
             python-version: "3.8"
             nox-tag: test
-          - name: py310-torch-nightly
-            python-version: "3.10"
+          - name: py312-torch-nightly
+            python-version: "3.12"
             nox-tag: test-torch-nightly
-          - name: py310-onnx-weekly
-            python-version: "3.10"
+          - name: py311-torch-nightly
+            python-version: "3.11"
+            nox-tag: test-torch-nightly
+          - name: py311-onnx-weekly
+            python-version: "3.11"
             nox-tag: test-onnx-weekly
-          - name: py310-ort-nightly
-            python-version: "3.10"
-            nox-tag: test-ort-nightly
           - name: py311-ort-nightly
             python-version: "3.11"
             nox-tag: test-ort-nightly
-          - name: py310-experimental-torchlib-tracing
-            python-version: "3.10"
+          - name: py311-experimental-torchlib-tracing
+            python-version: "3.11"
             nox-tag: test-experimental-torchlib-tracing
     runs-on: ${{ matrix.os }}
     steps:
@@ -91,6 +95,12 @@ jobs:
         with:
           name: Error reports (${{ matrix.name }}-${{ matrix.os }})
           path: error_reports
+      - name: Upload IR profiling results
+        if: matrix.name == 'py311' || matrix.name == 'py311-onnx-weekly'
+        uses: actions/upload-artifact@v3
+        with:
+          name: IR profiling results
+          path: tests/ir/serde_test_profiles
 
   build_docs:
     strategy:

@@ -390,7 +390,7 @@ def _deserialize_graph(
             # The initializer is for some other value. Create this value first
             initializer_value = _core.Value(
                 None,
-                def_index=None,
+                index=None,
                 name=initializer.name,
                 # TODO(justinchuby): Fix type hinting for shape and dtype
                 shape=initializer.shape,  # type: ignore
@@ -458,7 +458,7 @@ def deserialize_value_info_proto(
     proto: onnx.ValueInfoProto, value: _core.Value | None
 ) -> _core.Value:
     if value is None:
-        value = _core.Value(None, def_index=None)
+        value = _core.Value(None, index=None)
         value.name = proto.name
     value.shape = deserialize_type_proto_for_shape(proto.type)
     value.type = deserialize_type_proto_for_type(proto.type)
