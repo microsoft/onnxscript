@@ -431,7 +431,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
 
     def __init__(
         self,
-        dims: Iterable[int | SymbolicDim],
+        dims: Iterable[int | SymbolicDim | Any],
         /,
         denotations: Iterable[str | None] | None = None,
         frozen: bool = False,
@@ -439,7 +439,9 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         """Initialize a shape.
 
         Args:
-            dims: The dimensions of the shape. Each dimension can be an integer or a SymbolicDim.
+            dims: The dimensions of the shape. Each dimension can be an integer or a
+                SymbolicDim or any Python object. When a ``dim`` is not an integer or a
+                SymbolicDim, it is converted to a SymbolicDim.
             denotations: The denotations of the dimensions. If None, the denotations are not set.
             frozen: If True, the shape is immutable and cannot be modified. This
                 is useful when the shape is initialized by a Tensor.
