@@ -129,15 +129,17 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
         )
 
     @property
-    def dtype(self) -> torch.dtype | None:
-        dtype = super().dtype
-        if dtype is None:
-            return None
-        return _onnx_dtype_to_torch_dtype(dtype)
+    def dtype(self) -> ir.DataType | None:
+        return super().dtype
 
     @dtype.setter
-    def dtype(self, dtype: torch.dtype):
-        onnx_dtype = _torch_dtype_to_onnx_dtype(dtype)
+    def dtype(self, dtype: torch.dtype | ir.DataType | None):
+        if dtype is None:
+            onnx_dtype = None
+        elif isinstance(dtype, ir.DataType):
+            onnx_dtype = dtype
+        else:
+            onnx_dtype = _torch_dtype_to_onnx_dtype(dtype)
         if self._type is None:
             self._type = ir.TensorType(onnx_dtype)
         else:
