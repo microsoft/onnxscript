@@ -104,7 +104,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         if rich is None:
             status_manager = contextlib.nullcontext()
         else:
-            import rich.status  # pylint: disable=import-outside-toplevel
+            import rich.status  # type: ignore[import-not-found, no-redef] # pylint: disable=import-outside-toplevel
 
             status_manager = rich.status.Status(f"Computing tensor stats for {self!r}")
 
@@ -148,7 +148,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         if rich is None:
             print(text)
         elif page:
-            import rich.console  # pylint: disable=import-outside-toplevel
+            import rich.console  # type: ignore[import-not-found, no-redef] # pylint: disable=import-outside-toplevel
 
             console = rich.console.Console()
             with console.pager(styles=True):
