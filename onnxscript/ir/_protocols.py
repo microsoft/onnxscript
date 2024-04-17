@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import typing
 from typing import (
-    AbstractSet,
     Any,
+    Collection,
     Iterable,
     Iterator,
     Mapping,
@@ -159,7 +159,7 @@ class ValueProtocol(Protocol):
         """The index of the output of the node that produces this value."""
         ...
 
-    def consumers(self) -> AbstractSet[tuple[NodeProtocol, int]]:
+    def consumers(self) -> Collection[tuple[NodeProtocol, int]]:
         """The set of (node, input_index) with node being those that use this value as an input."""
         ...
 
