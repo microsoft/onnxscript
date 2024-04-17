@@ -94,7 +94,7 @@ class TensorProtoTensor(_core.TensorBase):
 
     @property
     def shape(self) -> _core.Shape:
-        return _core.Shape(self._proto.dims)
+        return _core.Shape(self._proto.dims, frozen=True)
 
     @property
     def dtype(self) -> _enums.DataType:

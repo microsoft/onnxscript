@@ -175,14 +175,19 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         # NOTE: We should not do any copying here for performance reasons
         if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
             raise TypeError(f"Expected an array compatible object, got {type(value)}")
-        if not hasattr(value, "shape") and shape is None:
-            raise ValueError(
-                f"Expected an object with a shape attribute, but {type(value)} does not have shape. "
-                "Please specify the shape explicitly."
-            )
+        if not hasattr(value, "shape"):
+            if shape is None:
+                raise ValueError(
+                    f"Expected an object with a shape attribute, but {type(value)} does not have shape. "
+                    "Please specify the shape explicitly."
+                )
+            else:
+                self._shape = shape
+                self._shape._frozen = True
+        else:
+            self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
         self._raw = value
         self._dtype = dtype
-        self._shape = Shape(getattr(value, "shape"))  # noqa: B009
         self.name = name
         self.doc_string = doc_string
         self._metadata_props = metadata_props
@@ -302,6 +307,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         self._dtype: _enums.DataType = dtype
         self.name: str = name  # mutable
         self._shape: Shape = shape
+        self._shape._frozen = True
         self.doc_string: str | None = doc_string  # mutable
         self._array: np.ndarray | None = None
         self.raw: mmap.mmap | None = None
@@ -441,7 +447,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
                 raise TypeError(f"Expected int or SymbolicDim, got '{type(dim)}'")
         self._dims: list[int | SymbolicDim] = list(dims)
         self._denotations: list[str | None] = (
-            list(denotations) if denotations is not None else [None] * len(dims)
+            list(denotations) if denotations is not None else [None] * len(self._dims)
         )
         self._frozen: bool = frozen
 
