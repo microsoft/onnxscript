@@ -21,9 +21,10 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "License :: OSI Approved :: MIT License",
 ]
-dependencies = ["numpy", "onnx>=1.15", "typing_extensions"]
+dependencies = ["numpy", "onnx>=1.16", "typing_extensions"]
 
 [tool.setuptools.packages.find]
 include = ["onnxscript*"]
@@ -34,7 +35,7 @@ onnx = ["py.typed"]
 
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]
-addopts = "-rsfEX --tb=short --color=yes --doctest-modules"
+addopts = "-rsfEX --tb=short --color=yes"
 
 [tool.mypy]
 # TODO disallow_incomplete_defs = true
@@ -72,6 +73,7 @@ module = [
 ]
 ignore_errors = true
 
+# FIXME(#1378): Remove this overrides section
 [[tool.mypy.overrides]]
 module = [
   "onnxrewriter.rewriter.generic_pattern_test.*",
@@ -85,10 +87,10 @@ show_column_numbers = true
 strict_optional = true
 warn_incomplete_stub = true
 warn_no_return = true
-warn_redundant_casts = true
 warn_unused_configs = true
 warn_unused_ignores = false
 
+# FIXME(#1378): Remove this overrides section
 [[tool.mypy.overrides]]
 module = [
   "onnxrewriter.rewriter.generic_pattern.*",
@@ -102,7 +104,6 @@ show_column_numbers = true
 strict_optional = true
 warn_incomplete_stub = true
 warn_no_return = true
-warn_redundant_casts = true
 warn_unused_configs = true
 warn_unused_ignores = false
 
@@ -199,8 +200,6 @@ ignore-init-module-imports = true
 "setup.py" = ["TID251"] # pathlib is allowed in supporting code
 "**/{examples,tests,docs,tools,utils,opgen}/*" = ["TID251"] # pathlib is allowed in supporting code
 "**/*_test.py" = ["TID251"] # pathlib is allowed in tests
-"**/generic_pattern.py" = ["FBT003", "UP037"]  # inline ignoring fails
-"**/generic_pattern_test.py" = ["ARG001", "ARG002", "PLR2004"]
 
 [tool.ruff.flake8-tidy-imports]
 # Disallow all relative imports.

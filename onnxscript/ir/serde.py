@@ -390,7 +390,7 @@ def _deserialize_graph(
             # The initializer is for some other value. Create this value first
             initializer_value = _core.Value(
                 None,
-                def_index=None,
+                index=None,
                 name=initializer.name,
                 # TODO(justinchuby): Fix type hinting for shape and dtype
                 shape=initializer.shape,  # type: ignore
@@ -458,7 +458,7 @@ def deserialize_value_info_proto(
     proto: onnx.ValueInfoProto, value: _core.Value | None
 ) -> _core.Value:
     if value is None:
-        value = _core.Value(None, def_index=None)
+        value = _core.Value(None, index=None)
         value.name = proto.name
     value.shape = deserialize_type_proto_for_shape(proto.type)
     value.type = deserialize_type_proto_for_type(proto.type)
@@ -469,14 +469,13 @@ def deserialize_type_proto_for_shape(proto: onnx.TypeProto) -> _core.Shape | Non
     if proto.HasField("tensor_type"):
         if (shape_proto := _get_field(proto.tensor_type, "shape")) is None:
             return None
-        if not (dim_protos := shape_proto.dim):
-            return None
+        # This logic handles when the shape is [] as well
+        dim_protos = shape_proto.dim
         return _core.Shape([deserialize_dimension(d) for d in dim_protos])
     if proto.HasField("sparse_tensor_type"):
         if (shape_proto := _get_field(proto.sparse_tensor_type, "shape")) is None:
             return None
-        if not (dim_protos := shape_proto.dim):
-            return None
+        dim_protos = shape_proto.dim
         return _core.Shape([deserialize_dimension(d) for d in dim_protos])
     if proto.HasField("sequence_type"):
         if (elem_type := _get_field(proto.sequence_type, "elem_type")) is None:
@@ -655,7 +654,7 @@ def _deserialize_node(
         [_deserialize_attribute(a, scoped_values) for a in proto.attribute],
         overload=getattr(proto, "overload", ""),
         num_outputs=len(proto.output),
-        name=_get_field(proto, "name"),
+        name=proto.name,
     )
 
     for output, value in zip(proto.output, node.outputs):

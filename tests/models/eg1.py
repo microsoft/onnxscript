@@ -3,7 +3,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-from onnxscript.onnx import opset15 as op
+from onnxscript import opset15 as op
 from onnxscript.onnx_types import FLOAT
 
 # tensor inputs can have ONNX-like type annotations
