@@ -19,6 +19,7 @@ from typing import (
     Iterable,
     Iterator,
     Mapping,
+    MutableMapping,
     MutableSequence,
     OrderedDict,
     Protocol,
@@ -90,6 +91,8 @@ class TensorProtocol(ArrayCompatible, Protocol):
         raw: The raw data behind this tensor. It can be anything.
         size: The number of elements in the tensor.
         nbytes: The number of bytes in the tensor.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     name: str
@@ -97,6 +100,8 @@ class TensorProtocol(ArrayCompatible, Protocol):
     dtype: _enums.DataType
     doc_string: str | None
     raw: Any
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
     @property
     def size(self) -> int: ...
@@ -142,14 +147,15 @@ class ValueProtocol(Protocol):
         name: The name of the value. A value is always named when it is part of a graph.
         shape: The shape of the value.
         type: The type of the value.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     name: str
     shape: ShapeProtocol | None
     type: TypeProtocol | None
-    metadata_props: Mapping[str, str]
-    meta: Mapping[str, Any]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
     def producer(self) -> NodeProtocol | None:
         """The node that produces this value."""
@@ -205,7 +211,8 @@ class NodeProtocol(Protocol):
         attributes: The attributes of the operator.
         version: The version of the operator.
         doc_string: Documentation string.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     name: str | None
@@ -217,8 +224,8 @@ class NodeProtocol(Protocol):
     attributes: OrderedDict[str, AttributeProtocol | ReferenceAttributeProtocol]
     version: int | None
     doc_string: str | None
-    metadata_props: Mapping[str, str]
-    meta: Mapping[str, Any]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
     def replace_input_with(self, index: int, value: ValueProtocol | None) -> None:
         """Set the input at the given index to the given value, replacing the original value."""
@@ -249,18 +256,19 @@ class GraphProtocol(Protocol):
         initializers: The initializers in the graph.
         doc_string: Documentation string.
         opset_imports: Opsets imported by the graph.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     # TODO(justinchuby): Support quantization_annotation
     name: str | None
     inputs: MutableSequence[ValueProtocol]
     outputs: MutableSequence[ValueProtocol]
-    initializers: Mapping[str, TensorProtocol]
+    initializers: MutableMapping[str, TensorProtocol]
     doc_string: str
-    opset_imports: Mapping[str, int]
-    metadata_props: Mapping[str, str]
-    meta: Mapping[str, Any]
+    opset_imports: MutableMapping[str, int]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
     def __getitem__(self, index: int) -> NodeProtocol: ...
     def __len__(self) -> int: ...
@@ -309,7 +317,8 @@ class GraphViewProtocol(Protocol):
         initializers: The initializers in the graph.
         doc_string: Documentation string.
         opset_imports: Opsets imported by the graph.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     name: str | None
@@ -344,7 +353,7 @@ class ModelProtocol(Protocol):
         doc_string: Documentation string.
         functions: The functions defined in the model.
         metadata_props: Metadata that will be serialized to the ONNX file.
-        meta: Metadata store for analysis passes.
+        meta: Metadata store for graph transform passes.
     """
 
     graph: GraphProtocol
@@ -354,9 +363,9 @@ class ModelProtocol(Protocol):
     domain: str | None
     model_version: int | None
     doc_string: str | None
-    functions: Mapping[str, FunctionProtocol]
+    functions: MutableMapping[str, FunctionProtocol]
     # TODO(justinchuby): Add training_info
-    opset_imports: Mapping[str, int]
+    opset_imports: MutableMapping[str, int]
     metadata_props: MutableMapping[str, str]
     meta: MutableMapping[str, Any]
 
@@ -510,7 +519,8 @@ class FunctionProtocol(Protocol):
         outputs: The output values of the function.
         opset_imports: Opsets imported by the function.
         doc_string: Documentation string.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     name: str
@@ -520,9 +530,9 @@ class FunctionProtocol(Protocol):
     attributes: OrderedDict[str, AttributeProtocol]
     outputs: Sequence[ValueProtocol]
     doc_string: str
-    opset_imports: Mapping[str, int]
-    metadata_props: Mapping[str, str]
-    meta: Mapping[str, Any]
+    opset_imports: MutableMapping[str, int]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
     def __getitem__(self, index: int) -> NodeProtocol: ...
     def __len__(self) -> int: ...
