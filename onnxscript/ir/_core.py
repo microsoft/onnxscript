@@ -181,8 +181,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
                     f"Expected an object with a shape attribute, but {type(value)} does not have shape. "
                     "Please specify the shape explicitly."
                 )
-            else:
-                self._shape = shape
+            self._shape = shape
                 self._shape._frozen = True
         else:
             self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
