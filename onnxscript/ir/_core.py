@@ -1168,7 +1168,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
             return False
         # Cannot use `in` because __eq__ may be defined by subclasses, even though
         # it is not recommended
-        return any(output is self for output in producer.outputs)
+        return any(output is self for output in producer.graph.outputs)
 
 
 class Input(Value):
