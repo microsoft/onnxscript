@@ -27,13 +27,13 @@ jobs:
         name:
           - py312-torch-nightly
           - py311
-          - py310
-          - py39
-          - py38
           - py311-torch-nightly
           - py311-onnx-weekly
           - py311-ort-nightly
           - py311-experimental-torchlib-tracing
+          - py310
+          - py39
+          - py38
         include:
           - name: py311
             python-version: "3.11"
