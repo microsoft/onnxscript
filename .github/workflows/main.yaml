@@ -25,7 +25,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         name:
-          - py312
+          - py312-torch-nightly
           - py311
           - py310
           - py39
