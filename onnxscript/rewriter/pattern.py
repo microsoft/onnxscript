@@ -1031,7 +1031,7 @@ def _apply_deltas(
                 for node, index in last_deleted_output.consumers():
                     node.replace_input_with(index, last_inserted_output)
 
-                # Update graph/function outputs if the node genrates output
+                # Update graph/function outputs if the node generates output
                 for old_output, new_output in zip(last_deleted.outputs, last_inserted.outputs):
                     for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
                         if graph_or_function_output is old_output:
