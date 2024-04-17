@@ -92,12 +92,12 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
     def __init__(
         self,
         _=None,
-        def_node=None,
-        def_index=None,
+        producer=None,
+        index=None,
         name: str | None = None,
     ):
         onnxscript_tensor.Tensor.__init__(self, None)
-        ir.Value.__init__(self, def_node, def_index=def_index, name=name)
+        ir.Value.__init__(self, producer, index=index, name=name)
         self._is_complex: bool = False
 
     @property  # type: ignore[override]
@@ -187,7 +187,7 @@ class _Node(ir.Node):
             doc_string=doc_string,
         )
         self._outputs: tuple[TorchScriptTensor, ...] = tuple(
-            TorchScriptTensor(def_node=self, def_index=i) for i in range(num_outputs)
+            TorchScriptTensor(producer=self, index=i) for i in range(num_outputs)
         )
 
     @property
@@ -327,7 +327,7 @@ def _create_op_call_in_graph(
     *,
     inputs: Sequence[TorchScriptTensor],
     attributes: Mapping[str, Any],
-    n_outputs: int = 1,
+    num_outputs: int = 1,
 ) -> Sequence[TorchScriptTensor]:
     """Creates a node representing an onnx op in `graph`.
 
@@ -337,7 +337,7 @@ def _create_op_call_in_graph(
         op_type: The name of the op. E.g. "Add".
         inputs: The onnx inputs to the op.
         attributes: The onnx attributes to the op.
-        n_outputs: The number of outputs the op has.
+        num_outputs: The number of outputs the op has.
 
     Returns:
         The outputs of the created node.
@@ -351,7 +351,7 @@ def _create_op_call_in_graph(
         op_type,
         inputs=inputs,
         attributes=[_build_attribute(key, value) for key, value in attributes.items()],
-        num_outputs=n_outputs,
+        num_outputs=num_outputs,
     )
     graph.append(node)
 
@@ -505,9 +505,14 @@ class TorchScriptGraph:
             self._graph.outputs.append(output)
         return
 
-    def _add_constant_to_graph(self, constant) -> ir.Value | None:
+    def _add_constant_to_graph(self, constant) -> Sequence[ir.Value | None]:
+        """Add a constant to the graph.
+
+        Returns:
+            A single element of sequence of the constant value.
+        """
         if constant is None:
-            return None
+            return (None,)
 
         if isinstance(constant, bool):
             # Be sure to put bool before int, because bool is a subclass of int
@@ -541,7 +546,7 @@ class TorchScriptGraph:
             "Constant",
             inputs=(),
             attributes=dict(value=onnx_tensor),
-        )[0]
+        )
         return value
 
     @runtime_typing.checked
@@ -552,8 +557,8 @@ class TorchScriptGraph:
         op_type: str,
         onnx_inputs: Sequence[ValidInputType],
         onnx_attributes: Mapping[str, ValidArgumentType],
-        n_outputs: int,
-    ) -> Union[TorchScriptTensor, Sequence[TorchScriptTensor]]:
+        num_outputs: int,
+    ) -> Sequence[TorchScriptTensor]:
         graph_inputs = []
         assert isinstance(onnx_inputs, Sequence)
         for input in onnx_inputs:
@@ -571,11 +576,10 @@ class TorchScriptGraph:
                     "SequenceConstruct",
                     inputs=input,
                     attributes={},
-                )[0]
-                graph_inputs.append(input_sequence)
+                )
+                graph_inputs.extend(input_sequence)
             elif not isinstance(input, TorchScriptTensor):
-                print("taking this route")
-                graph_inputs.append(self._add_constant_to_graph(input))
+                graph_inputs.extend(self._add_constant_to_graph(input))
             else:
                 # TODO(justinchuby): What is this case?
                 graph_inputs.append(input)
@@ -589,7 +593,7 @@ class TorchScriptGraph:
             op_type,
             inputs=graph_inputs,
             attributes=onnx_attributes,
-            n_outputs=n_outputs,
+            num_outputs=num_outputs,
         )
         assert tensors, "Expected at least one output from ONNX op call."
         # NOTE: TorchScriptTensor is created here, however neither dtype nor shape is
@@ -630,14 +634,17 @@ class TorchScriptGraph:
         onnx_attributes: Mapping[str, ValidArgumentType],
     ) -> Union[TorchScriptTensor, Sequence[TorchScriptTensor]]:
         # Compute outputs from the onnx_op op schema
-        n_outputs = evaluator.compute_num_outputs(onnx_op_schema, onnx_inputs, onnx_attributes)
+        num_outputs = evaluator.compute_num_outputs(onnx_op_schema, onnx_inputs, onnx_attributes)
         result = self._add_ir_graph_op_call(
             domain="",
             op_type=onnx_op_schema.name,
             onnx_inputs=onnx_inputs,
             onnx_attributes=onnx_attributes,
-            n_outputs=n_outputs,
+            num_outputs=num_outputs,
         )
+
+        if num_outputs == 1:
+            return result[0]
 
         return result
 
@@ -650,15 +657,18 @@ class TorchScriptGraph:
     ) -> Union[TorchScriptTensor, Sequence[TorchScriptTensor]]:
         ir_function = ir.serde.deserialize_function(onnx_function.to_function_proto())
         self._function_store[ir_function.identifier()] = ir_function
-
+        num_outputs = len(onnx_function.function_ir.outputs)
         # Compute outputs from the function schema
         result = self._add_ir_graph_op_call(
             domain=ir_function.domain,
             op_type=ir_function.name,
             onnx_inputs=onnx_inputs,
             onnx_attributes=onnx_attributes,
-            n_outputs=len(onnx_function.function_ir.outputs),
+            num_outputs=num_outputs,
         )
+
+        if num_outputs == 1:
+            return result[0]
 
         return result
 
@@ -672,7 +682,9 @@ class TorchScriptGraph:
         self._sub_torch_script_graphs[name] = sub_torch_script_graph
         domain_name = sub_torch_script_graph.domain_name
         assert domain_name is not None
-        return self._add_ir_graph_op_call(
+
+        num_outputs = sub_torch_script_graph.num_outputs
+        result = self._add_ir_graph_op_call(
             domain=domain_name,
             op_type=name,
             onnx_inputs=(
@@ -680,8 +692,13 @@ class TorchScriptGraph:
                 *sub_torch_script_graph.initializers_inputs_from_parent.values(),
             ),
             onnx_attributes={},
-            n_outputs=sub_torch_script_graph.num_outputs,
+            num_outputs=num_outputs,
         )
+
+        if num_outputs == 1:
+            return result[0]
+
+        return result
 
     @runtime_typing.checked
     def _to_function(self, opset_version: int, function_name: str) -> ir.Function:
