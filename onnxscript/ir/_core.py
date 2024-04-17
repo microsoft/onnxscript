@@ -1076,14 +1076,14 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         return self._shape
 
     @shape.setter
-    def shape(self, value: _protocols.SimpleShape | Shape | None) -> None:
+    def shape(self, value: Shape | None) -> None:
         if value is None:
             self._shape = None
             return
         if isinstance(value, Shape):
             self._shape = value
             return
-        self._shape = Shape(value)
+        raise TypeError(f"Expected value to be a Shape or None, got '{type(value)}'")
 
     @property
     def const_value(
