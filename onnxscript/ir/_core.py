@@ -396,7 +396,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
 
 
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
-    __slots__ = "_value"
+    __slots__ = ("_value",)
 
     def __init__(self, value: int | str | None, denotation: str | None = None) -> None:
         self._value = value
