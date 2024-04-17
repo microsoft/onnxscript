@@ -203,10 +203,10 @@ class ConcatTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = self.rule().apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertEqual(len(ir.functions), 1)
-        self.assertEqual(len(ir.functions[("pkg.custom", "afunction", "")].nodes), 1)
+        self.assertEqual(len(model.functions), 1)
+        self.assertEqual(len(model.functions[("pkg.custom", "afunction", "")].nodes), 1)
         self.assertEqual(
-            ir.functions[("pkg.custom", "afunction", "")].nodes[0].op_type, "Concat"
+            model.functions[("pkg.custom", "afunction", "")].nodes[0].op_type, "Concat"
         )
 
 

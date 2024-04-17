@@ -3,13 +3,14 @@ from __future__ import annotations
 import contextlib
 import io
 import os
-import time
 import unittest
 
 import numpy as np
 import onnx
 import onnx.reference
+import onnxruntime as ort
 
+import onnxscript
 from onnxscript import ir
 from onnxscript.rewriter import generic_pattern
 
@@ -85,10 +86,10 @@ class GenericPatternTest(unittest.TestCase):
         )
         # TODO: do that in pattern.py.
         ir_model.opset_imports["ZZZ"] = 1
-        opt_onx = ir.serde.serialize_model(ir_model)
+        rewriten_model = ir.serde.serialize_model(ir_model)
         self.assertEqual(
             ["AddAdd"],
-            [n.op_type for n in opt_onx.graph.node],
+            [n.op_type for n in rewriten_model.graph.node],
         )
 
         feeds = {
@@ -99,12 +100,12 @@ class GenericPatternTest(unittest.TestCase):
         ref1 = onnx.reference.ReferenceEvaluator(model)
         expected = ref1.run(None, feeds)
 
-        self.assertEqual(0, len(opt_onx.graph.initializer))
-        opsets = {v.domain: v.version for v in opt_onx.opset_import}
+        self.assertEqual(0, len(rewriten_model.graph.initializer))
+        opsets = {v.domain: v.version for v in rewriten_model.opset_import}
         self.assertIn("ZZZ", opsets)
         self.assertEqual(opsets["ZZZ"], 1)
 
-        ref2 = onnx.reference.ReferenceEvaluator(opt_onx, new_ops=[AddAdd])
+        ref2 = onnx.reference.ReferenceEvaluator(rewriten_model, new_ops=[AddAdd])
         got = ref2.run(None, feeds)
         np.testing.assert_almost_equal(expected[0], got[0])
 
@@ -177,11 +178,11 @@ class GenericPatternTest(unittest.TestCase):
         # TODO: do that in pattern.py.
         ir_model.opset_imports["ZZZ"] = 1
 
-        opt_onx = ir.serde.serialize_model(ir_model)
+        rewriten_model = ir.serde.serialize_model(ir_model)
 
         self.assertEqual(
             ["AddAddAddAdd"],
-            [n.op_type for n in opt_onx.graph.node],
+            [n.op_type for n in rewriten_model.graph.node],
         )
 
         feeds = {
@@ -193,30 +194,23 @@ class GenericPatternTest(unittest.TestCase):
         ref1 = onnx.reference.ReferenceEvaluator(model)
         expected = ref1.run(None, feeds)
 
-        self.assertEqual(0, len(opt_onx.graph.initializer))
-        opsets = {v.domain: v.version for v in opt_onx.opset_import}
+        self.assertEqual(0, len(rewriten_model.graph.initializer))
+        opsets = {v.domain: v.version for v in rewriten_model.opset_import}
         self.assertIn("ZZZ", opsets)
         self.assertEqual(opsets["ZZZ"], 1)
 
-        ref2 = onnx.reference.ReferenceEvaluator(opt_onx, new_ops=[AddAddAddAdd])
+        ref2 = onnx.reference.ReferenceEvaluator(rewriten_model, new_ops=[AddAddAddAdd])
         got = ref2.run(None, feeds)
         np.testing.assert_almost_equal(expected[0], got[0])
 
     def check_with_ort(self, model: onnx.ModelProto, providers=None):
-        import onnxruntime
-
-        if hasattr(onnxruntime, "rewrite"):
-            raise unittest.SkipTest(
-                "cannot check with onnxruntime because of a subfolder called onnxruntime."
-            )
-
         if providers is None:
             providers = ["CPUExecutionProvider"]
 
         if isinstance(model, onnx.ModelProto):
             model = model.SerializeToString()
-        sess = onnxruntime.InferenceSession(model, providers=providers)
-        return sess
+        session = ort.InferenceSession(model, providers=providers)
+        return session
 
     def get_rotary_model(self):
         inputs = [
@@ -330,18 +324,16 @@ class GenericPatternTest(unittest.TestCase):
             rule.apply_to_model(ir_model)
             ir_model.opset_imports["com.microsoft"] = 1
 
-            opt_onx = ir.serde.serialize_model(ir_model)
+            rewriten_model = ir.serde.serialize_model(ir_model)
 
         expected = ["Constant", "Constant", "RotaryEmbedding"]
-        self.assertEqual(expected, [n.op_type for n in opt_onx.graph.node])
+        self.assertEqual(expected, [n.op_type for n in rewriten_model.graph.node])
         out = buffer.getvalue()
         self.assertIn("[GenericPattern.match", out)
 
     def test_rotary_embedding_onnxscript(self):
         # The test work on a model if it has the expected name.
         # A dummy model is used if not present (not implemented yet).
-        import onnxscript
-
         op = onnxscript.opset18
         msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
@@ -394,18 +386,17 @@ class GenericPatternTest(unittest.TestCase):
             rule.apply_to_model(ir_model)
             ir_model.opset_imports["com.microsoft"] = 1
 
-            opt_onx = ir.serde.serialize_model(ir_model)
+            rewriten_model = ir.serde.serialize_model(ir_model)
 
         expected = ["Constant", "Constant", "RotaryEmbedding"]
-        self.assertEqual(expected, [n.op_type for n in opt_onx.graph.node])
+        self.assertEqual(expected, [n.op_type for n in rewriten_model.graph.node])
         out = buffer.getvalue()
+        # TODO(justinchuby): Remove this assert - capturing stdout is not robust
         self.assertIn("[GenericPattern.match", out)
 
     def test_rotary_emb_file_onnxscript(self):
         # The test work on a model if it has the expected name.
         # A dummy model is used if not present (not implemented yet).
-        import onnxscript
-
         op = onnxscript.opset18
         msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
@@ -439,17 +430,13 @@ class GenericPatternTest(unittest.TestCase):
             part1, part2 = msft_op.RotaryEmbedding(x, pos_ids, cos_cache, sin_cache)
             return part1, part2
 
-        model = "gemma_optimized_pre_grad_training_2.onnx"
-        if not os.path.exists(model):
-            raise unittest.SkipTest(f"{model!r} is missing")
-
-        begin = time.perf_counter()
+        model_path = "gemma_optimized_pre_grad_training_2.onnx"
+        if not os.path.exists(model_path):
+            raise unittest.SkipTest(f"{model_path!r} is missing")
+        model = onnx.load(model_path)
         model = onnx.shape_inference.infer_shapes(model)
         ir_model = ir.serde.deserialize_model(model)
-        if __name__ == "__main__":
-            print(f"Loading done in {time.perf_counter() - begin}s")
 
-        begin = time.perf_counter()
         rule = generic_pattern.make_pattern_rule(
             rotary_match_pattern,
             rotary_apply_pattern,
@@ -458,25 +445,15 @@ class GenericPatternTest(unittest.TestCase):
         )
 
         rule.apply_to_model(ir_model)
-
-        if __name__ == "__main__":
-            print(f"Matching done in {time.perf_counter() - begin}s")
-
         # TODO: do that in pattern.py.
         ir_model.opset_imports["ZZZ"] = 1
 
-        begin = time.perf_counter()
-        opt_onx = ir.serde.serialize_model(ir_model)
-        if __name__ == "__main__":
-            print(f"Building done in {time.perf_counter() - begin}s")
+        rewriten_model = ir.serde.serialize_model(ir_model)
 
-        begin = time.perf_counter()
-        buffer = opt_onx.SerializeToString()
+        buffer = rewriten_model.SerializeToString()
         with open(f"{model}.opt.onnx", "wb") as f:
             f.write(buffer)
-        if __name__ == "__main__":
-            print(f"Saving done in {time.perf_counter() - begin}s")
-        self.check_with_ort(opt_onx)
+        self.check_with_ort(rewriten_model)
 
     def test_transpose_transpose_onnxscript(self):
         # The test work on a model if it has the expected name.
@@ -555,11 +532,11 @@ class GenericPatternTest(unittest.TestCase):
         )
 
         rule.apply_to_model(ir_model)
-        opt_onx = ir.serde.serialize_model(ir_model)
+        rewriten_model = ir.serde.serialize_model(ir_model)
 
         expected = ["Transpose"]
-        self.assertEqual(expected, [n.op_type for n in opt_onx.graph.node])
-        node = opt_onx.graph.node[0]
+        self.assertEqual(expected, [n.op_type for n in rewriten_model.graph.node])
+        node = rewriten_model.graph.node[0]
         self.assertEqual(len(node.attribute), 1)
         att = node.attribute[0]
         self.assertEqual(att.name, "perm")

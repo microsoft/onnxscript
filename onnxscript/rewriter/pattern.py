@@ -770,8 +770,8 @@ def _valid_to_replace(matched_nodes: Sequence[ir.Node]) -> bool:
             if v.is_graph_output():
                 # value is an output-value of the graph/function.
                 return False
-            for use, _ in v.users():
-                if use not in matched_nodes:
+            for consumer, _ in v.consumers():
+                if consumer not in matched_nodes:
                     return False
     return True
 
@@ -1016,7 +1016,7 @@ def _apply_deltas(
             for last_deleted_output, last_inserted_output in zip(
                 last_deleted.outputs, last_inserted.outputs
             ):
-                for node, index in last_deleted_output.users():
+                for node, index in last_deleted_output.consumers():
                     node.replace_input_with(index, last_inserted_output)
 
                 # Update graph/function outputs if the node genrates output
