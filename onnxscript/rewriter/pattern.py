@@ -583,7 +583,7 @@ class NodePattern:
             domain=domain,
             op_type=op,
             inputs=inputs,
-            attributes=attributes.values(),
+            attributes=attributes,
             num_outputs=num_outputs,
         )
         nodes.append(new_node)
