@@ -20,8 +20,8 @@ class MetadataStore(collections.UserDict):
     when a pass wants to mark a key that needs to be recomputed.
     """
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, data=None) -> None:
+        super().__init__(data)
         self._invalid_keys: set[str] = set()
 
     def __setitem__(self, key: str, value: Any) -> None:
