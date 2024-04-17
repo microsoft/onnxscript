@@ -5,6 +5,8 @@ from __future__ import annotations
 import collections.abc
 from typing import Any, Mapping, Sequence
 
+import onnx
+
 from onnxscript import ir
 
 
@@ -25,6 +27,8 @@ def _convert_attributes(attrs: Mapping[str, Any]) -> list[ir.Attr]:
             attributes.append(ir.AttrStrings(name, attr))
         elif isinstance(attr, ir.Attr):
             attributes.append(attr)
+        elif isinstance(attr, onnx.TensorProto):
+            attributes.append(ir.AttrTensor(name, ir.serde.TensorProtoTensor(attr)))
         else:
             raise TypeError(f"Unsupported attribute type: '{type(attr)}'")
     return attributes

@@ -92,7 +92,6 @@ class GenericPatternTest(unittest.TestCase):
         # TODO: do that in pattern.py.
         ir_model.opset_imports["ZZZ"] = 1
         opt_onx = serde.serialize_model(ir_model)
-
         self.assertEqual(
             ["AddAdd"],
             [n.op_type for n in opt_onx.graph.node],
@@ -174,7 +173,7 @@ class GenericPatternTest(unittest.TestCase):
         model = onnx.shape_inference.infer_shapes(model)
         ir_model = serde.deserialize_model(model)
 
-        pattern = AddAddAddAddPattern(verbose=0)
+        pattern = AddAddAddAddPattern(verbose=10)
         rule = pattern.make_rule()
         rule.apply_to_model(ir_model)
         self.assertEqual(
@@ -501,7 +500,7 @@ class GenericPatternTest(unittest.TestCase):
             del g
             perms = []
             for n in match_result.model_nodes:
-                perms.append(list(n.attribute[0].ints))
+                perms.append(list(n.attributes["perm"].value))
             perm = perms[0]
             new_perm = [0 for p in perm]
             for i, p in enumerate(perms[1]):

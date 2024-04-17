@@ -7,6 +7,7 @@ import numpy as np
 from onnxscript import ir
 from onnxscript.ir import serde
 
+GRAPH_OUTPUT_META_KEY = "pkg.onnxscript.rewriter.generic_pattern.graph_output"
 
 def propagate_const_value(ir_value: ir.Value) -> ir.Value:
     node = ir_value.def_node()

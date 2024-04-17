@@ -1001,7 +1001,6 @@ def _apply_deltas(
             # we'll try position i
             assert i not in to_insert  # conflicts should avoid that case
             to_insert.append((graph_or_function.nodes[i], inserted_nodes))
-
         else:
             deleted_nodes, inserted_nodes = delta
             # Replace deleted nodes with inserted nodes.
@@ -1035,10 +1034,15 @@ def _apply_deltas(
 
     for replaced_node, inserted_nodes in to_insert:
         graph_or_function.insert_after(replaced_node, inserted_nodes)
+        # TODO: improve this
+        # This is updating the graph/function outputs to use the new outputs
+        for inserted_node in inserted_nodes:
+            for new_output in inserted_node.outputs:
+                if (index := new_output.meta.get(_ir_utils_temp.GRAPH_OUTPUT_META_KEY)) is not None:
+                    graph_or_function.outputs[index] = new_output
 
     for n in to_delete:
         graph_or_function.remove(n)
-
 
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
