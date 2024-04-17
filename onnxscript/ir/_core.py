@@ -486,11 +486,35 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         self._dims[index] = value
 
     def get_denotation(self, index: int) -> str | None:
-        """Return the denotation of the dimension at the index."""
+        """Return the denotation of the dimension at the index.
+
+        Standard denotation can optionally be used to denote tensor
+        dimensions with standard semantic descriptions to ensure
+        that operations are applied to the correct axis of a tensor.
+        Refer to https://github.com/onnx/onnx/blob/main/docs/DimensionDenotation.md#denotation-definition
+        for pre-defined dimension denotations.
+
+        Args:
+            index: The index of the dimension.
+
+        Returns:
+            The denotation of the dimension.
+        """
         return self._denotations[index]
 
     def set_denotation(self, index: int, denotation: str | None) -> None:
-        """Set the denotation of the dimension at the index."""
+        """Set the denotation of the dimension at the index.
+
+        Standard denotation can optionally be used to denote tensor
+        dimensions with standard semantic descriptions to ensure
+        that operations are applied to the correct axis of a tensor.
+        Refer to https://github.com/onnx/onnx/blob/main/docs/DimensionDenotation.md#denotation-definition
+        for pre-defined dimension denotations.
+
+        Args:
+            index: The index of the dimension.
+            denotation: The denotation of the dimension.
+        """
         self._denotations[index] = denotation
 
     def __repr__(self) -> str:
