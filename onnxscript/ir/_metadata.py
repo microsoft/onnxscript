@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import collections
-from typing import Any
+from typing import Any, Mapping
 
 
 class MetadataStore(collections.UserDict):
@@ -20,7 +20,7 @@ class MetadataStore(collections.UserDict):
     when a pass wants to mark a key that needs to be recomputed.
     """
 
-    def __init__(self, data=None) -> None:
+    def __init__(self, data: Mapping[str, Any] | None = None) -> None:
         super().__init__(data)
         self._invalid_keys: set[str] = set()
 
