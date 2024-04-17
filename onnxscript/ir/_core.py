@@ -182,7 +182,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
                     "Please specify the shape explicitly."
                 )
             self._shape = shape
-                self._shape._frozen = True
+            self._shape._frozen = True
         else:
             self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
         self._raw = value
