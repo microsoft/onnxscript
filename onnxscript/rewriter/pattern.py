@@ -11,7 +11,8 @@ import onnx.numpy_helper
 import onnx.printer
 
 from onnxscript import ir
-from onnxscript.ir import _ir_utils_temp, serde
+from onnxscript.ir import serde
+from onnxscript.rewriter import _ir_utils
 
 # Overview of the pattern module: The classes below are used to define both
 # patterns (that we search for) and replacements for rewrite rules.
@@ -691,8 +692,8 @@ class Constant(ValuePattern):
             return MatchResult.FAIL()
 
     def matches(self, value: ir.Value, model: ir.Model):
-        value = _ir_utils_temp.propagate_const_value(value)
-        constant_value = _ir_utils_temp.get_numpy_from_ir_value(value)
+        value = _ir_utils.propagate_const_value(value)
+        constant_value = _ir_utils.get_numpy_from_ir_value(value)
         if isinstance(constant_value, np.ndarray):
             # TODO (rama): allow users to specify shape requirement, if desired.
             if constant_value.size != 1:
@@ -1038,9 +1039,7 @@ def _apply_deltas(
         # This is updating the graph/function outputs to use the new outputs
         for inserted_node in inserted_nodes:
             for new_output in inserted_node.outputs:
-                if (
-                    index := new_output.meta.get(_ir_utils_temp.GRAPH_OUTPUT_META_KEY)
-                ) is not None:
+                if (index := new_output.meta.get(_ir_utils.GRAPH_OUTPUT_META_KEY)) is not None:
                     graph_or_function.outputs[index] = new_output
 
     for n in to_delete:

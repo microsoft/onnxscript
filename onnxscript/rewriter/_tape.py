@@ -1,5 +1,8 @@
 """Convenience methods for constructing the IR."""
 
+# NOTE: This is a temporary solution for constructing the IR. It should be replaced
+# with a more permanent solution in the future.
+
 from __future__ import annotations
 
 import collections.abc

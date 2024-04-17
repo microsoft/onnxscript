@@ -4,8 +4,8 @@ import unittest
 import numpy as np
 import onnx.parser
 
-from onnxscript.ir import _ir_utils_temp, serde
-from onnxscript.rewriter import cast_constant_of_shape, pattern
+from onnxscript.ir import serde
+from onnxscript.rewriter import _ir_utils, cast_constant_of_shape, pattern
 
 logger = logging.getLogger(__name__)
 op = pattern.onnxop
@@ -250,8 +250,8 @@ class RewriteRuleTest(unittest.TestCase):
             oldshape = x.shape
             if not isinstance(oldshape.simple(), tuple):
                 return False
-            newshape = _ir_utils_temp.propagate_const_value(newshape)
-            newshape = _ir_utils_temp.get_numpy_from_ir_value(newshape)
+            newshape = _ir_utils.propagate_const_value(newshape)
+            newshape = _ir_utils.get_numpy_from_ir_value(newshape)
             if not isinstance(newshape, np.ndarray):
                 return False
             newshape = newshape.tolist()

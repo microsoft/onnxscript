@@ -11,8 +11,8 @@ import onnx
 import onnxscript
 import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
-from onnxscript.ir import _ir_utils_temp, serde
-from onnxscript.rewriter import _tape
+from onnxscript.ir import serde
+from onnxscript.rewriter import _ir_utils, _tape
 
 
 class _SimpleBuilder:
@@ -847,7 +847,7 @@ class GenericPattern:
             for old_output, new_output in zip(node.outputs, new_node.outputs):
                 for i, graph_output in enumerate(old_output.producer().graph.outputs):
                     if old_output is graph_output:
-                        new_output.meta[_ir_utils_temp.GRAPH_OUTPUT_META_KEY] = i
+                        new_output.meta[_ir_utils.GRAPH_OUTPUT_META_KEY] = i
 
             new_nodes.append(new_node)
 

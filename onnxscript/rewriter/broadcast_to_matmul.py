@@ -6,8 +6,7 @@ from typing import Any
 import numpy as np
 
 from onnxscript import ir
-from onnxscript.ir import _ir_utils_temp
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter import _ir_utils, pattern
 
 op = pattern.onnxop
 logger = logging.getLogger(__name__)
@@ -33,7 +32,7 @@ def check_if_need_reshape(match_bindings: dict[str, ir.Value | Any]) -> bool:
     input_a_shape = match_bindings["input_a"].shape
     input_b_shape = match_bindings["input_b"].shape
     # TODO: Get a helper func to get const_value
-    shape_c_value = _ir_utils_temp.propagate_const_value(match_bindings["shape_c"])
+    shape_c_value = _ir_utils.propagate_const_value(match_bindings["shape_c"])
     shape_c = shape_c_value.const_value.numpy()  # type: ignore[union-attr]
     if shape_c is None:
         return False
