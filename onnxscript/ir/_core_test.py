@@ -134,6 +134,14 @@ class SymbolicDimTest(unittest.TestCase):
 
 
 class ShapeTest(unittest.TestCase):
+    def test_init_raises_when_denotations_and_dims_have_different_lengths(self):
+        with self.assertRaisesRegex(ValueError, "denotations"):
+            _core.Shape([42], ["DATA_CHANNEL", "BATCH"])
+
+    def test_int_dimensions_are_python_ints(self):
+        shape = _core.Shape([42])
+        self.assertIsInstance(shape[0], int)
+
     @parameterized.parameterized.expand(
         [
             ("empty", (), ()),
@@ -206,6 +214,29 @@ class ShapeTest(unittest.TestCase):
     def test_ne_with_random_object(self):
         shape = _core.Shape((42,))
         self.assertNotEqual(shape, 42)
+
+    def test_setitem_raises_when_shape_is_frozen(self):
+        shape = _core.Shape([42], denotations=("DATA_CHANNEL",), frozen=True)
+        with self.assertRaisesRegex(TypeError, "frozen"):
+            shape[0] = 1
+
+    def test_getitem(self):
+        shape = _core.Shape([42], denotations=("DATA_CHANNEL",))
+        self.assertEqual(shape[0], 42)
+
+    def test_get_denotation(self):
+        shape = _core.Shape([42], denotations=("DATA_CHANNEL",))
+        self.assertEqual(shape.get_denotation(0), "DATA_CHANNEL")
+
+    def test_set_denotation(self):
+        shape = _core.Shape([42, 0], ["DATA_CHANNEL", "BATCH"])
+        shape.set_denotation(1, "UPDATED")
+        self.assertEqual(shape.get_denotation(1), "UPDATED")
+
+    def test_set_denotation_is_still_possible_when_shape_is_frozen(self):
+        shape = _core.Shape([42], denotations=("DATA_CHANNEL",), frozen=True)
+        shape.set_denotation(0, "UPDATED")
+        self.assertEqual(shape.get_denotation(0), "UPDATED")
 
 
 class ValueTest(unittest.TestCase):
