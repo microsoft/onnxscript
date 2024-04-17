@@ -10,21 +10,22 @@ nox.options.error_on_missing_interpreters = False
 
 
 COMMON_TEST_DEPENDENCIES = (
-    "jinja2",
-    "numpy==1.24.4",
-    "typing_extensions",
     "beartype==0.17.2",
-    "types-PyYAML",
     "expecttest==0.1.6",
     "hypothesis",
+    'numpy==1.24.4; python_version<"3.12"',
+    'numpy>1.26.0; python_version>="3.12"',
     "packaging",
     "parameterized",
+    "pyinstrument",
     "pytest-cov",
     "pytest-randomly",
     "pytest-subtests",
     "pytest-xdist",
     "pytest!=7.1.0",
     "pyyaml",
+    "types-PyYAML",
+    "typing_extensions",
 )
 ONNX = "onnx==1.16"
 ONNX_RUNTIME = "onnxruntime==1.17.1"

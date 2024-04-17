@@ -5,6 +5,7 @@ import unittest
 
 import onnx
 import parameterized
+import pyinstrument
 
 import onnxscript.testing
 from onnxscript import ir
@@ -21,9 +22,22 @@ class SerdeTest(unittest.TestCase):
         self, _: str, model_path: pathlib.Path
     ) -> None:
         model = onnx.load(model_path)
+        # Fix the missing graph name of some test models
+        model.graph.name = "main_graph"
+        onnx.checker.check_model(model)
+
+        # Profile the serialization and deserialization process
+        profiler = pyinstrument.Profiler()
+        profiler.start()
         ir_model = ir.serde.deserialize_model(model)
         serialized = ir.serde.serialize_model(ir_model)
+        profiler.stop()
+        profile_path = pathlib.Path(__file__).parent / "serde_test_profiles"
+        profile_path.mkdir(exist_ok=True)
+        profiler.write_html(profile_path / f"{self.id().split('.')[-1]}.html")
+
         onnxscript.testing.assert_onnx_proto_equal(serialized, model)
+        onnx.checker.check_model(serialized)
 
 
 if __name__ == "__main__":
