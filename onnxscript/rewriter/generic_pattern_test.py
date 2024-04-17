@@ -549,7 +549,7 @@ class GenericPatternTest(unittest.TestCase):
         # starts matching
         rule = generic_pattern.make_pattern_rule(
             transpose_transpose_pattern,
-            transpose_transpose_apply_pattern(),
+            transpose_transpose_apply_pattern(perm=[2, 0, 1]),
             transpose_transpose_mapping,
             verbose=0,
         )

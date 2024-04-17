@@ -235,7 +235,9 @@ class GenericPattern:
             "that it exists. You need to overwrite it to return True."
         )
 
-    def enumerate_matches(self, g: ir.Graph, node: ir.Node | None = None) -> Iterator:
+    def enumerate_matches(
+        self, g: ir.Graph | ir.GraphView, node: ir.Node | None = None
+    ) -> Iterator:
         """Enumerates all the matches."""
         if node is None:
             matched = []
@@ -267,7 +269,7 @@ class GenericPattern:
 
         By setting the verbosity (see next Section), the user may then know
         which lines in the code returned None and which condition failed.
-        If logs are fully enabled, it shows informations about matched none
+        If logs are fully enabled, it shows information about matched none
         and the line deciding the matched failed.
         For example, this tells the matching failed at line 601 in ``generic_pattern.py``.
         It happens when propagating the match in the backward directions.
@@ -317,7 +319,7 @@ class GenericPattern:
         g: ir.Graph,
         *args: str,
         **kwargs: Any,
-    ) -> list[ir.Node] | None:
+    ) -> Sequence[ir.Node] | None:
         """Builds the pattern to match."""
         raise NotImplementedError(
             f"Class {cls.__name__!r} must overwrite method match_pattern."
@@ -325,12 +327,12 @@ class GenericPattern:
 
     def _build_pattern(
         self,
-        fct: Callable | None = None,
+        func: Callable | None = None,
         match: bool = True,
         kwargs: dict[str, Any] | None = None,
     ) -> ir.Graph:
         del match
-        if fct is None:
+        if func is None:
             raise NotImplementedError(
                 f"Not implemented if fct is None in class {self.__class__.__name__}"
             )
@@ -343,7 +345,7 @@ class GenericPattern:
         args = []
 
         # There should be a better way.
-        sig = inspect.signature(fct)
+        sig = inspect.signature(func)
         for i, p in enumerate(sig.parameters.values()):
             if i == 0:
                 continue
@@ -357,19 +359,19 @@ class GenericPattern:
 
         inputs = [ir.Input(name=name) for name in args]
         builder = _SimpleBuilder()
-        outputs = fct(builder, *inputs, **kwargs)
+        outputs = func(builder, *inputs, **kwargs)
         if isinstance(outputs, ir.Value):
             outputs = [outputs]
         graph = ir.Graph(inputs=inputs, outputs=outputs, nodes=builder.nodes)
         graph.outputs[:] = outputs
         return graph
 
-    def _get_match_pattern(self, g: ir.Graph) -> ir.Graph:
+    def _get_match_pattern(self, g: ir.Graph | ir.GraphView) -> ir.Graph:
         cache_key = 0, tuple(sorted(g.opset_imports.items()))
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        pat = self._build_pattern(fct=self.match_pattern, match=True)
+        pat = self._build_pattern(self.match_pattern, match=True)
         self._cache[cache_key] = pat
         return pat
 
@@ -657,7 +659,7 @@ class GenericPattern:
 
     def match(
         self,
-        g: ir.Graph,
+        g: ir.Graph | ir.GraphView,
         node: ir.Node,
     ) -> PatternMatchResult | None:
         self._debug = {}
@@ -771,7 +773,7 @@ class GenericPattern:
         g: ir.Model,
         *args: Any,
         **kwargs: Any,
-    ) -> list[ir.Node]:
+    ) -> Sequence[ir.Node]:
         """Applies the replacement."""
         raise NotImplementedError(
             f"Class {cls.__name__!r} must overwrite method 'apply_pattern'."
@@ -782,10 +784,10 @@ class GenericPattern:
         model: ir.Model,
         match_result: PatternMatchResult,
         verbose: int = 0,
-    ) -> list[ir.Node]:
+    ) -> Sequence[ir.Node]:
         assert isinstance(match_result, PatternMatchResult)
         new_pat = self._build_pattern(
-            fct=self.apply_pattern, kwargs=match_result.kwargs, match=False
+            self.apply_pattern, kwargs=match_result.kwargs, match=False
         )
         assert len(new_pat.inputs) == len(match_result.pattern_inputs), (
             f"Not the same number of inputs, "
@@ -801,7 +803,7 @@ class GenericPattern:
         if verbose > 5:
             print(
                 f"[GenericPattern.apply] replace {len(match_result.model_nodes)} nodes, "
-                f"applied {self.display_pattern(model, self.apply_pattern)}"
+                f"applied {(self.apply_pattern)}"
             )
 
         # TODO: handle initializers here
@@ -873,6 +875,9 @@ class FunctionPattern(GenericPattern):
         self.apply_pattern = apply_pattern
         self.validate_mapping = validate_mapping
         self.verbose = verbose
+
+    def _build_pattern(self, pattern: Any, **kwargs) -> ir.Graph:
+        return pattern
 
     def _get_match_pattern(self, *_, **__):
         return self.match_pattern
