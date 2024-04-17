@@ -5,8 +5,7 @@
 
 from __future__ import annotations
 
-import collections.abc
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 import onnx
 
@@ -37,7 +36,7 @@ def _convert_attributes(attrs: Mapping[str, Any]) -> list[ir.Attr]:
     return attributes
 
 
-class Tape(collections.abc.Iterable[ir.Node]):
+class Tape(Iterable[ir.Node]):
     """A tape for recording nodes that are created."""
 
     def __init__(self) -> None:
