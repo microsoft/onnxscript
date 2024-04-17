@@ -116,7 +116,7 @@ def rotary_apply_pattern(x, pos_ids, axis):
 # The rule is easy to create.
 
 
-rule = generic_pattern.make_pattern_rule(
+rule_with_validation_function = generic_pattern.make_pattern_rule(
     rotary_match_pattern,
     rotary_apply_pattern,
     validate_rotary_mapping,
