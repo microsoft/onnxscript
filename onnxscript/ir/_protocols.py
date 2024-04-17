@@ -25,7 +25,6 @@ from typing import (
     Protocol,
     Sequence,
     Tuple,
-    Union,
 )
 
 from onnxscript.ir import _enums
@@ -33,11 +32,6 @@ from onnxscript.ir import _enums
 if typing.TYPE_CHECKING:
     import numpy as np
     from typing_extensions import TypeAlias
-
-# Representation of a dimension. int is a known axis, str represents a dynamic axis, None is an unnamed dynamic axis.
-SimpleDim: TypeAlias = Union[int, str, None]
-# Representation of a shape. Each element is a simple dimension.
-SimpleShape: TypeAlias = Sequence[SimpleDim]
 
 # An identifier that will uniquely identify an operator. E.g (domain, op_type, overload)
 OperatorIdentifier: TypeAlias = Tuple[str, str, str]
@@ -414,21 +408,14 @@ class SparseTensorProtocol(Protocol):
 
 
 @typing.runtime_checkable
-class DimensionProtocol(Protocol):
-    """Value of a single dimension in a shape.
+class SymbolicDimProtocol(Protocol):
+    """Value of a single symbolic/dynamic dimension in a shape.
 
     Attributes:
         value: The value of the dimension.
-        denotation: The denotation of the dimension.
-            Standard denotation can optionally be used to denote tensor
-            dimensions with standard semantic descriptions to ensure
-            that operations are applied to the correct axis of a tensor.
-            Refer to https://github.com/onnx/onnx/blob/main/docs/DimensionDenotation.md#denotation-definition
-            for pre-defined dimension denotations.
     """
 
-    value: int | str | None
-    denotation: str | None
+    value: str | None  # TODO(justinchuby): Maybe support sympy
 
 
 @typing.runtime_checkable
@@ -441,14 +428,14 @@ class ShapeProtocol(Protocol):
         dims: The dimensions of the shape.
     """
 
-    dims: Sequence[DimensionProtocol]
+    dims: Sequence[int | SymbolicDimProtocol]
 
-    def __iter__(self) -> Iterator[DimensionProtocol]: ...
-
-    def __getitem__(self, index: int) -> DimensionProtocol: ...
-
-    def simple(self) -> SimpleShape: ...
-
+    def __iter__(self) -> Iterator[int | SymbolicDimProtocol]: ...
+    def __getitem__(self, index: int) -> int | SymbolicDimProtocol: ...
+    def __setitem__(self, index: int, value: int | SymbolicDimProtocol) -> None: ...
+    def __len__(self) -> int: ...
+    def get_denotation(self, index: int) -> str | None: ...
+    def set_denotation(self, index: int, denotation: str | None) -> None: ...
     def numpy(self) -> Sequence[int]: ...
 
 

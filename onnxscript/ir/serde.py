@@ -94,7 +94,7 @@ class TensorProtoTensor(_core.TensorBase):
 
     @property
     def shape(self) -> _core.Shape:
-        return _core.Shape(self._proto.dims)
+        return _core.Shape(self._proto.dims, frozen=True)
 
     @property
     def dtype(self) -> _enums.DataType:
@@ -480,12 +480,22 @@ def deserialize_type_proto_for_shape(proto: onnx.TypeProto) -> _core.Shape | Non
             return None
         # This logic handles when the shape is [] as well
         dim_protos = shape_proto.dim
-        return _core.Shape([deserialize_dimension(d) for d in dim_protos])
+        deserialized_dim_denotations = [
+            deserialize_dimension(dim_proto) for dim_proto in dim_protos
+        ]
+        dims = [dim for dim, _ in deserialized_dim_denotations]
+        denotations = [denotation for _, denotation in deserialized_dim_denotations]
+        return _core.Shape(dims, denotations=denotations, frozen=True)
     if proto.HasField("sparse_tensor_type"):
         if (shape_proto := _get_field(proto.sparse_tensor_type, "shape")) is None:
             return None
         dim_protos = shape_proto.dim
-        return _core.Shape([deserialize_dimension(d) for d in dim_protos])
+        deserialized_dim_denotations = [
+            deserialize_dimension(dim_proto) for dim_proto in dim_protos
+        ]
+        dims = [dim for dim, _ in deserialized_dim_denotations]
+        denotations = [denotation for _, denotation in deserialized_dim_denotations]
+        return _core.Shape(dims, denotations=denotations, frozen=True)
     if proto.HasField("sequence_type"):
         if (elem_type := _get_field(proto.sequence_type, "elem_type")) is None:
             return None
@@ -536,12 +546,26 @@ def deserialize_type_proto_for_type(
     return None
 
 
-def deserialize_dimension(proto: onnx.TensorShapeProto.Dimension) -> _core.Dimension:
+def deserialize_dimension(
+    proto: onnx.TensorShapeProto.Dimension,
+) -> tuple[int | _core.SymbolicDim, str | None]:
+    """Deserialize a dimension proto into (dimension, denotation).
+
+    Args:
+        proto: The dimension proto to deserialize.
+
+    Returns:
+        A tuple of the dimension and its denotation.
+    """
     value_field = proto.WhichOneof("value")
     denotation = _get_field(proto, "denotation")
     if value_field is not None:
-        return _core.Dimension(getattr(proto, value_field), denotation=denotation)
-    return _core.Dimension(None)
+        value = getattr(proto, value_field)
+        if value_field == "dim_value":
+            return value, denotation
+        if value_field == "dim_param":
+            return _core.SymbolicDim(value), denotation
+    return _core.SymbolicDim(None), denotation
 
 
 def deserialize_tensor(
@@ -1146,17 +1170,19 @@ def serialize_shape_into(type_proto: onnx.TypeProto, from_: _protocols.ShapeProt
     tensor_type_proto = type_proto.tensor_type
     # When from is empty, we still need to set the shape field to an empty list by touching it
     tensor_type_proto.shape.ClearField("dim")
-    for dim in from_:
-        serialize_dimension_into(tensor_type_proto.shape.dim.add(), from_=dim)
+    for i, dim in enumerate(from_):
+        denotation = from_.get_denotation(i)
+        serialize_dimension_into(tensor_type_proto.shape.dim.add(), dim, denotation)
 
 
 def serialize_dimension_into(
-    dim_proto: onnx.TensorShapeProto.Dimension, from_: _protocols.DimensionProtocol
+    dim_proto: onnx.TensorShapeProto.Dimension,
+    dim: int | _protocols.SymbolicDimProtocol,
+    denotation: str | None = None,
 ) -> None:
-    value = from_.value
-    if from_.denotation:
-        dim_proto.denotation = from_.denotation
-    if isinstance(value, int):
-        dim_proto.dim_value = value
-    elif isinstance(value, str):
-        dim_proto.dim_param = value
+    if denotation:
+        dim_proto.denotation = denotation
+    if isinstance(dim, int):
+        dim_proto.dim_value = dim
+    elif isinstance(dim, (_core.SymbolicDim, _protocols.SymbolicDimProtocol)):
+        dim_proto.dim_param = str(dim.value)
