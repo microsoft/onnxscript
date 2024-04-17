@@ -1498,7 +1498,8 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
         initializers: The initializers in the graph.
         doc_string: Documentation string.
         opset_imports: Opsets imported by the graph.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     __slots__ = (
@@ -1523,6 +1524,7 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
         doc_string: str | None = None,
         opset_imports: dict[str, int] | None = None,
         name: str | None = None,
+        metadata_props: dict[str, str] | None = None,
     ):
         self.name = name
         self.inputs = tuple(inputs)
@@ -1534,7 +1536,7 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
         self.doc_string = doc_string
         self.opset_imports = opset_imports or {}
         self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = None
+        self._metadata_props: dict[str, str] | None = metadata_props
         self._nodes: tuple[Node, ...] = tuple(nodes)
 
     def __getitem__(self, index: int) -> Node:
@@ -1695,8 +1697,8 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         outputs: The output values of the function.
         opset_imports: Opsets imported by the function.
         doc_string: Documentation string.
-        meta: The metadata store for the function.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     __slots__ = (
