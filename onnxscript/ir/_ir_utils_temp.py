@@ -9,8 +9,9 @@ from onnxscript.ir import serde
 
 GRAPH_OUTPUT_META_KEY = "pkg.onnxscript.rewriter.generic_pattern.graph_output"
 
+
 def propagate_const_value(ir_value: ir.Value) -> ir.Value:
-    node = ir_value.def_node()
+    node = ir_value.producer()
     if ir_value.const_value is None and node is not None and node.op_type == "Constant":
         attr_names = [
             "value_float",
@@ -38,19 +39,3 @@ def get_numpy_from_ir_value(value: ir.Value) -> np.ndarray | None:
             return constant_value.numpy()
         return np.array(constant_value)
     return constant_value
-
-
-# TODO: This is a temporary utility to assist new ir.Value naming
-GEN_VAR_COUNTER: int = 0
-
-
-def _make_new_name() -> str:
-    global GEN_VAR_COUNTER  # pylint: disable=global-statement
-    GEN_VAR_COUNTER += 1
-    return f"_gen_{GEN_VAR_COUNTER}"
-
-
-def post_node_output_naming(node: ir.Node) -> None:
-    for output in node.outputs:
-        assert output.name is None
-        output.name = _make_new_name()

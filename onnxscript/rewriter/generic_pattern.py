@@ -11,7 +11,7 @@ import onnx
 import onnxscript
 import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
-from onnxscript.ir import serde, _ir_utils_temp
+from onnxscript.ir import _ir_utils_temp, serde
 from onnxscript.rewriter import _tape
 
 
@@ -331,7 +331,9 @@ class GenericPattern:
     ) -> ir.Graph:
         del match
         if fct is None:
-            raise NotImplementedError(f"Not implemented if fct is None in class {self.__class__.__name__}")
+            raise NotImplementedError(
+                f"Not implemented if fct is None in class {self.__class__.__name__}"
+            )
         if kwargs:
             raise NotImplementedError(
                 f"Not implemented when kwargs is not empty but {kwargs} "
@@ -388,10 +390,7 @@ class GenericPattern:
         def _p(n: ir.Node, full: bool = False) -> str:
             if isinstance(n, (ir.Node, onnx.NodeProto)):
                 if full:
-                    return (
-                        f"{n.op_type}({n.inputs}) "
-                        f"-> ({n.inputs})"
-                    )
+                    return f"{n.op_type}({n.inputs}) -> ({n.inputs})"
                 return f"{n.op_type}({n.inputs})"
             return str(n)
 
@@ -459,11 +458,11 @@ class GenericPattern:
             )
             return self.none(node, inspect.currentframe().f_lineno)
         for i, pi in zip(graph_node.inputs, pattern_node.inputs):
-            ppred = pi.def_node()
+            ppred = pi.producer()
             if ppred is None:
                 # ppred is None means the pattern ends here.
                 continue
-            pred = i.def_node()
+            pred = i.producer()
             if pred is None:
                 # No node in the graph.
                 return self.none(node, inspect.currentframe().f_lineno)
@@ -523,8 +522,8 @@ class GenericPattern:
             return self.none(root_node, inspect.currentframe().f_lineno)
 
         for o, op in zip(graph_node.outputs, pattern_node.outputs):
-            graph_node_users = list(user for user, _ in o.users())
-            pattern_node_users = list(user for user, _ in op.users())
+            graph_node_users = [user for user, _ in o.consumers()]
+            pattern_node_users = [user for user, _ in op.consumers()]
             if not pattern_node_users:
                 # The pattern has no node forward, the matching stops.
                 continue
@@ -554,9 +553,19 @@ class GenericPattern:
                 continue
 
             # Let's remove the nodes already marked.
-            pattern_node_users_not_marked = [unmarked_node for unmarked_node in pattern_node_users if unmarked_node not in marked]
-            pattern_node_users_marked = [marked[marked_node] for marked_node in pattern_node_users if marked_node in marked]
-            assert len(pattern_node_users_marked) + len(pattern_node_users_not_marked) == len(pattern_node_users), (
+            pattern_node_users_not_marked = [
+                unmarked_node
+                for unmarked_node in pattern_node_users
+                if unmarked_node not in marked
+            ]
+            pattern_node_users_marked = [
+                marked[marked_node]
+                for marked_node in pattern_node_users
+                if marked_node in marked
+            ]
+            assert len(pattern_node_users_marked) + len(pattern_node_users_not_marked) == len(
+                pattern_node_users
+            ), (
                 f"pattern_node_users_not_marked={pattern_node_users_not_marked}, "
                 f"pattern_node_users_marked={pattern_node_users_marked}, "
                 f"pattern_node_users={pattern_node_users}, "
@@ -697,32 +706,36 @@ class GenericPattern:
                 print(
                     f"[GenericPattern.match] iteration={iteration} "
                     f"n_marked={len(marked)}, n_stacked={len(stacked)}, "
-                    f"marked_types={collections.Counter(_.op_type for _ in marked.keys())}"
+                    f"marked_types={collections.Counter(_.op_type for _ in marked)}"
                 )
             pattern_node_from_stack = stacked.pop()
             pattern_to_graph_node = marked[pattern_node_from_stack]
 
-            result = self._match_backward(node, marked, stacked, pattern_to_graph_node, pattern_node_from_stack)
+            result = self._match_backward(
+                node, marked, stacked, pattern_to_graph_node, pattern_node_from_stack
+            )
             if result is None:
                 if self.verbose > 5:
                     print("[GenericPattern.match] done. backward failed.")
                 return result
 
             nodes_not_in_pattern = set(marked.keys()) - all_pattern_nodes
-            assert not nodes_not_in_pattern, (
-                f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"
-            )
+            assert (
+                not nodes_not_in_pattern
+            ), f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"
 
-            result = self._match_forward(node, marked, stacked, pattern_to_graph_node, pattern_node_from_stack)
+            result = self._match_forward(
+                node, marked, stacked, pattern_to_graph_node, pattern_node_from_stack
+            )
             if result is None:
                 if self.verbose > 5:
                     print("[GenericPattern.match] done. forward failed.")
                 return result
 
             nodes_not_in_pattern = set(marked.keys()) - all_pattern_nodes
-            assert not nodes_not_in_pattern, (
-                f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"
-            )
+            assert (
+                not nodes_not_in_pattern
+            ), f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"
 
             if self.verbose > 5:
                 self._debug["iteration"] = iteration
@@ -745,7 +758,11 @@ class GenericPattern:
         # to let next functions to be able to build the matching again.
         matched_nodes = [marked[pattern_node] for pattern_node in match_pattern.nodes]
         return PatternMatchResult(
-            self, matched_nodes, match_pattern.nodes, match_pattern.inputs, match_pattern.outputs
+            self,
+            matched_nodes,
+            match_pattern.nodes,
+            match_pattern.inputs,
+            match_pattern.outputs,
         )
 
     @classmethod
@@ -828,7 +845,7 @@ class GenericPattern:
             )
 
             for old_output, new_output in zip(node.outputs, new_node.outputs):
-                for i, graph_output in enumerate(old_output.def_node().graph.outputs):
+                for i, graph_output in enumerate(old_output.producer().graph.outputs):
                     if old_output is graph_output:
                         new_output.meta[_ir_utils_temp.GRAPH_OUTPUT_META_KEY] = i
 

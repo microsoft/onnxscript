@@ -512,7 +512,7 @@ class NodePattern:
                 return MatchResult([])
             else:
                 return MatchResult.FAIL()
-        node = value.def_node()
+        node = value.producer()
         if node is None:
             # Eg., value could be an input parameter, which will not match a value
             # computed by the op in this pattern.
@@ -627,10 +627,10 @@ class NodeOutputPattern(ValuePattern):
 
     def matches(self, value: ir.Value, model: ir.Model):
         """Match the StaticValueInfo from IR with the `matches_node()` in node pattern."""
-        node = value.def_node()
+        node = value.producer()
         if node is None:
             return MatchResult.FAIL()
-        if value.def_index() != self.output_index:
+        if value.index() != self.output_index:
             return MatchResult.FAIL()
         return self.node_pattern.matches_node(node, model)
 
@@ -1038,11 +1038,14 @@ def _apply_deltas(
         # This is updating the graph/function outputs to use the new outputs
         for inserted_node in inserted_nodes:
             for new_output in inserted_node.outputs:
-                if (index := new_output.meta.get(_ir_utils_temp.GRAPH_OUTPUT_META_KEY)) is not None:
+                if (
+                    index := new_output.meta.get(_ir_utils_temp.GRAPH_OUTPUT_META_KEY)
+                ) is not None:
                     graph_or_function.outputs[index] = new_output
 
     for n in to_delete:
         graph_or_function.remove(n)
+
 
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
