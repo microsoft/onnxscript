@@ -100,6 +100,5 @@ docs/auto_examples/*
 tests/export/*
 tests/models/testoutputs/*
 tests/mylib.onnxlib
-**/serde_test_profiles/*
 tools/ort_rewriter_profiling/.logs/*
 tools/ort_rewriter_profiling/onnx_models/*
