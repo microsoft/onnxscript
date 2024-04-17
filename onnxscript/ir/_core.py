@@ -397,11 +397,15 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
     __slots__ = ("_value",)
 
-    def __init__(self, value: int | str | None, denotation: str | None = None) -> None:
-        self._value = value
+    def __init__(self, value: str | None) -> None:
+        """Initialize a symbolic dimension.
 
-    def __index__(self) -> int:
-        return int(self)
+        Args:
+            value: The value of the dimension. It should not be an int.
+        """
+        if isinstance(value, int):
+            raise TypeError("The value of a SymbolicDim cannot be an int")
+        self._value = value
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, SymbolicDim):
@@ -412,7 +416,7 @@ class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
         return hash(self.value)
 
     @property
-    def value(self) -> int | str | None:
+    def value(self) -> str | None:
         return self._value
 
     def __str__(self) -> str:
@@ -440,11 +444,10 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
             frozen: If True, the shape is immutable and cannot be modified. This
                 is useful when the shape is initialized by a Tensor.
         """
-        # TODO: Support symbolic shapes with expressions?
-        for dim in dims:
-            if not isinstance(dim, (int, SymbolicDim)):
-                raise TypeError(f"Expected int or SymbolicDim, got '{type(dim)}'")
-        self._dims: list[int | SymbolicDim] = list(dims)
+        self._dims: list[int | SymbolicDim] = [
+            SymbolicDim(dim) if not isinstance(dim, (int, SymbolicDim)) else dim
+            for dim in dims
+        ]
         self._denotations: list[str | None] = (
             list(denotations) if denotations is not None else [None] * len(self._dims)
         )
@@ -465,7 +468,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
     def numpy(self) -> tuple[int, ...]:
         if any(not isinstance(dim, int) for dim in self._dims):
             raise ValueError(f"Cannot convert the shape {self} to a tuple of ints")
-        return tuple(dim.value for dim in self._dims)  # type: ignore
+        return tuple(dim for dim in self._dims)  # type: ignore
 
     def __len__(self) -> int:
         return len(self._dims)
