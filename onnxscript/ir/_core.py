@@ -1161,14 +1161,13 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def is_graph_output(self) -> bool:
         """Whether the value is an output of a graph."""
-        producer = self.producer()
-        if producer is None:
+        if (producer := self.producer()) is None:
             return False
-        if producer.graph is None:
+        if (graph := producer.graph) is None:
             return False
         # Cannot use `in` because __eq__ may be defined by subclasses, even though
         # it is not recommended
-        return any(output is self for output in producer.outputs)
+        return any(output is self for output in graph.outputs)
 
 
 class Input(Value):
