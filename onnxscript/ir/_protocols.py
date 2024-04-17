@@ -327,8 +327,8 @@ class GraphViewProtocol(Protocol):
     initializers: Mapping[str, TensorProtocol]
     doc_string: str
     opset_imports: Mapping[str, int]
-    metadata_props: Mapping[str, str]
-    meta: Mapping[str, Any]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
     def __getitem__(self, index: int) -> NodeProtocol: ...
     def __len__(self) -> int: ...
