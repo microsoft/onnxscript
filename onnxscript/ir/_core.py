@@ -175,16 +175,16 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         # NOTE: We should not do any copying here for performance reasons
         if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
             raise TypeError(f"Expected an array compatible object, got {type(value)}")
-        if not hasattr(value, "shape"):
-            if shape is None:
+        if shape is None:
+            if not hasattr(value, "shape"):
                 raise ValueError(
                     f"Expected an object with a shape attribute, but {type(value)} does not have shape. "
                     "Please specify the shape explicitly."
                 )
+            self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
+        else:
             self._shape = shape
             self._shape._frozen = True
-        else:
-            self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
         self._raw = value
         self._dtype = dtype
         self.name = name
