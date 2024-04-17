@@ -57,6 +57,7 @@ exclude_patterns = [
     'onnxscript/tools/function_unittest_producer.py',  # FIXME
     'onnxscript/_legacy_ir/visitor.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/layernorm.py',  # FIXME
+    'onnxscript/rewriter/generic_pattern.py',  # FIXME
 ]
 command = [
     'python',

@@ -24,22 +24,22 @@ from onnxscript.rewriter import _ir_utils
 
 
 class PythonPattern:
-    def __init__(self, value: int | str | list, name: str | None = None) -> None:
+    def __init__(self, value: int | str | Sequence, name: str | None = None) -> None:
         self._value = value
         self._name = name
 
     @property
-    def value(self) -> int | str | list:
+    def value(self) -> int | str | Sequence:
         return self._value
 
     @property
     def name(self) -> str | None:
         return self._name
 
-    def matches(self, value: int | str | list) -> bool:
+    def matches(self, value: int | str | Sequence) -> bool:
         return value == self.value
 
-    def to_ir(self, model, bindings=None) -> int | str | list:
+    def to_ir(self, model, bindings=None) -> int | str | Sequence:
         return self.value
 
 
@@ -190,7 +190,7 @@ class TensorConstantPattern:
 
 
 def _make_constant_pattern(
-    value: float | int | list | ir.TensorProtocol, name: str
+    value: float | int | Sequence | ir.TensorProtocol, name: str
 ) -> (
     IntConstantPattern
     | FloatConstantPattern
@@ -205,7 +205,7 @@ def _make_constant_pattern(
         return IntConstantPattern(value, name)
     if isinstance(value, str):
         return StringConstantPattern(value, name)
-    if isinstance(value, list):
+    if isinstance(value, Sequence):
         return ListConstantPattern(value, name)
     if isinstance(value, ir.TensorProtocol):
         return TensorConstantPattern(value, name)
@@ -218,15 +218,17 @@ class AnyPattern:
 
 
 class AttrPattern:
-    def __init__(self, value: Var | int | float | list | ir.TensorProtocol, name: str) -> None:
+    def __init__(
+        self, value: Var | int | float | Sequence | ir.TensorProtocol, name: str
+    ) -> None:
         if isinstance(value, Var):
             self.value_pattern = value
-        elif isinstance(value, (int, float, list, ir.TensorProtocol)):
+        elif isinstance(value, (int, float, Sequence, ir.TensorProtocol)):
             self.value_pattern = _make_constant_pattern(value, name)
         else:
             raise TypeError(f"Cannot convert {type(value)} to AttrPattern")
 
-    def matches(self, attr_val: int | float | list, model: ir.Model) -> MatchResult:
+    def matches(self, attr_val: int | float | Sequence, model: ir.Model) -> MatchResult:
         if isinstance(self.value_pattern, Var):
             return self.value_pattern.matches(attr_val, model)
         return self.value_pattern.matches(attr_val)
@@ -365,7 +367,7 @@ def _to_value_pattern(x: ValuePattern | int | float) -> ValuePattern:
     """
     if isinstance(x, ValuePattern):
         return x
-    if isinstance(x, (int, float, list)):
+    if isinstance(x, (int, float, Sequence)):
         return Constant(x)
     # TODO(titaiwang): Could this be wrapped Constant?
     raise TypeError(f"Cannot convert {type(x)} to ValuePattern")
@@ -552,7 +554,7 @@ class NodePattern:
         bindings: dict[str, ir.Value | Any],
         num_outputs: int,
         rewrite_cache: RewriteCache,
-    ) -> tuple[list[ir.Value], list[ir.Node]]:
+    ) -> tuple[Sequence[ir.Value], Sequence[ir.Node]]:
         domain = self.domain.to_ir(model)
         op = self.op.to_ir(model)
         inputs = []
@@ -577,17 +579,17 @@ class NodePattern:
             attr_pattern.to_ir(model, rewrite_cache, bindings)
             for attr_pattern in self.attributes.values()
         )
-        newnode = ir.Node(
+        new_node = ir.Node(
             domain=domain,
             op_type=op,
             inputs=inputs,
-            attributes=attributes,
+            attributes=attributes.values(),
             num_outputs=num_outputs,
         )
-        nodes.append(newnode)
-        return newnode.outputs, nodes
+        nodes.append(new_node)
+        return new_node.outputs, nodes
 
-    def commute(self) -> list[ValuePattern]:
+    def commute(self) -> Sequence[ValuePattern]:
         list_of_lists = [pattern.commute() for pattern in self.inputs]
 
         def enumerate_inputs(inputs, index):
@@ -634,7 +636,7 @@ class NodeOutputPattern(ValuePattern):
         bindings: dict[str, ir.Value | Any],
         num_outputs: int,
         rewrite_cache: RewriteCache,
-    ) -> tuple[list[ir.Value], list[ir.Node]]:
+    ) -> tuple[Sequence[ir.Value], Sequence[ir.Node]]:
         assert self.output_index == 0, "TODO: handle multiple outputs"
         return self.node_pattern.to_ir(model, bindings, num_outputs, rewrite_cache)
 
@@ -658,13 +660,13 @@ class Var(ValuePattern):
         bindings: dict[str, ir.Value | Any],
         num_outputs: int,
         rewrite_cache: RewriteCache,
-    ) -> tuple[ir.Value, list[None]]:
+    ) -> tuple[ir.Value, Sequence]:
         del model  # Unused
         del num_outputs  # Unused
         del rewrite_cache  # Unused
         return bindings[self.pattern_var_name], []
 
-    def commute(self) -> list[ValuePattern]:
+    def commute(self) -> Sequence[ValuePattern]:
         return [self]
 
 
@@ -678,7 +680,7 @@ class Constant(ValuePattern):
         self.rel_tol = rel_tol
         self.abs_tol = abs_tol
 
-    def match_scalar(self, scalar_value, return_value: list[ir.Node]):
+    def match_scalar(self, scalar_value, return_value: Sequence[ir.Node]):
         if math.isclose(scalar_value, self.value, rel_tol=self.rel_tol, abs_tol=self.abs_tol):
             return MatchResult(return_value)
         return MatchResult.FAIL()
@@ -693,7 +695,7 @@ class Constant(ValuePattern):
         if constant_value.size != 1:
             return MatchResult.FAIL()
 
-        return_value = []
+        return_value: list[ir.Node] = []
         # Note: If the value is produced by a Constant node, we could include
         # the Constant node in the return_value list. However, we don't do that.
         # Instead, we will rely on DCE to remove the constant node if it is not
@@ -727,7 +729,7 @@ def _handle_pattern_return_value(
     exponential in the number of terminal nodes.
 
     Args:
-        node_output_pattern: NodeOutputPattern | list[NodeOutputPattern]
+        node_output_pattern: NodeOutputPattern | Sequence[NodeOutputPattern]
 
     Returns:
         tuple[NodePattern, int]: The last node_pattern, num_outputs
@@ -735,7 +737,7 @@ def _handle_pattern_return_value(
     if isinstance(node_output_pattern, NodeOutputPattern):
         node_pattern = node_output_pattern.node_pattern
         num_outputs = 1
-    elif isinstance(node_output_pattern, (list, tuple)):
+    elif isinstance(node_output_pattern, Sequence):
         node_pattern = node_output_pattern[0].node_pattern
         num_outputs = len(node_output_pattern)
         for i, p in enumerate(node_output_pattern):
@@ -839,7 +841,7 @@ class RewriteCache:
 
     def set_node_output_pattern_with_ir(
         self, node_output_pattern: NodeOutputPattern, value: ir.Value, node: ir.Node
-    ) -> bool:
+    ) -> None:
         self._node_output_pattern_to_ir[node_output_pattern] = (value, node)
 
 
@@ -915,7 +917,7 @@ class RewriteRule:
 
     def try_rewrite(
         self, model: ir.Model, node: ir.Node
-    ) -> tuple[list[ir.Node], list[ir.Node]] | None:
+    ) -> tuple[Sequence[ir.Node], Sequence[ir.Node]] | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
         match = self.matches(node, model)
         if match:
@@ -944,7 +946,7 @@ class RewriteRule:
     def count_matches(self, model: ir.Model, *, commute: bool = False):
         return RewriteRuleSet([self], commute=commute).count_matches(model)
 
-    def commute(self) -> list[RewriteRule]:
+    def commute(self) -> Sequence[RewriteRule]:
         def replace_pattern(new_pattern):
             """Return a shallow copy of self with node_pattern replaced by new_pattern."""
             rule = RewriteRule()
@@ -960,7 +962,7 @@ class RewriteRule:
 def _apply_deltas(
     graph_or_function: ir.Graph | ir.Function,
     # TODO(jutinchuby): Use a more descriptive data structure to store deltas
-    deltas: list[tuple[int, tuple[list[ir.Node], list[ir.Node]]]],
+    deltas: Sequence[tuple[int, tuple[Sequence[ir.Node], Sequence[ir.Node]]]],
 ):
     """Applies deltas.
 
@@ -980,8 +982,8 @@ def _apply_deltas(
     The reordering would probably happen not very often.
     """
     existing_ids = {id(n): (i, n) for i, n in enumerate(graph_or_function.nodes)}
-    to_delete = set()
-    to_insert = []
+    to_delete: set[ir.Node] = set()
+    to_insert: list[ir.Node] = []
 
     for i, delta in reversed(deltas):
         if len(delta) == 3:
@@ -1107,6 +1109,6 @@ class RewriteRuleSet:
         else:
             assert isinstance(model, ir.Model)
         count = self._count_matches_in_graph_or_function(model, model.graph)
-        for function in model.functions:
+        for function in model.functions.values():
             count += self._count_matches_in_graph_or_function(model, function)
         return count

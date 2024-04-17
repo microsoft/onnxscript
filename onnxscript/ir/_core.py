@@ -1536,7 +1536,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
 
     def __init__(
         self,
-        graph: Graph | GraphView,
+        graph: Graph,
         *,
         ir_version: int,
         producer_name: str | None = None,
@@ -1546,7 +1546,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
         doc_string: str | None = None,
         functions: Sequence[Function] = (),
     ) -> None:
-        self.graph: Graph | GraphView = graph  # type: ignore[assignment]
+        self.graph: Graph = graph  # type: ignore[assignment]
         self.ir_version = ir_version
         self.producer_name = producer_name
         self.producer_version = producer_version

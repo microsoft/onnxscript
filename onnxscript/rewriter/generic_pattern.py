@@ -73,7 +73,7 @@ class PatternMatchResult:
         self.pattern_nodes = pattern_nodes
         self.pattern_inputs = pattern_inputs
         self.pattern_outputs = pattern_outputs
-        self.kwargs: dict[int, Any] = {}
+        self.kwargs: dict[str, Any] = {}
 
         matched_pattern_to_model_value: dict[ir.Value, ir.Value] = {}
         for gn, pn in zip(model_nodes, pattern_nodes):
@@ -129,7 +129,7 @@ class GenericRewriteRule(orp.RewriteRule):
     """
     Defines a rewriting rule.
 
-    :param pattern: a pattern defines by :class:`GenericPattern`.
+        pattern: a pattern defines by :class:`GenericPattern`.
     """
 
     def __init__(self, pattern: GenericPattern):
@@ -276,7 +276,7 @@ class GenericPattern:
                 Transpose(/_original_modu...MatMul_output_0) ~ Transpose(mul) [139774002356256-139774000631184]
                 Sin(/_original_modu...ncat_1_output_0) ~ Sin(concattraining-transpose-0) [139774002358512-139774000631568]
                 Cast(/_original_modu...mb/Sin_output_0) ~ Cast(sin) [139774002358608-139774000632384]
-                len(stacked)=0:[]
+                len(stack)=0:[]
 
         'hints' are not added everywhere. More can easily be added with method ``_hint``.
         """
@@ -379,19 +379,19 @@ class GenericPattern:
 
         rows = []
         for k, v in sorted(self._debug.items()):
-            if k == "stacked":
-                rows.append(f"len({k})={len(v)}:{v}")
+            if k == "stack":
+                rows.append(f"len({k})={len(v)}:{v}")  # type: ignore[arg-type]
                 continue
             if k == "iteration":
                 rows.append(f"{k}={v}")
                 continue
             if k == "matched":
-                rows.append(f"--matched-- #{len(v)}")
+                rows.append(f"--matched-- #{len(v)}")  # type: ignore[arg-type]
                 for i, tu in v.items():
                     rows.append(f"  {_p(tu)} ~ {_p(tu)} [{id(tu)}-{i}]")
                 continue
             if k == "hint":
-                rows.append(f"--hint--: {v[0]}")
+                rows.append(f"--hint--: {v[0]}")  # type: ignore[arg-type]
                 for i in v[1:]:
                     if isinstance(i, ir.Node):
                         rows.append("  " + _p(i, full=True))
@@ -410,22 +410,22 @@ class GenericPattern:
         self,
         node: ir.Node,
         matched: dict[ir.Node, tuple[ir.Node, ir.Node]],
-        stacked: list[ir.Node],
+        stack: list[ir.Node],
         graph_node: ir.Node,
         pattern_node: ir.Node,
     ) -> int | None:
         """
         Matches backward.
 
-        :param g: graph
-        :param node: root node (the node the matched begain with,
-            used only for debugging)
-        :param pat: pattern
-        :param matched: nodes of the pattern matched as already matched
-        :param stacked: next node to look into
-        :param graph_node: node coming from the graph
-        :param pattern_node: node coming from the pattern
-        :return: number of matched nodes, None or False to indicate a failed match
+        Args:
+            node: root node (the node the matched begain with, used only for debugging)
+            matched: nodes of the pattern matched as already matched
+            stack: next node to look into
+            graph_node: node coming from the graph
+            pattern_node: node coming from the pattern
+
+        Returns:
+            number of matched nodes, None or False to indicate a failed match
         """
         match_count = 0
 
@@ -463,7 +463,7 @@ class GenericPattern:
                 if self.verbose >= 10:
                     print(f"[GenericPattern._match_backward] {self.print_match(pred, ppred)}")
                 matched[ppred] = pred
-                stacked.append(ppred)
+                stack.append(ppred)
                 match_count += 1
         if self.verbose > 5 and match_count > 0:
             print(f"[GenericPattern._match_backward] add {match_count} nodes")
@@ -472,23 +472,23 @@ class GenericPattern:
     def _match_forward(
         self,
         root_node: ir.Node,
-        matched: dict[int, tuple[ir.Node, ir.Node]],
-        stacked: list[int],
+        matched: dict[ir.Node, ir.Node],
+        stack: list[int],
         graph_node: ir.Node,
         pattern_node: ir.Node,
     ) -> int | None:
         """
         Matches forward.
 
-        :param g: graph
-        :param node: root node (the node the matched begain with,
-            used only for debugging)
-        :param pat: pattern
-        :param matched: nodes of the pattern matched as already matched
-        :param stacked: next node to look into
-        :param grap_node: node coming from the graph
-        :param pattern_node: node coming from the pattern
-        :return: number of matched nodes to continue, None or False to indicate a failed match
+        Args:
+            root_node: root node (the node the match begins with, used only for debugging)
+            matched: nodes of the pattern matched as already matched
+            stack: next node to look into
+            graph_node: node coming from the graph
+            pattern_node: node coming from the pattern
+
+        Returns:
+            number of matched nodes to continue, None or False to indicate a failed match
         """
         match_countch_count = 0
 
@@ -531,7 +531,7 @@ class GenericPattern:
                             f"[GenericPattern._match_forward]{self.print_match(graph_node_users[0], pattern_node_users[0])}"
                         )
                     matched[node] = graph_node_users[0]
-                    stacked.append(node)
+                    stack.append(node)
                     match_countch_count += 1
                 continue
 
@@ -573,7 +573,7 @@ class GenericPattern:
                         f"[GenericPattern._match_forward] {self.print_match(graph_node, pattern_node_users_not_matched[0])}"
                     )
                 matched[key] = graph_node
-                stacked.append(key)
+                stack.append(key)
                 match_countch_count += 1
                 continue
 
@@ -619,7 +619,7 @@ class GenericPattern:
                                 f"{self.print_match(gtype_to_node[k], ptype_to_node[k])}"
                             )
                         matched[key] = gtype_to_node[k]
-                        stacked.append(key)
+                        stack.append(key)
                         match_countch_count += 1
                 else:
                     missing.append(k)
@@ -661,14 +661,14 @@ class GenericPattern:
 
         all_pattern_nodes = set(match_pattern.nodes)
         matched: dict[ir.Node, ir.Node] = {last_pattern_node: node}
-        stacked: list[ir.Node] = [last_pattern_node]
+        stack: list[ir.Node] = [last_pattern_node]
         iteration = 0
 
         if self.verbose > 5:
             self._debug = dict(
                 pattern=match_pattern,
                 matched=matched,
-                stacked=stacked,
+                stack=stack,
                 iteration=iteration,
                 node=node,
                 pattern_node=last_pattern_node,
@@ -676,7 +676,7 @@ class GenericPattern:
             )
 
         max_iter = len(match_pattern.nodes) * 2
-        while stacked and iteration < max_iter:
+        while stack and iteration < max_iter:
             nodes_not_in_pattern = set(matched.keys()) - all_pattern_nodes
             assert not nodes_not_in_pattern, (
                 f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"
@@ -688,14 +688,14 @@ class GenericPattern:
             if self.verbose > 5:
                 print(
                     f"[GenericPattern.match] iteration={iteration} "
-                    f"n_matched={len(matched)}, n_stacked={len(stacked)}, "
+                    f"n_matched={len(matched)}, n_stack={len(stack)}, "
                     f"matched_types={collections.Counter(_.op_type for _ in matched)}"
                 )
-            pattern_node_from_stack = stacked.pop()
+            pattern_node_from_stack = stack.pop()
             pattern_to_graph_node = matched[pattern_node_from_stack]
 
             result = self._match_backward(
-                node, matched, stacked, pattern_to_graph_node, pattern_node_from_stack
+                node, matched, stack, pattern_to_graph_node, pattern_node_from_stack
             )
             if result is None:
                 if self.verbose > 5:
@@ -708,7 +708,7 @@ class GenericPattern:
             ), f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"
 
             result = self._match_forward(
-                node, matched, stacked, pattern_to_graph_node, pattern_node_from_stack
+                node, matched, stack, pattern_to_graph_node, pattern_node_from_stack
             )
             if result is None:
                 if self.verbose > 5:
@@ -723,7 +723,7 @@ class GenericPattern:
             if self.verbose > 5:
                 self._debug["iteration"] = iteration
 
-        if iteration >= max_iter and stacked:
+        if iteration >= max_iter and stack:
             self._hint("reached {iteration}>={max_iter} iterations")
             return self.none(node, inspect.currentframe().f_lineno)
 
@@ -735,7 +735,7 @@ class GenericPattern:
             f"Number of matched nodes is different, {len(matched)} matched nodes, "
             f"and {len(match_pattern.nodes)} nodes in the pattern, matched is {matched}"
         )
-        assert len(stacked) == 0, f"There are still {len(stacked)} nodes to explore."
+        assert len(stack) == 0, f"There are still {len(stack)} nodes to explore."
 
         # We order the matched nodes in the same order than the pattern
         # to let next functions to be able to build the matching again.
@@ -874,19 +874,22 @@ def make_pattern_rule(
     """
     Creates a rewriting rule from a callable or a function proto.
 
-    :param match_pattern: a function interpreted by onnx-script
+    Args:
+        match_pattern: a function interpreted by onnx-script
         and converted into an onnx model, this model defines the
         nodes to be replaced
-    :param apply_pattern: a function interpreted by onnx-script and
+        apply_pattern: a function interpreted by onnx-script and
         converted into an onnx model, this model defines the new nodes
         replacing the matched nodes
-    :param validate_mapping: a function validating the matching once
+        validate_mapping: a function validating the matching once
         it has happened, it is not valid, the pattern is not applied,
         if not specified, the function always return True
-    :param opsets: opset to consider when converting the function into ONNX,
+        opsets: opset to consider when converting the function into ONNX,
         if not specified, it is opset 18 for the main opset, and opset 1
         for domain com.microsoft.
-    :return: the rewriting rule
+
+    Returns:
+        the rewriting rule
     """
 
     if opsets is None:

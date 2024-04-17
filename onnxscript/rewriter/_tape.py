@@ -14,7 +14,7 @@ from onnxscript import ir
 
 
 def _convert_attributes(attrs: Mapping[str, Any]) -> list[ir.Attr]:
-    attributes = []
+    attributes: list[ir.Attr] = []
     for name, attr in attrs.items():
         if isinstance(attr, int):
             attributes.append(ir.AttrInt64(name, attr))
@@ -41,7 +41,7 @@ class Tape(collections.abc.Iterable[ir.Node]):
     """A tape for recording nodes that are created."""
 
     def __init__(self) -> None:
-        self._nodes = []
+        self._nodes: list[ir.Node] = []
 
     def __iter__(self) -> Sequence[ir.Node]:
         return self._nodes
@@ -58,7 +58,7 @@ class Tape(collections.abc.Iterable[ir.Node]):
         domain: str = "",
     ) -> ir.Value:
         if attributes is None:
-            attrs = ()
+            attrs: Sequence[ir.Attr] = ()
         else:
             attrs = _convert_attributes(attributes)
         node = ir.Node(domain, op_type, inputs, attributes=attrs, num_outputs=1)
