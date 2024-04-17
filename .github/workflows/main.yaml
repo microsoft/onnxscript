@@ -31,6 +31,7 @@ jobs:
           - py311-onnx-weekly
           - py311-ort-nightly
           - py311-experimental-torchlib-tracing
+          - py311-experimental-torchlib-onnx-ir
           - py310
           - py39
           - py38
