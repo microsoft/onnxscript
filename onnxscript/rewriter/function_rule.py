@@ -9,7 +9,6 @@ from packaging import version
 import onnxscript
 from onnxscript import ir
 from onnxscript._legacy_ir import visitor
-from onnxscript.ir import serde
 from onnxscript.rewriter import pattern
 
 logger = logging.getLogger(__name__)
@@ -227,7 +226,7 @@ class FunctionRewriteRule(pattern.RewriteRule):
         self, model: ir.Model, *, commute: bool = False
     ) -> tuple[int, ir.Model]:
         del commute  # unused
-        model_proto: onnx.ModelProto = serde.serialize_model(model)
+        model_proto: onnx.ModelProto = ir.serde.serialize_model(model)
         self._function_shape_env = visitor.FunctionShapeEnv()
         self._function_shape_env.load_from_model_proto(model_proto)
         self._opset_imports = {x.domain: x.version for x in model_proto.opset_import}
@@ -235,7 +234,7 @@ class FunctionRewriteRule(pattern.RewriteRule):
         rewrite_count = 0
         for function in model_proto.functions:
             rewrite_count += self.try_rewrite_function(function, model_proto)
-        model = serde.deserialize_model(model_proto)
+        model = ir.serde.deserialize_model(model_proto)
         return rewrite_count, model
 
     def count_matches(self, model, *, commute: bool = False) -> int:

@@ -11,7 +11,6 @@ import onnx
 import onnxscript
 import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
-from onnxscript.ir import serde
 from onnxscript.rewriter import _ir_utils, _tape
 
 
@@ -42,22 +41,6 @@ class _SimpleBuilder:
     @property
     def nodes(self) -> Sequence[ir.Node]:
         return self.tape.nodes
-
-
-def enumerate_subgraphs(
-    node: ir.Node,
-) -> Iterator[tuple[Any, ...]]:
-    """Returns the subgraphs inside a graph."""
-    for att in node.attributes.values():
-        # TODO: improve this
-        att = serde.serialize_attribute(att)
-        if att.type == onnx.AttributeProto.GRAPH and att.g:
-            this = node, att.name, att.g
-            yield this
-
-            for no in att.g.node:
-                for tu in enumerate_subgraphs(no):
-                    yield this + tu
 
 
 class PatternMatchResult:
@@ -919,8 +902,8 @@ def make_pattern_rule(
     if not isinstance(match_pattern, onnx.FunctionProto):
         match_pattern = onnxscript.script(**opsets)(match_pattern).to_function_proto()
 
-    match_function = serde.deserialize_function(match_pattern)
-    apply_function = serde.deserialize_function(apply_pattern)
+    match_function = ir.serde.deserialize_function(match_pattern)
+    apply_function = ir.serde.deserialize_function(apply_pattern)
 
     pat = FunctionPattern(
         match_function,

@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import onnx.parser
 
-from onnxscript.ir import serde
+from onnxscript import ir
 from onnxscript.rewriter.onnxruntime import (
     group_normalization_merge_silu,
     instance_to_group_normalization,
@@ -12,7 +12,7 @@ from onnxscript.rewriter.onnxruntime import (
 
 class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
     def test_group_norm_with_silu_submodule_is_replaced_by_group_norm(self):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: ["" : 17, "pkg.torch230a0git77ef9d4" : 1, "com.microsoft" : 1]>
             agraph (float[1, 320, 128, 128] image) => (float[1, 4, 512, 64] output)
@@ -34,7 +34,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         # Use inserted initializers to avoid manually coding the large constants
         weight_value = np.random.rand(320, 1, 1).astype(np.float16)
         bias_value = np.random.rand(320, 1, 1).astype(np.float16)
-        model.graph.initializer.extend(
+        model_proto.graph.initializer.extend(
             [
                 onnx.helper.make_tensor(
                     "weight",
@@ -51,14 +51,14 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             ]
         )
 
-        ir = serde.deserialize_model(model)
-        count = group_normalization_merge_silu.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = group_normalization_merge_silu.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         # plus 2 in model constants
-        self.assertEqual(len(ir.graph.nodes), 2)
+        self.assertEqual(len(model.graph.nodes), 2)
 
     def test_simulated_instance_norm_is_replaced_by_group_norm_silu(self):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17, "pkg.torch230a0git77ef9d4" : 1]>
             agraph (float[1, 320, 128, 128] image) => (float[1, 4, 512, 64] output)
@@ -88,7 +88,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         weight_for_norm_value = np.ones(32, dtype=np.float16)
         bias_for_norm_value = np.zeros(32, dtype=np.float16)
 
-        model.graph.initializer.extend(
+        model_proto.graph.initializer.extend(
             [
                 onnx.helper.make_tensor(
                     "weight_for_norm",
@@ -117,9 +117,9 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             ]
         )
 
-        ir = serde.deserialize_model(model)
-        count = instance_to_group_normalization.rules.apply_to_model(ir)
-        count += group_normalization_merge_silu.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = instance_to_group_normalization.rules.apply_to_model(model)
+        count += group_normalization_merge_silu.rules.apply_to_model(model)
         self.assertEqual(count, 2)
         # plus 2 in model constants
-        self.assertEqual(len(ir.graph.nodes), 10)
+        self.assertEqual(len(model.graph.nodes), 10)

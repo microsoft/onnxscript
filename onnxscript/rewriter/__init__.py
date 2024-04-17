@@ -4,8 +4,6 @@ from typing import Sequence
 
 __all__ = [
     # Modules
-    "irbuilder",
-    "protobuilder",
     "function_rule",
     "pattern",
     # Functions
@@ -14,7 +12,7 @@ __all__ = [
 
 import onnx
 
-from onnxscript.ir import serde
+from onnxscript import ir
 from onnxscript.optimizer import remove_unused, remove_unused_function
 from onnxscript.rewriter import function_rule, pattern
 
@@ -28,7 +26,7 @@ def rewrite(
     pattern_rewrite_rules: Sequence[PatternRewriteRule] = (),
 ) -> onnx.ModelProto:
     print(f"len(value_info): {len(model.graph.value_info)}")
-    model_ir = serde.deserialize_model(model)
+    model_ir = ir.serde.deserialize_model(model)
     if function_rewrite_rules:
         for rule_cls in function_rewrite_rules:
             count, model_ir = rule_cls().apply_to_model(model_ir)
@@ -36,7 +34,7 @@ def rewrite(
     if pattern_rewrite_rules:
         count = pattern.RewriteRuleSet(pattern_rewrite_rules).apply_to_model(model_ir)
         print(f"Applied {count} of general pattern rewrite rules.")
-    model = serde.serialize_model(model_ir)
+    model = ir.serde.serialize_model(model_ir)
     remove_unused.remove_unused_nodes(model)
     remove_unused_function.remove_unused_functions(model)
     print(f"len(value_info): {len(model.graph.value_info)}")

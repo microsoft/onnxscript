@@ -3,7 +3,7 @@ import unittest
 import onnx.parser
 import parameterized
 
-from onnxscript.ir import serde
+from onnxscript import ir
 from onnxscript.rewriter.onnxruntime import softmax
 
 
@@ -17,7 +17,7 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
     def test_softmax_upcast_to_fp32_is_removed_when_input_and_final_output_is_fp16(
         self, softmax_op_str
     ):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             f"""
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float16[N] x) => (float16[N] z)
@@ -28,10 +28,10 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
             }}
             """
         )
-        ir = serde.deserialize_model(model)
-        count = softmax.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = softmax.rules.apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertNotIn("Cast", {node.op_type for node in ir.graph.nodes})
+        self.assertNotIn("Cast", {node.op_type for node in model.graph.nodes})
 
     @parameterized.parameterized.expand(
         [
@@ -42,7 +42,7 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
     def test_softmax_upcast_to_fp32_is_not_removed_when_input_is_not_fp16(
         self, softmax_op_str
     ):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             f"""
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (int32[N] x) => (float16[N] z)
@@ -53,11 +53,11 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
             }}
             """
         )
-        ir = serde.deserialize_model(model)
-        count = softmax.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = softmax.rules.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(
-            len([node.op_type for node in ir.graph.nodes if node.op_type == "Cast"]), 2
+            len([node.op_type for node in model.graph.nodes if node.op_type == "Cast"]), 2
         )
 
     @parameterized.parameterized.expand(
@@ -69,7 +69,7 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
     def test_softmax_upcast_to_fp32_is_not_removed_when_final_output_is_not_fp16(
         self, softmax_op_str
     ):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             f"""
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float16[N] x) => (double[N] z)
@@ -80,11 +80,11 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
             }}
             """
         )
-        ir = serde.deserialize_model(model)
-        count = softmax.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = softmax.rules.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(
-            len([node.op_type for node in ir.graph.nodes if node.op_type == "Cast"]), 2
+            len([node.op_type for node in model.graph.nodes if node.op_type == "Cast"]), 2
         )
 
 

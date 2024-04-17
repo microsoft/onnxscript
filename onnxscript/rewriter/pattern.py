@@ -11,7 +11,6 @@ import onnx.numpy_helper
 import onnx.printer
 
 from onnxscript import ir
-from onnxscript.ir import serde
 from onnxscript.rewriter import _ir_utils
 
 # Overview of the pattern module: The classes below are used to define both
@@ -1110,7 +1109,7 @@ class RewriteRuleSet:
 
     def count_matches(self, model: onnx.ModelProto | ir.Model):
         if isinstance(model, onnx.ModelProto):
-            model = serde.deserialize_model(model)
+            model = ir.serde.deserialize_model(model)
         else:
             assert isinstance(model, ir.Model)
         count = self._count_matches_in_graph_or_function(model, model.graph)
