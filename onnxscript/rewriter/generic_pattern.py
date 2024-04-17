@@ -24,7 +24,7 @@ class _SimpleBuilder:
     def __getattr__(self, op_type: str) -> Any:
         return lambda *args, **kwargs: self._make_node(op_type, args, kwargs)
 
-    def _make_node(self, op_type: int, inputs: Sequence[ir.Value], kwargs: dict[str, Any]):
+    def _make_node(self, op_type: str, inputs: Sequence[ir.Value], kwargs: dict[str, Any]):
         domain = kwargs.pop("domain", "")
         output_names = kwargs.pop("output_names", 1)
         if isinstance(output_names, Sequence):
@@ -73,7 +73,7 @@ class PatternMatchResult:
         self.pattern_nodes = pattern_nodes
         self.pattern_inputs = pattern_inputs
         self.pattern_outputs = pattern_outputs
-        self.kwargs = {}
+        self.kwargs: dict[int, Any] = {}
 
         matched_pattern_to_model_value: dict[ir.Value, ir.Value] = {}
         for gn, pn in zip(model_nodes, pattern_nodes):
@@ -84,7 +84,7 @@ class PatternMatchResult:
                 pn.inputs
             ), f"Unexpected number of inputs for type {gn.op_type}"
             for a, b in zip(gn.inputs, pn.inputs):
-                if b == "":
+                if b is None:
                     # optional input or not an interesting input
                     continue
                 if b in matched_pattern_to_model_value:
@@ -93,16 +93,14 @@ class PatternMatchResult:
                         f"{a!r} or {matched_pattern_to_model_value[b]}"
                     )
                 else:
+                    assert b is not None
+                    assert a is not None
                     matched_pattern_to_model_value[b] = a
 
             assert len(gn.outputs) == len(
                 pn.outputs
             ), f"Unexpected number of outputs for type {gn.op_type}"
             for a, b in zip(gn.outputs, pn.outputs):
-                if b == "":
-                    # Only final outputs are interesting.
-                    continue
-                assert a != "", f"{a!r} cannot be optional"
                 if b in matched_pattern_to_model_value:
                     assert matched_pattern_to_model_value[b] == a, (
                         f"Ambiguities, pattern output {b!r} means "
@@ -148,18 +146,18 @@ class GenericRewriteRule(orp.RewriteRule):
     ) -> tuple[int, list[ir.Node], list[ir.Node]] | None:
         """See :meth:`RewriteRule.try_rewrite`."""
 
-        deleted_nodes = []
-        added_nodes = []
-        marked = set()
-        matched = 0
+        deleted_nodes: list[ir.Node] = []
+        added_nodes: list[ir.Node] = []
+        matched: set[ir.Node] = set()
+        match_count = 0
         for match_result in self.pattern.enumerate_matches(model.graph, node):
             conflict = False
             for node in match_result.model_nodes:
-                if id(node) in marked:
+                if id(node) in matched:
                     conflict = True
                     break
             if conflict:
-                # Some nodes are already marked as rewritten.
+                # Some nodes are already matched as rewritten.
                 continue
 
             # Let's build the new nodes
@@ -175,13 +173,13 @@ class GenericRewriteRule(orp.RewriteRule):
             ), f"Unexpected types {[type(n) for n in new_nodes]}"
 
             # Everything is good.
-            marked |= set(map(id, match_result.model_nodes))
+            matched |= set(map(id, match_result.model_nodes))
             added_nodes.extend(new_nodes)
             deleted_nodes.extend(match_result.model_nodes)
-            matched += 1
+            match_count += 1
 
-        if matched > 0:
-            return matched, deleted_nodes, added_nodes
+        if match_count > 0:
+            return match_count, deleted_nodes, added_nodes
         return None
 
     def count_matches(self, model: ir.Model, *, commute: bool = False) -> int:
@@ -259,7 +257,7 @@ class GenericPattern:
         The unmatched types are Mul, MatMul and below,
         it shows the matched nodes. The first one was Cast.
         And the failure happened at iteration 5.
-        ``139774002356544-139774000632672`` is the pair of ids used in container ``marked``.
+        ``139774002356544-139774000632672`` is the pair of ids used in container ``matched``.
         ``id(node)`` is used as a unique identifiers of the nodes.
 
         ::
@@ -271,7 +269,7 @@ class GenericPattern:
                 -- model
                 MatMul(/_original_modu...Expand_output_0, /_original_modu...b/Cast_output_0) -> (/_original_modu...MatMul_output_0)
                 iteration=5
-                --marked-- #6
+                --matched-- #6
                 Cast(/_original_modu...mb/Cos_output_0) ~ Cast(cos) [139774002356544-139774000632672]
                 Cos(/_original_modu...ncat_1_output_0) ~ Cos(concattraining-transpose-0) [139774002356448-139774000632048]
                 ConcatTraining(/_original_modu...nspose_output_0,/_original_modu...nspose_output_0) ~ ConcatTraining(transpose,transpose) [139774002356352-139774000631712]
@@ -387,8 +385,8 @@ class GenericPattern:
             if k == "iteration":
                 rows.append(f"{k}={v}")
                 continue
-            if k == "marked":
-                rows.append(f"--marked-- #{len(v)}")
+            if k == "matched":
+                rows.append(f"--matched-- #{len(v)}")
                 for i, tu in v.items():
                     rows.append(f"  {_p(tu)} ~ {_p(tu)} [{id(tu)}-{i}]")
                 continue
@@ -411,7 +409,7 @@ class GenericPattern:
     def _match_backward(
         self,
         node: ir.Node,
-        marked: dict[ir.Node, tuple[ir.Node, ir.Node]],
+        matched: dict[ir.Node, tuple[ir.Node, ir.Node]],
         stacked: list[ir.Node],
         graph_node: ir.Node,
         pattern_node: ir.Node,
@@ -423,7 +421,7 @@ class GenericPattern:
         :param node: root node (the node the matched begain with,
             used only for debugging)
         :param pat: pattern
-        :param marked: nodes of the pattern marked as already matched
+        :param matched: nodes of the pattern matched as already matched
         :param stacked: next node to look into
         :param graph_node: node coming from the graph
         :param pattern_node: node coming from the pattern
@@ -461,10 +459,10 @@ class GenericPattern:
                 )
                 return self.none(node, inspect.currentframe().f_lineno)
             # matching backward
-            if ppred not in marked:
+            if ppred not in matched:
                 if self.verbose >= 10:
                     print(f"[GenericPattern._match_backward] {self.print_match(pred, ppred)}")
-                marked[ppred] = pred
+                matched[ppred] = pred
                 stacked.append(ppred)
                 match_count += 1
         if self.verbose > 5 and match_count > 0:
@@ -474,7 +472,7 @@ class GenericPattern:
     def _match_forward(
         self,
         root_node: ir.Node,
-        marked: dict[int, tuple[ir.Node, ir.Node]],
+        matched: dict[int, tuple[ir.Node, ir.Node]],
         stacked: list[int],
         graph_node: ir.Node,
         pattern_node: ir.Node,
@@ -486,7 +484,7 @@ class GenericPattern:
         :param node: root node (the node the matched begain with,
             used only for debugging)
         :param pat: pattern
-        :param marked: nodes of the pattern marked as already matched
+        :param matched: nodes of the pattern matched as already matched
         :param stacked: next node to look into
         :param grap_node: node coming from the graph
         :param pattern_node: node coming from the pattern
@@ -518,7 +516,7 @@ class GenericPattern:
 
             # Here comes the fun part, there is the same number of successors or more
             # nodes in the graph to match with the pattern.
-            # And we have to handle the nodes already marked as found.
+            # And we have to handle the nodes already matched as found.
             # Hopefully, there is only one option.
 
             if len(graph_node_users) == len(pattern_node_users) == 1:
@@ -527,54 +525,54 @@ class GenericPattern:
                     return self.none(root_node, inspect.currentframe().f_lineno)
 
                 node = pattern_node_users[0]
-                if node not in marked:
+                if node not in matched:
                     if self.verbose >= 10:
                         print(
                             f"[GenericPattern._match_forward]{self.print_match(graph_node_users[0], pattern_node_users[0])}"
                         )
-                    marked[node] = graph_node_users[0]
+                    matched[node] = graph_node_users[0]
                     stacked.append(node)
                     match_countch_count += 1
                 continue
 
-            # Let's remove the nodes already marked.
-            pattern_node_users_not_marked = [
-                unmarked_node
-                for unmarked_node in pattern_node_users
-                if unmarked_node not in marked
+            # Let's remove the nodes already matched.
+            pattern_node_users_not_matched = [
+                unmatched_node
+                for unmatched_node in pattern_node_users
+                if unmatched_node not in matched
             ]
-            pattern_node_users_marked = [
-                marked[marked_node]
-                for marked_node in pattern_node_users
-                if marked_node in marked
+            pattern_node_users_matched = [
+                matched[matched_node]
+                for matched_node in pattern_node_users
+                if matched_node in matched
             ]
-            assert len(pattern_node_users_marked) + len(pattern_node_users_not_marked) == len(
-                pattern_node_users
-            ), (
-                f"pattern_node_users_not_marked={pattern_node_users_not_marked}, "
-                f"pattern_node_users_marked={pattern_node_users_marked}, "
+            assert len(pattern_node_users_matched) + len(
+                pattern_node_users_not_matched
+            ) == len(pattern_node_users), (
+                f"pattern_node_users_not_matched={pattern_node_users_not_matched}, "
+                f"pattern_node_users_matched={pattern_node_users_matched}, "
                 f"pattern_node_users={pattern_node_users}, "
-                f"marked={marked}"
+                f"matched={matched}"
             )
-            free = list(set(graph_node_users) - set(pattern_node_users_marked))
-            if not pattern_node_users_not_marked:
-                # Everything is already marked.
+            free = list(set(graph_node_users) - set(pattern_node_users_matched))
+            if not pattern_node_users_not_matched:
+                # Everything is already matched.
                 continue
-            if len(free) < len(pattern_node_users_not_marked):
+            if len(free) < len(pattern_node_users_not_matched):
                 # Not enough successors to match the remaining patterns.
                 return self.none(node, inspect.currentframe().f_lineno)
-            if len(pattern_node_users_not_marked) == len(free) == 1:
+            if len(pattern_node_users_not_matched) == len(free) == 1:
                 # Only one option again.
                 graph_node = free[0]
-                if pattern_node_users_not_marked[0].op_type != graph_node.op_type:
+                if pattern_node_users_not_matched[0].op_type != graph_node.op_type:
                     return self.none(node, inspect.currentframe().f_lineno)
 
-                key = pattern_node_users_not_marked[0]
+                key = pattern_node_users_not_matched[0]
                 if self.verbose >= 10:
                     print(
-                        f"[GenericPattern._match_forward] {self.print_match(graph_node, pattern_node_users_not_marked[0])}"
+                        f"[GenericPattern._match_forward] {self.print_match(graph_node, pattern_node_users_not_matched[0])}"
                     )
-                marked[key] = graph_node
+                matched[key] = graph_node
                 stacked.append(key)
                 match_countch_count += 1
                 continue
@@ -582,7 +580,7 @@ class GenericPattern:
             # And now another fun part, let's try to handle the case when
             # there is only one option, matching on node type only returns one
             # option.
-            expected_op_type = [_.op_type for _ in pattern_node_users_not_marked]
+            expected_op_type = [_.op_type for _ in pattern_node_users_not_matched]
             got_op_type = [_.op_type for _ in free]
 
             ec = collections.Counter(expected_op_type)
@@ -597,8 +595,8 @@ class GenericPattern:
                     "-- model",
                     gc,
                     graph_node,
-                    "-- model-marked",
-                    pattern_node_users_marked,
+                    "-- model-matched",
+                    pattern_node_users_matched,
                 )
                 return self.none(node, inspect.currentframe().f_lineno)
             for k, v in ec.items():
@@ -608,19 +606,19 @@ class GenericPattern:
 
             # At this stage, we know matching the types is possible.
             # We first mark whatever is possible.
-            ptype_to_node = {_.op_type: _ for _ in pattern_node_users_not_marked}
+            ptype_to_node = {_.op_type: _ for _ in pattern_node_users_not_matched}
             gtype_to_node = {_.op_type: _ for _ in free}
             missing = []
             for k, v in ec.items():
                 if gc[k] == v == 1:
                     key = id(ptype_to_node[k])
-                    if key not in marked:
+                    if key not in matched:
                         if self.verbose >= 10:
                             print(
                                 f"[GenericPattern._match_forward] match "
                                 f"{self.print_match(gtype_to_node[k], ptype_to_node[k])}"
                             )
-                        marked[key] = gtype_to_node[k]
+                        matched[key] = gtype_to_node[k]
                         stacked.append(key)
                         match_countch_count += 1
                 else:
@@ -662,14 +660,14 @@ class GenericPattern:
                 print(f"[GenericPattern.match] match pattern {self!r}")
 
         all_pattern_nodes = set(match_pattern.nodes)
-        marked: dict[ir.Node, ir.Node] = {last_pattern_node: node}
+        matched: dict[ir.Node, ir.Node] = {last_pattern_node: node}
         stacked: list[ir.Node] = [last_pattern_node]
         iteration = 0
 
         if self.verbose > 5:
             self._debug = dict(
                 pattern=match_pattern,
-                marked=marked,
+                matched=matched,
                 stacked=stacked,
                 iteration=iteration,
                 node=node,
@@ -679,7 +677,7 @@ class GenericPattern:
 
         max_iter = len(match_pattern.nodes) * 2
         while stacked and iteration < max_iter:
-            nodes_not_in_pattern = set(marked.keys()) - all_pattern_nodes
+            nodes_not_in_pattern = set(matched.keys()) - all_pattern_nodes
             assert not nodes_not_in_pattern, (
                 f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"
                 f"\nall_pattern_nodes={all_pattern_nodes}"
@@ -690,34 +688,34 @@ class GenericPattern:
             if self.verbose > 5:
                 print(
                     f"[GenericPattern.match] iteration={iteration} "
-                    f"n_marked={len(marked)}, n_stacked={len(stacked)}, "
-                    f"marked_types={collections.Counter(_.op_type for _ in marked)}"
+                    f"n_matched={len(matched)}, n_stacked={len(stacked)}, "
+                    f"matched_types={collections.Counter(_.op_type for _ in matched)}"
                 )
             pattern_node_from_stack = stacked.pop()
-            pattern_to_graph_node = marked[pattern_node_from_stack]
+            pattern_to_graph_node = matched[pattern_node_from_stack]
 
             result = self._match_backward(
-                node, marked, stacked, pattern_to_graph_node, pattern_node_from_stack
+                node, matched, stacked, pattern_to_graph_node, pattern_node_from_stack
             )
             if result is None:
                 if self.verbose > 5:
                     print("[GenericPattern.match] done. backward failed.")
                 return result
 
-            nodes_not_in_pattern = set(marked.keys()) - all_pattern_nodes
+            nodes_not_in_pattern = set(matched.keys()) - all_pattern_nodes
             assert (
                 not nodes_not_in_pattern
             ), f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"
 
             result = self._match_forward(
-                node, marked, stacked, pattern_to_graph_node, pattern_node_from_stack
+                node, matched, stacked, pattern_to_graph_node, pattern_node_from_stack
             )
             if result is None:
                 if self.verbose > 5:
                     print("[GenericPattern.match] done. forward failed.")
                 return result
 
-            nodes_not_in_pattern = set(marked.keys()) - all_pattern_nodes
+            nodes_not_in_pattern = set(matched.keys()) - all_pattern_nodes
             assert (
                 not nodes_not_in_pattern
             ), f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"
@@ -730,18 +728,18 @@ class GenericPattern:
             return self.none(node, inspect.currentframe().f_lineno)
 
         if self.verbose > 5:
-            print(f"[GenericPattern.match] done. {len(marked)} marked nodes")
+            print(f"[GenericPattern.match] done. {len(matched)} matched nodes")
 
         # At this point, the pattern is matched but let's make sure.
-        assert len(marked) == len(match_pattern.nodes), (
-            f"Number of marked nodes is different, {len(marked)} marked nodes, "
-            f"and {len(match_pattern.nodes)} nodes in the pattern, marked is {marked}"
+        assert len(matched) == len(match_pattern.nodes), (
+            f"Number of matched nodes is different, {len(matched)} matched nodes, "
+            f"and {len(match_pattern.nodes)} nodes in the pattern, matched is {matched}"
         )
         assert len(stacked) == 0, f"There are still {len(stacked)} nodes to explore."
 
         # We order the matched nodes in the same order than the pattern
         # to let next functions to be able to build the matching again.
-        matched_nodes = [marked[pattern_node] for pattern_node in match_pattern.nodes]
+        matched_nodes = [matched[pattern_node] for pattern_node in match_pattern.nodes]
         return PatternMatchResult(
             self,
             matched_nodes,

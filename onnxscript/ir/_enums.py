@@ -82,6 +82,18 @@ class DataType(enum.IntEnum):
 
         return onnx.helper.tensor_dtype_to_np_dtype(self)
 
+    @classmethod
+    def from_numpy(cls, dtype: np.dtype) -> DataType:
+        """Returns the ONNX data type for the numpy dtype.
+
+        Raises:
+            KeyError: If the data type is not supported by ONNX.
+        """
+        import onnx.helper  # pylint: disable=import-outside-toplevel
+        # Import here to avoid bringing in the onnx protobuf dependencies to the module
+
+        return cls(onnx.helper.np_dtype_to_tensor_dtype(dtype))
+
     def __repr__(self) -> str:
         return self.name
 

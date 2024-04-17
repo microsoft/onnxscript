@@ -165,12 +165,21 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
     def __init__(
         self,
         value: TArrayCompatible,
-        dtype: _enums.DataType,
+        dtype: _enums.DataType | None = None,
         *,
         shape: Shape | None = None,
         name: str = "",
         doc_string: str | None = None,
     ) -> None:
+        """Initialize a tensor.
+
+        Args:
+            value: The backing data of the tensor. It can be a numpy array or a DLPack compatible object.
+            dtype: The data type of the tensor. It can be None only when value is a numpy array.
+            shape: The shape of the tensor. If None, the shape is obtained from the value.
+            name: The name of the tensor.
+            doc_string: The documentation string.
+        """
         # NOTE: We should not do any copying here for performance reasons
         if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
             raise TypeError(f"Expected an array compatible object, got {type(value)}")
@@ -179,8 +188,17 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
                 f"Expected an object with a shape attribute, but {type(value)} does not have shape. "
                 "Please specify the shape explicitly."
             )
+        if dtype is None:
+            if isinstance(value, np.ndarray):
+                self._dtype = _enums.DataType.from_numpy(value.dtype)
+            else:
+                raise ValueError(
+                    "The dtype must be specified when the value is not a numpy array."
+                )
+        else:
+            self._dtype = dtype
+
         self._raw = value
-        self._dtype = dtype
         self._shape = Shape(getattr(value, "shape"))  # noqa: B009
         self.name = name
         self.doc_string = doc_string

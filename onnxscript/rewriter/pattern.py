@@ -64,12 +64,12 @@ class StringConstantPattern:
 
 
 class IntConstantPattern:
-    def __init__(self, value: int | str | list, name: str) -> None:
+    def __init__(self, value: int, name: str) -> None:
         self._value = value
         self._name = name
 
     @property
-    def value(self) -> int | str | list:
+    def value(self) -> int:
         return self._value
 
     @property
@@ -84,12 +84,12 @@ class IntConstantPattern:
 
 
 class ListConstantPattern:
-    def __init__(self, value: int | str | list, name: str) -> None:
+    def __init__(self, value: Sequence[int | str | float], name: str) -> None:
         self._value = value
         self._name = name
 
     @property
-    def value(self) -> int | str | list:
+    def value(self) -> Sequence[int | str | float]:
         return self._value
 
     @property
@@ -103,11 +103,11 @@ class ListConstantPattern:
     def to_ir(self, model, bindings=None) -> ir.AttrFloat32s | ir.AttrInt64s | ir.AttrStrings:
         the_first_non_none_item = next((item for item in self.value if item is not None), None)
         if isinstance(the_first_non_none_item, int):
-            return ir.AttrInt64s(value=self.value, name=self.name)
+            return ir.AttrInt64s(value=self.value, name=self.name)  # type: ignore
         if isinstance(the_first_non_none_item, str):
-            return ir.AttrStrings(value=self.value, name=self.name)
+            return ir.AttrStrings(value=self.value, name=self.name)  # type: ignore
         if isinstance(the_first_non_none_item, float):
-            return ir.AttrFloat32s(value=self.value, name=self.name)
+            return ir.AttrFloat32s(value=self.value, name=self.name)  # type: ignore
         raise TypeError(
             f"Cannot convert list of {type(the_first_non_none_item)} to ConstantPattern"
         )
@@ -153,12 +153,12 @@ class FloatConstantPattern:
         )
 
     def to_ir(self, model, bindings=None) -> ir.AttrFloat32:
-        return ir.AttrFloat32(value=self.value, name=self.name)
+        return ir.AttrFloat32(self.name, self.value)
 
 
 class TensorConstantPattern:
     def __init__(
-        self, value: np.ndarray, name, rel_tol: float = 1e-3, abs_tol: float = 1e-3
+        self, value: ir.TensorProtocol, name, rel_tol: float = 1e-3, abs_tol: float = 1e-3
     ) -> None:
         self._value = value
         self._name = name
@@ -175,8 +175,8 @@ class TensorConstantPattern:
 
     def matches(self, attr: ir.AttrTensor):
         return (
-            attr.dtype == self._value.dtype
-            and attr.shape == self._value.shape
+            attr.value.dtype == self._value.dtype
+            and attr.value.shape == self._value.shape
             and np.allclose(
                 attr.value,
                 self._value,
@@ -186,17 +186,11 @@ class TensorConstantPattern:
         )
 
     def to_ir(self, model, bindings=None) -> ir.AttrTensor:
-        tensor = ir.Tensor(
-            value=self.value,
-            name=self.name,
-            shape=self.value.shape,
-            dtype=onnx.helper.np_dtype_to_tensor_dtype(self.value.dtype),
-        )
-        return ir.AttrTensor(name=self.name, value=tensor)
+        return ir.AttrTensor(self.name, self.value)
 
 
 def _make_constant_pattern(
-    value: float | int | list | np.ndarray, name: str
+    value: float | int | list | ir.TensorProtocol, name: str
 ) -> (
     IntConstantPattern
     | FloatConstantPattern
@@ -213,7 +207,7 @@ def _make_constant_pattern(
         return StringConstantPattern(value, name)
     if isinstance(value, list):
         return ListConstantPattern(value, name)
-    if isinstance(value, np.ndarray):
+    if isinstance(value, ir.TensorProtocol):
         return TensorConstantPattern(value, name)
     raise TypeError(f"Cannot convert {type(value)} to ConstantPattern")
 
@@ -224,10 +218,10 @@ class AnyPattern:
 
 
 class AttrPattern:
-    def __init__(self, value: Var | int | float | list | np.ndarray, name: str) -> None:
+    def __init__(self, value: Var | int | float | list | ir.TensorProtocol, name: str) -> None:
         if isinstance(value, Var):
             self.value_pattern = value
-        elif isinstance(value, (int, float, list, np.ndarray)):
+        elif isinstance(value, (int, float, list, ir.TensorProtocol)):
             self.value_pattern = _make_constant_pattern(value, name)
         else:
             raise TypeError(f"Cannot convert {type(value)} to AttrPattern")
@@ -687,25 +681,25 @@ class Constant(ValuePattern):
     def match_scalar(self, scalar_value, return_value: list[ir.Node]):
         if math.isclose(scalar_value, self.value, rel_tol=self.rel_tol, abs_tol=self.abs_tol):
             return MatchResult(return_value)
-        else:
-            return MatchResult.FAIL()
+        return MatchResult.FAIL()
 
     def matches(self, value: ir.Value, model: ir.Model):
         value = _ir_utils.propagate_const_value(value)
         constant_value = _ir_utils.get_numpy_from_ir_value(value)
-        if isinstance(constant_value, np.ndarray):
-            # TODO (rama): allow users to specify shape requirement, if desired.
-            if constant_value.size != 1:
-                return MatchResult.FAIL()
+        if constant_value is None:
+            return MatchResult.FAIL()
 
-            return_value = []
-            # Note: If the value is produced by a Constant node, we could include
-            # the Constant node in the return_value list. However, we don't do that.
-            # Instead, we will rely on DCE to remove the constant node if it is not
-            # used elsewhere.
+        # TODO (rama): allow users to specify shape requirement, if desired.
+        if constant_value.size != 1:
+            return MatchResult.FAIL()
 
-            return self.match_scalar(constant_value.item(), return_value)
-        return MatchResult.FAIL()
+        return_value = []
+        # Note: If the value is produced by a Constant node, we could include
+        # the Constant node in the return_value list. However, we don't do that.
+        # Instead, we will rely on DCE to remove the constant node if it is not
+        # used elsewhere.
+
+        return self.match_scalar(constant_value.item(), return_value)
 
     def commute(self) -> list[ValuePattern]:
         return [self]

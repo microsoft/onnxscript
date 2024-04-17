@@ -30,7 +30,7 @@ def fused_cast_constant_of_shape(
     v_dtype = match_bindings["dtype"]
     v_t = match_bindings["t"]
     v_dtype = ir.DataType(v_dtype.value).numpy()  # type: ignore[union-attr]
-    casted_val = v_t.value.numpy().astype(v_dtype)  # type: ignore[union-attr]
+    casted_val = ir.Tensor(v_t.value.numpy().astype(v_dtype))  # type: ignore[union-attr]
     return op.ConstantOfShape(shape, value=casted_val)
 
 
@@ -50,7 +50,7 @@ def fused_cast_constant_of_shape_without_value(
     del dtype  # Unused
     v_dtype = match_bindings["dtype"]
     v_dtype = ir.DataType(v_dtype.value).numpy()  # type: ignore[union-attr]
-    val = np.zeros(1, dtype=v_dtype)
+    val = ir.Tensor(np.zeros(1, dtype=v_dtype))
     return op.ConstantOfShape(shape, value=val)
 
 
