@@ -371,11 +371,9 @@ class GenericPattern:
             return f"{s[:15]}...{s[-15:]}"
 
         def _p(n: ir.Node, full: bool = False) -> str:
-            if isinstance(n, (ir.Node, onnx.NodeProto)):
-                if full:
-                    return f"{n.op_type}({n.inputs}) -> ({n.inputs})"
-                return f"{n.op_type}({n.inputs})"
-            return str(n)
+            if full:
+                return str(n)
+            return f"{n.op_type}({', '.join([str(input) for input in n.inputs])})"
 
         rows = []
         for k, v in sorted(self._debug.items()):
@@ -387,8 +385,10 @@ class GenericPattern:
                 continue
             if k == "matched":
                 rows.append(f"--matched-- #{len(v)}")  # type: ignore[arg-type]
-                for i, tu in v.items():
-                    rows.append(f"  {_p(tu)} ~ {_p(tu)} [{id(tu)}-{i}]")
+                for pattern_node, graph_node in v.items():
+                    rows.append(
+                        f"  {_p(pattern_node)} ~ {_p(graph_node)} [{id(pattern_node)}-{id(graph_node)}]"
+                    )
                 continue
             if k == "hint":
                 rows.append(f"--hint--: {v[0]}")  # type: ignore[arg-type]
@@ -409,7 +409,7 @@ class GenericPattern:
     def _match_backward(
         self,
         node: ir.Node,
-        matched: dict[ir.Node, tuple[ir.Node, ir.Node]],
+        matched: dict[ir.Node, ir.Node],
         stack: list[ir.Node],
         graph_node: ir.Node,
         pattern_node: ir.Node,
@@ -655,7 +655,7 @@ class GenericPattern:
             return self.none()
 
         if self.verbose > 5:
-            print(f"[GenericPattern.match] starts with {node.op_type}({node.inputs})")
+            print(f"[GenericPattern.match] starts with {node}")
             if self.verbose >= 10:
                 print(f"[GenericPattern.match] match pattern {self!r}")
 
@@ -876,17 +876,18 @@ def make_pattern_rule(
 
     Args:
         match_pattern: a function interpreted by onnx-script
-        and converted into an onnx model, this model defines the
-        nodes to be replaced
+            and converted into an onnx model, this model defines the
+            nodes to be replaced
         apply_pattern: a function interpreted by onnx-script and
-        converted into an onnx model, this model defines the new nodes
-        replacing the matched nodes
+            converted into an onnx model, this model defines the new nodes
+            replacing the matched nodes
         validate_mapping: a function validating the matching once
-        it has happened, it is not valid, the pattern is not applied,
-        if not specified, the function always return True
+            it has happened, it is not valid, the pattern is not applied,
+            if not specified, the function always return True
         opsets: opset to consider when converting the function into ONNX,
-        if not specified, it is opset 18 for the main opset, and opset 1
-        for domain com.microsoft.
+            if not specified, it is opset 18 for the main opset, and opset 1
+            for domain com.microsoft.
+        verbose: verbosity level
 
     Returns:
         the rewriting rule

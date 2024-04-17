@@ -161,7 +161,9 @@ print([n.op_type for n in rewritten_model.graph.node])
 # The match did not happen.
 # Let's increase the verbosity.
 
-rule = generic_pattern.make_pattern_rule(rotary_match_pattern, rotary_apply_pattern, verbose=10)
+rule = generic_pattern.make_pattern_rule(
+    rotary_match_pattern, rotary_apply_pattern, verbose=10
+)
 
 rule.apply_to_model(ir_model)
 
