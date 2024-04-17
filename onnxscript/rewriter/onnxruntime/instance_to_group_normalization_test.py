@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import onnx.parser
 
-from onnxscript._legacy_ir import irbuilder
+from onnxscript.ir import serde
 from onnxscript.rewriter.onnxruntime import instance_to_group_normalization
 
 
@@ -83,7 +83,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
         # plus 2 in model constants
@@ -122,7 +122,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
 
@@ -159,7 +159,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
 
@@ -196,7 +196,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
 
@@ -233,7 +233,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320],
         )
 
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
 
@@ -270,7 +270,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
 
@@ -309,7 +309,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
 
@@ -348,7 +348,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 2, 3],
         )
 
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
 
@@ -387,7 +387,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
 
@@ -426,7 +426,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
 

@@ -10,34 +10,19 @@ import numpy as np
 import onnx
 import onnx.helper as oh
 import onnx.numpy_helper as onh
+import onnx.shape_inference
 from numpy.testing import assert_almost_equal
 from onnx.reference import ReferenceEvaluator
 from onnx.reference.op_run import OpRun
 
-import onnxscript._legacy_ir as oir
-import onnxscript._legacy_ir.protobuilder as oip
 import onnxscript.rewriter.generic_pattern as org
+from onnxscript import ir as oir
+from onnxscript.ir import serde
 
 TFLOAT = onnx.TensorProto.FLOAT
 
 
 class GenericPatternTest(unittest.TestCase):
-    def test_bridge_model(self):
-        model = onnx.parser.parse_model(
-            """
-            <ir_version: 7, opset_import: [ "" : 17]>
-            agraph (float[2, 3, 5, 4] input_x, float[5] input_y, float[2, 3, 5] input_z) => (float[2, 4, 6] output)
-            {
-                shape_a = Constant<value: tensor = int64[4] {2, 3, 5, 4}>()
-                reshape_x = Reshape (input_x, shape_a)
-                gemm = Gemm<alpha=1.0, beta=1.0> (reshape_x, input_y, input_z)
-                shape_d = Constant<value: tensor = int64[3] {2, 4, 6}>()
-                output = Reshape (gemm, shape_d)
-            }
-        """
-        )
-        org.ModelWithGraphStructure(oir.irbuilder.build_ir(model))
-
     def _range(self, *shape, bias: float | None = None):
         n = np.prod(shape)
         x = np.arange(n).astype(np.float32) / n
@@ -94,7 +79,8 @@ class GenericPatternTest(unittest.TestCase):
         )
         onnx.checker.check_model(model)
 
-        ir_model = oir.irbuilder.build_ir(model)
+        model = onnx.shape_inference.infer_shapes(model)
+        ir_model = serde.deserialize_model(model)
 
         pattern = AddAddPattern(verbose=0)
         rule = pattern.make_rule()
@@ -104,11 +90,8 @@ class GenericPatternTest(unittest.TestCase):
             [n.op_type for n in ir_model.graph.nodes],
         )
         # TODO: do that in pattern.py.
-        ir_model.version_map["ZZZ"] = 1
-
-        builder = oip.ModelProtoBuilder()
-        opt_onx = builder.visit_ir_model(ir_model)
-
+        ir_model.opset_imports["ZZZ"] = 1
+        opt_onx = serde.serialize_model(ir_model)
         self.assertEqual(
             ["AddAdd"],
             [n.op_type for n in opt_onx.graph.node],
@@ -187,9 +170,10 @@ class GenericPatternTest(unittest.TestCase):
         )
         onnx.checker.check_model(model)
 
-        ir_model = oir.irbuilder.build_ir(model)
+        model = onnx.shape_inference.infer_shapes(model)
+        ir_model = serde.deserialize_model(model)
 
-        pattern = AddAddAddAddPattern(verbose=0)
+        pattern = AddAddAddAddPattern(verbose=10)
         rule = pattern.make_rule()
         rule.apply_to_model(ir_model)
         self.assertEqual(
@@ -197,10 +181,9 @@ class GenericPatternTest(unittest.TestCase):
             [n.op_type for n in ir_model.graph.nodes],
         )
         # TODO: do that in pattern.py.
-        ir_model.version_map["ZZZ"] = 1
+        ir_model.opset_imports["ZZZ"] = 1
 
-        builder = oip.ModelProtoBuilder()
-        opt_onx = builder.visit_ir_model(ir_model)
+        opt_onx = serde.serialize_model(ir_model)
 
         self.assertEqual(
             ["AddAddAddAdd"],
@@ -340,16 +323,16 @@ class GenericPatternTest(unittest.TestCase):
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
             # back to ir
-            ir_model = oir.irbuilder.build_ir(model)
+            model = onnx.shape_inference.infer_shapes(model)
+            ir_model = serde.deserialize_model(model)
 
             # starts matching
             pattern = RotaryEmbeddingPattern(verbose=10)
             rule = pattern.make_rule()
             rule.apply_to_model(ir_model)
-            ir_model.version_map["com.microsoft"] = 1
+            ir_model.opset_imports["com.microsoft"] = 1
 
-            builder = oip.ModelProtoBuilder()
-            opt_onx = builder.visit_ir_model(ir_model)
+            opt_onx = serde.serialize_model(ir_model)
 
         expected = ["Constant", "Constant", "RotaryEmbedding"]
         self.assertEqual(expected, [n.op_type for n in opt_onx.graph.node])
@@ -399,7 +382,8 @@ class GenericPatternTest(unittest.TestCase):
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
             # back to ir
-            ir_model = oir.irbuilder.build_ir(model)
+            model = onnx.shape_inference.infer_shapes(model)
+            ir_model = serde.deserialize_model(model)
 
             # starts matching
             rule = org.make_pattern_rule(
@@ -410,10 +394,9 @@ class GenericPatternTest(unittest.TestCase):
             )
 
             rule.apply_to_model(ir_model)
-            ir_model.version_map["com.microsoft"] = 1
+            ir_model.opset_imports["com.microsoft"] = 1
 
-            builder = oip.ModelProtoBuilder()
-            opt_onx = builder.visit_ir_model(ir_model)
+            opt_onx = serde.serialize_model(ir_model)
 
         expected = ["Constant", "Constant", "RotaryEmbedding"]
         self.assertEqual(expected, [n.op_type for n in opt_onx.graph.node])
@@ -463,8 +446,8 @@ class GenericPatternTest(unittest.TestCase):
             raise unittest.SkipTest(f"{model!r} is missing")
 
         begin = time.perf_counter()
-        onx = onnx.load(model)
-        ir_model = oir.irbuilder.build_ir(onx)
+        model = onnx.shape_inference.infer_shapes(model)
+        ir_model = serde.deserialize_model(model)
         if __name__ == "__main__":
             print(f"Loading done in {time.perf_counter() - begin}s")
 
@@ -482,11 +465,10 @@ class GenericPatternTest(unittest.TestCase):
             print(f"Matching done in {time.perf_counter() - begin}s")
 
         # TODO: do that in pattern.py.
-        ir_model.version_map["ZZZ"] = 1
+        ir_model.opset_imports["ZZZ"] = 1
 
         begin = time.perf_counter()
-        builder = oip.ModelProtoBuilder()
-        opt_onx = builder.visit_ir_model(ir_model)
+        opt_onx = serde.serialize_model(ir_model)
         if __name__ == "__main__":
             print(f"Building done in {time.perf_counter() - begin}s")
 
@@ -518,7 +500,7 @@ class GenericPatternTest(unittest.TestCase):
             del g
             perms = []
             for n in match_result.model_nodes:
-                perms.append(list(n.attribute[0].ints))
+                perms.append(list(n.attributes["perm"].value))
             perm = perms[0]
             new_perm = [0 for p in perm]
             for i, p in enumerate(perms[1]):
@@ -526,7 +508,8 @@ class GenericPatternTest(unittest.TestCase):
             match_result.add_kwargs("perm", new_perm)
             return True
 
-        def transpose_transpose_apply_pattern(x, perm=None):
+        # FIXME(justinchuby): Support matched result binding
+        def transpose_transpose_apply_pattern(perm=None):
             if perm is None:
                 return oh.make_function(
                     "any",
@@ -563,21 +546,18 @@ class GenericPatternTest(unittest.TestCase):
         )
 
         # back to ir
-        ir_model = oir.irbuilder.build_ir(model)
+        ir_model = serde.deserialize_model(model)
 
         # starts matching
         rule = org.make_pattern_rule(
             transpose_transpose_pattern,
-            transpose_transpose_apply_pattern,
+            transpose_transpose_apply_pattern(),
             transpose_transpose_mapping,
             verbose=0,
-            use_onnxscript=False,
         )
 
         rule.apply_to_model(ir_model)
-
-        builder = oip.ModelProtoBuilder()
-        opt_onx = builder.visit_ir_model(ir_model)
+        opt_onx = serde.serialize_model(ir_model)
 
         expected = ["Transpose"]
         self.assertEqual(expected, [n.op_type for n in opt_onx.graph.node])

@@ -3,14 +3,14 @@ import unittest
 import onnx.parser
 import parameterized
 
-from onnxscript._legacy_ir import irbuilder
+from onnxscript.ir import serde
 from onnxscript.rewriter import no_op
 
 
 class NoOpTest(unittest.TestCase):
     def _check(self, model_text: str) -> None:
         model = onnx.parser.parse_model(model_text)
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = no_op.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
         self.assertEqual(ir.graph.nodes[-1].op_type, "Identity")

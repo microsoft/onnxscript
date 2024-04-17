@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import onnx.parser
 
-from onnxscript._legacy_ir import irbuilder
+from onnxscript.ir import serde
 from onnxscript.rewriter.onnxruntime import (
     group_normalization_merge_silu,
     instance_to_group_normalization,
@@ -51,7 +51,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             ]
         )
 
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = group_normalization_merge_silu.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
         # plus 2 in model constants
@@ -117,7 +117,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             ]
         )
 
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = instance_to_group_normalization.rules.apply_to_model(ir)
         count += group_normalization_merge_silu.rules.apply_to_model(ir)
         self.assertEqual(count, 2)

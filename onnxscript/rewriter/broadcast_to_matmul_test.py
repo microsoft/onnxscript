@@ -1,8 +1,9 @@
 import unittest
 
 import onnx.parser
+import onnx.shape_inference
 
-from onnxscript._legacy_ir import irbuilder
+from onnxscript.ir import serde
 from onnxscript.rewriter import broadcast_to_matmul
 
 
@@ -23,7 +24,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
         self.assertEqual(len(ir.graph.nodes), 4)
@@ -64,13 +65,14 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
                 "pkg.custom::afunction/input_y", onnx.TensorProto.FLOAT, [1, 4, 512, 64]
             )
         )
-
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
         self.assertEqual(len(ir.functions), 1)
-        self.assertEqual(len(ir.functions[0].nodes), 4)
-        self.assertEqual(ir.functions[0].nodes[-1].op_type, "MatMul")
+        self.assertEqual(len(ir.functions[("pkg.custom", "afunction", "")].nodes), 4)
+        self.assertEqual(
+            ir.functions[("pkg.custom", "afunction", "")].nodes[-1].op_type, "MatMul"
+        )
 
     def test_reshape_matmul_reshape_remain_when_input_last_dim_and_second_last_dim_not_matched(
         self,
@@ -90,12 +92,12 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
         self.assertEqual(len(ir.graph.nodes), 7)
 
-    def test_reshape_matmul_reshape_remain_when_inputs_are_not_broadcastable(
+    def test_reshape_matmul_reshape_remain_one_reshape_when_inputs_are_not_broadcastable(
         self,
     ):
         model = onnx.parser.parse_model(
@@ -113,10 +115,12 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        model = onnx.shape_inference.infer_shapes(model)
+        ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
-        self.assertEqual(count, 0)
-        self.assertEqual(len(ir.graph.nodes), 7)
+        # subset pattern matched
+        self.assertEqual(count, 1)
+        self.assertEqual(len(ir.graph.nodes), 5)
 
     def test_reshape_matmul_reshape_replace_when_inputs_are_broadcastable_with_one_in_dims(
         self,
@@ -136,7 +140,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
         self.assertEqual(len(ir.graph.nodes), 4)
@@ -159,7 +163,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
         self.assertEqual(len(ir.graph.nodes), 4)
@@ -182,7 +186,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
         self.assertEqual(len(ir.graph.nodes), 7)
@@ -205,12 +209,12 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
         self.assertEqual(len(ir.graph.nodes), 4)
 
-    def test_reshape_matmul_reshape_remain_when_second_input_is_one_dimension_and_not_broadcastable(
+    def test_reshape_matmul_reshape_remain_one_reshape_when_second_input_is_one_dimension_and_not_broadcastable(
         self,
     ):
         model = onnx.parser.parse_model(
@@ -228,10 +232,12 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        model = onnx.shape_inference.infer_shapes(model)
+        ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
-        self.assertEqual(count, 0)
-        self.assertEqual(len(ir.graph.nodes), 7)
+        # subset pattern matched
+        self.assertEqual(count, 1)
+        self.assertEqual(len(ir.graph.nodes), 5)
 
     def test_reshape_matmul_reshape_remain_when_output_is_not_matmul_broadcasted(
         self,
@@ -251,7 +257,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
         self.assertEqual(len(ir.graph.nodes), 7)
@@ -272,7 +278,7 @@ class OneReshapeMatMulReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = broadcast_to_matmul.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
         # The constant nodes are not removed. They should be removed by a subsequent DCE in optimizer.

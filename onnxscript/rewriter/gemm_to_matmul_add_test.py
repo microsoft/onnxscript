@@ -2,7 +2,7 @@ import unittest
 
 import onnx.parser
 
-from onnxscript._legacy_ir import irbuilder
+from onnxscript.ir import serde
 from onnxscript.rewriter import gemm_to_matmul_add
 
 
@@ -22,7 +22,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         """
         )
 
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 1)
         self.assertEqual(len(ir.graph.nodes), 4)
@@ -67,13 +67,15 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             )
         )
 
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 1)
         self.assertEqual(len(ir.functions), 1)
-        self.assertEqual(len(ir.functions[0].nodes), 4)
-        self.assertEqual(ir.functions[0].nodes[2].op_type, "MatMul")
-        self.assertEqual(ir.functions[0].nodes[3].op_type, "Add")
+        self.assertEqual(len(ir.functions[("pkg.custom", "afunction", "")].nodes), 4)
+        self.assertEqual(
+            ir.functions[("pkg.custom", "afunction", "")].nodes[2].op_type, "MatMul"
+        )
+        self.assertEqual(ir.functions[("pkg.custom", "afunction", "")].nodes[3].op_type, "Add")
 
     def test_reshape_gemm_reshape_remain_when_input_last_dim_and_second_last_dim_not_matched(
         self,
@@ -91,7 +93,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 0)
         self.assertEqual(len(ir.graph.nodes), 5)
@@ -112,7 +114,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 0)
         self.assertEqual(len(ir.graph.nodes), 5)
@@ -133,7 +135,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 1)
         self.assertEqual(len(ir.graph.nodes), 4)
@@ -156,7 +158,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 1)
         self.assertEqual(len(ir.graph.nodes), 4)
@@ -179,7 +181,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 0)
         self.assertEqual(len(ir.graph.nodes), 5)
@@ -200,7 +202,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 1)
         self.assertEqual(len(ir.graph.nodes), 4)
@@ -223,7 +225,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 0)
         self.assertEqual(len(ir.graph.nodes), 5)
@@ -244,7 +246,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = gemm_to_matmul_add.rule.apply_to_model(ir)
         self.assertEqual(count, 0)
         self.assertEqual(len(ir.graph.nodes), 5)

@@ -10,8 +10,8 @@ import onnx
 import onnx.numpy_helper
 import onnx.printer
 
-import onnxscript._legacy_ir as ir
-from onnxscript._legacy_ir import irbuilder
+from onnxscript import ir
+from onnxscript.ir import _ir_utils_temp, serde
 
 # Overview of the pattern module: The classes below are used to define both
 # patterns (that we search for) and replacements for rewrite rules.
@@ -23,19 +23,94 @@ from onnxscript._legacy_ir import irbuilder
 # appropriate).
 
 
-class ConstantPattern:
-    def __init__(self, value: int | str | list) -> None:
+class PythonPattern:
+    def __init__(self, value: int | str | list, name: str | None = None) -> None:
         self._value = value
+        self._name = name
 
     @property
     def value(self) -> int | str | list:
         return self._value
+
+    @property
+    def name(self) -> str | None:
+        return self._name
 
     def matches(self, value: int | str | list) -> bool:
         return value == self.value
 
     def to_ir(self, model, bindings=None) -> int | str | list:
         return self.value
+
+
+class StringConstantPattern:
+    def __init__(self, value: str, name: str) -> None:
+        self._value = value
+        self._name = name
+
+    @property
+    def value(self) -> str:
+        return self._value
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def matches(self, attr: ir.AttrString) -> bool:
+        return attr.value == self.value
+
+    def to_ir(self, model, bindings=None) -> ir.AttrString:
+        return ir.AttrString(value=self.value, name=self.name)
+
+
+class IntConstantPattern:
+    def __init__(self, value: int | str | list, name: str) -> None:
+        self._value = value
+        self._name = name
+
+    @property
+    def value(self) -> int | str | list:
+        return self._value
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def matches(self, attr: ir.AttrInt64) -> bool:
+        return attr.value == self.value
+
+    def to_ir(self, model, bindings=None) -> ir.AttrInt64:
+        return ir.AttrInt64(value=self.value, name=self.name)
+
+
+class ListConstantPattern:
+    def __init__(self, value: int | str | list, name: str) -> None:
+        self._value = value
+        self._name = name
+
+    @property
+    def value(self) -> int | str | list:
+        return self._value
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def matches(self, attr: ir.AttrFloat32s | ir.AttrInt64s | ir.AttrStrings) -> bool:
+        # TODO: Need more data points to determine if this is the right way to compare lists.
+        return attr.value == self.value
+
+    def to_ir(self, model, bindings=None) -> ir.AttrFloat32s | ir.AttrInt64s | ir.AttrStrings:
+        the_first_non_none_item = next((item for item in self.value if item is not None), None)
+        if isinstance(the_first_non_none_item, int):
+            return ir.AttrInt64s(value=self.value, name=self.name)
+        if isinstance(the_first_non_none_item, str):
+            return ir.AttrStrings(value=self.value, name=self.name)
+        if isinstance(the_first_non_none_item, float):
+            return ir.AttrFloat32s(value=self.value, name=self.name)
+        raise TypeError(
+            f"Cannot convert list of {type(the_first_non_none_item)} to ConstantPattern"
+        )
 
 
 class PrefixPattern:
@@ -56,8 +131,11 @@ class PrefixPattern:
 
 
 class FloatConstantPattern:
-    def __init__(self, value: float, rel_tol: float = 1e-5, abs_tol: float = 1e-8) -> None:
+    def __init__(
+        self, value: float, name: str, rel_tol: float = 1e-5, abs_tol: float = 1e-8
+    ) -> None:
         self._value = value
+        self._name = name
         self._rel_tol = rel_tol
         self._abs_tol = abs_tol
 
@@ -65,18 +143,25 @@ class FloatConstantPattern:
     def value(self):
         return self._value
 
-    def matches(self, value: float):
-        return math.isclose(value, self.value, rel_tol=self._rel_tol, abs_tol=self._abs_tol)
+    @property
+    def name(self):
+        return self._name
 
-    def to_ir(self, model, bindings=None) -> float:
-        return self.value
+    def matches(self, attr: ir.AttrFloat32):
+        return math.isclose(
+            attr.value, self.value, rel_tol=self._rel_tol, abs_tol=self._abs_tol
+        )
+
+    def to_ir(self, model, bindings=None) -> ir.AttrFloat32:
+        return ir.AttrFloat32(value=self.value, name=self.name)
 
 
 class TensorConstantPattern:
     def __init__(
-        self, value: np.ndarray, rel_tol: float = 1e-3, abs_tol: float = 1e-3
+        self, value: np.ndarray, name, rel_tol: float = 1e-3, abs_tol: float = 1e-3
     ) -> None:
         self._value = value
+        self._name = name
         self._rel_tol = rel_tol
         self._abs_tol = abs_tol
 
@@ -84,37 +169,52 @@ class TensorConstantPattern:
     def value(self):
         return self._value
 
-    def matches(self, value: np.ndarray):
+    @property
+    def name(self):
+        return self._name
+
+    def matches(self, attr: ir.AttrTensor):
         return (
-            value.dtype == self._value.dtype
-            and value.shape == self._value.shape
+            attr.dtype == self._value.dtype
+            and attr.shape == self._value.shape
             and np.allclose(
-                value,
+                attr.value,
                 self._value,
                 rtol=self._rel_tol,
                 atol=self._abs_tol,
             )
         )
 
-    def to_ir(self, model, bindings=None) -> onnx.TensorProto:
-        return onnx.helper.make_tensor(
-            "",
-            onnx.helper.np_dtype_to_tensor_dtype(self.value.dtype),
-            self.value.shape,
-            self.value,
+    def to_ir(self, model, bindings=None) -> ir.AttrTensor:
+        tensor = ir.Tensor(
+            value=self.value,
+            name=self.name,
+            shape=self.value.shape,
+            dtype=onnx.helper.np_dtype_to_tensor_dtype(self.value.dtype),
         )
+        return ir.AttrTensor(name=self.name, value=tensor)
 
 
 def _make_constant_pattern(
-    value: float | int | list | np.ndarray,
-) -> ConstantPattern | FloatConstantPattern | TensorConstantPattern:
+    value: float | int | list | np.ndarray, name: str
+) -> (
+    IntConstantPattern
+    | FloatConstantPattern
+    | TensorConstantPattern
+    | StringConstantPattern
+    | ListConstantPattern
+):
     """Convert an attrbute value to a ConstantPattern."""
     if isinstance(value, float):
-        return FloatConstantPattern(value)
-    if isinstance(value, (int, list)):
-        return ConstantPattern(value)
+        return FloatConstantPattern(value, name)
+    if isinstance(value, int):
+        return IntConstantPattern(value, name)
+    if isinstance(value, str):
+        return StringConstantPattern(value, name)
+    if isinstance(value, list):
+        return ListConstantPattern(value, name)
     if isinstance(value, np.ndarray):
-        return TensorConstantPattern(value)
+        return TensorConstantPattern(value, name)
     raise TypeError(f"Cannot convert {type(value)} to ConstantPattern")
 
 
@@ -124,11 +224,11 @@ class AnyPattern:
 
 
 class AttrPattern:
-    def __init__(self, value: Var | int | float | list | np.ndarray) -> None:
+    def __init__(self, value: Var | int | float | list | np.ndarray, name: str) -> None:
         if isinstance(value, Var):
             self.value_pattern = value
         elif isinstance(value, (int, float, list, np.ndarray)):
-            self.value_pattern = _make_constant_pattern(value)
+            self.value_pattern = _make_constant_pattern(value, name)
         else:
             raise TypeError(f"Cannot convert {type(value)} to AttrPattern")
 
@@ -169,19 +269,19 @@ class OpsetPattern:
 
     def __init__(
         self,
-        domain_pattern: ConstantPattern | PrefixPattern,
-        version_pattern: ConstantPattern | AnyPattern,
+        domain_pattern: PythonPattern | PrefixPattern,
+        version_pattern: PythonPattern | AnyPattern,
     ) -> None:
         self.domain_pattern = domain_pattern
         self.version_pattern = version_pattern
 
     @classmethod
     def singleton(cls, domain: str, version: int) -> OpsetPattern:
-        return cls(ConstantPattern(domain), ConstantPattern(version))
+        return cls(PythonPattern(domain), PythonPattern(version))
 
     @classmethod
     def domain(cls, domain: str) -> OpsetPattern:
-        return cls(ConstantPattern(domain), AnyPattern())
+        return cls(PythonPattern(domain), AnyPattern())
 
     @classmethod
     def domain_prefix(cls, domain: str) -> OpsetPattern:
@@ -194,12 +294,12 @@ class OpsetPattern:
     def to_ir(self, model, bindings=None) -> str:
         domain = self.domain_pattern.to_ir(model, bindings)
         # TODO: Should we ban other custom domains?
-        if domain not in model.version_map:
-            model.version_map[self.domain_pattern.value] = self.version_pattern.value
+        if domain not in model.opset_imports:
+            model.opset_imports[self.domain_pattern.value] = self.version_pattern.value
         return domain
 
     def __getattr__(self, name: str) -> Any:
-        return OpPattern(self, ConstantPattern(name))
+        return OpPattern(self, PythonPattern(name))
 
     def submodule(self, name: str) -> Any:
         """This method is used to match against submodule ops with prefix."""
@@ -232,7 +332,7 @@ class OpPattern:
     def __init__(
         self,
         opset_pattern: OpsetPattern,
-        op_name_pattern: ConstantPattern | PrefixPattern,
+        op_name_pattern: StringConstantPattern | PrefixPattern,
     ) -> None:
         self.opset_pattern = opset_pattern
         self.op_name_pattern = op_name_pattern
@@ -243,7 +343,9 @@ class OpPattern:
             del kwargs["_num_outputs"]
         else:
             num_outputs = 1
-        attributes = {name: AttrPattern(value) for (name, value) in kwargs.items()}
+        attributes = {
+            name: AttrPattern(value=value, name=name) for (name, value) in kwargs.items()
+        }
         node_pattern = NodePattern(self.opset_pattern, self.op_name_pattern, args, attributes)
         if num_outputs == 1:
             return NodeOutputPattern(node_pattern, 0)
@@ -336,7 +438,7 @@ class MatchResult:
         for var, val in other.bindings.items():
             if var in self.bindings:
                 # TODO: handle attribute var bindings
-                if not self.bindings[var].is_same_as(val):
+                if self.bindings[var] != val:
                     self.fail()
                     return
             else:
@@ -382,29 +484,6 @@ class ValuePattern:
         return onnxop.Pow(self, other)
 
 
-# NOTE(bowbao): Based on reading code, this is (nearly) the only place where `model` is used
-# for (nearly) all the functions that passes `model` around. It seems the goal is to be able
-# create unique value names.
-def _make_node(
-    model: ir.Model,
-    domain: str,
-    op: str,
-    input,
-    attributes,
-    num_outputs: int,
-) -> tuple[list[ir.Value], ir.Node]:
-    inputnames = [x.name for x in input]
-    outputs = [model.make_new_name() for i in range(num_outputs)]
-    node = onnx.helper.make_node(op, inputnames, outputs, domain=domain, **attributes)
-    newnode = ir.Node(node)
-    newnode.set_version_if_custom_op(model.version_map)
-    newvalues = [ir.Value(name=v, node=newnode, output_index=i) for i, v in enumerate(outputs)]
-    newnode.inputs = input
-    newnode.outputs = newvalues
-    newnode.attributes = attributes  # TODO
-    return newvalues, newnode
-
-
 class NodePattern:
     """Represents a pattern that matches against a Node.
 
@@ -416,7 +495,7 @@ class NodePattern:
     def __init__(
         self,
         domain: OpsetPattern,
-        op: ConstantPattern,
+        op: PythonPattern,
         inputs: Sequence[int | float | ValuePattern],
         attributes: dict[str, AttrPattern],
     ):
@@ -442,7 +521,8 @@ class NodePattern:
 
     def matches_node(self, node: ir.Node, model: ir.Model) -> MatchResult:
         """Examine if the IR node matches the self pattern."""
-        if not self.domain.matches((node.domain, node.version)):
+        node_version = model.graph.opset_imports.get(node.domain, 0)
+        if not self.domain.matches((node.domain, node_version)):
             return MatchResult.FAIL()
         if not self.op.matches(node.op_type):
             return MatchResult.FAIL()
@@ -458,7 +538,7 @@ class NodePattern:
                 return match
         # Sub-graphs not handled yet.
         for name, attr_pattern in self.attributes.items():
-            attr_value = node.get_attribute(name)
+            attr_value = node.attributes.get(name)
             if attr_value is None:
                 return MatchResult.FAIL()
             sub_match = attr_pattern.matches(attr_value, model)
@@ -494,18 +574,24 @@ class NodePattern:
                 nodes.extend(n)
             # If one of the inputs was a the output of a previous node,
             # unpack the new output ir value that is created for that node
-            if isinstance(val, list):
+            if isinstance(val, tuple):
                 # TODO: Move implementation of output_index to NodeOutputPatter.to_ir
                 inputs.append(val[val_pattern.output_index])
             else:
                 inputs.append(val)
-        attributes = {
-            name: attr_pattern.to_ir(model, rewrite_cache, bindings)
-            for (name, attr_pattern) in self.attributes.items()
-        }
-        newvals, newnode = _make_node(model, domain, op, inputs, attributes, num_outputs)
+        attributes = (
+            attr_pattern.to_ir(model, rewrite_cache, bindings)
+            for attr_pattern in self.attributes.values()
+        )
+        newnode = ir.Node(
+            domain=domain,
+            op_type=op,
+            inputs=inputs,
+            attributes=attributes,
+            num_outputs=num_outputs,
+        )
         nodes.append(newnode)
-        return newvals, nodes
+        return newnode.outputs, nodes
 
     def commute(self) -> list[ValuePattern]:
         list_of_lists = [pattern.commute() for pattern in self.inputs]
@@ -605,8 +691,8 @@ class Constant(ValuePattern):
             return MatchResult.FAIL()
 
     def matches(self, value: ir.Value, model: ir.Model):
-        del model  # Unused
-        constant_value = value.value_as_np_array
+        value = _ir_utils_temp.propagate_const_value(value)
+        constant_value = _ir_utils_temp.get_numpy_from_ir_value(value)
         if isinstance(constant_value, np.ndarray):
             # TODO (rama): allow users to specify shape requirement, if desired.
             if constant_value.size != 1:
@@ -681,10 +767,10 @@ def _valid_to_replace(matched_nodes: Sequence[ir.Node]) -> bool:
     deleted_nodes = matched_nodes[:-1]
     for n in deleted_nodes:
         for v in n.outputs:
-            if v.is_output:
+            if v.is_graph_output():
                 # value is an output-value of the graph/function.
                 return False
-            for use in v.uses:
+            for use, _ in v.users():
                 if use not in matched_nodes:
                     return False
     return True
@@ -879,6 +965,7 @@ class RewriteRule:
 
 def _apply_deltas(
     graph_or_function: ir.Graph | ir.Function,
+    # TODO(jutinchuby): Use a more descriptive data structure to store deltas
     deltas: list[tuple[int, tuple[list[ir.Node], list[ir.Node]]]],
 ):
     """Applies deltas.
@@ -898,11 +985,9 @@ def _apply_deltas(
     We could reorder (long) or do more clever changes.
     The reordering would probably happen not very often.
     """
-    nodes = graph_or_function.nodes
-    existing_ids = {id(n): (i, n) for i, n in enumerate(nodes)}
+    existing_ids = {id(n): (i, n) for i, n in enumerate(graph_or_function.nodes)}
     to_delete = set()
-    to_insert = {}
-    path_2 = False
+    to_insert = []
 
     for i, delta in reversed(deltas):
         if len(delta) == 3:
@@ -910,13 +995,12 @@ def _apply_deltas(
             n_matches, deleted_nodes, inserted_nodes = delta
             for d in deleted_nodes:
                 assert id(d) in existing_ids
-                to_delete.add(id(d))
+                to_delete.add(d)
 
             # the position to insert must be chosen.
             # we'll try position i
             assert i not in to_insert  # conflicts should avoid that case
-            to_insert[i] = inserted_nodes
-
+            to_insert.append((graph_or_function.nodes[i], inserted_nodes))
         else:
             deleted_nodes, inserted_nodes = delta
             # Replace deleted nodes with inserted nodes.
@@ -927,58 +1011,38 @@ def _apply_deltas(
             # TODO: simplify this
             last_deleted = deleted_nodes[-1]
             last_inserted = inserted_nodes[-1]
-
             assert len(last_deleted.outputs) == len(last_inserted.outputs)
-            del last_inserted.outputs[:]
-            for v in last_deleted.outputs:
-                v.node = last_inserted
-                last_inserted.outputs.append(v)
+            # Reconnect the users of the deleted node to use the new outputs
+            for last_deleted_output, last_inserted_output in zip(
+                last_deleted.outputs, last_inserted.outputs
+            ):
+                for node, index in last_deleted_output.users():
+                    node.replace_input_with(index, last_inserted_output)
 
-            del nodes[i]
+                # Update graph/function outputs if the node genrates output
+                for old_output, new_output in zip(last_deleted.outputs, last_inserted.outputs):
+                    for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
+                        if graph_or_function_output is old_output:
+                            graph_or_function.outputs[idx] = new_output
 
-            for new_node in reversed(inserted_nodes):
-                nodes.insert(i, new_node)
-                # bind the outputs to the graph
-                for output_name, value in zip(new_node.output_names, new_node.outputs):
-                    graph_or_function.values[output_name] = value
-            path_2 = True
+            # insert new nodes after the index node
+            # TODO(justinchuby): Do not access by index [i]
+            graph_or_function.insert_after(graph_or_function.nodes[i], inserted_nodes)
 
-    assert not to_delete or not path_2, (
-        "Two different rules were applied. It will solved later. "
-        "Right now, the functions assumes all the changes come from one "
-        "rule."
-    )
+            for old_node in deleted_nodes:
+                graph_or_function.remove(old_node)
 
-    if path_2:
-        for _, delta in deltas:
-            deleted_nodes, inserted_nodes = delta
-            inserted_input_output = []
-            for nd in inserted_nodes:
-                inserted_input_output += nd.inputs + nd.outputs
-            for old_node in deleted_nodes[0:-1]:
-                # Delete intermediary outputs from graph that are not used as
-                # outputs of the graph
-                for output in old_node.outputs:
-                    if not output.is_output and output not in inserted_input_output:
-                        graph_or_function.values.pop(output.name)
-                nodes.remove(old_node)
+    for replaced_node, inserted_nodes in to_insert:
+        graph_or_function.insert_after(replaced_node, inserted_nodes)
+        # TODO: improve this
+        # This is updating the graph/function outputs to use the new outputs
+        for inserted_node in inserted_nodes:
+            for new_output in inserted_node.outputs:
+                if (index := new_output.meta.get(_ir_utils_temp.GRAPH_OUTPUT_META_KEY)) is not None:
+                    graph_or_function.outputs[index] = new_output
 
-    for i in to_delete:
-        position = existing_ids[i][0]
-        nodes[position] = None
-
-    for position, insert in sorted(to_insert.items(), reverse=True):
-        for v in reversed(insert):
-            nodes.insert(position, v)
-
-    position_to_delete = []
-    for i, n in enumerate(nodes):
-        if n is None:
-            position_to_delete.append(i)
-
-    for p in reversed(position_to_delete):
-        del nodes[p]
-
+    for n in to_delete:
+        graph_or_function.remove(n)
 
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
@@ -993,29 +1057,13 @@ class RewriteRuleSet:
     ) -> int:
         count = 0
         marked = set()
-        bridge = None
         # NOTE: Rules should be prioritized in the order they are added to the RewriteRuleSet.
         # And the graph is applied in order.
         for rule in self.rules:
             deltas = []
             for i, node in enumerate(graph_or_function.nodes):
-                if hasattr(rule, "pattern"):
-                    from onnxscript.rewriter.generic_pattern import (
-                        GenericRewriteRule,
-                        ModelWithGraphStructure,
-                    )
+                delta = rule.try_rewrite(model, node)
 
-                    assert isinstance(
-                        rule, GenericRewriteRule
-                    ), f"Unexpected type {type(rule)}"
-                    # The successors and the predecessors do not change
-                    # until the deltas are applied. We cache the structure
-                    # to avoid building them again.
-                    if bridge is None:
-                        bridge = ModelWithGraphStructure(model)
-                    delta = rule.try_rewrite(bridge, node)
-                else:
-                    delta = rule.try_rewrite(model, node)
                 if delta is None:
                     continue
 
@@ -1043,7 +1091,7 @@ class RewriteRuleSet:
     def apply_to_model(self, model: ir.Model) -> int:
         assert isinstance(model, ir.Model)
         count = self._apply_to_graph_or_function(model, model.graph)
-        for function in model.functions:
+        for function in model.functions.values():
             count += self._apply_to_graph_or_function(model, function)
         return count
 
@@ -1060,7 +1108,7 @@ class RewriteRuleSet:
 
     def count_matches(self, model: onnx.ModelProto | ir.Model):
         if isinstance(model, onnx.ModelProto):
-            model = irbuilder.build_ir(model)
+            model = serde.deserialize_model(model)
         else:
             assert isinstance(model, ir.Model)
         count = self._count_matches_in_graph_or_function(model, model.graph)

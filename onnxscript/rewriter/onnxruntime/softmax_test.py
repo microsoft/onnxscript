@@ -3,7 +3,7 @@ import unittest
 import onnx.parser
 import parameterized
 
-from onnxscript._legacy_ir import irbuilder
+from onnxscript.ir import serde
 from onnxscript.rewriter.onnxruntime import softmax
 
 
@@ -28,7 +28,7 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
             }}
             """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = softmax.rules.apply_to_model(ir)
         self.assertEqual(count, 1)
         self.assertNotIn("Cast", {node.op_type for node in ir.graph.nodes})
@@ -53,7 +53,7 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
             }}
             """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = softmax.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
         self.assertEqual(
@@ -80,7 +80,7 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
             }}
             """
         )
-        ir = irbuilder.build_ir(model)
+        ir = serde.deserialize_model(model)
         count = softmax.rules.apply_to_model(ir)
         self.assertEqual(count, 0)
         self.assertEqual(

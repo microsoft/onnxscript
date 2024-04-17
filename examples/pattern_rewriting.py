@@ -14,8 +14,8 @@ import onnx.helper as oh
 import onnx.numpy_helper as onh
 
 import onnxscript
-import onnxscript._legacy_ir as oir
 import onnxscript.rewriter.generic_pattern as org
+from onnxscript.ir import serde
 
 
 def get_rotary_model(bad_model=False):
@@ -60,7 +60,7 @@ def get_rotary_model(bad_model=False):
 
 
 model = get_rotary_model()
-ir_model = oir.irbuilder.build_ir(model)
+ir_model = serde.deserialize_model(model)
 
 
 ####################################
@@ -136,7 +136,7 @@ rule.apply_to_model(ir_model)
 ########################
 # And finally, we can generate the model.
 
-opt_onx = oir.protobuilder.build_model_proto(ir_model)
+opt_onx = serde.serialize_model(ir_model)
 
 ########################
 # Let's see what it looks like.
@@ -150,10 +150,10 @@ for node in opt_onx.graph.node:
 
 
 model = get_rotary_model(True)
-ir_model = oir.irbuilder.build_ir(model)
+ir_model = serde.deserialize_model(model)
 
 rule.apply_to_model(ir_model)
-opt_onx = oir.protobuilder.build_model_proto(ir_model)
+opt_onx = serde.serialize_model(ir_model)
 
 print([n.op_type for n in opt_onx.graph.node])
 
