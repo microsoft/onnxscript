@@ -91,7 +91,7 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
 
     def __init__(
         self,
-        _=None,
+        _=None,  # Unused argument for backward compatibility
         producer=None,
         index=None,
         name: str | None = None,
@@ -634,7 +634,9 @@ class TorchScriptGraph:
         onnx_attributes: Mapping[str, ValidArgumentType],
     ) -> Union[TorchScriptTensor, Sequence[TorchScriptTensor]]:
         # Compute outputs from the onnx_op op schema
-        num_outputs = evaluator.compute_num_outputs(onnx_op_schema, onnx_inputs, onnx_attributes)
+        num_outputs = evaluator.compute_num_outputs(
+            onnx_op_schema, onnx_inputs, onnx_attributes
+        )
         result = self._add_ir_graph_op_call(
             domain="",
             op_type=onnx_op_schema.name,

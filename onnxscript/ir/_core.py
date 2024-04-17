@@ -1147,7 +1147,8 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
             return False
         if producer.graph is None:
             return False
-        return self in producer.graph.outputs
+        # Cannot use `in` because __eq__ is defined on onnxscript.Tensor
+        return any(output is self for output in producer.outputs)
 
 
 class Input(Value):
