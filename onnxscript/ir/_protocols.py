@@ -234,15 +234,18 @@ class GraphProtocol(Protocol):
     allows different subgraphs to import different opsets. It is the responsibility
     of the deserializer to reconcile the different opsets.
 
-    The :attr:`nodes` are not guaranteed to be topologically sorted. But the
+    The `nodes` are not guaranteed to be topologically sorted. But the
     iteration order should be deterministic across different runs. It is the
     responsibility of the user to maintain a topological order of the nodes.
+
+    Note that there is not a ``node`` attribute in the Graph. The Graph can be
+    seen as a Sequence of nodes and should be used as such. For example, to obtain
+    all nodes as a list, call ``list(graph)``.
 
     Attributes:
         name: The name of the graph.
         inputs: The input values of the graph.
         outputs: The output values of the graph.
-        nodes: All nodes this graph directly owns. They do not have to be sorted.
         initializers: The initializers in the graph.
         doc_string: Documentation string.
         opset_imports: Opsets imported by the graph.
@@ -253,7 +256,6 @@ class GraphProtocol(Protocol):
     name: str | None
     inputs: MutableSequence[ValueProtocol]
     outputs: MutableSequence[ValueProtocol]
-    nodes: Sequence[NodeProtocol]
     initializers: Mapping[str, TensorProtocol]
     doc_string: str
     opset_imports: Mapping[str, int]
@@ -304,7 +306,6 @@ class GraphViewProtocol(Protocol):
         name: The name of the graph.
         inputs: The input values of the graph.
         outputs: The output values of the graph.
-        nodes: All nodes this graph directly owns. They do not have to be sorted.
         initializers: The initializers in the graph.
         doc_string: Documentation string.
         opset_imports: Opsets imported by the graph.
@@ -314,7 +315,6 @@ class GraphViewProtocol(Protocol):
     name: str | None
     inputs: Sequence[ValueProtocol]
     outputs: Sequence[ValueProtocol]
-    nodes: Sequence[NodeProtocol]
     initializers: Mapping[str, TensorProtocol]
     doc_string: str
     opset_imports: Mapping[str, int]
@@ -343,7 +343,8 @@ class ModelProtocol(Protocol):
         model_version: The version of the model.
         doc_string: Documentation string.
         functions: The functions defined in the model.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for analysis passes.
     """
 
     graph: GraphProtocol
@@ -356,8 +357,8 @@ class ModelProtocol(Protocol):
     functions: Mapping[str, FunctionProtocol]
     # TODO(justinchuby): Add training_info
     opset_imports: Mapping[str, int]
-    metadata_props: Mapping[str, str]
-    meta: Mapping[str, Any]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
 
 @typing.runtime_checkable
@@ -496,6 +497,10 @@ class FunctionProtocol(Protocol):
     Like a graph, a function can have nodes that are not topologically sorted. It is
     the responsibility of the user to maintain a topological order of the nodes.
 
+    Note that there is not a ``node`` attribute in the Function. The Function can be
+    seen as a Sequence of nodes and should be used as such. For example, to obtain
+    all nodes as a list, call ``list(function)``.
+
     Attributes:
         name: The function name.
         domain: The domain this function is defined in.
@@ -505,7 +510,6 @@ class FunctionProtocol(Protocol):
         outputs: The output values of the function.
         opset_imports: Opsets imported by the function.
         doc_string: Documentation string.
-        nodes: All nodes this function directly owns. They do not have to be sorted.
         metadata_props: Metadata.
     """
 
@@ -517,7 +521,6 @@ class FunctionProtocol(Protocol):
     outputs: Sequence[ValueProtocol]
     doc_string: str
     opset_imports: Mapping[str, int]
-    nodes: Sequence[NodeProtocol]
     metadata_props: Mapping[str, str]
     meta: Mapping[str, Any]
 

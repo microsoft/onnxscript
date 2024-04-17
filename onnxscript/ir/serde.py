@@ -347,7 +347,7 @@ def _deserialized_experimental_value_info_for_function_ir9(
                 deserialize_value_info_proto(
                     function_value_value_info_mapping[function_id][input.name], input
                 )
-        for node in function.nodes:
+        for node in function:
             for output in node.outputs:
                 if output.name in function_value_value_info_mapping[function_id]:
                     deserialize_value_info_proto(
@@ -762,7 +762,7 @@ def _serialize_experimental_value_info_for_function_ir9_into(
             # No need to serialize value info if it is not set
             continue
         serialize_value_into(graph_proto.value_info.add(), input, name=format_name(input.name))
-    for node in function.nodes:
+    for node in function:
         for node_output in node.outputs:
             if not node_output.name:
                 logging.warning(
@@ -834,7 +834,7 @@ def serialize_graph_into(
     # TODO(justinchuby): Support sparse_initializer
     for initializer in from_.initializers.values():
         serialize_tensor_into(graph_proto.initializer.add(), from_=initializer)
-    for node in from_.nodes:
+    for node in from_:
         serialize_node_into(graph_proto.node.add(), from_=node)
         for node_output in node.outputs:
             if not _should_create_value_info_for_value(node_output):
@@ -914,7 +914,7 @@ def serialize_function_into(
         function_proto.output.append(func_output.name)
         # No need to serialize value info for function outputs because they are
         # also node outputs
-    for node in from_.nodes:
+    for node in from_:
         serialize_node_into(function_proto.node.add(), from_=node)
         # Record value info for outputs
         for node_output in node.outputs:

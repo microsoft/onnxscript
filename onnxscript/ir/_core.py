@@ -1175,10 +1175,28 @@ class Input(Value):
 class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     """IR Graph.
 
-    The graph can be used as a sequence of nodes::
+    Graph represents a computation graph. In addition to the ONNX specification
+    specified fields, it also contains a mapping of :attr:`opset_imports`. This
+    allows different subgraphs to import different opsets. It is the responsibility
+    of the deserializer to reconcile the different opsets.
 
-        for node in graph:
-            print(node)
+    The `nodes` are not guaranteed to be topologically sorted. But the
+    iteration order should be deterministic across different runs. It is the
+    responsibility of the user to maintain a topological order of the nodes.
+
+    Note that there is not a ``node`` attribute in the Graph. The Graph can be
+    seen as a Sequence of nodes and should be used as such. For example, to obtain
+    all nodes as a list, call ``list(graph)``.
+
+    Attributes:
+        name: The name of the graph.
+        inputs: The input values of the graph.
+        outputs: The output values of the graph.
+        initializers: The initializers in the graph.
+        doc_string: Documentation string.
+        opset_imports: Opsets imported by the graph.
+        meta: The metadata store for the graph.
+        metadata_props: Metadata.
     """
 
     __slots__ = (
@@ -1248,10 +1266,6 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     @property
     def opset_imports(self) -> dict[str, int]:
         return self._opset_imports
-
-    @property
-    def nodes(self) -> Sequence[Node]:
-        return tuple(self._nodes)
 
     def __getitem__(self, index: int) -> Node:
         return self._nodes[index]
@@ -1400,7 +1414,7 @@ graph(
     node_count = len(graph)
     number_width = len(str(node_count))
     node_lines = []
-    for i, node in enumerate(graph.nodes):
+    for i, node in enumerate(graph):
         node_name = node.name if node.name else f":anonymous_node:{id(node)}"
         node_text = f"# {node_name}\n{node}"
         indented_node_text = textwrap.indent(node_text, " " * (number_width + 4))
@@ -1464,7 +1478,6 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
         name: The name of the graph.
         inputs: The input values of the graph.
         outputs: The output values of the graph.
-        nodes: All nodes visible in this view. They do not have to be sorted.
         initializers: The initializers in the graph.
         doc_string: Documentation string.
         opset_imports: Opsets imported by the graph.
@@ -1505,19 +1518,19 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
         self.opset_imports = opset_imports or {}
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
-        self.nodes: tuple[Node, ...] = tuple(nodes)
+        self._nodes: tuple[Node, ...] = tuple(nodes)
 
     def __getitem__(self, index: int) -> Node:
-        return self.nodes[index]
+        return self._nodes[index]
 
     def __len__(self) -> int:
-        return len(self.nodes)
+        return len(self._nodes)
 
     def __iter__(self) -> Iterator[Node]:
-        return iter(self.nodes)
+        return iter(self._nodes)
 
     def __reversed__(self) -> Iterator[Node]:
-        return reversed(self.nodes)
+        return reversed(self._nodes)
 
     @property
     def meta(self) -> _metadata.MetadataStore:
@@ -1645,7 +1658,29 @@ Model(
 )"""
 
 
-class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
+class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrintable):
+    """IR functions.
+
+    Like a graph, a function can have nodes that are not topologically sorted. It is
+    the responsibility of the user to maintain a topological order of the nodes.
+
+    Note that there is not a ``node`` attribute in the Function. The Function can be
+    seen as a Sequence of nodes and should be used as such. For example, to obtain
+    all nodes as a list, call ``list(function)``.
+
+    Attributes:
+        name: The function name.
+        domain: The domain this function is defined in.
+        overload: The overload name when the function is overloaded.
+        inputs: The input values of the function.
+        attributes: The attributes this function defines.
+        outputs: The output values of the function.
+        opset_imports: Opsets imported by the function.
+        doc_string: Documentation string.
+        meta: The metadata store for the function.
+        metadata_props: Metadata.
+    """
+
     __slots__ = (
         "_domain",
         "_name",
@@ -1713,10 +1748,6 @@ class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
     @property
     def attributes(self) -> OrderedDict[str, Attr]:
         return self._attributes
-
-    @property
-    def nodes(self) -> Sequence[Node]:
-        return self._graph.nodes
 
     def __getitem__(self, index: int) -> Node:
         return self._graph.__getitem__(index)
@@ -1806,10 +1837,10 @@ def {full_name}(
 {textwrap.indent(outputs_text, ' '*8)}
     ),
 )"""
-        node_count = len(self.nodes)
+        node_count = len(self)
         number_width = len(str(node_count))
         node_lines = []
-        for i, node in enumerate(self.nodes):
+        for i, node in enumerate(self):
             node_name = node.name if node.name else f":anonymous_node:{id(node)}"
             node_text = f"# {node_name}\n{node}"
             indented_node_text = textwrap.indent(node_text, " " * (number_width + 4))
