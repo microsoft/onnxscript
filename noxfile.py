@@ -126,3 +126,24 @@ def test_experimental_torchlib_tracing(session):
         *session.posargs,
         env={"TORCHLIB_EXPERIMENTAL_PREFER_TRACING": "1"},
     )
+
+
+@nox.session(tags=["test-experimental-torchlib-onnx-ir"])
+def test_experimental_torchlib_onnx_ir(session):
+    """Test TorchLib using the ONNX IR to build graphs."""
+    session.install(
+        *COMMON_TEST_DEPENDENCIES,
+        PYTORCH,
+        TORCHVISON,
+        ONNX,
+        *ONNX_RUNTIME_NIGHTLY_DEPENDENCIES,
+    )
+    session.install("-r", "requirements/ci/requirements-ort-nightly.txt")
+    session.install(".", "--no-deps")
+    session.run("pip", "list")
+    session.run(
+        "pytest",
+        "tests/function_libs/torch_lib/ops_test.py",
+        *session.posargs,
+        env={"TORCHLIB_EXPERIMENTAL_USE_IR": "1"},
+    )
