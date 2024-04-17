@@ -14,7 +14,7 @@ COMMON_TEST_DEPENDENCIES = (
     "expecttest==0.1.6",
     "hypothesis",
     'numpy==1.24.4; python_version<"3.12"',
-    'numpy==1.26.0; python_version>="3.12"',
+    'numpy>1.26.0; python_version>="3.12"',
     "packaging",
     "parameterized",
     "pyinstrument",
