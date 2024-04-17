@@ -444,6 +444,11 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
                 SymbolicDim or any Python object. When a ``dim`` is not an integer or a
                 SymbolicDim, it is converted to a SymbolicDim.
             denotations: The denotations of the dimensions. If None, the denotations are not set.
+                Standard denotation can optionally be used to denote tensor
+                dimensions with standard semantic descriptions to ensure
+                that operations are applied to the correct axis of a tensor.
+                Refer to https://github.com/onnx/onnx/blob/main/docs/DimensionDenotation.md#denotation-definition
+                for pre-defined dimension denotations.
             frozen: If True, the shape is immutable and cannot be modified. This
                 is useful when the shape is initialized by a Tensor.
         """
@@ -454,6 +459,10 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         self._denotations: list[str | None] = (
             list(denotations) if denotations is not None else [None] * len(self._dims)
         )
+        if len(self._denotations) != len(self._dims):
+            raise ValueError(
+                "The number of denotations, when provided, must be equal to the number of dimensions."
+            )
         self._frozen: bool = frozen
 
     @property
@@ -483,8 +492,18 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         return self._dims[index]
 
     def __setitem__(self, index: int, value: int | SymbolicDim) -> None:
+        """Set the dimension at the index.
+
+        Args:
+            index: The index of the dimension.
+            value: The value of the dimension.
+
+        Raises:
+            TypeError: If the shape is frozen and cannot be modified.
+            TypeError: If the value is not an int or SymbolicDim.
+        """
         if self._frozen:
-            raise ValueError("The shape is frozen and cannot be modified.")
+            raise TypeError("The shape is frozen and cannot be modified.")
         if not isinstance(value, (int, SymbolicDim)):
             raise TypeError(f"Expected int or SymbolicDim, got '{type(value)}'")
 
@@ -492,12 +511,6 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
 
     def get_denotation(self, index: int) -> str | None:
         """Return the denotation of the dimension at the index.
-
-        Standard denotation can optionally be used to denote tensor
-        dimensions with standard semantic descriptions to ensure
-        that operations are applied to the correct axis of a tensor.
-        Refer to https://github.com/onnx/onnx/blob/main/docs/DimensionDenotation.md#denotation-definition
-        for pre-defined dimension denotations.
 
         Args:
             index: The index of the dimension.
@@ -509,12 +522,6 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
 
     def set_denotation(self, index: int, denotation: str | None) -> None:
         """Set the denotation of the dimension at the index.
-
-        Standard denotation can optionally be used to denote tensor
-        dimensions with standard semantic descriptions to ensure
-        that operations are applied to the correct axis of a tensor.
-        Refer to https://github.com/onnx/onnx/blob/main/docs/DimensionDenotation.md#denotation-definition
-        for pre-defined dimension denotations.
 
         Args:
             index: The index of the dimension.
@@ -1078,14 +1085,14 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         return self._shape
 
     @shape.setter
-    def shape(self, value: _protocols.SimpleShape | Shape | None) -> None:
+    def shape(self, value: Shape | None) -> None:
         if value is None:
             self._shape = None
             return
         if isinstance(value, Shape):
             self._shape = value
             return
-        self._shape = Shape(value)
+        raise TypeError(f"Expected value to be a Shape or None, got '{type(value)}'")
 
     @property
     def const_value(
