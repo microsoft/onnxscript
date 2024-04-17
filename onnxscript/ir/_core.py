@@ -1211,8 +1211,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         initializers: The initializers in the graph.
         doc_string: Documentation string.
         opset_imports: Opsets imported by the graph.
-        meta: The metadata store for the graph.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     __slots__ = (
