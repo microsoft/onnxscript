@@ -24,6 +24,7 @@ import textwrap
 import typing
 from typing import (
     Any,
+    Collection,
     Generic,
     Iterable,
     Iterator,
@@ -998,7 +999,8 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         self._const_value = const_value
         # Use a collection of (Node, int) to store consumers. This is needed
         # because a single consumer can use the same value multiple times.
-        self._consumers: set[tuple[Node, int]] = set()
+        # Use a dictionary to preserve insertion order so that the visiting order is deterministic
+        self._consumers: dict[tuple[Node, int], None] = {}
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
@@ -1027,27 +1029,27 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         """The index of the output of the defining node."""
         return self._index
 
-    def consumers(self) -> frozenset[tuple[Node, int]]:
+    def consumers(self) -> Collection[tuple[Node, int]]:
         """Return a set of consumers of the value.
 
         The set contains tuples of ``(Node, index)`` where the index is the index of the input
         of the node. For example, if ``node.inputs[1] == value``, then the consumer is ``(node, 1)``.
         """
-        return frozenset(self._consumers)
+        return self._consumers.keys()
 
     def _add_consumer(self, consumer: Node, index: int) -> None:
         """Add a consumer node.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._consumers.add((consumer, index))
+        self._consumers[(consumer, index)] = None
 
     def _remove_consumer(self, consumer: Node, index: int) -> None:
         """Remove a node from the consumers of this value.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._consumers.remove((consumer, index))
+        self._consumers.pop((consumer, index))
 
     @property
     def name(self) -> str | None:
@@ -1147,7 +1149,8 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
             return False
         if producer.graph is None:
             return False
-        # Cannot use `in` because __eq__ is defined on onnxscript.Tensor
+        # Cannot use `in` because __eq__ may be defined by subclasses, even though
+        # it is not recommended
         return any(output is self for output in producer.outputs)
 
 
