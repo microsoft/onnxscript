@@ -69,6 +69,7 @@ import onnx.numpy_helper
 from onnxscript.ir import (
     _core,
     _enums,
+    _metadata,
     _protocols,
 )
 
@@ -87,6 +88,7 @@ class TensorProtoTensor(_core.TensorBase):
     def __init__(self, proto: onnx.TensorProto) -> None:
         self._proto = proto
         self._metadata_props: dict[str, str] = deserialize_metadata_props(proto.metadata_props)
+        self._metadata: _metadata.MetadataStore | None = None
 
     @property
     def name(self) -> str:
@@ -126,6 +128,17 @@ class TensorProtoTensor(_core.TensorBase):
                 "Cannot convert non-raw tensor to bytes. Use a specialized tensor class like FloatDataTensor instead."
             )
         return self._proto.raw_data
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
 
     @property
     def metadata_props(self) -> dict[str, str]:
@@ -669,6 +682,8 @@ def _deserialize_node(
         overload=getattr(proto, "overload", ""),
         num_outputs=len(proto.output),
         name=proto.name,
+        doc_string=_get_field(proto, "doc_string"),
+        metadata_props=deserialize_metadata_props(proto.metadata_props),
     )
 
     for output, value in zip(proto.output, node.outputs):
@@ -683,8 +698,7 @@ def _deserialize_node(
                 proto.op_type,
             )
         scoped_values[-1][output] = value
-    for prop in getattr(proto, "metadata_props", []):
-        node.metadata_props[prop.key] = prop.value
+
     return node
 
 

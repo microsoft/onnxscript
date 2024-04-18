@@ -161,7 +161,15 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
 class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
     """An immutable concrete value."""
 
-    __slots__ = ("_raw", "_dtype", "_shape", "name", "doc_string", "_metadata_props", "_metadata")
+    __slots__ = (
+        "_raw",
+        "_dtype",
+        "_shape",
+        "name",
+        "doc_string",
+        "_metadata_props",
+        "_metadata",
+    )
 
     def __init__(
         self,
@@ -265,6 +273,17 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         if self._metadata_props is None:
             self._metadata_props = {}
         return self._metadata_props
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
 
 
 class ExternalTensor(TensorBase, _protocols.TensorProtocol):
@@ -412,6 +431,17 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         if self._metadata_props is None:
             self._metadata_props = {}
         return self._metadata_props
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
 
 
 class Dimension(_protocols.DimensionProtocol, _display.PrettyPrintable):
@@ -614,6 +644,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         graph: Graph | None = None,
         name: str | None = None,
         doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
     ):
         """Initialize a node and add it as a consumer of the input values.
 
@@ -629,6 +660,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
                 A `Node` must belong to zero or one graph.
             name: The name of the node. If None, the node is anonymous.
             doc_string: The documentation string.
+            metadata_props: The metadata properties.
         """
         self._name = name
         self._domain: str = domain
@@ -648,7 +680,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         # TODO(justinchuby): Potentially support a version range
         self._version: int | None = version
         self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = None
+        self._metadata_props: dict[str, str] | None = metadata_props
         self._graph: Graph | None = graph
         self.doc_string = doc_string
 
@@ -811,7 +843,11 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for this node."""
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
         if self._metadata is None:
             self._metadata = _metadata.MetadataStore()
         return self._metadata
@@ -1617,7 +1653,11 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
 
     @property
     def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for this node."""
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
         if self._metadata is None:
             self._metadata = _metadata.MetadataStore()
         return self._metadata
@@ -1775,7 +1815,11 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
 
     @property
     def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for this node."""
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
         if self._metadata is None:
             self._metadata = _metadata.MetadataStore()
         return self._metadata
