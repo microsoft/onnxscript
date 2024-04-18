@@ -296,9 +296,9 @@ class OpsetPattern:
         assert isinstance(domain, str), f"Expected str, got {type(domain)}"
         # TODO: Should we ban other custom domains?
         if domain not in model.opset_imports:
-            assert not isinstance(
-                self.version_pattern, AnyPattern
-            ), f"Cannot match against any version of custom domain {domain}"
+            assert isinstance(
+                self.version_pattern, PythonPattern
+            ), f"custom domain {domain} needs to have a specific version."
             model.opset_imports[self.domain_pattern.value] = self.version_pattern.value
         return domain
 
