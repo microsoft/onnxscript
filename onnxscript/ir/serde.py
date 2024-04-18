@@ -340,7 +340,7 @@ def _deserialized_experimental_value_info_for_function_ir9(
         function = functions.get(function_id)
         if function is None:
             # Function not found
-            logger.warning(
+            logger.debug(
                 "Function with ID '%s' not found in model functions. Value info '%s' will be ignored.",
                 function_id,
                 value_info_proto.name,
