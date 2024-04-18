@@ -63,6 +63,7 @@ class FunctionToKeepVisitor(visitor.ProtoVisitorCore):
     def process_node(self, node: onnx.NodeProto):
         if visitor.is_local_function_node(node, self._functions):
             return self.visit_function_node(node)
+        return None
 
     def visit_model(self, model: onnx.ModelProto) -> None:
         for function in model.functions:

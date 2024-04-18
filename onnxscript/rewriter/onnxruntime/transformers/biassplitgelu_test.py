@@ -11,7 +11,8 @@ class BiasSplitGeluParityTest(unittest.TestCase):
     def setUp(self):
         np.random.seed(0)
 
-    def test_gelu_phi_1_5(self):
+    @testutils.skip_if_no_cuda("BiasSplitGelu Kernel unsupported on CPU.")
+    def test_geglu_stable_diffusion_unet(self):
         testutils.test_onnxruntime_rewrite(
             "geglu_stable_diffusion_unet", 4, {("com.microsoft", "BiasSplitGelu", "")}
         )
