@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 # Copied from common.py from pytorch torchbench
-def save_tensor_data(numpy_tensor, output_path):
+def save_tensor_data(numpy_tensor, output_path: str):
     from onnx import numpy_helper
 
     proto_tensor = numpy_helper.from_array(numpy_tensor)
@@ -122,10 +122,10 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
         self.model_path = model_path
         self.output_dir = output_dir
         self.output_model_basename = function_keyword
-        self._functions = {}
+        self._functions: dict[ir.FunctionId, onnx.FunctionProto] = {}
         self._unit_model_protos: list[onnx.ModelProto] = []
-        self._unit_model_inputs = []
-        self._unit_model_outputs = []
+        self._unit_model_inputs = []  # type: ignore[var-annotated]
+        self._unit_model_outputs = []  # type: ignore[var-annotated]
         # Example intermediate data values
         self._named_values: dict[str, np.ndarray] = {}
         super().__init__()
@@ -133,7 +133,9 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
     def find_all_called_function_protos(
         self, function: onnx.FunctionProto
     ) -> list[onnx.FunctionProto]:
-        result = {ir.get_function_id(function): function}
+        result: dict[ir.FunctionId, onnx.FunctionProto] = {
+            ir.get_function_id(function): function
+        }
         for node in function.node:
             if visitor.is_local_function_node(node, self._functions):
                 sub_function = self._functions[ir.get_function_id_from_node(node)]
@@ -143,7 +145,7 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
                         for func in self.find_all_called_function_protos(sub_function)
                     }
                 )
-        return result.values()
+        return result.values()  # type: ignore[return-value]
 
     def _generate_value_info_for_function_value(
         self, value: str, function: onnx.FunctionProto
@@ -237,8 +239,8 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
         new_function_node = onnx.NodeProto()
         new_function_node.op_type = function_proto.name
         new_function_node.domain = function_proto.domain
-        new_function_node.input.extend([input.name for input in actual_input_value_infos])
-        new_function_node.output.extend([output.name for output in actual_output_value_infos])
+        new_function_node.input.extend([input.name for input in actual_input_value_infos])  # type: ignore[union-attr]
+        new_function_node.output.extend([output.name for output in actual_output_value_infos])  # type: ignore[union-attr]
         # TODO: Producing function node attribute is not supported yet.
 
         graph_proto.node.append(new_function_node)
@@ -295,7 +297,7 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
         target_function_meta_visitor.visit_model(inlined_model_proto)
         target_function_meta = target_function_meta_visitor.function_meta
 
-        fetch_outputs = []
+        fetch_outputs = []  # type: ignore[var-annotated]
         for inputs, outputs in target_function_meta.values():
             fetch_outputs.extend((*inputs, *outputs))
 
@@ -312,7 +314,7 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
 
         model_path = self.model_path
         model_dir = os.path.dirname(model_path)
-        inputs, expected_outputs = evaluation_utils.load_test_data(
+        inputs, expected_outputs = evaluation_utils.load_test_data(  # type: ignore[assignment]
             model_dir, [i.name for i in model_proto.graph.input]
         )
         tmp_model_path = f"{model_dir}/tmp_model.onnx"
@@ -326,7 +328,7 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
             len(outputs) == len(fetch_outputs)
         ), f"Number of outputs mismatch. outputs: {len(outputs)}, fetch_outputs: {len(fetch_outputs)}"
 
-        self._named_values = dict(zip(fetch_outputs, outputs))
+        self._named_values = dict(zip(fetch_outputs, outputs))  # type: ignore[arg-type]
         for inputs, outputs in target_function_meta.values():
             named_inputs = [(i, self._named_values[i]) for i in inputs]
             named_outputs = [(o, self._named_values[o]) for o in outputs]
