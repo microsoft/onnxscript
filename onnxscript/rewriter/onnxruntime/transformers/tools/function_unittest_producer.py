@@ -237,12 +237,8 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
         new_function_node = onnx.NodeProto()
         new_function_node.op_type = function_proto.name
         new_function_node.domain = function_proto.domain
-        new_function_node.input.extend(
-            [input.name for input in actual_input_value_infos]
-        )
-        new_function_node.output.extend(
-            [output.name for output in actual_output_value_infos]
-        )
+        new_function_node.input.extend([input.name for input in actual_input_value_infos])
+        new_function_node.output.extend([output.name for output in actual_output_value_infos])
         # TODO: Producing function node attribute is not supported yet.
 
         graph_proto.node.append(new_function_node)
@@ -276,9 +272,7 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
             return ir.Value(
                 name=name,
                 type=onnx_helper.make_tensor_type_proto(
-                    onnx_helper.np_dtype_to_tensor_dtype(
-                        self._named_values[name].dtype
-                    ),
+                    onnx_helper.np_dtype_to_tensor_dtype(self._named_values[name].dtype),
                     self._named_values[name].shape,
                 ),
             )
@@ -349,9 +343,7 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
             return
         try:
             actual_input_value_infos = [self.lookup(input) for input in function.input]
-            actual_output_value_infos = [
-                self.lookup(output) for output in function.output
-            ]
+            actual_output_value_infos = [self.lookup(output) for output in function.output]
         except ValueError as e:
             raise ValueError(
                 "Cannot create ModelProto unittest for function. "
@@ -391,7 +383,7 @@ def produce_function_proto_unittest(
     )
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-path", "--model_path", type=str)
     parser.add_argument("--function", type=str)
@@ -432,3 +424,7 @@ if __name__ == "__main__":
     print(
         f"{len(unit_model_protos[:max_outputs])} unit model protos and test data are saved to {output_dir}."
     )
+
+
+if __name__ == "__main__":
+    main()
