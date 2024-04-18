@@ -14,6 +14,7 @@ import itertools
 import logging
 import os
 import sys
+from typing import Dict, List, Tuple
 
 import numpy as np
 import onnx
@@ -71,7 +72,7 @@ class FunctionToKeepVisitor(visitor.ProtoVisitorCore):
         super().visit_model(model)
 
 
-FunctionMetaDict = dict[tuple[str, str], tuple[list[str], list[str]]]
+FunctionMetaDict = Dict[Tuple[str, str], Tuple[List[str], List[str]]]
 
 
 class TargetFunctionMetaVisitor(visitor.ProtoVisitorCore):
@@ -345,6 +346,7 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
     def process_function(self, function: onnx.FunctionProto):
         if function.name.find(self.function_keyword) == -1:
             return
+
         try:
             actual_input_value_infos = [self.lookup(input) for input in function.input]
             actual_output_value_infos = [self.lookup(output) for output in function.output]
@@ -431,4 +433,9 @@ def main():
 
 
 if __name__ == "__main__":
+    """
+    python onnxscript/rewriter/onnxruntime/transformers/tools/function_unittest_producer.py \
+        --model_path tools/ort_rewriter_profiling/onnx_models/stable_diffusion_unet/dynamo/stable_diffusion_unet_dynamo.onnx \
+        --function GEGLU --output-dir testdata/unittest_models/ --max_outputs 4 --name geglu_stable_diffusion_unet
+    """
     main()
