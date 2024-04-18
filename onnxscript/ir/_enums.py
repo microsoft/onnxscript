@@ -9,6 +9,8 @@ from __future__ import annotations
 import enum
 import typing
 
+import numpy as np
+
 if typing.TYPE_CHECKING:
     import numpy as np
 
