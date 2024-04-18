@@ -241,7 +241,7 @@ class GraphProtocol(Protocol):
     allows different subgraphs to import different opsets. It is the responsibility
     of the deserializer to reconcile the different opsets.
 
-    The `nodes` are not guaranteed to be topologically sorted. But the
+    The nodes are not guaranteed to be topologically sorted. But the
     iteration order should be deterministic across different runs. It is the
     responsibility of the user to maintain a topological order of the nodes.
 
