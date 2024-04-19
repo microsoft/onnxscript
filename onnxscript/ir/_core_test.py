@@ -353,15 +353,32 @@ class ValueTest(unittest.TestCase):
 
 
 class NodeTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.v0 = _core.Value(None, index=None)
+        self.v1 = _core.Value(None, index=None)
+        self.node = _core.Node("test", "TestOp", inputs=(self.v0, self.v1), num_outputs=3)
+
     def test_initialize_with_values(self):
-        v0 = _core.Value(None, index=None)
-        v1 = _core.Value(None, index=None)
-        node = _core.Node("test", "TestOp", inputs=(v0, v1), num_outputs=3)
-        self.assertEqual(node.domain, "test")
-        self.assertEqual(node.op_type, "TestOp")
-        self.assertEqual(node.inputs, (v0, v1))
-        self.assertEqual(len(node.outputs), 3)
-        self.assertEqual(node.attributes, {})
+        self.assertEqual(self.node.domain, "test")
+        self.assertEqual(self.node.op_type, "TestOp")
+        self.assertEqual(self.node.inputs, (self.v0, self.v1))
+        self.assertEqual(len(self.node.outputs), 3)
+        self.assertEqual(self.node.attributes, {})
+
+    def test_metadata(self):
+        self.node.meta["test"] = 1
+        self.assertEqual(self.node.meta["test"], 1)
+        self.node.metadata_props["test"] = "any string"
+        self.assertEqual(self.node.metadata_props["test"], "any string")
+
+    def test_it_is_added_to_a_graph_if_specified(self):
+        graph = _core.Graph(
+            (self.v0, self.v1),  # type: ignore
+            self.node.outputs,
+            nodes=(self.node,),
+            opset_imports={"": 1},
+        )
+        self.assertIn(self.node, graph)
 
 
 class GraphTest(unittest.TestCase):
@@ -380,6 +397,8 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(graph.opset_imports, {"": 1})
         self.assertEqual(graph.initializers, {})
         self.assertIsNone(graph.doc_string)
+
+    # TODO(justinchuby): Test graph mutation methods
 
 
 if __name__ == "__main__":

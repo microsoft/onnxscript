@@ -679,6 +679,12 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._outputs: tuple[Value, ...] = tuple(
             Value(self, index=i) for i in range(num_outputs)
         )
+        if attributes and not isinstance(attributes[0], (Attr, RefAttr)):
+            raise TypeError(
+                f"Expected the attributes to be Attr or RefAttr, got {type(attributes[0])}. "
+                "If you are copying the attributes from another node, make sure you call "
+                "node.attributes.values() because it is a dictionary."
+            )
         self._attributes: OrderedDict[str, Attr | RefAttr] = OrderedDict(
             (attr.name, attr) for attr in attributes
         )
@@ -1267,6 +1273,12 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._inputs = list(inputs)
         self._outputs = list(outputs)
         for initializer in initializers:
+            if isinstance(initializer, str):
+                raise TypeError(
+                    "Initializer must be a TensorProtocol, not a string. "
+                    "If you are copying the initializers from another graph, "
+                    "make sure you call graph.initializers.values() because it is a dictionary."
+                )
             if initializer.name is None:
                 raise ValueError(f"Initializer must have a name: {initializer}")
         self._initializers = {tensor.name: tensor for tensor in initializers}
