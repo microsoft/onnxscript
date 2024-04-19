@@ -55,7 +55,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         count = group_normalization_merge_silu.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         # plus 2 in model constants
-        self.assertEqual(len(model.graph.nodes), 2)
+        self.assertEqual(len(model.graph), 2)
 
     def test_simulated_instance_norm_is_replaced_by_group_norm_silu(self):
         model_proto = onnx.parser.parse_model(
@@ -122,4 +122,4 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         count += group_normalization_merge_silu.rules.apply_to_model(model)
         self.assertEqual(count, 2)
         # plus 2 in model constants
-        self.assertEqual(len(model.graph.nodes), 10)
+        self.assertEqual(len(model.graph), 10)

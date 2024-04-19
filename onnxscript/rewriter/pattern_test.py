@@ -38,7 +38,7 @@ class ReciprocalMulTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = self.rule().apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertEqual(len(model.graph.nodes), 3)
+        self.assertEqual(len(model.graph), 3)
 
     def test_failed_match(self):
         model_proto = onnx.parser.parse_model(
@@ -56,7 +56,7 @@ class ReciprocalMulTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = self.rule().apply_to_model(model)
         self.assertEqual(count, 0)
-        self.assertEqual(len(model.graph.nodes), 4)
+        self.assertEqual(len(model.graph), 4)
 
     def test_multiple_matches(self):
         model_proto = onnx.parser.parse_model(
@@ -85,7 +85,7 @@ class ReciprocalMulTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = self.rule().apply_to_model(model)
         self.assertEqual(count, 2)
-        self.assertEqual(len(model.graph.nodes), 9)
+        self.assertEqual(len(model.graph), 9)
 
 
 class FastGeluTest(unittest.TestCase):
@@ -148,7 +148,7 @@ class FastGeluTest(unittest.TestCase):
         count = rule.apply_to_model(model)
         self.assertEqual(count, 1)
         # 5 Constant nodes and 1 FastGelu node
-        self.assertEqual(len(model.graph.nodes), 6)
+        self.assertEqual(len(model.graph), 6)
 
     def test_short_rule(self):
         self._check(self.rule())
@@ -182,7 +182,7 @@ class ConcatTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = self.rule().apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertEqual(len(model.graph.nodes), 1)
+        self.assertEqual(len(model.graph), 1)
 
     def test_concat_in_function(self):
         model_proto = onnx.parser.parse_model(
@@ -204,9 +204,9 @@ class ConcatTest(unittest.TestCase):
         count = self.rule().apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.functions), 1)
-        self.assertEqual(len(model.functions[("pkg.custom", "afunction", "")].nodes), 1)
+        self.assertEqual(len(model.functions[("pkg.custom", "afunction", "")]), 1)
         self.assertEqual(
-            model.functions[("pkg.custom", "afunction", "")].nodes[0].op_type, "Concat"
+            model.functions[("pkg.custom", "afunction", "")][0].op_type, "Concat"
         )
 
 
@@ -299,9 +299,9 @@ class RewriteRuleTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = cast_constant_of_shape.rules.apply_to_model(model)
         self.assertEqual(count, 2)
-        self.assertEqual(len(model.graph.nodes), 2)
-        self.assertEqual(model.graph.nodes[0].attributes["value"].value.dtype, 10)
-        self.assertEqual(model.graph.nodes[1].attributes["value"].value.dtype, 1)
+        self.assertEqual(len(model.graph), 2)
+        self.assertEqual(model.graph[0].attributes["value"].value.dtype, 10)
+        self.assertEqual(model.graph[1].attributes["value"].value.dtype, 1)
 
 
 if __name__ == "__main__":

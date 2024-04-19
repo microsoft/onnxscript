@@ -87,7 +87,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         count = instance_to_group_normalization.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         # plus 2 in model constants
-        self.assertEqual(len(model.graph.nodes), 10)
+        self.assertEqual(len(model.graph), 10)
 
     def test_instance_norm_with_non_one_weight_for_norm_should_remain(self):
         model_proto = onnx.parser.parse_model(

@@ -82,7 +82,7 @@ class GenericPatternTest(unittest.TestCase):
         rule.apply_to_model(ir_model)
         self.assertEqual(
             ["AddAdd"],
-            [n.op_type for n in ir_model.graph.nodes],
+            [n.op_type for n in ir_model.graph],
         )
         # TODO: do that in pattern.py.
         ir_model.opset_imports["ZZZ"] = 1
@@ -173,7 +173,7 @@ class GenericPatternTest(unittest.TestCase):
         rule.apply_to_model(ir_model)
         self.assertEqual(
             ["AddAddAddAdd"],
-            [n.op_type for n in ir_model.graph.nodes],
+            [n.op_type for n in ir_model.graph],
         )
         # TODO: do that in pattern.py.
         ir_model.opset_imports["ZZZ"] = 1

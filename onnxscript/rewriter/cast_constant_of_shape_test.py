@@ -21,8 +21,8 @@ class CastConstantOfShapeTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = cast_constant_of_shape.rules.apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertEqual(len(model.graph.nodes), 1)
-        self.assertEqual(model.graph.nodes[0].attributes["value"].value.dtype, 10)
+        self.assertEqual(len(model.graph), 1)
+        self.assertEqual(model.graph[0].attributes["value"].value.dtype, 10)
 
     def test_cast_after_constant_of_shape_without_value_is_fused(self):
         model_proto = onnx.parser.parse_model(
@@ -38,8 +38,8 @@ class CastConstantOfShapeTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = cast_constant_of_shape.rules.apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertEqual(len(model.graph.nodes), 1)
-        self.assertEqual(model.graph.nodes[0].attributes["value"].value.dtype, 10)
+        self.assertEqual(len(model.graph), 1)
+        self.assertEqual(model.graph[0].attributes["value"].value.dtype, 10)
 
 
 if __name__ == "__main__":

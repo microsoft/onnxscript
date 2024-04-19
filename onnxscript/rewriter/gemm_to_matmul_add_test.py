@@ -25,7 +25,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = gemm_to_matmul_add.rule.apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertEqual(len(model.graph.nodes), 4)
+        self.assertEqual(len(model.graph), 4)
 
     def test_reshape_gemm_reshape_replace_when_nd_inputs_are_broadcastable_in_nested_function(
         self,
@@ -71,12 +71,12 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         count = gemm_to_matmul_add.rule.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.functions), 1)
-        self.assertEqual(len(model.functions[("pkg.custom", "afunction", "")].nodes), 4)
+        self.assertEqual(len(model.functions[("pkg.custom", "afunction", "")]), 4)
         self.assertEqual(
-            model.functions[("pkg.custom", "afunction", "")].nodes[2].op_type, "MatMul"
+            model.functions[("pkg.custom", "afunction", "")][2].op_type, "MatMul"
         )
         self.assertEqual(
-            model.functions[("pkg.custom", "afunction", "")].nodes[3].op_type, "Add"
+            model.functions[("pkg.custom", "afunction", "")][3].op_type, "Add"
         )
 
     def test_reshape_gemm_reshape_remain_when_input_last_dim_and_second_last_dim_not_matched(
@@ -98,7 +98,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = gemm_to_matmul_add.rule.apply_to_model(model)
         self.assertEqual(count, 0)
-        self.assertEqual(len(model.graph.nodes), 5)
+        self.assertEqual(len(model.graph), 5)
 
     def test_reshape_gemm_reshape_remain_when_inputs_are_not_broadcastable(
         self,
@@ -119,7 +119,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = gemm_to_matmul_add.rule.apply_to_model(model)
         self.assertEqual(count, 0)
-        self.assertEqual(len(model.graph.nodes), 5)
+        self.assertEqual(len(model.graph), 5)
 
     def test_reshape_gemm_reshape_replace_when_inputs_are_broadcastable_with_one_in_dims(
         self,
@@ -140,9 +140,9 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = gemm_to_matmul_add.rule.apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertEqual(len(model.graph.nodes), 4)
-        self.assertEqual(model.graph.nodes[2].op_type, "MatMul")
-        self.assertEqual(model.graph.nodes[3].op_type, "Add")
+        self.assertEqual(len(model.graph), 4)
+        self.assertEqual(model.graph[2].op_type, "MatMul")
+        self.assertEqual(model.graph[3].op_type, "Add")
 
     def test_reshape_gemm_reshape_replace_when_first_input_is_one_dimension_and_broadcastable(
         self,
@@ -163,9 +163,9 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = gemm_to_matmul_add.rule.apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertEqual(len(model.graph.nodes), 4)
-        self.assertEqual(model.graph.nodes[2].op_type, "MatMul")
-        self.assertEqual(model.graph.nodes[3].op_type, "Add")
+        self.assertEqual(len(model.graph), 4)
+        self.assertEqual(model.graph[2].op_type, "MatMul")
+        self.assertEqual(model.graph[3].op_type, "Add")
 
     def test_reshape_gemm_reshape_replace_when_first_input_is_one_dimension_and_not_broadcastable(
         self,
@@ -186,7 +186,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = gemm_to_matmul_add.rule.apply_to_model(model)
         self.assertEqual(count, 0)
-        self.assertEqual(len(model.graph.nodes), 5)
+        self.assertEqual(len(model.graph), 5)
 
     def test_reshape_gemm_reshape_replace_when_second_input_is_one_dimension_and_broadcastable(
         self,
@@ -207,9 +207,9 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = gemm_to_matmul_add.rule.apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertEqual(len(model.graph.nodes), 4)
-        self.assertEqual(model.graph.nodes[2].op_type, "MatMul")
-        self.assertEqual(model.graph.nodes[3].op_type, "Add")
+        self.assertEqual(len(model.graph), 4)
+        self.assertEqual(model.graph[2].op_type, "MatMul")
+        self.assertEqual(model.graph[3].op_type, "Add")
 
     def test_reshape_gemm_reshape_replace_when_second_input_is_one_dimension_and_not_broadcastable(
         self,
@@ -230,7 +230,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = gemm_to_matmul_add.rule.apply_to_model(model)
         self.assertEqual(count, 0)
-        self.assertEqual(len(model.graph.nodes), 5)
+        self.assertEqual(len(model.graph), 5)
 
     def test_reshape_gemm_reshape_remain_when_output_is_not_matmul_broadcasted(
         self,
@@ -251,7 +251,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = gemm_to_matmul_add.rule.apply_to_model(model)
         self.assertEqual(count, 0)
-        self.assertEqual(len(model.graph.nodes), 5)
+        self.assertEqual(len(model.graph), 5)
 
 
 if __name__ == "__main__":

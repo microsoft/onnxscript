@@ -31,7 +31,7 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = softmax.rules.apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertNotIn("Cast", {node.op_type for node in model.graph.nodes})
+        self.assertNotIn("Cast", {node.op_type for node in model.graph})
 
     @parameterized.parameterized.expand(
         [
@@ -57,7 +57,7 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
         count = softmax.rules.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(
-            len([node.op_type for node in model.graph.nodes if node.op_type == "Cast"]), 2
+            len([node.op_type for node in model.graph if node.op_type == "Cast"]), 2
         )
 
     @parameterized.parameterized.expand(
@@ -84,7 +84,7 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
         count = softmax.rules.apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(
-            len([node.op_type for node in model.graph.nodes if node.op_type == "Cast"]), 2
+            len([node.op_type for node in model.graph if node.op_type == "Cast"]), 2
         )
 
 

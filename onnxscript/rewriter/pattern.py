@@ -997,7 +997,7 @@ def _apply_deltas(
     We could reorder (long) or do more clever changes.
     The reordering would probably happen not very often.
     """
-    existing_ids = {id(n): (i, n) for i, n in enumerate(graph_or_function.nodes)}
+    existing_ids = {id(n): (i, n) for i, n in enumerate(graph_or_function)}
     to_delete: set[ir.Node] = set()
     to_insert: list[tuple[ir.Node, list[ir.Node]]] = []
 
@@ -1012,7 +1012,7 @@ def _apply_deltas(
             # the position to insert must be chosen.
             # we'll try position i
             assert i not in to_insert  # conflicts should avoid that case
-            to_insert.append((graph_or_function.nodes[i], inserted_nodes))
+            to_insert.append((graph_or_function[i], inserted_nodes))
         else:
             deleted_nodes, inserted_nodes = delta
             # Replace deleted nodes with inserted nodes.
@@ -1039,7 +1039,7 @@ def _apply_deltas(
 
             # insert new nodes after the index node
             # TODO(justinchuby): Do not access by index [i]
-            graph_or_function.insert_after(graph_or_function.nodes[i], inserted_nodes)
+            graph_or_function.insert_after(graph_or_function[i], inserted_nodes)
 
             for old_node in deleted_nodes:
                 graph_or_function.remove(old_node)
@@ -1074,7 +1074,7 @@ class RewriteRuleSet:
         # And the graph is applied in order.
         for rule in self.rules:
             deltas = []
-            for i, node in enumerate(graph_or_function.nodes):
+            for i, node in enumerate(graph_or_function):
                 delta = rule.try_rewrite(model, node)
 
                 if delta is None:
@@ -1112,7 +1112,7 @@ class RewriteRuleSet:
         self, model: ir.Model, graph_or_funciton: ir.Graph | ir.Function
     ) -> int:
         count = 0
-        for node in graph_or_funciton.nodes:
+        for node in graph_or_funciton:
             for rule in self.rules:
                 if rule.matches(node, model):
                     count += 1

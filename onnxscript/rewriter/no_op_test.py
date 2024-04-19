@@ -13,7 +13,7 @@ class NoOpTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = no_op.rules.apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertEqual(model.graph.nodes[-1].op_type, "Identity")
+        self.assertEqual(model.graph[-1].op_type, "Identity")
 
     @parameterized.parameterized.expand(
         [

@@ -217,18 +217,18 @@ class GenericPattern:
         )
 
     def enumerate_matches(
-        self, g: ir.Graph | ir.GraphView, node: ir.Node | None = None
+        self, graph: ir.Graph | ir.GraphView, node: ir.Node | None = None
     ) -> Iterator:
         """Enumerates all the matches."""
         if node is None:
             matched = []
-            for node in g.nodes:
-                res = self.match(g, node)
+            for node in graph:
+                res = self.match(graph, node)
                 if res:
                     matched.append(res)
                     yield res
         else:
-            res = self.match(g, node)
+            res = self.match(graph, node)
             if res:
                 yield res
 
@@ -649,7 +649,7 @@ class GenericPattern:
 
         # Let's match the last node.
         # Then we need to match successors and predecessors.
-        last_pattern_node = match_pattern.nodes[-1]
+        last_pattern_node = match_pattern[-1]
         if node.op_type != last_pattern_node.op_type:
             # The last node does not have the same op_type.
             return self.none()
@@ -659,7 +659,7 @@ class GenericPattern:
             if self.verbose >= 10:
                 print(f"[GenericPattern.match] match pattern {self!r}")
 
-        all_pattern_nodes = set(match_pattern.nodes)
+        all_pattern_nodes = set(match_pattern)
         matched: dict[ir.Node, ir.Node] = {last_pattern_node: node}
         stack: list[ir.Node] = [last_pattern_node]
         iteration = 0
@@ -672,10 +672,10 @@ class GenericPattern:
                 iteration=iteration,
                 node=node,
                 pattern_node=last_pattern_node,
-                pattern_nodes=match_pattern.nodes,
+                pattern_nodes=match_pattern,
             )
 
-        max_iter = len(match_pattern.nodes) * 2
+        max_iter = len(match_pattern) * 2
         while stack and iteration < max_iter:
             nodes_not_in_pattern = set(matched.keys()) - all_pattern_nodes
             assert not nodes_not_in_pattern, (
@@ -731,19 +731,19 @@ class GenericPattern:
             print(f"[GenericPattern.match] done. {len(matched)} matched nodes")
 
         # At this point, the pattern is matched but let's make sure.
-        assert len(matched) == len(match_pattern.nodes), (
+        assert len(matched) == len(match_pattern), (
             f"Number of matched nodes is different, {len(matched)} matched nodes, "
-            f"and {len(match_pattern.nodes)} nodes in the pattern, matched is {matched}"
+            f"and {len(match_pattern)} nodes in the pattern, matched is {matched}"
         )
         assert len(stack) == 0, f"There are still {len(stack)} nodes to explore."
 
         # We order the matched nodes in the same order than the pattern
         # to let next functions to be able to build the matching again.
-        matched_nodes = [matched[pattern_node] for pattern_node in match_pattern.nodes]
+        matched_nodes = [matched[pattern_node] for pattern_node in match_pattern]
         return PatternMatchResult(
             self,
             matched_nodes,
-            match_pattern.nodes,
+            tuple(match_pattern),
             match_pattern.inputs,
             match_pattern.outputs,
         )
@@ -767,18 +767,18 @@ class GenericPattern:
         verbose: int = 0,
     ) -> Sequence[ir.Node]:
         assert isinstance(match_result, PatternMatchResult)
-        new_pat = self._build_pattern(
+        new_pattern = self._build_pattern(
             self.apply_pattern, kwargs=match_result.kwargs, match=False
         )
-        assert len(new_pat.inputs) == len(match_result.pattern_inputs), (
+        assert len(new_pattern.inputs) == len(match_result.pattern_inputs), (
             f"Not the same number of inputs, "
-            f"matched inputs={len(new_pat.inputs)}, "
+            f"matched inputs={len(new_pattern.inputs)}, "
             f"got {len(match_result.pattern_inputs)} in the applied pattern."
         )
-        assert len(new_pat.outputs) == len(match_result.pattern_outputs), (
+        assert len(new_pattern.outputs) == len(match_result.pattern_outputs), (
             f"Not the same number of outputs, matched "
             f"outputs={match_result.pattern_outputs}, "
-            f"got {new_pat.outputs} in the applied pattern."
+            f"got {new_pattern.outputs} in the applied pattern."
         )
 
         if verbose > 5:
@@ -794,9 +794,9 @@ class GenericPattern:
         #   replacements[new_name] = name
 
         applied_pattern_to_match_pattern: dict[ir.Value, ir.Value] = {}
-        for i, j in zip(match_result.pattern_inputs, new_pat.inputs):
+        for i, j in zip(match_result.pattern_inputs, new_pattern.inputs):
             applied_pattern_to_match_pattern[j] = i
-        for i, j in zip(match_result.pattern_outputs, new_pat.outputs):
+        for i, j in zip(match_result.pattern_outputs, new_pattern.outputs):
             applied_pattern_to_match_pattern[j] = i
 
         replacements: dict[ir.Value, ir.Value] = {}
@@ -805,7 +805,7 @@ class GenericPattern:
 
         # Creation of the new node.
         new_nodes: list[ir.Node] = []
-        for node in new_pat.nodes:
+        for node in new_pattern:
             new_inputs: list[ir.Value] = []
             for i in node.inputs:
                 assert i in replacements, f"Unable to find {i!r} in {replacements}"
