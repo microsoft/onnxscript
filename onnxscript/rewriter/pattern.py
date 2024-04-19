@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import Enum
 import inspect
 import itertools
 import math
@@ -351,8 +352,30 @@ class ValuePattern:
     operations, so that we can write patterns like `x + 1` and `1 + x`.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, name: str | None) -> None:
+        self.name = name
         pass
+
+    def __repr__(self) -> str:
+        return f"ValuePattern({self._name!r})"
+
+    def matches(self, value: ir.Value, model: ir.Model):
+             return MatchResult([], {self.name: value})
+
+    def to_ir(
+        self,
+        model: ir.Model,
+        bindings: dict[str, ir.Value | Any],
+        num_outputs: int,
+        rewrite_cache: RewriteCache,
+    ) -> tuple[ir.Value, list[None]]:
+        del model  # Unused
+        del num_outputs  # Unused
+        del rewrite_cache  # Unused
+        return bindings[self.name], []
+
+    def commute(self) -> list[ValuePattern]:
+        return [self]
 
     def __add__(self, other):
         return onnxop.Add(self, other)
@@ -535,7 +558,8 @@ class NodeOutputPattern(ValuePattern):
     is values computed using a specific op.
     """
 
-    def __init__(self, node_pattern: NodePattern, output_index: int) -> None:
+    def __init__(self, node_pattern: NodePattern, output_index: int, name: str | None = None) -> None:
+        super().__init__(name)
         self.node_pattern = node_pattern
         self.output_index = output_index
 
@@ -558,35 +582,7 @@ class NodeOutputPattern(ValuePattern):
         assert self.output_index == 0, "TODO: handle multiple outputs"
         return self.node_pattern.to_ir(model, bindings, num_outputs, rewrite_cache)
 
-
-class Var(ValuePattern):
-    """Represents a pattern variable."""
-
-    def __init__(self, name: str) -> None:
-        self.pattern_var_name = name
-        self.bound_value = None
-
-    def __repr__(self) -> str:
-        return f"Var({self.pattern_var_name!r})"
-
-    def matches(self, value: ir.Value, model: ir.Model):
-        return MatchResult([], {self.pattern_var_name: value})
-
-    def to_ir(
-        self,
-        model: ir.Model,
-        bindings: dict[str, ir.Value | Any],
-        num_outputs: int,
-        rewrite_cache: RewriteCache,
-    ) -> tuple[ir.Value, list[None]]:
-        del model  # Unused
-        del num_outputs  # Unused
-        del rewrite_cache  # Unused
-        return bindings[self.pattern_var_name], []
-
-    def commute(self) -> list[ValuePattern]:
-        return [self]
-
+Var = ValuePattern
 
 class Constant(ValuePattern):
     """Represents a pattern that matches against a scalar constant value."""
@@ -594,6 +590,7 @@ class Constant(ValuePattern):
     def __init__(
         self, value: int | float, rel_tol: float = 1e-5, abs_tol: float = 1e-8
     ) -> None:
+        super().__init__(None)
         self.value = value
         self.rel_tol = rel_tol
         self.abs_tol = abs_tol
@@ -704,10 +701,13 @@ class TargetPatternFunction:
     def function(self) -> Callable:
         return self._function
 
-    def get_pattern(self, *variables: Sequence[Var]) -> tuple[NodePattern, int]:
+    def get_pattern(self, variables: Sequence[Var]) -> tuple[NodePattern, int]:
         node_output_pattern = self._function(*variables)
         return _handle_pattern_return_value(node_output_pattern)
 
+class ReplacementKind(Enum):
+    Original = 0
+    WithBindings = 1
 
 class ReplacementPatternFunction:
     """The replacement pattern that will replace the targeted pattern.
@@ -719,30 +719,26 @@ class ReplacementPatternFunction:
             replacement pattern.
     """
 
-    def __init__(self, function, *, delay_run: bool = False):
+    def __init__(self, function, kind: ReplacementKind = ReplacementKind.Original) -> None:
         self._function = function
-        self._delay_run = delay_run
+        self._kind = kind
 
     @property
     def function(self) -> Callable:
         return self._function
 
-    @property
-    def delay_run(self) -> bool:
-        return self._delay_run
-
     # TODO: How do we merge it with to_ir function?
     def get_pattern(
         self,
-        *vars: Sequence[Var],
+        vars: Sequence[Var],
         match_bindings: dict[str, ir.Value | Any] | None = None,
     ) -> tuple[NodePattern | None, int | None]:
-        if self._delay_run:
-            if match_bindings is None:
-                return None, None
-            node_output_pattern = self._function(*vars, match_bindings)
-        else:
+        if match_bindings is None:
+            return None, None
+        if self._kind == ReplacementKind.Original:
             node_output_pattern = self._function(*vars)
+        else:
+            node_output_pattern = self._function(*vars, match_bindings)
         return _handle_pattern_return_value(node_output_pattern)
 
 
@@ -783,11 +779,9 @@ class RewriteRule:
 
         """
         if target_pattern is None:
-            # NOTE: commute() generated rules will have target_pattern as None
-            # ReplacementPatternFunction is still needed in try_rewrite
+            # NOTE: this is a default-constructor. Caller responsible for filling in the fields.
             assert replacement_pattern is None
             assert condition_function is None
-            self._replacement_pattern = ReplacementPatternFunction(replacement_pattern)
             return
         elif replacement_pattern is None:
             raise ValueError(
@@ -805,20 +799,12 @@ class RewriteRule:
 
         _pattern_vars = inspect.signature(self._target_pattern.function).parameters
         _replacement_vars = inspect.signature(self._replacement_pattern.function).parameters
-        # TODO: accept _replacement_vars being subset of _pattern_vars?
-        assert len(_pattern_vars) == len(_replacement_vars)
 
         self._vars = [Var(v) for v in _pattern_vars]
         # Get the last node pattern and number of outputs from the pattern function
         self._target_node_pattern, self._target_num_outputs = self._target_pattern.get_pattern(
-            *self._vars
+            self._vars
         )
-        # NOTE: Return Nones if the replacement pattern is delayed running
-        self._replace_node_pattern, _replacement_num_outputs = replacement_pattern.get_pattern(
-            *self._vars
-        )
-        if _replacement_num_outputs is not None:
-            assert self._target_num_outputs == _replacement_num_outputs
 
     def matches(self, node: ir.Node, model: ir.Model) -> MatchResult:
         """Check if the node from IR matches the pattern."""
@@ -840,15 +826,13 @@ class RewriteRule:
         match = self.matches(node, model)
         if match:
             if _valid_to_replace(match.values):
-                # NOTE: delayed running as the replacement pattern needs bindings
-                if self._replacement_pattern.delay_run:
-                    # bindings will be consumed by the replacement function
-                    self._replace_node_pattern, _replacement_num_outputs = (
-                        self._replacement_pattern.get_pattern(
-                            *self._vars[:-1], match_bindings=match.bindings
-                        )
+                # bindings will be consumed by the replacement function
+                self._replace_node_pattern, _replacement_num_outputs = (
+                    self._replacement_pattern.get_pattern(
+                        self._vars, match_bindings=match.bindings
                     )
-                    assert self._target_num_outputs == _replacement_num_outputs
+                )
+                assert self._target_num_outputs == _replacement_num_outputs
                 rewrite_cache = RewriteCache()
                 _, _to_insert = self._replace_node_pattern.to_ir(
                     model, match.bindings, self._target_num_outputs, rewrite_cache
@@ -871,7 +855,8 @@ class RewriteRule:
             rule._condition_function = self._condition_function
             rule._target_node_pattern = new_pattern
             rule._target_num_outputs = self._target_num_outputs
-            rule._replace_node_pattern = self._replace_node_pattern
+            rule._replacement_pattern = self._replacement_pattern
+            rule._vars = self._vars
             return rule
 
         return [replace_pattern(p) for p in self._target_node_pattern.commute()]

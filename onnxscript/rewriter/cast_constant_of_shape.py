@@ -17,7 +17,6 @@ def cast_constant_of_shape(
     shape: Sequence[int],
     t: Any,
     dtype: int,
-    match_bindings: dict[str, ir.Value | Any] | None = None,
 ) -> pattern.OpPattern:
     constant = op.ConstantOfShape(shape, value=t)
     return op.Cast(constant, to=dtype)
@@ -39,9 +38,7 @@ def fused_cast_constant_of_shape(
 def cast_constant_of_shape_without_value(
     shape: Sequence[int],
     dtype: int,
-    match_bindings: dict[str, ir.Value | Any] | None = None,
 ) -> pattern.OpPattern:
-    del match_bindings  # Unused
     constant = op.ConstantOfShape(shape)
     return op.Cast(constant, to=dtype)
 
@@ -57,13 +54,13 @@ def fused_cast_constant_of_shape_without_value(
 
 cast_constant_of_shape_rule = pattern.RewriteRule(
     cast_constant_of_shape,
-    pattern.ReplacementPatternFunction(fused_cast_constant_of_shape, delay_run=True),
+    pattern.ReplacementPatternFunction(fused_cast_constant_of_shape, pattern.ReplacementKind.WithBindings),
 )
 
 cast_constant_of_shape_without_value_rule = pattern.RewriteRule(
     cast_constant_of_shape_without_value,
     pattern.ReplacementPatternFunction(
-        fused_cast_constant_of_shape_without_value, delay_run=True
+        fused_cast_constant_of_shape_without_value, pattern.ReplacementKind.WithBindings
     ),
 )
 

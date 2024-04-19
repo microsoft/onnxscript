@@ -96,7 +96,6 @@ def instance_simulates_group_normalization_pattern(
     weight_full,
     bias_full,
     epsilon,
-    match_bindings: dict[str, ir.Value | Any] | None = None,
 ):
     adjusted_input = op.Reshape(input_x, adjusted_input_shape)
     inst_norm = op.InstanceNormalization(
@@ -143,7 +142,7 @@ def group_normalization(
 # Register the rewrite rules
 instance_norm_to_group_norm_rule = pattern.RewriteRule(
     instance_simulates_group_normalization_pattern,
-    pattern.ReplacementPatternFunction(group_normalization, delay_run=True),
+    pattern.ReplacementPatternFunction(group_normalization, pattern.ReplacementKind.WithBindings),
     check_if_simulated_instance_norm_is_used,
 )
 
