@@ -87,7 +87,9 @@ class TensorProtoTensor(_core.TensorBase):
 
     def __init__(self, proto: onnx.TensorProto) -> None:
         self._proto = proto
-        self._metadata_props: dict[str, str] = deserialize_metadata_props(proto.metadata_props)
+        self._metadata_props: dict[str, str] | None = deserialize_metadata_props(
+            proto.metadata_props
+        )
         self._metadata: _metadata.MetadataStore | None = None
 
     @property
@@ -142,6 +144,8 @@ class TensorProtoTensor(_core.TensorBase):
 
     @property
     def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
         return self._metadata_props
 
 
@@ -619,7 +623,9 @@ def deserialize_tensor(
     )
 
 
-def deserialize_metadata_props(proto: Sequence[onnx.StringStringEntryProto]) -> dict[str, str] | None:
+def deserialize_metadata_props(
+    proto: Sequence[onnx.StringStringEntryProto],
+) -> dict[str, str] | None:
     if len(proto) == 0:
         # Avoid creating an empty dictionary to save memory
         return None
