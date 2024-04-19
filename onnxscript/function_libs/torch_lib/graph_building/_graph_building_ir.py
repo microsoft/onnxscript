@@ -73,7 +73,7 @@ def _torch_dtype_to_onnx_dtype(dtype: torch.dtype) -> ir.DataType:
     return _TORCH_DTYPE_TO_ONNX[dtype]
 
 
-class _TorchTensor(ir.Tensor):
+class _TorchTensor(ir.Tensor):  # pylint: disable=too-many-ancestors
     def __init__(self, tensor: torch.Tensor):
         super().__init__(tensor, dtype=_torch_dtype_to_onnx_dtype(tensor.dtype))
 
@@ -125,7 +125,7 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
         # Normalize torch symbolic dimension size to str.
         torch_sym_types = (torch.SymInt, torch.SymFloat, torch.SymBool)
         self._shape = ir.Shape(
-            tuple(str(dim.node) if isinstance(dim, torch_sym_types) else dim for dim in shape)
+            tuple(str(dim.node) if isinstance(dim, torch_sym_types) else dim for dim in shape)  # type: ignore[union-attr]
         )
 
     @property
@@ -192,7 +192,7 @@ class _Node(ir.Node):
             TorchScriptTensor(producer=self, index=i) for i in range(num_outputs)
         )
 
-    @property
+    @property  # type: ignore[misc]
     def outputs(self) -> Sequence[TorchScriptTensor]:
         return self._outputs
 
@@ -312,9 +312,7 @@ def _build_attribute(
     if isinstance(value, str):
         return ir.AttrString(key, value)
     if isinstance(value, torch.Tensor):
-        return ir.AttrTensor(
-            key, _TorchTensor(value)
-        )
+        return ir.AttrTensor(key, _TorchTensor(value))
     if isinstance(value, (_TorchTensor, ir.TensorProtocol)):
         return ir.AttrTensor(key, value)
     if isinstance(value, Sequence):
@@ -323,7 +321,7 @@ def _build_attribute(
             # TODO(justinchuby): Revisit ways to determine the type of the empty list
             return ir.AttrInt64s(key, [])
         if isinstance(value[0], float):
-            return ir.AttrFloat32s(key, list(value))
+            return ir.AttrFloat32s(key, list(value))  # type: ignore[arg-type]
         if isinstance(value[0], int):
             return ir.AttrInt64s(key, list(value))  # type: ignore
         raise TypeError(f"Unsupported sequence type '{type(value)}' for attribute '{key}'")
@@ -449,9 +447,9 @@ class TorchScriptGraph:
             value = None
         else:
             value = TorchScriptTensor(name=input_name)
-            value.shape = shape
+            value.shape = shape  # type: ignore[arg-type]
             if dtype is not None:
-                value.dtype = dtype
+                value.dtype = dtype  # type: ignore[assignment]
             # TODO(titaiwang): This approach loses the information that "same SymInts
             # indicates same shape", for example, [symint0, symint0, symint1]
             # would all be [None, None, None]
@@ -460,7 +458,7 @@ class TorchScriptGraph:
             #         [dim if isinstance(dim, int) else None for dim in shape]  # type: ignore[union-attr]
             #     )
             # )
-            self._graph.inputs.append(value)
+            self._graph.inputs.append(value)  # type: ignore[arg-type]
         return value
 
     @runtime_typing.checked
@@ -501,7 +499,6 @@ class TorchScriptGraph:
                 output, TorchScriptTensor
             ), f"output must be a TorchScriptTensor, not {type(output)}"
             self._graph.outputs.append(output)
-        return
 
     def _add_constant_to_graph(self, constant) -> Sequence[ir.Value | None]:
         """Add a constant to the graph.
@@ -535,9 +532,7 @@ class TorchScriptGraph:
             raise TypeError(
                 f"Constant input '{constant}' of type '{type(constant)}' is not supported"
             )
-        onnx_tensor = _TorchTensor(
-            constant_tensor
-        )
+        onnx_tensor = _TorchTensor(constant_tensor)
         value = _create_op_call_in_graph(
             self._graph,
             "",
@@ -557,7 +552,7 @@ class TorchScriptGraph:
         onnx_attributes: Mapping[str, ValidArgumentType],
         num_outputs: int,
     ) -> Sequence[TorchScriptTensor]:
-        graph_inputs = []
+        graph_inputs: list[TorchScriptTensor] = []
         assert isinstance(onnx_inputs, Sequence)
         for input in onnx_inputs:
             # NOTE(titaiwang): input could be empty list
@@ -577,7 +572,7 @@ class TorchScriptGraph:
                 )
                 graph_inputs.extend(input_sequence)
             elif not isinstance(input, TorchScriptTensor):
-                graph_inputs.extend(self._add_constant_to_graph(input))
+                graph_inputs.extend(self._add_constant_to_graph(input))  # type: ignore
             else:
                 # TODO(justinchuby): What is this case?
                 graph_inputs.append(input)
@@ -609,14 +604,14 @@ class TorchScriptGraph:
             sub_graph_name,
             sub_torch_script_graph,
         ) in self._sub_torch_script_graphs.items():
-            function_dict.update(sub_torch_script_graph._fetch_function_dict(opset_version))
+            function_dict.update(sub_torch_script_graph._fetch_function_dict(opset_version))  # pylint: disable=protected-access
             domain = sub_torch_script_graph.domain_name
             assert domain is not None
             name_domain = (sub_graph_name, domain, "")
             assert (
                 name_domain not in function_dict
             ), f"Sub graph name already exists. {name_domain}"
-            function_dict[name_domain] = sub_torch_script_graph._to_function(
+            function_dict[name_domain] = sub_torch_script_graph._to_function(  # pylint: disable=protected-access
                 opset_version, sub_graph_name
             )
         # Fetch torchlib function protos.
@@ -733,10 +728,7 @@ class TorchScriptGraph:
 
         if include_initializers:
             self._graph.initializers.update(
-                {
-                    name: _TorchTensor(value)
-                    for name, value in self._initializers.items()
-                }
+                {name: _TorchTensor(value) for name, value in self._initializers.items()}
             )
         else:
             self._graph.initializers.clear()

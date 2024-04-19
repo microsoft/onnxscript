@@ -15,7 +15,7 @@ if _flags.EXPERIMENTAL_USE_IR:
         TorchScriptTracingEvaluator,
     )
 else:
-    from ._graph_building_torch import (
+    from ._graph_building_torch import (  # type: ignore[assignment]
         TorchScriptGraph,
         TorchScriptTensor,
         TorchScriptTracingEvaluator,
