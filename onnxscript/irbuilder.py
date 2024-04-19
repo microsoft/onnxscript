@@ -56,6 +56,9 @@ class IRVar:
     def __repr__(self):
         return f"{self.__class__.__name__}({self.name!r}, {self.typeinfo!r})"
 
+    def typed_str(self) -> str:
+        return f"{self.name}: {self.typeinfo}"
+
 
 
 def _opt_var_to_str(x):
@@ -173,15 +176,6 @@ class IRFunction:
 
     def add_attr_parameter(self, attr: ir.Attr) -> None:
         self.ordered_inputs_and_attrs.append(attr)
-
-    def debug_print(self):
-        if logger.isEnabledFor(logging.DEBUG):
-            st = io.StringIO()
-            for s in self.stmts:
-                for attr in s.attrs:
-                    if attr.attr_proto.HasField("g"):
-                        st.write(helper.printable_graph(attr.attr_proto.g))
-                        st.write("\n")
 
     def add_called_function(self, fun: values.OnnxFunction) -> None:
         for name, fct in fun.function_ir.called_functions.items():
@@ -325,40 +319,33 @@ class IRFunction:
                 )
         return func_opset_imports
 
-    def to_function_proto(self) -> onnx.FunctionProto:
-        """Converts this instance into a `onnx.FunctionProto`.
-
-        Note: Default values for attributes are an experimental feature in ONNX.
-        Conversion ignores default values for attributes if the ONNX version installed
-        doesn't support it.
-        """
+    def to_ir_function(self) -> ir.Function:
+        """Converts this instance into a `ir.Function`."""
         opsets = self.get_opset_import()
-        nodes = [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)]
-        for n in nodes:
-            if n.domain not in opsets:
-                opsets[n.domain] = 1  # TODO: how to get n.version?
-        opset_imports = [
-            onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
-        ]
-
-        attribute_names = [attr.name for attr in self.attrs if not attr.has_default]
-
-        f = helper.make_function(
-            self.domain,
-            self.name,
-            inputs=[x.name for x in self.inputs],
-            outputs=[y.name for y in self.outputs],
+        values = {}
+        nodes = []
+        function_outputs: dict[str, ir.Value | None] = {x.name: None for x in self.outputs}
+        for i, s in enumerate(self.stmts):
+            node = s.to_node(f"n{i}", values)
+            nodes.append(node)
+            if node.domain not in opsets:
+                # FIXME(justinchuby): Node version
+                assert s.version is not None
+                opsets[node.domain] = s.version
+            for output in node.outputs:
+                values[output.name] = output
+                if output.name in function_outputs:
+                    function_outputs[output.name] = output
+        inputs = [ir.Input(input.name) for input in self.inputs]
+        for name, output in function_outputs.items():
+            assert output is not None, f"Output {name!r} is an output of any node is the function."
+        graph = ir.Graph(
+            inputs=inputs,
+            outputs=function_outputs.values(),  # type: ignore
             nodes=nodes,
-            opset_imports=opset_imports,  # TODO
-            attributes=attribute_names,
-            doc_string=self.docstring,
+            opset_imports=opsets,
         )
-        # In protobuf 4.x fields aren't defined as class attribute so it should check instance attribute instead
-        if hasattr(f, "attribute_proto"):
-            f.attribute_proto.extend(
-                [attr.attr_proto for attr in self.attrs if attr.has_default]
-            )
-        return f
+        return ir.Function(domain=self.domain, name=self.name, graph=graph, attributes=self.attrs)
 
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
@@ -388,6 +375,7 @@ class IRBuilder:
         attrs: Sequence[ir.Attr | ir.RefAttr],
         sub_functions=None,
     ) -> None:
+        # TODO(justinchuby): Capture opset version here
         stmt = IRStmt(results, callee, args, attrs, sub_functions=sub_functions)
         fn.append_stmt(stmt)
 
@@ -410,14 +398,7 @@ class IRBuilder:
         var = IRVar(varname, typeinfo, source_info)
         fn.append_output(var)
 
-    def make_attr(self, attrproto: onnx.AttributeProto) -> ir.Attr | ir.RefAttr:
-        return ir.Attr | ir.RefAttr(attrproto)
-
-    def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> ir.Attr | ir.RefAttr:
-        proto = onnx.AttributeProto()
-        proto.name = attrname
-        proto.ref_attr_name = refname
-        attr_type = ta.pytype_to_attrtype(pytype)
-        assert attr_type is not None
-        proto.type = attr_type
-        return ir.Attr | ir.RefAttr(proto)
+    def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> ir.RefAttr:
+        return ir.RefAttr(
+            attrname, refname, ta.pytype_to_attrtype(pytype)
+        )
