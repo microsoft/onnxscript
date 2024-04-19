@@ -621,6 +621,7 @@ def deserialize_tensor(
 
 def deserialize_metadata_props(proto: Sequence[onnx.StringStringEntryProto]) -> dict[str, str] | None:
     if len(proto) == 0:
+        # Avoid creating an empty dictionary to save memory
         return None
     return {entry.key: entry.value for entry in proto}
 
