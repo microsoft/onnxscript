@@ -125,7 +125,7 @@ def group_normalization(
     weight_full,
     bias_full,
     epsilon,
-    match_bindings: dict[str, ir.Value | Any] | None = None,
+    match_bindings: dict[str, ir.Value],
 ):
     # com.microsoft.GroupNorm only supports NHWC for now
     nhwc_input = op.Transpose(input_x, perm=[0, 2, 3, 1])
@@ -136,7 +136,11 @@ def group_normalization(
     bias_full = op.Cast(bias_full, to=onnx.TensorProto.FLOAT)
     bias_full = op.Reshape(bias_full, reshape_to_1d)
     # re-obtain attribute groups
-    groups = match_bindings["weight_for_norm"].shape[0].value
+    if "weight_for_norm" not in match_bindings:
+        raise ValueError("weight_for_norm is not found in match_bindings")
+    if match_bindings["weight_for_norm"].shape is None:
+        raise ValueError("weight_for_norm shape not known")
+    groups = match_bindings["weight_for_norm"].shape[0]
     output = msft_op.GroupNorm(
         nhwc_input,
         weight_full,

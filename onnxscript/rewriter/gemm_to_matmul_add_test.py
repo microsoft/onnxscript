@@ -72,12 +72,8 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         self.assertEqual(count, 1)
         self.assertEqual(len(model.functions), 1)
         self.assertEqual(len(model.functions[("pkg.custom", "afunction", "")]), 4)
-        self.assertEqual(
-            model.functions[("pkg.custom", "afunction", "")][2].op_type, "MatMul"
-        )
-        self.assertEqual(
-            model.functions[("pkg.custom", "afunction", "")][3].op_type, "Add"
-        )
+        self.assertEqual(model.functions[("pkg.custom", "afunction", "")][2].op_type, "MatMul")
+        self.assertEqual(model.functions[("pkg.custom", "afunction", "")][3].op_type, "Add")
 
     def test_reshape_gemm_reshape_remain_when_input_last_dim_and_second_last_dim_not_matched(
         self,

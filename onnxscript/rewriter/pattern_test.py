@@ -205,9 +205,7 @@ class ConcatTest(unittest.TestCase):
         self.assertEqual(count, 1)
         self.assertEqual(len(model.functions), 1)
         self.assertEqual(len(model.functions[("pkg.custom", "afunction", "")]), 1)
-        self.assertEqual(
-            model.functions[("pkg.custom", "afunction", "")][0].op_type, "Concat"
-        )
+        self.assertEqual(model.functions[("pkg.custom", "afunction", "")][0].op_type, "Concat")
 
 
 class RewriteRuleTest(unittest.TestCase):
@@ -248,8 +246,6 @@ class RewriteRuleTest(unittest.TestCase):
 
         def _check_for_redundant_reshape(x, newshape):
             oldshape = x.shape
-            if not isinstance(oldshape.simple(), tuple):
-                return False
             newshape = _ir_utils.propagate_const_value(newshape)
             newshape = _ir_utils.get_numpy_from_ir_value(newshape)
             if not isinstance(newshape, np.ndarray):

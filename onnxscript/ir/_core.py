@@ -661,8 +661,8 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self,
         domain: str,
         op_type: str,
-        inputs: Sequence[Value | None],
-        attributes: Sequence[Attr | RefAttr] = (),
+        inputs: Iterable[Value | None],
+        attributes: Iterable[Attr | RefAttr] = (),
         *,
         overload: str = "",
         num_outputs: int = 1,
@@ -699,6 +699,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._outputs: tuple[Value, ...] = tuple(
             Value(self, index=i) for i in range(num_outputs)
         )
+        attributes = tuple(attributes)
         if attributes and not isinstance(attributes[0], (Attr, RefAttr)):
             raise TypeError(
                 f"Expected the attributes to be Attr or RefAttr, got {type(attributes[0])}. "

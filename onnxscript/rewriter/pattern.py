@@ -1028,7 +1028,8 @@ def _apply_deltas(
             for last_deleted_output, last_inserted_output in zip(
                 last_deleted.outputs, last_inserted.outputs
             ):
-                for node, index in last_deleted_output.consumers():
+                for node, index in tuple(last_deleted_output.consumers()):
+                    # Fix consumers because we are mutating consumers in the loop
                     node.replace_input_with(index, last_inserted_output)
 
                 # Update graph/function outputs if the node generates output
