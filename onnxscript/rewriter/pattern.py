@@ -1051,7 +1051,7 @@ def _apply_deltas(
         # This is updating the graph/function outputs to use the new outputs
         for inserted_node in inserted_nodes:
             for new_output in inserted_node.outputs:
-                if (index := new_output.meta.get(_ir_utils.GRAPH_OUTPUT_META_KEY)) is not None:
+                if (index := new_output.meta.get(_ir_utils.GRAPH_OUTPUT_META_KEY)) is not None:  # type: ignore[assignment]
                     graph_or_function.outputs[index] = new_output
 
     for n in to_delete:
