@@ -318,7 +318,7 @@ def _build_attribute(
         if isinstance(value[0], float):
             return ir.AttrFloat32s(key, list(value))
         if isinstance(value[0], int):
-            return ir.AttrInt64s(key, list(value))
+            return ir.AttrInt64s(key, list(value)) # type: ignore
         raise TypeError(f"Unsupported sequence type '{type(value)}' for attribute '{key}'")
     raise TypeError(f"Unsupported attribute type '{type(value)}' for attribute '{key}'")
 
