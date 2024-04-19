@@ -616,6 +616,9 @@ class AttnPhi15RewriteRule(AttentionRewriteRule):
     def _fusion(
         self, function: onnx.FunctionProto
     ) -> tuple[onnx.FunctionProto, tuple[onnx.OperatorSetIdProto]]:
+
+        import pdb; pdb.set_trace()
+
         # Infer size configurations from the function.
         attn_size_config = self.infer_attn_size_config(function)
 
