@@ -105,7 +105,7 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
         onnxscript_tensor.Tensor.__init__(self, None)
         ir.Value.__init__(self, producer, index=index, name=name)
         self._is_complex: bool = False
-        self._concrete_value = None
+        self._concrete_value: np.ndarray | None = None
 
     @property
     def value(self) -> Optional[np.ndarray]:
