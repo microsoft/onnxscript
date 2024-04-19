@@ -92,10 +92,14 @@ dmypy.json
 !.vscode/extensions.json
 
 # Generated files
-onnxscript/tests/models/testoutputs/*
-onnxscript/tests/export/*
-docs/auto_examples/*
-onnxscript/tests/mylib.onnxlib
-**/onnx_backend_test_code/**
-*.onnxlib
 *.onnx
+!testdata/**/*.onnx
+*.onnxlib
+**/onnx_backend_test_code/**
+docs/auto_examples/*
+tests/export/*
+tests/models/testoutputs/*
+tests/mylib.onnxlib
+**/serde_test_profiles/*
+tools/ort_rewriter_profiling/.logs/*
+tools/ort_rewriter_profiling/onnx_models/*

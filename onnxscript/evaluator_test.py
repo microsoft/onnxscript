@@ -55,7 +55,7 @@ class ORTEvaluatorTest(unittest.TestCase):
             return op.Add(x, y)
 
         x = np.array(0.0, dtype=np.float32)
-        with evaluator.default_as(evaluator.ORTEvaluator()):
+        with evaluator.default_as(evaluator.ORTEvaluator()):  # noqa: SIM117
             with self.assertRaises(TypeError):
                 _ = test_function(x, unknown=42)  # pylint: disable=unexpected-keyword-arg
 

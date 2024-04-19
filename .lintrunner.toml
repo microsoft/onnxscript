@@ -8,7 +8,7 @@ include_patterns = [
     '**/*.pyi',
 ]
 exclude_patterns = [
-    'onnxscript/tests/models/**',
+    'tests/models/**',
 ]
 command = [
     'python',
@@ -37,15 +37,27 @@ include_patterns = [
     'onnxscript/**/*.pyi',
 ]
 exclude_patterns = [
+    'tests/**', # Skip linting test files for speed
     # FIXME: Fix typing annotations in these files
     'onnxscript/converter_test.py',
     'onnxscript/converter.py',
     'onnxscript/evaluator_test.py',
     'onnxscript/evaluator.py',
     'onnxscript/onnx_types.py',
-    'onnxscript/tests/**', # Skip linting test files for speed
     'onnxscript/**/*_test.py', # Skip linting test files for speed
     'onnxscript/function_libs/torch_lib/ops/**', # Operators typing do not play well with mypy
+    'onnxscript/optimizer/evaluator.py',  # FIXME
+    'onnxscript/optimizer/constant_folding.py',  # FIXME
+    'onnxscript/rewriter/onnxruntime/transformers/fastgelu.py',  # FIXME
+    'onnxscript/rewriter/onnxruntime/instance_to_group_normalization.py',  # FIXME
+    'onnxscript/rewriter/function_rule.py',  # FIXME
+    'onnxscript/_legacy_ir/irbuilder.py',  # FIXME
+    'onnxscript/optimizer/fold_constants_v0.py',  # FIXME
+    'onnxscript/rewriter/onnxruntime/transformers/multihead_attention.py',  # FIXME
+    'onnxscript/tools/function_unittest_producer.py',  # FIXME
+    'onnxscript/_legacy_ir/visitor.py',  # FIXME
+    'onnxscript/rewriter/onnxruntime/transformers/layernorm.py',  # FIXME
+    'onnxscript/rewriter/generic_pattern.py',  # FIXME
 ]
 command = [
     'python',
@@ -74,7 +86,7 @@ include_patterns = [
     '**/*.py',
 ]
 exclude_patterns = [
-    'onnxscript/tests/onnx_backend_test_code/**',
+    'tests/onnx_backend_test_code/**',
 ]
 command = [
     'python',
@@ -102,12 +114,16 @@ include_patterns = [
     '**/*.py',
 ]
 exclude_patterns = [
+    'examples/**',  # TODO: Merge with docs/examples
     'docs/examples/**',
     'docs/tutorial/examples/**',
     'onnxscript/converter_test.py',
-    'onnxscript/tests/functions/**',
-    'onnxscript/tests/models/**',
-    'onnxscript/tests/onnx_backend_test_code/**',
+    'tests/functions/**',
+    'tests/models/**',
+    'tests/onnx_backend_test_code/**',
+    'onnxscript/optimizer/**',  # FIXME
+    'onnxscript/rewriter/**',  # FIXME
+    'onnxscript/_legacy_ir/**',  # FIXME
 ]
 command = [
     'python',
@@ -135,6 +151,8 @@ code = 'EDITORCONFIG-CHECKER'
 include_patterns = ['**']
 exclude_patterns = [
     '**/*.ipynb',
+    '**/*.onnx',
+    '**/*.pb'
 ]
 command = [
     'python',
