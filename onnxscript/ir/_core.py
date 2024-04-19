@@ -545,8 +545,14 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
     def __iter__(self) -> Iterator[int | SymbolicDim]:
         return iter(self._dims)
 
-    def __getitem__(self, index: int) -> int | SymbolicDim:
-        return self._dims[index]
+    @typing.overload
+    def __getitem__(self, index: int) -> int | SymbolicDim: ...
+
+    @typing.overload
+    def __getitem__(self, index: slice) -> tuple[int | SymbolicDim, ...]: ...
+
+    def __getitem__(self, index):
+        return tuple(self._dims)[index]
 
     def __setitem__(self, index: int, value: int | SymbolicDim | str | None) -> None:
         """Set the dimension at the index.
@@ -561,8 +567,10 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         """
         if self._frozen:
             raise TypeError("The shape is frozen and cannot be modified.")
+        if isinstance(value, str) or value is None:
+            value = SymbolicDim(value)
         if not isinstance(value, (int, SymbolicDim)):
-            raise TypeError(f"Expected int or SymbolicDim, got '{type(value)}'")
+            raise TypeError(f"Expected int, str, None or SymbolicDim, got '{type(value)}'")
 
         self._dims[index] = value
 

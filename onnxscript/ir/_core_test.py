@@ -318,6 +318,27 @@ class ShapeTest(unittest.TestCase):
         shape = _core.Shape([42], denotations=("DATA_CHANNEL",))
         self.assertEqual(shape[0], 42)
 
+    def test_getitem_accepts_a_slice(self):
+        shape = _core.Shape([1, 2, 3, 4])
+        self.assertEqual(shape[1:3], (2, 3))
+
+    @parameterized.parameterized.expand(
+        [
+            ("int", 42),
+            ("str", "any string"),
+            ("None", None),
+            ("SymbolicDim", _core.SymbolicDim("any string")),
+        ]
+    )
+    def test_setitem(self, _: str, value):
+        shape = _core.Shape([0])
+        shape[0] = value
+        dim = shape[0]
+        if isinstance(dim, _core.SymbolicDim):
+            self.assertEqual(dim.value, value)
+        else:
+            self.assertEqual(dim, value)
+
     def test_get_denotation(self):
         shape = _core.Shape([42], denotations=("DATA_CHANNEL",))
         self.assertEqual(shape.get_denotation(0), "DATA_CHANNEL")
