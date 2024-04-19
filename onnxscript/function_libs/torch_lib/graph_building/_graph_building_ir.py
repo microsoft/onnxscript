@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -52,12 +53,6 @@ ValidInputType: TypeAlias = Union[
     None,
 ]
 
-# Be sure to leave ample room for the rest of the proto fields.
-_LARGE_MODEL_SIZE_THRESHOLD = int(2**30 * 1.8)  # 1.8GB
-
-# TODO(justinchuby): Build a context manager to handle source information.
-
-
 _TORCH_DTYPE_TO_ONNX: dict[torch.dtype, ir.DataType] = {
     torch.float32: ir.DataType.FLOAT,
     torch.float64: ir.DataType.DOUBLE,
@@ -73,17 +68,24 @@ _TORCH_DTYPE_TO_ONNX: dict[torch.dtype, ir.DataType] = {
     torch.bfloat16: ir.DataType.BFLOAT16,
 }
 
-_ONNX_DTYPE_TO_TORCH: dict[ir.DataType, torch.dtype] = {
-    value: key for key, value in _TORCH_DTYPE_TO_ONNX.items()
-}
-
 
 def _torch_dtype_to_onnx_dtype(dtype: torch.dtype) -> ir.DataType:
     return _TORCH_DTYPE_TO_ONNX[dtype]
 
 
-def _onnx_dtype_to_torch_dtype(dtype: ir.DataType) -> torch.dtype:
-    return _ONNX_DTYPE_TO_TORCH[dtype]
+class _TorchTensor(ir.Tensor):
+    def __init__(self, tensor: torch.Tensor):
+        super().__init__(tensor, dtype=_torch_dtype_to_onnx_dtype(tensor.dtype))
+
+    def tobytes(self) -> bytes:
+        # Support more types than np types like bfloat16
+        assert isinstance(self.raw, torch.Tensor)
+        tensor = self.raw.detach().cpu().contiguous()
+        return bytes(
+            (ctypes.c_ubyte * tensor.element_size() * tensor.numel()).from_address(
+                tensor.data_ptr()
+            )
+        )
 
 
 class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
@@ -102,13 +104,11 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
 
     @property  # type: ignore[override]
     def value(self) -> Optional[np.ndarray]:
-        return self.const_value.numpy() if self.const_value is not None else None
+        raise NotImplementedError("value is not supported for TorchScriptTensor.")
 
     @value.setter
-    def value(self, value: np.ndarray):
-        self.const_value = ir.Tensor(
-            value, dtype=ir.DataType(onnx.helper.np_dtype_to_tensor_dtype(value.dtype))
-        )
+    def value(self, _: np.ndarray):
+        raise NotImplementedError("value is not supported for TorchScriptTensor.")
 
     @property  # type: ignore[override]
     def rank(self) -> int | None:
@@ -135,7 +135,7 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
     @dtype.setter
     def dtype(self, dtype: torch.dtype | ir.DataType | None):
         if dtype is None:
-            onnx_dtype = None
+            onnx_dtype = ir.DataType.UNDEFINED
         elif isinstance(dtype, ir.DataType):
             onnx_dtype = dtype
         else:
@@ -294,7 +294,14 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
 def _build_attribute(
     key: str,
     value: Union[
-        float, int, str, Sequence[float], Sequence[int], torch.Tensor, ir.TensorProtocol
+        float,
+        int,
+        str,
+        Sequence[float],
+        Sequence[int],
+        torch.Tensor,
+        _TorchTensor,
+        ir.TensorProtocol,
     ],
 ):
     """Initializes the right attribute based on type of value."""
@@ -306,9 +313,9 @@ def _build_attribute(
         return ir.AttrString(key, value)
     if isinstance(value, torch.Tensor):
         return ir.AttrTensor(
-            key, ir.Tensor(value, dtype=_torch_dtype_to_onnx_dtype(value.dtype))
+            key, _TorchTensor(value)
         )
-    if isinstance(value, ir.TensorProtocol):
+    if isinstance(value, (_TorchTensor, ir.TensorProtocol)):
         return ir.AttrTensor(key, value)
     if isinstance(value, Sequence):
         if not value:
@@ -318,7 +325,7 @@ def _build_attribute(
         if isinstance(value[0], float):
             return ir.AttrFloat32s(key, list(value))
         if isinstance(value[0], int):
-            return ir.AttrInt64s(key, list(value)) # type: ignore
+            return ir.AttrInt64s(key, list(value))  # type: ignore
         raise TypeError(f"Unsupported sequence type '{type(value)}' for attribute '{key}'")
     raise TypeError(f"Unsupported attribute type '{type(value)}' for attribute '{key}'")
 
@@ -362,18 +369,6 @@ def _create_op_call_in_graph(
     return node.outputs
 
 
-def _tensor_rawdata_size(tensor: torch.Tensor) -> int:
-    """Estimate the size of a tensor in bytes.
-
-    Args:
-        tensor: The tensor to estimate the size of.
-
-    Returns:
-        The estimated size of the tensor in bytes.
-    """
-    return tensor.numel() * tensor.element_size()
-
-
 def _shared_functions() -> list[ir.Function]:
     """Hack to always include the share ops."""
 
@@ -394,6 +389,7 @@ class TorchScriptGraph:
         # All the functions used, deduplicated by name
         # key: (name, domain)
         self._function_store: Dict[ir.OperatorIdentifier, ir.Function] = {}
+        self._initializers: Dict[str, torch.Tensor] = {}
         # Mapping from initializer name to input(TorchScriptTensor).
         self._initializers_inputs: Dict[str, TorchScriptTensor] = {}
         # Mapping from initializer name to input(TorchScriptTensor) from parent graph.
@@ -489,11 +485,9 @@ class TorchScriptGraph:
                 self._parent_torch_script_graph.add_initializer(name, value)
             )
         else:
-            # TODO(justinchuby): Be able to add input
             input = TorchScriptTensor(name=name)
-            initializer = ir.Tensor(value, dtype=_torch_dtype_to_onnx_dtype(value.dtype))
             self._initializers_inputs[name] = input
-            self._graph.initializers[name] = initializer
+            self._initializers[name] = value
         return input
 
     @runtime_typing.checked
@@ -541,8 +535,8 @@ class TorchScriptGraph:
             raise TypeError(
                 f"Constant input '{constant}' of type '{type(constant)}' is not supported"
             )
-        onnx_tensor = ir.Tensor(
-            constant_tensor, dtype=_torch_dtype_to_onnx_dtype(constant_tensor.dtype)
+        onnx_tensor = _TorchTensor(
+            constant_tensor
         )
         value = _create_op_call_in_graph(
             self._graph,
@@ -578,7 +572,7 @@ class TorchScriptGraph:
                     self._graph,
                     "",
                     "SequenceConstruct",
-                    inputs=input,
+                    inputs=input,  # type: ignore
                     attributes={},
                 )
                 graph_inputs.extend(input_sequence)
@@ -737,16 +731,20 @@ class TorchScriptGraph:
             # TODO(BowenBao): All local function domain versions are hardcoded as 1.
             unique_custom_domains[function.domain] = 1
 
-        # initializers_size = sum(
-        #     _tensor_rawdata_size(tensor) for tensor in self.initializers.values()
-        # )
-
-        # large_model = initializers_size > _LARGE_MODEL_SIZE_THRESHOLD
+        if include_initializers:
+            self._graph.initializers.update(
+                {
+                    name: _TorchTensor(value)
+                    for name, value in self._initializers.items()
+                }
+            )
+        else:
+            self._graph.initializers.clear()
 
         onnx_model = ir.Model(
             self._graph,
             ir_version=8,
-            producer_name="pkg.torch",
+            producer_name=f"pytorch {torch.__version__}",
             functions=[*function_dict.values(), *_shared_functions()],
         )
 
@@ -757,7 +755,4 @@ class TorchScriptGraph:
             common_ops.common_opset.version
         )
         model_proto = ir.serde.serialize_model(onnx_model)
-        # import google.protobuf.text_format as text_format
-        # print(text_format.MessageToString(model_proto))
-        # print(onnx_model)
         return model_proto
