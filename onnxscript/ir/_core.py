@@ -285,7 +285,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -306,7 +306,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
     To obtain an array, call :meth:`numpy`. To obtain the bytes,
     call :meth:`tobytes`.
 
-    The :attribute:`path` can be a relative path or an absolute path.
+    The :attr:`path` can be a relative path or an absolute path.
     Serializers should handle the path correctly to conform with the ONNX spec.
 
     Attributes:
@@ -444,7 +444,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -878,7 +878,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -1130,7 +1130,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
         Example types can be ``TensorType``, ``SparseTensorType``, ``SequenceType``, ``OptionalType``.
         To obtain the data type of the tensor, use ``type.dtype`` or conveniently
-        :attribute:`dtype`.
+        :attr:`dtype`.
         """
         return self._type
 
@@ -1151,7 +1151,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
         If the type is not set, it will be initialized to a new TensorType. To
         set the type as other types like ``SequenceType``, initialize the type
-        then set :attribute:`type` instead.
+        then set :attr:`type` instead.
         """
         if self._type is None:
             self._type = TensorType(value)
@@ -1194,7 +1194,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -1444,7 +1444,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -1609,7 +1609,7 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -1694,7 +1694,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -1856,7 +1856,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
