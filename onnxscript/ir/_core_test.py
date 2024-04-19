@@ -4,11 +4,10 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
-import operator
 import pathlib
 import tempfile
 import unittest
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 import onnx
@@ -201,78 +200,42 @@ class ExternalTensorTest(unittest.TestCase):
         self.assertEqual(tensor2.tobytes(), self.data_float16.tobytes())
 
 
-class DimensionTest(unittest.TestCase):
-    def test_initialize(self):
-        dim = _core.Dimension(42, "test")
-        self.assertEqual(dim.value, 42)
-        self.assertEqual(dim.denotation, "test")
+class SymbolicDimTest(unittest.TestCase):
+    def test_init_raises_when_value_is_int(self):
+        # Static dimensions should be python integers
+        with self.assertRaises(TypeError):
+            _core.SymbolicDim(42)
 
-    @parameterized.parameterized.expand([("int", 42), ("str", "any string"), ("None", None)])
+    @parameterized.parameterized.expand([("str", "any string"), ("None", None)])
     def test_equality_with_other_dimensions(self, _: str, value: Any):
-        dim1 = _core.Dimension(value, "test")
-        dim2 = _core.Dimension(value, "don't care")
+        dim1 = _core.SymbolicDim(value)
+        dim2 = _core.SymbolicDim(value)
         self.assertEqual(dim1, dim2)
 
-    @parameterized.parameterized.expand([("int", 42), ("str", "any string"), ("None", None)])
+    @parameterized.parameterized.expand([("str", "any string"), ("None", None)])
     def test_equality_with_python_values(self, _: str, value: Any):
-        dim = _core.Dimension(value, "test")
+        dim = _core.SymbolicDim(value)
         self.assertEqual(dim, value)
         self.assertIn(value, [dim])
         self.assertIn(dim, [value])
 
-    @parameterized.parameterized.expand([("int", 42), ("str", "any string"), ("None", None)])
+    @parameterized.parameterized.expand([("str", "any string"), ("None", None)])
     def test_it_is_hashable(self, _: str, value: Any):
-        dim = _core.Dimension(value, "test")
+        dim = _core.SymbolicDim(value)
         self.assertEqual(hash(dim), hash(value))
         self.assertIn(dim, {dim})
         self.assertIn(dim, {value})
 
-    @parameterized.parameterized.expand(
-        [
-            ("gt", operator.gt, False),
-            ("ge", operator.ge, False),
-            ("lt", operator.lt, True),
-            ("le", operator.le, True),
-        ]
-    )
-    def test_it_is_comparable(self, _: str, op: Callable, expected: bool):
-        dim1 = _core.Dimension(0, "test")
-        dim2 = _core.Dimension(42, "test")
-        self.assertEqual(op(dim1, dim2), expected)
-
-    @parameterized.parameterized.expand(
-        [
-            ("gt", operator.gt, False),
-            ("ge", operator.ge, False),
-            ("lt", operator.lt, True),
-            ("le", operator.le, True),
-        ]
-    )
-    def test_it_is_comparable_with_int(self, _: str, op: Callable, expected: bool):
-        dim1 = _core.Dimension(0, "test")
-        dim2 = 42
-        self.assertEqual(op(dim1, dim2), expected)
-
-    @parameterized.parameterized.expand(
-        [
-            ("gt", operator.gt),
-            ("ge", operator.ge),
-            ("lt", operator.lt),
-            ("le", operator.le),
-        ]
-    )
-    def test_it_raises_type_error_when_compared_with_non_int(self, _: str, op: Callable):
-        dim = _core.Dimension(0, "test")
-        dim2 = "some string"
-        with self.assertRaises(TypeError):
-            op(dim, "some string")
-        with self.assertRaises(TypeError):
-            op(dim, None)
-        with self.assertRaises(TypeError):
-            op(dim, dim2)
-
 
 class ShapeTest(unittest.TestCase):
+    def test_init_raises_when_denotations_and_dims_have_different_lengths(self):
+        with self.assertRaisesRegex(ValueError, "denotations"):
+            _core.Shape([42], ["DATA_CHANNEL", "BATCH"])
+
+    def test_int_dimensions_are_python_ints(self):
+        shape = _core.Shape([42])
+        self.assertIsInstance(shape[0], int)
+
     @parameterized.parameterized.expand(
         [
             ("empty", (), ()),
@@ -345,6 +308,50 @@ class ShapeTest(unittest.TestCase):
     def test_ne_with_random_object(self):
         shape = _core.Shape((42,))
         self.assertNotEqual(shape, 42)
+
+    def test_setitem_raises_when_shape_is_frozen(self):
+        shape = _core.Shape([42], denotations=("DATA_CHANNEL",), frozen=True)
+        with self.assertRaisesRegex(TypeError, "frozen"):
+            shape[0] = 1
+
+    def test_getitem(self):
+        shape = _core.Shape([42], denotations=("DATA_CHANNEL",))
+        self.assertEqual(shape[0], 42)
+
+    def test_getitem_accepts_a_slice(self):
+        shape = _core.Shape([1, 2, 3, 4])
+        self.assertEqual(shape[1:3], (2, 3))
+
+    @parameterized.parameterized.expand(
+        [
+            ("int", 42),
+            ("str", "any string"),
+            ("None", None),
+            ("SymbolicDim", _core.SymbolicDim("any string")),
+        ]
+    )
+    def test_setitem(self, _: str, value):
+        shape = _core.Shape([0])
+        shape[0] = value
+        dim = shape[0]
+        if isinstance(dim, _core.SymbolicDim):
+            self.assertEqual(dim.value, value)
+        else:
+            self.assertEqual(dim, value)
+
+    def test_get_denotation(self):
+        shape = _core.Shape([42], denotations=("DATA_CHANNEL",))
+        self.assertEqual(shape.get_denotation(0), "DATA_CHANNEL")
+
+    def test_set_denotation(self):
+        shape = _core.Shape([42, 0], ["DATA_CHANNEL", "BATCH"])
+        shape.set_denotation(1, "UPDATED")
+        self.assertEqual(shape.get_denotation(1), "UPDATED")
+
+    def test_set_denotation_is_still_possible_when_shape_is_frozen(self):
+        shape = _core.Shape([42], denotations=("DATA_CHANNEL",), frozen=True)
+        shape.set_denotation(0, "UPDATED")
+        self.assertEqual(shape.get_denotation(0), "UPDATED")
 
 
 class ValueTest(unittest.TestCase):

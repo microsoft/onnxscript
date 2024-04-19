@@ -200,9 +200,10 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
                     f"Expected an object with a shape attribute, but {type(value)} does not have shape. "
                     "Please specify the shape explicitly."
                 )
-            self._shape = Shape(getattr(value, "shape"))  # noqa: B009
+            self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
         else:
             self._shape = shape
+            self._shape._frozen = True
         if dtype is None:
             if isinstance(value, np.ndarray):
                 self._dtype = _enums.DataType.from_numpy(value.dtype)
@@ -351,6 +352,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         self._dtype: _enums.DataType = dtype
         self.name: str = name  # mutable
         self._shape: Shape = shape
+        self._shape._frozen = True
         self.doc_string: str | None = doc_string  # mutable
         self._array: np.ndarray | None = None
         self.raw: mmap.mmap | None = None
@@ -450,89 +452,78 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         return self._metadata
 
 
-class Dimension(_protocols.DimensionProtocol, _display.PrettyPrintable):
-    __slots__ = ("_value", "_denotation")
+class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
+    __slots__ = ("_value",)
 
-    def __init__(self, value: int | str | None, denotation: str | None = None) -> None:
+    def __init__(self, value: str | None) -> None:
+        """Initialize a symbolic dimension.
+
+        Args:
+            value: The value of the dimension. It should not be an int.
+        """
+        if isinstance(value, int):
+            raise TypeError("The value of a SymbolicDim cannot be an int")
         self._value = value
-        self._denotation = denotation
-
-    def __int__(self) -> int:
-        if not isinstance(self.value, int):
-            raise TypeError(
-                f"The value of this Dimension is not int, but {type(self.value)} ({self.value})"
-            )
-        return self.value
-
-    def __index__(self) -> int:
-        return int(self)
 
     def __eq__(self, other: object) -> bool:
-        if isinstance(other, (int, str)) or other is None:
+        if not isinstance(other, SymbolicDim):
             return self.value == other
-        if not isinstance(other, Dimension):
-            return False
         return self.value == other.value
-
-    def __ne__(self, value: object) -> bool:
-        return not self.__eq__(value)
-
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, (int, Dimension)):
-            raise TypeError(f"Expected other to be Dimension or int, got {type(other)}")
-        return int(self) < int(other)
-
-    def __le__(self, other: object) -> bool:
-        if not isinstance(other, (int, Dimension)):
-            raise TypeError(f"Expected other to be Dimension or int, got {type(other)}")
-        return int(self) <= int(other)
-
-    def __gt__(self, other: object) -> bool:
-        if not isinstance(other, (int, Dimension)):
-            raise TypeError(f"Expected other to be Dimension or int, got {type(other)}")
-        return int(self) > int(other)
-
-    def __ge__(self, other: object) -> bool:
-        if not isinstance(other, (int, Dimension)):
-            raise TypeError(f"Expected other to be Dimension or int, got {type(other)}")
-        return int(self) >= int(other)
 
     def __hash__(self) -> int:
         return hash(self.value)
 
     @property
-    def value(self) -> int | str | None:
+    def value(self) -> str | None:
         return self._value
-
-    @property
-    def denotation(self) -> str | None:
-        return self._denotation
 
     def __str__(self) -> str:
         return f"{self._value}"
 
     def __repr__(self) -> str:
-        if self.denotation is not None:
-            denotation_text = f", denotation={self.denotation!r}"
-        else:
-            denotation_text = ""
-        return f"{self.__class__.__name__}({self._value}{denotation_text})"
+        return f"{self.__class__.__name__}({self._value})"
 
 
 class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
-    __slots__ = ("_dims",)
+    __slots__ = ("_dims", "_frozen")
 
-    def __init__(self, dims: _protocols.SimpleShape | Sequence[Dimension]) -> None:
-        # TODO: Support symbolic shapes with expressions?
-        for dim in dims:
-            if dim is not None and not isinstance(dim, (int, str, Dimension)):
-                raise TypeError(f"Expected int, str, None or Dimension, got '{type(dim)}'")
-        self._dims: list[Dimension] = [
-            dim if isinstance(dim, Dimension) else Dimension(dim) for dim in dims
+    def __init__(
+        self,
+        dims: Iterable[int | SymbolicDim | str | None],
+        /,
+        denotations: Iterable[str | None] | None = None,
+        frozen: bool = False,
+    ) -> None:
+        """Initialize a shape.
+
+        Args:
+            dims: The dimensions of the shape. Each dimension can be an integer or a
+                SymbolicDim or any Python object. When a ``dim`` is not an integer or a
+                SymbolicDim, it is converted to a SymbolicDim.
+            denotations: The denotations of the dimensions. If None, the denotations are not set.
+                Standard denotation can optionally be used to denote tensor
+                dimensions with standard semantic descriptions to ensure
+                that operations are applied to the correct axis of a tensor.
+                Refer to https://github.com/onnx/onnx/blob/main/docs/DimensionDenotation.md#denotation-definition
+                for pre-defined dimension denotations.
+            frozen: If True, the shape is immutable and cannot be modified. This
+                is useful when the shape is initialized by a Tensor.
+        """
+        self._dims: list[int | SymbolicDim] = [
+            SymbolicDim(dim) if not isinstance(dim, (int, SymbolicDim)) else dim
+            for dim in dims
         ]
+        self._denotations: list[str | None] = (
+            list(denotations) if denotations is not None else [None] * len(self._dims)
+        )
+        if len(self._denotations) != len(self._dims):
+            raise ValueError(
+                "The number of denotations, when provided, must be equal to the number of dimensions."
+            )
+        self._frozen: bool = frozen
 
     @property
-    def dims(self) -> tuple[Dimension, ...]:
+    def dims(self) -> tuple[int | SymbolicDim, ...]:
         """All dimensions in the shape.
 
         This property is read-only. Use __getitem__ and __setitem__ to modify the shape or create a new shape.
@@ -543,36 +534,65 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         """The rank of the shape."""
         return len(self._dims)
 
-    def simple(self) -> _protocols.SimpleShape:
-        return tuple(dim.value for dim in self._dims)
-
     def numpy(self) -> tuple[int, ...]:
-        if any(not isinstance(dim.value, int) for dim in self._dims):
+        if any(not isinstance(dim, int) for dim in self._dims):
             raise ValueError(f"Cannot convert the shape {self} to a tuple of ints")
-        return tuple(dim.value for dim in self._dims)  # type: ignore
+        return tuple(dim for dim in self._dims)  # type: ignore
 
     def __len__(self) -> int:
         return len(self._dims)
 
-    def __iter__(self) -> Iterator[Dimension]:
+    def __iter__(self) -> Iterator[int | SymbolicDim]:
         return iter(self._dims)
 
-    def __getitem__(self, index: int) -> Dimension:
-        return self._dims[index]
+    @typing.overload
+    def __getitem__(self, index: int) -> int | SymbolicDim: ...
 
-    def __setitem__(
-        self, index: int, value: _protocols.DimensionProtocol | int | str | None
-    ) -> None:
-        if isinstance(value, Dimension):
-            self._dims[index] = value
-            return
-        if isinstance(value, (int, str, type(None))):
-            self._dims[index] = Dimension(value)
-            return
+    @typing.overload
+    def __getitem__(self, index: slice) -> tuple[int | SymbolicDim, ...]: ...
 
-        raise TypeError(
-            f"Value must be int, str, None or DimensionProtocol. Got '{type(value)}'"
-        )
+    def __getitem__(self, index):
+        return tuple(self._dims)[index]
+
+    def __setitem__(self, index: int, value: int | SymbolicDim | str | None) -> None:
+        """Set the dimension at the index.
+
+        Args:
+            index: The index of the dimension.
+            value: The value of the dimension.
+
+        Raises:
+            TypeError: If the shape is frozen and cannot be modified.
+            TypeError: If the value is not an int or SymbolicDim.
+        """
+        if self._frozen:
+            raise TypeError("The shape is frozen and cannot be modified.")
+        if isinstance(value, str) or value is None:
+            value = SymbolicDim(value)
+        if not isinstance(value, (int, SymbolicDim)):
+            raise TypeError(f"Expected int, str, None or SymbolicDim, got '{type(value)}'")
+
+        self._dims[index] = value
+
+    def get_denotation(self, index: int) -> str | None:
+        """Return the denotation of the dimension at the index.
+
+        Args:
+            index: The index of the dimension.
+
+        Returns:
+            The denotation of the dimension.
+        """
+        return self._denotations[index]
+
+    def set_denotation(self, index: int, denotation: str | None) -> None:
+        """Set the denotation of the dimension at the index.
+
+        Args:
+            index: The index of the dimension.
+            denotation: The denotation of the dimension.
+        """
+        self._denotations[index] = denotation
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._dims!r})"
@@ -593,7 +613,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
             return self._dims == other._dims
         if not isinstance(other, Iterable):
             return False
-        return self.dims == tuple(other)
+        return self._dims == list(other)
 
     def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
