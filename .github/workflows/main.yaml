@@ -31,6 +31,7 @@ jobs:
           - py311-onnx-weekly
           - py311-ort-nightly
           - py311-experimental-torchlib-tracing
+          - py311-experimental-torchlib-onnx-ir
           - py310
           - py39
           - py38
@@ -62,6 +63,9 @@ jobs:
           - name: py311-experimental-torchlib-tracing
             python-version: "3.11"
             nox-tag: test-experimental-torchlib-tracing
+          - name: py311-experimental-torchlib-onnx-ir
+            python-version: "3.11"
+            nox-tag: test-experimental-torchlib-onnx-ir
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
