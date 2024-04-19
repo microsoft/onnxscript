@@ -14,8 +14,6 @@ import numpy as np
 class AttributeType(enum.IntEnum):
     """Enum for the types of ONNX attributes."""
 
-    # TODO(justinchuby): Should we code gen this? We just need to get rid of protoc
-    # We can code gen with https://github.com/recap-build/proto-schema-parser/tree/main
     UNDEFINED = 0
     FLOAT = 1
     INT = 2
@@ -40,6 +38,10 @@ class AttributeType(enum.IntEnum):
 
 
 class DataType(enum.IntEnum):
+    """Enum for the data types of ONNX tensors, defined in ``onnx.TensorProto``."""
+
+    # NOTE: Naming: It is tempting to use shorter and more modern names like f32, i64,
+    # but we should stick to the names used in the ONNX spec for consistency.
     UNDEFINED = 0
     FLOAT = 1
     UINT8 = 2
