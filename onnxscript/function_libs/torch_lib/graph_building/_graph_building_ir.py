@@ -17,7 +17,7 @@ from typing_extensions import TypeAlias
 import onnxscript
 from onnxscript import evaluator, ir
 from onnxscript import tensor as onnxscript_tensor
-from onnxscript._internal import param_manipulation, runtime_typing
+from onnxscript._internal import param_manipulation
 from onnxscript.function_libs.torch_lib import _flags
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 
