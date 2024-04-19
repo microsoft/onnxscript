@@ -315,7 +315,7 @@ class GenericPattern:
         del match
         if func is None:
             raise NotImplementedError(
-                f"Not implemented if fct is None in class {self.__class__.__name__}"
+                f"Not implemented if func is None in class {self.__class__.__name__}"
             )
         if kwargs:
             raise NotImplementedError(
@@ -490,7 +490,7 @@ class GenericPattern:
         Returns:
             number of matched nodes to continue, None or False to indicate a failed match
         """
-        match_countch_count = 0
+        match_count = 0
 
         # successors
         if len(graph_node.outputs) != len(pattern_node.outputs):
@@ -532,7 +532,7 @@ class GenericPattern:
                         )
                     matched[node] = graph_node_users[0]
                     stack.append(node)
-                    match_countch_count += 1
+                    match_count += 1
                 continue
 
             # Let's remove the nodes already matched.
@@ -574,7 +574,7 @@ class GenericPattern:
                     )
                 matched[key] = graph_node
                 stack.append(key)
-                match_countch_count += 1
+                match_count += 1
                 continue
 
             # And now another fun part, let's try to handle the case when
@@ -620,7 +620,7 @@ class GenericPattern:
                             )
                         matched[key] = gtype_to_node[k]
                         stack.append(key)
-                        match_countch_count += 1
+                        match_count += 1
                 else:
                     missing.append(k)
 
@@ -634,9 +634,9 @@ class GenericPattern:
                 f"There are more than one option, this will be implemented later, "
                 f"ec={ec}, gc={gc}"
             )
-        if self.verbose > 5 and match_countch_count > 0:
-            print(f"[GenericPattern._match_forward] add {match_countch_count} nodes")
-        return match_countch_count
+        if self.verbose > 5 and match_count > 0:
+            print(f"[GenericPattern._match_forward] add {match_count} nodes")
+        return match_count
 
     def match(
         self,
@@ -845,6 +845,18 @@ class GenericPattern:
 
 
 class FunctionPattern(GenericPattern):
+    """An instance of GenericPattern taking ir.Function.
+
+    It defines the matching pattern and its replacement.
+
+    :param match_pattern: the onnx ir function defining the matching pattern
+    :param apply_pattern: the onnx ir function defining the new pattern
+    :param validate_mapping: the function used to validate a pattern
+    :param verbose: in [0, 10], increase the verbosity to understand why a pattern
+        does not match
+
+    """
+
     def __init__(
         self,
         match_pattern: ir.Function,
