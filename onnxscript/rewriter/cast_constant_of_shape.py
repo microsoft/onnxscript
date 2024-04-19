@@ -4,9 +4,8 @@ import logging
 from typing import Any, Sequence
 
 import numpy as np
-import onnx
 
-import onnxscript._legacy_ir as ir
+from onnxscript import ir
 from onnxscript.rewriter import pattern
 
 op = pattern.onnxop
@@ -30,9 +29,8 @@ def fused_cast_constant_of_shape(
     del t  # unused
     v_dtype = match_bindings["dtype"]
     v_t = match_bindings["t"]
-    casted_val = onnx.numpy_helper.to_array(v_t).astype(  # type: ignore[arg-type]
-        dtype=onnx.helper.tensor_dtype_to_np_dtype(v_dtype)  # type: ignore[arg-type]
-    )
+    v_dtype = ir.DataType(v_dtype.value).numpy()  # type: ignore[union-attr]
+    casted_val = ir.Tensor(v_t.value.numpy().astype(v_dtype))  # type: ignore[union-attr]
     return op.ConstantOfShape(shape, value=casted_val)
 
 
@@ -51,7 +49,8 @@ def fused_cast_constant_of_shape_without_value(
 ) -> pattern.OpPattern:
     del dtype  # Unused
     v_dtype = match_bindings["dtype"]
-    val = np.zeros(1, dtype=onnx.helper.tensor_dtype_to_np_dtype(v_dtype))  # type: ignore
+    v_dtype = ir.DataType(v_dtype.value).numpy()  # type: ignore[union-attr]
+    val = ir.Tensor(np.zeros(1, dtype=v_dtype))
     return op.ConstantOfShape(shape, value=val)
 
 
