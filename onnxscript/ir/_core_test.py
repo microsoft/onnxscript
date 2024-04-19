@@ -351,6 +351,8 @@ class ValueTest(unittest.TestCase):
     def test_initialize(self):
         _ = _core.Value(None, index=0)
 
+    # TODO(justinchuby): Test all methods
+
 
 class NodeTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -380,6 +382,8 @@ class NodeTest(unittest.TestCase):
         )
         self.assertIn(self.node, graph)
 
+    # TODO(justinchuby): Test all methods
+
 
 class GraphTest(unittest.TestCase):
     def test_initialize(self):
@@ -397,6 +401,18 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(graph.opset_imports, {"": 1})
         self.assertEqual(graph.initializers, {})
         self.assertIsNone(graph.doc_string)
+
+    def test_it_is_iterable_of_nodes(self):
+        v0 = _core.Input(name="v0")
+        v1 = _core.Input(name="v1")
+        node = _core.Node("", "Add", inputs=(v0, v1), num_outputs=1)
+        graph = _core.Graph(
+            (v0, v1),
+            node.outputs,
+            nodes=(node,),
+            opset_imports={"": 1},
+        )
+        self.assertEqual(list(graph), [node])
 
     # TODO(justinchuby): Test graph mutation methods
 

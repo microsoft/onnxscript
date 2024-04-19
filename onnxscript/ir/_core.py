@@ -1650,7 +1650,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
         functions: Sequence[Function] = (),
         meta_data_props: dict[str, str] | None = None,
     ) -> None:
-        self.graph: Graph = graph  # type: ignore[assignment]
+        self.graph: Graph = graph
         self.ir_version = ir_version
         self.producer_name = producer_name
         self.producer_version = producer_version
