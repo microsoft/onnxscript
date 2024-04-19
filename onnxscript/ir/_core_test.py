@@ -98,7 +98,7 @@ class TensorTest(unittest.TestCase):
         tensor = _core.Tensor(torch_tensor, dtype=_enums.DataType.FLOAT)
         self.assertEqual(tensor.tobytes(), array.tobytes())
 
-    def test_meta(self):
+    def test_metadata(self):
         array = np.random.rand(1, 2).astype(np.float32)
         tensor = _core.Tensor(array)
         tensor.meta["test"] = 1
@@ -351,6 +351,13 @@ class ValueTest(unittest.TestCase):
     def test_initialize(self):
         _ = _core.Value(None, index=0)
 
+    def test_meta(self):
+        value = _core.Value(None, index=0)
+        value.meta["test"] = 1
+        self.assertEqual(value.meta["test"], 1)
+        value.metadata_props["test"] = "any string"
+        self.assertEqual(value.metadata_props["test"], "any string")
+
     # TODO(justinchuby): Test all methods
 
 
@@ -386,33 +393,32 @@ class NodeTest(unittest.TestCase):
 
 
 class GraphTest(unittest.TestCase):
-    def test_initialize(self):
-        v0 = _core.Input(name="v0")
-        v1 = _core.Input(name="v1")
-        node = _core.Node("", "Add", inputs=(v0, v1), num_outputs=1)
-        graph = _core.Graph(
-            (v0, v1),
-            node.outputs,
-            nodes=(node,),
+    def setUp(self) -> None:
+        self.v0 = _core.Input(name="v0")
+        self.v1 = _core.Input(name="v1")
+        self.node = _core.Node("", "Add", inputs=(self.v0, self.v1), num_outputs=1)
+        self.graph = _core.Graph(
+            (self.v0, self.v1),
+            self.node.outputs,
+            nodes=(self.node,),
             opset_imports={"": 1},
         )
-        self.assertEqual(graph.inputs, [v0, v1])
-        self.assertEqual(graph.outputs, [*node.outputs])
-        self.assertEqual(graph.opset_imports, {"": 1})
-        self.assertEqual(graph.initializers, {})
-        self.assertIsNone(graph.doc_string)
+
+    def test_initialize(self):
+        self.assertEqual(self.graph.inputs, [self.v0, self.v1])
+        self.assertEqual(self.graph.outputs, [*self.node.outputs])
+        self.assertEqual(self.graph.opset_imports, {"": 1})
+        self.assertEqual(self.graph.initializers, {})
+        self.assertIsNone(self.graph.doc_string)
 
     def test_it_is_iterable_of_nodes(self):
-        v0 = _core.Input(name="v0")
-        v1 = _core.Input(name="v1")
-        node = _core.Node("", "Add", inputs=(v0, v1), num_outputs=1)
-        graph = _core.Graph(
-            (v0, v1),
-            node.outputs,
-            nodes=(node,),
-            opset_imports={"": 1},
-        )
-        self.assertEqual(list(graph), [node])
+        self.assertEqual(list(self.graph), [self.node])
+
+    def test_metadata(self):
+        self.graph.meta["test"] = 1
+        self.assertEqual(self.graph.meta["test"], 1)
+        self.graph.metadata_props["test"] = "any string"
+        self.assertEqual(self.graph.metadata_props["test"], "any string")
 
     # TODO(justinchuby): Test graph mutation methods
 
