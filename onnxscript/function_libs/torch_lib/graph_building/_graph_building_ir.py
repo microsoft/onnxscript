@@ -293,7 +293,9 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
 @runtime_typing.checked
 def _build_attribute(
     key: str,
-    value: Union[float, int, str, Sequence[float], Sequence[int], torch.Tensor],
+    value: Union[
+        float, int, str, Sequence[float], Sequence[int], torch.Tensor, ir.TensorProtocol
+    ],
 ):
     """Initializes the right attribute based on type of value."""
     if isinstance(value, float):
