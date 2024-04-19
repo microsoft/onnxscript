@@ -536,7 +536,7 @@ class OnnxFunction(Op):
         self._param_schemas = param_schemas_from_function_ir(self.function_ir)
         return self._param_schemas
 
-    def to_function_proto(self):
+    def to_function_proto(self) -> onnx.FunctionProto:
         """Converts the function into :class:`onnx.FunctionProto`."""
         return self.function_ir.to_function_proto()
 
