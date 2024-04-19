@@ -617,7 +617,9 @@ def deserialize_tensor(
     )
 
 
-def deserialize_metadata_props(proto: Sequence[onnx.StringStringEntryProto]) -> dict[str, str]:
+def deserialize_metadata_props(proto: Sequence[onnx.StringStringEntryProto]) -> dict[str, str] | None:
+    if len(proto) == 0:
+        return None
     return {entry.key: entry.value for entry in proto}
 
 
