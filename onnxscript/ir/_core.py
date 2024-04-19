@@ -232,6 +232,11 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
             return self._raw.__dlpack__(stream=stream)
         return self.__array__().__dlpack__(stream=stream)
 
+    def __dlpack_device__(self) -> tuple[int, int]:
+        if _compatible_with_dlpack(self._raw):
+            return self._raw.__dlpack_device__()
+        return self.__array__().__dlpack_device__()
+
     def __repr__(self) -> str:
         return f"{self._repr_base()}({self._raw!r})"
 
@@ -269,6 +274,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
             return array.view(array.dtype.newbyteorder("<")).tobytes()
         return array.tobytes()
 
+    @property
     def metadata_props(self) -> dict[str, str]:
         if self._metadata_props is None:
             self._metadata_props = {}

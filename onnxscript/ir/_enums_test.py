@@ -1,7 +1,9 @@
 import unittest
-from onnxscript.ir import _enums
-import onnx
+
 import numpy as np
+import onnx
+
+from onnxscript.ir import _enums
 
 
 class DataTypeTest(unittest.TestCase):
@@ -45,6 +47,7 @@ class DataTypeTest(unittest.TestCase):
         self.assertEqual(str(_enums.DataType.DOUBLE), "DOUBLE")
         self.assertEqual(repr(_enums.DataType.DOUBLE), "DOUBLE")
 
+
 class AttributeTypeTest(unittest.TestCase):
     def test_enums_are_the_same_as_spec(self):
         self.assertEqual(_enums.AttributeType.FLOAT, onnx.AttributeProto.FLOAT)
@@ -58,7 +61,9 @@ class AttributeTypeTest(unittest.TestCase):
         self.assertEqual(_enums.AttributeType.TENSORS, onnx.AttributeProto.TENSORS)
         self.assertEqual(_enums.AttributeType.GRAPHS, onnx.AttributeProto.GRAPHS)
         self.assertEqual(_enums.AttributeType.SPARSE_TENSOR, onnx.AttributeProto.SPARSE_TENSOR)
-        self.assertEqual(_enums.AttributeType.SPARSE_TENSORS, onnx.AttributeProto.SPARSE_TENSORS)
+        self.assertEqual(
+            _enums.AttributeType.SPARSE_TENSORS, onnx.AttributeProto.SPARSE_TENSORS
+        )
         self.assertEqual(_enums.AttributeType.TYPE_PROTO, onnx.AttributeProto.TYPE_PROTO)
         self.assertEqual(_enums.AttributeType.TYPE_PROTOS, onnx.AttributeProto.TYPE_PROTOS)
         self.assertEqual(_enums.AttributeType.UNDEFINED, onnx.AttributeProto.UNDEFINED)

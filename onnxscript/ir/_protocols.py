@@ -67,6 +67,10 @@ class DLPackCompatible(Protocol):
         """Return PyCapsule."""
         ...
 
+    def __dlpack_device__(self) -> Any:
+        """Return the device."""
+        ...
+
 
 @typing.runtime_checkable
 class TensorProtocol(ArrayCompatible, Protocol):

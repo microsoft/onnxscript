@@ -14,8 +14,97 @@ import numpy as np
 import onnx
 import onnx.external_data_helper
 import parameterized
+import torch
 
 from onnxscript.ir import _core, _enums
+
+
+class TensorTest(unittest.TestCase):
+    def test_initialize(self):
+        tensor = _core.Tensor(
+            np.random.rand(1, 2).astype(np.float32),
+            dtype=_enums.DataType.FLOAT,
+            shape=_core.Shape((1, 2)),
+            name="test",
+        )
+        self.assertEqual(tensor.name, "test")
+        self.assertEqual(tensor.dtype, _enums.DataType.FLOAT)
+        self.assertEqual(tensor.shape, _core.Shape((1, 2)))
+        np.testing.assert_array_equal(tensor, tensor)
+
+    def test_init_raises_when_value_is_not_array(self):
+        with self.assertRaises(TypeError):
+            _core.Tensor(42)
+
+    def test_init_requires_type_when_value_is_not_np_array(self):
+        torch_tensor = torch.tensor(42)
+        with self.assertRaises(ValueError):
+            _core.Tensor(torch_tensor)
+
+    def test_init_respects_dtype_when_it_is_provided(self):
+        array = np.random.rand(1, 2).astype(np.int8)
+        tensor = _core.Tensor(array, dtype=_enums.DataType.UINT4)
+        self.assertEqual(tensor.dtype, _enums.DataType.UINT4)
+
+    def test_initialize_with_just_np_array(self):
+        array = np.random.rand(1, 2)
+        tensor = _core.Tensor(array)
+        np.testing.assert_array_equal(tensor, array)
+
+    def test_initialize_with_torch_tensor(self):
+        array = np.random.rand(1, 2).astype(np.int64)
+        np_tensor = _core.Tensor(array)
+        torch_tensor = _core.Tensor(torch.tensor(array), dtype=_enums.DataType.INT64)
+        np.testing.assert_array_equal(torch_tensor, array)
+        np.testing.assert_array_equal(torch_tensor, np_tensor)
+
+    def test_dlpack_np_to_torch(self):
+        array = np.random.rand(1, 2).astype(np.float32)
+        tensor = _core.Tensor(array)
+        torch_tensor = torch.from_dlpack(tensor)
+        np.testing.assert_array_equal(torch_tensor, array)
+
+    def test_dlpack_torch_to_np(self):
+        torch_tensor = torch.rand(1, 2)
+        tensor = _core.Tensor(torch_tensor, dtype=_enums.DataType.FLOAT)
+        array = np.from_dlpack(tensor)
+        np.testing.assert_array_equal(array, torch_tensor)
+
+    def test_repr(self):
+        tensor = _core.Tensor(np.random.rand(1, 2).astype(np.float32))
+        self.assertIsInstance(repr(tensor), str)
+
+    def test_dtype_returns_data_type_enum(self):
+        tensor = _core.Tensor(np.random.rand(1, 2).astype(np.float32))
+        self.assertEqual(tensor.dtype, _enums.DataType.FLOAT)
+
+    def test_shape(self):
+        tensor = _core.Tensor(np.random.rand(1, 2).astype(np.float32))
+        self.assertEqual(tensor.shape, _core.Shape((1, 2)))
+
+    def test_numpy_returns_np_array(self):
+        array = np.random.rand(1, 2).astype(np.float32)
+        tensor = _core.Tensor(array)
+        np.testing.assert_equal(tensor.numpy(), array)
+
+    def test_numpy_returns_data_when_dtype_is_not_supported(self):
+        array = np.array([1], dtype=np.int8)
+        tensor = _core.Tensor(array, dtype=_enums.DataType.INT4)
+        np.testing.assert_equal(tensor.numpy(), array)
+
+    def test_tobytes(self):
+        array = np.random.rand(1, 2).astype(np.float32)
+        torch_tensor = torch.tensor(array)
+        tensor = _core.Tensor(torch_tensor, dtype=_enums.DataType.FLOAT)
+        self.assertEqual(tensor.tobytes(), array.tobytes())
+
+    def test_meta(self):
+        array = np.random.rand(1, 2).astype(np.float32)
+        tensor = _core.Tensor(array)
+        tensor.meta["test"] = 1
+        self.assertEqual(tensor.meta["test"], 1)
+        tensor.metadata_props["test"] = "any string"
+        self.assertEqual(tensor.metadata_props["test"], "any string")
 
 
 class ExternalTensorTest(unittest.TestCase):
