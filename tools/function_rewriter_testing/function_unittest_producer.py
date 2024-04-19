@@ -21,6 +21,7 @@ import onnx
 import onnx.inliner
 import onnxruntime
 from onnx import helper as onnx_helper
+from onnx import numpy_helper
 
 from onnxscript import _legacy_ir as ir
 from onnxscript._legacy_ir import visitor
@@ -31,8 +32,6 @@ logger = logging.getLogger(__name__)
 
 # Copied from common.py from pytorch torchbench
 def save_tensor_data(numpy_tensor, output_path: str):
-    from onnx import numpy_helper
-
     proto_tensor = numpy_helper.from_array(numpy_tensor)
     with open(output_path, "wb") as f:
         f.write(proto_tensor.SerializeToString())
@@ -132,6 +131,18 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
         # Example intermediate data values
         self._named_values: dict[str, np.ndarray] = {}
         super().__init__()
+
+    @property
+    def unit_model_protos(self) -> list[onnx.ModelProto]:
+        return self._unit_model_protos
+
+    @property
+    def unit_model_inputs(self):
+        return self._unit_model_inputs
+
+    @property
+    def unit_model_outputs(self):
+        return self._unit_model_outputs
 
     def find_all_called_function_protos(
         self, function: onnx.FunctionProto
@@ -283,9 +294,9 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
             )
         return super().lookup(name)
 
-    def visit_model(self, model_proto: onnx.ModelProto):
+    def visit_model(self, model: onnx.ModelProto):
         functions_to_keep_visitor = FunctionToKeepVisitor(self.function_keyword)
-        functions_to_keep_visitor.visit_model(model_proto)
+        functions_to_keep_visitor.visit_model(model)
         functions_to_keep = functions_to_keep_visitor.functions_to_keep
         # TODO: bug report: IsScalar function inside if subgraph is not part of functions_to_keep.
         # Yet it is also not inlined. But its function_proto is removed by inliner.
@@ -294,7 +305,7 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
         # TODO: Post ONNX 1.16, overload will be introduced.
         functions_to_keep = [function_id[:2] for function_id in functions_to_keep]
         inlined_model_proto = onnx.inliner.inline_selected_functions(
-            model_proto, functions_to_keep, exclude=True
+            model, functions_to_keep, exclude=True
         )
         target_function_meta_visitor = TargetFunctionMetaVisitor(self.function_keyword)
         target_function_meta_visitor.visit_model(inlined_model_proto)
@@ -317,8 +328,8 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
 
         model_path = self.model_path
         model_dir = os.path.dirname(model_path)
-        inputs, expected_outputs = evaluation_utils.load_test_data(  # type: ignore[assignment]
-            model_dir, [i.name for i in model_proto.graph.input]
+        inputs, _ = evaluation_utils.load_test_data(  # type: ignore[assignment]
+            model_dir, [i.name for i in model.graph.input]
         )
         tmp_model_path = f"{model_dir}/tmp_model.onnx"
         onnx.save(inlined_model_proto, tmp_model_path)
@@ -383,9 +394,9 @@ def produce_function_proto_unittest(
 
     producer.visit_model(model_proto)
     return (
-        producer._unit_model_protos,
-        producer._unit_model_inputs,
-        producer._unit_model_outputs,
+        producer.unit_model_protos,
+        producer.unit_model_inputs,
+        producer.unit_model_outputs,
     )
 
 
@@ -433,9 +444,7 @@ def main():
 
 
 if __name__ == "__main__":
-    """
-    python onnxscript/rewriter/onnxruntime/transformers/tools/function_unittest_producer.py \
-        --model_path tools/ort_rewriter_profiling/onnx_models/stable_diffusion_unet/dynamo/stable_diffusion_unet_dynamo.onnx \
-        --function GEGLU --output-dir testdata/unittest_models/ --max_outputs 4 --name geglu_stable_diffusion_unet
-    """
+    # python tools/function_rewriter_testing/function_unittest_producer.py \
+    #    --model_path tools/ort_rewriter_profiling/onnx_models/stable_diffusion_unet/dynamo/stable_diffusion_unet_dynamo.onnx \
+    #    --function GEGLU --output-dir testdata/unittest_models/ --max_outputs 4 --name geglu_stable_diffusion_unet
     main()
