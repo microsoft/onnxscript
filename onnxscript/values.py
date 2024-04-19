@@ -23,7 +23,7 @@ import onnx
 import onnx.defs
 
 from onnxscript import converter as converter_module
-from onnxscript import irbuilder, sourceinfo, type_annotation
+from onnxscript import irbuilder, sourceinfo, type_annotation, ir
 from onnxscript._internal import ast_utils, deprecation
 
 _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
@@ -210,15 +210,15 @@ def _param_schema_from_function_ir_input(input: irbuilder.IRVar):
     return ParamSchema(name=input.name, type=input.typeinfo, is_input=True, required=required)
 
 
-def _param_schema_from_function_ir_attr(attr: irbuilder.IRAttributeParameter):
+def _param_schema_from_function_ir_attr(attr: ir.Attr):
     return ParamSchema(
         name=attr.name,
         type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE.get(
             onnx.defs.OpSchema.AttrType(attr.type)  # type: ignore[call-arg]
         ),
-        default=_EmptyDefault if attr.default_value is None else attr.default_value,
+        default=_EmptyDefault if attr.value is None else attr.value,
         is_input=False,
-        required=not attr.has_default,
+        required=attr.value is not None,
     )
 
 
@@ -237,7 +237,7 @@ def param_schemas_from_function_ir(
         if isinstance(arg, irbuilder.IRVar):
             # input
             schemas.append(_param_schema_from_function_ir_input(arg))
-        elif isinstance(arg, irbuilder.IRAttributeParameter):
+        elif isinstance(arg, ir.Attr):
             # attr
             schemas.append(_param_schema_from_function_ir_attr(arg))
         else:
