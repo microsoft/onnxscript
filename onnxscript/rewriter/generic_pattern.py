@@ -849,11 +849,12 @@ class FunctionPattern(GenericPattern):
 
     It defines the matching pattern and its replacement.
 
-    :param match_pattern: the onnx ir function defining the matching pattern
-    :param apply_pattern: the onnx ir function defining the new pattern
-    :param validate_mapping: the function used to validate a pattern
-    :param verbose: in [0, 10], increase the verbosity to understand why a pattern
-        does not match
+    Args:
+        match_pattern: the onnx ir function defining the matching pattern
+        apply_pattern: the onnx ir function defining the new pattern
+        validate_mapping: the function used to validate a pattern
+        verbose: in [0, 10], increase the verbosity to understand why a pattern
+            does not match
 
     """
 
