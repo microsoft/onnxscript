@@ -1110,10 +1110,10 @@ class RewriteRuleSet:
         return count
 
     def _count_matches_in_graph_or_function(
-        self, model: ir.Model, graph_or_funciton: ir.Graph | ir.Function
+        self, model: ir.Model, graph_or_function: ir.Graph | ir.Function
     ) -> int:
         count = 0
-        for node in graph_or_funciton:
+        for node in graph_or_function:
             for rule in self.rules:
                 if rule.matches(node, model):
                     count += 1
