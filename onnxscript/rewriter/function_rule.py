@@ -8,8 +8,8 @@ from packaging import version
 
 import onnxscript
 from onnxscript import ir
-from onnxscript._legacy_ir import visitor
 from onnxscript.rewriter import pattern
+from onnxscript.ir import serde
 
 logger = logging.getLogger(__name__)
 
@@ -94,12 +94,11 @@ class FunctionRewriteRule(pattern.RewriteRule):
 
     _opset_imports: dict[str, int]
     onnx_opset: onnxscript.values.Opset
-    _function_shape_env: visitor.FunctionShapeEnv
 
     def __init__(self, opset: onnxscript.values.Opset = onnxscript.opset18) -> None:
         self.onnx_opset = opset
 
-    def _match_function(self, function: onnx.FunctionProto, pkg_name: str) -> bool:
+    def _match_function(self, function: ir.Function, pkg_name: str) -> bool:
         # TODO: Consolidate more checks from `compose_new_function` to here.
         if pkg_name != self.PACKAGE_NAME:
             logger.info(
@@ -111,7 +110,6 @@ class FunctionRewriteRule(pattern.RewriteRule):
                 pkg_name,
             )
             return False
-
         if isinstance(self.FUNCTION_KEYWORD, str):
             return function.name.find(self.FUNCTION_KEYWORD) != -1
         elif isinstance(self.FUNCTION_KEYWORD, tuple):
@@ -149,7 +147,7 @@ class FunctionRewriteRule(pattern.RewriteRule):
         return None
 
     def compose_new_function(
-        self, old_function: onnx.FunctionProto, pkg_version: version.Version | None
+        self, old_function: ir.Function, pkg_version: version.Version | None
     ) -> tuple[onnx.FunctionProto, tuple[onnx.OperatorSetIdProto]]:
         """Compose a new function from the old function.
 
@@ -167,7 +165,7 @@ class FunctionRewriteRule(pattern.RewriteRule):
         )
 
     def try_rewrite_function(
-        self, function: onnx.FunctionProto, model: onnx.ModelProto
+        self, function: ir.Function, model: ir.Model
     ) -> bool:
         try:
             pkg_name, pkg_version = parse_domain(function.domain)
@@ -192,22 +190,21 @@ class FunctionRewriteRule(pattern.RewriteRule):
             function.domain,
             function.name,
         )
-
         try:
             new_function, opset_imports = self.compose_new_function(function, pkg_version)
         except FunctionRewriteError as e:
             logger.warning("Could not rewrite function: %s", e)
             return False
 
-        nodes = new_function.node
+        new_function = serde.deserialize_function(new_function)
+        import pdb; pdb.set_trace()
 
-        del function.input[:]
-        function.input.extend(new_function.input)
-        del function.output[:]
-        function.output.extend(new_function.output)
+        function.inputs[:] = new_function.inputs
+        function.outputs[:] = new_function.outputs
 
-        del function.node[:]
-        function.node.extend(nodes)
+        # TODO: Ask Justin about this.
+        del function.nodes[:]
+        function.nodes.extend(nodes)
         for new_opset in opset_imports:
             function.opset_import.append(new_opset)
             if new_opset.domain not in self._opset_imports:
@@ -219,22 +216,15 @@ class FunctionRewriteRule(pattern.RewriteRule):
             "Use `try_rewrite_function` instead for function based rewrites."
         )
 
-    def lookup(self, function: onnx.FunctionProto, value_name: str) -> ir.Value | None:
-        return self._function_shape_env.lookup(function, value_name)
-
     def apply_to_model(
         self, model: ir.Model, *, commute: bool = False
     ) -> tuple[int, ir.Model]:
         del commute  # unused
-        model_proto: onnx.ModelProto = ir.serde.serialize_model(model)
-        self._function_shape_env = visitor.FunctionShapeEnv()
-        self._function_shape_env.load_from_model_proto(model_proto)
-        self._opset_imports = {x.domain: x.version for x in model_proto.opset_import}
+        self._opset_imports = model.opset_imports
 
         rewrite_count = 0
-        for function in model_proto.functions:
-            rewrite_count += self.try_rewrite_function(function, model_proto)
-        model = ir.serde.deserialize_model(model_proto)
+        for function in model.functions.values():
+            rewrite_count += self.try_rewrite_function(function, model)
         return rewrite_count, model
 
     def count_matches(self, model, *, commute: bool = False) -> int:

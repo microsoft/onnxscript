@@ -56,6 +56,8 @@ from onnx import helper as onnx_helper
 import onnxscript
 from onnxscript.rewriter import function_rule
 
+from onnxscript import ir
+
 logger = logging.getLogger(__name__)
 
 
@@ -68,23 +70,19 @@ class AttnSizeConfig:
 
 
 class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
-    def infer_attn_size_config(self, function: onnx.FunctionProto) -> AttnSizeConfig:
-        if len(function.output) != 3:
+    def infer_attn_size_config(self, function: ir.Function) -> AttnSizeConfig:
+        if len(function.outputs) != 3:
             raise function_rule.FunctionRewriteError(
-                f"Unexpected number of outputs. Expected 3, got {len(function.output)}."
+                f"Unexpected number of outputs. Expected 3, got {len(function.outputs)}."
             )
-        present_value, _, attn_output = function.output
-        if (
-            present_value_ir := self.lookup(function, present_value)
-        ) is None or present_value_ir.shape is None:
+        present_value, _, attn_output = function.outputs
+        if present_value.shape is None:
             raise function_rule.FunctionRewriteError("Failed to find shape for present_value.")
-        if (
-            attn_output_ir := self.lookup(function, attn_output)
-        ) is None or attn_output_ir.shape is None:
+        if attn_output.shape is None:
             raise function_rule.FunctionRewriteError("Failed to find shape for attn_output.")
-        head_size = present_value_ir.shape[3]
-        num_key_value_heads = present_value_ir.shape[1]
-        hidden_size = attn_output_ir.shape[2]
+        head_size = present_value.shape[3]
+        num_key_value_heads = present_value.shape[1]
+        hidden_size = attn_output.shape[2]
         num_attention_heads = hidden_size // head_size
         return AttnSizeConfig(
             num_attention_heads=num_attention_heads,
@@ -542,7 +540,7 @@ class AttnPhi15RewriteRule(AttentionRewriteRule):
 
     @_version_controller.register_version()
     def _fusion(
-        self, function: onnx.FunctionProto
+        self, function: ir.Function
     ) -> tuple[onnx.FunctionProto, tuple[onnx.OperatorSetIdProto]]:
         # Infer size configurations from the function.
         attn_size_config = self.infer_attn_size_config(function)
@@ -604,7 +602,7 @@ class AttnPhi15RewriteRule(AttentionRewriteRule):
         ).to_function_proto(), (onnx.helper.make_operatorsetid("com.microsoft", 1),)
 
 
-class AttnPhi15RewriteRule(AttentionRewriteRule):
+class AttnStableDiffusionUnetRewriteRule(AttentionRewriteRule):
     FUNCTION_KEYWORD = "Attention"
     PACKAGE_NAME = "diffusers"
     _version_controller = function_rule.VersionController()
@@ -616,8 +614,6 @@ class AttnPhi15RewriteRule(AttentionRewriteRule):
     def _fusion(
         self, function: onnx.FunctionProto
     ) -> tuple[onnx.FunctionProto, tuple[onnx.OperatorSetIdProto]]:
-
-        import pdb; pdb.set_trace()
 
         # Infer size configurations from the function.
         attn_size_config = self.infer_attn_size_config(function)
