@@ -105,14 +105,15 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
         onnxscript_tensor.Tensor.__init__(self, None)
         ir.Value.__init__(self, producer, index=index, name=name)
         self._is_complex: bool = False
+        self._concrete_value = None
 
-    @property  # type: ignore[override]
+    @property
     def value(self) -> Optional[np.ndarray]:
-        raise NotImplementedError("value is not supported for TorchScriptTensor.")
+        return self._concrete_value
 
     @value.setter
-    def value(self, _: np.ndarray):
-        raise NotImplementedError("value is not supported for TorchScriptTensor.")
+    def value(self, value: np.ndarray) -> None:
+        self._concrete_value = value
 
     @property  # type: ignore[override]
     def rank(self) -> int | None:
