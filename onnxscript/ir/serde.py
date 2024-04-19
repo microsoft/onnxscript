@@ -483,7 +483,9 @@ def deserialize_value_info_proto(
         value.name = proto.name
     value.shape = deserialize_type_proto_for_shape(proto.type)
     value.type = deserialize_type_proto_for_type(proto.type)
-    value.metadata_props.update(deserialize_metadata_props(proto.metadata_props))
+    metadata_props = deserialize_metadata_props(proto.metadata_props)
+    if metadata_props is not None:
+        value.metadata_props.update(metadata_props)
     return value
 
 
