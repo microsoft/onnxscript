@@ -54,18 +54,22 @@ ValidInputType: TypeAlias = Union[
 ]
 
 _TORCH_DTYPE_TO_ONNX: dict[torch.dtype, ir.DataType] = {
+    torch.bfloat16: ir.DataType.BFLOAT16,
+    torch.bool: ir.DataType.BOOL,
+    torch.complex128: ir.DataType.COMPLEX128,
+    torch.complex64: ir.DataType.COMPLEX64,
+    torch.float16: ir.DataType.FLOAT16,
     torch.float32: ir.DataType.FLOAT,
     torch.float64: ir.DataType.DOUBLE,
-    torch.float16: ir.DataType.FLOAT16,
-    torch.int8: ir.DataType.INT8,
+    torch.float8_e4m3fn: ir.DataType.FLOAT8E4M3FN,
+    torch.float8_e4m3fnuz: ir.DataType.FLOAT8E4M3FNUZ,
+    torch.float8_e5m2: ir.DataType.FLOAT8E5M2,
+    torch.float8_e5m2fnuz: ir.DataType.FLOAT8E5M2FNUZ,
     torch.int16: ir.DataType.INT16,
     torch.int32: ir.DataType.INT32,
     torch.int64: ir.DataType.INT64,
+    torch.int8: ir.DataType.INT8,
     torch.uint8: ir.DataType.UINT8,
-    torch.bool: ir.DataType.BOOL,
-    torch.complex64: ir.DataType.COMPLEX64,
-    torch.complex128: ir.DataType.COMPLEX128,
-    torch.bfloat16: ir.DataType.BFLOAT16,
 }
 
 
@@ -78,7 +82,7 @@ class _TorchTensor(ir.Tensor):  # pylint: disable=too-many-ancestors
         super().__init__(tensor, dtype=_torch_dtype_to_onnx_dtype(tensor.dtype))
 
     def tobytes(self) -> bytes:
-        # Support more types than np types like bfloat16
+        # Support native PyTorch types so we can use types like bloat16
         assert isinstance(self.raw, torch.Tensor)
         tensor = self.raw.detach().cpu().contiguous()
         return bytes(
@@ -447,7 +451,7 @@ class TorchScriptGraph:
             value = None
         else:
             value = TorchScriptTensor(name=input_name)
-            value.shape = shape  # type: ignore[arg-type]
+            value.shape = shape  # type: ignore[arg-type,assignment]
             if dtype is not None:
                 value.dtype = dtype  # type: ignore[assignment]
             # TODO(titaiwang): This approach loses the information that "same SymInts
