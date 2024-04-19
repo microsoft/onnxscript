@@ -471,7 +471,6 @@ def graph_executor(
                     torch.tensor(arg).shape,
                     torch.tensor(arg).dtype,
                 )
-                input.value = arg
                 onnxscript_args.append(input)
                 ort_inputs[input_name] = arg
             elif isinstance(arg, (list, tuple)):
@@ -480,12 +479,12 @@ def graph_executor(
                 for j, subarg in enumerate(arg):
                     if isinstance(subarg, np.ndarray):
                         input_name = f"input_{i}_{j}"
+                        tensor = torch.tensor(subarg)
                         input = onnxscript_graph.add_input(
                             input_name,
-                            torch.tensor(subarg).shape,
-                            torch.tensor(subarg).dtype,
+                            tensor.shape,
+                            tensor.dtype,
                         )
-                        input.value = subarg
                         sequence_input.append(input)
                         ort_inputs[input_name] = subarg
                     else:
@@ -502,7 +501,6 @@ def graph_executor(
                     torch.tensor(value).shape,
                     torch.tensor(value).dtype,
                 )
-                input.value = value
                 ort_inputs[key] = value
                 onnxscript_kwargs[key] = input
             else:
