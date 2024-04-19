@@ -201,6 +201,11 @@ class ExternalTensorTest(unittest.TestCase):
 
 
 class SymbolicDimTest(unittest.TestCase):
+    def test_init_raises_when_value_is_int(self):
+        # Static dimensions should be python integers
+        with self.assertRaises(TypeError):
+            _core.SymbolicDim(42)
+
     @parameterized.parameterized.expand([("str", "any string"), ("None", None)])
     def test_equality_with_other_dimensions(self, _: str, value: Any):
         dim1 = _core.SymbolicDim(value)

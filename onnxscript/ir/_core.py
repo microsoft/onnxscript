@@ -451,6 +451,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
             self._metadata = _metadata.MetadataStore()
         return self._metadata
 
+
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
     __slots__ = ("_value",)
 
@@ -488,7 +489,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
 
     def __init__(
         self,
-        dims: Iterable[int | SymbolicDim | Any],
+        dims: Iterable[int | SymbolicDim | str | None],
         /,
         denotations: Iterable[str | None] | None = None,
         frozen: bool = False,
@@ -547,7 +548,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
     def __getitem__(self, index: int) -> int | SymbolicDim:
         return self._dims[index]
 
-    def __setitem__(self, index: int, value: int | SymbolicDim) -> None:
+    def __setitem__(self, index: int, value: int | SymbolicDim | str | None) -> None:
         """Set the dimension at the index.
 
         Args:
