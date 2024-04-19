@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import typing
 from typing import (
-    AbstractSet,
     Any,
+    Collection,
     Iterable,
     Iterator,
     Mapping,
@@ -61,6 +61,10 @@ class DLPackCompatible(Protocol):
         """Return PyCapsule."""
         ...
 
+    def __dlpack_device__(self) -> Any:
+        """Return the device."""
+        ...
+
 
 @typing.runtime_checkable
 class TensorProtocol(ArrayCompatible, Protocol):
@@ -85,6 +89,8 @@ class TensorProtocol(ArrayCompatible, Protocol):
         raw: The raw data behind this tensor. It can be anything.
         size: The number of elements in the tensor.
         nbytes: The number of bytes in the tensor.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     name: str
@@ -93,6 +99,7 @@ class TensorProtocol(ArrayCompatible, Protocol):
     doc_string: str | None
     raw: Any
     metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
     @property
     def size(self) -> int: ...
@@ -138,7 +145,8 @@ class ValueProtocol(Protocol):
         name: The name of the value. A value is always named when it is part of a graph.
         shape: The shape of the value.
         type: The type of the value.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     name: str
@@ -155,7 +163,7 @@ class ValueProtocol(Protocol):
         """The index of the output of the node that produces this value."""
         ...
 
-    def consumers(self) -> AbstractSet[tuple[NodeProtocol, int]]:
+    def consumers(self) -> Collection[tuple[NodeProtocol, int]]:
         """The set of (node, input_index) with node being those that use this value as an input."""
         ...
 
@@ -201,7 +209,8 @@ class NodeProtocol(Protocol):
         attributes: The attributes of the operator.
         version: The version of the operator.
         doc_string: Documentation string.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     name: str | None
@@ -230,29 +239,32 @@ class GraphProtocol(Protocol):
     allows different subgraphs to import different opsets. It is the responsibility
     of the deserializer to reconcile the different opsets.
 
-    The :attr:`nodes` are not guaranteed to be topologically sorted. But the
+    The nodes are not guaranteed to be topologically sorted. But the
     iteration order should be deterministic across different runs. It is the
     responsibility of the user to maintain a topological order of the nodes.
+
+    Note that there is not a ``node`` attribute in the Graph. The Graph can be
+    seen as a Sequence of nodes and should be used as such. For example, to obtain
+    all nodes as a list, call ``list(graph)``.
 
     Attributes:
         name: The name of the graph.
         inputs: The input values of the graph.
         outputs: The output values of the graph.
-        nodes: All nodes this graph directly owns. They do not have to be sorted.
         initializers: The initializers in the graph.
         doc_string: Documentation string.
         opset_imports: Opsets imported by the graph.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     # TODO(justinchuby): Support quantization_annotation
     name: str | None
     inputs: MutableSequence[ValueProtocol]
     outputs: MutableSequence[ValueProtocol]
-    nodes: Sequence[NodeProtocol]
-    initializers: Mapping[str, TensorProtocol]
+    initializers: MutableMapping[str, TensorProtocol]
     doc_string: str
-    opset_imports: Mapping[str, int]
+    opset_imports: MutableMapping[str, int]
     metadata_props: MutableMapping[str, str]
     meta: MutableMapping[str, Any]
 
@@ -300,17 +312,16 @@ class GraphViewProtocol(Protocol):
         name: The name of the graph.
         inputs: The input values of the graph.
         outputs: The output values of the graph.
-        nodes: All nodes this graph directly owns. They do not have to be sorted.
         initializers: The initializers in the graph.
         doc_string: Documentation string.
         opset_imports: Opsets imported by the graph.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     name: str | None
     inputs: Sequence[ValueProtocol]
     outputs: Sequence[ValueProtocol]
-    nodes: Sequence[NodeProtocol]
     initializers: Mapping[str, TensorProtocol]
     doc_string: str
     opset_imports: Mapping[str, int]
@@ -339,7 +350,8 @@ class ModelProtocol(Protocol):
         model_version: The version of the model.
         doc_string: Documentation string.
         functions: The functions defined in the model.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     graph: GraphProtocol
@@ -349,9 +361,9 @@ class ModelProtocol(Protocol):
     domain: str | None
     model_version: int | None
     doc_string: str | None
-    functions: Mapping[str, FunctionProtocol]
+    functions: MutableMapping[str, FunctionProtocol]
     # TODO(justinchuby): Add training_info
-    opset_imports: Mapping[str, int]
+    opset_imports: MutableMapping[str, int]
     metadata_props: MutableMapping[str, str]
     meta: MutableMapping[str, Any]
 
@@ -485,6 +497,10 @@ class FunctionProtocol(Protocol):
     Like a graph, a function can have nodes that are not topologically sorted. It is
     the responsibility of the user to maintain a topological order of the nodes.
 
+    Note that there is not a ``node`` attribute in the Function. The Function can be
+    seen as a Sequence of nodes and should be used as such. For example, to obtain
+    all nodes as a list, call ``list(function)``.
+
     Attributes:
         name: The function name.
         domain: The domain this function is defined in.
@@ -494,8 +510,8 @@ class FunctionProtocol(Protocol):
         outputs: The output values of the function.
         opset_imports: Opsets imported by the function.
         doc_string: Documentation string.
-        nodes: All nodes this function directly owns. They do not have to be sorted.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     name: str
@@ -505,8 +521,7 @@ class FunctionProtocol(Protocol):
     attributes: OrderedDict[str, AttributeProtocol]
     outputs: Sequence[ValueProtocol]
     doc_string: str
-    opset_imports: Mapping[str, int]
-    nodes: Sequence[NodeProtocol]
+    opset_imports: MutableMapping[str, int]
     metadata_props: MutableMapping[str, str]
     meta: MutableMapping[str, Any]
 

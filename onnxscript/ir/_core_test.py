@@ -13,8 +13,97 @@ import numpy as np
 import onnx
 import onnx.external_data_helper
 import parameterized
+import torch
 
 from onnxscript.ir import _core, _enums
+
+
+class TensorTest(unittest.TestCase):
+    def test_initialize(self):
+        tensor = _core.Tensor(
+            np.random.rand(1, 2).astype(np.float32),
+            dtype=_enums.DataType.FLOAT,
+            shape=_core.Shape((1, 2)),
+            name="test",
+        )
+        self.assertEqual(tensor.name, "test")
+        self.assertEqual(tensor.dtype, _enums.DataType.FLOAT)
+        self.assertEqual(tensor.shape, _core.Shape((1, 2)))
+        np.testing.assert_array_equal(tensor, tensor)
+
+    def test_init_raises_when_value_is_not_array(self):
+        with self.assertRaises(TypeError):
+            _core.Tensor(42)
+
+    def test_init_requires_type_when_value_is_not_np_array(self):
+        torch_tensor = torch.tensor(42)
+        with self.assertRaises(ValueError):
+            _core.Tensor(torch_tensor)
+
+    def test_init_respects_dtype_when_it_is_provided(self):
+        array = np.random.rand(1, 2).astype(np.int8)
+        tensor = _core.Tensor(array, dtype=_enums.DataType.UINT4)
+        self.assertEqual(tensor.dtype, _enums.DataType.UINT4)
+
+    def test_initialize_with_just_np_array(self):
+        array = np.random.rand(1, 2)
+        tensor = _core.Tensor(array)
+        np.testing.assert_array_equal(tensor, array)
+
+    def test_initialize_with_torch_tensor(self):
+        array = np.random.rand(1, 2).astype(np.int64)
+        np_tensor = _core.Tensor(array)
+        torch_tensor = _core.Tensor(torch.tensor(array), dtype=_enums.DataType.INT64)
+        np.testing.assert_array_equal(torch_tensor, array)
+        np.testing.assert_array_equal(torch_tensor, np_tensor)
+
+    def test_dlpack_np_to_torch(self):
+        array = np.random.rand(1, 2).astype(np.float32)
+        tensor = _core.Tensor(array)
+        torch_tensor = torch.from_dlpack(tensor)
+        np.testing.assert_array_equal(torch_tensor, array)
+
+    def test_dlpack_torch_to_np(self):
+        torch_tensor = torch.rand(1, 2)
+        tensor = _core.Tensor(torch_tensor, dtype=_enums.DataType.FLOAT)
+        array = np.from_dlpack(tensor)
+        np.testing.assert_array_equal(array, torch_tensor)
+
+    def test_repr(self):
+        tensor = _core.Tensor(np.random.rand(1, 2).astype(np.float32))
+        self.assertIsInstance(repr(tensor), str)
+
+    def test_dtype_returns_data_type_enum(self):
+        tensor = _core.Tensor(np.random.rand(1, 2).astype(np.float32))
+        self.assertEqual(tensor.dtype, _enums.DataType.FLOAT)
+
+    def test_shape(self):
+        tensor = _core.Tensor(np.random.rand(1, 2).astype(np.float32))
+        self.assertEqual(tensor.shape, _core.Shape((1, 2)))
+
+    def test_numpy_returns_np_array(self):
+        array = np.random.rand(1, 2).astype(np.float32)
+        tensor = _core.Tensor(array)
+        np.testing.assert_equal(tensor.numpy(), array)
+
+    def test_numpy_returns_data_when_dtype_is_not_supported(self):
+        array = np.array([1], dtype=np.int8)
+        tensor = _core.Tensor(array, dtype=_enums.DataType.INT4)
+        np.testing.assert_equal(tensor.numpy(), array)
+
+    def test_tobytes(self):
+        array = np.random.rand(1, 2).astype(np.float32)
+        torch_tensor = torch.tensor(array)
+        tensor = _core.Tensor(torch_tensor, dtype=_enums.DataType.FLOAT)
+        self.assertEqual(tensor.tobytes(), array.tobytes())
+
+    def test_metadata(self):
+        array = np.random.rand(1, 2).astype(np.float32)
+        tensor = _core.Tensor(array)
+        tensor.meta["test"] = 1
+        self.assertEqual(tensor.meta["test"], 1)
+        tensor.metadata_props["test"] = "any string"
+        self.assertEqual(tensor.metadata_props["test"], "any string")
 
 
 class ExternalTensorTest(unittest.TestCase):
@@ -243,35 +332,76 @@ class ValueTest(unittest.TestCase):
     def test_initialize(self):
         _ = _core.Value(None, index=0)
 
+    def test_meta(self):
+        value = _core.Value(None, index=0)
+        value.meta["test"] = 1
+        self.assertEqual(value.meta["test"], 1)
+        value.metadata_props["test"] = "any string"
+        self.assertEqual(value.metadata_props["test"], "any string")
+
+    # TODO(justinchuby): Test all methods
+
 
 class NodeTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.v0 = _core.Value(None, index=None)
+        self.v1 = _core.Value(None, index=None)
+        self.node = _core.Node("test", "TestOp", inputs=(self.v0, self.v1), num_outputs=3)
+
     def test_initialize_with_values(self):
-        v0 = _core.Value(None, index=None)
-        v1 = _core.Value(None, index=None)
-        node = _core.Node("test", "TestOp", inputs=(v0, v1), num_outputs=3)
-        self.assertEqual(node.domain, "test")
-        self.assertEqual(node.op_type, "TestOp")
-        self.assertEqual(node.inputs, (v0, v1))
-        self.assertEqual(len(node.outputs), 3)
-        self.assertEqual(node.attributes, {})
+        self.assertEqual(self.node.domain, "test")
+        self.assertEqual(self.node.op_type, "TestOp")
+        self.assertEqual(self.node.inputs, (self.v0, self.v1))
+        self.assertEqual(len(self.node.outputs), 3)
+        self.assertEqual(self.node.attributes, {})
+
+    def test_metadata(self):
+        self.node.meta["test"] = 1
+        self.assertEqual(self.node.meta["test"], 1)
+        self.node.metadata_props["test"] = "any string"
+        self.assertEqual(self.node.metadata_props["test"], "any string")
+
+    def test_it_is_added_to_a_graph_if_specified(self):
+        graph = _core.Graph(
+            (self.v0, self.v1),  # type: ignore
+            self.node.outputs,
+            nodes=(self.node,),
+            opset_imports={"": 1},
+        )
+        self.assertIn(self.node, graph)
+
+    # TODO(justinchuby): Test all methods
 
 
 class GraphTest(unittest.TestCase):
-    def test_initialize(self):
-        v0 = _core.Input(name="v0")
-        v1 = _core.Input(name="v1")
-        node = _core.Node("", "Add", inputs=(v0, v1), num_outputs=1)
-        graph = _core.Graph(
-            (v0, v1),
-            node.outputs,
-            nodes=(node,),
+    def setUp(self) -> None:
+        self.v0 = _core.Input(name="v0")
+        self.v1 = _core.Input(name="v1")
+        self.node = _core.Node("", "Add", inputs=(self.v0, self.v1), num_outputs=1)
+        self.graph = _core.Graph(
+            (self.v0, self.v1),
+            self.node.outputs,
+            nodes=(self.node,),
             opset_imports={"": 1},
         )
-        self.assertEqual(graph.inputs, [v0, v1])
-        self.assertEqual(graph.outputs, [*node.outputs])
-        self.assertEqual(graph.opset_imports, {"": 1})
-        self.assertEqual(graph.initializers, {})
-        self.assertIsNone(graph.doc_string)
+
+    def test_initialize(self):
+        self.assertEqual(self.graph.inputs, [self.v0, self.v1])
+        self.assertEqual(self.graph.outputs, [*self.node.outputs])
+        self.assertEqual(self.graph.opset_imports, {"": 1})
+        self.assertEqual(self.graph.initializers, {})
+        self.assertIsNone(self.graph.doc_string)
+
+    def test_it_is_iterable_of_nodes(self):
+        self.assertEqual(list(self.graph), [self.node])
+
+    def test_metadata(self):
+        self.graph.meta["test"] = 1
+        self.assertEqual(self.graph.meta["test"], 1)
+        self.graph.metadata_props["test"] = "any string"
+        self.assertEqual(self.graph.metadata_props["test"], "any string")
+
+    # TODO(justinchuby): Test graph mutation methods
 
 
 if __name__ == "__main__":

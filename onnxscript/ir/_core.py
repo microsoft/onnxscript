@@ -24,6 +24,7 @@ import textwrap
 import typing
 from typing import (
     Any,
+    Collection,
     Generic,
     Iterable,
     Iterator,
@@ -104,7 +105,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         if rich is None:
             status_manager = contextlib.nullcontext()
         else:
-            import rich.status  # pylint: disable=import-outside-toplevel
+            import rich.status  # type: ignore[import-not-found, no-redef]  # pylint: disable=import-outside-toplevel
 
             status_manager = rich.status.Status(f"Computing tensor stats for {self!r}")
 
@@ -148,7 +149,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         if rich is None:
             print(text)
         elif page:
-            import rich.console  # pylint: disable=import-outside-toplevel
+            import rich.console  # type: ignore[import-not-found, no-redef]  # pylint: disable=import-outside-toplevel
 
             console = rich.console.Console()
             with console.pager(styles=True):
@@ -160,18 +161,36 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
 class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
     """An immutable concrete value."""
 
-    __slots__ = ("_raw", "_dtype", "_shape", "name", "doc_string", "_metadata_props")
+    __slots__ = (
+        "_raw",
+        "_dtype",
+        "_shape",
+        "name",
+        "doc_string",
+        "_metadata_props",
+        "_metadata",
+    )
 
     def __init__(
         self,
         value: TArrayCompatible,
-        dtype: _enums.DataType,
+        dtype: _enums.DataType | None = None,
         *,
         shape: Shape | None = None,
         name: str = "",
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
     ) -> None:
+        """Initialize a tensor.
+
+        Args:
+            value: The backing data of the tensor. It can be a numpy array or a DLPack compatible object.
+            dtype: The data type of the tensor. It can be None only when value is a numpy array.
+            shape: The shape of the tensor. If None, the shape is obtained from the value.
+            name: The name of the tensor.
+            doc_string: The documentation string.
+            metadata_props: The metadata properties.
+        """
         # NOTE: We should not do any copying here for performance reasons
         if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
             raise TypeError(f"Expected an array compatible object, got {type(value)}")
@@ -185,10 +204,19 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         else:
             self._shape = shape
             self._shape._frozen = True
+        if dtype is None:
+            if isinstance(value, np.ndarray):
+                self._dtype = _enums.DataType.from_numpy(value.dtype)
+            else:
+                raise ValueError(
+                    "The dtype must be specified when the value is not a numpy array."
+                )
+        else:
+            self._dtype = dtype
         self._raw = value
-        self._dtype = dtype
         self.name = name
         self.doc_string = doc_string
+        self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props = metadata_props
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
@@ -204,6 +232,11 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         if _compatible_with_dlpack(self._raw):
             return self._raw.__dlpack__(stream=stream)
         return self.__array__().__dlpack__(stream=stream)
+
+    def __dlpack_device__(self) -> tuple[int, int]:
+        if _compatible_with_dlpack(self._raw):
+            return self._raw.__dlpack_device__()
+        return self.__array__().__dlpack_device__()
 
     def __repr__(self) -> str:
         return f"{self._repr_base()}({self._raw!r})"
@@ -242,10 +275,22 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
             return array.view(array.dtype.newbyteorder("<")).tobytes()
         return array.tobytes()
 
+    @property
     def metadata_props(self) -> dict[str, str]:
         if self._metadata_props is None:
             self._metadata_props = {}
         return self._metadata_props
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
 
 
 class ExternalTensor(TensorBase, _protocols.TensorProtocol):
@@ -286,6 +331,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         "_array",
         "raw",
         "_metadata_props",
+        "_metadata",
     )
 
     def __init__(
@@ -311,6 +357,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         self._array: np.ndarray | None = None
         self.raw: mmap.mmap | None = None
         self._metadata_props = metadata_props
+        self._metadata: _metadata.MetadataStore | None = None
 
     @property
     def path(self) -> str | os.PathLike:
@@ -393,6 +440,16 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
             self._metadata_props = {}
         return self._metadata_props
 
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
 
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
     __slots__ = ("_value",)
@@ -604,6 +661,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         graph: Graph | None = None,
         name: str | None = None,
         doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
     ):
         """Initialize a node and add it as a consumer of the input values.
 
@@ -619,6 +677,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
                 A `Node` must belong to zero or one graph.
             name: The name of the node. If None, the node is anonymous.
             doc_string: The documentation string.
+            metadata_props: The metadata properties.
         """
         self._name = name
         self._domain: str = domain
@@ -631,6 +690,12 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._outputs: tuple[Value, ...] = tuple(
             Value(self, index=i) for i in range(num_outputs)
         )
+        if attributes and not isinstance(attributes[0], (Attr, RefAttr)):
+            raise TypeError(
+                f"Expected the attributes to be Attr or RefAttr, got {type(attributes[0])}. "
+                "If you are copying the attributes from another node, make sure you call "
+                "node.attributes.values() because it is a dictionary."
+            )
         self._attributes: OrderedDict[str, Attr | RefAttr] = OrderedDict(
             (attr.name, attr) for attr in attributes
         )
@@ -638,7 +703,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         # TODO(justinchuby): Potentially support a version range
         self._version: int | None = version
         self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = None
+        self._metadata_props: dict[str, str] | None = metadata_props
         self._graph: Graph | None = graph
         self.doc_string = doc_string
 
@@ -801,7 +866,11 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for this node."""
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
         if self._metadata is None:
             self._metadata = _metadata.MetadataStore()
         return self._metadata
@@ -985,7 +1054,8 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         self._const_value = const_value
         # Use a collection of (Node, int) to store consumers. This is needed
         # because a single consumer can use the same value multiple times.
-        self._consumers: set[tuple[Node, int]] = set()
+        # Use a dictionary to preserve insertion order so that the visiting order is deterministic
+        self._consumers: dict[tuple[Node, int], None] = {}
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
@@ -1014,27 +1084,27 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         """The index of the output of the defining node."""
         return self._index
 
-    def consumers(self) -> frozenset[tuple[Node, int]]:
+    def consumers(self) -> Collection[tuple[Node, int]]:
         """Return a set of consumers of the value.
 
         The set contains tuples of ``(Node, index)`` where the index is the index of the input
         of the node. For example, if ``node.inputs[1] == value``, then the consumer is ``(node, 1)``.
         """
-        return frozenset(self._consumers)
+        return self._consumers.keys()
 
     def _add_consumer(self, consumer: Node, index: int) -> None:
         """Add a consumer node.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._consumers.add((consumer, index))
+        self._consumers[(consumer, index)] = None
 
     def _remove_consumer(self, consumer: Node, index: int) -> None:
         """Remove a node from the consumers of this value.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._consumers.remove((consumer, index))
+        self._consumers.pop((consumer, index))
 
     @property
     def name(self) -> str | None:
@@ -1129,12 +1199,13 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def is_graph_output(self) -> bool:
         """Whether the value is an output of a graph."""
-        producer = self.producer()
-        if producer is None:
+        if (producer := self.producer()) is None:
             return False
-        if producer.graph is None:
+        if (graph := producer.graph) is None:
             return False
-        return self in producer.graph.outputs
+        # Cannot use `in` because __eq__ may be defined by subclasses, even though
+        # it is not recommended
+        return any(output is self for output in graph.outputs)
 
 
 class Input(Value):
@@ -1158,10 +1229,28 @@ class Input(Value):
 class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     """IR Graph.
 
-    The graph can be used as a sequence of nodes::
+    Graph represents a computation graph. In addition to the ONNX specification
+    specified fields, it also contains a mapping of :attr:`opset_imports`. This
+    allows different subgraphs to import different opsets. It is the responsibility
+    of the deserializer to reconcile the different opsets.
 
-        for node in graph:
-            print(node)
+    The `nodes` are not guaranteed to be topologically sorted. But the
+    iteration order should be deterministic across different runs. It is the
+    responsibility of the user to maintain a topological order of the nodes.
+
+    Note that there is not a ``node`` attribute in the Graph. The Graph can be
+    seen as a Sequence of nodes and should be used as such. For example, to obtain
+    all nodes as a list, call ``list(graph)``.
+
+    Attributes:
+        name: The name of the graph.
+        inputs: The input values of the graph.
+        outputs: The output values of the graph.
+        initializers: The initializers in the graph.
+        doc_string: Documentation string.
+        opset_imports: Opsets imported by the graph.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     __slots__ = (
@@ -1195,6 +1284,12 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._inputs = list(inputs)
         self._outputs = list(outputs)
         for initializer in initializers:
+            if isinstance(initializer, str):
+                raise TypeError(
+                    "Initializer must be a TensorProtocol, not a string. "
+                    "If you are copying the initializers from another graph, "
+                    "make sure you call graph.initializers.values() because it is a dictionary."
+                )
             if initializer.name is None:
                 raise ValueError(f"Initializer must have a name: {initializer}")
         self._initializers = {tensor.name: tensor for tensor in initializers}
@@ -1232,10 +1327,6 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     @property
     def opset_imports(self) -> dict[str, int]:
         return self._opset_imports
-
-    @property
-    def nodes(self) -> Sequence[Node]:
-        return tuple(self._nodes)
 
     def __getitem__(self, index: int) -> Node:
         return self._nodes[index]
@@ -1384,7 +1475,7 @@ graph(
     node_count = len(graph)
     number_width = len(str(node_count))
     node_lines = []
-    for i, node in enumerate(graph.nodes):
+    for i, node in enumerate(graph):
         node_name = node.name if node.name else f":anonymous_node:{id(node)}"
         node_text = f"# {node_name}\n{node}"
         indented_node_text = textwrap.indent(node_text, " " * (number_width + 4))
@@ -1448,11 +1539,11 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
         name: The name of the graph.
         inputs: The input values of the graph.
         outputs: The output values of the graph.
-        nodes: All nodes visible in this view. They do not have to be sorted.
         initializers: The initializers in the graph.
         doc_string: Documentation string.
         opset_imports: Opsets imported by the graph.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     __slots__ = (
@@ -1477,6 +1568,7 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
         doc_string: str | None = None,
         opset_imports: dict[str, int] | None = None,
         name: str | None = None,
+        metadata_props: dict[str, str] | None = None,
     ):
         self.name = name
         self.inputs = tuple(inputs)
@@ -1488,20 +1580,20 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
         self.doc_string = doc_string
         self.opset_imports = opset_imports or {}
         self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = None
-        self.nodes: tuple[Node, ...] = tuple(nodes)
+        self._metadata_props: dict[str, str] | None = metadata_props
+        self._nodes: tuple[Node, ...] = tuple(nodes)
 
     def __getitem__(self, index: int) -> Node:
-        return self.nodes[index]
+        return self._nodes[index]
 
     def __len__(self) -> int:
-        return len(self.nodes)
+        return len(self._nodes)
 
     def __iter__(self) -> Iterator[Node]:
-        return iter(self.nodes)
+        return iter(self._nodes)
 
     def __reversed__(self) -> Iterator[Node]:
-        return reversed(self.nodes)
+        return reversed(self._nodes)
 
     @property
     def meta(self) -> _metadata.MetadataStore:
@@ -1558,7 +1650,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
 
     def __init__(
         self,
-        graph: Graph | GraphView,
+        graph: Graph,
         *,
         ir_version: int,
         producer_name: str | None = None,
@@ -1569,7 +1661,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
         functions: Sequence[Function] = (),
         meta_data_props: dict[str, str] | None = None,
     ) -> None:
-        self.graph: Graph | GraphView = graph  # type: ignore[assignment]
+        self.graph: Graph = graph
         self.ir_version = ir_version
         self.producer_name = producer_name
         self.producer_version = producer_version
@@ -1590,7 +1682,11 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
 
     @property
     def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for this node."""
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
         if self._metadata is None:
             self._metadata = _metadata.MetadataStore()
         return self._metadata
@@ -1630,7 +1726,29 @@ Model(
 )"""
 
 
-class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
+class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrintable):
+    """IR functions.
+
+    Like a graph, a function can have nodes that are not topologically sorted. It is
+    the responsibility of the user to maintain a topological order of the nodes.
+
+    Note that there is not a ``node`` attribute in the Function. The Function can be
+    seen as a Sequence of nodes and should be used as such. For example, to obtain
+    all nodes as a list, call ``list(function)``.
+
+    Attributes:
+        name: The function name.
+        domain: The domain this function is defined in.
+        overload: The overload name when the function is overloaded.
+        inputs: The input values of the function.
+        attributes: The attributes this function defines.
+        outputs: The output values of the function.
+        opset_imports: Opsets imported by the function.
+        doc_string: Documentation string.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
+    """
+
     __slots__ = (
         "_domain",
         "_name",
@@ -1700,10 +1818,6 @@ class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
     def attributes(self) -> OrderedDict[str, Attr]:
         return self._attributes
 
-    @property
-    def nodes(self) -> Sequence[Node]:
-        return self._graph.nodes
-
     def __getitem__(self, index: int) -> Node:
         return self._graph.__getitem__(index)
 
@@ -1730,7 +1844,11 @@ class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
 
     @property
     def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for this node."""
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
         if self._metadata is None:
             self._metadata = _metadata.MetadataStore()
         return self._metadata
@@ -1792,10 +1910,10 @@ def {full_name}(
 {textwrap.indent(outputs_text, ' '*8)}
     ),
 )"""
-        node_count = len(self.nodes)
+        node_count = len(self)
         number_width = len(str(node_count))
         node_lines = []
-        for i, node in enumerate(self.nodes):
+        for i, node in enumerate(self):
             node_name = node.name if node.name else f":anonymous_node:{id(node)}"
             node_text = f"# {node_name}\n{node}"
             indented_node_text = textwrap.indent(node_text, " " * (number_width + 4))
