@@ -215,7 +215,6 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
     def eval(self, schema, inputs: Sequence[ValidInputType], attributes):
         return self._graph.add_op_call(schema, inputs, attributes)
 
-    @runtime_typing.checked
     def eval_function(  # type: ignore[override]
         self,
         function: onnxscript.OnnxFunction,
@@ -295,7 +294,6 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         return self._graph.add_function_call(function, inputs, attributes)
 
 
-@runtime_typing.checked
 def _build_attribute(
     key: str,
     value: Union[
@@ -333,7 +331,6 @@ def _build_attribute(
     raise TypeError(f"Unsupported attribute type '{type(value)}' for attribute '{key}'")
 
 
-@runtime_typing.checked
 def _create_op_call_in_graph(
     graph: ir.Graph,
     domain: str,
@@ -439,7 +436,6 @@ class TorchScriptGraph:
     def domain_name(self) -> Optional[str]:
         return self._domain_name
 
-    @runtime_typing.checked
     def add_input(
         self,
         input_name: Optional[str],
@@ -466,7 +462,6 @@ class TorchScriptGraph:
             self._graph.inputs.append(value)  # type: ignore[arg-type]
         return value
 
-    @runtime_typing.checked
     def add_initializer(self, name: str, value: torch.Tensor) -> TorchScriptTensor:
         if name in self._initializers_inputs:
             # NOTE: Previously it raises when `name` is already set. This is relaxed
@@ -493,7 +488,6 @@ class TorchScriptGraph:
             self._initializers[name] = value
         return input
 
-    @runtime_typing.checked
     def register_outputs(
         self, outputs: Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]
     ):
@@ -547,7 +541,6 @@ class TorchScriptGraph:
         )
         return value
 
-    @runtime_typing.checked
     def _add_ir_graph_op_call(
         self,
         *,
@@ -599,7 +592,6 @@ class TorchScriptGraph:
         # set these info.
         return tensors
 
-    @runtime_typing.checked
     def _fetch_function_dict(
         self, opset_version: int
     ) -> Mapping[ir.OperatorIdentifier, ir.Function]:
@@ -624,7 +616,6 @@ class TorchScriptGraph:
             function_dict[identifier] = function
         return function_dict
 
-    @runtime_typing.checked
     def add_op_call(
         self,
         onnx_op_schema: onnx.defs.OpSchema,
@@ -648,7 +639,6 @@ class TorchScriptGraph:
 
         return result
 
-    @runtime_typing.checked
     def add_function_call(
         self,
         onnx_function: onnxscript.OnnxFunction,
@@ -672,7 +662,6 @@ class TorchScriptGraph:
 
         return result
 
-    @runtime_typing.checked
     def add_module_call(
         self,
         name: str,
@@ -700,7 +689,6 @@ class TorchScriptGraph:
 
         return result
 
-    @runtime_typing.checked
     def _to_function(self, opset_version: int, function_name: str) -> ir.Function:
         assert len(self.initializers) == 0, "Model local functions cannot have initializers."
 
@@ -718,7 +706,6 @@ class TorchScriptGraph:
 
         return onnx_function
 
-    @runtime_typing.checked
     def to_model_proto(
         self, opset_version: int, include_initializers: bool = True
     ) -> onnx.ModelProto:
