@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import onnx.parser
 
-from onnxscript._legacy_ir import irbuilder
+from onnxscript import ir
 from onnxscript.rewriter.onnxruntime import instance_to_group_normalization
 
 
@@ -51,7 +51,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         )
 
     def test_simulated_instance_norm_is_replaced_by_group_norm(self):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[1, 320, 128, 128] image) => (float[1, 4, 512, 64] output)
@@ -72,7 +72,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         weight_for_norm_value = np.ones(32, dtype=np.float16)
         bias_for_norm_value = np.zeros(32, dtype=np.float16)
         self._set_up_model_initializers(
-            model,
+            model_proto,
             weight_for_norm_value,
             [32],
             bias_for_norm_value,
@@ -83,14 +83,14 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
-        count = instance_to_group_normalization.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = instance_to_group_normalization.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         # plus 2 in model constants
-        self.assertEqual(len(ir.graph.nodes), 10)
+        self.assertEqual(len(model.graph), 10)
 
     def test_instance_norm_with_non_one_weight_for_norm_should_remain(self):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[1, 320, 128, 128] image) => (float[1, 4, 512, 64] output)
@@ -111,7 +111,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         weight_for_norm_value = np.random.rand(32).astype(np.float16)
         bias_for_norm_value = np.zeros(32, dtype=np.float16)
         self._set_up_model_initializers(
-            model,
+            model_proto,
             weight_for_norm_value,
             [32],
             bias_for_norm_value,
@@ -122,12 +122,12 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
-        count = instance_to_group_normalization.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = instance_to_group_normalization.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
     def test_instance_norm_with_non_zero_b_should_remain(self):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[1, 320, 128, 128] image) => (float[1, 4, 512, 64] output)
@@ -148,7 +148,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         weight_for_norm_value = np.ones(32, dtype=np.float16)
         bias_for_norm_value = np.random.rand(32).astype(np.float16)
         self._set_up_model_initializers(
-            model,
+            model_proto,
             weight_for_norm_value,
             [32],
             bias_for_norm_value,
@@ -159,12 +159,12 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
-        count = instance_to_group_normalization.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = instance_to_group_normalization.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
     def test_instance_norm_with_non_broadcasted_weight_full_should_remain(self):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[1, 320, 128, 128] image) => (float[1, 4, 512, 64] output)
@@ -185,7 +185,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         weight_for_norm_value = np.ones(32, dtype=np.float16)
         bias_for_norm_value = np.zeros(32, dtype=np.float16)
         self._set_up_model_initializers(
-            model,
+            model_proto,
             weight_for_norm_value,
             [32],
             bias_for_norm_value,
@@ -196,12 +196,12 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
-        count = instance_to_group_normalization.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = instance_to_group_normalization.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
     def test_instance_norm_with_non_broadcasted_bias_full_should_remain(self):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[1, 320, 128, 128] image) => (float[1, 4, 512, 64] output)
@@ -222,7 +222,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         weight_for_norm_value = np.ones(32, dtype=np.float16)
         bias_for_norm_value = np.zeros(32, dtype=np.float16)
         self._set_up_model_initializers(
-            model,
+            model_proto,
             weight_for_norm_value,
             [32],
             bias_for_norm_value,
@@ -233,12 +233,12 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320],
         )
 
-        ir = irbuilder.build_ir(model)
-        count = instance_to_group_normalization.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = instance_to_group_normalization.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
     def test_instance_norm_with_rank_not_4_should_remain(self):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[1, 320, 128] image) => (float[1, 4, 512, 64] output)
@@ -259,7 +259,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         weight_for_norm_value = np.ones(32, dtype=np.float16)
         bias_for_norm_value = np.zeros(32, dtype=np.float16)
         self._set_up_model_initializers(
-            model,
+            model_proto,
             weight_for_norm_value,
             [32],
             bias_for_norm_value,
@@ -270,14 +270,14 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
-        count = instance_to_group_normalization.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = instance_to_group_normalization.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
     def test_instance_norm_with_weight_full_having_multiple_not_one_dim_should_remain(
         self,
     ):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[1, 320, 128, 128] image) => (float[1, 4, 512, 64] output)
@@ -298,7 +298,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         weight_for_norm_value = np.ones(32, dtype=np.float16)
         bias_for_norm_value = np.zeros(32, dtype=np.float16)
         self._set_up_model_initializers(
-            model,
+            model_proto,
             weight_for_norm_value,
             [32],
             bias_for_norm_value,
@@ -309,14 +309,14 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
-        count = instance_to_group_normalization.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = instance_to_group_normalization.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
     def test_instance_norm_with_bias_full_having_multiple_not_one_dim_should_remain(
         self,
     ):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[1, 320, 128, 128] image) => (float[1, 4, 512, 64] output)
@@ -337,7 +337,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         weight_for_norm_value = np.ones(32, dtype=np.float16)
         bias_for_norm_value = np.zeros(32, dtype=np.float16)
         self._set_up_model_initializers(
-            model,
+            model_proto,
             weight_for_norm_value,
             [32],
             bias_for_norm_value,
@@ -348,14 +348,14 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 2, 3],
         )
 
-        ir = irbuilder.build_ir(model)
-        count = instance_to_group_normalization.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = instance_to_group_normalization.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
     def test_instance_norm_with_not_0_g_negative_1_shape_of_adjusted_input_shape_should_remain(
         self,
     ):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[1, 320, 128, 128] image) => (float[1, 4, 512, 64] output)
@@ -376,7 +376,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         weight_for_norm_value = np.ones(32, dtype=np.float16)
         bias_for_norm_value = np.zeros(32, dtype=np.float16)
         self._set_up_model_initializers(
-            model,
+            model_proto,
             weight_for_norm_value,
             [32],
             bias_for_norm_value,
@@ -387,14 +387,14 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
-        count = instance_to_group_normalization.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = instance_to_group_normalization.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
     def test_instance_norm_with_non_equal_of_image_shape_and_original_input_shape_should_remain(
         self,
     ):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[1, 320, 128, 128] image) => (float[1, 4, 512, 64] output)
@@ -415,7 +415,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         weight_for_norm_value = np.ones(32, dtype=np.float16)
         bias_for_norm_value = np.zeros(32, dtype=np.float16)
         self._set_up_model_initializers(
-            model,
+            model_proto,
             weight_for_norm_value,
             [32],
             bias_for_norm_value,
@@ -426,8 +426,8 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
             [320, 1, 1],
         )
 
-        ir = irbuilder.build_ir(model)
-        count = instance_to_group_normalization.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = instance_to_group_normalization.rules.apply_to_model(model)
         self.assertEqual(count, 0)
 
 

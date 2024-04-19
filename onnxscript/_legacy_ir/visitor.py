@@ -86,7 +86,7 @@ class FunctionShapeEnv:
             # Standard main graph value info format.
             function_id = None
             value_name = name
-        return function_id, ir.Value(value_name, type=value_info.type)
+        return function_id, ir.Value(name=value_name, type=value_info.type)
 
     def save_to_value_info(
         self, value: ir.Value, domain: str, function_name: str, overload: str

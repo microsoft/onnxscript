@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import onnx
 
-from onnxscript._legacy_ir import irbuilder, protobuilder
+from onnxscript import ir
 from onnxscript.optimizer import remove_unused, remove_unused_function
 from onnxscript.rewriter import function_rule, pattern
 from onnxscript.rewriter.onnxruntime import (
@@ -23,14 +23,15 @@ ORT_PATTERN_REWRITE_RULES = [
 
 
 def rewrite(
-    model: onnx.ModelProto,
+    model_proto: onnx.ModelProto,
+    /,
     function_rules: list[type[function_rule.FunctionRewriteRule]] | None = None,
     pattern_rules: list[pattern.RewriteRule] | None = None,
 ) -> onnx.ModelProto:
     """Rewrite the model using the given rules.
 
     Args:
-        model: The model to rewrite.
+        model_proto: The model to rewrite.
         function_rules: The function rewrite rules to apply. If None, the default rules
             for onnxruntime are used.
         pattern_rules: The pattern rewrite rules to apply. If None, the default rules
@@ -41,19 +42,16 @@ def rewrite(
     """
     function_rules = function_rules or ORT_FUNCTION_REWRITE_RULES
     pattern_rules = pattern_rules or ORT_PATTERN_REWRITE_RULES
-    # TODO: Function rules first, or pattern rules first?
+    model = ir.serde.deserialize_model(model_proto)
+    # TODO(bowenbao): Function rules first, or pattern rules first?
     if function_rules:
-        model_ir = irbuilder.build_ir(model)
         for rule_cls in function_rules:
-            rule_cls().apply_to_model(model_ir)
-        model = model_ir.original_model_proto
+            count, model = rule_cls().apply_to_model(model)
+            print(f"Applied {count} of onnxruntime specific function rewrite rules.")
     if pattern_rules:
-        model_ir = irbuilder.build_ir(model)
-        count = pattern.RewriteRuleSet(pattern_rules).apply_to_model(model_ir)
-        print(f"Applied {count} pattern rewrite rules.")
-        model = protobuilder.build_model_proto(model_ir)
-    # TODO: Does it make more sense we run DCE after each rewrite rule applied?
-    # If so, we need IR to support DCE.
-    remove_unused.remove_unused_nodes(model)
-    remove_unused_function.remove_unused_functions(model)
-    return model
+        count = pattern.RewriteRuleSet(pattern_rules).apply_to_model(model)
+        print(f"Applied {count} of onnxruntime specific pattern rewrite rules.")
+    model_proto = ir.serde.serialize_model(model)
+    remove_unused.remove_unused_nodes(model_proto)
+    remove_unused_function.remove_unused_functions(model_proto)
+    return model_proto

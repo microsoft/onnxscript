@@ -4,8 +4,8 @@ import unittest
 import numpy as np
 import onnx.parser
 
-from onnxscript._legacy_ir import irbuilder, protobuilder
-from onnxscript.rewriter import cast_constant_of_shape, pattern
+from onnxscript import ir
+from onnxscript.rewriter import _ir_utils, cast_constant_of_shape, pattern
 
 logger = logging.getLogger(__name__)
 op = pattern.onnxop
@@ -23,7 +23,7 @@ class ReciprocalMulTest(unittest.TestCase):
         return pattern.RewriteRule(reciprocal_mul_pattern, div)
 
     def test_single_match(self):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[N] x, float[N] y) => (float[N] z)
@@ -35,13 +35,13 @@ class ReciprocalMulTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
-        count = self.rule().apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = self.rule().apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertEqual(len(ir.graph.nodes), 3)
+        self.assertEqual(len(model.graph), 3)
 
     def test_failed_match(self):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[N] x, float[N] y) => (float[N] z)
@@ -53,13 +53,13 @@ class ReciprocalMulTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
-        count = self.rule().apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = self.rule().apply_to_model(model)
         self.assertEqual(count, 0)
-        self.assertEqual(len(ir.graph.nodes), 4)
+        self.assertEqual(len(model.graph), 4)
 
     def test_multiple_matches(self):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[N] x, float[N] y) => (float[N] z)
@@ -82,10 +82,10 @@ class ReciprocalMulTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
-        count = self.rule().apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = self.rule().apply_to_model(model)
         self.assertEqual(count, 2)
-        self.assertEqual(len(ir.graph.nodes), 9)
+        self.assertEqual(len(model.graph), 9)
 
 
 class FastGeluTest(unittest.TestCase):
@@ -123,7 +123,7 @@ class FastGeluTest(unittest.TestCase):
         return pattern.RewriteRule(fast_gelu_pattern1_long, fast_gelu)
 
     def _check(self, rule):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[N] x, float[N] y) => (float[N] z)
@@ -144,11 +144,11 @@ class FastGeluTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
-        count = rule.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = rule.apply_to_model(model)
         self.assertEqual(count, 1)
         # 5 Constant nodes and 1 FastGelu node
-        self.assertEqual(len(ir.graph.nodes), 6)
+        self.assertEqual(len(model.graph), 6)
 
     def test_short_rule(self):
         self._check(self.rule())
@@ -169,7 +169,7 @@ class ConcatTest(unittest.TestCase):
         return pattern.RewriteRule(concat_pattern, concat)
 
     def test_concat(self):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[N] x, float[N] y) => (float[M] z)
@@ -179,13 +179,13 @@ class ConcatTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
-        count = self.rule().apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = self.rule().apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertEqual(len(ir.graph.nodes), 1)
+        self.assertEqual(len(model.graph), 1)
 
     def test_concat_in_function(self):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17, "pkg.custom": 1]>
             agraph (float[N] x, float[M] y) => (float[Z] z)
@@ -200,12 +200,12 @@ class ConcatTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
-        count = self.rule().apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = self.rule().apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertEqual(len(ir.functions), 1)
-        self.assertEqual(len(ir.functions[0].nodes), 1)
-        self.assertEqual(ir.functions[0].nodes[0].op_type, "Concat")
+        self.assertEqual(len(model.functions), 1)
+        self.assertEqual(len(model.functions[("pkg.custom", "afunction", "")]), 1)
+        self.assertEqual(model.functions[("pkg.custom", "afunction", "")][0].op_type, "Concat")
 
 
 class RewriteRuleTest(unittest.TestCase):
@@ -218,7 +218,7 @@ class RewriteRuleTest(unittest.TestCase):
 
         add_0_rule = pattern.RewriteRule(add_0, identity)
 
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[N] x) => (float[M] z)
@@ -228,9 +228,9 @@ class RewriteRuleTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
-        count = pattern.RewriteRuleSet([add_0_rule], commute=True).apply_to_model(ir)
-        optimized_model = protobuilder.build_model_proto(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = pattern.RewriteRuleSet([add_0_rule], commute=True).apply_to_model(model)
+        optimized_model = ir.serde.serialize_model(model)
         self.assertEqual(count, 1)
         nodes = optimized_model.graph.node
         self.assertEqual(len(nodes), 2)
@@ -246,9 +246,8 @@ class RewriteRuleTest(unittest.TestCase):
 
         def _check_for_redundant_reshape(x, newshape):
             oldshape = x.shape
-            if not isinstance(oldshape, list):
-                return False
-            newshape = newshape.value_as_np_array
+            newshape = _ir_utils.propagate_const_value(newshape)
+            newshape = _ir_utils.get_numpy_from_ir_value(newshape)
             if not isinstance(newshape, np.ndarray):
                 return False
             newshape = newshape.tolist()
@@ -262,7 +261,7 @@ class RewriteRuleTest(unittest.TestCase):
 
         rule = pattern.RewriteRule(reshape, identity, check_for_redundant_reshape)
 
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[10, 20, 30] x) => (float[10, 20, 30] z)
@@ -272,16 +271,16 @@ class RewriteRuleTest(unittest.TestCase):
             }
         """
         )
-        ir = irbuilder.build_ir(model)
-        count = pattern.RewriteRuleSet([rule]).apply_to_model(ir)
-        optimized_model = protobuilder.build_model_proto(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = pattern.RewriteRuleSet([rule]).apply_to_model(model)
+        optimized_model = ir.serde.serialize_model(model)
         self.assertEqual(count, 1)
         nodes = optimized_model.graph.node
         self.assertEqual(len(nodes), 2)
         self.assertEqual(nodes[1].op_type, "Identity")
 
     def test_delayed_run_provides_correct_bindings_for_multiple_matches(self):
-        model = onnx.parser.parse_model(
+        model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (int64[2] input_x) => (float16[1, 4] output, float[1, 4] output2)
@@ -293,12 +292,12 @@ class RewriteRuleTest(unittest.TestCase):
             }
             """
         )
-        ir = irbuilder.build_ir(model)
-        count = cast_constant_of_shape.rules.apply_to_model(ir)
+        model = ir.serde.deserialize_model(model_proto)
+        count = cast_constant_of_shape.rules.apply_to_model(model)
         self.assertEqual(count, 2)
-        self.assertEqual(len(ir.graph.nodes), 2)
-        self.assertEqual(ir.graph.nodes[0].attributes["value"].data_type, 10)
-        self.assertEqual(ir.graph.nodes[1].attributes["value"].data_type, 1)
+        self.assertEqual(len(model.graph), 2)
+        self.assertEqual(model.graph[0].attributes["value"].value.dtype, 10)
+        self.assertEqual(model.graph[1].attributes["value"].value.dtype, 1)
 
 
 if __name__ == "__main__":

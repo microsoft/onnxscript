@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 import onnx
+import onnx.shape_inference
 
 from onnxscript import rewriter
 from onnxscript.optimizer.constant_folding import fold_constants
