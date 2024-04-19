@@ -14,8 +14,8 @@ import onnx.helper as oh
 import onnx.numpy_helper as onh
 
 import onnxscript
-import onnxscript._legacy_ir as oir
-import onnxscript.rewriter.generic_pattern as org
+from onnxscript import ir
+from onnxscript.rewriter import generic_pattern
 
 
 def get_rotary_model(bad_model=False):
@@ -60,7 +60,7 @@ def get_rotary_model(bad_model=False):
 
 
 model = get_rotary_model()
-ir_model = oir.irbuilder.build_ir(model)
+ir_model = ir.serde.deserialize_model(model)
 
 
 ####################################
@@ -87,19 +87,17 @@ def rotary_match_pattern(x, pos_ids, axis):
     return cast1, cast2
 
 
-def validate_rotary_mapping(g, matched_nodes, added_nodes) -> bool:
+def validate_rotary_mapping(g, match_result) -> bool:
     """The validation post matching.
 
     Returns True to validate the replacement,
     False not to apply it.
 
     :param g: model
-    :param matched_nodes: matched nodes
-    :param added_nodes: nodes replacing the matched nodes
+    :param match_result: matched nodes
     """
     del g
-    del matched_nodes
-    del added_nodes
+    del match_result
     return True
 
 
@@ -118,7 +116,7 @@ def rotary_apply_pattern(x, pos_ids, axis):
 # The rule is easy to create.
 
 
-rule = org.make_pattern_rule(
+rule_with_validation_function = generic_pattern.make_pattern_rule(
     rotary_match_pattern,
     rotary_apply_pattern,
     validate_rotary_mapping,
@@ -128,7 +126,7 @@ rule = org.make_pattern_rule(
 # ``validate_rotary_mapping`` always return True.
 # This argument can be ignored in that case.
 
-rule = org.make_pattern_rule(rotary_match_pattern, rotary_apply_pattern)
+rule = generic_pattern.make_pattern_rule(rotary_match_pattern, rotary_apply_pattern)
 
 ##########################
 # Let's apply it.
@@ -138,12 +136,12 @@ rule.apply_to_model(ir_model)
 ########################
 # And finally, we can generate the model.
 
-opt_onx = oir.protobuilder.build_model_proto(ir_model)
+rewritten_model = ir.serde.serialize_model(ir_model)
 
 ########################
 # Let's see what it looks like.
 
-for node in opt_onx.graph.node:
+for node in rewritten_model.graph.node:
     print(f"{node.op_type}({', '.join(node.input)}) -> {', '.join(node.output)}")
 
 #############################
@@ -152,18 +150,20 @@ for node in opt_onx.graph.node:
 
 
 model = get_rotary_model(True)
-ir_model = oir.irbuilder.build_ir(model)
+ir_model = ir.serde.deserialize_model(model)
 
 rule.apply_to_model(ir_model)
-opt_onx = oir.protobuilder.build_model_proto(ir_model)
+rewritten_model = ir.serde.serialize_model(ir_model)
 
-print([n.op_type for n in opt_onx.graph.node])
+print([n.op_type for n in rewritten_model.graph.node])
 
 ################################
 # The match did not happen.
 # Let's increase the verbosity.
 
-rule = org.make_pattern_rule(rotary_match_pattern, rotary_apply_pattern, verbose=10)
+rule = generic_pattern.make_pattern_rule(
+    rotary_match_pattern, rotary_apply_pattern, verbose=10
+)
 
 rule.apply_to_model(ir_model)
 

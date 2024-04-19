@@ -147,7 +147,7 @@ class StaticValueInfo:
         return self.node
 
     def def_index(self) -> int:
-        return self.output_index
+        return self.output_index  # type: ignore[return-value]
 
     def is_same_as(self, other: StaticValueInfo) -> bool:
         """Returns true if this value represents the same IR object as the other value.
@@ -160,7 +160,7 @@ class StaticValueInfo:
         shape = self.shape
         if shape is not None:
             shape = [str(dim) for dim in shape]
-            shape_str = f"[{', '.join(shape)}]"
+            shape_str = f"[{', '.join(shape)}]"  # type: ignore[arg-type]
         else:
             shape_str = "None"
         return (
@@ -236,8 +236,8 @@ class Graph:
 class Function:
     def __init__(self, function_proto: onnx.FunctionProto):
         self.original_function_proto = function_proto
-        self.nodes = deque()
-        self.values = {}
+        self.nodes = deque()  # type: ignore[var-annotated]
+        self.values = {}  # type: ignore[var-annotated]
 
     @property
     def id(self) -> FunctionId:
@@ -293,8 +293,9 @@ class Node:
             self.inputs: list[Value | None] = [Value(i) for i in node_proto.input]
             self.outputs: list[Value | None] = [Value(i) for i in node_proto.output]
         else:
-            self.inputs: list[Value | None] = []
-            self.outputs: list[Value | None] = []
+            self.inputs: list[Value | None] = []  # type: ignore[no-redef]
+            self.outputs: list[Value | None] = []  # type: ignore[no-redef]
+        # TODO: attributes are never populated.
         self.attributes: dict[str, int | float | RefAttr | Graph | list[Graph]] = {}
 
     def __repr__(self) -> str:
@@ -324,7 +325,7 @@ class Node:
             self.version = version_map[self.domain]
 
     def get_attribute(self, name: str) -> int | float | None:
-        return self.attributes.get(name, None)
+        return self.attributes.get(name, None)  # type: ignore[return-value]
 
     def __str__(self) -> str:
         return "\n".join(

@@ -69,6 +69,7 @@ import onnx.numpy_helper
 from onnxscript.ir import (
     _core,
     _enums,
+    _metadata,
     _protocols,
 )
 
@@ -86,6 +87,10 @@ class TensorProtoTensor(_core.TensorBase):
 
     def __init__(self, proto: onnx.TensorProto) -> None:
         self._proto = proto
+        self._metadata_props: dict[str, str] | None = deserialize_metadata_props(
+            proto.metadata_props
+        )
+        self._metadata: _metadata.MetadataStore | None = None
 
     @property
     def name(self) -> str:
@@ -93,7 +98,7 @@ class TensorProtoTensor(_core.TensorBase):
 
     @property
     def shape(self) -> _core.Shape:
-        return _core.Shape(self._proto.dims)
+        return _core.Shape(self._proto.dims, frozen=True)
 
     @property
     def dtype(self) -> _enums.DataType:
@@ -125,6 +130,23 @@ class TensorProtoTensor(_core.TensorBase):
                 "Cannot convert non-raw tensor to bytes. Use a specialized tensor class like FloatDataTensor instead."
             )
         return self._proto.raw_data
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
+
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
 
 
 class FloatDataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
@@ -297,6 +319,7 @@ def deserialize_model(proto: onnx.ModelProto) -> _core.Model:
         model_version=_get_field(proto, "model_version"),
         doc_string=_get_field(proto, "doc_string"),
         functions=functions,
+        meta_data_props=deserialize_metadata_props(proto.metadata_props),
     )
 
     # Handle experimental value info for functions created by the dynamo exporter in IR version 9
@@ -334,7 +357,7 @@ def _deserialized_experimental_value_info_for_function_ir9(
         function = functions.get(function_id)
         if function is None:
             # Function not found
-            logger.warning(
+            logger.debug(
                 "Function with ID '%s' not found in model functions. Value info '%s' will be ignored.",
                 function_id,
                 value_info_proto.name,
@@ -347,7 +370,7 @@ def _deserialized_experimental_value_info_for_function_ir9(
                 deserialize_value_info_proto(
                     function_value_value_info_mapping[function_id][input.name], input
                 )
-        for node in function.nodes:
+        for node in function:
             for output in node.outputs:
                 if output.name in function_value_value_info_mapping[function_id]:
                     deserialize_value_info_proto(
@@ -390,7 +413,7 @@ def _deserialize_graph(
             # The initializer is for some other value. Create this value first
             initializer_value = _core.Value(
                 None,
-                def_index=None,
+                index=None,
                 name=initializer.name,
                 # TODO(justinchuby): Fix type hinting for shape and dtype
                 shape=initializer.shape,  # type: ignore
@@ -416,6 +439,7 @@ def _deserialize_graph(
         initializers=initializers,
         doc_string=_get_field(proto, "doc_string"),
         name=_get_field(proto, "name"),
+        metadata_props=deserialize_metadata_props(proto.metadata_props),
     )
 
 
@@ -451,6 +475,7 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
         overload=getattr(proto, "overload", ""),
         graph=graph,
         attributes=typing.cast(List[_core.Attr], attributes),
+        metadata_props=deserialize_metadata_props(proto.metadata_props),
     )
 
 
@@ -458,10 +483,13 @@ def deserialize_value_info_proto(
     proto: onnx.ValueInfoProto, value: _core.Value | None
 ) -> _core.Value:
     if value is None:
-        value = _core.Value(None, def_index=None)
+        value = _core.Value(None, index=None)
         value.name = proto.name
     value.shape = deserialize_type_proto_for_shape(proto.type)
     value.type = deserialize_type_proto_for_type(proto.type)
+    metadata_props = deserialize_metadata_props(proto.metadata_props)
+    if metadata_props is not None:
+        value.metadata_props.update(metadata_props)
     return value
 
 
@@ -471,12 +499,22 @@ def deserialize_type_proto_for_shape(proto: onnx.TypeProto) -> _core.Shape | Non
             return None
         # This logic handles when the shape is [] as well
         dim_protos = shape_proto.dim
-        return _core.Shape([deserialize_dimension(d) for d in dim_protos])
+        deserialized_dim_denotations = [
+            deserialize_dimension(dim_proto) for dim_proto in dim_protos
+        ]
+        dims = [dim for dim, _ in deserialized_dim_denotations]
+        denotations = [denotation for _, denotation in deserialized_dim_denotations]
+        return _core.Shape(dims, denotations=denotations, frozen=True)
     if proto.HasField("sparse_tensor_type"):
         if (shape_proto := _get_field(proto.sparse_tensor_type, "shape")) is None:
             return None
         dim_protos = shape_proto.dim
-        return _core.Shape([deserialize_dimension(d) for d in dim_protos])
+        deserialized_dim_denotations = [
+            deserialize_dimension(dim_proto) for dim_proto in dim_protos
+        ]
+        dims = [dim for dim, _ in deserialized_dim_denotations]
+        denotations = [denotation for _, denotation in deserialized_dim_denotations]
+        return _core.Shape(dims, denotations=denotations, frozen=True)
     if proto.HasField("sequence_type"):
         if (elem_type := _get_field(proto.sequence_type, "elem_type")) is None:
             return None
@@ -527,47 +565,71 @@ def deserialize_type_proto_for_type(
     return None
 
 
-def deserialize_dimension(proto: onnx.TensorShapeProto.Dimension) -> _core.Dimension:
+def deserialize_dimension(
+    proto: onnx.TensorShapeProto.Dimension,
+) -> tuple[int | _core.SymbolicDim, str | None]:
+    """Deserialize a dimension proto into (dimension, denotation).
+
+    Args:
+        proto: The dimension proto to deserialize.
+
+    Returns:
+        A tuple of the dimension and its denotation.
+    """
     value_field = proto.WhichOneof("value")
     denotation = _get_field(proto, "denotation")
     if value_field is not None:
-        return _core.Dimension(getattr(proto, value_field), denotation=denotation)
-    return _core.Dimension(None)
+        value = getattr(proto, value_field)
+        if value_field == "dim_value":
+            return value, denotation
+        if value_field == "dim_param":
+            return _core.SymbolicDim(value), denotation
+    return _core.SymbolicDim(None), denotation
 
 
 def deserialize_tensor(
-    tensor: onnx.TensorProto, base_path: str | os.PathLike = ""
+    proto: onnx.TensorProto, base_path: str | os.PathLike = ""
 ) -> _protocols.TensorProtocol:
     # TODO: Sanitize base_path
-    if tensor.data_location == onnx.TensorProto.EXTERNAL:
-        external_info = onnx.external_data_helper.ExternalDataInfo(tensor)
+    if proto.data_location == onnx.TensorProto.EXTERNAL:
+        external_info = onnx.external_data_helper.ExternalDataInfo(proto)
         return _core.ExternalTensor(
             path=os.path.join(base_path, external_info.location),
             offset=external_info.offset,
             length=external_info.length,
-            dtype=_enums.DataType(tensor.data_type),
-            name=tensor.name,
-            shape=_core.Shape(tensor.dims),
-            doc_string=tensor.doc_string,
+            dtype=_enums.DataType(proto.data_type),
+            name=proto.name,
+            shape=_core.Shape(proto.dims),
+            doc_string=proto.doc_string,
+            metadata_props=deserialize_metadata_props(proto.metadata_props),
         )
     # Check for the raw_data filed first. The rest of the repeating fields can be
     # empty and still valid, so we don't need to check their length
     # For example, int32_data can be empty and still be a valid tensor.
-    if tensor.HasField("raw_data"):
-        return TensorProtoTensor(tensor)
-    if tensor.data_type in FloatDataTensor.compatible_types:
-        return FloatDataTensor(tensor)
-    if tensor.data_type in Int32DataTensor.compatible_types:
-        return Int32DataTensor(tensor)
-    if tensor.data_type in Int64DataTensor.compatible_types:
-        return Int64DataTensor(tensor)
-    if tensor.data_type in DoubleDataTensor.compatible_types:
-        return DoubleDataTensor(tensor)
-    if tensor.data_type in UInt64DataTensor.compatible_types:
-        return UInt64DataTensor(tensor)
+    if proto.HasField("raw_data"):
+        return TensorProtoTensor(proto)
+    if proto.data_type in FloatDataTensor.compatible_types:
+        return FloatDataTensor(proto)
+    if proto.data_type in Int32DataTensor.compatible_types:
+        return Int32DataTensor(proto)
+    if proto.data_type in Int64DataTensor.compatible_types:
+        return Int64DataTensor(proto)
+    if proto.data_type in DoubleDataTensor.compatible_types:
+        return DoubleDataTensor(proto)
+    if proto.data_type in UInt64DataTensor.compatible_types:
+        return UInt64DataTensor(proto)
     raise ValueError(
-        f"TensorProto(name={tensor.name}) does not have any data fields set and is not an external tensor."
+        f"TensorProto(name={proto.name}) does not have any data fields set and is not an external tensor."
     )
+
+
+def deserialize_metadata_props(
+    proto: Sequence[onnx.StringStringEntryProto],
+) -> dict[str, str] | None:
+    if len(proto) == 0:
+        # Avoid creating an empty dictionary to save memory
+        return None
+    return {entry.key: entry.value for entry in proto}
 
 
 def deserialize_attribute(proto: onnx.AttributeProto) -> _core.Attr | _core.RefAttr:
@@ -655,6 +717,8 @@ def _deserialize_node(
         overload=getattr(proto, "overload", ""),
         num_outputs=len(proto.output),
         name=proto.name,
+        doc_string=_get_field(proto, "doc_string"),
+        metadata_props=deserialize_metadata_props(proto.metadata_props),
     )
 
     for output, value in zip(proto.output, node.outputs):
@@ -669,8 +733,7 @@ def _deserialize_node(
                 proto.op_type,
             )
         scoped_values[-1][output] = value
-    for prop in getattr(proto, "metadata_props", []):
-        node.metadata_props[prop.key] = prop.value
+
     return node
 
 
@@ -762,7 +825,7 @@ def _serialize_experimental_value_info_for_function_ir9_into(
             # No need to serialize value info if it is not set
             continue
         serialize_value_into(graph_proto.value_info.add(), input, name=format_name(input.name))
-    for node in function.nodes:
+    for node in function:
         for node_output in node.outputs:
             if not node_output.name:
                 logging.warning(
@@ -834,7 +897,7 @@ def serialize_graph_into(
     # TODO(justinchuby): Support sparse_initializer
     for initializer in from_.initializers.values():
         serialize_tensor_into(graph_proto.initializer.add(), from_=initializer)
-    for node in from_.nodes:
+    for node in from_:
         serialize_node_into(graph_proto.node.add(), from_=node)
         for node_output in node.outputs:
             if not _should_create_value_info_for_value(node_output):
@@ -914,7 +977,7 @@ def serialize_function_into(
         function_proto.output.append(func_output.name)
         # No need to serialize value info for function outputs because they are
         # also node outputs
-    for node in from_.nodes:
+    for node in from_:
         serialize_node_into(function_proto.node.add(), from_=node)
         # Record value info for outputs
         for node_output in node.outputs:
@@ -981,6 +1044,8 @@ def serialize_tensor_into(
     if isinstance(from_, TensorProtoTensor):
         # Directly copy from the tensor proto if it is available
         tensor_proto.CopyFrom(from_.raw)
+        if from_.metadata_props:
+            _serialize_metadata_props_into(tensor_proto.metadata_props, from_.metadata_props)
         return
 
     tensor_proto.name = from_.name
@@ -1002,6 +1067,7 @@ def serialize_tensor_into(
                 entry.value = str(v)
     else:
         tensor_proto.raw_data = from_.tobytes()
+    _serialize_metadata_props_into(tensor_proto.metadata_props, from_.metadata_props)
 
 
 def serialize_attribute(attribute: _protocols.AttributeProtocol) -> onnx.AttributeProto:
@@ -1129,17 +1195,19 @@ def serialize_shape_into(type_proto: onnx.TypeProto, from_: _protocols.ShapeProt
     tensor_type_proto = type_proto.tensor_type
     # When from is empty, we still need to set the shape field to an empty list by touching it
     tensor_type_proto.shape.ClearField("dim")
-    for dim in from_:
-        serialize_dimension_into(tensor_type_proto.shape.dim.add(), from_=dim)
+    for i, dim in enumerate(from_):
+        denotation = from_.get_denotation(i)
+        serialize_dimension_into(tensor_type_proto.shape.dim.add(), dim, denotation)
 
 
 def serialize_dimension_into(
-    dim_proto: onnx.TensorShapeProto.Dimension, from_: _protocols.DimensionProtocol
+    dim_proto: onnx.TensorShapeProto.Dimension,
+    dim: int | _protocols.SymbolicDimProtocol,
+    denotation: str | None = None,
 ) -> None:
-    value = from_.value
-    if from_.denotation:
-        dim_proto.denotation = from_.denotation
-    if isinstance(value, int):
-        dim_proto.dim_value = value
-    elif isinstance(value, str):
-        dim_proto.dim_param = value
+    if denotation:
+        dim_proto.denotation = denotation
+    if isinstance(dim, int):
+        dim_proto.dim_value = dim
+    elif isinstance(dim, (_core.SymbolicDim, _protocols.SymbolicDimProtocol)):
+        dim_proto.dim_param = str(dim.value)

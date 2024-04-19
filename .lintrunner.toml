@@ -48,19 +48,15 @@ exclude_patterns = [
     'onnxscript/function_libs/torch_lib/ops/**', # Operators typing do not play well with mypy
     'onnxscript/optimizer/evaluator.py',  # FIXME
     'onnxscript/optimizer/constant_folding.py',  # FIXME
-    'onnxscript/_legacy_ir/__init__.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/fastgelu.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/instance_to_group_normalization.py',  # FIXME
     'onnxscript/rewriter/function_rule.py',  # FIXME
     'onnxscript/_legacy_ir/irbuilder.py',  # FIXME
     'onnxscript/optimizer/fold_constants_v0.py',  # FIXME
-    'onnxscript/rewriter/pattern.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/multihead_attention.py',  # FIXME
     'onnxscript/tools/function_unittest_producer.py',  # FIXME
     'onnxscript/_legacy_ir/visitor.py',  # FIXME
-    'onnxscript/_legacy_ir/protobuilder.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/layernorm.py',  # FIXME
-    'onnxscript/rewriter/generic_pattern_test.py',  # FIXME
     'onnxscript/rewriter/generic_pattern.py',  # FIXME
 ]
 command = [
@@ -155,6 +151,8 @@ code = 'EDITORCONFIG-CHECKER'
 include_patterns = ['**']
 exclude_patterns = [
     '**/*.ipynb',
+    '**/*.onnx',
+    '**/*.pb'
 ]
 command = [
     'python',
