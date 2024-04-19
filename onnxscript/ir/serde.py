@@ -69,6 +69,7 @@ import onnx.numpy_helper
 from onnxscript.ir import (
     _core,
     _enums,
+    _metadata,
     _protocols,
 )
 
@@ -87,6 +88,7 @@ class TensorProtoTensor(_core.TensorBase):
     def __init__(self, proto: onnx.TensorProto) -> None:
         self._proto = proto
         self._metadata_props: dict[str, str] = deserialize_metadata_props(proto.metadata_props)
+        self._metadata: _metadata.MetadataStore | None = None
 
     @property
     def name(self) -> str:
@@ -126,6 +128,17 @@ class TensorProtoTensor(_core.TensorBase):
                 "Cannot convert non-raw tensor to bytes. Use a specialized tensor class like FloatDataTensor instead."
             )
         return self._proto.raw_data
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
 
     @property
     def metadata_props(self) -> dict[str, str]:
@@ -340,7 +353,7 @@ def _deserialized_experimental_value_info_for_function_ir9(
         function = functions.get(function_id)
         if function is None:
             # Function not found
-            logger.warning(
+            logger.debug(
                 "Function with ID '%s' not found in model functions. Value info '%s' will be ignored.",
                 function_id,
                 value_info_proto.name,
@@ -353,7 +366,7 @@ def _deserialized_experimental_value_info_for_function_ir9(
                 deserialize_value_info_proto(
                     function_value_value_info_mapping[function_id][input.name], input
                 )
-        for node in function.nodes:
+        for node in function:
             for output in node.outputs:
                 if output.name in function_value_value_info_mapping[function_id]:
                     deserialize_value_info_proto(
@@ -669,6 +682,8 @@ def _deserialize_node(
         overload=getattr(proto, "overload", ""),
         num_outputs=len(proto.output),
         name=proto.name,
+        doc_string=_get_field(proto, "doc_string"),
+        metadata_props=deserialize_metadata_props(proto.metadata_props),
     )
 
     for output, value in zip(proto.output, node.outputs):
@@ -683,8 +698,7 @@ def _deserialize_node(
                 proto.op_type,
             )
         scoped_values[-1][output] = value
-    for prop in getattr(proto, "metadata_props", []):
-        node.metadata_props[prop.key] = prop.value
+
     return node
 
 
@@ -776,7 +790,7 @@ def _serialize_experimental_value_info_for_function_ir9_into(
             # No need to serialize value info if it is not set
             continue
         serialize_value_into(graph_proto.value_info.add(), input, name=format_name(input.name))
-    for node in function.nodes:
+    for node in function:
         for node_output in node.outputs:
             if not node_output.name:
                 logging.warning(
@@ -848,7 +862,7 @@ def serialize_graph_into(
     # TODO(justinchuby): Support sparse_initializer
     for initializer in from_.initializers.values():
         serialize_tensor_into(graph_proto.initializer.add(), from_=initializer)
-    for node in from_.nodes:
+    for node in from_:
         serialize_node_into(graph_proto.node.add(), from_=node)
         for node_output in node.outputs:
             if not _should_create_value_info_for_value(node_output):
@@ -928,7 +942,7 @@ def serialize_function_into(
         function_proto.output.append(func_output.name)
         # No need to serialize value info for function outputs because they are
         # also node outputs
-    for node in from_.nodes:
+    for node in from_:
         serialize_node_into(function_proto.node.add(), from_=node)
         # Record value info for outputs
         for node_output in node.outputs:
