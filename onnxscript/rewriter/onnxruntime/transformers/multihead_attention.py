@@ -605,8 +605,8 @@ class AttnPhi15RewriteRule(AttentionRewriteRule):
 
 
 class AttnPhi15RewriteRule(AttentionRewriteRule):
-    FUNCTION_KEYWORD = "PhiAttention"
-    PACKAGE_NAME = "transformers_modules"
+    FUNCTION_KEYWORD = "Attention"
+    PACKAGE_NAME = "diffusers"
     _version_controller = function_rule.VersionController()
 
     def __init__(self) -> None:
