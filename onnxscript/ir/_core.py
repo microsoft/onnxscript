@@ -1427,7 +1427,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         nodes = [self._set_node_graph_to_self_and_assign_names(node) for node in nodes]
         self._nodes.extend(nodes)
 
-    def remove(self, nodes: Node | Collection[Node], /, safe: bool = False) -> None:
+    def remove(self, nodes: Node | Iterable[Node], /, safe: bool = False) -> None:
         """Remove nodes from the graph in O(#num of nodes) time.
 
         If any errors are raise, to ensure the graph is not left in an inconsistent state,
@@ -1448,7 +1448,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             ValueError: (When ``safe=True``) If the node does not belong to this graph or if there are users of the node.
             ValueError: (When ``safe=True``) If the node is still being used by other nodes not to be removed.
         """
-        if not isinstance(nodes, Collection):
+        if not isinstance(nodes, Iterable):
             nodes = {nodes}
         else:
             nodes = frozenset(nodes)
@@ -1942,7 +1942,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         """Extend the function with the given nodes in O(#new_nodes) time."""
         self._graph.extend(nodes)
 
-    def remove(self, nodes: Node | Collection[Node], /, safe: bool = False) -> None:
+    def remove(self, nodes: Node | Iterable[Node], /, safe: bool = False) -> None:
         """Remove nodes from the graph in O(#num of nodes) time.
 
         If any errors are raise, to ensure the graph is not left in an inconsistent state,
