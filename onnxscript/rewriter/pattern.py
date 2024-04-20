@@ -1041,9 +1041,7 @@ def _apply_deltas(
             # insert new nodes after the index node
             # TODO(justinchuby): Do not access by index [i]
             graph_or_function.insert_after(graph_or_function[i], inserted_nodes)
-
-            for old_node in deleted_nodes:
-                graph_or_function.remove(old_node)
+            graph_or_function.remove(deleted_nodes, safe=True)
 
     for replaced_node, inserted_nodes in to_insert:
         graph_or_function.insert_after(replaced_node, inserted_nodes)
@@ -1054,8 +1052,7 @@ def _apply_deltas(
                 if (index := new_output.meta.get(_ir_utils.GRAPH_OUTPUT_META_KEY)) is not None:  # type: ignore[assignment]
                     graph_or_function.outputs[index] = new_output
 
-    for n in to_delete:
-        graph_or_function.remove(n)
+    graph_or_function.remove(to_delete, safe=True)
 
 
 class RewriteRuleSet:

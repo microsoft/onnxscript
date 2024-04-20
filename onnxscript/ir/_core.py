@@ -23,6 +23,7 @@ import sys
 import textwrap
 import typing
 from typing import (
+    AbstractSet,
     Any,
     Collection,
     Generic,
@@ -1236,6 +1237,36 @@ class Input(Value):
         self._type = type
 
 
+def _check_node_safe_to_remove(node, to_remove: AbstractSet[Node]) -> None:
+    """Check if a node is safe to remove.
+
+    1. It checks to make sure there are no users of the node that are not
+        to be removed before removing it.
+    2. It checks the node does not contribute to any graph outputs.
+
+    Args:
+        node: The node to check.
+        to_remove: A set of nodes that are to be removed. Required when safe=True.
+            This set is used to check if the node is still being used by other nodes that are not to be removed.
+
+    Raises:
+        ValueError: If the node does not belong to this graph or if there are users of the node.
+        ValueError: If the node is still being used by other nodes not to be removed.
+    """
+    for output in node.outputs:
+        if output.is_graph_output():
+            raise ValueError(
+                f"Node {node} is still an output of the graph and cannot be removed when safe=True."
+            )
+        for node, _ in output.consumers():
+            if node in to_remove:
+                continue
+            raise ValueError(
+                f"Node {node} is still being used by other nodes that are not to be "
+                f"removed: {output.consumers()}"
+            )
+
+
 class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     """IR Graph.
 
@@ -1390,19 +1421,45 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         nodes = [self._set_node_graph_to_self_and_assign_names(node) for node in nodes]
         self._nodes.extend(nodes)
 
-    def remove(self, node: Node, /) -> None:
-        """Remove a node from the graph in O(1) time.
+    def remove(self, nodes: Node | Collection[Node], /, safe: bool = False) -> None:
+        """Remove nodes from the graph in O(#num of nodes) time.
+
+        If any errors are raise, to ensure the graph is not left in an inconsistent state,
+        the graph is not modified.
 
         Args:
-            node: The node to remove.
+            nodes: The node to remove.
+            safe: If True, performs the following actions before removal:
+                1. It checks to make sure there are no users of the node that are not
+                    to be removed before removing it.
+                2. It checks the node does not contribute to any graph outputs.
+                3. It removes references to all inputs so it is no longer a user of other nodes.
+
+                This option will break all interconnections (input/output) of the node to remove.
 
         Raises:
-            ValueError: If the node does not belong to this graph.
+            ValueError: If any node to remove does not belong to this graph.
+            ValueError: (When ``safe=True``) If the node does not belong to this graph or if there are users of the node.
+            ValueError: (When ``safe=True``) If the node is still being used by other nodes not to be removed.
         """
-        if node.graph is not self:
-            raise ValueError(f"The node {node} does not belong to this graph.")
-        node.graph = None
-        self._nodes.remove(node)
+        if not isinstance(nodes, Collection):
+            nodes = {nodes}
+        else:
+            nodes = frozenset(nodes)
+        for node in nodes:
+            if node.graph is not self:
+                raise ValueError(f"The node {node} does not belong to this graph.")
+            if safe:
+                # Check 1, 2
+                _check_node_safe_to_remove(node, nodes)
+        for node in nodes:
+            if safe:
+                # 3. Detach from all inputs so that it is no longer a user of other nodes
+                for i in range(len(node.inputs)):
+                    node.replace_input_with(i, None)
+            # Set attributes to remove the node from this graph
+            node.graph = None
+            self._nodes.remove(node)
 
     def insert_after(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
         """Insert new nodes after the given node in O(#new_nodes) time.
@@ -1878,9 +1935,28 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         """Extend the function with the given nodes in O(#new_nodes) time."""
         self._graph.extend(nodes)
 
-    def remove(self, node: Node, /) -> None:
-        """Remove a node from the function in O(1) time."""
-        self._graph.remove(node)
+    def remove(self, nodes: Node | Collection[Node], /, safe: bool = False) -> None:
+        """Remove nodes from the graph in O(#num of nodes) time.
+
+        If any errors are raise, to ensure the graph is not left in an inconsistent state,
+        the graph is not modified.
+
+        Args:
+            nodes: The node to remove.
+            safe: If True, performs the following actions before removal:
+                1. It checks to make sure there are no users of the node that are not
+                    to be removed before removing it.
+                2. It checks the node does not contribute to any graph outputs.
+                3. It removes references to all inputs so it is no longer a user of other nodes.
+
+                This option will break all interconnections (input/output) of the node to remove.
+
+        Raises:
+            ValueError: If any node to remove does not belong to this graph.
+            ValueError: (When ``safe=True``) If the node does not belong to this graph or if there are users of the node.
+            ValueError: (When ``safe=True``) If the node is still being used by other nodes not to be removed.
+        """
+        self._graph.remove(nodes, safe=safe)
 
     def insert_after(self, node: Node, new_nodes: Iterable[Node], /) -> None:
         """Insert new nodes after the given node in O(#new_nodes) time."""
