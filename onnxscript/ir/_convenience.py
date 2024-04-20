@@ -37,7 +37,10 @@ def convert_attributes(attrs: Mapping[str, Any]) -> list[_core.Attr]:
     return attributes
 
 
-def replace_all_uses_with(values: _protocols.ValueProtocol | Sequence[_protocols.ValueProtocol], replacements: _protocols.ValueProtocol | Sequence[_protocols.ValueProtocol]) -> None:
+def replace_all_uses_with(
+    values: _protocols.ValueProtocol | Sequence[_protocols.ValueProtocol],
+    replacements: _protocols.ValueProtocol | Sequence[_protocols.ValueProtocol],
+) -> None:
     """Replace all consumers of the given values with the replacements.
 
     This is useful when nodes in the graph are replaced with new nodes, where
@@ -58,17 +61,22 @@ def replace_all_uses_with(values: _protocols.ValueProtocol | Sequence[_protocols
         >>> replace_all_uses_with(node_a.outputs, node_d.outputs)
         >>> len(node_b.inputs)
         1
-        >>> node_b.inputs[0].op_type
+        >>> node_b.inputs[0].producer().op_type
         'D'
         >>> len(node_c.inputs)
         1
-        >>> node_c.inputs[0].op_type
+        >>> node_c.inputs[0].producer().op_type
         'D'
-        >>> len(node_a.consumers())
+        >>> len(node_a.outputs[0].consumers())
         0
 
     When values and replacements are sequences, they are zipped into pairs. All
     users of the first value is replaced with the first replacement, and so on.
+
+    .. note::
+        You still need to update the graph outputs if any of the values being
+        replaced are part of the graph outputs. Be sure to remove the old nodes
+        from the graph using ``graph.remove()`` if they are no longer needed.
 
     Args:
         values: The value or values to be replaced.
@@ -81,5 +89,5 @@ def replace_all_uses_with(values: _protocols.ValueProtocol | Sequence[_protocols
     if len(values) != len(replacements):
         raise ValueError("The number of values and replacements must match.")
     for value, replacement in zip(values, replacements):
-        for user_node, index in tuple(replacement.consumers()):
-            user_node.replace_input_with(index, value)
+        for user_node, index in tuple(value.consumers()):
+            user_node.replace_input_with(index, replacement)
