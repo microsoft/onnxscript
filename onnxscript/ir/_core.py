@@ -1237,24 +1237,30 @@ class Input(Value):
         self._type = type
 
 
-def _check_node_safe_to_remove(node, to_remove: AbstractSet[Node]) -> None:
+def _check_node_safe_to_remove(
+    node: Node, to_remove: AbstractSet[Node], graph_outputs: AbstractSet[Value]
+) -> None:
     """Check if a node is safe to remove.
 
     1. It checks to make sure there are no users of the node that are not
         to be removed before removing it.
     2. It checks the node does not contribute to any graph outputs.
 
+    This check is typically O(1) assuming the number of consumers of the node is small
+
     Args:
         node: The node to check.
-        to_remove: A set of nodes that are to be removed. Required when safe=True.
-            This set is used to check if the node is still being used by other nodes that are not to be removed.
+        to_remove: A set of nodes that are to be removed.
+            This set is used to check if the node is still being used by other
+            nodes that are not to be removed.
+        graph_outputs: A set of values that are outputs of the graph.
 
     Raises:
         ValueError: If the node does not belong to this graph or if there are users of the node.
         ValueError: If the node is still being used by other nodes not to be removed.
     """
     for output in node.outputs:
-        if output.is_graph_output():
+        if output in graph_outputs:
             raise ValueError(
                 f"Node {node} is still an output of the graph and cannot be removed when safe=True."
             )
@@ -1446,12 +1452,13 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             nodes = {nodes}
         else:
             nodes = frozenset(nodes)
+        graph_outputs = frozenset(self.outputs)
         for node in nodes:
             if node.graph is not self:
                 raise ValueError(f"The node {node} does not belong to this graph.")
             if safe:
                 # Check 1, 2
-                _check_node_safe_to_remove(node, nodes)
+                _check_node_safe_to_remove(node, nodes, graph_outputs)
         for node in nodes:
             if safe:
                 # 3. Detach from all inputs so that it is no longer a user of other nodes

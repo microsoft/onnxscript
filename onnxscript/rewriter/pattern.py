@@ -1039,8 +1039,7 @@ def _apply_deltas(
                             graph_or_function.outputs[idx] = new_output
 
             # insert new nodes after the index node
-            # TODO(justinchuby): Do not access by index [i]
-            graph_or_function.insert_after(graph_or_function[i], inserted_nodes)
+            graph_or_function.insert_after(last_deleted, inserted_nodes)
             graph_or_function.remove(deleted_nodes, safe=True)
 
     for replaced_node, inserted_nodes in to_insert:
