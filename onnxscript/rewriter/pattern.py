@@ -823,11 +823,6 @@ class ReplacementPatternFunction:
         self._function = function
         self._kind = kind
 
-    @property
-    def function(self) -> Callable:
-        return self._function
-
-    # TODO: How do we merge it with to_ir function?
     def get_replacement(
         self,
         model,
@@ -911,7 +906,6 @@ class RewriteRule:
         self._condition_function = condition_function
 
         _pattern_vars = inspect.signature(self._target_pattern.function).parameters
-        _replacement_vars = inspect.signature(self._replacement_pattern.function).parameters
 
         self._vars = [Var(v) for v in _pattern_vars]
         # Get the last node pattern and number of outputs from the pattern function
