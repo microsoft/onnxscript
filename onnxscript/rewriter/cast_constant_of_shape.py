@@ -53,7 +53,9 @@ def fused_cast_constant_of_shape_without_value(
 
 cast_constant_of_shape_rule = pattern.RewriteRule(
     cast_constant_of_shape,
-    pattern.ReplacementPatternFunction(fused_cast_constant_of_shape, pattern.ReplacementKind.WithBindings),
+    pattern.ReplacementPatternFunction(
+        fused_cast_constant_of_shape, pattern.ReplacementKind.WithBindings
+    ),
 )
 
 cast_constant_of_shape_without_value_rule = pattern.RewriteRule(

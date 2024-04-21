@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from enum import Enum
 import inspect
 import itertools
 import math
+from enum import Enum
 from typing import Any, Callable, Sequence
 
 import numpy as np
@@ -463,13 +463,12 @@ class ValuePattern:
 
     def __init__(self, name: str | None) -> None:
         self.name = name
-        pass
 
     def __repr__(self) -> str:
         return f"ValuePattern({self._name!r})"
 
     def matches(self, value: ir.Value, model: ir.Model):
-             return MatchResult([], {self.name: value})
+        return MatchResult([], {self.name: value})
 
     def to_ir(
         self,
@@ -653,7 +652,9 @@ class NodeOutputPattern(ValuePattern):
     is values computed using a specific op.
     """
 
-    def __init__(self, node_pattern: NodePattern, output_index: int, name: str | None = None) -> None:
+    def __init__(
+        self, node_pattern: NodePattern, output_index: int, name: str | None = None
+    ) -> None:
         super().__init__(name)
         self.node_pattern = node_pattern
         self.output_index = output_index
@@ -677,7 +678,9 @@ class NodeOutputPattern(ValuePattern):
         assert self.output_index == 0, "TODO: handle multiple outputs"
         return self.node_pattern.to_ir(model, bindings, num_outputs, rewrite_cache)
 
+
 Var = ValuePattern
+
 
 class Constant(ValuePattern):
     """Represents a pattern that matches against a scalar constant value."""
@@ -800,9 +803,11 @@ class TargetPatternFunction:
         node_output_pattern = self._function(*variables)
         return _handle_pattern_return_value(node_output_pattern)
 
+
 class ReplacementKind(Enum):
     Original = 0
     WithBindings = 1
+
 
 class ReplacementPatternFunction:
     """The replacement pattern that will replace the targeted pattern.
@@ -823,8 +828,9 @@ class ReplacementPatternFunction:
         return self._function
 
     # TODO: How do we merge it with to_ir function?
-    def get_pattern(
+    def get_replacement(
         self,
+        model,
         vars: Sequence[Var],
         match_bindings: dict[str, ir.Value | Any] | None = None,
     ) -> tuple[NodePattern | None, int | None]:
@@ -832,9 +838,21 @@ class ReplacementPatternFunction:
             return None, None
         if self._kind == ReplacementKind.Original:
             node_output_pattern = self._function(*vars)
-        else:
+        elif self._kind == ReplacementKind.WithBindings:
             node_output_pattern = self._function(*vars, match_bindings)
-        return _handle_pattern_return_value(node_output_pattern)
+        else:
+            raise NotImplementedError(f"ReplacementKind {self._kind} not implemented")
+        replace_node_pattern, replacement_num_outputs = _handle_pattern_return_value(
+            node_output_pattern
+        )
+        # TODO(rama): Check if the number of outputs is the same as the target pattern.
+        # assert self._target_num_outputs == replacement_num_outputs
+        rewrite_cache = RewriteCache()
+        assert replace_node_pattern is not None, "Replacement pattern is None."
+        new_values, new_nodes = replace_node_pattern.to_ir(
+            model, match_bindings, replacement_num_outputs, rewrite_cache
+        )
+        return new_nodes
 
 
 class RewriteCache:
@@ -923,19 +941,11 @@ class RewriteRule:
             assert match.values is not None, "Matched values should not be None."
             if _valid_to_replace(match.values):
                 # bindings will be consumed by the replacement function
-                self._replace_node_pattern, _replacement_num_outputs = (
-                    self._replacement_pattern.get_pattern(
-                        self._vars, match_bindings=match.bindings
-                    )
+                to_insert = self._replacement_pattern.get_replacement(
+                    model, self._vars, match_bindings=match.bindings
                 )
-                assert self._target_num_outputs == _replacement_num_outputs
-                rewrite_cache = RewriteCache()
-                assert self._replace_node_pattern is not None, "Replacement pattern is None."
-                _, _to_insert = self._replace_node_pattern.to_ir(
-                    model, match.bindings, self._target_num_outputs, rewrite_cache
-                )
-
-                return (match.values, _to_insert)  # type: ignore[return-value]
+                # assert self._target_num_outputs == _replacement_num_outputs
+                return (match.values, to_insert)  # type: ignore[return-value]
         return None
 
     def apply_to_model(self, model: ir.Model, *, commute: bool = False):

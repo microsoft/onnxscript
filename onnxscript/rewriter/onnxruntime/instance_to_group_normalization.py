@@ -155,7 +155,9 @@ def group_normalization(
 # Register the rewrite rules
 instance_norm_to_group_norm_rule = pattern.RewriteRule(
     instance_simulates_group_normalization_pattern,
-    pattern.ReplacementPatternFunction(group_normalization, pattern.ReplacementKind.WithBindings),
+    pattern.ReplacementPatternFunction(
+        group_normalization, pattern.ReplacementKind.WithBindings
+    ),
     check_if_simulated_instance_norm_is_used,
 )
 
