@@ -132,7 +132,29 @@ def convert_attributes(
 
     It infers the attribute type based on the type of the value. The supported
     types are: int, float, str, Sequence[int], Sequence[float], Sequence[str],
-    :class:`_core.Tensor`, and :class:`_core.Attr`.
+    :class:`_core.Tensor`, and :class:`_core.Attr`::
+
+        >>> from onnxscript import ir
+        >>> import onnx
+        >>> import numpy as np
+        >>> attrs = {
+        ...     "int": 1,
+        ...     "float": 1.0,
+        ...     "str": "hello",
+        ...     "ints": [1, 2, 3],
+        ...     "floats": [1.0, 2.0, 3.0],
+        ...     "strings": ["hello", "world"],
+        ...     "tensor": ir.Tensor(np.array([1, 2, 3])),
+        ...     "tensor_proto":
+        ...         onnx.TensorProto(
+        ...             dims=[3],
+        ...             data_type=onnx.TensorProto.FLOAT,
+        ...             float_data=[1.0, 2.0, 3.0],
+        ...             name="proto",
+        ...         ),
+        ... }
+        >>> convert_attributes(attrs)
+        [AttrInt64('int', INT, 1), AttrFloat32('float', FLOAT, 1.0), AttrString('str', STRING, 'hello'), AttrInt64s('ints', INTS, [1, 2, 3]), AttrFloat32s('floats', FLOATS, [1.0, 2.0, 3.0]), AttrStrings('strings', STRINGS, ['hello', 'world']), AttrTensor('tensor', TENSOR, Tensor<INT64,[3]>(array([1, 2, 3]))), AttrTensor('tensor_proto', TENSOR, TensorProtoTensor<FLOAT,[3]>('proto'))]
 
     Args:
         attrs: A dictionary of {<attribute name>: <python objects> to convert.
