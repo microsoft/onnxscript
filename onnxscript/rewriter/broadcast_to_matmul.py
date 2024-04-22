@@ -140,10 +140,7 @@ def two_reshapes_matmul_reshape_pattern(input_a, input_b, shape_a, shape_b, shap
     return op.Reshape(matmul, shape_c)
 
 
-def matmul_with_two_shape_inputs(op, input_a, input_b, shape_a, shape_b, shape_c):
-    del shape_a  # Unused
-    del shape_b  # Unused
-    del shape_c  # Unused
+def matmul(op, input_a, input_b, **_):
     return op.MatMul(input_a, input_b)
 
 
@@ -153,21 +150,15 @@ def one_reshape_matmul_reshape_pattern(input_a, input_b, shape_a, shape_c):
     return op.Reshape(matmul, shape_c)
 
 
-def matmul_with_one_shape_input(op, input_a, input_b, shape_a, shape_c):
-    del shape_a  # Unused
-    del shape_c  # Unused
-    return op.MatMul(input_a, input_b)
-
-
 # Register the rewrite rules
 two_reshapes_matmul_reshape_rule = pattern.RewriteRule(
     two_reshapes_matmul_reshape_pattern,
-    matmul_with_two_shape_inputs,
+    matmul,
     check_if_need_reshape,
 )
 one_reshape_matmul_reshape_rule = pattern.RewriteRule(
     one_reshape_matmul_reshape_pattern,
-    matmul_with_one_shape_input,
+    matmul,
     # We can use the same check_if_need_reshape function for both the rules,
     # as one_reshape_matmul_reshape_pattern is a subset of two_reshapes_matmul_reshape_pattern.
     check_if_need_reshape,
