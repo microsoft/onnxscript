@@ -164,9 +164,7 @@ class MHALlama2RewriteRule(AttentionRewriteRule):
             attn_output = op.MatMul(mha_output, op.Transpose(o_proj_weight, [1, 0]))
             return present_value, present_key, attn_output
 
-        return onnxscript.script(default_opset=onnxscript.opset18)(mha).to_function_proto(), (
-            onnx.helper.make_operatorsetid("com.microsoft", 1),
-        )
+        return onnxscript.script(default_opset=onnxscript.opset18)(mha).to_function_proto()
 
     @_version_controller.register_version(min_version="4.36", max_version="4.38")
     def _fusion_with_2d_cache(
@@ -226,9 +224,7 @@ class MHALlama2RewriteRule(AttentionRewriteRule):
             attn_output = op.MatMul(mha_output, op.Transpose(o_proj_weight, [1, 0]))
             return present_value, present_key, attn_output
 
-        return onnxscript.script(default_opset=onnxscript.opset18)(mha).to_function_proto(), (
-            onnx.helper.make_operatorsetid("com.microsoft", 1),
-        )
+        return onnxscript.script(default_opset=onnxscript.opset18)(mha).to_function_proto()
 
 
 class GQALlama2RewriteRule(AttentionRewriteRule):
@@ -306,9 +302,7 @@ class GQALlama2RewriteRule(AttentionRewriteRule):
             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
             return present_value, present_key, attn_output
 
-        return onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto(), (
-            onnx.helper.make_operatorsetid("com.microsoft", 1),
-        )
+        return onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
 
     @_version_controller.register_version(min_version="4.36", max_version="4.38")
     def _fusion_with_2d_cache(
@@ -374,9 +368,7 @@ class GQALlama2RewriteRule(AttentionRewriteRule):
             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
             return present_value, present_key, attn_output
 
-        return onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto(), (
-            onnx.helper.make_operatorsetid("com.microsoft", 1),
-        )
+        return onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
 
 
 class GQALlamaSdpa2RewriteRule(AttentionRewriteRule):
@@ -450,7 +442,7 @@ class GQALlamaSdpa2RewriteRule(AttentionRewriteRule):
 
         return onnxscript.script(default_opset=onnxscript.opset18)(
             gqa,
-        ).to_function_proto(), (onnx.helper.make_operatorsetid("com.microsoft", 1),)
+        ).to_function_proto()
 
     @_version_controller.register_version(min_version="4.38")
     def _fusion_without_cos_sin_cache(
@@ -526,7 +518,7 @@ class GQALlamaSdpa2RewriteRule(AttentionRewriteRule):
 
         return onnxscript.script(default_opset=onnxscript.opset18)(
             gqa,
-        ).to_function_proto(), (onnx.helper.make_operatorsetid("com.microsoft", 1),)
+        ).to_function_proto()
 
 
 class AttnPhi15RewriteRule(AttentionRewriteRule):
@@ -598,4 +590,4 @@ class AttnPhi15RewriteRule(AttentionRewriteRule):
 
         return onnxscript.script(default_opset=onnxscript.opset18)(
             phi_attention
-        ).to_function_proto(), (onnx.helper.make_operatorsetid("com.microsoft", 1),)
+        ).to_function_proto()

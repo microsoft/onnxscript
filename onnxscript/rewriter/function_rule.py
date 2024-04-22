@@ -148,7 +148,7 @@ class FunctionRewriteRule(pattern.RewriteRule):
 
     def compose_new_function(
         self, old_function: ir.Function, pkg_version: version.Version | None
-    ) -> tuple[onnx.FunctionProto, tuple[onnx.OperatorSetIdProto]]:
+    ) -> tuple[ir.Function]:
         """Compose a new function from the old function.
 
         Returns:
@@ -159,7 +159,8 @@ class FunctionRewriteRule(pattern.RewriteRule):
         """
         func = self._version_controller.dispatch(pkg_version)
         if func is not None:
-            return func(self, old_function)
+            new_function = func(self, old_function)
+            return serde.deserialize_function(new_function)
         raise FunctionRewriteError(
             f"No rewrite implementation for package version {pkg_version}."
         )
@@ -191,12 +192,11 @@ class FunctionRewriteRule(pattern.RewriteRule):
             function.name,
         )
         try:
-            new_function, opset_imports = self.compose_new_function(function, pkg_version)
+            new_function = self.compose_new_function(function, pkg_version)
         except FunctionRewriteError as e:
             logger.warning("Could not rewrite function: %s", e)
             return None
 
-        new_function = serde.deserialize_function(new_function)
         new_function.name = function.name
         new_function.domain = function.domain
 
