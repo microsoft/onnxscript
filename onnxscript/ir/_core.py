@@ -1269,7 +1269,7 @@ def _check_node_safe_to_remove(
                 continue
             raise ValueError(
                 f"Node {node} is still being used by other nodes that are not to be "
-                f"removed: {output.consumers()}"
+                f"removed. All of its uses: {tuple(output.consumers())}"
             )
 
 
