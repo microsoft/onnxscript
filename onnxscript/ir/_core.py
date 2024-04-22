@@ -1449,7 +1449,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             ValueError: (When ``safe=True``) If the node is still being used by other nodes not to be removed.
         """
         if not isinstance(nodes, Iterable):
-            nodes_set = {nodes}
+            nodes_set: AbstractSet[Node] = {nodes}
         else:
             nodes_set = frozenset(nodes)
         graph_outputs = frozenset(self.outputs)
