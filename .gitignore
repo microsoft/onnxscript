@@ -97,7 +97,6 @@ dmypy.json
 *.onnxlib
 **/onnx_backend_test_code/**
 docs/auto_examples/*
-tests/export/*
 tests/models/testoutputs/*
 tests/mylib.onnxlib
 **/serde_test_profiles/*
