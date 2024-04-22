@@ -23,18 +23,40 @@ SupportedAttrTypes = Union[
     Sequence[int],
     Sequence[float],
     Sequence[str],
-    _protocols.TensorProtocol,
+    _protocols.TensorProtocol,  # This includes all in-memory tensor types
     onnx.TensorProto,
     _core.Attr,
+    _core.RefAttr,
     None,
 ]
+
+
+def _infer_attribute_type(attr: SupportedAttrTypes) -> _enums.AttributeType:
+    if isinstance(attr, int):
+        return _enums.AttributeType.INT
+    if isinstance(attr, float):
+        return _enums.AttributeType.FLOAT
+    if isinstance(attr, str):
+        return _enums.AttributeType.STRING
+    if isinstance(attr, (_core.Attr, _core.RefAttr)):
+        return attr.type
+    if isinstance(attr, Sequence) and all(isinstance(x, int) for x in attr):
+        return _enums.AttributeType.INTS
+    if isinstance(attr, Sequence) and all(isinstance(x, float) for x in attr):
+        return _enums.AttributeType.FLOATS
+    if isinstance(attr, Sequence) and all(isinstance(x, str) for x in attr):
+        return _enums.AttributeType.STRINGS
+    if isinstance(attr, (_core.TensorBase, onnx.TensorProto, _protocols.TensorProtocol)):
+        # Be sure to check TensorProtocol last because isinstance checking on Protocols can be slower
+        return _enums.AttributeType.TENSOR
+    raise TypeError(f"Unsupported attribute type: '{type(attr)}'")
 
 
 def convert_attribute(
     name: str,
     attr: SupportedAttrTypes,
     attr_type: _enums.AttributeType | None = None,
-) -> _core.Attr:
+) -> _core.Attr | _core.RefAttr:
     """Convert a Python object to a _core.Attr object.
 
     This method is useful when constructing nodes with attributes. It infers the
@@ -44,36 +66,68 @@ def convert_attribute(
         name: The name of the attribute.
         attr: The value of the attribute.
         attr_type: The type of the attribute. This is required when attr is None.
+            When provided, it overrides the inferred type.
 
     Returns:
         A ``Attr`` object.
+
+    Raises:
+        ValueError: If :param:`attr` is ``None`` and :param:`attr_type` is not provided.
+        TypeError: If the type of the attribute is not supported.
     """
     if attr is None:
         if attr_type is None:
             raise ValueError("attr_type must be provided when attr is None")
         return _core.Attr(name, attr_type, None)
-    if isinstance(attr, int):
-        return _core.AttrInt64(name, attr)
-    if isinstance(attr, float):
-        return _core.AttrFloat32(name, attr)
-    if isinstance(attr, str):
-        return _core.AttrString(name, attr)
-    if isinstance(attr, Sequence) and all(isinstance(x, int) for x in attr):
-        return _core.AttrInt64s(name, attr)  # type: ignore
-    if isinstance(attr, Sequence) and all(isinstance(x, float) for x in attr):
-        return _core.AttrFloat32s(name, attr)  # type: ignore
-    if isinstance(attr, Sequence) and all(isinstance(x, str) for x in attr):
-        return _core.AttrStrings(name, attr)  # type: ignore
-    if isinstance(attr, (_core.Tensor, _protocols.TensorProtocol)):
-        return _core.AttrTensor(name, attr)
-    if isinstance(attr, onnx.TensorProto):
-        return _core.AttrTensor(name, serde.TensorProtoTensor(attr))
-    if isinstance(attr, _core.Attr):
+
+    if isinstance(attr, (_core.Attr, _core.RefAttr)):
+        if attr.name != name:
+            raise ValueError(
+                f"Attribute name '{attr.name}' does not match provided name '{name}'"
+            )
+        if attr_type is not None and attr.type != attr_type:
+            raise ValueError(
+                f"Attribute type '{attr.type}' does not match provided type '{attr_type}'"
+            )
         return attr
+
+    if attr_type is None:
+        attr_type = _infer_attribute_type(attr)
+
+    else:
+        if isinstance(attr, (_core.Attr, _core.RefAttr)):
+            if attr.name != name:
+                raise ValueError(
+                    f"Attribute name '{attr.name}' does not match provided name '{name}'"
+                )
+            if attr.type != attr_type:
+                raise ValueError(
+                    f"Attribute type '{attr.type}' does not match provided type '{attr_type}'"
+                )
+
+    if attr_type == _enums.AttributeType.INT:
+        return _core.AttrInt64(name, attr)  # type: ignore
+    if attr_type == _enums.AttributeType.FLOAT:
+        return _core.AttrFloat32(name, attr)  # type: ignore
+    if attr_type == _enums.AttributeType.STRING:
+        return _core.AttrString(name, attr)  # type: ignore
+    if attr_type == _enums.AttributeType.INTS:
+        return _core.AttrInt64s(name, attr)  # type: ignore
+    if attr_type == _enums.AttributeType.FLOATS:
+        return _core.AttrFloat32s(name, attr)  # type: ignore
+    if attr_type == _enums.AttributeType.STRINGS:
+        return _core.AttrStrings(name, attr)  # type: ignore
+    if attr_type == _enums.AttributeType.TENSOR:
+        if isinstance(attr, (_core.TensorBase, _protocols.TensorProtocol)):
+            return _core.AttrTensor(name, attr)
+        if isinstance(attr, onnx.TensorProto):
+            return _core.AttrTensor(name, serde.TensorProtoTensor(attr))
     raise TypeError(f"Unsupported attribute type: '{type(attr)}'")
 
 
-def convert_attributes(attrs: Mapping[str, SupportedAttrTypes]) -> list[_core.Attr]:
+def convert_attributes(
+    attrs: Mapping[str, SupportedAttrTypes],
+) -> list[_core.Attr | _core.RefAttr]:
     """Convert a dictionary of attributes to a list of _core.Attr objects.
 
     It infers the attribute type based on the type of the value. The supported
@@ -86,7 +140,7 @@ def convert_attributes(attrs: Mapping[str, SupportedAttrTypes]) -> list[_core.At
     Returns:
         A list of _core.Attr objects.
     """
-    attributes: list[_core.Attr] = []
+    attributes: list[_core.Attr | _core.RefAttr] = []
     for name, attr in attrs.items():
         attributes.append(convert_attribute(name, attr))
     return attributes
