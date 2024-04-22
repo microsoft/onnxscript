@@ -1262,7 +1262,7 @@ def _check_node_safe_to_remove(
     for output in node.outputs:
         if output in graph_outputs:
             raise ValueError(
-                f"Node {node!r} is still an output of the graph and cannot be removed when safe=True."
+                f"Node '{node!r}' is still an output of the graph and cannot be removed when safe=True."
             )
         for consumer, _ in output.consumers():
             if consumer in to_remove:
@@ -1391,7 +1391,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         """Set the graph reference for the node and assign names to it and its outputs if they don't have one."""
         if node.graph is not None and node.graph is not self:
             raise ValueError(
-                f"The node {node!r} belongs to another graph. Please remove it first with Graph.remove()."
+                f"The node '{node!r}' belongs to another graph. Please remove it first with Graph.remove()."
             )
         # Give the node and its output values names if they don't not have one
         if node.name is None:
@@ -1455,7 +1455,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         graph_outputs = frozenset(self.outputs)
         for node in nodes_set:
             if node.graph is not self:
-                raise ValueError(f"The node {node!r} does not belong to this graph.")
+                raise ValueError(f"The node '{node!r}' does not belong to this graph.")
             if safe:
                 # Check 1, 2
                 _check_node_safe_to_remove(node, nodes_set, graph_outputs)
