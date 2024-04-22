@@ -10,30 +10,157 @@ after they are proven to be useful.
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+__all__ = [
+    "convert_attribute",
+    "convert_attributes",
+    "replace_all_uses_with",
+]
 
-from onnxscript.ir import _core, _protocols
+from typing import Mapping, Sequence, Union
+
+import onnx
+
+from onnxscript.ir import _core, _enums, _protocols, serde
+
+SupportedAttrTypes = Union[
+    str,
+    int,
+    float,
+    Sequence[int],
+    Sequence[float],
+    Sequence[str],
+    _protocols.TensorProtocol,  # This includes all in-memory tensor types
+    onnx.TensorProto,
+    _core.Attr,
+    _core.RefAttr,
+    None,
+]
 
 
-def convert_attributes(attrs: Mapping[str, Any]) -> list[_core.Attr]:
-    attributes: list[_core.Attr] = []
+def _infer_attribute_type(attr: SupportedAttrTypes) -> _enums.AttributeType:
+    """Infer the attribute type based on the type of the Python object."""
+    if isinstance(attr, int):
+        return _enums.AttributeType.INT
+    if isinstance(attr, float):
+        return _enums.AttributeType.FLOAT
+    if isinstance(attr, str):
+        return _enums.AttributeType.STRING
+    if isinstance(attr, (_core.Attr, _core.RefAttr)):
+        return attr.type
+    if isinstance(attr, Sequence) and all(isinstance(x, int) for x in attr):
+        return _enums.AttributeType.INTS
+    if isinstance(attr, Sequence) and all(isinstance(x, float) for x in attr):
+        return _enums.AttributeType.FLOATS
+    if isinstance(attr, Sequence) and all(isinstance(x, str) for x in attr):
+        return _enums.AttributeType.STRINGS
+    if isinstance(attr, (_core.TensorBase, onnx.TensorProto, _protocols.TensorProtocol)):
+        # Be sure to check TensorProtocol last because isinstance checking on Protocols can be slower
+        return _enums.AttributeType.TENSOR
+    raise TypeError(f"Unsupported attribute type: '{type(attr)}'")
+
+
+def convert_attribute(
+    name: str,
+    attr: SupportedAttrTypes,
+    attr_type: _enums.AttributeType | None = None,
+) -> _core.Attr | _core.RefAttr:
+    """Convert a Python object to a _core.Attr object.
+
+    This method is useful when constructing nodes with attributes. It infers the
+    attribute type based on the type of the Python value.
+
+    Args:
+        name: The name of the attribute.
+        attr: The value of the attribute.
+        attr_type: The type of the attribute. This is required when attr is None.
+            When provided, it overrides the inferred type.
+
+    Returns:
+        A ``Attr`` object.
+
+    Raises:
+        ValueError: If :param:`attr` is ``None`` and :param:`attr_type` is not provided.
+        TypeError: If the type of the attribute is not supported.
+    """
+    if attr is None:
+        if attr_type is None:
+            raise ValueError("attr_type must be provided when attr is None")
+        return _core.Attr(name, attr_type, None)
+
+    if isinstance(attr, (_core.Attr, _core.RefAttr)):
+        if attr.name != name:
+            raise ValueError(
+                f"Attribute name '{attr.name}' does not match provided name '{name}'"
+            )
+        if attr_type is not None and attr.type != attr_type:
+            raise ValueError(
+                f"Attribute type '{attr.type}' does not match provided type '{attr_type}'"
+            )
+        return attr
+
+    if attr_type is None:
+        attr_type = _infer_attribute_type(attr)
+
+    if attr_type == _enums.AttributeType.INT:
+        return _core.AttrInt64(name, attr)  # type: ignore
+    if attr_type == _enums.AttributeType.FLOAT:
+        return _core.AttrFloat32(name, attr)  # type: ignore
+    if attr_type == _enums.AttributeType.STRING:
+        return _core.AttrString(name, attr)  # type: ignore
+    if attr_type == _enums.AttributeType.INTS:
+        return _core.AttrInt64s(name, attr)  # type: ignore
+    if attr_type == _enums.AttributeType.FLOATS:
+        return _core.AttrFloat32s(name, attr)  # type: ignore
+    if attr_type == _enums.AttributeType.STRINGS:
+        return _core.AttrStrings(name, attr)  # type: ignore
+    if attr_type == _enums.AttributeType.TENSOR:
+        if isinstance(attr, (_core.TensorBase, _protocols.TensorProtocol)):
+            return _core.AttrTensor(name, attr)
+        if isinstance(attr, onnx.TensorProto):
+            return _core.AttrTensor(name, serde.TensorProtoTensor(attr))
+    raise TypeError(f"Unsupported attribute type: '{type(attr)}'")
+
+
+def convert_attributes(
+    attrs: Mapping[str, SupportedAttrTypes],
+) -> list[_core.Attr | _core.RefAttr]:
+    """Convert a dictionary of attributes to a list of _core.Attr objects.
+
+    It infers the attribute type based on the type of the value. The supported
+    types are: int, float, str, Sequence[int], Sequence[float], Sequence[str],
+    :class:`_core.Tensor`, and :class:`_core.Attr`::
+
+        >>> from onnxscript import ir
+        >>> import onnx
+        >>> import numpy as np
+        >>> attrs = {
+        ...     "int": 1,
+        ...     "float": 1.0,
+        ...     "str": "hello",
+        ...     "ints": [1, 2, 3],
+        ...     "floats": [1.0, 2.0, 3.0],
+        ...     "strings": ["hello", "world"],
+        ...     "tensor": ir.Tensor(np.array([1.0, 2.0, 3.0])),
+        ...     "tensor_proto":
+        ...         onnx.TensorProto(
+        ...             dims=[3],
+        ...             data_type=onnx.TensorProto.FLOAT,
+        ...             float_data=[1.0, 2.0, 3.0],
+        ...             name="proto",
+        ...         ),
+        ... }
+        >>> convert_attributes(attrs)
+        [AttrInt64('int', 1), AttrFloat32('float', 1.0), AttrString('str', 'hello'), AttrInt64s('ints', [1, 2, 3]), AttrFloat32s('floats', [1.0, 2.0, 3.0]), AttrStrings('strings', ['hello', 'world']), AttrTensor('tensor', Tensor<DOUBLE,[3]>(array([1., 2., 3.]), name='')), AttrTensor('tensor_proto', TensorProtoTensor<FLOAT,[3]>(name='proto'))]
+
+    Args:
+        attrs: A dictionary of {<attribute name>: <python objects>} to convert.
+
+    Returns:
+        A list of _core.Attr objects.
+    """
+    attributes: list[_core.Attr | _core.RefAttr] = []
     for name, attr in attrs.items():
-        if isinstance(attr, int):
-            attributes.append(_core.AttrInt64(name, attr))
-        elif isinstance(attr, float):
-            attributes.append(_core.AttrFloat32(name, attr))
-        elif isinstance(attr, str):
-            attributes.append(_core.AttrString(name, attr))
-        elif isinstance(attr, Sequence) and all(isinstance(x, int) for x in attr):
-            attributes.append(_core.AttrInt64s(name, attr))
-        elif isinstance(attr, Sequence) and all(isinstance(x, float) for x in attr):
-            attributes.append(_core.AttrFloat32s(name, attr))
-        elif isinstance(attr, Sequence) and all(isinstance(x, str) for x in attr):
-            attributes.append(_core.AttrStrings(name, attr))
-        elif isinstance(attr, _core.Attr):
-            attributes.append(attr)
-        else:
-            raise TypeError(f"Unsupported attribute type: '{type(attr)}'")
+        attributes.append(convert_attribute(name, attr))
     return attributes
 
 
