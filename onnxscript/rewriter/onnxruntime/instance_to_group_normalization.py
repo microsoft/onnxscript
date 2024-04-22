@@ -116,15 +116,13 @@ def instance_simulates_group_normalization_pattern(
 
 
 def group_normalization(
+    op,
     input_x,
-    adjusted_input_shape,
-    original_input_shape,
     weight_for_norm,
-    bias_for_norm,
     weight_full,
     bias_full,
     epsilon,
-    match_bindings: dict[str, ir.Value],
+    **_
 ):
     # com.microsoft.GroupNorm only supports NHWC for now
     nhwc_input = op.Transpose(input_x, perm=[0, 2, 3, 1])
@@ -135,12 +133,13 @@ def group_normalization(
     bias_full = op.Cast(bias_full, to=onnx.TensorProto.FLOAT)
     bias_full = op.Reshape(bias_full, reshape_to_1d)
     # re-obtain attribute groups
-    if "weight_for_norm" not in match_bindings:
-        raise ValueError("weight_for_norm is not found in match_bindings")
-    if match_bindings["weight_for_norm"].shape is None:
+    # TODO(rama): Earlier check implies weight_for_norm is a constant tensor?
+    # If not, we should add a check that shape[0] is not symbolic.
+    shape = weight_for_norm.shape
+    if  shape is None:
         raise ValueError("weight_for_norm shape not known")
-    groups = match_bindings["weight_for_norm"].shape[0]
-    output = msft_op.GroupNorm(
+    groups = shape[0]
+    output = op.GroupNorm(
         nhwc_input,
         weight_full,
         bias_full,
@@ -148,6 +147,7 @@ def group_normalization(
         channels_last=1,
         epsilon=epsilon,
         groups=groups,
+        domain="com.microsoft",
     )
     return op.Transpose(output, perm=[0, 3, 1, 2])
 
@@ -155,9 +155,7 @@ def group_normalization(
 # Register the rewrite rules
 instance_norm_to_group_norm_rule = pattern.RewriteRule(
     instance_simulates_group_normalization_pattern,
-    pattern.ReplacementPatternFunction(
-        group_normalization, pattern.ReplacementKind.WithBindings
-    ),
+    group_normalization,
     check_if_simulated_instance_norm_is_used,
 )
 

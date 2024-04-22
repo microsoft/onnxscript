@@ -550,7 +550,7 @@ class NodePattern:
 
     def matches_node(self, node: ir.Node, model: ir.Model) -> MatchResult:
         """Examine if the IR node matches the self pattern."""
-        node_version = model.graph.opset_imports.get(node.domain, 0)
+        node_version = model.graph.opset_imports.get(node.domain, 1)
         if not self.domain.matches((node.domain, node_version)):
             return MatchResult.FAIL()
         if not self.op.matches(node.op_type):
@@ -848,6 +848,7 @@ class ReplacementPatternFunction:
     """
 
     def __init__(self, function, kind: ReplacementKind = ReplacementKind.WithContext) -> None:
+        assert kind != ReplacementKind.Original
         self._function = function
         self._kind = kind
 
