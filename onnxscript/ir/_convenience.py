@@ -10,6 +10,12 @@ after they are proven to be useful.
 
 from __future__ import annotations
 
+__all__ = [
+    "convert_attribute",
+    "convert_attributes",
+    "replace_all_uses_with",
+]
+
 from typing import Mapping, Sequence, Union
 
 import onnx
