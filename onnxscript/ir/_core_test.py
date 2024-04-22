@@ -430,6 +430,7 @@ class GraphTest(unittest.TestCase):
     def test_remove_removes_node_from_graph(self):
         self.graph.remove(self.node)
         self.assertEqual(list(self.graph), [])
+        self.assertIsNone(self.node.graph)
 
     def test_remove_does_not_change_input_users(self):
         self.graph.remove(self.node)
@@ -440,6 +441,50 @@ class GraphTest(unittest.TestCase):
         self.graph.remove(self.node)
         self.assertEqual(self.graph.inputs, [self.v0, self.v1])
         self.assertEqual(self.graph.outputs, list(self.node.outputs))
+
+    def test_remove_raises_when_node_does_not_belong_to_graph(self):
+        node = _core.Node("", "Add", inputs=(self.v0, self.v1), num_outputs=1)
+        with self.assertRaisesRegex(ValueError, "graph"):
+            self.graph.remove(node)
+
+    def test_remove_safe_raises_when_node_output_is_graph_output(self):
+        with self.assertRaisesRegex(ValueError, "output"):
+            self.graph.remove(self.node, safe=True)
+
+    def test_remove_safe_raises_when_node_has_users(self):
+        v0 = _core.Input(name="v0")
+        v1 = _core.Input(name="v1")
+        add_node = _core.Node("", "Add", inputs=(v0, v1), num_outputs=1)
+        identity_node = _core.Node("", "Identity", inputs=add_node.outputs, num_outputs=1)
+        graph = _core.Graph(
+            (v0, v1),
+            identity_node.outputs,
+            nodes=(add_node, identity_node),
+            opset_imports={"": 1},
+        )
+        with self.assertRaisesRegex(ValueError, "used by other nodes"):
+            graph.remove(add_node, safe=True)
+
+    def test_remove_safe_removes_uses_of_removed_nodes(self):
+        v0 = _core.Input(name="v0")
+        v1 = _core.Input(name="v1")
+        add_node = _core.Node("", "Add", inputs=(v0, v1), num_outputs=1)
+        identity_node = _core.Node("", "Identity", inputs=add_node.outputs, num_outputs=1)
+        graph = _core.Graph(
+            (v0, v1),
+            identity_node.outputs,
+            nodes=(add_node, identity_node),
+            opset_imports={"": 1},
+        )
+        # Remove add_node and check that it is no longer a consumer of v0 and v1
+        sub_node = _core.Node("", "Sub", inputs=(v0, v1), num_outputs=1)
+        identity_node.replace_input_with(0, sub_node.outputs[0])
+        graph.insert_before(identity_node, sub_node)
+        graph.remove(add_node, safe=True)
+        self.assertEqual(tuple(v0.consumers()), ((sub_node, 0),))
+        self.assertEqual(tuple(v1.consumers()), ((sub_node, 1),))
+        self.assertEqual(tuple(graph), (sub_node, identity_node))
+        self.assertEqual(add_node.inputs, (None, None))
 
     # TODO(justinchuby): Test graph mutation methods
 

@@ -1269,7 +1269,7 @@ def _check_node_safe_to_remove(
                 continue
             raise ValueError(
                 f"Node '{consumer!r}' is still being used by other nodes that are not to be "
-                f"removed. All of its uses: {tuple(output.consumers())!r}"
+                f"removed. All of its uses: {list(output.consumers())!r}"
             )
 
 
@@ -1440,8 +1440,6 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
                     to be removed before removing it.
                 2. It checks the node does not contribute to any graph outputs.
                 3. It removes references to all inputs so it is no longer a user of other nodes.
-
-                This option will break all interconnections (input/output) of the node to remove.
 
         Raises:
             ValueError: If any node to remove does not belong to this graph.
@@ -1955,8 +1953,6 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
                     to be removed before removing it.
                 2. It checks the node does not contribute to any graph outputs.
                 3. It removes references to all inputs so it is no longer a user of other nodes.
-
-                This option will break all interconnections (input/output) of the node to remove.
 
         Raises:
             ValueError: If any node to remove does not belong to this graph.
