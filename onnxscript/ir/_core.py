@@ -84,7 +84,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
     def _repr_base(self) -> str:
         """Base string for the repr method.
 
-        Example: Tensor<FLOAT:=1,5x42>
+        Example: Tensor<FLOAT,[5,42]>
         """
         return f"{self.__class__.__name__}<{self._printable_type_shape()}>"
 
@@ -239,7 +239,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         return self.__array__().__dlpack_device__()
 
     def __repr__(self) -> str:
-        return f"{self._repr_base()}({self._raw!r})"
+        return f"{self._repr_base()}({self._raw!r}, name={self.name!r})"
 
     @property
     def dtype(self) -> _enums.DataType:
