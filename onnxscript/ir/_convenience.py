@@ -10,30 +10,85 @@ after they are proven to be useful.
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from typing import Mapping, Sequence, Union
 
-from onnxscript.ir import _core, _protocols
+import onnx
+
+from onnxscript.ir import _core, _enums, _protocols, serde
+
+SupportedAttrTypes = Union[
+    str,
+    int,
+    float,
+    Sequence[int],
+    Sequence[float],
+    Sequence[str],
+    _protocols.TensorProtocol,
+    onnx.TensorProto,
+    _core.Attr,
+    None,
+]
 
 
-def convert_attributes(attrs: Mapping[str, Any]) -> list[_core.Attr]:
+def convert_attribute(
+    name: str,
+    attr: SupportedAttrTypes,
+    attr_type: _enums.AttributeType | None = None,
+) -> _core.Attr:
+    """Convert a Python object to a _core.Attr object.
+
+    This method is useful when constructing nodes with attributes. It infers the
+    attribute type based on the type of the Python value.
+
+    Args:
+        name: The name of the attribute.
+        attr: The value of the attribute.
+        attr_type: The type of the attribute. This is required when attr is None.
+
+    Returns:
+        A ``Attr`` object.
+    """
+    if attr is None:
+        if attr_type is None:
+            raise ValueError("attr_type must be provided when attr is None")
+        return _core.Attr(name, attr_type, None)
+    if isinstance(attr, int):
+        return _core.AttrInt64(name, attr)
+    if isinstance(attr, float):
+        return _core.AttrFloat32(name, attr)
+    if isinstance(attr, str):
+        return _core.AttrString(name, attr)
+    if isinstance(attr, Sequence) and all(isinstance(x, int) for x in attr):
+        return _core.AttrInt64s(name, attr)  # type: ignore
+    if isinstance(attr, Sequence) and all(isinstance(x, float) for x in attr):
+        return _core.AttrFloat32s(name, attr)  # type: ignore
+    if isinstance(attr, Sequence) and all(isinstance(x, str) for x in attr):
+        return _core.AttrStrings(name, attr)  # type: ignore
+    if isinstance(attr, (_core.Tensor, _protocols.TensorProtocol)):
+        return _core.AttrTensor(name, attr)
+    if isinstance(attr, onnx.TensorProto):
+        return _core.AttrTensor(name, serde.TensorProtoTensor(attr))
+    if isinstance(attr, _core.Attr):
+        return attr
+    raise TypeError(f"Unsupported attribute type: '{type(attr)}'")
+
+
+def convert_attributes(attrs: Mapping[str, SupportedAttrTypes]) -> list[_core.Attr]:
+    """Convert a dictionary of attributes to a list of _core.Attr objects.
+
+    It infers the attribute type based on the type of the value. The supported
+    types are: int, float, str, Sequence[int], Sequence[float], Sequence[str],
+    :class:`_core.Tensor`, and :class:`_core.Attr`.
+
+    Args:
+        attrs: A dictionary of {<attribute name>: <python objects> to convert.
+
+    Returns:
+        A list of _core.Attr objects.
+    """
     attributes: list[_core.Attr] = []
     for name, attr in attrs.items():
-        if isinstance(attr, int):
-            attributes.append(_core.AttrInt64(name, attr))
-        elif isinstance(attr, float):
-            attributes.append(_core.AttrFloat32(name, attr))
-        elif isinstance(attr, str):
-            attributes.append(_core.AttrString(name, attr))
-        elif isinstance(attr, Sequence) and all(isinstance(x, int) for x in attr):
-            attributes.append(_core.AttrInt64s(name, attr))
-        elif isinstance(attr, Sequence) and all(isinstance(x, float) for x in attr):
-            attributes.append(_core.AttrFloat32s(name, attr))
-        elif isinstance(attr, Sequence) and all(isinstance(x, str) for x in attr):
-            attributes.append(_core.AttrStrings(name, attr))
-        elif isinstance(attr, _core.Attr):
-            attributes.append(attr)
-        else:
-            raise TypeError(f"Unsupported attribute type: '{type(attr)}'")
+        attributes.append(convert_attribute(name, attr))
     return attributes
 
 
