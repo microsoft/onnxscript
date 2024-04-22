@@ -66,14 +66,17 @@ class AttnParityTest(unittest.TestCase):
             "attn_phi_1_5", 4, {("com.microsoft", "Attention", "")}
         )
 
+
 class AttnUnetParityTest(unittest.TestCase):
     def setUp(self):
         np.random.seed(0)
+
     @testutils.skip_if_no_cuda("CPU has parity issue.")
     def test_attn_stable_diffusion_unet(self):
         testutils.test_onnxruntime_rewrite(
             "attn_stable_diffusion_unet", 4, {("com.microsoft", "Attention", "")}
         )
+
 
 if __name__ == "__main__":
     unittest.main()

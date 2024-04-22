@@ -54,9 +54,8 @@ import onnx
 from onnx import helper as onnx_helper
 
 import onnxscript
-from onnxscript.rewriter import function_rule
-
 from onnxscript import ir
+from onnxscript.rewriter import function_rule
 
 logger = logging.getLogger(__name__)
 
@@ -244,9 +243,9 @@ class GQALlama2RewriteRule(AttentionRewriteRule):
     def _fusion_with_4d_cache(
         self, function: onnx.FunctionProto
     ) -> tuple[onnx.FunctionProto, tuple[onnx.OperatorSetIdProto]]:
-        if len(function.input) != 9:
+        if len(function.inputs) != 9:
             raise function_rule.FunctionRewriteError(
-                f"Unexpected number of inputs. Expected 9, got {len(function.input)}."
+                f"Unexpected number of inputs. Expected 9, got {len(function.inputs)}."
             )
 
         # Infer size configurations from the function.
@@ -318,9 +317,9 @@ class GQALlama2RewriteRule(AttentionRewriteRule):
         # Infer size configurations from the function.
         attn_size_config = self.infer_attn_size_config(function)
 
-        if len(function.input) != 9:
+        if len(function.inputs) != 9:
             raise function_rule.FunctionRewriteError(
-                f"Unexpected number of inputs. Expected 9, got {len(function.input)}."
+                f"Unexpected number of inputs. Expected 9, got {len(function.inputs)}."
             )
 
         # Code new pattern with onnxscript.
@@ -600,67 +599,3 @@ class AttnPhi15RewriteRule(AttentionRewriteRule):
         return onnxscript.script(default_opset=onnxscript.opset18)(
             phi_attention
         ).to_function_proto(), (onnx.helper.make_operatorsetid("com.microsoft", 1),)
-
-
-class AttnStableDiffusionUnetRewriteRule(AttentionRewriteRule):
-    FUNCTION_KEYWORD = "Attention"
-    PACKAGE_NAME = "diffusers"
-    _version_controller = function_rule.VersionController()
-
-    def __init__(self) -> None:
-        super().__init__()
-
-    @_version_controller.register_version()
-    def _fusion(
-        self, function: onnx.FunctionProto
-    ) -> tuple[onnx.FunctionProto, tuple[onnx.OperatorSetIdProto]]:
-
-        # Infer size configurations from the function.
-        attn_size_config = self.infer_attn_size_config(function)
-
-        # Code new pattern with onnxscript.
-        op = onnxscript.opset18
-        msft_opset = onnxscript.values.Opset("com.microsoft", 1)
-
-        def unet_attention_full_inputs(
-            hidden_states,
-            position_id,
-            attention_mask,
-            q_proj_weight,
-            q_proj_bias,
-            k_proj_weight,
-            k_proj_bias,
-            v_proj_weight,
-            v_proj_bias,
-            cos_cached,
-            sin_cached,
-            dense_weight,
-            dense_bias,
-        ):
-            pass
-
-        def unet_attention_no_hidden_states(
-            hidden_states,
-            position_id,
-            attention_mask,
-            q_proj_weight,
-            q_proj_bias,
-            k_proj_weight,
-            k_proj_bias,
-            v_proj_weight,
-            v_proj_bias,
-            cos_cached,
-            sin_cached,
-            dense_weight,
-            dense_bias,
-        ):
-            pass
-
-        if a:
-            return onnxscript.script(default_opset=onnxscript.opset18)(
-                unet_attention_no_hidden_states
-            ).to_function_proto(), (onnx.helper.make_operatorsetid("com.microsoft", 1),)
-        else:
-            return onnxscript.script(default_opset=onnxscript.opset18)(
-                unet_attention_full_inputs
-            ).to_function_proto(), (onnx.helper.make_operatorsetid("com.microsoft", 1),)

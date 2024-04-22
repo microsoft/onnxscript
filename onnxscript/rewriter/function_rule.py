@@ -8,8 +8,8 @@ from packaging import version
 
 import onnxscript
 from onnxscript import ir
-from onnxscript.rewriter import pattern
 from onnxscript.ir import serde
+from onnxscript.rewriter import pattern
 
 logger = logging.getLogger(__name__)
 
@@ -165,13 +165,13 @@ class FunctionRewriteRule(pattern.RewriteRule):
         )
 
     def try_rewrite_function(
-        self, function: ir.Function, model: ir.Model
-    ) -> bool:
+        self, function: ir.Function
+    ) -> tuple[ir.OperatorIdentifier, ir.Function] | None:
         try:
             pkg_name, pkg_version = parse_domain(function.domain)
         except FunctionRewriteError as e:
             logger.warning("Could not parse domain: %s", e)
-            return False
+            return None
 
         if pkg_version is None and not pkg_name.startswith("onnxscript"):
             logger.warning(
@@ -183,7 +183,7 @@ class FunctionRewriteRule(pattern.RewriteRule):
             )
 
         if not self._match_function(function, pkg_name):
-            return False
+            return None
         logger.info(
             "Rule %s matched function %s::%s",
             self.__class__.__name__,
@@ -194,22 +194,13 @@ class FunctionRewriteRule(pattern.RewriteRule):
             new_function, opset_imports = self.compose_new_function(function, pkg_version)
         except FunctionRewriteError as e:
             logger.warning("Could not rewrite function: %s", e)
-            return False
+            return None
 
         new_function = serde.deserialize_function(new_function)
-        import pdb; pdb.set_trace()
+        new_function.name = function.name
+        new_function.domain = function.domain
 
-        function.inputs[:] = new_function.inputs
-        function.outputs[:] = new_function.outputs
-
-        # TODO: Ask Justin about this.
-        del function.nodes[:]
-        function.nodes.extend(nodes)
-        for new_opset in opset_imports:
-            function.opset_import.append(new_opset)
-            if new_opset.domain not in self._opset_imports:
-                model.opset_import.append(new_opset)
-        return True
+        return function.identifier(), new_function
 
     def try_rewrite(self, model: ir.Model, value) -> bool:
         raise NotImplementedError(
@@ -220,12 +211,26 @@ class FunctionRewriteRule(pattern.RewriteRule):
         self, model: ir.Model, *, commute: bool = False
     ) -> tuple[int, ir.Model]:
         del commute  # unused
-        self._opset_imports = model.opset_imports
 
-        rewrite_count = 0
+        old_function_to_new_function: dict[ir.OperatorIdentifier, ir.Function] = {}
         for function in model.functions.values():
-            rewrite_count += self.try_rewrite_function(function, model)
-        return rewrite_count, model
+            rewrite_or_none = self.try_rewrite_function(function)
+            if rewrite_or_none is not None:
+                old_function_to_new_function[rewrite_or_none[0]] = rewrite_or_none[1]
+        model = self.update_to_new_function(model, old_function_to_new_function)
+        return len(old_function_to_new_function), model
+
+    def update_to_new_function(
+        self,
+        model: ir.Model,
+        old_function_to_new_function: tuple[ir.OperatorIdentifier, ir.Function],
+    ) -> ir.Model:
+        for old_function_id, new_function_ir in old_function_to_new_function.items():
+            model.functions[old_function_id] = new_function_ir
+            for new_opset, opset_version in new_function_ir.opset_imports.items():
+                if new_opset not in model.opset_imports:
+                    model.opset_imports[new_opset] = opset_version
+        return model
 
     def count_matches(self, model, *, commute: bool = False) -> int:
         raise NotImplementedError()
