@@ -140,7 +140,7 @@ def two_reshapes_matmul_reshape_pattern(input_a, input_b, shape_a, shape_b, shap
     return op.Reshape(matmul, shape_c)
 
 
-def matmul_with_two_shape_inputs(input_a, input_b, shape_a, shape_b, shape_c):
+def matmul_with_two_shape_inputs(op, input_a, input_b, shape_a, shape_b, shape_c):
     del shape_a  # Unused
     del shape_b  # Unused
     del shape_c  # Unused
@@ -153,7 +153,7 @@ def one_reshape_matmul_reshape_pattern(input_a, input_b, shape_a, shape_c):
     return op.Reshape(matmul, shape_c)
 
 
-def matmul_with_one_shape_input(input_a, input_b, shape_a, shape_c):
+def matmul_with_one_shape_input(op, input_a, input_b, shape_a, shape_c):
     del shape_a  # Unused
     del shape_c  # Unused
     return op.MatMul(input_a, input_b)

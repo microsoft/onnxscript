@@ -11,36 +11,7 @@ import onnx
 import onnxscript
 import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
-from onnxscript.rewriter import _ir_utils, _tape
-
-
-class _SimpleBuilder:
-    """temporary adaptor for building 'generic patterns'."""
-
-    # TODO(justinchuby): Merge with the rest of pattern building methods
-    def __init__(self):
-        self.tape = _tape.Tape()
-
-    def __getattr__(self, op_type: str) -> Any:
-        return lambda *args, **kwargs: self._make_node(op_type, args, kwargs)
-
-    def _make_node(self, op_type: str, inputs: Sequence[ir.Value], kwargs: dict[str, Any]):
-        domain = kwargs.pop("domain", "")
-        output_names = kwargs.pop("output_names", 1)
-        if isinstance(output_names, Sequence):
-            num_outputs = len(output_names)
-        else:
-            assert isinstance(output_names, int)
-            num_outputs = output_names
-        if num_outputs == 1:
-            return self.tape.op(op_type, inputs=inputs, attributes=kwargs, domain=domain)
-        return self.tape.op_multi_output(
-            op_type, inputs=inputs, attributes=kwargs, domain=domain, num_outputs=num_outputs
-        )
-
-    @property
-    def nodes(self) -> Sequence[ir.Node]:
-        return self.tape.nodes
+from onnxscript.rewriter import _ir_utils
 
 
 class PatternMatchResult:
@@ -339,7 +310,7 @@ class GenericPattern:
         assert len(kwargs) == 0, f"Attributes are not supported yet but kwargs={kwargs}"
 
         inputs = [ir.Input(name=name) for name in args]
-        builder = _SimpleBuilder()
+        builder = orp.RewriterContext()
         outputs = func(builder, *inputs, **kwargs)
         if isinstance(outputs, ir.Value):
             outputs = [outputs]

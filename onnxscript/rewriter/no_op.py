@@ -24,7 +24,7 @@ def div_by_1(x):
 
 
 # Replacement
-def identity(x):
+def identity(op, x):
     return op.Identity(x)
 
 

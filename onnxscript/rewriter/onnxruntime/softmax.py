@@ -18,7 +18,7 @@ def softmax_with_fp32_upcast(input, axis):
     return op.Cast(softmax, to=onnx.TensorProto.FLOAT16)
 
 
-def softmax(input, axis):
+def softmax(op, input, axis):
     return op.Softmax(input, axis=axis)
 
 
@@ -28,7 +28,7 @@ def softmax_with_fp32_upcast_without_axis(input):
     return op.Cast(softmax, to=onnx.TensorProto.FLOAT16)
 
 
-def softmax_without_axis(input):
+def softmax_without_axis(op, input):
     return op.Softmax(input)
 
 

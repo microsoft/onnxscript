@@ -17,8 +17,8 @@ class ReciprocalMulTest(unittest.TestCase):
         def reciprocal_mul_pattern(x, y):
             return (1 / x) * y
 
-        def div(x, y):
-            return y / x
+        def div(op, x, y):
+            return op.Div(y, x)
 
         return pattern.RewriteRule(reciprocal_mul_pattern, div)
 
@@ -96,8 +96,8 @@ class FastGeluTest(unittest.TestCase):
             tanh = op.Tanh(c * (x + (x**3) * b))
             return (1.0 + tanh) * (0.5 * x)
 
-        def fast_gelu(x):
-            return msft_op.FastGelu(x)
+        def fast_gelu(op, x):
+            return op.FastGelu(x, domain="com.microsoft")
 
         return pattern.RewriteRule(fast_gelu_pattern1, fast_gelu)
 
@@ -117,8 +117,8 @@ class FastGeluTest(unittest.TestCase):
             half_x = op.Mul(half, x)
             return op.Mul(one_plus_tanh, half_x)
 
-        def fast_gelu(x):
-            return msft_op.FastGelu(x)
+        def fast_gelu(op, x):
+            return op.FastGelu(x, domain="com.microsoft")
 
         return pattern.RewriteRule(fast_gelu_pattern1_long, fast_gelu)
 
@@ -163,7 +163,7 @@ class ConcatTest(unittest.TestCase):
             seq = op.SequenceConstruct(x, y)
             return op.ConcatFromSequence(seq, axis=axis)
 
-        def concat(x, y, axis):
+        def concat(op, x, y, axis):
             return op.Concat(x, y, axis=axis)
 
         return pattern.RewriteRule(concat_pattern, concat)
@@ -213,7 +213,7 @@ class RewriteRuleTest(unittest.TestCase):
         def add_0(x):
             return x + 0
 
-        def identity(x):
+        def identity(op, x):
             return op.Identity(x)
 
         add_0_rule = pattern.RewriteRule(add_0, identity)
@@ -240,7 +240,7 @@ class RewriteRuleTest(unittest.TestCase):
         def reshape(x, newshape):
             return op.Reshape(x, newshape)
 
-        def identity(x, newshape):
+        def identity(op, x, newshape):
             del newshape  # Unused
             return op.Identity(x)
 

@@ -13,7 +13,7 @@ def reshape_gemm_reshape_pattern(input_a, input_b, input_c, shape_a, shape_c):
     return op.Reshape(gemm, shape_c)
 
 
-def matmul_add(input_a, input_b, input_c, shape_a, shape_d):
+def matmul_add(op, input_a, input_b, input_c, **_):
     matmul = op.MatMul(input_a, input_b)
     return op.Add(matmul, input_c)
 

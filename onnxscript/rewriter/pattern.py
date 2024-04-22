@@ -12,7 +12,7 @@ import onnx.numpy_helper
 import onnx.printer
 
 from onnxscript import ir
-from onnxscript.rewriter import _ir_utils
+from onnxscript.rewriter import _ir_utils, _tape
 
 # Overview of the pattern module: The classes below are used to define both
 # patterns (that we search for) and replacements for rewrite rules.
@@ -803,23 +803,51 @@ class TargetPatternFunction:
         node_output_pattern = self._function(*variables)
         return _handle_pattern_return_value(node_output_pattern)
 
+class RewriterContext:
+    """temporary adaptor for building 'generic patterns'."""
+
+    # TODO(justinchuby): Merge with the rest of pattern building methods
+    def __init__(self):
+        self.tape = _tape.Tape()
+
+    def __getattr__(self, op_type: str) -> Any:
+        return lambda *args, **kwargs: self._make_node(op_type, args, kwargs)
+
+    def _make_node(self, op_type: str, inputs: Sequence[ir.Value], kwargs: dict[str, Any]):
+        domain = kwargs.pop("domain", "")
+        outputs = kwargs.pop("outputs", 1)
+        if isinstance(outputs, Sequence):
+            num_outputs = len(outputs)
+        else:
+            assert isinstance(outputs, int)
+            num_outputs = outputs
+        if num_outputs == 1:
+            return self.tape.op(op_type, inputs=inputs, attributes=kwargs, domain=domain)
+        return self.tape.op_multi_output(
+            op_type, inputs=inputs, attributes=kwargs, domain=domain, num_outputs=num_outputs
+        )
+
+    @property
+    def nodes(self) -> Sequence[ir.Node]:
+        return self.tape.nodes
 
 class ReplacementKind(Enum):
     Original = 0
     WithBindings = 1
+    WithContext = 2
 
 
 class ReplacementPatternFunction:
     """The replacement pattern that will replace the targeted pattern.
 
-    Attributes:
+    Attributes: 
         function (Callable): The replacement function that will be used to replace the matched pattern.
         delay_run (bool): If True, the replacement function will not be run until the matched pattern is found.
             This is useful when we want to extract certain metavalue from the matched pattern and use it in the
             replacement pattern.
     """
 
-    def __init__(self, function, kind: ReplacementKind = ReplacementKind.Original) -> None:
+    def __init__(self, function, kind: ReplacementKind = ReplacementKind.WithContext) -> None:
         self._function = function
         self._kind = kind
 
@@ -831,6 +859,10 @@ class ReplacementPatternFunction:
     ) -> tuple[NodePattern | None, int | None]:
         if match_bindings is None:
             return None, None
+        if self._kind == ReplacementKind.WithContext:
+            context = RewriterContext()
+            new_values = self._function(context, **match_bindings)
+            return context.nodes
         if self._kind == ReplacementKind.Original:
             node_output_pattern = self._function(*vars)
         elif self._kind == ReplacementKind.WithBindings:
