@@ -149,7 +149,7 @@ class FunctionRewriteRule(pattern.RewriteRule):
         func = self._version_controller.dispatch(pkg_version)
         if func is not None:
             new_function = func(self, old_function)
-            return ir.serde.deserialize_function(new_function)
+            return new_function
         raise FunctionRewriteError(
             f"No rewrite implementation for package version {pkg_version}."
         )

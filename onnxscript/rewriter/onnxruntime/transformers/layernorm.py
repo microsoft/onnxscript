@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import logging
 
-import onnx
-
 import onnxscript
+from onnxscript import ir
 from onnxscript.rewriter import _ir_utils, function_rule
 
 logger = logging.getLogger(__name__)
@@ -16,9 +15,7 @@ class LNRewriteRule(function_rule.FunctionRewriteRule):
     _version_controller = function_rule.VersionController()
 
     @_version_controller.register_version()
-    def _fusion(  # type: ignore[misc]
-        self, function: onnx.FunctionProto
-    ) -> tuple[onnx.FunctionProto, list[onnx.OperatorSetIdProto]]:
+    def _fusion(self, function: ir.Function) -> ir.Function:
         # TODO(bowbao): Might be more desirable to annotate as attribute in nn.Module
         aten_add_node = self._find_node_by_type(function, "", "Add")
         if aten_add_node is None:
@@ -41,4 +38,5 @@ class LNRewriteRule(function_rule.FunctionRewriteRule):
                 input, weight, axis=-1, epsilon=eps, stash_type=1
             )
 
-        return onnxscript.script(default_opset=op)(ln).to_function_proto()
+        function_proto = onnxscript.script(default_opset=op)(ln).to_function_proto()
+        return ir.serde.deserialize_function(function_proto)
