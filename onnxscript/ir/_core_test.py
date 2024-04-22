@@ -427,6 +427,20 @@ class GraphTest(unittest.TestCase):
         self.graph.metadata_props["test"] = "any string"
         self.assertEqual(self.graph.metadata_props["test"], "any string")
 
+    def test_remove_removes_node_from_graph(self):
+        self.graph.remove(self.node)
+        self.assertEqual(list(self.graph), [])
+
+    def test_remove_does_not_change_input_users(self):
+        self.graph.remove(self.node)
+        self.assertEqual(tuple(self.v0.consumers()), ((self.node, 0),))
+        self.assertEqual(tuple(self.v1.consumers()), ((self.node, 1),))
+
+    def test_remove_does_not_change_graph_in_out(self):
+        self.graph.remove(self.node)
+        self.assertEqual(self.graph.inputs, [self.v0, self.v1])
+        self.assertEqual(self.graph.outputs, list(self.node.outputs))
+
     # TODO(justinchuby): Test graph mutation methods
 
 
