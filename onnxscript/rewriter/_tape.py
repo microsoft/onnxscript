@@ -5,35 +5,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Mapping, Sequence
-
-import onnx
+from typing import Iterable, Mapping, Sequence
 
 from onnxscript import ir
-
-
-def _convert_attributes(attrs: Mapping[str, Any]) -> list[ir.Attr]:
-    attributes: list[ir.Attr] = []
-    for name, attr in attrs.items():
-        if isinstance(attr, int):
-            attributes.append(ir.AttrInt64(name, attr))
-        elif isinstance(attr, float):
-            attributes.append(ir.AttrFloat32(name, attr))
-        elif isinstance(attr, str):
-            attributes.append(ir.AttrString(name, attr))
-        elif isinstance(attr, Sequence) and all(isinstance(x, int) for x in attr):
-            attributes.append(ir.AttrInt64s(name, attr))
-        elif isinstance(attr, Sequence) and all(isinstance(x, float) for x in attr):
-            attributes.append(ir.AttrFloat32s(name, attr))
-        elif isinstance(attr, Sequence) and all(isinstance(x, str) for x in attr):
-            attributes.append(ir.AttrStrings(name, attr))
-        elif isinstance(attr, ir.Attr):
-            attributes.append(attr)
-        elif isinstance(attr, onnx.TensorProto):
-            attributes.append(ir.AttrTensor(name, ir.serde.TensorProtoTensor(attr)))
-        else:
-            raise TypeError(f"Unsupported attribute type: '{type(attr)}'")
-    return attributes
+from onnxscript.ir import _convenience
 
 
 class Tape(Iterable[ir.Node]):
@@ -53,13 +28,13 @@ class Tape(Iterable[ir.Node]):
         self,
         op_type: str,
         inputs: Sequence[ir.Value | None],
-        attributes: Mapping[str, Any] | None = None,
+        attributes: Mapping[str, _convenience.SupportedAttrTypes] | None = None,
         domain: str = "",
     ) -> ir.Value:
         if attributes is None:
-            attrs: Sequence[ir.Attr] = ()
+            attrs: Sequence[ir.Attr | ir.RefAttr] = ()
         else:
-            attrs = _convert_attributes(attributes)
+            attrs = _convenience.convert_attributes(attributes)
         node = ir.Node(domain, op_type, inputs, attributes=attrs, num_outputs=1)
         self._nodes.append(node)
 
@@ -69,15 +44,15 @@ class Tape(Iterable[ir.Node]):
         self,
         op_type: str,
         inputs: Sequence[ir.Value | None],
-        attributes: Mapping[str, Any] | None = None,
+        attributes: Mapping[str, _convenience.SupportedAttrTypes] | None = None,
         *,
         num_outputs: int,
         domain: str = "",
     ) -> Sequence[ir.Value]:
         if attributes is None:
-            attrs = ()
+            attrs: Sequence[ir.Attr | ir.RefAttr] = ()
         else:
-            attrs = _convert_attributes(attributes)  # type: ignore[assignment]
+            attrs = _convenience.convert_attributes(attributes)
         node = ir.Node(domain, op_type, inputs, attributes=attrs, num_outputs=num_outputs)
         self._nodes.append(node)
 

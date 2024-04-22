@@ -85,7 +85,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
     def _repr_base(self) -> str:
         """Base string for the repr method.
 
-        Example: Tensor<FLOAT:=1,5x42>
+        Example: Tensor<FLOAT,[5,42]>
         """
         return f"{self.__class__.__name__}<{self._printable_type_shape()}>"
 
@@ -240,7 +240,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         return self.__array__().__dlpack_device__()
 
     def __repr__(self) -> str:
-        return f"{self._repr_base()}({self._raw!r})"
+        return f"{self._repr_base()}({self._raw!r}, name={self.name!r})"
 
     @property
     def dtype(self) -> _enums.DataType:
@@ -2112,10 +2112,15 @@ class Attr(_protocols.AttributeProtocol, _display.PrettyPrintable):
         return f"{self.__class__.__name__}({self.name!r}, {self.type!r}, {self.value!r})"
 
 
+class _SpecializedAttr(Attr):
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name!r}, {self.value!r})"
+
+
 # NOTE: The following classes are just supporting classes (partially applied) for convenience
 # But I think they would be useful to have in the IR by having the type info
 # explicitly in the class type.
-class AttrFloat32(Attr):
+class AttrFloat32(_SpecializedAttr):
     def __init__(self, name: str, value: float, doc_string: str | None = None):
         super().__init__(
             name,
@@ -2125,7 +2130,7 @@ class AttrFloat32(Attr):
         )
 
 
-class AttrInt64(Attr):
+class AttrInt64(_SpecializedAttr):
     def __init__(self, name: str, value: int, doc_string: str | None = None):
         super().__init__(
             name,
@@ -2135,7 +2140,7 @@ class AttrInt64(Attr):
         )
 
 
-class AttrString(Attr):
+class AttrString(_SpecializedAttr):
     def __init__(self, name: str, value: str, doc_string: str | None = None):
         super().__init__(
             name,
@@ -2145,7 +2150,7 @@ class AttrString(Attr):
         )
 
 
-class AttrTensor(Attr):
+class AttrTensor(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2160,7 +2165,7 @@ class AttrTensor(Attr):
         )
 
 
-class AttrGraph(Attr):
+class AttrGraph(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2178,7 +2183,7 @@ class AttrGraph(Attr):
         return textwrap.indent("\n" + super().__str__(), " " * 4)
 
 
-class AttrFloat32s(Attr):
+class AttrFloat32s(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2193,7 +2198,7 @@ class AttrFloat32s(Attr):
         )
 
 
-class AttrInt64s(Attr):
+class AttrInt64s(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2208,7 +2213,7 @@ class AttrInt64s(Attr):
         )
 
 
-class AttrStrings(Attr):
+class AttrStrings(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2223,7 +2228,7 @@ class AttrStrings(Attr):
         )
 
 
-class AttrTensors(Attr):
+class AttrTensors(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2238,7 +2243,7 @@ class AttrTensors(Attr):
         )
 
 
-class AttrGraphs(Attr):
+class AttrGraphs(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2254,7 +2259,7 @@ class AttrGraphs(Attr):
 
 
 # NOTE: SparseTensor should be a sparse tensor proto
-class AttrSparseTensor(Attr):
+class AttrSparseTensor(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2269,7 +2274,7 @@ class AttrSparseTensor(Attr):
         )
 
 
-class AttrSparseTensors(Attr):
+class AttrSparseTensors(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2284,7 +2289,7 @@ class AttrSparseTensors(Attr):
         )
 
 
-class AttrTypeProto(Attr):
+class AttrTypeProto(_SpecializedAttr):
     def __init__(
         self,
         name: str,
