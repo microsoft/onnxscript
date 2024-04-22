@@ -127,22 +127,12 @@ class FunctionRewriteRule(pattern.RewriteRule):
         return None
 
     def _find_node_by_type(
-        self, function: onnx.FunctionProto, domain: str, op_type: str
-    ) -> onnx.NodeProto | None:
+        self, function: ir.Function, domain: str, op_type: str
+    ) -> ir.Node | None:
         # Repeat
-        for node in function.node:
+        for node in function:
             if node.domain == domain and node.op_type == op_type:
                 return node
-        return None
-
-    def _find_constant_node(
-        self, function: onnx.FunctionProto, value_name: str
-    ) -> onnx.NodeProto | None:
-        # Potentially repeat, utility function.
-        for node in function.node:
-            for output in node.output:
-                if output == value_name:
-                    return node
         return None
 
     def compose_new_function(

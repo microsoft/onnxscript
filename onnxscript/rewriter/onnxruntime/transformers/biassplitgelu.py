@@ -29,4 +29,4 @@ class GegluRewriteRule(function_rule.FunctionRewriteRule):
             return msft_opset.BiasSplitGelu(matmul_input, bias)
 
         function_proto = onnxscript.script(default_opset=op)(ggelu).to_function_proto()  # type: ignore[arg-type]
-        return function_proto, (onnx.helper.make_operatorsetid("com.microsoft", 1),)
+        return function_proto

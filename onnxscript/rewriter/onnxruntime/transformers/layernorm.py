@@ -3,10 +3,9 @@ from __future__ import annotations
 import logging
 
 import onnx
-from onnx import numpy_helper
 
 import onnxscript
-from onnxscript.rewriter import function_rule
+from onnxscript.rewriter import _ir_utils, function_rule
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +24,11 @@ class LNRewriteRule(function_rule.FunctionRewriteRule):
         if aten_add_node is None:
             raise function_rule.FunctionRewriteError("Could not find Add node")
 
-        eps_node = self._find_constant_node(function, aten_add_node.input[1])
-        if eps_node is None:
-            raise function_rule.FunctionRewriteError("Could not find eps node")
-
-        eps = numpy_helper.to_array(eps_node.attribute[0].t).item()
+        eps_ir_value = _ir_utils.propagate_const_value(aten_add_node.inputs[1])
+        eps_numpy_value = _ir_utils.get_numpy_from_ir_value(eps_ir_value)
+        if eps_numpy_value is None:
+            raise function_rule.FunctionRewriteError("Could not find eps")
+        eps = eps_numpy_value.item()
         logger.info("eps: %s", eps)
 
         # TODO(ORT): SimplifiedLayerNormalization in ort is defined under onnx domain.
@@ -42,4 +41,4 @@ class LNRewriteRule(function_rule.FunctionRewriteRule):
                 input, weight, axis=-1, epsilon=eps, stash_type=1
             )
 
-        return onnxscript.script(default_opset=op)(ln).to_function_proto(), []
+        return onnxscript.script(default_opset=op)(ln).to_function_proto()

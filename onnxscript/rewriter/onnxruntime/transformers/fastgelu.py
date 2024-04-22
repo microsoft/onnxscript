@@ -26,6 +26,4 @@ class GeluRewriteRule(function_rule.FunctionRewriteRule):
         def gelu(input):
             return msft_opset.FastGelu(input)
 
-        return onnxscript.script(default_opset=op)(gelu).to_function_proto(), (
-            onnx.helper.make_operatorsetid("com.microsoft", 1),
-        )
+        return onnxscript.script(default_opset=op)(gelu).to_function_proto()
