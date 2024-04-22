@@ -3,7 +3,6 @@ from __future__ import annotations
 import inspect
 import itertools
 import math
-from enum import Enum
 from typing import Any, Callable, Sequence
 
 import numpy as np
@@ -414,7 +413,7 @@ class ValuePattern:
         self.name = name
 
     def __repr__(self) -> str:
-        return f"ValuePattern({self._name!r})"
+        return f"ValuePattern({self.name!r})"
 
     def matches(self, value: ir.Value, model: ir.Model):
         return MatchResult([], {self.name: value})
@@ -690,7 +689,7 @@ class TargetPatternFunction:
 
 
 class RewriterContext:
-    """temporary adaptor for building 'generic patterns'."""
+    """Context parameter used to build the replacement pattern."""
 
     # TODO(justinchuby): Merge with the rest of pattern building methods
     def __init__(self):
@@ -715,6 +714,11 @@ class RewriterContext:
 
     @property
     def nodes(self) -> Sequence[ir.Node]:
+        # TODO(rama): The current tape-based implementation will not track nodes added
+        # via overloaded operators, eg., `x + y`. One possible way to fix this is to
+        # have values/nodes know which tape they belong to (instead of a graph/function).
+        # However, it is unclear we need this feature for rewriting: we could also
+        # identify the nodes to be inserted from the replacement values (by tracing back).
         return self.tape.nodes
 
 
@@ -723,9 +727,6 @@ class ReplacementPatternFunction:
 
     Attributes:
         function (Callable): The replacement function that will be used to replace the matched pattern.
-        delay_run (bool): If True, the replacement function will not be run until the matched pattern is found.
-            This is useful when we want to extract certain metavalue from the matched pattern and use it in the
-            replacement pattern.
     """
 
     def __init__(self, function) -> None:
@@ -744,23 +745,6 @@ class ReplacementPatternFunction:
         return context.nodes
         # TODO(rama): Check if the number of outputs is the same as the target pattern.
         # assert self._target_num_outputs == replacement_num_outputs
-
-
-class RewriteCache:
-    def __init__(self):
-        self._node_output_pattern_to_ir: dict[NodeOutputPattern, tuple[ir.Value, ir.Node]] = (
-            dict()
-        )
-
-    def get_node_output_pattern(
-        self, node_output_pattern: NodeOutputPattern
-    ) -> tuple[ir.Value, ir.Node] | None:
-        return self._node_output_pattern_to_ir.get(node_output_pattern, None)
-
-    def set_node_output_pattern_with_ir(
-        self, node_output_pattern: NodeOutputPattern, value: ir.Value, node: ir.Node
-    ) -> None:
-        self._node_output_pattern_to_ir[node_output_pattern] = (value, node)
 
 
 class RewriteRule:

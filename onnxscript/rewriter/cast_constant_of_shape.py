@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Sequence
 
-import numpy as np
 import onnx.helper
 
 from onnxscript import ir
