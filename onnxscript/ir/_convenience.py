@@ -164,7 +164,7 @@ def convert_attributes(
         [AttrInt64('int', INT, 1), AttrFloat32('float', FLOAT, 1.0), AttrString('str', STRING, 'hello'), AttrInt64s('ints', INTS, [1, 2, 3]), AttrFloat32s('floats', FLOATS, [1.0, 2.0, 3.0]), AttrStrings('strings', STRINGS, ['hello', 'world']), AttrTensor('tensor', TENSOR, Tensor<INT64,[3]>(array([1, 2, 3]))), AttrTensor('tensor_proto', TENSOR, TensorProtoTensor<FLOAT,[3]>('proto'))]
 
     Args:
-        attrs: A dictionary of {<attribute name>: <python objects> to convert.
+        attrs: A dictionary of {<attribute name>: <python objects>} to convert.
 
     Returns:
         A list of _core.Attr objects.
