@@ -115,15 +115,7 @@ def instance_simulates_group_normalization_pattern(
     return op.Add(mul, bias_full)
 
 
-def group_normalization(
-    op,
-    input_x,
-    weight_for_norm,
-    weight_full,
-    bias_full,
-    epsilon,
-    **_
-):
+def group_normalization(op, input_x, weight_for_norm, weight_full, bias_full, epsilon, **_):
     # com.microsoft.GroupNorm only supports NHWC for now
     nhwc_input = op.Transpose(input_x, perm=[0, 2, 3, 1])
     # com.microsoft.GroupNorm only supports gamma and beta as float type
@@ -136,7 +128,7 @@ def group_normalization(
     # TODO(rama): Earlier check implies weight_for_norm is a constant tensor?
     # If not, we should add a check that shape[0] is not symbolic.
     shape = weight_for_norm.shape
-    if  shape is None:
+    if shape is None:
         raise ValueError("weight_for_norm shape not known")
     groups = shape[0]
     output = op.GroupNorm(

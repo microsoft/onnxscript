@@ -5,7 +5,9 @@ from onnxscript import script, external_tensor
 from onnxscript.values import Opset
 
 from onnxscript.onnx_opset import opset17
-this1 = Opset('this', 1)
+
+this1 = Opset("this", 1)
+
 
 @script(this1)
 def fun_with_double_attr_promotion(X, dtype: int):

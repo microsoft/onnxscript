@@ -36,13 +36,11 @@ def fused_cast_constant_of_shape_without_value(op, shape, dtype, **_):
 
 
 cast_constant_of_shape_rule = pattern.RewriteRule(
-    cast_constant_of_shape,
-    fused_cast_constant_of_shape
+    cast_constant_of_shape, fused_cast_constant_of_shape
 )
 
 cast_constant_of_shape_without_value_rule = pattern.RewriteRule(
-    cast_constant_of_shape_without_value,
-    fused_cast_constant_of_shape_without_value
+    cast_constant_of_shape_without_value, fused_cast_constant_of_shape_without_value
 )
 
 rules = pattern.RewriteRuleSet(
