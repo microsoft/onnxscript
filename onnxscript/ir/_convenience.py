@@ -140,7 +140,7 @@ def convert_attributes(
         ...     "ints": [1, 2, 3],
         ...     "floats": [1.0, 2.0, 3.0],
         ...     "strings": ["hello", "world"],
-        ...     "tensor": ir.Tensor(np.array([1, 2, 3], dtype=np.int64)),
+        ...     "tensor": ir.Tensor(np.array([1.0, 2.0, 3.0])),
         ...     "tensor_proto":
         ...         onnx.TensorProto(
         ...             dims=[3],
@@ -150,7 +150,7 @@ def convert_attributes(
         ...         ),
         ... }
         >>> convert_attributes(attrs)
-        [AttrInt64('int', 1), AttrFloat32('float', 1.0), AttrString('str', 'hello'), AttrInt64s('ints', [1, 2, 3]), AttrFloat32s('floats', [1.0, 2.0, 3.0]), AttrStrings('strings', ['hello', 'world']), AttrTensor('tensor', Tensor<INT64,[3]>(array([1, 2, 3]), name='')), AttrTensor('tensor_proto', TensorProtoTensor<FLOAT,[3]>(name='proto'))]
+        [AttrInt64('int', 1), AttrFloat32('float', 1.0), AttrString('str', 'hello'), AttrInt64s('ints', [1, 2, 3]), AttrFloat32s('floats', [1.0, 2.0, 3.0]), AttrStrings('strings', ['hello', 'world']), AttrTensor('tensor', Tensor<DOUBLE,[3]>(array([1., 2., 3.]), name='')), AttrTensor('tensor_proto', TensorProtoTensor<FLOAT,[3]>(name='proto'))]
 
     Args:
         attrs: A dictionary of {<attribute name>: <python objects>} to convert.
