@@ -8,7 +8,6 @@ from packaging import version
 
 import onnxscript
 from onnxscript import ir
-from onnxscript.ir import serde
 from onnxscript.rewriter import pattern
 
 logger = logging.getLogger(__name__)
@@ -160,7 +159,7 @@ class FunctionRewriteRule(pattern.RewriteRule):
         func = self._version_controller.dispatch(pkg_version)
         if func is not None:
             new_function = func(self, old_function)
-            return serde.deserialize_function(new_function)
+            return ir.serde.deserialize_function(new_function)
         raise FunctionRewriteError(
             f"No rewrite implementation for package version {pkg_version}."
         )
