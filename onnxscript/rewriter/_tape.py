@@ -32,7 +32,7 @@ class Tape(Iterable[ir.Node]):
         domain: str = "",
     ) -> ir.Value:
         if attributes is None:
-            attrs: Sequence[ir.Attr] = ()
+            attrs: Sequence[ir.Attr | ir.RefAttr] = ()
         else:
             attrs = _convenience.convert_attributes(attributes)
         node = ir.Node(domain, op_type, inputs, attributes=attrs, num_outputs=1)
@@ -50,7 +50,7 @@ class Tape(Iterable[ir.Node]):
         domain: str = "",
     ) -> Sequence[ir.Value]:
         if attributes is None:
-            attrs: Sequence[ir.Attr] = ()
+            attrs: Sequence[ir.Attr | ir.RefAttr] = ()
         else:
             attrs = _convenience.convert_attributes(attributes)
         node = ir.Node(domain, op_type, inputs, attributes=attrs, num_outputs=num_outputs)
