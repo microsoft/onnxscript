@@ -1264,11 +1264,11 @@ def _check_node_safe_to_remove(
             raise ValueError(
                 f"Node {node} is still an output of the graph and cannot be removed when safe=True."
             )
-        for node, _ in output.consumers():
-            if node in to_remove:
+        for consumer, _ in output.consumers():
+            if consumer in to_remove:
                 continue
             raise ValueError(
-                f"Node {node} is still being used by other nodes that are not to be "
+                f"Node '{consumer}' is still being used by other nodes that are not to be "
                 f"removed. All of its uses: {tuple(output.consumers())}"
             )
 
@@ -1449,17 +1449,17 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             ValueError: (When ``safe=True``) If the node is still being used by other nodes not to be removed.
         """
         if not isinstance(nodes, Iterable):
-            nodes = {nodes}
+            nodes_set = {nodes}
         else:
-            nodes = frozenset(nodes)
+            nodes_set = frozenset(nodes)
         graph_outputs = frozenset(self.outputs)
-        for node in nodes:
+        for node in nodes_set:
             if node.graph is not self:
                 raise ValueError(f"The node {node} does not belong to this graph.")
             if safe:
                 # Check 1, 2
-                _check_node_safe_to_remove(node, nodes, graph_outputs)
-        for node in nodes:
+                _check_node_safe_to_remove(node, nodes_set, graph_outputs)
+        for node in nodes_set:
             if safe:
                 # 3. Detach from all inputs so that it is no longer a user of other nodes
                 for i in range(len(node.inputs)):
