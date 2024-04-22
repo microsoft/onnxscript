@@ -646,11 +646,6 @@ def _handle_pattern_return_value(
     return node_pattern, num_outputs
 
 
-# Currently, the replacement graph function is the same as the pattern function.
-# This may change in the future.
-_handle_replacement_return_value = _handle_pattern_return_value
-
-
 def _valid_to_replace(matched_nodes: Sequence[Any]) -> bool:
     """Check that values computed by the matched_nodes, except for the last one, are used only by the matched_nodes."""
     # * Must check that all values matched by pattern are used only by pattern,
