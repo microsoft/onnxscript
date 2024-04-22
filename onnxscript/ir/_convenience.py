@@ -101,17 +101,6 @@ def convert_attribute(
     if attr_type is None:
         attr_type = _infer_attribute_type(attr)
 
-    else:
-        if isinstance(attr, (_core.Attr, _core.RefAttr)):
-            if attr.name != name:
-                raise ValueError(
-                    f"Attribute name '{attr.name}' does not match provided name '{name}'"
-                )
-            if attr.type != attr_type:
-                raise ValueError(
-                    f"Attribute type '{attr.type}' does not match provided type '{attr_type}'"
-                )
-
     if attr_type == _enums.AttributeType.INT:
         return _core.AttrInt64(name, attr)  # type: ignore
     if attr_type == _enums.AttributeType.FLOAT:
