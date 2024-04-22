@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import logging
+from typing import Callable
 
 import onnx
 from packaging import version
@@ -37,7 +38,7 @@ MAX_VERSION = version.parse("9999")
 class VersionController:
     def __init__(self):
         # A dispatch table for rewrite implementation based on the function package version.
-        self.dispatch_table: dict[tuple[version.Version, version.Version], callable] = {}
+        self.dispatch_table: dict[tuple[version.Version, version.Version], Callable] = {}
 
     def register_version(
         self,
@@ -65,7 +66,7 @@ class VersionController:
 
         return deco
 
-    def dispatch(self, version: version.Version | None) -> callable | None:
+    def dispatch(self, version: version.Version | None) -> Callable | None:
         if version is None:
             if len(self.dispatch_table) == 1:
                 return next(iter(self.dispatch_table.values()))
@@ -94,7 +95,7 @@ class FunctionRewriteRule(pattern.RewriteRule):
     _opset_imports: dict[str, int]
     onnx_opset: onnxscript.values.Opset
 
-    def __init__(self, opset: onnxscript.values.Opset = onnxscript.opset18) -> None:
+    def __init__(self, opset: onnxscript.values.Opset = onnxscript.opset18) -> None:  # type: ignore[has-type]
         self.onnx_opset = opset
 
     def _match_function(self, function: ir.Function, pkg_name: str) -> bool:
@@ -137,7 +138,7 @@ class FunctionRewriteRule(pattern.RewriteRule):
 
     def compose_new_function(
         self, old_function: ir.Function, pkg_version: version.Version | None
-    ) -> tuple[ir.Function]:
+    ) -> ir.Function:
         """Compose a new function from the old function.
 
         Returns:
@@ -146,7 +147,8 @@ class FunctionRewriteRule(pattern.RewriteRule):
         Raises:
             FunctionRewriteError: If the rewrite fails.
         """
-        func = self._version_controller.dispatch(pkg_version)
+        # self._version_controller is created in the subclass
+        func = self._version_controller.dispatch(pkg_version)  # type: ignore[attr-defined]
         if func is not None:
             new_function = func(self, old_function)
             return new_function
@@ -212,7 +214,7 @@ class FunctionRewriteRule(pattern.RewriteRule):
     def update_to_new_function(
         self,
         model: ir.Model,
-        old_function_to_new_function: tuple[ir.OperatorIdentifier, ir.Function],
+        old_function_to_new_function: dict[ir.OperatorIdentifier, ir.Function],
     ) -> ir.Model:
         for old_function_id, new_function_ir in old_function_to_new_function.items():
             model.functions[old_function_id] = new_function_ir

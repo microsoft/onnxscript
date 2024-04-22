@@ -50,7 +50,6 @@ exclude_patterns = [
     'onnxscript/optimizer/constant_folding.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/fastgelu.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/instance_to_group_normalization.py',  # FIXME
-    'onnxscript/rewriter/function_rule.py',  # FIXME
     'onnxscript/_legacy_ir/irbuilder.py',  # FIXME
     'onnxscript/optimizer/fold_constants_v0.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/multihead_attention.py',  # FIXME
