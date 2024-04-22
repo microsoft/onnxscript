@@ -119,7 +119,6 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
 
         model = ir.serde.deserialize_model(model_proto)
         count = instance_to_group_normalization.rules.apply_to_model(model)
-        print(str(model.graph))
         count += group_normalization_merge_silu.rules.apply_to_model(model)
         self.assertEqual(count, 2)
         # plus 2 in model constants
