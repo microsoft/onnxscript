@@ -831,11 +831,6 @@ class RewriterContext:
     def nodes(self) -> Sequence[ir.Node]:
         return self.tape.nodes
 
-class ReplacementKind(Enum):
-    Original = 0
-    WithBindings = 1
-    WithContext = 2
-
 
 class ReplacementPatternFunction:
     """The replacement pattern that will replace the targeted pattern.
@@ -847,10 +842,8 @@ class ReplacementPatternFunction:
             replacement pattern.
     """
 
-    def __init__(self, function, kind: ReplacementKind = ReplacementKind.WithContext) -> None:
-        assert kind != ReplacementKind.Original
+    def __init__(self, function) -> None:
         self._function = function
-        self._kind = kind
 
     def get_replacement(
         self,
@@ -860,27 +853,12 @@ class ReplacementPatternFunction:
     ) -> tuple[NodePattern | None, int | None]:
         if match_bindings is None:
             return None, None
-        if self._kind == ReplacementKind.WithContext:
-            context = RewriterContext()
-            new_values = self._function(context, **match_bindings)
-            return context.nodes
-        if self._kind == ReplacementKind.Original:
-            node_output_pattern = self._function(*vars)
-        elif self._kind == ReplacementKind.WithBindings:
-            node_output_pattern = self._function(*vars, match_bindings)
-        else:
-            raise NotImplementedError(f"ReplacementKind {self._kind} not implemented")
-        replace_node_pattern, replacement_num_outputs = _handle_pattern_return_value(
-            node_output_pattern
-        )
+        context = RewriterContext()
+        new_values = self._function(context, **match_bindings)
+        return context.nodes
         # TODO(rama): Check if the number of outputs is the same as the target pattern.
         # assert self._target_num_outputs == replacement_num_outputs
-        rewrite_cache = RewriteCache()
-        assert replace_node_pattern is not None, "Replacement pattern is None."
-        new_values, new_nodes = replace_node_pattern.to_ir(
-            model, match_bindings, replacement_num_outputs, rewrite_cache
-        )
-        return new_nodes
+
 
 
 class RewriteCache:
