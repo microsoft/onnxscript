@@ -12,6 +12,7 @@ import onnx.numpy_helper
 import onnx.printer
 
 from onnxscript import ir
+from onnxscript.ir import _convenience
 from onnxscript.rewriter import _ir_utils, _tape
 
 # Overview of the pattern module: The classes below are used to define both
@@ -1022,20 +1023,15 @@ def _apply_deltas(
             # TODO: simplify this
             last_deleted = deleted_nodes[-1]
             last_inserted = inserted_nodes[-1]
-            assert len(last_deleted.outputs) == len(last_inserted.outputs)
             # Reconnect the users of the deleted node to use the new outputs
-            for last_deleted_output, last_inserted_output in zip(
-                last_deleted.outputs, last_inserted.outputs
-            ):
-                for node, index in tuple(last_deleted_output.consumers()):
-                    # Fix consumers because we are mutating consumers in the loop
-                    node.replace_input_with(index, last_inserted_output)
-
-                # Update graph/function outputs if the node generates output
-                for old_output, new_output in zip(last_deleted.outputs, last_inserted.outputs):
-                    for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
-                        if graph_or_function_output is old_output:
-                            graph_or_function.outputs[idx] = new_output
+            _convenience.replace_all_uses_with(last_deleted.outputs, last_inserted.outputs)
+            # Update graph/function outputs if the node generates output
+            replacement_mapping = dict(zip(last_deleted.outputs, last_inserted.outputs))
+            for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
+                if graph_or_function_output in replacement_mapping:
+                    graph_or_function.outputs[idx] = replacement_mapping[
+                        graph_or_function_output
+                    ]
 
             # insert new nodes after the index node
             # TODO(justinchuby): Do not access by index [i]
