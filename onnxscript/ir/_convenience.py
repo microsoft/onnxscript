@@ -140,7 +140,7 @@ def convert_attributes(
         ...     "ints": [1, 2, 3],
         ...     "floats": [1.0, 2.0, 3.0],
         ...     "strings": ["hello", "world"],
-        ...     "tensor": ir.Tensor(np.array([1, 2, 3])),
+        ...     "tensor": ir.Tensor(np.array([1, 2, 3], dtype=np.int64)),
         ...     "tensor_proto":
         ...         onnx.TensorProto(
         ...             dims=[3],
