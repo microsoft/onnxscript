@@ -32,6 +32,7 @@ SupportedAttrTypes = Union[
 
 
 def _infer_attribute_type(attr: SupportedAttrTypes) -> _enums.AttributeType:
+    """Infer the attribute type based on the type of the Python object."""
     if isinstance(attr, int):
         return _enums.AttributeType.INT
     if isinstance(attr, float):
