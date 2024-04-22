@@ -113,11 +113,10 @@ class TensorProtoTensor(_core.TensorBase):
         return self._proto
 
     def __repr__(self) -> str:
-        if self.size < 10:
-            value = f"{self.numpy()}, "
-        else:
-            value = ""
-        return f"{self._repr_base()}({value}name={self.name!r})"
+        # It is a little hard to display the content when there can be types
+        # unsupported by numpy
+        # Preferably we should display some content when the tensor is small
+        return f"{self._repr_base()}(name={self.name!r})"
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         """Return the tensor as a numpy array, compatible with np.array."""
