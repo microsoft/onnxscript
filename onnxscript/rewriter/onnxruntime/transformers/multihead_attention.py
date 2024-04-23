@@ -119,9 +119,7 @@ class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
                 "Failed to infer head size and number of heads from Reshape nodes."
             )
         raise function_rule.FunctionRewriteError(
-            f"Unexpected function structure, got output: {len(function.outputs)}, "
-            f"and has_scaled_dot_product_attention_node: {any("scaled_dot_product_attention" in node.op_type for node in
-    function)}."
+            f"Unexpected function structure, got output: {len(function.outputs)}."
         )
 
 
