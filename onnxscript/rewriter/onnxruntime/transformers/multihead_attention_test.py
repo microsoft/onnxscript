@@ -55,6 +55,12 @@ class MHAParityTest(unittest.TestCase):
             "sdpa_yi_4_38", 1, {("com.microsoft", "GroupQueryAttention", "")}
         )
 
+    @testutils.skip_if_no_cuda("CPU has parity issue.")
+    def test_attn_stable_diffusion_unet(self):
+        testutils.test_onnxruntime_rewrite(
+            "attn_stable_diffusion_unet", 4, {("com.microsoft", "MultiHeadAttention", "")}
+        )
+
 
 class AttnParityTest(unittest.TestCase):
     def setUp(self):

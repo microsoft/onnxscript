@@ -55,7 +55,7 @@ from onnx import helper as onnx_helper
 
 import onnxscript
 from onnxscript import ir
-from onnxscript.rewriter import function_rule
+from onnxscript.rewriter import _ir_utils, function_rule
 
 logger = logging.getLogger(__name__)
 
@@ -63,31 +63,65 @@ logger = logging.getLogger(__name__)
 @dataclasses.dataclass
 class AttnSizeConfig:
     num_attention_heads: int
-    num_key_value_heads: int
+    num_key_value_heads: int | None
     head_size: int
     hidden_size: int
 
 
 class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
     def infer_attn_size_config(self, function: ir.Function) -> AttnSizeConfig:
-        if len(function.outputs) != 3:
-            raise function_rule.FunctionRewriteError(
-                f"Unexpected number of outputs. Expected 3, got {len(function.outputs)}."
+        if len(function.outputs) == 3:
+            present_value, _, attn_output = function.outputs
+            if present_value.shape is None:
+                raise function_rule.FunctionRewriteError(
+                    "Failed to find shape for present_value."
+                )
+            if attn_output.shape is None:
+                raise function_rule.FunctionRewriteError(
+                    "Failed to find shape for attn_output."
+                )
+            head_size = present_value.shape[3]
+            num_key_value_heads = present_value.shape[1]
+            hidden_size = attn_output.shape[2]
+            num_attention_heads = hidden_size // head_size
+            return AttnSizeConfig(
+                num_attention_heads=num_attention_heads,
+                num_key_value_heads=num_key_value_heads,
+                head_size=head_size,
+                hidden_size=hidden_size,
             )
-        present_value, _, attn_output = function.outputs
-        if present_value.shape is None:
-            raise function_rule.FunctionRewriteError("Failed to find shape for present_value.")
-        if attn_output.shape is None:
-            raise function_rule.FunctionRewriteError("Failed to find shape for attn_output.")
-        head_size = present_value.shape[3]
-        num_key_value_heads = present_value.shape[1]
-        hidden_size = attn_output.shape[2]
-        num_attention_heads = hidden_size // head_size
-        return AttnSizeConfig(
-            num_attention_heads=num_attention_heads,
-            num_key_value_heads=num_key_value_heads,
-            head_size=head_size,
-            hidden_size=hidden_size,
+        elif any("scaled_dot_product_attention" in node.op_type for node in function):
+            hidden_size = function.outputs[0].shape[2]
+            # Get head size and number of heads from the Reshape node.
+            # Reference:
+            # https://github.com/huggingface/diffusers/blob/ae05050db9d37d5af48a6cd0d6510a5ffb1c1cd4/src/diffusers/models/attention_processor.py#L1269
+            reshape_nodes = [node for node in function if node.op_type == "Reshape"]
+            assert (
+                len(reshape_nodes) == 4
+            ), "Expected 3 Reshape nodes for Q, K and V, and 1 reshape node for output of scaled_dot_product_attention."
+            for reshape_node in reshape_nodes:
+                constant_node = reshape_node.inputs[1].producer()
+                assert (
+                    constant_node.op_type == "Constant"
+                ), "Expected the second input to Reshape to be a Constant node."
+                value = _ir_utils.propagate_const_value(reshape_node.inputs[1])
+                constant_numpy_value = _ir_utils.get_numpy_from_ir_value(value)
+                if constant_numpy_value.shape[0] == 4:
+                    num_attention_heads = constant_numpy_value[2]
+                    head_size = constant_numpy_value[3]
+                    return AttnSizeConfig(
+                        num_attention_heads=num_attention_heads,
+                        num_key_value_heads=None,
+                        head_size=head_size,
+                        hidden_size=hidden_size,
+                    )
+            raise function_rule.FunctionRewriteError(
+                "Failed to infer head size and number of heads from Reshape nodes."
+            )
+        raise function_rule.FunctionRewriteError(
+            f"Unexpected function structure, got output: {len(function.outputs)}, "
+            f"and has_scaled_dot_product_attention_node: {any("scaled_dot_product_attention" in node.op_type for node in
+    function)}."
         )
 
 
@@ -101,9 +135,9 @@ class MHALlama2RewriteRule(AttentionRewriteRule):
 
     @_version_controller.register_version(min_version="4.33", max_version="4.36")
     def _fusion_with_4d_cache(self, function: ir.Function) -> ir.Function:
-        if len(function.input) != 9:
+        if len(function.inputs) != 9:
             raise function_rule.FunctionRewriteError(
-                f"Unexpected number of inputs. Expected 9, got {len(function.input)}."
+                f"Unexpected number of inputs. Expected 9, got {len(function.inputs)}."
             )
 
         # Infer size configurations from the function.
@@ -172,9 +206,9 @@ class MHALlama2RewriteRule(AttentionRewriteRule):
         # Infer size configurations from the function.
         attn_size_config = self.infer_attn_size_config(function)
 
-        if len(function.input) != 9:
+        if len(function.inputs) != 9:
             raise function_rule.FunctionRewriteError(
-                f"Unexpected number of inputs. Expected 9, got {len(function.input)}."
+                f"Unexpected number of inputs. Expected 9, got {len(function.inputs)}."
             )
 
         # Code new pattern with onnxscript.
@@ -590,5 +624,92 @@ class AttnPhi15RewriteRule(AttentionRewriteRule):
 
         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(
             phi_attention
+        ).to_function_proto()
+        return ir.serde.deserialize_function(function_proto)
+
+
+class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
+    FUNCTION_KEYWORD = "Attention"
+    PACKAGE_NAME = "diffusers"
+    _version_controller = function_rule.VersionController()
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    @_version_controller.register_version()
+    def _fusion_with(self, function: ir.Function) -> ir.Function:
+        if len(function.inputs) != 6 and len(function.inputs) != 7:
+            raise function_rule.FunctionRewriteError(
+                f"Unexpected number of inputs. Expected 6 or 7, got {len(function.inputs)}."
+            )
+
+        # Infer size configurations from the function.
+        attn_size_config = self.infer_attn_size_config(function)
+
+        # Code new pattern with onnxscript.
+        op = onnxscript.opset18
+        msft_op = onnxscript.values.Opset("com.microsoft", 1)
+
+        def mha_without_encoder_hidden_states(
+            hidden_states,
+            q_weight,
+            k_weight,
+            v_weight,
+            o_weight,
+            o_bias,
+        ):
+            q_proj = op.MatMul(hidden_states, q_weight)
+            k_proj = op.MatMul(hidden_states, k_weight)
+            v_proj = op.MatMul(hidden_states, v_weight)
+
+            mha_output, _, _ = msft_op.MultiHeadAttention(
+                q_proj,
+                k_proj,
+                v_proj,
+                None,
+                None,
+                None,
+                num_heads=attn_size_config.num_attention_heads,
+            )
+
+            # linear projection
+            output = op.Add(op.MatMul(mha_output, o_weight), o_bias)
+            return output
+
+        def mha(
+            hidden_states,
+            encoder_hidden_states,
+            q_weight,
+            k_weight,
+            v_weight,
+            o_weight,
+            o_bias,
+        ):
+            q_proj = op.MatMul(encoder_hidden_states, q_weight)
+            k_proj = op.MatMul(hidden_states, k_weight)
+            v_proj = op.MatMul(hidden_states, v_weight)
+
+            mha_output, _, _ = msft_op.MultiHeadAttention(
+                q_proj,
+                k_proj,
+                v_proj,
+                None,
+                None,
+                None,
+                num_heads=attn_size_config.num_attention_heads,
+            )
+
+            # linear projection
+            output = op.Add(op.MatMul(mha_output, o_weight), o_bias)
+            return output
+
+        if len(function.inputs) == 6:
+            function_proto = onnxscript.script(default_opset=onnxscript.opset18)(
+                mha_without_encoder_hidden_states
+            ).to_function_proto()
+            return ir.serde.deserialize_function(function_proto)
+
+        function_proto = onnxscript.script(default_opset=onnxscript.opset18)(
+            mha
         ).to_function_proto()
         return ir.serde.deserialize_function(function_proto)
