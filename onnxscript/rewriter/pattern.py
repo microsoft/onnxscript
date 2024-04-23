@@ -780,7 +780,7 @@ def _valid_to_replace(matched_nodes: Sequence[Any]) -> bool:
             if v.is_graph_output():
                 # value is an output-value of the graph/function.
                 return False
-            for consumer, _ in v.consumers():
+            for consumer, _ in v.uses():
                 if consumer not in matched_nodes:
                     return False
     return True
