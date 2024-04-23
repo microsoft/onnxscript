@@ -54,6 +54,7 @@ import onnx
 from onnx import helper as onnx_helper
 
 import onnxscript
+from onnxscript import ir
 from onnxscript.rewriter import function_rule
 
 logger = logging.getLogger(__name__)
@@ -68,23 +69,19 @@ class AttnSizeConfig:
 
 
 class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
-    def infer_attn_size_config(self, function: onnx.FunctionProto) -> AttnSizeConfig:
-        if len(function.output) != 3:
+    def infer_attn_size_config(self, function: ir.Function) -> AttnSizeConfig:
+        if len(function.outputs) != 3:
             raise function_rule.FunctionRewriteError(
-                f"Unexpected number of outputs. Expected 3, got {len(function.output)}."
+                f"Unexpected number of outputs. Expected 3, got {len(function.outputs)}."
             )
-        present_value, _, attn_output = function.output
-        if (
-            present_value_ir := self.lookup(function, present_value)
-        ) is None or present_value_ir.shape is None:
+        present_value, _, attn_output = function.outputs
+        if present_value.shape is None:
             raise function_rule.FunctionRewriteError("Failed to find shape for present_value.")
-        if (
-            attn_output_ir := self.lookup(function, attn_output)
-        ) is None or attn_output_ir.shape is None:
+        if attn_output.shape is None:
             raise function_rule.FunctionRewriteError("Failed to find shape for attn_output.")
-        head_size = present_value_ir.shape[3]
-        num_key_value_heads = present_value_ir.shape[1]
-        hidden_size = attn_output_ir.shape[2]
+        head_size = present_value.shape[3]
+        num_key_value_heads = present_value.shape[1]
+        hidden_size = attn_output.shape[2]
         num_attention_heads = hidden_size // head_size
         return AttnSizeConfig(
             num_attention_heads=num_attention_heads,
@@ -103,9 +100,7 @@ class MHALlama2RewriteRule(AttentionRewriteRule):
         super().__init__()
 
     @_version_controller.register_version(min_version="4.33", max_version="4.36")
-    def _fusion_with_4d_cache(
-        self, function: onnx.FunctionProto
-    ) -> tuple[onnx.FunctionProto, tuple[onnx.OperatorSetIdProto]]:
+    def _fusion_with_4d_cache(self, function: ir.Function) -> ir.Function:
         if len(function.input) != 9:
             raise function_rule.FunctionRewriteError(
                 f"Unexpected number of inputs. Expected 9, got {len(function.input)}."
@@ -167,14 +162,13 @@ class MHALlama2RewriteRule(AttentionRewriteRule):
             attn_output = op.MatMul(mha_output, op.Transpose(o_proj_weight, [1, 0]))
             return present_value, present_key, attn_output
 
-        return onnxscript.script(default_opset=onnxscript.opset18)(mha).to_function_proto(), (
-            onnx.helper.make_operatorsetid("com.microsoft", 1),
-        )
+        function_proto = onnxscript.script(default_opset=onnxscript.opset18)(
+            mha
+        ).to_function_proto()
+        return ir.serde.deserialize_function(function_proto)
 
     @_version_controller.register_version(min_version="4.36", max_version="4.38")
-    def _fusion_with_2d_cache(
-        self, function: onnx.FunctionProto
-    ) -> tuple[onnx.FunctionProto, tuple[onnx.OperatorSetIdProto]]:
+    def _fusion_with_2d_cache(self, function: ir.Function) -> ir.Function:
         # Infer size configurations from the function.
         attn_size_config = self.infer_attn_size_config(function)
 
@@ -229,9 +223,10 @@ class MHALlama2RewriteRule(AttentionRewriteRule):
             attn_output = op.MatMul(mha_output, op.Transpose(o_proj_weight, [1, 0]))
             return present_value, present_key, attn_output
 
-        return onnxscript.script(default_opset=onnxscript.opset18)(mha).to_function_proto(), (
-            onnx.helper.make_operatorsetid("com.microsoft", 1),
-        )
+        function_proto = onnxscript.script(default_opset=onnxscript.opset18)(
+            mha
+        ).to_function_proto()
+        return ir.serde.deserialize_function(function_proto)
 
 
 class GQALlama2RewriteRule(AttentionRewriteRule):
@@ -243,12 +238,10 @@ class GQALlama2RewriteRule(AttentionRewriteRule):
         super().__init__()
 
     @_version_controller.register_version(min_version="4.33", max_version="4.36")
-    def _fusion_with_4d_cache(
-        self, function: onnx.FunctionProto
-    ) -> tuple[onnx.FunctionProto, tuple[onnx.OperatorSetIdProto]]:
-        if len(function.input) != 9:
+    def _fusion_with_4d_cache(self, function: ir.Function) -> ir.Function:
+        if len(function.inputs) != 9:
             raise function_rule.FunctionRewriteError(
-                f"Unexpected number of inputs. Expected 9, got {len(function.input)}."
+                f"Unexpected number of inputs. Expected 9, got {len(function.inputs)}."
             )
 
         # Infer size configurations from the function.
@@ -309,20 +302,19 @@ class GQALlama2RewriteRule(AttentionRewriteRule):
             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
             return present_value, present_key, attn_output
 
-        return onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto(), (
-            onnx.helper.make_operatorsetid("com.microsoft", 1),
-        )
+        function_proto = onnxscript.script(default_opset=onnxscript.opset18)(
+            gqa
+        ).to_function_proto()
+        return ir.serde.deserialize_function(function_proto)
 
     @_version_controller.register_version(min_version="4.36", max_version="4.38")
-    def _fusion_with_2d_cache(
-        self, function: onnx.FunctionProto
-    ) -> tuple[onnx.FunctionProto, tuple[onnx.OperatorSetIdProto]]:
+    def _fusion_with_2d_cache(self, function: ir.Function) -> ir.Function:
         # Infer size configurations from the function.
         attn_size_config = self.infer_attn_size_config(function)
 
-        if len(function.input) != 9:
+        if len(function.inputs) != 9:
             raise function_rule.FunctionRewriteError(
-                f"Unexpected number of inputs. Expected 9, got {len(function.input)}."
+                f"Unexpected number of inputs. Expected 9, got {len(function.inputs)}."
             )
 
         # Code new pattern with onnxscript.
@@ -377,9 +369,10 @@ class GQALlama2RewriteRule(AttentionRewriteRule):
             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
             return present_value, present_key, attn_output
 
-        return onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto(), (
-            onnx.helper.make_operatorsetid("com.microsoft", 1),
-        )
+        function_proto = onnxscript.script(default_opset=onnxscript.opset18)(
+            gqa
+        ).to_function_proto()
+        return ir.serde.deserialize_function(function_proto)
 
 
 class GQALlamaSdpa2RewriteRule(AttentionRewriteRule):
@@ -395,9 +388,7 @@ class GQALlamaSdpa2RewriteRule(AttentionRewriteRule):
         super().__init__()
 
     @_version_controller.register_version(min_version="4.36", max_version="4.38")
-    def _fusion(
-        self, function: onnx.FunctionProto
-    ) -> tuple[onnx.FunctionProto, tuple[onnx.OperatorSetIdProto]]:
+    def _fusion(self, function: ir.Function) -> ir.Function:
         # Infer size configurations from the function.
         attn_size_config = self.infer_attn_size_config(function)
 
@@ -451,14 +442,13 @@ class GQALlamaSdpa2RewriteRule(AttentionRewriteRule):
             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
             return present_value, present_key, attn_output
 
-        return onnxscript.script(default_opset=onnxscript.opset18)(
-            gqa,
-        ).to_function_proto(), (onnx.helper.make_operatorsetid("com.microsoft", 1),)
+        function_proto = onnxscript.script(default_opset=onnxscript.opset18)(
+            gqa
+        ).to_function_proto()
+        return ir.serde.deserialize_function(function_proto)
 
     @_version_controller.register_version(min_version="4.38")
-    def _fusion_without_cos_sin_cache(
-        self, function: onnx.FunctionProto
-    ) -> tuple[onnx.FunctionProto, tuple[onnx.OperatorSetIdProto]]:
+    def _fusion_without_cos_sin_cache(self, function: ir.Function) -> ir.Function:
         # Infer size configurations from the function.
         attn_size_config = self.infer_attn_size_config(function)
 
@@ -527,9 +517,10 @@ class GQALlamaSdpa2RewriteRule(AttentionRewriteRule):
             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
             return present_value, present_key, attn_output
 
-        return onnxscript.script(default_opset=onnxscript.opset18)(
-            gqa,
-        ).to_function_proto(), (onnx.helper.make_operatorsetid("com.microsoft", 1),)
+        function_proto = onnxscript.script(default_opset=onnxscript.opset18)(
+            gqa
+        ).to_function_proto()
+        return ir.serde.deserialize_function(function_proto)
 
 
 class AttnPhi15RewriteRule(AttentionRewriteRule):
@@ -541,9 +532,7 @@ class AttnPhi15RewriteRule(AttentionRewriteRule):
         super().__init__()
 
     @_version_controller.register_version()
-    def _fusion(
-        self, function: onnx.FunctionProto
-    ) -> tuple[onnx.FunctionProto, tuple[onnx.OperatorSetIdProto]]:
+    def _fusion(self, function: ir.Function) -> ir.Function:
         # Infer size configurations from the function.
         attn_size_config = self.infer_attn_size_config(function)
 
@@ -599,6 +588,7 @@ class AttnPhi15RewriteRule(AttentionRewriteRule):
 
             return present_value, present_key, output
 
-        return onnxscript.script(default_opset=onnxscript.opset18)(
+        function_proto = onnxscript.script(default_opset=onnxscript.opset18)(
             phi_attention
-        ).to_function_proto(), (onnx.helper.make_operatorsetid("com.microsoft", 1),)
+        ).to_function_proto()
+        return ir.serde.deserialize_function(function_proto)
