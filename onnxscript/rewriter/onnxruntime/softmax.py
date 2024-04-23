@@ -5,7 +5,7 @@ from typing import Any
 
 import onnx
 
-import onnxscript._legacy_ir as ir
+from onnxscript import ir
 from onnxscript.rewriter import pattern
 
 op = pattern.onnxop
@@ -40,7 +40,7 @@ def check_if_fp16_input(match_bindings: dict[str, ir.Value | Any]) -> bool:
             "cannot retrieve match_bindings for 'input' for dtype validation."
         )
         return False
-    return input_val.element_type == onnx.TensorProto.FLOAT16
+    return input_val.dtype == ir.DataType.FLOAT16
 
 
 # pylint: disable=pointless-string-statement

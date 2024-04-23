@@ -23,6 +23,7 @@ import sys
 import textwrap
 import typing
 from typing import (
+    AbstractSet,
     Any,
     Collection,
     Generic,
@@ -84,7 +85,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
     def _repr_base(self) -> str:
         """Base string for the repr method.
 
-        Example: Tensor<FLOAT:=1,5x42>
+        Example: Tensor<FLOAT,[5,42]>
         """
         return f"{self.__class__.__name__}<{self._printable_type_shape()}>"
 
@@ -239,7 +240,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         return self.__array__().__dlpack_device__()
 
     def __repr__(self) -> str:
-        return f"{self._repr_base()}({self._raw!r})"
+        return f"{self._repr_base()}({self._raw!r}, name={self.name!r})"
 
     @property
     def dtype(self) -> _enums.DataType:
@@ -661,8 +662,8 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self,
         domain: str,
         op_type: str,
-        inputs: Sequence[Value | None],
-        attributes: Sequence[Attr | RefAttr] = (),
+        inputs: Iterable[Value | None],
+        attributes: Iterable[Attr | RefAttr] = (),
         *,
         overload: str = "",
         num_outputs: int = 1,
@@ -699,6 +700,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._outputs: tuple[Value, ...] = tuple(
             Value(self, index=i) for i in range(num_outputs)
         )
+        attributes = tuple(attributes)
         if attributes and not isinstance(attributes[0], (Attr, RefAttr)):
             raise TypeError(
                 f"Expected the attributes to be Attr or RefAttr, got {type(attributes[0])}. "
@@ -1235,6 +1237,42 @@ class Input(Value):
         self._type = type
 
 
+def _check_node_safe_to_remove(
+    node: Node, to_remove: AbstractSet[Node], graph_outputs: AbstractSet[Value]
+) -> None:
+    """Check if a node is safe to remove.
+
+    1. It checks to make sure there are no users of the node that are not
+        to be removed before removing it.
+    2. It checks the node does not contribute to any graph outputs.
+
+    This check is typically O(1) assuming the number of consumers of the node is small
+
+    Args:
+        node: The node to check.
+        to_remove: A set of nodes that are to be removed.
+            This set is used to check if the node is still being used by other
+            nodes that are not to be removed.
+        graph_outputs: A set of values that are outputs of the graph.
+
+    Raises:
+        ValueError: If the node does not belong to this graph or if there are users of the node.
+        ValueError: If the node is still being used by other nodes not to be removed.
+    """
+    for output in node.outputs:
+        if output in graph_outputs:
+            raise ValueError(
+                f"Node '{node!r}' is still an output of the graph and cannot be removed when safe=True."
+            )
+        for consumer, _ in output.consumers():
+            if consumer in to_remove:
+                continue
+            raise ValueError(
+                f"Node '{consumer!r}' is still being used by other nodes that are not to be "
+                f"removed. All of its uses: {list(output.consumers())!r}"
+            )
+
+
 class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     """IR Graph.
 
@@ -1353,7 +1391,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         """Set the graph reference for the node and assign names to it and its outputs if they don't have one."""
         if node.graph is not None and node.graph is not self:
             raise ValueError(
-                f"The node {node} belongs to another graph. Please remove it first with Graph.remove()."
+                f"The node '{node!r}' belongs to another graph. Please remove it first with Graph.remove()."
             )
         # Give the node and its output values names if they don't not have one
         if node.name is None:
@@ -1389,19 +1427,44 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         nodes = [self._set_node_graph_to_self_and_assign_names(node) for node in nodes]
         self._nodes.extend(nodes)
 
-    def remove(self, node: Node, /) -> None:
-        """Remove a node from the graph in O(1) time.
+    def remove(self, nodes: Node | Iterable[Node], /, safe: bool = False) -> None:
+        """Remove nodes from the graph in O(#num of nodes) time.
+
+        If any errors are raise, to ensure the graph is not left in an inconsistent state,
+        the graph is not modified.
 
         Args:
-            node: The node to remove.
+            nodes: The node to remove.
+            safe: If True, performs the following actions before removal:
+                1. It checks to make sure there are no users of the node that are not
+                    to be removed before removing it.
+                2. It checks the node does not contribute to any graph outputs.
+                3. It removes references to all inputs so it is no longer a user of other nodes.
 
         Raises:
-            ValueError: If the node does not belong to this graph.
+            ValueError: If any node to remove does not belong to this graph.
+            ValueError: (When ``safe=True``) If the node does not belong to this graph or if there are users of the node.
+            ValueError: (When ``safe=True``) If the node is still being used by other nodes not to be removed.
         """
-        if node.graph is not self:
-            raise ValueError(f"The node {node} does not belong to this graph.")
-        node.graph = None
-        self._nodes.remove(node)
+        if not isinstance(nodes, Iterable):
+            nodes_set: AbstractSet[Node] = {nodes}
+        else:
+            nodes_set = frozenset(nodes)
+        graph_outputs = frozenset(self.outputs)
+        for node in nodes_set:
+            if node.graph is not self:
+                raise ValueError(f"The node '{node!r}' does not belong to this graph.")
+            if safe:
+                # Check 1, 2
+                _check_node_safe_to_remove(node, nodes_set, graph_outputs)
+        for node in nodes_set:
+            if safe:
+                # 3. Detach from all inputs so that it is no longer a user of other nodes
+                for i in range(len(node.inputs)):
+                    node.replace_input_with(i, None)
+            # Set attributes to remove the node from this graph
+            node.graph = None
+            self._nodes.remove(node)
 
     def insert_after(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
         """Insert new nodes after the given node in O(#new_nodes) time.
@@ -1877,9 +1940,26 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         """Extend the function with the given nodes in O(#new_nodes) time."""
         self._graph.extend(nodes)
 
-    def remove(self, node: Node, /) -> None:
-        """Remove a node from the function in O(1) time."""
-        self._graph.remove(node)
+    def remove(self, nodes: Node | Iterable[Node], /, safe: bool = False) -> None:
+        """Remove nodes from the graph in O(#num of nodes) time.
+
+        If any errors are raise, to ensure the graph is not left in an inconsistent state,
+        the graph is not modified.
+
+        Args:
+            nodes: The node to remove.
+            safe: If True, performs the following actions before removal:
+                1. It checks to make sure there are no users of the node that are not
+                    to be removed before removing it.
+                2. It checks the node does not contribute to any graph outputs.
+                3. It removes references to all inputs so it is no longer a user of other nodes.
+
+        Raises:
+            ValueError: If any node to remove does not belong to this graph.
+            ValueError: (When ``safe=True``) If the node does not belong to this graph or if there are users of the node.
+            ValueError: (When ``safe=True``) If the node is still being used by other nodes not to be removed.
+        """
+        self._graph.remove(nodes, safe=safe)
 
     def insert_after(self, node: Node, new_nodes: Iterable[Node], /) -> None:
         """Insert new nodes after the given node in O(#new_nodes) time."""
@@ -2028,10 +2108,15 @@ class Attr(_protocols.AttributeProtocol, _display.PrettyPrintable):
         return f"{self.__class__.__name__}({self.name!r}, {self.type!r}, {self.value!r})"
 
 
+class _SpecializedAttr(Attr):
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name!r}, {self.value!r})"
+
+
 # NOTE: The following classes are just supporting classes (partially applied) for convenience
 # But I think they would be useful to have in the IR by having the type info
 # explicitly in the class type.
-class AttrFloat32(Attr):
+class AttrFloat32(_SpecializedAttr):
     def __init__(self, name: str, value: float, doc_string: str | None = None):
         super().__init__(
             name,
@@ -2041,7 +2126,7 @@ class AttrFloat32(Attr):
         )
 
 
-class AttrInt64(Attr):
+class AttrInt64(_SpecializedAttr):
     def __init__(self, name: str, value: int, doc_string: str | None = None):
         super().__init__(
             name,
@@ -2051,7 +2136,7 @@ class AttrInt64(Attr):
         )
 
 
-class AttrString(Attr):
+class AttrString(_SpecializedAttr):
     def __init__(self, name: str, value: str, doc_string: str | None = None):
         super().__init__(
             name,
@@ -2061,7 +2146,7 @@ class AttrString(Attr):
         )
 
 
-class AttrTensor(Attr):
+class AttrTensor(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2076,7 +2161,7 @@ class AttrTensor(Attr):
         )
 
 
-class AttrGraph(Attr):
+class AttrGraph(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2094,7 +2179,7 @@ class AttrGraph(Attr):
         return textwrap.indent("\n" + super().__str__(), " " * 4)
 
 
-class AttrFloat32s(Attr):
+class AttrFloat32s(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2109,7 +2194,7 @@ class AttrFloat32s(Attr):
         )
 
 
-class AttrInt64s(Attr):
+class AttrInt64s(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2124,7 +2209,7 @@ class AttrInt64s(Attr):
         )
 
 
-class AttrStrings(Attr):
+class AttrStrings(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2139,7 +2224,7 @@ class AttrStrings(Attr):
         )
 
 
-class AttrTensors(Attr):
+class AttrTensors(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2154,7 +2239,7 @@ class AttrTensors(Attr):
         )
 
 
-class AttrGraphs(Attr):
+class AttrGraphs(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2170,7 +2255,7 @@ class AttrGraphs(Attr):
 
 
 # NOTE: SparseTensor should be a sparse tensor proto
-class AttrSparseTensor(Attr):
+class AttrSparseTensor(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2185,7 +2270,7 @@ class AttrSparseTensor(Attr):
         )
 
 
-class AttrSparseTensors(Attr):
+class AttrSparseTensors(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -2200,7 +2285,7 @@ class AttrSparseTensors(Attr):
         )
 
 
-class AttrTypeProto(Attr):
+class AttrTypeProto(_SpecializedAttr):
     def __init__(
         self,
         name: str,
