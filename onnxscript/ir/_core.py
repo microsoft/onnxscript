@@ -638,7 +638,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     After the node is initialized, it will add itself as a user of the input values.
 
     The output values of the node are created during node initialization and are immutable.
-    To change the output values, create a new node and replace the each of the inputs of ``output.uses`` with
+    To change the output values, create a new node and replace the each of the inputs of ``output.uses()`` with
     the new output values by calling :meth:`replace_input_with` on the using nodes
     of this node's outputs.
     """
