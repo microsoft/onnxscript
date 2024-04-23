@@ -25,7 +25,6 @@ def rewrite(
     function_rewrite_rules: Sequence[type[FunctionRewriteRule]] = (),
     pattern_rewrite_rules: Sequence[PatternRewriteRule] = (),
 ) -> onnx.ModelProto:
-    print(f"len(value_info): {len(model.graph.value_info)}")
     model_ir = ir.serde.deserialize_model(model)
     if function_rewrite_rules:
         for rule_cls in function_rewrite_rules:
@@ -37,5 +36,4 @@ def rewrite(
     model = ir.serde.serialize_model(model_ir)
     remove_unused.remove_unused_nodes(model)
     remove_unused_function.remove_unused_functions(model)
-    print(f"len(value_info): {len(model.graph.value_info)}")
     return model
