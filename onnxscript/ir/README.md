@@ -10,7 +10,7 @@ An in-memory IR that supports the full ONNX spec, designed for graph constructio
 - Robust mutation: Create as many iterators as you like on the graph while mutating it.
 - Speed: Performant graph manipulation, serialization/deserialization to Protobuf.
 
-## Project structure
+## Code Organization
 
 - [`_protocols.py`](_protocols.py): Interfaces defined for all entities in the IR.
 - [`_core.py`](_core.py): Implementation of the core entities in the IR, including `Model`, `Graph`, `Node`, `Value`, and others.
