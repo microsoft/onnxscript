@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import functools
 import logging
+from typing import Callable
 
 import onnx
 from packaging import version
 
 import onnxscript
 from onnxscript import ir
-from onnxscript._legacy_ir import visitor
 from onnxscript.rewriter import pattern
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ MAX_VERSION = version.parse("9999")
 class VersionController:
     def __init__(self):
         # A dispatch table for rewrite implementation based on the function package version.
-        self.dispatch_table: dict[tuple[version.Version, version.Version], callable] = {}
+        self.dispatch_table: dict[tuple[version.Version, version.Version], Callable] = {}
 
     def register_version(
         self,
@@ -66,7 +66,7 @@ class VersionController:
 
         return deco
 
-    def dispatch(self, version: version.Version | None) -> callable | None:
+    def dispatch(self, version: version.Version | None) -> Callable | None:
         if version is None:
             if len(self.dispatch_table) == 1:
                 return next(iter(self.dispatch_table.values()))
@@ -94,12 +94,11 @@ class FunctionRewriteRule(pattern.RewriteRule):
 
     _opset_imports: dict[str, int]
     onnx_opset: onnxscript.values.Opset
-    _function_shape_env: visitor.FunctionShapeEnv
 
-    def __init__(self, opset: onnxscript.values.Opset = onnxscript.opset18) -> None:
+    def __init__(self, opset: onnxscript.values.Opset = onnxscript.opset18) -> None:  # type: ignore[has-type]
         self.onnx_opset = opset
 
-    def _match_function(self, function: onnx.FunctionProto, pkg_name: str) -> bool:
+    def _match_function(self, function: ir.Function, pkg_name: str) -> bool:
         # TODO: Consolidate more checks from `compose_new_function` to here.
         if pkg_name != self.PACKAGE_NAME:
             logger.info(
@@ -111,7 +110,6 @@ class FunctionRewriteRule(pattern.RewriteRule):
                 pkg_name,
             )
             return False
-
         if isinstance(self.FUNCTION_KEYWORD, str):
             return function.name.find(self.FUNCTION_KEYWORD) != -1
         elif isinstance(self.FUNCTION_KEYWORD, tuple):
@@ -130,27 +128,17 @@ class FunctionRewriteRule(pattern.RewriteRule):
         return None
 
     def _find_node_by_type(
-        self, function: onnx.FunctionProto, domain: str, op_type: str
-    ) -> onnx.NodeProto | None:
+        self, function: ir.Function, domain: str, op_type: str
+    ) -> ir.Node | None:
         # Repeat
-        for node in function.node:
+        for node in function:
             if node.domain == domain and node.op_type == op_type:
                 return node
         return None
 
-    def _find_constant_node(
-        self, function: onnx.FunctionProto, value_name: str
-    ) -> onnx.NodeProto | None:
-        # Potentially repeat, utility function.
-        for node in function.node:
-            for output in node.output:
-                if output == value_name:
-                    return node
-        return None
-
     def compose_new_function(
-        self, old_function: onnx.FunctionProto, pkg_version: version.Version | None
-    ) -> tuple[onnx.FunctionProto, tuple[onnx.OperatorSetIdProto]]:
+        self, old_function: ir.Function, pkg_version: version.Version | None
+    ) -> ir.Function:
         """Compose a new function from the old function.
 
         Returns:
@@ -159,21 +147,23 @@ class FunctionRewriteRule(pattern.RewriteRule):
         Raises:
             FunctionRewriteError: If the rewrite fails.
         """
-        func = self._version_controller.dispatch(pkg_version)
+        # self._version_controller is created in the subclass
+        func = self._version_controller.dispatch(pkg_version)  # type: ignore[attr-defined]
         if func is not None:
-            return func(self, old_function)
+            new_function = func(self, old_function)
+            return new_function
         raise FunctionRewriteError(
             f"No rewrite implementation for package version {pkg_version}."
         )
 
     def try_rewrite_function(
-        self, function: onnx.FunctionProto, model: onnx.ModelProto
-    ) -> bool:
+        self, function: ir.Function
+    ) -> tuple[ir.OperatorIdentifier, ir.Function] | None:
         try:
             pkg_name, pkg_version = parse_domain(function.domain)
         except FunctionRewriteError as e:
             logger.warning("Could not parse domain: %s", e)
-            return False
+            return None
 
         if pkg_version is None and not pkg_name.startswith("onnxscript"):
             logger.warning(
@@ -185,57 +175,53 @@ class FunctionRewriteRule(pattern.RewriteRule):
             )
 
         if not self._match_function(function, pkg_name):
-            return False
+            return None
         logger.info(
             "Rule %s matched function %s::%s",
             self.__class__.__name__,
             function.domain,
             function.name,
         )
-
         try:
-            new_function, opset_imports = self.compose_new_function(function, pkg_version)
+            new_function = self.compose_new_function(function, pkg_version)
         except FunctionRewriteError as e:
             logger.warning("Could not rewrite function: %s", e)
-            return False
+            return None
 
-        nodes = new_function.node
+        new_function.name = function.name
+        new_function.domain = function.domain
 
-        del function.input[:]
-        function.input.extend(new_function.input)
-        del function.output[:]
-        function.output.extend(new_function.output)
-
-        del function.node[:]
-        function.node.extend(nodes)
-        for new_opset in opset_imports:
-            function.opset_import.append(new_opset)
-            if new_opset.domain not in self._opset_imports:
-                model.opset_import.append(new_opset)
-        return True
+        return function.identifier(), new_function
 
     def try_rewrite(self, model: ir.Model, value) -> bool:
         raise NotImplementedError(
             "Use `try_rewrite_function` instead for function based rewrites."
         )
 
-    def lookup(self, function: onnx.FunctionProto, value_name: str) -> ir.Value | None:
-        return self._function_shape_env.lookup(function, value_name)
-
     def apply_to_model(
         self, model: ir.Model, *, commute: bool = False
     ) -> tuple[int, ir.Model]:
         del commute  # unused
-        model_proto: onnx.ModelProto = ir.serde.serialize_model(model)
-        self._function_shape_env = visitor.FunctionShapeEnv()
-        self._function_shape_env.load_from_model_proto(model_proto)
-        self._opset_imports = {x.domain: x.version for x in model_proto.opset_import}
 
-        rewrite_count = 0
-        for function in model_proto.functions:
-            rewrite_count += self.try_rewrite_function(function, model_proto)
-        model = ir.serde.deserialize_model(model_proto)
-        return rewrite_count, model
+        old_function_to_new_function: dict[ir.OperatorIdentifier, ir.Function] = {}
+        for function in model.functions.values():
+            rewrite_or_none = self.try_rewrite_function(function)
+            if rewrite_or_none is not None:
+                old_function_to_new_function[rewrite_or_none[0]] = rewrite_or_none[1]
+        model = self.update_to_new_function(model, old_function_to_new_function)
+        return len(old_function_to_new_function), model
+
+    def update_to_new_function(
+        self,
+        model: ir.Model,
+        old_function_to_new_function: dict[ir.OperatorIdentifier, ir.Function],
+    ) -> ir.Model:
+        for old_function_id, new_function_ir in old_function_to_new_function.items():
+            model.functions[old_function_id] = new_function_ir
+            for new_opset, opset_version in new_function_ir.opset_imports.items():
+                if new_opset not in model.opset_imports:
+                    model.opset_imports[new_opset] = opset_version
+        return model
 
     def count_matches(self, model, *, commute: bool = False) -> int:
         raise NotImplementedError()
