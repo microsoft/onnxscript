@@ -11,7 +11,7 @@ import onnx.numpy_helper
 import onnx.printer
 
 from onnxscript import ir
-from onnxscript.ir import _convenience
+from onnxscript.ir import _convenience as ir_convenience
 from onnxscript.rewriter import _ir_utils
 
 # Overview of the pattern module: The classes below are used to define both
@@ -1025,7 +1025,7 @@ def _apply_deltas(
             last_deleted = deleted_nodes[-1]
             last_inserted = inserted_nodes[-1]
             # Reconnect the users of the deleted node to use the new outputs
-            _convenience.replace_all_uses_with(last_deleted.outputs, last_inserted.outputs)
+            ir_convenience.replace_all_uses_with(last_deleted.outputs, last_inserted.outputs)
             # Update graph/function outputs if the node generates output
             replacement_mapping = dict(zip(last_deleted.outputs, last_inserted.outputs))
             for idx, graph_or_function_output in enumerate(graph_or_function.outputs):

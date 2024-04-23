@@ -19,7 +19,7 @@ from onnxscript import type_annotation as ta
 from onnxscript import values, ir, sourceinfo
 from onnxscript._internal import version_utils
 from onnxscript.onnx_types import ONNXType
-from onnxscript.ir import convenience as ir_convenience
+from onnxscript.ir import _convenience as ir_convenience
 
 # A simple IR (Function, Stmt, Attr, Var):
 
