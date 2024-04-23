@@ -159,8 +159,66 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
             rich.print(text)
 
 
+def _check_numpy_storage_type(array: np.ndarray, dtype: _enums.DataType) -> None:
+    if (
+        dtype
+        in {
+            _enums.DataType.BFLOAT16,
+            _enums.DataType.FLOAT8E4M3FN,
+            _enums.DataType.FLOAT8E4M3FNUZ,
+            _enums.DataType.FLOAT8E5M2,
+            _enums.DataType.FLOAT8E5M2FNUZ,
+        }
+        and array.dtype != np.float32
+    ):
+        raise TypeError(
+            "The numpy array must have a float32 dtype when the IR data type is one of "
+            " {BFLOAT16, FLOAT8E4M3FN, FLOAT8E4M3FNUZ, FLOAT8E5M2, FLOAT8E5M2FNUZ}."
+        )
+    if dtype in {_enums.DataType.INT4, _enums.DataType.UINT4} and array.dtype != np.int8:
+        raise TypeError(
+            "The numpy array must have an int8 dtype when the IR data type is INT4 or UINT4."
+        )
+    if _enums.DataType.from_numpy(array.dtype) != dtype:
+        raise TypeError(f"The numpy array dtype {array.dtype} does not match the IR data type {dtype}.")
+
+
 class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
-    """An immutable concrete value."""
+    """An immutable concrete tensor.
+
+    This class is a wrapper around the raw tensor data. The raw tensor data can be a numpy array
+    compatible object (e.g. ``np.ndarray``, ``torch.Tensor``) or a ``DLPack`` compatible object.
+    The tensor is immutable and the data is not copied at initialization.
+
+    To create a tensor from a numpy array::
+
+        >>> import numpy as np
+        >>> array = np.array([1, 2, 3])
+        >>> tensor = Tensor(array)
+        # The tensor itself can be treated as a numpy array because it implements the __array__ method
+        >>> np.allclose(tensor, array)
+        True
+
+    To get a numpy array from the tensor, call :meth:`numpy`. To convert the tensor
+    to a byte string for serialization, call :meth:`tobytes`.
+
+    It is recommended to check the size of the tensor first before accessing the
+    underlying data, because accessing the data may be expensive and incur IO
+    overhead.
+
+    Subclass this class to efficiently handle different types of tensors from different frameworks.
+
+    Attributes:
+        name: The name of the tensor.
+        shape: The shape of the tensor.
+        dtype: The data type of the elements of the tensor. It is an :class:`ir.DataType` enum.
+        doc_string: Documentation string.
+        raw: The raw data behind this tensor. It can be anything.
+        size: The number of elements in the tensor.
+        nbytes: The number of bytes in the tensor.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
+    """
 
     __slots__ = (
         "_raw",
@@ -185,12 +243,21 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         """Initialize a tensor.
 
         Args:
-            value: The backing data of the tensor. It can be a numpy array or a DLPack compatible object.
+            value: The backing data of the tensor. It can be a numpy array compatible object or a DLPack compatible object.
+                When the dtype is not one of the numpy support dtypes, the value needs
+                to be uint8 for INT4/UNT4; float32 for BFLOAT16, FLOAT8E4M3FN, FLOAT8E4M3FNUZ, FLOAT8E5M2, FLOAT8E5M2FNUZ
+                when the value is a numpy array. :param:`dtype` must be specified in this case.
             dtype: The data type of the tensor. It can be None only when value is a numpy array.
             shape: The shape of the tensor. If None, the shape is obtained from the value.
             name: The name of the tensor.
             doc_string: The documentation string.
             metadata_props: The metadata properties.
+
+        Raises:
+            TypeError: If the value is not a numpy array compatible or a DLPack compatible object.
+            TypeError: If the value is a numpy array and the dtype is specified but does not match the dtype of the array.
+            ValueError: If the shape is not specified and the value does not have a shape attribute.
+            ValueError: If the dtype is not specified and the value is not a numpy array.
         """
         # NOTE: We should not do any copying here for performance reasons
         if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
@@ -213,6 +280,8 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
                     "The dtype must be specified when the value is not a numpy array."
                 )
         else:
+            if isinstance(value, np.ndarray):
+                _check_numpy_storage_type(value, dtype)
             self._dtype = dtype
         self._raw = value
         self.name = name
@@ -221,7 +290,6 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         self._metadata_props = metadata_props
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
-        # TODO(justinchuby): Support numpy unsupported types
         if isinstance(self._raw, np.ndarray) or _compatible_with_numpy(self._raw):
             return self._raw.__array__(dtype)
         assert _compatible_with_dlpack(
