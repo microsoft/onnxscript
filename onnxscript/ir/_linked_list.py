@@ -96,6 +96,7 @@ class DoublyLinkedSet(Generic[T], Sequence[T]):
 
     def __init__(self, values: Iterable[T] | None = None) -> None:
         # Using the root node simplifies the mutation implementation a lot
+        # The list is circular. The root node is the only node that is not a part of the list values
         root_ = _LinkBox(self, None)
         self._root: _LinkBox = root_
         self._length = 0
