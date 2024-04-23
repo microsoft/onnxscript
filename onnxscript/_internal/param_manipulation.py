@@ -1,4 +1,5 @@
 """Function for manipulating input parameters of an Op or a OnnxFunction."""
+
 from __future__ import annotations
 
 import collections

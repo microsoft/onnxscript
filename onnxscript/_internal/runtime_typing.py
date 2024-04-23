@@ -4,11 +4,15 @@ Decorate a function with `@runtime_typing.checked` to enable runtime
 type checking. The decorator is a no-op when the `beartype` library is not
 installed.
 """
+
+import typing
 import warnings
 
 __all__ = [
     "checked",
 ]
+
+T = typing.TypeVar("T", bound=typing.Callable[..., typing.Any])
 
 try:
     from beartype import beartype as checked
@@ -24,12 +28,12 @@ try:
     )
 except ImportError:
 
-    def checked(func):  # type: ignore[no-redef]
+    def checked(func: T) -> T:  # type: ignore[no-redef]
         return func
 
 except Exception as e:  # pylint: disable=broad-exception-caught
     # Warn errors that are not import errors (unexpected).
     warnings.warn(f"{e}", stacklevel=2)
 
-    def checked(func):  # type: ignore[no-redef]
+    def checked(func: T) -> T:  # type: ignore[no-redef]
         return func

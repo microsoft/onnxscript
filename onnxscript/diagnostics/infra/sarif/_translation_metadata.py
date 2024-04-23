@@ -20,9 +20,9 @@ class TranslationMetadata:
     download_uri: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "downloadUri"}
     )
-    full_description: Optional[
-        _multiformat_message_string.MultiformatMessageString
-    ] = dataclasses.field(default=None, metadata={"schema_property_name": "fullDescription"})
+    full_description: Optional[_multiformat_message_string.MultiformatMessageString] = (
+        dataclasses.field(default=None, metadata={"schema_property_name": "fullDescription"})
+    )
     full_name: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "fullName"}
     )
@@ -32,9 +32,9 @@ class TranslationMetadata:
     properties: Optional[_property_bag.PropertyBag] = dataclasses.field(
         default=None, metadata={"schema_property_name": "properties"}
     )
-    short_description: Optional[
-        _multiformat_message_string.MultiformatMessageString
-    ] = dataclasses.field(default=None, metadata={"schema_property_name": "shortDescription"})
+    short_description: Optional[_multiformat_message_string.MultiformatMessageString] = (
+        dataclasses.field(default=None, metadata={"schema_property_name": "shortDescription"})
+    )
 
 
 # flake8: noqa

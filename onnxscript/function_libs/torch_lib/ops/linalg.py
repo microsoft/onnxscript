@@ -9,6 +9,7 @@
 - All functions should not have the script() decorator. This is because
     we want to delay the compilation of the function.
 """
+
 from __future__ import annotations
 
 from typing import Optional, Sequence
@@ -341,6 +342,7 @@ def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool
 
     self = op.Abs(self)
     ord = op.Cast(ord, to=FLOAT.dtype)  # Must be FLOAT, due to op.IsInf() needs FLOAT
+    # TODO(justinchuby): Evaluate IsInf in trace mode
     if op.IsInf(ord, detect_negative=0, detect_positive=1):
         result = op.ReduceMax(self, keepdims=keepdim)
     elif op.IsInf(ord, detect_negative=1, detect_positive=0):
@@ -372,6 +374,7 @@ def _aten_linalg_vector_norm_onnx(
     dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
     self = op.Abs(self)
     ord = op.Cast(ord, to=FLOAT.dtype)  # Must be FLOAT, due to op.IsInf() needs FLOAT
+    # TODO(justinchuby): Evaluate IsInf in trace mode
     if op.IsInf(ord, detect_negative=0, detect_positive=1):
         result = op.ReduceMax(self, dim, keepdims=keepdim)
     elif op.IsInf(ord, detect_negative=1, detect_positive=0):

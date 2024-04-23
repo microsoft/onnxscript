@@ -92,9 +92,10 @@ class Opset:
     def __contains__(self, opname):
         try:
             onnx.defs.get_schema(opname, self.version, self.domain)
-            return True
         except Exception:  # pylint: disable=broad-except # TODO: more specific exception
             return False
+        else:
+            return True
 
     def __str__(self) -> str:
         return self.domain
@@ -250,19 +251,15 @@ class OpLike(Protocol):
     """A protocol for objects that have an ONNX OpSchema."""
 
     @property
-    def name(self) -> str:
-        ...
+    def name(self) -> str: ...
 
     @property
-    def opset(self) -> Opset:
-        ...
+    def opset(self) -> Opset: ...
 
     @property
-    def op_schema(self) -> Optional[onnx.defs.OpSchema]:
-        ...
+    def op_schema(self) -> Optional[onnx.defs.OpSchema]: ...
 
-    def param_schemas(self) -> Optional[tuple[ParamSchema, ...]]:
-        ...
+    def param_schemas(self) -> Optional[tuple[ParamSchema, ...]]: ...
 
 
 class Op(OpLike):
@@ -539,7 +536,7 @@ class OnnxFunction(Op):
         self._param_schemas = param_schemas_from_function_ir(self.function_ir)
         return self._param_schemas
 
-    def to_function_proto(self):
+    def to_function_proto(self) -> onnx.FunctionProto:
         """Converts the function into :class:`onnx.FunctionProto`."""
         return self.function_ir.to_function_proto()
 

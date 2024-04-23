@@ -9,6 +9,7 @@
 - All functions should not have the script() decorator. This is because
     we want to delay the compilation of the function.
 """
+
 from __future__ import annotations
 
 import math
@@ -17,6 +18,8 @@ from typing import Any, Optional, Sequence, Tuple, Union
 from onnxscript import (
     BFLOAT16,
     BOOL,
+    COMPLEX64,
+    COMPLEX128,
     DOUBLE,
     FLOAT,
     FLOAT16,
@@ -718,7 +721,7 @@ def aten_argmax_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = Fals
     return result
 
 
-@torch_op("aten::argmin")
+@torch_op("aten::argmin", traceable=True)
 def aten_argmin(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
@@ -731,7 +734,7 @@ def aten_argmin(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     return result
 
 
-@torch_op("aten::argmin")
+@torch_op("aten::argmin", traceable=True)
 def aten_argmin_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = False) -> INT64:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
@@ -1412,6 +1415,15 @@ def aten_cartesian_prod(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::cat", trace_only=True, complex=True)
+def aten_cat_complex(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
+    """cat(Tensor[] tensors, int dim=0) -> Tensor"""
+    # Real representation unsqueezes the last dimension
+    if dim < 0:
+        dim = dim - 1
+    return aten_cat(tensors, dim=dim)
+
+
 @torch_op("aten::cat")
 def aten_cat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """cat(Tensor[] tensors, int dim=0) -> Tensor"""
@@ -1630,10 +1642,23 @@ def aten_combinations(
     raise NotImplementedError()
 
 
-def aten_complex(real: TensorType, imag: TensorType) -> TensorType:
+@torch_op("aten::complex", private=True)
+def _aten_complex(real: TFloat, imag: TFloat) -> TFloat:
+    """Non-broadcasting complex constructor."""
+
+    return op.Concat(op.Unsqueeze(real, axes=[-1]), op.Unsqueeze(imag, axes=[-1]), axis=-1)
+
+
+@torch_op("aten::complex", trace_only=True)
+def aten_complex(real: TFloat, imag: TFloat) -> TFloat:
     """complex(Tensor real, Tensor imag) -> Tensor"""
 
-    raise NotImplementedError()
+    # Broadcast the real and imaginary parts to the same shape
+    broadcasted_shape = _shape_of_broadcast_tensors(real, imag)
+    real = op.Expand(real, broadcasted_shape)
+    imag = op.Expand(imag, broadcasted_shape)
+
+    return _aten_complex(real, imag)
 
 
 @torch_op("aten::concat")
@@ -2432,7 +2457,7 @@ def aten_diagflat(self: TensorType, offset: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::diagonal", trace_only=True)
+@torch_op(("aten::diagonal", "aten::diagonal_copy"), trace_only=True)
 def aten_diagonal(self: TReal, offset: int = 0, dim1: int = 0, dim2: int = 1) -> TReal:
     """diagonal(Tensor(a) self, int offset=0, int dim1=0, int dim2=1) -> Tensor(a)"""
 
@@ -3213,7 +3238,7 @@ def aten_exp(self: TFloat) -> TFloat:
     return op.Exp(self)
 
 
-@torch_op("aten::exp2")
+@torch_op("aten::exp2", traceable=True)
 def aten_exp2(self: TFloat) -> TFloat:
     """exp2(Tensor self) -> Tensor"""
 
@@ -3232,7 +3257,7 @@ def aten_expand(self: TTensor, size: TInt) -> TTensor:
     return op.Expand(self, size)
 
 
-@torch_op("aten::expand_as")
+@torch_op("aten::expand_as", traceable=True)
 def aten_expand_as(self: TTensor, other: TTensor) -> TTensor:
     """expand_as(Tensor(a) self, Tensor other) -> Tensor(a)"""
 
@@ -3912,36 +3937,20 @@ def _shape_of_broadcast_tensors(*args: TensorType) -> INT64:
     return op.Shape(broadcasted)
 
 
-@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
-def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
-    """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
-
-    NOTE: Understanding `aten::index`
-    For `arg0` with shape `[7, 3, 4, 5, 6]`
-    The indexing operation `arg0[0, :, 1:2, tensor([[4,5]])]` will be translated to
-
-    ```
-    +>  select: i64[3, 4, 5, 6] = torch.ops.aten.select.int(arg0, 0, 0);
-    +>  slice_1: i64[3, 4, 5, 6] = torch.ops.aten.slice.Tensor(select, 0, 0, 9223372036854775807);
-    +>  slice_2: i64[3, 1, 5, 6] = torch.ops.aten.slice.Tensor(slice_1, 1, 1, 2);
-    +>  index: i64[3, 1, 1, 2, 6] = torch.ops.aten.index.Tensor(slice_2, [None, None, arg1]);
-    ```
-
-    Here,
-    - `indices = [None, None, arg1]` is equivalent to `indices = [None, None, arg1, None]`
-    - The operation `arg0[0, :, 1:2, tensor([[4,5]])]` is equivalent to `arg0[0, :, 1:2, tensor([[4,5]]), :]`
-
-    None in `indices` are like fillers for dimensions that cannot be removed in the process.
-    """
-
+@torch_op("aten::index.Tensor", private=True, trace_only=True)
+def _aten_index_onnx(
+    self: TensorType,
+    indices: Sequence[Optional[INT64]],
+    index_ranks: Sequence[int],
+) -> TensorType:
     self_rank = len(self.shape)
-    index_ranks = [len(index.shape) for index in indices if index is not None]
     advanced_indexing_rank = max(index_ranks)
 
     # reordered_positions is the permutation of the index positions where
     # positions with None are move to the end of the list
     # For example, if indices = [None, 1, None, 2], then reordered_positions = [1, 3, 0, 2]
     reordered_positions = sorted(range(len(indices)), key=lambda i: (indices[i] is None, i))
+
     # Fill the list with the remaining indices up to the rank of the tensor self.
     # For example, if indices = [None, 1, None, 2], and the rank of self is 6,
     # then reordered_positions = [1, 3, 0, 2, 4, 5]
@@ -4000,7 +4009,7 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
         *range(
             advanced_indexing_rank, starting_position_of_none_in_back
         ),  # None_front_1...x_None_back_1
-        *range(0, advanced_indexing_rank),  # 0...len(broadcasted_shape)
+        *range(advanced_indexing_rank),  # 0...len(broadcasted_shape)
         *range(
             starting_position_of_none_in_back,
             result_rank,
@@ -4008,6 +4017,74 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
     ]
 
     return op.Transpose(self, perm=perm)
+
+
+@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
+def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
+    """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
+
+    NOTE: Understanding `aten::index`
+    For `arg0` with shape `[7, 3, 4, 5, 6]`
+    The indexing operation `arg0[0, :, 1:2, tensor([[4,5]])]` will be translated to
+
+    ```
+    +>  select: i64[3, 4, 5, 6] = torch.ops.aten.select.int(arg0, 0, 0);
+    +>  slice_1: i64[3, 4, 5, 6] = torch.ops.aten.slice.Tensor(select, 0, 0, 9223372036854775807);
+    +>  slice_2: i64[3, 1, 5, 6] = torch.ops.aten.slice.Tensor(slice_1, 1, 1, 2);
+    +>  index: i64[3, 1, 1, 2, 6] = torch.ops.aten.index.Tensor(slice_2, [None, None, arg1]);
+    ```
+
+    Here,
+    - `indices = [None, None, arg1]` is equivalent to `indices = [None, None, arg1, None]`
+    - The operation `arg0[0, :, 1:2, tensor([[4,5]])]` is equivalent to `arg0[0, :, 1:2, tensor([[4,5]]), :]`
+
+    None in `indices` are like fillers for dimensions that cannot be removed in the process.
+    """
+
+    index_ranks = [len(index.shape) for index in indices if index is not None]
+
+    return _aten_index_onnx(self, indices, index_ranks)
+
+
+@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
+def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> TensorType:  # pylint: disable=inconsistent-return-statements
+    index_ranks = [len(index.shape) for index in indices if index is not None]
+
+    if index_ranks[0] == 1:
+        # indices contains scalar only.
+        new_indices = [
+            op.Transpose(op.NonZero(index), perm=[1, 0]) if index is not None else None
+            for index in indices
+        ]
+        new_indices = [
+            op.Squeeze(index, axes=[1]) if index is not None else None for index in new_indices
+        ]
+        return _aten_index_onnx(self, new_indices, index_ranks)
+    else:
+        input_rank = len(self.shape)
+        # Prepare perm for transposing self tensor.
+        # In indices, None meaning skip the corresponding dimension,
+        # so we need to move this dimension to the end of the list.
+        # After we gathered the final results, we transpose it back.
+        # For example,
+        # self's shape is [5, 5, 5, 5], indices is [None, (5, 5)]
+        # the final result's shape should be [5, 16, 5].
+        trans_perm = list(range(input_rank))
+        trans_perm.append(trans_perm.pop(0))
+        count_of_none = 0
+        for index in indices:
+            if index is None:
+                self = op.Transpose(self, perm=trans_perm)
+                count_of_none += 1
+            else:
+                new_indices = op.Transpose(op.NonZero(index), perm=[1, 0])
+                result = op.GatherND(self, new_indices, batch_dims=0)
+                finla_rank = input_rank - (len(index.shape) - 1)
+                trans_perm = list(range(finla_rank))
+                trans_perm = trans_perm[-1:] + trans_perm[:-1]
+                for _ in range(count_of_none):
+                    result = op.Transpose(result, perm=trans_perm)
+                return result
 
 
 def aten_index_add(
@@ -4026,34 +4103,28 @@ def aten_index_copy(
     raise NotImplementedError()
 
 
-@torch_op("aten::index_put")
+@torch_op(("aten::index_put", "aten::_unsafe_index_put"))
 def aten_index_put(
     self: TReal,
     indices: Sequence[INT64],
     values: TReal,
     accumulate: bool = False,
 ) -> TReal:
-    """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
+    """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor
 
-    index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
-    # change array([1,3]) to array([[1,1,1,1,1],[3,3,3,3,3]])
-    self_dim_1 = op.Gather(op.Shape(self), 1)
-    index_dim_0 = op.Gather(op.Shape(index), 0)
-    neg_1 = op.Constant(value_ints=[-1])
-    shape = op.Concat(op.Reshape(self_dim_1, neg_1), op.Reshape(index_dim_0, neg_1), axis=0)
-    new_ind = op.Expand(index, shape)
-    new_ind_t = op.Transpose(new_ind)
+    See implementation of `torch.onnx.symbolic_opset11.index_put
+    <https://github.com/pytorch/pytorch/blob/main/torch/onnx/symbolic_opset11.py#L212>`_.
+    """
+
+    # TODO(justinchuby): Handle when indicies has more than one element
+    index = op.SequenceAt(indices, 0)
+    new_index = op.Unsqueeze(index, [-1])
 
     if op.Cast(accumulate, to=BOOL.dtype):
-        # put values into zeros array first, then add to input
-        zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
-        zeros = op.CastLike(zeros, values)
-        result = op.ScatterElements(zeros, new_ind_t, values)
-        # FIXME: type promotion
-        result = op.CastLike(result, self)
-        result = op.Add(result, self)
+        result = op.ScatterND(self, new_index, values, reduction="add")
     else:
-        result = op.ScatterElements(self, new_ind_t, values)
+        result = op.ScatterND(self, new_index, values)
+
     return result
 
 
@@ -4157,20 +4228,58 @@ def aten_inner(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::instance_norm", trace_only=True)
 def aten_instance_norm(
-    input: TensorType,
-    weight: Optional[TensorType],
-    bias: Optional[TensorType],
-    running_mean: Optional[TensorType],
-    running_var: Optional[TensorType],
-    use_input_stats: bool,
-    momentum: float,
-    eps: float,
-    cudnn_enabled: bool,
-) -> TensorType:
+    input: TFloat,
+    weight: Optional[TFloat] = None,
+    bias: Optional[TFloat] = None,
+    running_mean: Optional[TFloat] = None,
+    running_var: Optional[TFloat] = None,
+    use_input_stats: bool = True,
+    momentum: float = 0.1,
+    eps: float = 1e-05,
+    cudnn_enabled: bool = False,
+) -> TFloat:
     """instance_norm(Tensor input, Tensor? weight, Tensor? bias, Tensor? running_mean, Tensor? running_var, bool use_input_stats, float momentum, float eps, bool cudnn_enabled) -> Tensor"""
+    del cudnn_enabled  # unused
+    if weight is None:  # Set to 1.0 as default
+        weight = op.CastLike(
+            op.Expand(op.Constant(value_floats=[1.0]), op.Shape(input, start=1, end=2)), input
+        )
 
-    raise NotImplementedError()
+    if bias is None:  # Set to 0.0 as default
+        bias = op.CastLike(
+            op.Expand(op.Constant(value_floats=[0.0]), op.Shape(input, start=1, end=2)), input
+        )
+
+    # If `use_input_stats` is set to True, ignore 'running_mean' and 'running_var' and
+    # compute using input statistics.
+    # Otherwise, compute using the running statistics.
+    if use_input_stats:
+        return op.InstanceNormalization(input, weight, bias, epsilon=eps)
+
+    assert (
+        running_mean is not None and running_var is not None
+    ), "running_mean and running_var must be provided when use_input_stats is False"
+
+    batch_size = op.Shape(input, start=0, end=1)
+    bn_input = op.Reshape(input, op.Concat([1, -1], op.Shape(input, start=2), axis=0))
+    weight = op.Tile(weight, batch_size)
+    bias = op.Tile(bias, batch_size)
+    running_mean = op.Tile(running_mean, batch_size)
+    running_var = op.Tile(running_var, batch_size)
+
+    norm = op.BatchNormalization(
+        bn_input,
+        weight,
+        bias,
+        running_mean,
+        running_var,
+        epsilon=eps,
+        momentum=1.0 - momentum,
+        training_mode=False,
+    )
+    return op.Reshape(norm, op.Shape(input))
 
 
 def aten_int_repr(self: TensorType) -> TensorType:
@@ -4836,7 +4945,10 @@ def aten_margin_ranking_loss(
     raise NotImplementedError()
 
 
-@torch_op(("aten::masked_fill", "aten::masked_fill.Scalar", "aten::masked_fill.Tensor"))
+@torch_op(
+    ("aten::masked_fill", "aten::masked_fill.Scalar", "aten::masked_fill.Tensor"),
+    traceable=True,
+)
 def aten_masked_fill(self: TTensor, mask: BOOL, value: TTensor) -> TTensor:
     """masked_fill.Tensor(Tensor self, Tensor mask, Tensor value) -> Tensor"""
     # NOTE: Do not attempt to cast `mask` to BOOL because mask should not take any other types.
@@ -4967,7 +5079,7 @@ def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     else:
         if IsScalar(dim):
             dim = op.Unsqueeze(dim, axes=0)
-        result = op.ReduceMean(self, axes=dim, keepdims=keepdim)
+        result = op.ReduceMean(self, dim, keepdims=keepdim)
     return result
 
 
@@ -5555,10 +5667,16 @@ def aten_native_batch_norm(
     """native_batch_norm(Tensor input, Tensor? weight, Tensor? bias, Tensor? running_mean, Tensor? running_var, bool training, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
 
     if weight is None:  # Set to 1.0 as default
-        weight = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(input, start=1, end=2))
+        weight = op.Expand(
+            op.CastLike(op.Constant(value_floats=[1.0]), input),
+            op.Shape(input, start=1, end=2),
+        )
 
     if bias is None:  # Set to 0.0 as default
-        bias = op.Expand(op.Constant(value_floats=[0.0]), op.Shape(input, start=1, end=2))
+        bias = op.Expand(
+            op.CastLike(op.Constant(value_floats=[0.0]), input),
+            op.Shape(input, start=1, end=2),
+        )
 
     axes = list(range(len(input.shape)))
     axes.pop(1)
@@ -5572,17 +5690,31 @@ def aten_native_batch_norm(
         sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
         running_var = op.Squeeze(op.ReduceMean(sqr_input_sub_mean, axes))
 
-    # Have to split to 2 private functions, because training_function return 3 outputs
-    # While inference_function return 1 output
-    if training is True:
-        norm, mean, var = _aten_native_batch_norm_training_onnx(
-            input, weight, bias, running_mean, running_var, axes, training, momentum, eps
+    # We have to split to two private functions, because BatchNormalization returns
+    # three outputs when training_mode=True and one when it is False.
+    if training:
+        norm, input_mean, input_rstd, _, _ = _aten_native_batch_norm_training_onnx(
+            input,
+            weight,
+            bias,
+            running_mean,
+            running_var,
+            axes,
+            momentum=1.0 - momentum,
+            eps=eps,
         )
     else:
-        norm, mean, var = _aten_native_batch_norm_inference_onnx(
-            input, weight, bias, running_mean, running_var, training, momentum, eps
+        norm, input_mean, input_rstd, _, _ = _aten_native_batch_norm_inference_onnx(
+            input,
+            weight,
+            bias,
+            running_mean,
+            running_var,
+            momentum=1.0 - momentum,
+            eps=eps,
         )
-    return norm, mean, var
+
+    return norm, input_mean, input_rstd
 
 
 @torch_op("aten::native_batch_norm", private=True)
@@ -5593,12 +5725,15 @@ def _aten_native_batch_norm_training_onnx(
     running_mean: TFloat,
     running_var: TFloat,
     axes: INT64,
-    training: bool,
     momentum: float,
     eps: float,
-) -> Tuple[TFloat, TFloat, TFloat]:
-    # Assert(training is True)
-    norm, running_mean, running_var = op.BatchNormalization(
+) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
+    """Batch normalization training mode.
+
+    NOTE: momentum in PyTorch is 1.0-momentum in ONNX.
+    When calling this function be sure to pass 1.0-momentum when momentum is obtained from PyTorch.
+    """
+    norm, running_mean, _ = op.BatchNormalization(
         input,
         weight,
         bias,
@@ -5606,17 +5741,32 @@ def _aten_native_batch_norm_training_onnx(
         running_var,
         epsilon=eps,
         momentum=momentum,
-        training_mode=training,
+        training_mode=True,
     )
-    # Compute var and rstd
-    mean = op.ReduceMean(input, axes)
-    input_sub_mean = op.Sub(input, mean)
+    # Compute mean and rstd
+    # Mean, var, and rstd computation and results are expected to be
+    # in higher precision when inputs are float16.
+    upcast_input = op.Cast(input, to=FLOAT.dtype)
+    mean = op.ReduceMean(upcast_input, axes)
+    input_sub_mean = op.Sub(upcast_input, mean)
     sqr = op.Mul(input_sub_mean, input_sub_mean)
     var = op.ReduceMean(sqr, axes, keepdims=False)
     rstd = op.Div(1.0, op.Sqrt(var + eps))
     # Get mean again with size = [1, C]
-    mean = op.ReduceMean(input, axes, keepdims=False)
-    return norm, mean, rstd
+    mean = op.ReduceMean(upcast_input, axes, keepdims=False)
+
+    # Compute the running var the PyTorch way
+    # https://github.com/pytorch/pytorch/blob/5cc511f72fe073bbd8c10d796d72dce67f5cd5c4/torch/_decomp/decompositions.py#L1646
+
+    n = op.Cast(op.Size(input) / op.Shape(input)[1], to=FLOAT.dtype)
+    unbiased_var = var * (n / (n - 1.0))
+
+    # NOTE: momentum in ONNX is 1.0-momentum in PyTorch
+    new_running_var = (
+        op.CastLike((1.0 - momentum) * unbiased_var, running_var) + momentum * running_var
+    )
+
+    return norm, mean, rstd, running_mean, new_running_var
 
 
 @torch_op("aten::native_batch_norm", private=True)
@@ -5626,11 +5776,14 @@ def _aten_native_batch_norm_inference_onnx(
     bias: TFloat,
     running_mean: TFloat,
     running_var: TFloat,
-    training: bool,
     momentum: float,
     eps: float,
-) -> Tuple[TFloat, TFloat, TFloat]:
-    # Assert(training is False)
+) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
+    """Batch normalization inference mode.
+
+    NOTE: momentum in PyTorch is 1.0-momentum in ONNX.
+    When calling this function be sure to pass 1.0-momentum when momentum is obtained from PyTorch.
+    """
     norm = op.BatchNormalization(
         input,
         weight,
@@ -5639,13 +5792,16 @@ def _aten_native_batch_norm_inference_onnx(
         running_var,
         epsilon=eps,
         momentum=momentum,
-        training_mode=training,
+        training_mode=False,
     )
-    # NOTE: mean and var are omitted in inference mode
-    # Cannot return 2 dup output, so have to do twice with different variable name
-    empty_mean = op.CastLike(op.Shape(input, start=0, end=0), norm)
-    empty_var = op.CastLike(op.Shape(input, start=0, end=0), norm)
-    return norm, empty_mean, empty_var
+    # CUDA and CPU gives different shapes:
+    # https://github.com/pytorch/pytorch/blob/a44f8894fa6d973693aab44a3dda079a168b05c1/torch/_decomp/decompositions.py#L1451-L1457
+    # We use CUDA's output here
+    invstd = op.Div(1.0, op.Sqrt(running_var + eps))
+    # https://github.com/pytorch/pytorch/blob/a44f8894fa6d973693aab44a3dda079a168b05c1/torch/_decomp/decompositions.py#L1475
+    running_mean_fp32 = op.Cast(running_mean, to=FLOAT.dtype)
+    invstd = op.Cast(invstd, to=FLOAT.dtype)
+    return norm, running_mean_fp32, invstd, running_mean, running_var
 
 
 # TODO: This op is using duplicated code from aten_native_batch_norm,
@@ -5681,89 +5837,43 @@ def aten__native_batch_norm_legit_functional(
         sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
         running_var = op.Squeeze(op.ReduceMean(sqr_input_sub_mean, axes))
 
-    # Have to split to 2 private functions, because training_function return 3 outputs
-    # While inference_function return 1 output
-    if training is True:
-        norm, mean, var, new_mean, new_var = _aten__native_batch_norm_training_functional_onnx(
-            input, weight, bias, running_mean, running_var, axes, training, momentum, eps
+    # We have to split to two private functions, because BatchNormalization returns
+    # three outputs when training_mode=True and one when it is False.
+    if training:
+        (
+            norm,
+            input_mean,
+            input_rstd,
+            running_mean,
+            running_var,
+        ) = _aten_native_batch_norm_training_onnx(
+            input,
+            weight,
+            bias,
+            running_mean,
+            running_var,
+            axes,
+            momentum=1.0 - momentum,
+            eps=eps,
         )
     else:
         (
             norm,
-            mean,
-            var,
-            new_mean,
-            new_var,
-        ) = _aten__native_batch_norm_inference_functional_onnx(
-            input, weight, bias, running_mean, running_var, training, momentum, eps
+            input_mean,
+            input_rstd,
+            running_mean,
+            running_var,
+        ) = _aten_native_batch_norm_inference_onnx(
+            input,
+            weight,
+            bias,
+            running_mean,
+            running_var,
+            momentum=1.0 - momentum,
+            eps=eps,
         )
-    return norm, mean, var, new_mean, new_var
 
-
-@torch_op("aten::_native_batch_norm_legit_functional", private=True)
-def _aten__native_batch_norm_training_functional_onnx(
-    input: TFloat,
-    weight: TFloat,
-    bias: TFloat,
-    running_mean: TFloat,
-    running_var: TFloat,
-    axes: INT64,
-    training: bool,
-    momentum: float,
-    eps: float,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
-    # Assert(training is True)
-    norm, running_mean, running_var = op.BatchNormalization(
-        input,
-        weight,
-        bias,
-        running_mean,
-        running_var,
-        epsilon=eps,
-        momentum=momentum,
-        training_mode=training,
-    )
-    # Compute var and rstd
-    mean = op.ReduceMean(input, axes)
-    input_sub_mean = op.Sub(input, mean)
-    sqr = op.Mul(input_sub_mean, input_sub_mean)
-    var = op.ReduceMean(sqr, axes, keepdims=False)
-    rstd = op.Div(1.0, op.Sqrt(var + eps))
-    # Get mean again with size = [1, C]
-    mean = op.ReduceMean(input, axes, keepdims=False)
-    # NOTE: Fixed to be FLOAT dtype
-    running_mean = op.Cast(running_mean, to=FLOAT.dtype)
-    running_var = op.Cast(running_var, to=FLOAT.dtype)
-    return norm, mean, rstd, running_mean, running_var
-
-
-@torch_op("aten::_native_batch_norm_legit_functional", private=True)
-def _aten__native_batch_norm_inference_functional_onnx(
-    input: TFloat,
-    weight: TFloat,
-    bias: TFloat,
-    running_mean: TFloat,
-    running_var: TFloat,
-    training: bool,
-    momentum: float,
-    eps: float,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
-    # Assert(training is False)
-    norm = op.BatchNormalization(
-        input,
-        weight,
-        bias,
-        running_mean,
-        running_var,
-        epsilon=eps,
-        momentum=momentum,
-        training_mode=training,
-    )
-    # NOTE: mean and var are ommited in inference mode
-    # Cannot return 2 dup output, so have to do twice with different variable name
-    empty_mean = op.CastLike(op.Shape(input, start=0, end=0), norm)
-    empty_var = op.CastLike(op.Shape(input, start=0, end=0), norm)
-    return norm, empty_mean, empty_var, running_mean, running_var
+    return norm, input_mean, input_rstd, running_mean, running_var
 
 
 def aten_native_batch_norm_backward(
@@ -6324,10 +6434,13 @@ def aten_poisson_nll_loss(
     raise NotImplementedError()
 
 
-def aten_polar(abs: TensorType, angle: TensorType) -> TensorType:
+@torch_op("aten::polar")
+def aten_polar(abs: TFloat, angle: TFloat) -> TFloat:
     """polar(Tensor abs, Tensor angle) -> Tensor"""
 
-    raise NotImplementedError()
+    real = op.Unsqueeze(op.Mul(abs, op.Cos(angle)), axes=[-1])
+    imag = op.Unsqueeze(op.Mul(abs, op.Sin(angle)), axes=[-1])
+    return op.Concat(real, imag, axis=-1)
 
 
 def aten_polygamma(n: int, self: TensorType) -> TensorType:
@@ -7090,6 +7203,25 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> RealType:
     return common_ops.cast_to(s, dtype=dtype)
 
 
+@torch_op("aten::scalar_tensor", trace_only=True, complex=True)
+def aten_scalar_tensor_complex(
+    s: Union[FLOAT, DOUBLE], dtype: int = COMPLEX64.dtype
+) -> RealType:
+    """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+    # NOTE: When the input is originally in complex, this function is invoked.
+    # On the other hand, when the input is originally in real, aten_scalar_tensor is used.
+    # is invoked.
+    if dtype == COMPLEX128.dtype:
+        result = op.Cast(s, to=DOUBLE.dtype)
+    elif dtype == COMPLEX64.dtype:
+        result = op.Cast(s, to=FLOAT.dtype)
+    else:
+        # NOTE: No-op for non-complex dtype
+        # It's potentially a bug if it comes here with no-op.
+        result = s
+    return result
+
+
 @torch_op("aten::scalar_tensor", trace_only=True)
 def aten_scalar_tensor_sym_number(s: RealType, dtype: int = FLOAT.dtype) -> RealType:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
@@ -7322,7 +7454,7 @@ def aten_slice_copy(
     raise NotImplementedError()
 
 
-@torch_op("aten::slice_scatter")
+@torch_op("aten::slice_scatter", trace_only=True)
 def aten_slice_scatter(
     self: TTensor,
     src: TTensor,
@@ -7343,8 +7475,9 @@ def aten_slice_scatter(
     # Step 1: get 1D tensor from 0 to dim_size-1, then Slice it using start, end and step.
     # We cannot use Range(start, end, step) directly as start or end may out of range.
     # For the example, the output of this step is Slice([0, ..., 7], 6, 64, 1) = [6, 7]
+
+    # Scatter ND
     zero = op.Constant(value_ints=[0])
-    one = op.Constant(value_ints=[1])
     self_shape = op.Shape(self)
     dim_shape = op.Gather(self_shape, dim, axis=0)
     index_base = op.Range(0, dim_shape, 1)
@@ -7355,20 +7488,26 @@ def aten_slice_scatter(
         zero,
         op.Unsqueeze(step, zero),
     )
-    # Step 2: Unsqueeze to add 1s preparing for Expand.
-    # Need to handle negative dim here.
-    # For the example above, the result of this step is [[6],[7]].
-    index_base = op.Unsqueeze(
-        index_base, op.Range(1, op.Where(dim < 0, 0, op.Size(self_shape)) - dim, 1)
-    )
-    # Step 3: Expand the indices.
-    # For the example above, it's Expand([[6],[7]], (1, 8)) = [[6,...,6],[7,...,7]].
-    shape_expand = op.ScatterElements(
-        self_shape, op.Unsqueeze(op.Constant(value_int=dim), zero), one, axis=0
-    )
-    indices = op.Expand(index_base, shape_expand)
-    # Step 4: final ScatterElements.
-    return op.ScatterElements(self, indices, src, axis=dim)
+    index_base = op.Unsqueeze(index_base, -1)
+
+    # Use trace only to construct the perm attribute in Transpose
+    dims = None
+    if dim != 0:
+        src_rank = len(src.shape)  # type: ignore[attr-defined]
+
+        if src_rank != 0:
+            # Python code, change when onnxscript supports this
+            dims = list(range(src_rank))
+            dims[0], dims[dim] = dims[dim], dims[0]
+            # Python code ends
+
+            src = op.Transpose(src, perm=dims)
+            self = op.Transpose(self, perm=dims)
+
+    output = op.ScatterND(self, index_base, src)
+    if dims is not None:
+        output = op.Transpose(output, perm=dims)
+    return output
 
 
 def aten_slogdet(self: TensorType) -> tuple[TensorType, TensorType]:
@@ -7400,7 +7539,7 @@ def aten_softmax(self: TFloatOrBFloat16, dim: int, dtype: int = -1) -> TFloatOrB
     return result
 
 
-@torch_op(("aten::softmax", "aten::softmax.int", "aten::special_softmax"))
+@torch_op(("aten::softmax", "aten::softmax.int", "aten::special_softmax"), traceable=True)
 def aten_softmax_no_dtype(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
     """softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
 
@@ -7518,6 +7657,15 @@ def aten_sspaddmm(
     """sspaddmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
     raise NotImplementedError()
+
+
+@torch_op("aten::stack", trace_only=True, complex=True)
+def aten_stack_complex(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTensorOrString:
+    """stack(Tensor[] tensors, int dim=0) -> Tensor"""
+    # Real representation unsqueezes the last dimension
+    if dim < 0:
+        dim = dim - 1
+    return aten_stack(tensors, dim)
 
 
 @torch_op("aten::stack")
@@ -7772,14 +7920,6 @@ def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     """sym_size(Tensor self, int dim) -> Tensor"""
     # NOTE: onnxscript doesn't support attribute process,
     # so op.Shape(self, start=dim, end=dim + 1) is not supported.
-
-    # TODO(titaiwang): ORT==1.15 fixes SegFault
-    # https://github.com/microsoft/onnxscript/pull/484#discussion_r1136105039
-    # Change the op to:
-    # shape = op.Shape(self)
-    # idx= op.Reshape(dim, [1])
-    # return op.Gather(shape, idx)
-
     shape = op.Shape(self)
     # Reshape helps dim from int to tensor, and
     # input arguments support attribute processing.
@@ -7796,7 +7936,7 @@ def aten_symeig(
     raise NotImplementedError()
 
 
-@torch_op("aten::t")
+@torch_op("aten::t", traceable=True)
 def aten_t(self: TTensor) -> TTensor:
     """t(Tensor(a) self) -> Tensor(a)"""
 
@@ -7972,7 +8112,7 @@ def aten_to_sparse_csr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::topk")
+@torch_op("aten::topk", traceable=True)
 def aten_topk(
     self: TReal, k: INT64, dim: int = -1, largest: bool = True, sorted: bool = True
 ) -> Tuple[TReal, INT64]:
@@ -8088,7 +8228,7 @@ def aten_triplet_margin_loss(
 
 
 @torch_op("aten::triu")
-def aten_triu(self: TensorType, diagonal: int = 0) -> TensorType:
+def aten_triu(self: TTensor, diagonal: int = 0) -> TTensor:
     """triu(Tensor self, int diagonal=0) -> Tensor"""
 
     return op.Trilu(self, diagonal, upper=1)

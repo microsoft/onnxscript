@@ -36,9 +36,9 @@ class Location:
     properties: Optional[_property_bag.PropertyBag] = dataclasses.field(
         default=None, metadata={"schema_property_name": "properties"}
     )
-    relationships: Optional[
-        List[_location_relationship.LocationRelationship]
-    ] = dataclasses.field(default=None, metadata={"schema_property_name": "relationships"})
+    relationships: Optional[List[_location_relationship.LocationRelationship]] = (
+        dataclasses.field(default=None, metadata={"schema_property_name": "relationships"})
+    )
 
 
 # flake8: noqa

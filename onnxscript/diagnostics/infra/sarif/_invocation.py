@@ -92,16 +92,16 @@ class Invocation:
     stdout_stderr: Optional[_artifact_location.ArtifactLocation] = dataclasses.field(
         default=None, metadata={"schema_property_name": "stdoutStderr"}
     )
-    tool_configuration_notifications: Optional[
-        List[_notification.Notification]
-    ] = dataclasses.field(
-        default=None,
-        metadata={"schema_property_name": "toolConfigurationNotifications"},
+    tool_configuration_notifications: Optional[List[_notification.Notification]] = (
+        dataclasses.field(
+            default=None,
+            metadata={"schema_property_name": "toolConfigurationNotifications"},
+        )
     )
-    tool_execution_notifications: Optional[
-        List[_notification.Notification]
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "toolExecutionNotifications"}
+    tool_execution_notifications: Optional[List[_notification.Notification]] = (
+        dataclasses.field(
+            default=None, metadata={"schema_property_name": "toolExecutionNotifications"}
+        )
     )
     working_directory: Optional[_artifact_location.ArtifactLocation] = dataclasses.field(
         default=None, metadata={"schema_property_name": "workingDirectory"}

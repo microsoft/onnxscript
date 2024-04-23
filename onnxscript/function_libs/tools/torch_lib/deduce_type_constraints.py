@@ -159,7 +159,7 @@ class OnnxFunctionTypeConstraints:
         )
         repr_strs += [
             f"    {type_constraint.name}: {type_constraint.type_strs}"
-            for type_constraint in ordered_unique_type_constraints.keys()
+            for type_constraint in ordered_unique_type_constraints
             if type_constraint is not None
         ]
 
@@ -180,7 +180,7 @@ class OnnxFunctionTypeConstraints:
             }
             repr_strs += [
                 f"    {type_constraint.name}: {type_constraint.type_strs}"
-                for type_constraint in ordered_unique_type_constraints.keys()
+                for type_constraint in ordered_unique_type_constraints
                 if type_constraint is not None
             ]
 

@@ -9,6 +9,7 @@
 - All functions should not have the script() decorator. This is because
     we want to delay the compilation of the function.
 """
+
 from __future__ import annotations
 
 from typing import Optional, Sequence
@@ -24,6 +25,7 @@ from onnxscript.onnx_types import TensorType
     ("aten::_fft_c2c", "aten::_fft_c2r", "aten::_fft_r2c"),
     private=True,
     complex=True,
+    traceable=True,
 )
 def _fftn_onnx_normalization(
     self,
@@ -34,7 +36,7 @@ def _fftn_onnx_normalization(
 ) -> TFloat:
     # Obtain the total_sample_count (n) for normalization
     self_shape = op.Shape(self)
-    total_sample_count = op.ReduceProd(self_shape[dims], keepdims=0)
+    total_sample_count = op.ReduceProd(op.Gather(self_shape, dims), keepdims=0)
     total_sample_count = op.CastLike(total_sample_count, transformed)
 
     # Normalize the result
