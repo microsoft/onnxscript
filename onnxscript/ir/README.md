@@ -2,7 +2,7 @@
 
 An in-memory IR that supports the full ONNX spec, designed for graph construction, analysis and transformation.
 
-## Features
+## Features ✨
 
 - Full ONNX spec support: all valid models representable by ONNX protobuf, and a subset of invalid models (so you can load and fix them).
 - Low memory footprint: mmap'ed external tensors; unified interface for ONNX TensorProto, Numpy arrays and PyTorch Tensors etc. No tensor size limitation. Zero copies.
@@ -11,7 +11,7 @@ An in-memory IR that supports the full ONNX spec, designed for graph constructio
 - Speed: Performant graph manipulation, serialization/deserialization to Protobuf.
 - Pythonic and familiar APIs: Classes define Pythonic apis and still map to ONNX protobuf concepts in an intuitive way.
 
-## Code Organization
+## Code Organization 🗺️
 
 - [`_protocols.py`](_protocols.py): Interfaces defined for all entities in the IR.
 - [`_core.py`](_core.py): Implementation of the core entities in the IR, including `Model`, `Graph`, `Node`, `Value`, and others.
