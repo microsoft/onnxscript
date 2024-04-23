@@ -476,8 +476,8 @@ class GenericPattern:
             return self.none(root_node, inspect.currentframe().f_lineno)
 
         for o, op in zip(graph_node.outputs, pattern_node.outputs):
-            graph_node_users = [user for user, _ in o.consumers()]
-            pattern_node_users = [user for user, _ in op.consumers()]
+            graph_node_users = [user for user, _ in o.uses()]
+            pattern_node_users = [user for user, _ in op.uses()]
             if not pattern_node_users:
                 # The pattern has no node forward, the matching stops.
                 continue
