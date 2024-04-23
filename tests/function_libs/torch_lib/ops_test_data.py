@@ -1024,7 +1024,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo("minimum_bool", core_ops.aten_minimum_bool),
-    TorchLibOpInfo("mm", core_ops.aten_mm),
+    TorchLibOpInfo("mm", core_ops.aten_mm).skip(
+        matcher=lambda sample: torch.numel(sample.input) == 0,
+        reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
+    ),
     TorchLibOpInfo("mT", core_ops.aten_mT),
     TorchLibOpInfo("mT", core_ops.aten_mT_complex, complex=True),
     TorchLibOpInfo("mul", core_ops.aten_mul),
