@@ -292,6 +292,7 @@ class OpPattern:
         self.op_name_pattern = op_name_pattern
 
     def __call__(self, *args, **kwargs):
+        # TODO(rama): Unify with convention used elsewhere.
         if "_num_outputs" in kwargs:
             num_outputs = kwargs["_num_outputs"]
             del kwargs["_num_outputs"]
@@ -308,8 +309,8 @@ class OpPattern:
 
 
 def _to_value_pattern(
-    x: ValuePattern | int | float,
-) -> NodeOutputPattern | Constant | Var | ValuePattern:
+    x: ValuePattern | int | float | None,
+) -> NodeOutputPattern | Constant | ValuePattern | None:
     """Promotes an input-value used to construct a NodePattern to a ValuePattern.
 
     Example usage:
@@ -325,7 +326,7 @@ def _to_value_pattern(
     ::
         z = op.Add(x, op.Constant(0))
     """
-    if isinstance(x, ValuePattern):
+    if x is None or isinstance(x, ValuePattern):
         return x
     if isinstance(x, (int, float, Sequence)):
         return Constant(x)
@@ -464,7 +465,7 @@ class NodePattern:
         self,
         domain: OpsetPattern,
         op: PythonPattern | PrefixPattern,
-        inputs: Sequence[int | float | ValuePattern],
+        inputs: Sequence[int | float | ValuePattern | None],
         attributes: dict[str, AttrPattern],
     ):
         self.domain = domain
@@ -500,6 +501,10 @@ class NodePattern:
         # because at least the starting node op_type is already matched.
         for arg_value, previous_node_output_pattern in zip(node.inputs, self.inputs):
             # previous_node_output_pattern could be a Var, if it's the original arg.
+            if arg_value is None and previous_node_output_pattern is None:
+                continue
+            if arg_value is None or previous_node_output_pattern is None:
+                return MatchResult.FAIL()
             sub_match = previous_node_output_pattern.matches(arg_value, model)  # type: ignore[attr-defined]
             match.extend(sub_match, model)
             if not match:  # If sub-match failed,
