@@ -41,7 +41,7 @@ class TensorTest(unittest.TestCase):
             _core.Tensor(torch_tensor)
 
     def test_init_respects_dtype_when_it_is_provided(self):
-        array = np.random.rand(1, 2).astype(np.uint8)
+        array = np.array([1, 2], dtype=np.float32)
         tensor = _core.Tensor(array, dtype=_enums.DataType.UINT4)
         self.assertEqual(tensor.dtype, _enums.DataType.UINT4)
 
@@ -87,7 +87,7 @@ class TensorTest(unittest.TestCase):
         np.testing.assert_equal(tensor.numpy(), array)
 
     def test_numpy_returns_data_when_dtype_is_not_supported(self):
-        array = np.array([1], dtype=np.int8)
+        array = np.array([1], dtype=np.float32)
         tensor = _core.Tensor(array, dtype=_enums.DataType.INT4)
         np.testing.assert_equal(tensor.numpy(), array)
 
@@ -98,9 +98,18 @@ class TensorTest(unittest.TestCase):
         self.assertEqual(tensor.tobytes(), array.tobytes())
 
     def test_tobtyes_returns_packed_data_for_int4(self):
-        array = np.array([-231, -1, 0, 1, 2, 230], dtype=np.int8)
+        array = np.array([-8, -1, 0, 1, 2, 7, 1], dtype=np.float32)
+        # Test odd sized array
+        assert len(array) % 2 == 1
         tensor = _core.Tensor(array, dtype=_enums.DataType.INT4)
-        self.assertEqual(tensor.tobytes(), array.tobytes())
+        self.assertEqual(tensor.tobytes(), b"\xf8\x10r\x01")
+
+    def test_tobtyes_returns_packed_data_for_uint4(self):
+        array = np.array([0, 1, 2, 7, 15], dtype=np.float32)
+        # Test odd sized array
+        assert len(array) % 2 == 1
+        tensor = _core.Tensor(array, dtype=_enums.DataType.INT4)
+        self.assertEqual(tensor.tobytes(), b"\x10r\x0f")
 
     def test_metadata(self):
         array = np.random.rand(1, 2).astype(np.float32)

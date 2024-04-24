@@ -194,6 +194,7 @@ def _check_numpy_storage_type(array: np.ndarray, dtype: _enums.DataType) -> None
             raise TypeError(
                 f"The numpy array dtype {array.dtype} does not match the IR data type {dtype}."
             )
+        return
 
     if _enums.DataType.from_numpy(array.dtype) != dtype:
         raise TypeError(

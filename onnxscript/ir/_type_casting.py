@@ -14,22 +14,25 @@ if typing.TYPE_CHECKING:
 
 def _int8_to_packed_int4(array: np.ndarray) -> np.ndarray:
     """Convert int8/uint8 to int4/uint4 by packing."""
+    assert array.dtype in (np.int8, np.uint8)
     array_flat = array.ravel()
     odd_sized = array.size % 2 == 1
     if odd_sized:
-        array_flat = np.append(array_flat, np.array([0]))
+        size = array.size + 1
+        array_flat = array_flat.copy()
+        array_flat.resize([size])
     array_flat &= 0x0F
     array_flat[1::2] <<= 4
     return array_flat[0::2] | array_flat[1::2]
 
 
 def pack_int4(array: np.ndarray) -> npt.NDArray[np.int8]:
-    """Convert a numpy array to packed int4. Must be in the int4 range."""
+    """Convert a numpy array to packed int4. Elements must be in the int4 range."""
     return _int8_to_packed_int4(array.astype(np.int8))
 
 
 def pack_uint4(array: np.ndarray) -> npt.NDArray[np.uint8]:
-    """Convert a numpy array to packed uint4. Must be in the uint4 range."""
+    """Convert a numpy array to packed uint4. Elements must be in the uint4 range."""
     return _int8_to_packed_int4(array.astype(np.uint8))
 
 
