@@ -19,8 +19,7 @@ def pack_int4(array: np.ndarray) -> npt.NDArray[np.uint8]:
     size = array.size
     odd_sized = size % 2 == 1
     if odd_sized:
-        size = size + 1
-        array_flat.resize([size])
+        array_flat.resize([size + 1], refcheck=False)
     array_flat &= 0x0F
     array_flat[1::2] <<= 4
     return array_flat[0::2] | array_flat[1::2]  # type: ignore[return-type]
