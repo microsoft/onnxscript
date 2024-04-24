@@ -359,19 +359,17 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         array = self.numpy()
         if self.dtype in _NON_NUMPY_NATIVE_TYPES:
             # Handle non-native numpy types by casting them to the correct byte representation
-            if self.dtype == _enums.DataType.INT4:
+            if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
                 array = _type_casting.pack_int4(array)
-            if self.dtype == _enums.DataType.UINT4:
-                array = _type_casting.pack_uint4(array)
-            if self.dtype == _enums.DataType.BFLOAT16:
+            elif self.dtype == _enums.DataType.BFLOAT16:
                 array = _type_casting.float32_to_bfloat16(array)
-            if self.dtype == _enums.DataType.FLOAT8E4M3FN:
+            elif self.dtype == _enums.DataType.FLOAT8E4M3FN:
                 array = _type_casting.float32_to_float8e4m3fn(array)
-            if self.dtype == _enums.DataType.FLOAT8E4M3FNUZ:
+            elif self.dtype == _enums.DataType.FLOAT8E4M3FNUZ:
                 array = _type_casting.float32_to_float8e4m3fnuz(array)
-            if self.dtype == _enums.DataType.FLOAT8E5M2:
+            elif self.dtype == _enums.DataType.FLOAT8E5M2:
                 array = _type_casting.float32_to_float8e5m2(array)
-            if self.dtype == _enums.DataType.FLOAT8E5M2FNUZ:
+            elif self.dtype == _enums.DataType.FLOAT8E5M2FNUZ:
                 array = _type_casting.float32_to_float8e5m2fnuz(array)
         if not _IS_LITTLE_ENDIAN:
             array = array.view(array.dtype.newbyteorder("<"))
