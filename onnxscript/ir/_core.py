@@ -181,18 +181,10 @@ def _check_numpy_storage_type(array: np.ndarray, dtype: _enums.DataType) -> None
     For ``INT4`` the array must be ``np.int8``; ``UINT4`` must be in ``np.uint8``.
     Otherwise the data types must match exactly.
     """
-    if dtype in {
-        _enums.DataType.BFLOAT16,
-        _enums.DataType.FLOAT8E4M3FN,
-        _enums.DataType.FLOAT8E4M3FNUZ,
-        _enums.DataType.FLOAT8E5M2,
-        _enums.DataType.FLOAT8E5M2FNUZ,
-        _enums.DataType.INT4,
-        _enums.DataType.UINT4,
-    }:
+    if dtype in _NON_NUMPY_NATIVE_TYPES:
         if array.dtype != np.float32:
             raise TypeError(
-                f"The numpy array dtype {array.dtype} does not match the IR data type {dtype}."
+                f"The numpy array dtype must be float32 (not {dtype}) for IR data type {dtype}."
             )
         return
 
