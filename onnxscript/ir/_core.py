@@ -160,6 +160,11 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
 
 
 def _check_numpy_storage_type(array: np.ndarray, dtype: _enums.DataType) -> None:
+    """Check if the numpy array dtype matches the IR data type.
+
+    For numpy unsupported dtypes, the array must be float32 for BFLOAT16, FLOAT8E4M3FN, FLOAT8E4M3FNUZ, FLOAT8E5M2, FLOAT8E5M2FNUZ.
+    For INT4 and UINT4, the array must be int8. Otherwise the data types must match exactly.
+    """
     if (
         dtype
         in {
@@ -248,6 +253,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
                 to be uint8 for INT4/UNT4; float32 for BFLOAT16, FLOAT8E4M3FN, FLOAT8E4M3FNUZ, FLOAT8E5M2, FLOAT8E5M2FNUZ
                 when the value is a numpy array. :param:`dtype` must be specified in this case.
             dtype: The data type of the tensor. It can be None only when value is a numpy array.
+                Users are responsible for making sure the dtype matches the value when value is not a numpy array.
             shape: The shape of the tensor. If None, the shape is obtained from the value.
             name: The name of the tensor.
             doc_string: The documentation string.
@@ -263,6 +269,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
             raise TypeError(f"Expected an array compatible object, got {type(value)}")
         if shape is None:
+            # Obtain the shape from the value
             if not hasattr(value, "shape"):
                 raise ValueError(
                     f"Expected an object with a shape attribute, but {type(value)} does not have shape. "
@@ -281,7 +288,10 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
                 )
         else:
             if isinstance(value, np.ndarray):
+                # Make sure the dtype matches the value
                 _check_numpy_storage_type(value, dtype)
+            # Users are responsible for making sure the dtype matches the value
+            # when value is not a numpy array
             self._dtype = dtype
         self._raw = value
         self.name = name
@@ -339,6 +349,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         value is not a numpy array.
         """
         # TODO(justinchuby): Support DLPack
+        # TODO(justinchuby): Support numpy unsupported types
         array = self.numpy()
         if not IS_LITTLE_ENDIAN:
             return array.view(array.dtype.newbyteorder("<")).tobytes()
