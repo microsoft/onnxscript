@@ -66,12 +66,7 @@ import onnx
 import onnx.external_data_helper
 import onnx.numpy_helper
 
-from onnxscript.ir import (
-    _core,
-    _enums,
-    _metadata,
-    _protocols,
-)
+from onnxscript.ir import _core, _enums, _metadata, _protocols, _type_casting
 
 if typing.TYPE_CHECKING:
     import google.protobuf.internal.containers as proto_containers
@@ -207,7 +202,29 @@ class Int32DataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
         return self._proto.int32_data
 
     def tobytes(self) -> bytes:
-        return np.array(self._proto.int32_data, dtype=np.int32).tobytes()
+        array = np.array(self._proto.int32_data, dtype=np.int32)
+        if self.dtype in {
+            _enums.DataType.INT16,
+            _enums.DataType.UINT16,
+            _enums.DataType.FLOAT16,
+            _enums.DataType.BFLOAT16,
+        }:
+            return array.astype(np.uint16).tobytes()
+        if self.dtype in {
+            _enums.DataType.INT8,
+            _enums.DataType.UINT8,
+            _enums.DataType.BOOL,
+            _enums.DataType.FLOAT8E4M3FN,
+            _enums.DataType.FLOAT8E4M3FNUZ,
+            _enums.DataType.FLOAT8E5M2,
+            _enums.DataType.FLOAT8E5M2FNUZ,
+        }:
+            # TODO: Is BOOL the same as UINT8?
+            return array.astype(np.uint8).tobytes()
+        if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
+            return _type_casting.pack_int4(array).tobytes()
+        assert self.dtype == _enums.DataType.INT32
+        return array.tobytes()
 
 
 class Int64DataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
@@ -258,7 +275,11 @@ class UInt64DataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
         return self._proto.uint64_data
 
     def tobytes(self) -> bytes:
-        return np.array(self._proto.uint64_data, dtype=np.uint64).tobytes()
+        array = np.array(self._proto.uint64_data, dtype=np.uint64)
+        if self.dtype == _enums.DataType.UINT32:
+            return array.astype(np.uint32).tobytes()
+        assert self.dtype == _enums.DataType.UINT64
+        return array.tobytes()
 
 
 def _get_field(proto: Any, field: str) -> Any:
