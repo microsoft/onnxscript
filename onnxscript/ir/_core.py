@@ -162,8 +162,11 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
 def _check_numpy_storage_type(array: np.ndarray, dtype: _enums.DataType) -> None:
     """Check if the numpy array dtype matches the IR data type.
 
-    For numpy unsupported dtypes, the array must be float32 for BFLOAT16, FLOAT8E4M3FN, FLOAT8E4M3FNUZ, FLOAT8E5M2, FLOAT8E5M2FNUZ.
-    For INT4 and UINT4, the array must be int8. Otherwise the data types must match exactly.
+    For numpy unsupported dtypes, the array must be ``np.float32`` for ``BFLOAT16``,
+    ``FLOAT8E4M3FN``, ``FLOAT8E4M3FNUZ``, ``FLOAT8E5M2``, ``FLOAT8E5M2FNUZ``.
+
+    For ``INT4`` the array must be ``np.int8``; ``UINT4`` must be in ``np.uint8``.
+    Otherwise the data types must match exactly.
     """
     if (
         dtype
@@ -255,8 +258,9 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
 
         Args:
             value: The backing data of the tensor. It can be a numpy array compatible object or a DLPack compatible object.
-                When the dtype is not one of the numpy support dtypes, the value needs
-                to be uint8 for INT4/UNT4; float32 for BFLOAT16, FLOAT8E4M3FN, FLOAT8E4M3FNUZ, FLOAT8E5M2, FLOAT8E5M2FNUZ
+                When the dtype is not one of the numpy native dtypes, the value needs
+                to be ``int8`` for ``INT4``; ``uint8`` for ``UNT4``; ``float32`` for ``BFLOAT16``,
+                ``FLOAT8E4M3FN``, ``FLOAT8E4M3FNUZ``, ``FLOAT8E5M2``, ``FLOAT8E5M2FNUZ``
                 when the value is a numpy array. :param:`dtype` must be specified in this case.
             dtype: The data type of the tensor. It can be None only when value is a numpy array.
                 Users are responsible for making sure the dtype matches the value when value is not a numpy array.
