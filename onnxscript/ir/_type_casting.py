@@ -16,9 +16,10 @@ def pack_int4(array: np.ndarray) -> npt.NDArray[np.uint8]:
     """Convert a numpy array to flatten, packed int4/uint4. Elements must be in the correct range."""
     # Create a 1D copy
     array_flat = array.ravel().astype(np.uint8)
-    odd_sized = array_flat.size % 2 == 1
+    size = array.size
+    odd_sized = size % 2 == 1
     if odd_sized:
-        size = array_flat.size + 1
+        size = size + 1
         array_flat.resize([size])
     array_flat &= 0x0F
     array_flat[1::2] <<= 4
