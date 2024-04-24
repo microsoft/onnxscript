@@ -97,6 +97,11 @@ class TensorTest(unittest.TestCase):
         tensor = _core.Tensor(torch_tensor, dtype=_enums.DataType.FLOAT)
         self.assertEqual(tensor.tobytes(), array.tobytes())
 
+    def test_tobtyes_returns_packed_data_for_int4(self):
+        array = np.array([-231, -1, 0, 1, 2, 230], dtype=np.int8)
+        tensor = _core.Tensor(array, dtype=_enums.DataType.INT4)
+        self.assertEqual(tensor.tobytes(), array.tobytes())
+
     def test_metadata(self):
         array = np.random.rand(1, 2).astype(np.float32)
         tensor = _core.Tensor(array)

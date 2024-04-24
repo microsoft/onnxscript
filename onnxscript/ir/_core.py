@@ -43,6 +43,7 @@ from onnxscript.ir import (
     _metadata,
     _name_authority,
     _protocols,
+    _type_casting,
 )
 
 if typing.TYPE_CHECKING:
@@ -54,7 +55,19 @@ TArrayCompatible = typing.TypeVar(
 )
 
 # System is little endian
-IS_LITTLE_ENDIAN = sys.byteorder == "little"
+_IS_LITTLE_ENDIAN = sys.byteorder == "little"
+# Data types that are not supported by numpy
+_NON_NUMPY_NATIVE_TYPES = frozenset(
+    (
+        _enums.DataType.BFLOAT16,
+        _enums.DataType.FLOAT8E4M3FN,
+        _enums.DataType.FLOAT8E4M3FNUZ,
+        _enums.DataType.FLOAT8E5M2,
+        _enums.DataType.FLOAT8E5M2FNUZ,
+        _enums.DataType.INT4,
+        _enums.DataType.UINT4,
+    )
+)
 
 
 def _compatible_with_numpy(obj: Any) -> TypeGuard[_protocols.ArrayCompatible]:
@@ -177,30 +190,10 @@ def _check_numpy_storage_type(array: np.ndarray, dtype: _enums.DataType) -> None
         _enums.DataType.INT4,
         _enums.DataType.UINT4,
     }:
-        if (
-            dtype
-            in {
-                _enums.DataType.BFLOAT16,
-                _enums.DataType.FLOAT8E4M3FN,
-                _enums.DataType.FLOAT8E4M3FNUZ,
-                _enums.DataType.FLOAT8E5M2,
-                _enums.DataType.FLOAT8E5M2FNUZ,
-            }
-            and array.dtype != np.float32
-        ):
+        if array.dtype != np.float32:
             raise TypeError(
-                "The numpy array must have a float32 dtype when the IR data type is one of "
-                " {BFLOAT16, FLOAT8E4M3FN, FLOAT8E4M3FNUZ, FLOAT8E5M2, FLOAT8E5M2FNUZ}."
+                f"The numpy array dtype {array.dtype} does not match the IR data type {dtype}."
             )
-        if dtype == _enums.DataType.INT4 and array.dtype != np.int8:
-            raise TypeError(
-                "The numpy array must have an int8 dtype when the IR data type is INT4."
-            )
-        if dtype == _enums.DataType.UINT4 and array.dtype != np.uint8:
-            raise TypeError(
-                "The numpy array must have a uint8 dtype when the IR data type is UINT4."
-            )
-        return
 
     if _enums.DataType.from_numpy(array.dtype) != dtype:
         raise TypeError(
@@ -272,7 +265,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
                 When the dtype is not one of the numpy native dtypes, the value needs
                 to be ``int8`` for ``INT4``; ``uint8`` for ``UNT4``; ``float32`` for ``BFLOAT16``,
                 ``FLOAT8E4M3FN``, ``FLOAT8E4M3FNUZ``, ``FLOAT8E5M2``, ``FLOAT8E5M2FNUZ``
-                when the value is a numpy array. :param:`dtype` must be specified in this case.
+                when the value is a numpy array; :param:`dtype` must be specified in this case.
             dtype: The data type of the tensor. It can be None only when value is a numpy array.
                 Users are responsible for making sure the dtype matches the value when value is not a numpy array.
             shape: The shape of the tensor. If None, the shape is obtained from the value.
@@ -370,10 +363,25 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         value is not a numpy array.
         """
         # TODO(justinchuby): Support DLPack
-        # TODO(justinchuby): Support numpy unsupported types
         array = self.numpy()
-        if not IS_LITTLE_ENDIAN:
-            return array.view(array.dtype.newbyteorder("<")).tobytes()
+        if self.dtype in _NON_NUMPY_NATIVE_TYPES:
+            # Handle non-native numpy types by casting them to the correct byte representation
+            if self.dtype == _enums.DataType.INT4:
+                array = _type_casting.pack_int4(array)
+            if self.dtype == _enums.DataType.UINT4:
+                array = _type_casting.pack_uint4(array)
+            if self.dtype == _enums.DataType.BFLOAT16:
+                array = _type_casting.float32_to_bfloat16(array)
+            if self.dtype == _enums.DataType.FLOAT8E4M3FN:
+                array = _type_casting.float32_to_float8e4m3fn(array)
+            if self.dtype == _enums.DataType.FLOAT8E4M3FNUZ:
+                array = _type_casting.float32_to_float8e4m3fnuz(array)
+            if self.dtype == _enums.DataType.FLOAT8E5M2:
+                array = _type_casting.float32_to_float8e5m2(array)
+            if self.dtype == _enums.DataType.FLOAT8E5M2FNUZ:
+                array = _type_casting.float32_to_float8e5m2fnuz(array)
+        if not _IS_LITTLE_ENDIAN:
+            array = array.view(array.dtype.newbyteorder("<"))
         return array.tobytes()
 
     @property
