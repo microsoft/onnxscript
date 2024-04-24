@@ -12,7 +12,10 @@ if typing.TYPE_CHECKING:
     import numpy.typing as npt
 
 
-def _int8_to_packed_int4(array: np.ndarray) -> np.ndarray:
+_T8Bit = typing.TypeVar("_T8Bit", np.int8, np.uint8)
+
+
+def _int8_to_packed_int4(array: npt.NDArray[_T8Bit]) -> npt.NDArray[_T8Bit]:
     """Convert int8/uint8 to int4/uint4 by packing."""
     assert array.dtype in (np.int8, np.uint8)
     array_flat = array.ravel()
@@ -23,7 +26,7 @@ def _int8_to_packed_int4(array: np.ndarray) -> np.ndarray:
         array_flat.resize([size])
     array_flat &= 0x0F
     array_flat[1::2] <<= 4
-    return array_flat[0::2] | array_flat[1::2]
+    return array_flat[0::2] | array_flat[1::2]  # type: ignore[return-type]
 
 
 def pack_int4(array: np.ndarray) -> npt.NDArray[np.int8]:
@@ -36,7 +39,7 @@ def pack_uint4(array: np.ndarray) -> npt.NDArray[np.uint8]:
     return _int8_to_packed_int4(array.astype(np.uint8))
 
 
-def float32_to_bfloat16(array: np.ndarray) -> npt.NDArray[np.uint16]:
+def float32_to_bfloat16(array: npt.NDArray[np.float32]) -> npt.NDArray[np.uint16]:
     """Convert a numpy array to uint16 representation of bfloat16."""
     bfloat16_array = array.astype(np.float32).view(np.uint32)
     # NaN requires at least 1 significand bit set
@@ -51,13 +54,13 @@ def float32_to_bfloat16(array: np.ndarray) -> npt.NDArray[np.uint16]:
     return bfloat16_array.astype(np.uint16)
 
 
-def float32_to_float8e5m2(array: np.ndarray) -> npt.NDArray[np.uint8]:
+def float32_to_float8e5m2(array: npt.NDArray[np.float32]) -> npt.NDArray[np.uint8]:
     """Convert a numpy array to uint8 representation of float8e5m2."""
     func = np.frompyfunc(onnx.helper.float32_to_float8e5m2, 1, 1)
     return func(array)
 
 
-def float32_to_float8e5m2fnuz(array: np.ndarray) -> npt.NDArray[np.uint8]:
+def float32_to_float8e5m2fnuz(array: npt.NDArray[np.float32]) -> npt.NDArray[np.uint8]:
     """Convert a numpy array to uint8 representation of float8e5m2fnuz."""
     func = np.frompyfunc(
         lambda x: onnx.helper.float32_to_float8e5m2(x, fn=True, uz=True), 1, 1
@@ -65,13 +68,13 @@ def float32_to_float8e5m2fnuz(array: np.ndarray) -> npt.NDArray[np.uint8]:
     return func(array)
 
 
-def float32_to_float8e4m3fn(array: np.ndarray) -> npt.NDArray[np.uint8]:
+def float32_to_float8e4m3fn(array: npt.NDArray[np.float32]) -> npt.NDArray[np.uint8]:
     """Convert a numpy array to uint8 representation of float8e4m3."""
     func = np.frompyfunc(onnx.helper.float32_to_float8e4m3, 1, 1)
     return func(array)
 
 
-def float32_to_float8e4m3fnuz(array: np.ndarray) -> npt.NDArray[np.uint8]:
+def float32_to_float8e4m3fnuz(array: npt.NDArray[np.float32]) -> npt.NDArray[np.uint8]:
     """Convert a numpy array to uint8 representation of float8e4m3nuz."""
     func = np.frompyfunc(lambda x: onnx.helper.float32_to_float8e4m3(x, uz=True), 1, 1)
     return func(array)
