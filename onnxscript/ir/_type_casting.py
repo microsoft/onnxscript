@@ -31,6 +31,7 @@ def _int8_to_packed_int4(array: npt.NDArray[_T8Bit]) -> npt.NDArray[_T8Bit]:
 
 def pack_int4(array: np.ndarray) -> npt.NDArray[np.int8]:
     """Convert a numpy array to packed int4. Elements must be in the int4 range."""
+    # Cast to the signed type to preserve negative values
     return _int8_to_packed_int4(array.astype(np.int8))
 
 
