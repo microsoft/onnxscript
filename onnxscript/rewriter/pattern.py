@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import dataclasses
 import inspect
 import itertools
 import math
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Optional, Sequence, Tuple
 
 import numpy as np
 import onnx
@@ -683,18 +684,34 @@ class TargetPatternFunction:
         return _handle_pattern_return_value(node_output_pattern)
 
 
+# A type representing the domains/versions used in creating a replacement subgraph
+UsedOpsets = Sequence[Tuple[str, Optional[int]]]
+
+
 class RewriterContext:
     """Context parameter used to build the replacement pattern."""
 
     # TODO(justinchuby): Merge with the rest of pattern building methods
     def __init__(self):
-        self.tape = _tape.Tape()
+        self._tape = _tape.Tape()
+        self._used_opsets: UsedOpsets = []
+
+    def _add_used_opset(self, domain: str, version: int | None):
+        if (domain not in self._used_opsets) or (self._used_opsets[domain] is None):
+            self._used_opsets[domain] = version
+        elif (version is not None) and (version != self._used_opsets[domain]):
+            raise ValueError(
+                f"Multiple versions of opset {domain} used. "
+                f"Expected version {self._used_opsets[domain]}, but got {version}."
+            )
 
     def __getattr__(self, op_type: str) -> Any:
         return lambda *args, **kwargs: self._make_node(op_type, args, kwargs)
 
     def _make_node(self, op_type: str, inputs: Sequence[ir.Value], kwargs: dict[str, Any]):
         domain = kwargs.pop("domain", "")
+        version = kwargs.pop("version", None)
+        self._used_opsets.append((domain, version))
         outputs = kwargs.pop("outputs", 1)
         if isinstance(outputs, Sequence):
             num_outputs = len(outputs)
@@ -702,8 +719,8 @@ class RewriterContext:
             assert isinstance(outputs, int)
             num_outputs = outputs
         if num_outputs == 1:
-            return self.tape.op(op_type, inputs=inputs, attributes=kwargs, domain=domain)
-        return self.tape.op_multi_output(
+            return self._tape.op(op_type, inputs=inputs, attributes=kwargs, domain=domain)
+        return self._tape.op_multi_output(
             op_type, inputs=inputs, attributes=kwargs, domain=domain, num_outputs=num_outputs
         )
 
@@ -714,7 +731,20 @@ class RewriterContext:
         # have values/nodes know which tape they belong to (instead of a graph/function).
         # However, it is unclear we need this feature for rewriting: we could also
         # identify the nodes to be inserted from the replacement values (by tracing back).
-        return self.tape.nodes
+        return self._tape.nodes
+
+    @property
+    def used_opsets(self) -> UsedOpsets:
+        return self._used_opsets
+
+
+@dataclasses.dataclass
+class ReplacementSubgraph:
+    """A subgraph that will replace the matched pattern."""
+
+    new_values: Sequence[ir.Value]
+    new_nodes: Sequence[ir.Node]
+    used_opsets: UsedOpsets
 
 
 class ReplacementPatternFunction:
@@ -729,15 +759,13 @@ class ReplacementPatternFunction:
 
     def get_replacement(
         self,
-        model,
-        vars: Sequence[Var],
         match_bindings: dict[str, ir.Value | Any] | None = None,
-    ) -> tuple[NodePattern | None, int | None]:
-        if match_bindings is None:
-            return None, None
+    ) -> ReplacementSubgraph:
         context = RewriterContext()
         new_values = self._function(context, **match_bindings)
-        return context.nodes
+        if not isinstance(new_values, Sequence):
+            new_values = [new_values]
+        return ReplacementSubgraph(new_values, context.nodes, context.used_opsets)
         # TODO(rama): Check if the number of outputs is the same as the target pattern.
         # assert self._target_num_outputs == replacement_num_outputs
 
@@ -803,18 +831,37 @@ class RewriteRule:
 
     def try_rewrite(
         self, model: ir.Model, node: ir.Node
-    ) -> tuple[Sequence[Any], Sequence[ir.Node]] | None:
+    ):  # TODO(rama) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
         match = self.matches(node, model)
         if match:
             assert match.values is not None, "Matched values should not be None."
             if _valid_to_replace(match.values):
                 # bindings will be consumed by the replacement function
-                to_insert = self._replacement_pattern.get_replacement(
-                    model, self._vars, match_bindings=match.bindings
-                )
-                # assert self._target_num_outputs == _replacement_num_outputs
-                return (match.values, to_insert)  # type: ignore[return-value]
+                delta = self._replacement_pattern.get_replacement(match.bindings)
+                if len(delta.new_values) != self._target_num_outputs:
+                    raise ValueError(
+                        f"Number of outputs from replacement function does not match the number of outputs from the target pattern. "
+                        f"Expected {self._target_num_outputs}, but got {len(delta.new_values)}."
+                    )
+                # TODO(rama): Check/update opset-imports
+                # (i) Integrate following with the multi-output matcher and code elsewhere:
+                # (ii) For functions, we need to do this with function, not model's main graph.
+                # (iii) Code in the caller (below) checks if match overlaps previous match, which
+                # appears incorrect for single-pattern matcher. Best to alter iteration to apply
+                # each rewrite immediately, instead of accumulating them.
+                # (iv) return delta here
+                imports = model.graph.opset_imports
+                for domain, version in delta.used_opsets:
+                    if domain not in imports:
+                        # use 1 as default version if not explicitly specified
+                        imports[domain] = version if version is not None else 1
+                    elif version is not None and version != imports[domain]:
+                        raise ValueError(
+                            f"Multiple versions of opset {domain} used. "
+                            f"Expected version {imports[domain]}, but got {version}."
+                        )
+                return match.values, delta.new_nodes
         return None
 
     def apply_to_model(self, model: ir.Model, *, commute: bool = False):
