@@ -69,12 +69,12 @@ def float32_to_float8e5m2fnuz(array: npt.NDArray[np.float32]) -> npt.NDArray[np.
 
 
 def float32_to_float8e4m3fn(array: npt.NDArray[np.float32]) -> npt.NDArray[np.uint8]:
-    """Convert a numpy array to uint8 representation of float8e4m3."""
+    """Convert a numpy array to uint8 representation of float8e4m3fn."""
     func = np.frompyfunc(onnx.helper.float32_to_float8e4m3, 1, 1)
     return func(array)
 
 
 def float32_to_float8e4m3fnuz(array: npt.NDArray[np.float32]) -> npt.NDArray[np.uint8]:
-    """Convert a numpy array to uint8 representation of float8e4m3nuz."""
+    """Convert a numpy array to uint8 representation of float8e4m3fnuz."""
     func = np.frompyfunc(lambda x: onnx.helper.float32_to_float8e4m3(x, uz=True), 1, 1)
     return func(array)
