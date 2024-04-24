@@ -41,7 +41,7 @@ class TensorTest(unittest.TestCase):
             _core.Tensor(torch_tensor)
 
     def test_init_respects_dtype_when_it_is_provided(self):
-        array = np.random.rand(1, 2).astype(np.int8)
+        array = np.random.rand(1, 2).astype(np.uint8)
         tensor = _core.Tensor(array, dtype=_enums.DataType.UINT4)
         self.assertEqual(tensor.dtype, _enums.DataType.UINT4)
 

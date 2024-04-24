@@ -180,12 +180,18 @@ def _check_numpy_storage_type(array: np.ndarray, dtype: _enums.DataType) -> None
             "The numpy array must have a float32 dtype when the IR data type is one of "
             " {BFLOAT16, FLOAT8E4M3FN, FLOAT8E4M3FNUZ, FLOAT8E5M2, FLOAT8E5M2FNUZ}."
         )
-    if dtype in {_enums.DataType.INT4, _enums.DataType.UINT4} and array.dtype != np.int8:
+    if dtype == _enums.DataType.INT4 and array.dtype != np.int8:
         raise TypeError(
-            "The numpy array must have an int8 dtype when the IR data type is INT4 or UINT4."
+            "The numpy array must have an int8 dtype when the IR data type is INT4."
+        )
+    if dtype == _enums.DataType.UINT4 and array.dtype != np.uint8:
+        raise TypeError(
+            "The numpy array must have a uint8 dtype when the IR data type is UINT4."
         )
     if _enums.DataType.from_numpy(array.dtype) != dtype:
-        raise TypeError(f"The numpy array dtype {array.dtype} does not match the IR data type {dtype}.")
+        raise TypeError(
+            f"The numpy array dtype {array.dtype} does not match the IR data type {dtype}."
+        )
 
 
 class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
