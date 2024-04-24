@@ -108,7 +108,7 @@ class TensorTest(unittest.TestCase):
         array = np.array([0, 1, 2, 7, 15], dtype=np.float32)
         # Test odd sized array
         assert len(array) % 2 == 1
-        tensor = _core.Tensor(array, dtype=_enums.DataType.INT4)
+        tensor = _core.Tensor(array, dtype=_enums.DataType.UINT4)
         self.assertEqual(tensor.tobytes(), b"\x10r\x0f")
 
     def test_metadata(self):
