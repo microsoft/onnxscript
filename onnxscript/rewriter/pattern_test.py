@@ -299,6 +299,29 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(model.graph[0].attributes["value"].value.dtype, 10)
         self.assertEqual(model.graph[1].attributes["value"].value.dtype, 1)
 
+    def test_opset_import(self):
+        def add_same(x):
+            return x + x
+
+        def double(op, x):
+            return op.Double(x, domain="custom.domain", version=10)
+
+        rule = pattern.RewriteRule(add_same, double)
+
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x) => (float[M] z)
+            {
+                y = Add (x, x)
+                z = Relu (y)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = pattern.RewriteRuleSet([rule], commute=True).apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(model.graph.opset_imports["custom.domain"], 10)     
 
 if __name__ == "__main__":
     unittest.main()
