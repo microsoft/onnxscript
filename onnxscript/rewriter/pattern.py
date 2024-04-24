@@ -417,6 +417,8 @@ class ValuePattern:
         return f"ValuePattern({self.name!r})"
 
     def matches(self, value: ir.Value, model: ir.Model):
+        if self.name is None:
+            return MatchResult([], {})
         return MatchResult([], {self.name: value})
 
     def commute(self) -> Sequence[ValuePattern]:
