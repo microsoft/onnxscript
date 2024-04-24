@@ -41,7 +41,7 @@ OperatorIdentifier: TypeAlias = Tuple[str, str, str]
 class ArrayCompatible(Protocol):
     """Protocol for array-like objects.
 
-    An example of an array-like object is a numpy array or a PyTorch array.
+    An example of an array-like object is a numpy ndarray or a PyTorch Tensor.
     Read more at https://numpy.org/devdocs/user/basics.interoperability.html
     """
 
