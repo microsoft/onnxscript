@@ -321,7 +321,8 @@ class RewriteRuleTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = pattern.RewriteRuleSet([rule], commute=True).apply_to_model(model)
         self.assertEqual(count, 1)
-        self.assertEqual(model.graph.opset_imports["custom.domain"], 10)     
+        self.assertEqual(model.graph.opset_imports["custom.domain"], 10)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,7 +4,7 @@ import dataclasses
 import inspect
 import itertools
 import math
-from typing import Any, Callable, Optional, Sequence, Tuple
+from typing import Any, Callable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import onnx
@@ -685,7 +685,7 @@ class TargetPatternFunction:
 
 
 # A type representing the domains/versions used in creating a replacement subgraph
-UsedOpsets = Sequence[Tuple[str, Optional[int]]]
+UsedOpsets = List[Tuple[str, Optional[int]]]
 
 
 class RewriterContext:
@@ -695,15 +695,6 @@ class RewriterContext:
     def __init__(self):
         self._tape = _tape.Tape()
         self._used_opsets: UsedOpsets = []
-
-    def _add_used_opset(self, domain: str, version: int | None):
-        if (domain not in self._used_opsets) or (self._used_opsets[domain] is None):
-            self._used_opsets[domain] = version
-        elif (version is not None) and (version != self._used_opsets[domain]):
-            raise ValueError(
-                f"Multiple versions of opset {domain} used. "
-                f"Expected version {self._used_opsets[domain]}, but got {version}."
-            )
 
     def __getattr__(self, op_type: str) -> Any:
         return lambda *args, **kwargs: self._make_node(op_type, args, kwargs)
@@ -766,8 +757,6 @@ class ReplacementPatternFunction:
         if not isinstance(new_values, Sequence):
             new_values = [new_values]
         return ReplacementSubgraph(new_values, context.nodes, context.used_opsets)
-        # TODO(rama): Check if the number of outputs is the same as the target pattern.
-        # assert self._target_num_outputs == replacement_num_outputs
 
 
 class RewriteRule:
