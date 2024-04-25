@@ -527,7 +527,9 @@ class NodePattern:
         return match
 
     def commute(self) -> Sequence[NodePattern]:
-        list_of_lists = [pattern.commute() for pattern in self.inputs]  # type: ignore[attr-defined]
+        list_of_lists = [
+            [None] if pattern is None else pattern.commute() for pattern in self.inputs
+        ]  # type: ignore[attr-defined]
 
         def enumerate_inputs(inputs, index):
             if index >= len(inputs):
