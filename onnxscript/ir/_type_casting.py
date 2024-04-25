@@ -35,7 +35,7 @@ def float32_to_bfloat16(array: npt.NDArray[np.float32]) -> npt.NDArray[np.uint16
     rounded = bfloat16_array >> 16
     rounded &= 1
     rounded += 0x7FFF
-    bfloat16_array += rounded
+    bfloat16_array += rounded  # type: ignore[arg-type]
     bfloat16_array >>= 16
     return bfloat16_array.astype(np.uint16)
 
