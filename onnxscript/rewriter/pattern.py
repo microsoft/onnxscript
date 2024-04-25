@@ -224,10 +224,7 @@ class OpsetPattern:
     input model.
     """
 
-    def __init__(
-        self,
-        domain_pattern: PythonPattern | PrefixPattern | str
-    ) -> None:
+    def __init__(self, domain_pattern: PythonPattern | PrefixPattern | str) -> None:
         if isinstance(domain_pattern, str):
             domain_pattern = PythonPattern(domain_pattern)
         self.domain_pattern = domain_pattern
@@ -509,9 +506,7 @@ class NodePattern:
                         yield [pattern, *rest]
 
         inputs = list(enumerate_inputs(list_of_lists, 0))
-        if self.domain.matches(("", None)) and (
-            self.op.matches("Add") or self.op.matches("Mul")
-        ):
+        if self.domain.matches("") and (self.op.matches("Add") or self.op.matches("Mul")):
             # TODO: handle cases where number of inputs is not 2.
             swapped = [[x[1], x[0]] for x in inputs]
             inputs.extend(swapped)
