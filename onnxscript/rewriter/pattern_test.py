@@ -323,6 +323,39 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(count, 1)
         self.assertEqual(model.graph.opset_imports["custom.domain"], 10)
 
+    def test_opset_import_in_function(self):
+        def add_same(x):
+            return x + x
+
+        def double(op, x):
+            return op.Double(x, domain="custom.domain", version=10)
+
+        rule = pattern.RewriteRule(add_same, double)
+
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17, "pkg.custom": 1]>
+            agraph (float[N] x) => (float[M] z)
+            {
+                z = afunction (x)
+            }
+            <domain: "pkg.custom", opset_import: [ "" : 17]>
+            afunction (x) => (z)
+            {
+                y = Add (x, x)
+                z = Relu (y)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = pattern.RewriteRuleSet([rule], commute=True).apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(model.functions), 1)
+        self.assertEqual(model.graph.opset_imports["custom.domain"], 10)
+        self.assertEqual(
+            model.functions[("pkg.custom", "afunction", "")].opset_imports["custom.domain"], 10
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
