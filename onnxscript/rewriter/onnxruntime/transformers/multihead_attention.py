@@ -483,7 +483,6 @@ class GQALlamaSdpa2RewriteRule(AttentionRewriteRule):
     def _fusion_without_cos_sin_cache(self, function: ir.Function) -> ir.Function:
         # Infer size configurations from the function.
         attn_size_config = self.infer_attn_size_config(function)
-
         # Code new pattern with onnxscript.
         op = onnxscript.opset18
         msft_op = onnxscript.values.Opset("com.microsoft", 1)
@@ -635,7 +634,7 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
         super().__init__()
 
     @_version_controller.register_version()
-    def _fusion_with(self, function: ir.Function) -> ir.Function:
+    def _fusion(self, function: ir.Function) -> ir.Function:
         if len(function.inputs) != 6 and len(function.inputs) != 7:
             raise function_rule.FunctionRewriteError(
                 f"Unexpected number of inputs. Expected 6 or 7, got {len(function.inputs)}."
@@ -656,25 +655,60 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
             o_weight,
             o_bias,
         ):
-            q_proj = op.MatMul(hidden_states, q_weight)
-            k_proj = op.MatMul(hidden_states, k_weight)
-            v_proj = op.MatMul(hidden_states, v_weight)
+            qkv_weight = op.Transpose(
+                op.Concat(q_weight, k_weight, v_weight, axis=0),
+                perm=[1, 0],
+            )
 
-            mha_output, _, _ = msft_op.MultiHeadAttention(
-                q_proj,
-                k_proj,
-                v_proj,
-                None,
+            mha_output, _ = msft_op.Attention(
+                hidden_states,
+                qkv_weight,
                 None,
                 None,
                 num_heads=attn_size_config.num_attention_heads,
             )
 
             # linear projection
-            output = op.Add(op.MatMul(mha_output, o_weight), o_bias)
+            output = op.Add(op.MatMul(mha_output, op.Transpose(o_weight, [1, 0])), o_bias)
             return output
 
-        def mha(
+        # def gqa(
+        #     hidden_states,
+        #     q_proj_weight,
+        #     k_proj_weight,
+        #     v_proj_weight,
+        #     o_proj_weight,
+        #     o_proj_bias,
+        # ):
+        #     q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
+        #     k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
+        #     v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
+
+        #     batch_size = op.Slice(op.Shape(hidden_states), [0], [1], [0])
+        #     past_seq_lengths = op.ConstantOfShape(
+        #         batch_size,
+        #         value=onnx_helper.make_tensor(
+        #             "past_seq_lengths", onnx.TensorProto.INT32, [1], [0]
+        #         ),
+        #     )
+        #     sequence_length = op.Slice(op.Shape(hidden_states), [1], [2], [0])
+        #     total_seq_lengths = op.Cast(sequence_length, to=onnx.TensorProto.INT32)
+
+        #     gqa_output, _, _ = msft_op.GroupQueryAttention(
+        #         q,
+        #         k,
+        #         v,
+        #         None,
+        #         None,
+        #         past_seq_lengths,
+        #         total_seq_lengths,
+        #         kv_num_heads=attn_size_config.num_attention_heads,
+        #         num_heads=attn_size_config.num_attention_heads,
+        #     )
+        #     attn_output = op.Add(op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0])), o_proj_bias)
+        #     return attn_output
+
+        def gqa2(
             hidden_states,
             encoder_hidden_states,
             q_weight,
@@ -683,23 +717,33 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
             o_weight,
             o_bias,
         ):
-            q_proj = op.MatMul(encoder_hidden_states, q_weight)
-            k_proj = op.MatMul(hidden_states, k_weight)
-            v_proj = op.MatMul(hidden_states, v_weight)
+            q = op.MatMul(hidden_states, op.Transpose(q_weight, [1, 0]))
+            k = op.MatMul(encoder_hidden_states, op.Transpose(k_weight, [1, 0]))
+            v = op.MatMul(encoder_hidden_states, op.Transpose(v_weight, [1, 0]))
 
-            mha_output, _, _ = msft_op.MultiHeadAttention(
-                q_proj,
-                k_proj,
-                v_proj,
+            # batch_size = op.Slice(op.Shape(hidden_states), [0], [1], [0])
+            # past_seq_lengths = op.ConstantOfShape(
+            #     batch_size,
+            #     value=onnx_helper.make_tensor(
+            #         "past_seq_lengths", onnx.TensorProto.INT32, [1], [0]
+            #     ),
+            # )
+            # sequence_length = op.Slice(op.Shape(hidden_states), [1], [2], [0])
+            # total_seq_lengths = op.Cast(sequence_length, to=onnx.TensorProto.INT32)
+
+            gqa_output, _, _ = msft_op.MultiHeadAttention(
+                q,
+                k,
+                v,
                 None,
                 None,
-                None,
+                # past_seq_lengths,
+                # total_seq_lengths,
+                # kv_num_heads=attn_size_config.num_attention_heads,
                 num_heads=attn_size_config.num_attention_heads,
             )
-
-            # linear projection
-            output = op.Add(op.MatMul(mha_output, o_weight), o_bias)
-            return output
+            attn_output = op.Add(op.MatMul(gqa_output, op.Transpose(o_weight, [1, 0])), o_bias)
+            return attn_output
 
         if len(function.inputs) == 6:
             function_proto = onnxscript.script(default_opset=onnxscript.opset18)(
@@ -708,6 +752,6 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
             return ir.serde.deserialize_function(function_proto)
 
         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(
-            mha
+            gqa2
         ).to_function_proto()
         return ir.serde.deserialize_function(function_proto)

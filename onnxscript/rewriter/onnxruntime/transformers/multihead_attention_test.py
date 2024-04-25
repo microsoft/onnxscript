@@ -58,7 +58,7 @@ class MHAParityTest(unittest.TestCase):
     @testutils.skip_if_no_cuda("CPU has parity issue.")
     def test_attn_stable_diffusion_unet(self):
         testutils.test_onnxruntime_rewrite(
-            "attn_stable_diffusion_unet", 4, {("com.microsoft", "MultiHeadAttention", "")}
+            "attn_stable_diffusion_unet", 2, {("com.microsoft", "MultiHeadAttention", "")}
         )
 
 
@@ -70,6 +70,14 @@ class AttnParityTest(unittest.TestCase):
     def test_attn_phi_1_5(self):
         testutils.test_onnxruntime_rewrite(
             "attn_phi_1_5", 4, {("com.microsoft", "Attention", "")}
+        )
+
+    @testutils.skip_if_no_cuda("CPU has parity issue.")
+    def test_attn_stable_diffusion_unet_without_encoder_hidden_states(self):
+        testutils.test_onnxruntime_rewrite(
+            "attn_stable_diffusion_unet_without_encoder_hidden_states",
+            2,
+            {("com.microsoft", "Attention", "")},
         )
 
 
