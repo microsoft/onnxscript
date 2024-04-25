@@ -124,7 +124,7 @@ class GenericPatternTest(unittest.TestCase):
             @classmethod
             def apply_pattern(cls, op, x, y, w, z):
                 """Builds the pattern to match."""
-                return op.AddAddAddAdd(x, y, w, z, domain="ZZZ", output_names=2)
+                return op.AddAddAddAdd(x, y, w, z, domain="ZZZ", outputs=2)
 
             def validate_mapping(
                 self,
@@ -273,7 +273,7 @@ class GenericPatternTest(unittest.TestCase):
                     transpose,
                     transpose,
                     domain="com.microsoft",
-                    output_names=2,
+                    outputs=2,
                 )
 
                 sin = op.Sin(output)
@@ -307,7 +307,7 @@ class GenericPatternTest(unittest.TestCase):
                     cos_cache,
                     sin_cache,
                     domain="com.microsoft",
-                    output_names=2,
+                    outputs=2,
                 )
 
         model = self.get_rotary_model()
