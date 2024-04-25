@@ -647,7 +647,7 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
         op = onnxscript.opset18
         msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
-        def mha_without_encoder_hidden_states(
+        def attention(
             hidden_states,
             q_weight,
             k_weight,
@@ -660,6 +660,7 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
                 perm=[1, 0],
             )
 
+            # NOTE: MHA does not work when Q, K, and V has the same root inputs.
             mha_output, _ = msft_op.Attention(
                 hidden_states,
                 qkv_weight,
@@ -672,43 +673,7 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
             output = op.Add(op.MatMul(mha_output, op.Transpose(o_weight, [1, 0])), o_bias)
             return output
 
-        # def gqa(
-        #     hidden_states,
-        #     q_proj_weight,
-        #     k_proj_weight,
-        #     v_proj_weight,
-        #     o_proj_weight,
-        #     o_proj_bias,
-        # ):
-        #     q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
-        #     k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
-        #     v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
-
-        #     batch_size = op.Slice(op.Shape(hidden_states), [0], [1], [0])
-        #     past_seq_lengths = op.ConstantOfShape(
-        #         batch_size,
-        #         value=onnx_helper.make_tensor(
-        #             "past_seq_lengths", onnx.TensorProto.INT32, [1], [0]
-        #         ),
-        #     )
-        #     sequence_length = op.Slice(op.Shape(hidden_states), [1], [2], [0])
-        #     total_seq_lengths = op.Cast(sequence_length, to=onnx.TensorProto.INT32)
-
-        #     gqa_output, _, _ = msft_op.GroupQueryAttention(
-        #         q,
-        #         k,
-        #         v,
-        #         None,
-        #         None,
-        #         past_seq_lengths,
-        #         total_seq_lengths,
-        #         kv_num_heads=attn_size_config.num_attention_heads,
-        #         num_heads=attn_size_config.num_attention_heads,
-        #     )
-        #     attn_output = op.Add(op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0])), o_proj_bias)
-        #     return attn_output
-
-        def gqa2(
+        def mha(
             hidden_states,
             encoder_hidden_states,
             q_weight,
@@ -721,25 +686,14 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
             k = op.MatMul(encoder_hidden_states, op.Transpose(k_weight, [1, 0]))
             v = op.MatMul(encoder_hidden_states, op.Transpose(v_weight, [1, 0]))
 
-            # batch_size = op.Slice(op.Shape(hidden_states), [0], [1], [0])
-            # past_seq_lengths = op.ConstantOfShape(
-            #     batch_size,
-            #     value=onnx_helper.make_tensor(
-            #         "past_seq_lengths", onnx.TensorProto.INT32, [1], [0]
-            #     ),
-            # )
-            # sequence_length = op.Slice(op.Shape(hidden_states), [1], [2], [0])
-            # total_seq_lengths = op.Cast(sequence_length, to=onnx.TensorProto.INT32)
-
+            # NOTE: Q and K needs to have the sequence length (dim 1) to use
+            # GQA.
             gqa_output, _, _ = msft_op.MultiHeadAttention(
                 q,
                 k,
                 v,
                 None,
                 None,
-                # past_seq_lengths,
-                # total_seq_lengths,
-                # kv_num_heads=attn_size_config.num_attention_heads,
                 num_heads=attn_size_config.num_attention_heads,
             )
             attn_output = op.Add(op.MatMul(gqa_output, op.Transpose(o_weight, [1, 0])), o_bias)
@@ -747,11 +701,11 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
 
         if len(function.inputs) == 6:
             function_proto = onnxscript.script(default_opset=onnxscript.opset18)(
-                mha_without_encoder_hidden_states
+                attention
             ).to_function_proto()
             return ir.serde.deserialize_function(function_proto)
 
         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(
-            gqa2
+            mha
         ).to_function_proto()
         return ir.serde.deserialize_function(function_proto)

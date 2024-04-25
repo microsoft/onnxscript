@@ -828,7 +828,7 @@ class RewriteRule:
         return match
 
     def try_rewrite(
-        self, model: ir.Model, node: ir.Node
+        self, model: ir.Model, graph_or_function: ir.Graph | ir.Function, node: ir.Node
     ):  # TODO(rama) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
         match = self.matches(node, model)
@@ -849,16 +849,8 @@ class RewriteRule:
                 # appears incorrect for single-pattern matcher. Best to alter iteration to apply
                 # each rewrite immediately, instead of accumulating them.
                 # (iv) return delta here
-                imports = model.graph.opset_imports
-                for domain, version in delta.used_opsets:
-                    if domain not in imports:
-                        # use 1 as default version if not explicitly specified
-                        imports[domain] = version if version is not None else 1
-                    elif version is not None and version != imports[domain]:
-                        raise ValueError(
-                            f"Multiple versions of opset {domain} used. "
-                            f"Expected version {imports[domain]}, but got {version}."
-                        )
+                _update_opset_impots(graph_or_function, delta)
+                _update_opset_impots(model.graph, delta)
                 return match.values, delta.new_nodes
         return None
 
@@ -957,6 +949,21 @@ def _apply_deltas(
     graph_or_function.remove(to_delete, safe=True)
 
 
+def _update_opset_impots(
+    graph_or_function: ir.Graph | ir.Function, delta: ReplacementSubgraph
+):
+    imports = graph_or_function.opset_imports
+    for domain, version in delta.used_opsets:
+        if domain not in imports:
+            # use 1 as default version if not explicitly specified
+            imports[domain] = version if version is not None else 1
+        elif version is not None and version != imports[domain]:
+            raise ValueError(
+                f"Multiple versions of opset {domain} used. "
+                f"Expected version {imports[domain]}, but got {version}."
+            )
+
+
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
         if commute:
@@ -975,7 +982,7 @@ class RewriteRuleSet:
         for rule in self.rules:
             deltas = []
             for i, node in enumerate(graph_or_function):
-                delta = rule.try_rewrite(model, node)
+                delta = rule.try_rewrite(model, graph_or_function, node)
 
                 if delta is None:
                     continue
