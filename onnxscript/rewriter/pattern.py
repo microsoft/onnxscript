@@ -635,8 +635,11 @@ def _handle_pattern_return_value(
         num_outputs = len(node_output_pattern)
         for i, p in enumerate(node_output_pattern):
             assert isinstance(p, NodeOutputPattern)
-            assert p.node_pattern is node_pattern
-            assert p.output_index == i
+            if (p.node_pattern is not node_pattern) or (p.output_index != i):
+                raise NotImplementedError(
+                    "Multi-output pattern not handled by this API. "
+                    "Use other APIs to handle multi-output patterns."
+                )
     else:
         raise TypeError(f"Invalid type {type(node_output_pattern)} for pattern")
     return node_pattern, num_outputs
