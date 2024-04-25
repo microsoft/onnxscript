@@ -768,7 +768,7 @@ class ReplacementPatternFunction:
         return ReplacementSubgraph(new_values, context.nodes, context.used_opsets)
 
 
-def _update_opset_impots(
+def _update_opset_imports(
     graph_or_function: ir.Graph | ir.Function, delta: ReplacementSubgraph
 ):
     imports = graph_or_function.opset_imports
@@ -864,8 +864,8 @@ class RewriteRule:
                 # appears incorrect for single-pattern matcher. Best to alter iteration to apply
                 # each rewrite immediately, instead of accumulating them.
                 # (iv) return delta here
-                _update_opset_impots(graph_or_function, delta)
-                _update_opset_impots(model.graph, delta)
+                _update_opset_imports(graph_or_function, delta)
+                _update_opset_imports(model.graph, delta)
                 return match.values, delta.new_nodes
         return None
 
