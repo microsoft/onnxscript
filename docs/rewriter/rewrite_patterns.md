@@ -50,11 +50,15 @@ For this example, we do not require a `match_condition` so that option is skippe
 :lines: 84-87
 ```
 
-Now that the rewrite rule has been created,
-1. The user's model is converted into an intermediate IR representation.
-2. The rewrite rule is applied to the nodes in the graph.
-3. The intermediate IR with the replaced pattern nodes is converted back to an ONNX Model Proto.
-In order to do the steps mentioned above:
+Now that the rewrite rule has been created, the next step is to apply these pattern-based rewrite rules. The `rewriter.rewrite` call consists of three main components:
+
+1. `model` : The original model on which the pattern rewrite rules are to be applied. This is of type `onnx.ModelProto`.
+2. `function_rewrite_rules` : `(Optional)` This paramter is used to pass rewrite rules based on function names. Steps on how to use this parameter will be covered in a different tutorial. This parameter is of type `Sequence[type[FunctionRewriteRule]]`
+3. `pattern_rewrite_rules` : `(Optional)` This paramter is used to pass rewrite rules based on a provided replacement pattern. For the purpose of this tutorial, we will be using only this parameter in conjuction with `model`. This parameter is of type `Sequence[PatternRewriteRule]`.
+
+Note: `pattern_rewrite_rules` takes a sequence of `PatternRewriteRule` types, so if only a singular rewrite rule is to be passed, it needs to passed as part of a sequence.
+
+The snippet below below demonstrates how to use the `rewriter.rewrite` call for the rewrite rule created above:
 
 ```{literalinclude} examples/erfgelu.py
 :lines: 88-91
@@ -67,6 +71,41 @@ The graph (on the left) consists of the target pattern before the rewrite rule i
 
 ## Utilizing match_condition parameter for pattern-matching
 
+This section talks about how to utilize the `match_condition` parameter. The `match_condition` parameter checks if the pattern matches the target pattern with certain constraints in consideration.
+
+Let us consider a model which consists of the following pattern.
+
+![target_pattern](examples/img/broadcast_01.png)
+
+Based on the [ONNX Matmul spec](https://github.com/onnx/onnx/blob/main/docs/Operators.md#MatMul), onnx Matmul behaves like numpy.matmul and also follows numpy broadcasting. So in this particular pattern if matmul broadcasting is enough, then we don't need the reshapes. To validate this, we need to check the following:
+
+1. Input shapes check: input_a and input_b should be broadcastable
+2. Output shape check: shape_c should be the same as the output shape from the matmul(input_a, input_b)
+
+If the above are true, then we don't need the reshapes and we can eliminate them using a pattern based rewrite. In order to validate whether matmul broadcast is sufficient, we write a condition checking function as follows:
+
+```{literalinclude} examples/broadcast_matmul.py
+:pyobject: check_if_need_reshape
+```
+
+Once we have the match_condition function, we can write a target pattern and replacement pattern in a similar way to the first example.
+
+```{literalinclude} examples/broadcast_matmul.py
+:pyobject: two_reshapes_matmul_reshape_pattern
+```
+
+```{literalinclude} examples/broadcast_matmul.py
+:pyobject: matmul_with_two_shape_inputs
+```
+
+With all the necessary components in place, the pattern rewrite rule is created and then the `rewriter.rewrite` is called to apply the rewrite.
+
+```{literalinclude} examples/broadcast_matmul.py
+:lines: 199-203
+```
+```{literalinclude} examples/broadcast_matmul.py
+:lines: 204-207
+```
 
 ## Utilizing commute parameter for pattern-matching
 
