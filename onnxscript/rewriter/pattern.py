@@ -558,6 +558,12 @@ class NodeOutputPattern(ValuePattern):
             return MatchResult.FAIL()
         return self.node_pattern.matches_node(node, model)
 
+    def commute(self) -> Sequence[ValuePattern]:
+        return [
+            NodeOutputPattern(pattern, self.output_index, self.name)
+            for pattern in self.node_pattern.commute()
+        ]
+
 
 Var = ValuePattern
 
