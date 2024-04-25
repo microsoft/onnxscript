@@ -943,21 +943,6 @@ def _apply_deltas(
     graph_or_function.remove(to_delete, safe=True)
 
 
-def _update_opset_imports(
-    graph_or_function: ir.Graph | ir.Function, delta: ReplacementSubgraph
-):
-    imports = graph_or_function.opset_imports
-    for domain, version in delta.used_opsets:
-        if domain not in imports:
-            # use 1 as default version if not explicitly specified
-            imports[domain] = version if version is not None else 1
-        elif version is not None and version != imports[domain]:
-            raise ValueError(
-                f"Multiple versions of opset {domain} used. "
-                f"Expected version {imports[domain]}, but got {version}."
-            )
-
-
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
         if commute:
