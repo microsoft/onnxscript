@@ -404,6 +404,12 @@ class ValuePattern:
         return MatchResult([], {self.name: value})
 
     def commute(self) -> Sequence[ValuePattern]:
+        """Return a list of commuted patterns.
+
+        This is used to handle commutative operations like addition and multiplication.
+        A single pattern is converted into a list of equivalent patterns by swapping
+        the parameters of commutative operations.
+        """
         return [self]
 
     def __add__(self, other):
