@@ -221,36 +221,23 @@ class OpsetPattern:
     of OpPattern, and  `op.Matmul(x, y)` is an instance of NodePattern.
 
     An opset pattern is also matched against the actual opset used in the
-    input model. Typically, we match against an ONNX opset (ignoring the
-    version), but we can match against a specific version of the opset too.
-    However, it is preferable that version-dependences are handled at the
-    level of a rewrite rule, rather than at the level of a pattern.
-
+    input model.
     """
 
     def __init__(
         self,
-        domain_pattern: PythonPattern | PrefixPattern,
-        version_pattern: PythonPattern | AnyPattern,
+        domain_pattern: PythonPattern | PrefixPattern | str
     ) -> None:
+        if isinstance(domain_pattern, str):
+            domain_pattern = PythonPattern(domain_pattern)
         self.domain_pattern = domain_pattern
-        self.version_pattern = version_pattern
-
-    @classmethod
-    def singleton(cls, domain: str, version: int) -> OpsetPattern:
-        return cls(PythonPattern(domain), PythonPattern(version))
-
-    @classmethod
-    def domain(cls, domain: str) -> OpsetPattern:
-        return cls(PythonPattern(domain), AnyPattern())
 
     @classmethod
     def domain_prefix(cls, domain: str) -> OpsetPattern:
-        return cls(PrefixPattern(domain), AnyPattern())
+        return cls(PrefixPattern(domain))
 
-    def matches(self, opset):
-        domain, version = opset
-        return self.domain_pattern.matches(domain) and self.version_pattern.matches(version)
+    def matches(self, domain):
+        return self.domain_pattern.matches(domain)
 
     def __getattr__(self, name: str) -> Any:
         return OpPattern(self, PythonPattern(name))
@@ -260,11 +247,9 @@ class OpsetPattern:
         return OpPattern(self, PrefixPattern(name))
 
 
-opset17 = OpsetPattern.singleton("", 17)
+onnxop = OpsetPattern("")
 
-onnxop = OpsetPattern.domain("")
-
-msft_op = OpsetPattern.singleton("com.microsoft", 1)
+msft_op = OpsetPattern("com.microsoft")
 
 torch_module_op = OpsetPattern.domain_prefix("pkg.torch")
 
@@ -475,8 +460,7 @@ class NodePattern:
 
     def matches_node(self, node: ir.Node, model: ir.Model) -> MatchResult:
         """Examine if the IR node matches the self pattern."""
-        node_version = model.graph.opset_imports.get(node.domain, 1)
-        if not self.domain.matches((node.domain, node_version)):
+        if not self.domain.matches(node.domain):
             return MatchResult.FAIL()
         if not self.op.matches(node.op_type):
             return MatchResult.FAIL()
