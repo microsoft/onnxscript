@@ -903,13 +903,21 @@ def _apply_deltas(
         else:
             deleted_nodes, inserted_nodes = delta
             # Replace deleted nodes with inserted nodes.
-            # However, we merge the last deleted node and last inserted node
-            # to avoid replacing the values produced by the last deleted node
-            # in all places where they are used. So, we reuse the output
-            # values from the last deleted node and replace the node itself
             # TODO: simplify this
             last_deleted = deleted_nodes[-1]
             last_inserted = inserted_nodes[-1]
+
+            for old_value, new_value in zip(last_deleted.outputs, last_inserted.outputs):
+                # Propagate relevant info from old value to new value
+                # TODO(Rama): Perhaps we should merge old and new types. As of now, new
+                # values don't have type information. Note that this could be a problem
+                # for semantics-altering rewrite-rules: we should allow users to override
+                # this for such rules.
+                new_value.type = old_value.type
+                new_value.shape = old_value.shape
+                new_value.const_value = old_value.const_value
+                new_value.name = old_value.name
+
             # Reconnect the users of the deleted node to use the new outputs
             _convenience.replace_all_uses_with(last_deleted.outputs, last_inserted.outputs)
             # Update graph/function outputs if the node generates output
