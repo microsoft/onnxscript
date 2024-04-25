@@ -23,8 +23,8 @@ msft_op = pattern.msft_op
 
 
 # Replacement
-def gelu(x):
-    return msft_op.Gelu(x)
+def gelu(op, x):
+    return op.Gelu(x, domain="com.microsoft")
 
 
 rule = pattern.RewriteRule(erf_gelu_pattern, gelu)
