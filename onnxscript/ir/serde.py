@@ -681,7 +681,19 @@ def _deserialize_attribute(
             [_deserialize_graph(g, scoped_values) for g in proto.graphs],
             doc_string=doc_string,
         )
-    # TODO: Handle type protos etc.
+    if type_ == _enums.AttributeType.SPARSE_TENSOR:
+        raise NotImplementedError("Sparse tensors are not supported yet")
+    if type_ == _enums.AttributeType.SPARSE_TENSORS:
+        raise NotImplementedError("Sparse tensors are not supported yet")
+    if type_ == _enums.AttributeType.TYPE_PROTO:
+        ir_type = deserialize_type_proto_for_type(proto.tp)
+        if ir_type is None:
+            raise ValueError(f"TypeProto cannot be None for attribute '{name}'")
+        return _core.AttrTypeProto(name, ir_type, doc_string=doc_string)
+    if type_ == _enums.AttributeType.TYPE_PROTOS:
+        raise NotImplementedError("Type protos are not supported yet")
+    if type_ == _enums.AttributeType.UNDEFINED:
+        return _core.Attr(name, type_, None, doc_string=doc_string)
     raise ValueError(f"Unsupported attribute type: '{type_}'")
 
 
@@ -1123,6 +1135,19 @@ def _fill_in_value_for_attribute(
         for graph in value:
             serialize_graph_into(attribute_proto.graphs.add(), graph)
         attribute_proto.type = onnx.AttributeProto.GRAPHS
+    elif type_ == _enums.AttributeType.SPARSE_TENSOR:
+        raise NotImplementedError("Sparse tensors are not supported yet")
+    elif type_ == _enums.AttributeType.SPARSE_TENSORS:
+        raise NotImplementedError("Sparse tensors are not supported yet")
+    elif type_ == _enums.AttributeType.TYPE_PROTO:
+        if value.type is not None:
+            serialize_type_into(attribute_proto.tp, value.type)
+        # Need to create the type _before_ writing the shape
+        if value.shape is not None:
+            serialize_shape_into(attribute_proto.tp, value.shape)
+        attribute_proto.type = onnx.AttributeProto.TYPE_PROTO
+    elif type_ == _enums.AttributeType.TYPE_PROTOS:
+        raise NotImplementedError("Type protos are not supported yet")
     else:
         raise TypeError(f"Unsupported attribute type: {type_}")
 
@@ -1169,10 +1194,11 @@ def serialize_value_into(
         value_info_proto.name = from_.name
     if from_.metadata_props:
         _serialize_metadata_props_into(value_info_proto.metadata_props, from_.metadata_props)
-    if from_.shape is not None:
-        serialize_shape_into(value_info_proto.type, from_.shape)
     if from_.type is not None:
         serialize_type_into(value_info_proto.type, from_.type)
+    # Need to create the type _before_ writing the shape
+    if from_.shape is not None:
+        serialize_shape_into(value_info_proto.type, from_.shape)
 
 
 def serialize_type_into(type_proto: onnx.TypeProto, from_: _protocols.TypeProtocol) -> None:
@@ -1195,12 +1221,18 @@ def serialize_type_into(type_proto: onnx.TypeProto, from_: _protocols.TypeProtoc
 
 
 def serialize_shape_into(type_proto: onnx.TypeProto, from_: _protocols.ShapeProtocol) -> None:
-    tensor_type_proto = type_proto.tensor_type
+    value_field = type_proto.WhichOneof("value")
+    tensor_type = getattr(type_proto, value_field)
+    while not isinstance(tensor_type.elem_type, int):
+        # Find the leaf type that has the shape field
+        type_proto = tensor_type.elem_type
+        value_field = type_proto.WhichOneof("value")
+        tensor_type = getattr(type_proto, value_field)
     # When from is empty, we still need to set the shape field to an empty list by touching it
-    tensor_type_proto.shape.ClearField("dim")
+    tensor_type.shape.ClearField("dim")
     for i, dim in enumerate(from_):
         denotation = from_.get_denotation(i)
-        serialize_dimension_into(tensor_type_proto.shape.dim.add(), dim, denotation)
+        serialize_dimension_into(tensor_type.shape.dim.add(), dim, denotation)
 
 
 def serialize_dimension_into(
@@ -1213,4 +1245,6 @@ def serialize_dimension_into(
     if isinstance(dim, int):
         dim_proto.dim_value = dim
     elif isinstance(dim, (_core.SymbolicDim, _protocols.SymbolicDimProtocol)):
-        dim_proto.dim_param = str(dim.value)
+        if dim.value is not None:
+            # TODO(justinchuby): None is probably not a valid value for dim_param
+            dim_proto.dim_param = str(dim.value)

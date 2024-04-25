@@ -18,7 +18,7 @@ model_paths = list(model_folder_path.rglob("*.onnx")) + list(
     onnx_backend_test_path.rglob("*.onnx")
 )
 test_args = [
-    (model_path.parent.name + model_path.name, model_path) for model_path in model_paths
+    (f"{model_path.parent.name}_{model_path.name}", model_path) for model_path in model_paths
 ]
 
 
