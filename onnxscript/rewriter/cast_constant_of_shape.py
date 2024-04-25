@@ -19,7 +19,7 @@ def cast_constant_of_shape(shape, scalar, dtype):
 def fused_cast_constant_of_shape(op, shape: ir.Value, scalar: ir.Attr, dtype: ir.Attr, **_):
     # Cast scalar (a TensorProto attribute) to the specified dtype
     scalar_value = scalar.value.numpy().item()
-    cast_value = onnx.helper.make_tensor("value", dtype.value, (), [scalar_value])
+    cast_value = onnx.helper.make_tensor("value", dtype.value, (1,), [scalar_value])
     return op.ConstantOfShape(shape, value=cast_value)
 
 
@@ -29,7 +29,7 @@ def cast_constant_of_shape_without_value(shape, dtype):
 
 
 def fused_cast_constant_of_shape_without_value(op, shape, dtype, **_):
-    zero = onnx.helper.make_tensor("value", dtype.value, (), [0])
+    zero = onnx.helper.make_tensor("value", dtype.value, (1,), [0])
     return op.ConstantOfShape(shape, value=zero)
 
 
