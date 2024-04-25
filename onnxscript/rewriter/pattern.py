@@ -747,6 +747,21 @@ class ReplacementPatternFunction:
         return ReplacementSubgraph(new_values, context.nodes, context.used_opsets)
 
 
+def _update_opset_imports(
+    graph_or_function: ir.Graph | ir.Function, delta: ReplacementSubgraph
+):
+    imports = graph_or_function.opset_imports
+    for domain, version in delta.used_opsets:
+        if domain not in imports:
+            # use 1 as default version if not explicitly specified
+            imports[domain] = version if version is not None else 1
+        elif version is not None and version != imports[domain]:
+            raise ValueError(
+                f"Multiple versions of opset {domain} used. "
+                f"Expected version {imports[domain]}, but got {version}."
+            )
+
+
 class RewriteRule:
     def __init__(
         self,
@@ -823,7 +838,7 @@ class RewriteRule:
                     )
                 # TODO(rama): Check/update opset-imports
                 # (i) Integrate following with the multi-output matcher and code elsewhere:
-                # (ii) For functions, we need to do this with function, not model's main graph.
+                # (ii) Remove the opset imports from deleted nodes?
                 # (iii) Code in the caller (below) checks if match overlaps previous match, which
                 # appears incorrect for single-pattern matcher. Best to alter iteration to apply
                 # each rewrite immediately, instead of accumulating them.
