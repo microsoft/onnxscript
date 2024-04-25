@@ -383,8 +383,7 @@ class MatchResult:
         self.matched_values = None
         self.bindings = {}
 
-    def extend(self, other: MatchResult | bool, model):
-        del model  # Unused
+    def extend(self, other: MatchResult | bool):
         if not self.success:
             return
         if not other:
@@ -492,7 +491,7 @@ class NodePattern:
             if arg_value is None or previous_node_output_pattern is None:
                 return MatchResult.FAIL()
             sub_match = previous_node_output_pattern.matches(arg_value, model)  # type: ignore[attr-defined]
-            match.extend(sub_match, model)
+            match.extend(sub_match)
             if not match:  # If sub-match failed,
                 return match
         # Sub-graphs not handled yet.
@@ -503,7 +502,7 @@ class NodePattern:
             sub_match = attr_pattern.matches(attr_value, model)  # type: ignore[arg-type]
             if not sub_match:
                 return MatchResult.FAIL()
-            match.extend(sub_match, model)
+            match.extend(sub_match)
         for name in node.attributes:
             # TODO: Support matching default values for attributes.
             if name not in self.attributes:
