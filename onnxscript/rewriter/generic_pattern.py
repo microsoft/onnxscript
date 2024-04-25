@@ -113,7 +113,7 @@ class GenericRewriteRule(orp.RewriteRule):
         raise RuntimeError(f"This pattern {self} is meant to replace not to only match.")
 
     def try_rewrite(
-        self, model: ir.Model, node: ir.Node
+        self, model: ir.Model, graph_or_function: ir.Graph | ir.Function, node: ir.Node
     ) -> tuple[int, list[ir.Node], list[ir.Node]] | None:
         """See :meth:`RewriteRule.try_rewrite`."""
 
