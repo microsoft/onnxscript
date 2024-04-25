@@ -2,7 +2,6 @@ import unittest
 
 import onnx.checker
 import onnx.parser
-import onnx.printer
 
 from onnxscript import ir
 from onnxscript.rewriter import cast_constant_of_shape
@@ -27,7 +26,6 @@ class CastConstantOfShapeTest(unittest.TestCase):
         self.assertEqual(len(model.graph), 1)
         self.assertEqual(model.graph[0].attributes["value"].value.dtype, 10)
         output_model_proto = ir.serde.serialize_model(model)
-        print(onnx.printer.to_text(output_model_proto))
         onnx.checker.check_model(output_model_proto, True)
 
     def test_cast_after_constant_of_shape_without_value_is_fused(self):
