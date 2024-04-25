@@ -172,20 +172,27 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
             rich.print(text)
 
 
-def _check_numpy_storage_type(array: np.ndarray, dtype: _enums.DataType) -> None:
+def _check_numpy_representation_type(array: np.ndarray, dtype: _enums.DataType) -> None:
     """Check if the numpy array dtype matches the IR data type.
 
-    For numpy unsupported dtypes, the array must be ``np.float32`` for ``BFLOAT16``,
-    ``FLOAT8E4M3FN``, ``FLOAT8E4M3FNUZ``, ``FLOAT8E5M2``, ``FLOAT8E5M2FNUZ``.
+    For numpy unsupported dtypes, the array must be ``np.float32``. Otherwise
+    the data types must match exactly.
 
-    For ``INT4`` the array must be ``np.int8``; ``UINT4`` must be in ``np.uint8``.
-    Otherwise the data types must match exactly.
+    The reason for requiring ``np.float32`` for unsupported dtypes, instead of
+    a byte representation like uint16 or uint8, is that users will not need to provide
+    the btype representation for the array when they want to initialize a Tensor,
+    and we will not need to cast the bytes back to float32 when users call :meth:`Tensor.numpy`
+    to obtain the array for computation and analysis.
+
+    The correct byte representation is only needed when the tensor is serialized,
+    which is done in the :meth:`Tensor.tobytes` method.
     """
     if dtype in _NON_NUMPY_NATIVE_TYPES:
         if array.dtype != np.float32:
             raise TypeError(
                 f"The numpy array dtype must be float32 (not {dtype}) for IR data type {dtype}."
             )
+        # TODO(justinchuby): Check that the values are in range?
         return
 
     if _enums.DataType.from_numpy(array.dtype) != dtype:
@@ -296,7 +303,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         else:
             if isinstance(value, np.ndarray):
                 # Make sure the dtype matches the value
-                _check_numpy_storage_type(value, dtype)
+                _check_numpy_representation_type(value, dtype)
             # Users are responsible for making sure the dtype matches the value
             # when value is not a numpy array
             self._dtype = dtype
