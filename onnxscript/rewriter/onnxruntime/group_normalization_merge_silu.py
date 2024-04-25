@@ -32,13 +32,14 @@ def group_normalization_and_silu_submodule(
 
 
 def group_normalization_with_silu(
+    op,
     input,
     weight,
     bias,
     epsilon,
     groups,
 ):
-    group_norm = msft_op.GroupNorm(
+    group_norm = op.GroupNorm(
         input,
         weight,
         bias,
@@ -46,6 +47,7 @@ def group_normalization_with_silu(
         channels_last=1,
         epsilon=epsilon,
         groups=groups,
+        domain="com.microsoft",
     )
     return op.Transpose(group_norm, perm=[0, 3, 1, 2])
 

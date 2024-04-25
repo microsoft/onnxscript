@@ -123,3 +123,7 @@ class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):
         self.assertEqual(count, 2)
         # plus 2 in model constants
         self.assertEqual(len(model.graph), 10)
+
+
+if __name__ == "__main__":
+    unittest.main()

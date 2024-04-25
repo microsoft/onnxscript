@@ -168,7 +168,7 @@ def replace_all_uses_with(
     values: _protocols.ValueProtocol | Sequence[_protocols.ValueProtocol],
     replacements: _protocols.ValueProtocol | Sequence[_protocols.ValueProtocol],
 ) -> None:
-    """Replace all consumers of the given values with the replacements.
+    """Replace all uses of the given values with the replacements.
 
     This is useful when nodes in the graph are replaced with new nodes, where
     the old users need to be updated to use the outputs of the new nodes.
@@ -194,7 +194,7 @@ def replace_all_uses_with(
         1
         >>> node_c.inputs[0].producer().op_type
         'D'
-        >>> len(node_a.outputs[0].consumers())
+        >>> len(node_a.outputs[0].uses())
         0
 
     When values and replacements are sequences, they are zipped into pairs. All
@@ -216,5 +216,5 @@ def replace_all_uses_with(
     if len(values) != len(replacements):
         raise ValueError("The number of values and replacements must match.")
     for value, replacement in zip(values, replacements):
-        for user_node, index in tuple(value.consumers()):
+        for user_node, index in tuple(value.uses()):
             user_node.replace_input_with(index, replacement)

@@ -635,11 +635,11 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     user is responsible to call ``graph.append(node)`` (or other mutation methods
     in :class:`Graph`) to add the node to the graph.
 
-    After the node is initialized, it will add itself as a consumer of the input values.
+    After the node is initialized, it will add itself as a user of the input values.
 
     The output values of the node are created during node initialization and are immutable.
-    To change the output values, create a new node and replace the each of the inputs of ``output.consumers`` with
-    the new output values by calling :meth:`replace_input_with` on the consumer nodes
+    To change the output values, create a new node and replace the each of the inputs of ``output.uses()`` with
+    the new output values by calling :meth:`replace_input_with` on the using nodes
     of this node's outputs.
     """
 
@@ -673,7 +673,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
     ):
-        """Initialize a node and add it as a consumer of the input values.
+        """Initialize a node and add it as a user of the input values.
 
         Args:
             domain: The domain of the operator. For onnx operators, this is an empty string.
@@ -718,10 +718,10 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._graph: Graph | None = graph
         self.doc_string = doc_string
 
-        # Add the node as a consumer of the inputs
+        # Add the node as a use of the inputs
         for i, input_value in enumerate(self._inputs):
             if input_value is not None:
-                input_value._add_consumer(self, i)  # pylint: disable=protected-access
+                input_value._add_usage(self, i)  # pylint: disable=protected-access
 
         # Add the node to the graph if graph is specified
         if self._graph is not None:
@@ -821,9 +821,9 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             value if i == index else old_input for i, old_input in enumerate(self.inputs)
         )
         if old_input is not None:
-            old_input._remove_consumer(self, index)  # pylint: disable=protected-access
+            old_input._remove_usage(self, index)  # pylint: disable=protected-access
         if value is not None:
-            value._add_consumer(self, index)  # pylint: disable=protected-access
+            value._add_usage(self, index)  # pylint: disable=protected-access
 
     def prepend(self, /, nodes: Node | Iterable[Node]) -> None:
         """Insert a node before this node in the list of nodes in the graph.
@@ -1016,7 +1016,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     The index of the output of the node that produces the value can be accessed with
     :meth:`index`.
 
-    To find all the nodes that use this value as an input, call :meth:`consumers`.
+    To find all the nodes that use this value as an input, call :meth:`uses`.
 
     To check if the value is an output of a graph, call :meth:`is_graph_output`.
 
@@ -1036,7 +1036,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         "_shape",
         "_type",
         "_const_value",
-        "_consumers",
+        "_uses",
     )
 
     def __init__(
@@ -1063,10 +1063,10 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # TODO(justinchuby): Handle initialization when a const value is provided
         # We can get shape and type information from the const value
         self._const_value = const_value
-        # Use a collection of (Node, int) to store consumers. This is needed
-        # because a single consumer can use the same value multiple times.
+        # Use a collection of (Node, int) to store uses. This is needed
+        # because a single use can use the same value multiple times.
         # Use a dictionary to preserve insertion order so that the visiting order is deterministic
-        self._consumers: dict[tuple[Node, int], None] = {}
+        self._uses: dict[tuple[Node, int], None] = {}
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
@@ -1095,27 +1095,27 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         """The index of the output of the defining node."""
         return self._index
 
-    def consumers(self) -> Collection[tuple[Node, int]]:
-        """Return a set of consumers of the value.
+    def uses(self) -> Collection[tuple[Node, int]]:
+        """Return a set of uses of the value.
 
         The set contains tuples of ``(Node, index)`` where the index is the index of the input
-        of the node. For example, if ``node.inputs[1] == value``, then the consumer is ``(node, 1)``.
+        of the node. For example, if ``node.inputs[1] == value``, then the use is ``(node, 1)``.
         """
-        return self._consumers.keys()
+        return self._uses.keys()
 
-    def _add_consumer(self, consumer: Node, index: int) -> None:
-        """Add a consumer node.
+    def _add_usage(self, use: Node, index: int) -> None:
+        """Add a usage of this value.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._consumers[(consumer, index)] = None
+        self._uses[(use, index)] = None
 
-    def _remove_consumer(self, consumer: Node, index: int) -> None:
-        """Remove a node from the consumers of this value.
+    def _remove_usage(self, use: Node, index: int) -> None:
+        """Remove a node from the uses of this value.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._consumers.pop((consumer, index))
+        self._uses.pop((use, index))
 
     @property
     def name(self) -> str | None:
@@ -1246,7 +1246,7 @@ def _check_node_safe_to_remove(
         to be removed before removing it.
     2. It checks the node does not contribute to any graph outputs.
 
-    This check is typically O(1) assuming the number of consumers of the node is small
+    This check is typically O(1) assuming the number of uses of the node is small
 
     Args:
         node: The node to check.
@@ -1264,12 +1264,12 @@ def _check_node_safe_to_remove(
             raise ValueError(
                 f"Node '{node!r}' is still an output of the graph and cannot be removed when safe=True."
             )
-        for consumer, _ in output.consumers():
-            if consumer in to_remove:
+        for use, _ in output.uses():
+            if use in to_remove:
                 continue
             raise ValueError(
-                f"Node '{consumer!r}' is still being used by other nodes that are not to be "
-                f"removed. All of its uses: {list(output.consumers())!r}"
+                f"Node '{use!r}' is still being used by other nodes that are not to be "
+                f"removed. All of its uses: {list(output.uses())!r}"
             )
 
 

@@ -434,8 +434,8 @@ class GraphTest(unittest.TestCase):
 
     def test_remove_does_not_change_input_users(self):
         self.graph.remove(self.node)
-        self.assertEqual(tuple(self.v0.consumers()), ((self.node, 0),))
-        self.assertEqual(tuple(self.v1.consumers()), ((self.node, 1),))
+        self.assertEqual(tuple(self.v0.uses()), ((self.node, 0),))
+        self.assertEqual(tuple(self.v1.uses()), ((self.node, 1),))
 
     def test_remove_does_not_change_graph_in_out(self):
         self.graph.remove(self.node)
@@ -481,8 +481,8 @@ class GraphTest(unittest.TestCase):
         identity_node.replace_input_with(0, sub_node.outputs[0])
         graph.insert_before(identity_node, sub_node)
         graph.remove(add_node, safe=True)
-        self.assertEqual(tuple(v0.consumers()), ((sub_node, 0),))
-        self.assertEqual(tuple(v1.consumers()), ((sub_node, 1),))
+        self.assertEqual(tuple(v0.uses()), ((sub_node, 0),))
+        self.assertEqual(tuple(v1.uses()), ((sub_node, 1),))
         self.assertEqual(tuple(graph), (sub_node, identity_node))
         self.assertEqual(add_node.inputs, (None, None))
 
