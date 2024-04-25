@@ -474,20 +474,6 @@ class NodePattern:
         self.attributes = attributes
         self.bound_value = None
 
-    def matches(self, value: ir.Value, model: ir.Model):
-        if self.bound_value is not None:
-            # DAG-matching, not Tree-matching.
-            if self.bound_value.is_same_as(value):
-                return MatchResult([])
-            else:
-                return MatchResult.FAIL()
-        node = value.producer()
-        if node is None:
-            # Eg., value could be an input parameter, which will not match a value
-            # computed by the op in this pattern.
-            return MatchResult.FAIL()
-        return self.matches_node(node, model)
-
     def matches_node(self, node: ir.Node, model: ir.Model) -> MatchResult:
         """Examine if the IR node matches the self pattern."""
         node_version = model.graph.opset_imports.get(node.domain, 1)
