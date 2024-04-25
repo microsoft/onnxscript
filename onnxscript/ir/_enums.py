@@ -1,19 +1,19 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 """ONNX IR enums that matches the ONNX spec."""
 
 from __future__ import annotations
 
 import enum
-import typing
 
-if typing.TYPE_CHECKING:
-    import numpy as np
+import numpy as np
 
 
 class AttributeType(enum.IntEnum):
     """Enum for the types of ONNX attributes."""
 
-    # TODO(justinchuby): Should we code gen this? We just need to get rid of protoc
-    # We can code gen with https://github.com/recap-build/proto-schema-parser/tree/main
     UNDEFINED = 0
     FLOAT = 1
     INT = 2
@@ -38,6 +38,10 @@ class AttributeType(enum.IntEnum):
 
 
 class DataType(enum.IntEnum):
+    """Enum for the data types of ONNX tensors, defined in ``onnx.TensorProto``."""
+
+    # NOTE: Naming: It is tempting to use shorter and more modern names like f32, i64,
+    # but we should stick to the names used in the ONNX spec for consistency.
     UNDEFINED = 0
     FLOAT = 1
     UINT8 = 2
@@ -62,21 +66,31 @@ class DataType(enum.IntEnum):
     UINT4 = 21
     INT4 = 22
 
+    @classmethod
+    def from_numpy(cls, dtype: np.dtype) -> DataType:
+        """Returns the ONNX data type for the numpy dtype.
+
+        Raises:
+            TypeError: If the data type is not supported by ONNX.
+        """
+        if dtype not in _NP_TYPE_TO_DATA_TYPE:
+            raise TypeError(f"Unsupported numpy data type: {dtype}")
+        return cls(_NP_TYPE_TO_DATA_TYPE[dtype])
+
     @property
     def itemsize(self) -> float:
         """Returns the size of the data type in bytes."""
-        return ITEMSIZE_MAP[self]
+        return _ITEMSIZE_MAP[self]
 
     def numpy(self) -> np.dtype:
         """Returns the numpy dtype for the ONNX data type.
 
         Raises:
-            KeyError: If the data type is not supported by numpy.
+            TypeError: If the data type is not supported by numpy.
         """
-        import onnx.helper  # pylint: disable=import-outside-toplevel
-        # Import here to avoid bringing in the onnx protobuf dependencies to the module
-
-        return onnx.helper.tensor_dtype_to_np_dtype(self)
+        if self not in _DATA_TYPE_TO_NP_TYPE:
+            raise TypeError(f"Numpy does not support ONNX data type: {self}")
+        return _DATA_TYPE_TO_NP_TYPE[self]
 
     def __repr__(self) -> str:
         return self.name
@@ -85,7 +99,7 @@ class DataType(enum.IntEnum):
         return self.__repr__()
 
 
-ITEMSIZE_MAP = {
+_ITEMSIZE_MAP = {
     DataType.FLOAT: 4,
     DataType.UINT8: 1,
     DataType.INT8: 1,
@@ -109,3 +123,26 @@ ITEMSIZE_MAP = {
     DataType.UINT4: 0.5,
     DataType.INT4: 0.5,
 }
+
+
+_NP_TYPE_TO_DATA_TYPE = {
+    np.dtype("bool"): DataType.BOOL,
+    np.dtype("complex128"): DataType.COMPLEX128,
+    np.dtype("complex64"): DataType.COMPLEX64,
+    np.dtype("float16"): DataType.FLOAT16,
+    np.dtype("float32"): DataType.FLOAT,
+    np.dtype("float64"): DataType.DOUBLE,
+    np.dtype("int16"): DataType.INT16,
+    np.dtype("int32"): DataType.INT32,
+    np.dtype("int64"): DataType.INT64,
+    np.dtype("int8"): DataType.INT8,
+    np.dtype("object"): DataType.STRING,
+    np.dtype("uint16"): DataType.UINT16,
+    np.dtype("uint32"): DataType.UINT32,
+    np.dtype("uint64"): DataType.UINT64,
+    np.dtype("uint8"): DataType.UINT8,
+}
+
+# ONNX DataType to Numpy dtype. This mapping does not capture ONNX data
+# types that are not supported by numpy.
+_DATA_TYPE_TO_NP_TYPE = {v: k for k, v in _NP_TYPE_TO_DATA_TYPE.items()}

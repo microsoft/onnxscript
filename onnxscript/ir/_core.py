@@ -1,3 +1,7 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 """data structures for the intermediate representation."""
 
 # NOTES for developers:
@@ -19,7 +23,9 @@ import sys
 import textwrap
 import typing
 from typing import (
+    AbstractSet,
     Any,
+    Collection,
     Generic,
     Iterable,
     Iterator,
@@ -33,7 +39,9 @@ import numpy as np
 from onnxscript.ir import (
     _display,
     _enums,
+    _linked_list,
     _metadata,
+    _name_authority,
     _protocols,
 )
 
@@ -77,7 +85,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
     def _repr_base(self) -> str:
         """Base string for the repr method.
 
-        Example: Tensor<FLOAT:=1,5x42>
+        Example: Tensor<FLOAT,[5,42]>
         """
         return f"{self.__class__.__name__}<{self._printable_type_shape()}>"
 
@@ -98,7 +106,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         if rich is None:
             status_manager = contextlib.nullcontext()
         else:
-            import rich.status  # pylint: disable=import-outside-toplevel
+            import rich.status  # type: ignore[import-not-found, no-redef]  # pylint: disable=import-outside-toplevel
 
             status_manager = rich.status.Status(f"Computing tensor stats for {self!r}")
 
@@ -132,7 +140,9 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
             lines.append("Histogram:")
             hist, bin_edges = np.histogram(finite_numbers, bins=80, density=False)
             lines.append(
-                asciichartpy.plot(hist, bin_edges, {"height": 8, "format": "{:8.0f}"})
+                asciichartpy.plot(
+                    hist, bin_edges=bin_edges, cfg={"height": 8, "format": "{:8.0f}"}
+                )
             )
 
             text = "\n".join(lines)
@@ -140,7 +150,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         if rich is None:
             print(text)
         elif page:
-            import rich.console  # pylint: disable=import-outside-toplevel
+            import rich.console  # type: ignore[import-not-found, no-redef]  # pylint: disable=import-outside-toplevel
 
             console = rich.console.Console()
             with console.pager(styles=True):
@@ -152,30 +162,63 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
 class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
     """An immutable concrete value."""
 
-    __slots__ = ("_raw", "_dtype", "_shape", "name", "doc_string")
+    __slots__ = (
+        "_raw",
+        "_dtype",
+        "_shape",
+        "name",
+        "doc_string",
+        "_metadata_props",
+        "_metadata",
+    )
 
     def __init__(
         self,
         value: TArrayCompatible,
-        dtype: _enums.DataType,
+        dtype: _enums.DataType | None = None,
         *,
         shape: Shape | None = None,
         name: str = "",
         doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
     ) -> None:
+        """Initialize a tensor.
+
+        Args:
+            value: The backing data of the tensor. It can be a numpy array or a DLPack compatible object.
+            dtype: The data type of the tensor. It can be None only when value is a numpy array.
+            shape: The shape of the tensor. If None, the shape is obtained from the value.
+            name: The name of the tensor.
+            doc_string: The documentation string.
+            metadata_props: The metadata properties.
+        """
         # NOTE: We should not do any copying here for performance reasons
         if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
             raise TypeError(f"Expected an array compatible object, got {type(value)}")
-        if not hasattr(value, "shape") and shape is None:
-            raise ValueError(
-                f"Expected an object with a shape attribute, but {type(value)} does not have shape. "
-                "Please specify the shape explicitly."
-            )
+        if shape is None:
+            if not hasattr(value, "shape"):
+                raise ValueError(
+                    f"Expected an object with a shape attribute, but {type(value)} does not have shape. "
+                    "Please specify the shape explicitly."
+                )
+            self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
+        else:
+            self._shape = shape
+            self._shape._frozen = True
+        if dtype is None:
+            if isinstance(value, np.ndarray):
+                self._dtype = _enums.DataType.from_numpy(value.dtype)
+            else:
+                raise ValueError(
+                    "The dtype must be specified when the value is not a numpy array."
+                )
+        else:
+            self._dtype = dtype
         self._raw = value
-        self._dtype = dtype
-        self._shape = Shape(getattr(value, "shape"))  # noqa: B009
         self.name = name
         self.doc_string = doc_string
+        self._metadata: _metadata.MetadataStore | None = None
+        self._metadata_props = metadata_props
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         # TODO(justinchuby): Support numpy unsupported types
@@ -191,8 +234,13 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
             return self._raw.__dlpack__(stream=stream)
         return self.__array__().__dlpack__(stream=stream)
 
+    def __dlpack_device__(self) -> tuple[int, int]:
+        if _compatible_with_dlpack(self._raw):
+            return self._raw.__dlpack_device__()
+        return self.__array__().__dlpack_device__()
+
     def __repr__(self) -> str:
-        return f"{self._repr_base()}({self._raw!r})"
+        return f"{self._repr_base()}({self._raw!r}, name={self.name!r})"
 
     @property
     def dtype(self) -> _enums.DataType:
@@ -228,9 +276,50 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
             return array.view(array.dtype.newbyteorder("<")).tobytes()
         return array.tobytes()
 
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
+
 
 class ExternalTensor(TensorBase, _protocols.TensorProtocol):
-    """A tensor with the data as external data on disk."""
+    """An immutable concrete tensor with its data store on disk.
+
+    This class uses memory mapping to avoid loading the tensor into memory,
+    when the data type is supported by numpy. Otherwise, the tensor is loaded
+    into memory lazily when accessed.
+
+    Calling :attr:`shape` does not incur IO. Checking shape before loading
+    the tensor is recommended if IO overhead and memory usage is a concern.
+
+    To obtain an array, call :meth:`numpy`. To obtain the bytes,
+    call :meth:`tobytes`.
+
+    The :attribute:`path` can be a relative path or an absolute path.
+    Serializers should handle the path correctly to conform with the ONNX spec.
+
+    Attributes:
+        path: The path to the data file. This can be a relative path or an absolute path.
+        offset: The offset in bytes from the start of the file.
+        length: The length of the data in bytes.
+        dtype: The data type of the tensor.
+        shape: The shape of the tensor.
+        name: The name of the tensor. It must be specified.
+        doc_string: The documentation string.
+        metadata_props: The metadata properties.
+    """
 
     __slots__ = (
         "_path",
@@ -242,6 +331,8 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         "doc_string",
         "_array",
         "raw",
+        "_metadata_props",
+        "_metadata",
     )
 
     def __init__(
@@ -254,40 +345,20 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         shape: Shape,
         name: str,
         doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
     ) -> None:
-        """An immutable concrete tensor with its data store on disk.
-
-        This class uses memory mapping to avoid loading the tensor into memory,
-        when the data type is supported by numpy. Otherwise, the tensor is loaded
-        into memory lazily when accessed.
-
-        Calling :attr:`shape` does not incur IO. Checking shape before loading
-        the tensor is recommended if IO overhead and memory usage is a concern.
-
-        To obtain an array, call :method:`numpy`. To obtain the bytes,
-        call :method:`tobytes`.
-
-        The :attribute:`path` can be a relative path or an absolute path.
-        Serializers should handle the path correctly to conform with the ONNX spec.
-
-        Args:
-            path: The path to the data file. This can be a relative path or an absolute path.
-            offset: The offset in bytes from the start of the file.
-            length: The length of the data in bytes.
-            dtype: The data type of the tensor.
-            shape: The shape of the tensor.
-            name: The name of the tensor. It must be specified.
-            doc_string: The documentation string.
-        """
         self._path = path
         self._offset: int | None = offset
         self._length: int | None = length
         self._dtype: _enums.DataType = dtype
         self.name: str = name  # mutable
         self._shape: Shape = shape
+        self._shape._frozen = True
         self.doc_string: str | None = doc_string  # mutable
         self._array: np.ndarray | None = None
         self.raw: mmap.mmap | None = None
+        self._metadata_props = metadata_props
+        self._metadata: _metadata.MetadataStore | None = None
 
     @property
     def path(self) -> str | os.PathLike:
@@ -343,6 +414,10 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         return f"{self._repr_base()}(path='{self._path}', name={self.name!r}, offset={self._offset!r}), length={self._length!r})"
 
     def numpy(self) -> np.ndarray:
+        """Return the tensor as a numpy array.
+
+        The data will be memory mapped into memory and will not taken up physical memory space.
+        """
         if self._array is None:
             self._load()
         assert self._array is not None
@@ -360,47 +435,96 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         length = self._length or self.nbytes
         return self.raw[offset : offset + length]
 
-
-class Dimension(_protocols.DimensionProtocol, _display.PrettyPrintable):
-    __slots__ = ("_value", "_denotation")
-
-    def __init__(self, value: int | str | None, denotation: str | None = None) -> None:
-        self._value = value
-        self._denotation = denotation
-
-    def __index__(self) -> int:
-        if not isinstance(self.value, int):
-            raise TypeError(
-                f"The value of this dim is not int, but {type(self.value)} ({self.value})"
-            )
-        return self.value
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
 
     @property
-    def value(self) -> int | str | None:
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
+
+
+class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
+    __slots__ = ("_value",)
+
+    def __init__(self, value: str | None) -> None:
+        """Initialize a symbolic dimension.
+
+        Args:
+            value: The value of the dimension. It should not be an int.
+        """
+        if isinstance(value, int):
+            raise TypeError("The value of a SymbolicDim cannot be an int")
+        self._value = value
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, SymbolicDim):
+            return self.value == other
+        return self.value == other.value
+
+    def __hash__(self) -> int:
+        return hash(self.value)
+
+    @property
+    def value(self) -> str | None:
         return self._value
 
-    @property
-    def denotation(self) -> str | None:
-        return self._denotation
+    def __str__(self) -> str:
+        return f"{self._value}"
 
     def __repr__(self) -> str:
-        return f"{self._value}"
+        return f"{self.__class__.__name__}({self._value})"
 
 
 class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
-    __slots__ = ("_dims",)
+    __slots__ = ("_dims", "_frozen")
 
-    def __init__(self, dims: _protocols.SimpleShape | Sequence[Dimension]) -> None:
-        # TODO: Support symbolic shapes with expressions?
-        for dim in dims:
-            if dim is not None and not isinstance(dim, (int, str, Dimension)):
-                raise TypeError(f"Expected int, str, None or Dimension, got '{type(dim)}'")
-        self._dims: list[Dimension] = [
-            dim if isinstance(dim, Dimension) else Dimension(dim) for dim in dims
+    def __init__(
+        self,
+        dims: Iterable[int | SymbolicDim | str | None],
+        /,
+        denotations: Iterable[str | None] | None = None,
+        frozen: bool = False,
+    ) -> None:
+        """Initialize a shape.
+
+        Args:
+            dims: The dimensions of the shape. Each dimension can be an integer or a
+                SymbolicDim or any Python object. When a ``dim`` is not an integer or a
+                SymbolicDim, it is converted to a SymbolicDim.
+            denotations: The denotations of the dimensions. If None, the denotations are not set.
+                Standard denotation can optionally be used to denote tensor
+                dimensions with standard semantic descriptions to ensure
+                that operations are applied to the correct axis of a tensor.
+                Refer to https://github.com/onnx/onnx/blob/main/docs/DimensionDenotation.md#denotation-definition
+                for pre-defined dimension denotations.
+            frozen: If True, the shape is immutable and cannot be modified. This
+                is useful when the shape is initialized by a Tensor.
+        """
+        self._dims: list[int | SymbolicDim] = [
+            SymbolicDim(dim) if not isinstance(dim, (int, SymbolicDim)) else dim
+            for dim in dims
         ]
+        self._denotations: list[str | None] = (
+            list(denotations) if denotations is not None else [None] * len(self._dims)
+        )
+        if len(self._denotations) != len(self._dims):
+            raise ValueError(
+                "The number of denotations, when provided, must be equal to the number of dimensions."
+            )
+        self._frozen: bool = frozen
 
     @property
-    def dims(self) -> tuple[Dimension, ...]:
+    def dims(self) -> tuple[int | SymbolicDim, ...]:
         """All dimensions in the shape.
 
         This property is read-only. Use __getitem__ and __setitem__ to modify the shape or create a new shape.
@@ -411,39 +535,68 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         """The rank of the shape."""
         return len(self._dims)
 
-    def simple(self) -> _protocols.SimpleShape:
-        return tuple(dim.value for dim in self._dims)
-
     def numpy(self) -> tuple[int, ...]:
-        if any(not isinstance(dim.value, int) for dim in self._dims):
+        if any(not isinstance(dim, int) for dim in self._dims):
             raise ValueError(f"Cannot convert the shape {self} to a tuple of ints")
-        return tuple(dim.value for dim in self._dims)  # type: ignore
+        return tuple(dim for dim in self._dims)  # type: ignore
 
     def __len__(self) -> int:
         return len(self._dims)
 
-    def __iter__(self) -> Iterator[Dimension]:
+    def __iter__(self) -> Iterator[int | SymbolicDim]:
         return iter(self._dims)
 
-    def __getitem__(self, index: int) -> Dimension:
-        return self._dims[index]
+    @typing.overload
+    def __getitem__(self, index: int) -> int | SymbolicDim: ...
 
-    def __setitem__(
-        self, index: int, value: _protocols.DimensionProtocol | int | str | None
-    ) -> None:
-        if isinstance(value, Dimension):
-            self._dims[index] = value
-            return
-        if isinstance(value, (int, str, type(None))):
-            self._dims[index] = Dimension(value)
-            return
+    @typing.overload
+    def __getitem__(self, index: slice) -> tuple[int | SymbolicDim, ...]: ...
 
-        raise TypeError(
-            f"Value must be int, str, None or DimensionProtocol. Got '{type(value)}'"
-        )
+    def __getitem__(self, index):
+        return tuple(self._dims)[index]
+
+    def __setitem__(self, index: int, value: int | SymbolicDim | str | None) -> None:
+        """Set the dimension at the index.
+
+        Args:
+            index: The index of the dimension.
+            value: The value of the dimension.
+
+        Raises:
+            TypeError: If the shape is frozen and cannot be modified.
+            TypeError: If the value is not an int or SymbolicDim.
+        """
+        if self._frozen:
+            raise TypeError("The shape is frozen and cannot be modified.")
+        if isinstance(value, str) or value is None:
+            value = SymbolicDim(value)
+        if not isinstance(value, (int, SymbolicDim)):
+            raise TypeError(f"Expected int, str, None or SymbolicDim, got '{type(value)}'")
+
+        self._dims[index] = value
+
+    def get_denotation(self, index: int) -> str | None:
+        """Return the denotation of the dimension at the index.
+
+        Args:
+            index: The index of the dimension.
+
+        Returns:
+            The denotation of the dimension.
+        """
+        return self._denotations[index]
+
+    def set_denotation(self, index: int, denotation: str | None) -> None:
+        """Set the denotation of the dimension at the index.
+
+        Args:
+            index: The index of the dimension.
+            denotation: The denotation of the dimension.
+        """
+        self._denotations[index] = denotation
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self._dims})"
+        return f"{self.__class__.__name__}({self._dims!r})"
 
     def __str__(self) -> str:
         """Return a string representation of the shape.
@@ -453,7 +606,18 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         return f"[{','.join([str(dim) for dim in self._dims])}]"
 
     def __eq__(self, other: object) -> bool:
-        raise NotImplementedError("Not implemented yet")
+        """Return True if the shapes are equal.
+
+        Two shapes are eqaul if all their dimensions are equal.
+        """
+        if isinstance(other, Shape):
+            return self._dims == other._dims
+        if not isinstance(other, Iterable):
+            return False
+        return self._dims == list(other)
+
+    def __ne__(self, other: object) -> bool:
+        return not self.__eq__(other)
 
 
 def _quoted(string: str) -> str:
@@ -465,7 +629,19 @@ def _quoted(string: str) -> str:
 
 
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
-    """IR Node."""
+    """IR Node.
+
+    If the ``graph`` is provided, the node will be added to the graph. Otherwise,
+    user is responsible to call ``graph.append(node)`` (or other mutation methods
+    in :class:`Graph`) to add the node to the graph.
+
+    After the node is initialized, it will add itself as a user of the input values.
+
+    The output values of the node are created during node initialization and are immutable.
+    To change the output values, create a new node and replace the each of the inputs of ``output.uses()`` with
+    the new output values by calling :meth:`replace_input_with` on the using nodes
+    of this node's outputs.
+    """
 
     __slots__ = (
         "_name",
@@ -486,8 +662,8 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self,
         domain: str,
         op_type: str,
-        inputs: Sequence[Value | None],
-        attributes: Sequence[Attr | RefAttr] = (),
+        inputs: Iterable[Value | None],
+        attributes: Iterable[Attr | RefAttr] = (),
         *,
         overload: str = "",
         num_outputs: int = 1,
@@ -495,18 +671,9 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         graph: Graph | None = None,
         name: str | None = None,
         doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
     ):
         """Initialize a node and add it as a user of the input values.
-
-        When the node is initialized, it does not belong to any graph. It is the
-        responsibility of the caller to add the node to a graph, by calling :func:`Graph.absorb_nodes`.
-
-        After the node is initialized, it will add itself as a user of the input values.
-
-        The output values of the node are created during node initialization and are immutable.
-        To change the output values, create a new node and replace the output.users.inputs with
-        the new output values by calling :method:`replace_input_with` on the user nodes
-        of this node's outputs.
 
         Args:
             domain: The domain of the operator. For onnx operators, this is an empty string.
@@ -520,6 +687,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
                 A `Node` must belong to zero or one graph.
             name: The name of the node. If None, the node is anonymous.
             doc_string: The documentation string.
+            metadata_props: The metadata properties.
         """
         self._name = name
         self._domain: str = domain
@@ -530,8 +698,15 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._inputs: tuple[Value | None, ...] = tuple(inputs)
         # Values belong to their defining nodes. The values list is immutable
         self._outputs: tuple[Value, ...] = tuple(
-            Value(self, def_index=i) for i in range(num_outputs)
+            Value(self, index=i) for i in range(num_outputs)
         )
+        attributes = tuple(attributes)
+        if attributes and not isinstance(attributes[0], (Attr, RefAttr)):
+            raise TypeError(
+                f"Expected the attributes to be Attr or RefAttr, got {type(attributes[0])}. "
+                "If you are copying the attributes from another node, make sure you call "
+                "node.attributes.values() because it is a dictionary."
+            )
         self._attributes: OrderedDict[str, Attr | RefAttr] = OrderedDict(
             (attr.name, attr) for attr in attributes
         )
@@ -539,14 +714,18 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         # TODO(justinchuby): Potentially support a version range
         self._version: int | None = version
         self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = None
+        self._metadata_props: dict[str, str] | None = metadata_props
         self._graph: Graph | None = graph
         self.doc_string = doc_string
 
-        # Add the node as a user of the inputs
+        # Add the node as a use of the inputs
         for i, input_value in enumerate(self._inputs):
             if input_value is not None:
-                input_value.add_user(self, i)
+                input_value._add_usage(self, i)  # pylint: disable=protected-access
+
+        # Add the node to the graph if graph is specified
+        if self._graph is not None:
+            self._graph.append(self)
 
     def __str__(self) -> str:
         node_type_text = f"{self._domain}::{self._op_type}" + f":{self._overload}" * (
@@ -558,7 +737,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
                 [
                     (
                         f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}"
-                        if x
+                        if x is not None
                         else "None"
                     )
                     for x in self._inputs
@@ -633,18 +812,56 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             "Directly mutating the input sequence is unsupported. Please use Node.replace_input_with() instead."
         )
 
-    def replace_input_with(self, index: int, new_input: Value | None) -> None:
+    def replace_input_with(self, index: int, value: Value | None) -> None:
         """Replace an input with a new value."""
         if index < 0 or index >= len(self.inputs):
             raise ValueError(f"Index out of range: {index}")
         old_input = self.inputs[index]
         self._inputs = tuple(
-            new_input if i == index else old_input for i, old_input in enumerate(self.inputs)
+            value if i == index else old_input for i, old_input in enumerate(self.inputs)
         )
         if old_input is not None:
-            old_input.remove_user(self, index)
-        if new_input is not None:
-            new_input.add_user(self, index)
+            old_input._remove_usage(self, index)  # pylint: disable=protected-access
+        if value is not None:
+            value._add_usage(self, index)  # pylint: disable=protected-access
+
+    def prepend(self, /, nodes: Node | Iterable[Node]) -> None:
+        """Insert a node before this node in the list of nodes in the graph.
+
+        It is the same as calling ``graph.insert_before(self, nodes)``.
+
+        Example::
+
+            Before: previous_node -> self
+                    previous_node' -> node -> next_node'
+            After:  previous_node -> node -> self
+                    previous_node' -> next_node'
+
+        Args:
+            nodes: A node or a sequence of nodes to put before this node.
+        """
+        if self._graph is None:
+            raise ValueError("The node to prepend to does not belong to any graph.")
+        self._graph.insert_before(self, nodes)
+
+    def append(self, /, nodes: Node | Iterable[Node]) -> None:
+        """Insert a node after this node in the list of nodes in the graph.
+
+        It is the same as calling ``graph.insert_after(self, nodes)``.
+
+        Example::
+
+            Before: previous_node -> self
+                    previous_node' -> node -> next_node'
+            After:  previous_node -> self -> node
+                    previous_node' -> next_node'
+
+        Args:
+            nodes:  A node or a sequence of nodes to put after this node.
+        """
+        if self._graph is None:
+            raise ValueError("The node to append to does not belong to any graph.")
+        self._graph.insert_after(self, nodes)
 
     @property
     def outputs(self) -> Sequence[Value]:
@@ -660,7 +877,11 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for this node."""
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
         if self._metadata is None:
             self._metadata = _metadata.MetadataStore()
         return self._metadata
@@ -693,21 +914,24 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 class _TensorTypeBase(_protocols.TypeProtocol, _display.PrettyPrintable):
     """Tensor types that are non recursive types."""
 
-    __slots__ = ("_dtype", "_elem_types", "denotation")
+    __slots__ = ("_dtype", "denotation")
 
     def __init__(self, dtype: _enums.DataType, *, denotation: str | None = None) -> None:
         self._dtype = dtype
-        self._elem_types = (self,)
         self.denotation = denotation
 
     @property
     def dtype(self) -> _enums.DataType:
         return self._dtype
 
+    @dtype.setter
+    def dtype(self, value: _enums.DataType) -> None:
+        self._dtype = value
+
     @property
-    def elem_type(self) -> None:
-        # TODO: docs: explain the None
-        return None
+    def elem_type(self) -> _enums.DataType:
+        """Return the element type of the tensor type"""
+        return self.dtype
 
     def __eq__(self, other: object) -> bool:
         if self.__class__ is not other.__class__:
@@ -734,18 +958,21 @@ class SparseTensorType(_TensorTypeBase):
 class _RecursiveTypeBase(_protocols.TypeProtocol, _display.PrettyPrintable):
     """Base for recursive types like Optional and Sequence."""
 
-    __slots__ = ("_dtype", "_elem_type", "denotation")
+    __slots__ = ("_elem_type", "denotation")
 
     def __init__(
         self, elem_type: _protocols.TypeProtocol, *, denotation: str | None = None
     ) -> None:
-        self._dtype = elem_type.dtype
         self._elem_type = elem_type
         self.denotation = denotation
 
     @property
     def dtype(self) -> _enums.DataType:
-        return self._dtype
+        return self._elem_type.dtype
+
+    @dtype.setter
+    def dtype(self, value: _enums.DataType) -> None:
+        self._elem_type.dtype = value
 
     @property
     def elem_type(self) -> _protocols.TypeProtocol:
@@ -774,25 +1001,49 @@ class OptionalType(_RecursiveTypeBase):
 
 
 class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
-    """IR Value."""
+    """IR Value.
+
+    A value is a named entity that can be used to represent an input or output of a graph,
+    a function, or a node. The information it stores generalizes over ``ValueInfoProto``
+    in the ONNX specification.
+
+    A :class:`Value` is always not owned or owned by exactly one node. When the value is not
+    owned, it must be an input of a graph or a function. ``producer`` and ``index``
+    are ``None``.
+
+    When the value is owned by a node, it is an output of the node.
+    The node that produces the value can be accessed with :meth:`producer`.
+    The index of the output of the node that produces the value can be accessed with
+    :meth:`index`.
+
+    To find all the nodes that use this value as an input, call :meth:`uses`.
+
+    To check if the value is an output of a graph, call :meth:`is_graph_output`.
+
+    Attributes:
+        name: The name of the value. A value is always named when it is part of a graph.
+        shape: The shape of the value.
+        type: The type of the value.
+        metadata_props: Metadata.
+    """
 
     __slots__ = (
-        "_def_node",
-        "_def_index",
+        "_producer",
+        "_index",
         "_metadata",
         "_metadata_props",
         "_name",
         "_shape",
         "_type",
         "_const_value",
-        "_users",
+        "_uses",
     )
 
     def __init__(
         self,
-        def_node: Node | None,
+        producer: Node | None,
         *,
-        def_index: int | None,
+        index: int | None,
         name: str | None = None,
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
@@ -800,9 +1051,9 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         | Sequence[_protocols.TensorProtocol]
         | None = None,
     ) -> None:
-        # def_node is None when the value is an input or an initializer
-        self._def_node: Node | None = def_node
-        self._def_index: int | None = def_index
+        # producer is None when the value is an input or an initializer
+        self._producer: Node | None = producer
+        self._index: int | None = index
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = None
 
@@ -812,18 +1063,20 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # TODO(justinchuby): Handle initialization when a const value is provided
         # We can get shape and type information from the const value
         self._const_value = const_value
-        # Use a collection of (Node, int) to store users. This is needed
-        # because a single user can use the same value multiple times.
-        self._users: set[tuple[Node, int]] = set()
+        # Use a collection of (Node, int) to store uses. This is needed
+        # because a single use can use the same value multiple times.
+        # Use a dictionary to preserve insertion order so that the visiting order is deterministic
+        self._uses: dict[tuple[Node, int], None] = {}
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
-        def_node_text = (
-            self.def_node.name or "anonymous_node:" + str(id(self.def_node))
-            if self.def_node is not None
+        producer = self.producer()
+        producer_text = (
+            producer.name or "anonymous_node:" + str(id(producer))
+            if producer is not None
             else None
         )
-        return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, def_node={def_node_text}, def_index={self.def_index})"
+        return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, producer={producer_text}, index={self.index()})"
 
     def __str__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
@@ -834,31 +1087,35 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # that make them hard to read
         return f"%{_quoted(value_name)}<{type_text},{shape_text}>"
 
-    @property
-    def def_node(self) -> Node | None:
-        return self._def_node
+    def producer(self) -> Node | None:
+        """The node that produces this value."""
+        return self._producer
 
-    @def_node.setter
-    def def_node(self, _: Any) -> None:
-        raise AttributeError("def_node is immutable. Please create a new value instead.")
+    def index(self) -> int | None:
+        """The index of the output of the defining node."""
+        return self._index
 
-    @property
-    def def_index(self) -> int | None:
-        return self._def_index
+    def uses(self) -> Collection[tuple[Node, int]]:
+        """Return a set of uses of the value.
 
-    @def_index.setter
-    def def_index(self, _: Any) -> None:
-        raise AttributeError("def_index is immutable. Please create a new value instead.")
+        The set contains tuples of ``(Node, index)`` where the index is the index of the input
+        of the node. For example, if ``node.inputs[1] == value``, then the use is ``(node, 1)``.
+        """
+        return self._uses.keys()
 
-    def users(self) -> frozenset[tuple[Node, int]]:
-        return frozenset(self._users)
+    def _add_usage(self, use: Node, index: int) -> None:
+        """Add a usage of this value.
 
-    def add_user(self, user: Node, index: int) -> None:
-        self._users.add((user, index))
+        This is an internal method. It should only be called by the Node class.
+        """
+        self._uses[(use, index)] = None
 
-    def remove_user(self, user: Node, index: int) -> None:
-        """Reduce a user node."""
-        self._users.remove((user, index))
+    def _remove_usage(self, use: Node, index: int) -> None:
+        """Remove a node from the uses of this value.
+
+        This is an internal method. It should only be called by the Node class.
+        """
+        self._uses.pop((use, index))
 
     @property
     def name(self) -> str | None:
@@ -870,6 +1127,12 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     @property
     def type(self) -> _protocols.TypeProtocol | None:
+        """The type of the tensor.
+
+        Example types can be ``TensorType``, ``SparseTensorType``, ``SequenceType``, ``OptionalType``.
+        To obtain the data type of the tensor, use ``type.dtype`` or conveniently
+        :attribute:`dtype`.
+        """
         return self._type
 
     @type.setter
@@ -877,18 +1140,38 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         self._type = value
 
     @property
+    def dtype(self) -> _enums.DataType | None:
+        """The data type of the tensor."""
+        if self._type is None:
+            return None
+        return self._type.dtype
+
+    @dtype.setter
+    def dtype(self, value: _enums.DataType) -> None:
+        """Set the data type of the tensor.
+
+        If the type is not set, it will be initialized to a new TensorType. To
+        set the type as other types like ``SequenceType``, initialize the type
+        then set :attribute:`type` instead.
+        """
+        if self._type is None:
+            self._type = TensorType(value)
+        else:
+            self._type.dtype = value
+
+    @property
     def shape(self) -> Shape | None:
         return self._shape
 
     @shape.setter
-    def shape(self, value: _protocols.SimpleShape | Shape | None) -> None:
+    def shape(self, value: Shape | None) -> None:
         if value is None:
             self._shape = None
             return
         if isinstance(value, Shape):
             self._shape = value
             return
-        self._shape = Shape(value)
+        raise TypeError(f"Expected value to be a Shape or None, got '{type(value)}'")
 
     @property
     def const_value(
@@ -927,11 +1210,13 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def is_graph_output(self) -> bool:
         """Whether the value is an output of a graph."""
-        if self.def_node is None:
+        if (producer := self.producer()) is None:
             return False
-        if self.def_node.graph is None:
+        if (graph := producer.graph) is None:
             return False
-        return self in self.def_node.graph.outputs
+        # Cannot use `in` because __eq__ may be defined by subclasses, even though
+        # it is not recommended
+        return any(output is self for output in graph.outputs)
 
 
 class Input(Value):
@@ -946,23 +1231,77 @@ class Input(Value):
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
     ) -> None:
-        super().__init__(None, def_index=None)
+        super().__init__(None, index=None)
         self._name = name
         self._shape = shape
         self._type = type
 
 
+def _check_node_safe_to_remove(
+    node: Node, to_remove: AbstractSet[Node], graph_outputs: AbstractSet[Value]
+) -> None:
+    """Check if a node is safe to remove.
+
+    1. It checks to make sure there are no users of the node that are not
+        to be removed before removing it.
+    2. It checks the node does not contribute to any graph outputs.
+
+    This check is typically O(1) assuming the number of uses of the node is small
+
+    Args:
+        node: The node to check.
+        to_remove: A set of nodes that are to be removed.
+            This set is used to check if the node is still being used by other
+            nodes that are not to be removed.
+        graph_outputs: A set of values that are outputs of the graph.
+
+    Raises:
+        ValueError: If the node does not belong to this graph or if there are users of the node.
+        ValueError: If the node is still being used by other nodes not to be removed.
+    """
+    for output in node.outputs:
+        if output in graph_outputs:
+            raise ValueError(
+                f"Node '{node!r}' is still an output of the graph and cannot be removed when safe=True."
+            )
+        for use, _ in output.uses():
+            if use in to_remove:
+                continue
+            raise ValueError(
+                f"Node '{use!r}' is still being used by other nodes that are not to be "
+                f"removed. All of its uses: {list(output.uses())!r}"
+            )
+
+
 class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     """IR Graph.
 
-    The graph can be used as a sequence of nodes::
+    Graph represents a computation graph. In addition to the ONNX specification
+    specified fields, it also contains a mapping of :attr:`opset_imports`. This
+    allows different subgraphs to import different opsets. It is the responsibility
+    of the deserializer to reconcile the different opsets.
 
-        for node in graph:
-            print(node)
+    The `nodes` are not guaranteed to be topologically sorted. But the
+    iteration order should be deterministic across different runs. It is the
+    responsibility of the user to maintain a topological order of the nodes.
+
+    Note that there is not a ``node`` attribute in the Graph. The Graph can be
+    seen as a Sequence of nodes and should be used as such. For example, to obtain
+    all nodes as a list, call ``list(graph)``.
+
+    Attributes:
+        name: The name of the graph.
+        inputs: The input values of the graph.
+        outputs: The output values of the graph.
+        initializers: The initializers in the graph.
+        doc_string: Documentation string.
+        opset_imports: Opsets imported by the graph.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     __slots__ = (
-        "_name",
+        "name",
         "_inputs",
         "_outputs",
         "_initializers",
@@ -971,6 +1310,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         "_nodes",
         "_metadata",
         "_metadata_props",
+        "_name_authority",
     )
 
     def __init__(
@@ -983,30 +1323,40 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         doc_string: str | None = None,
         opset_imports: dict[str, int] | None = None,
         name: str | None = None,
+        metadata_props: dict[str, str] | None = None,
     ):
         self.name = name
-        self._inputs = tuple(inputs)
-        self._outputs = tuple(outputs)
+
+        # Private fields that are not to be accessed by any other classes
+        self._inputs = list(inputs)
+        self._outputs = list(outputs)
         for initializer in initializers:
+            if isinstance(initializer, str):
+                raise TypeError(
+                    "Initializer must be a TensorProtocol, not a string. "
+                    "If you are copying the initializers from another graph, "
+                    "make sure you call graph.initializers.values() because it is a dictionary."
+                )
             if initializer.name is None:
                 raise ValueError(f"Initializer must have a name: {initializer}")
         self._initializers = {tensor.name: tensor for tensor in initializers}
         self._doc_string = doc_string
         self._opset_imports = opset_imports or {}
         self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = None
-
-        # Assign this graph as the owning_graph of all nodes
-        self._nodes = list(nodes)
-        for node in self._nodes:
-            node.graph = self
+        self._metadata_props: dict[str, str] | None = metadata_props
+        self._nodes: _linked_list.DoublyLinkedSet[Node] = _linked_list.DoublyLinkedSet()
+        # Be sure the initialize the name authority before extending the nodes
+        # because it is used to name the nodes and their outputs
+        self._name_authority = _name_authority.NameAuthority()
+        # Call self.extend not self._nodes.extend so the graph reference is added to the nodes
+        self.extend(nodes)
 
     @property
-    def inputs(self) -> tuple[Value, ...]:
+    def inputs(self) -> list[Input]:
         return self._inputs
 
     @property
-    def outputs(self) -> tuple[Value, ...]:
+    def outputs(self) -> list[Value]:
         return self._outputs
 
     @property
@@ -1025,12 +1375,132 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def opset_imports(self) -> dict[str, int]:
         return self._opset_imports
 
-    @property
-    def nodes(self) -> Sequence[Node]:
-        return self._nodes
+    def __getitem__(self, index: int) -> Node:
+        return self._nodes[index]
 
-    def topologically_sorted_nodes(self) -> Sequence[Node]:
+    def __len__(self) -> int:
+        return len(self._nodes)
+
+    def __iter__(self) -> Iterator[Node]:
+        return iter(self._nodes)
+
+    def __reversed__(self) -> Iterator[Node]:
+        return reversed(self._nodes)
+
+    def _set_node_graph_to_self_and_assign_names(self, node: Node) -> Node:
+        """Set the graph reference for the node and assign names to it and its outputs if they don't have one."""
+        if node.graph is not None and node.graph is not self:
+            raise ValueError(
+                f"The node '{node!r}' belongs to another graph. Please remove it first with Graph.remove()."
+            )
+        # Give the node and its output values names if they don't not have one
+        if node.name is None:
+            self._name_authority.name_node(node)
+        for value in node._outputs:  # pylint: disable=protected-access
+            if value.name is None:
+                self._name_authority.name_value(value)
+        node.graph = self
+        return node
+
+    # Mutation methods
+    def append(self, node: Node, /) -> None:
+        """Append a node to the graph in O(1) time.
+
+        Args:
+            node: The node to append.
+
+        Raises:
+            ValueError: If the node belongs to another graph.
+        """
+        self._set_node_graph_to_self_and_assign_names(node)
+        self._nodes.append(node)
+
+    def extend(self, nodes: Iterable[Node], /) -> None:
+        """Extend the graph with the given nodes in O(#new_nodes) time.
+
+        Args:
+            nodes: The nodes to extend the graph with.
+
+        Raises:
+            ValueError: If any node belongs to another graph.
+        """
+        nodes = [self._set_node_graph_to_self_and_assign_names(node) for node in nodes]
+        self._nodes.extend(nodes)
+
+    def remove(self, nodes: Node | Iterable[Node], /, safe: bool = False) -> None:
+        """Remove nodes from the graph in O(#num of nodes) time.
+
+        If any errors are raise, to ensure the graph is not left in an inconsistent state,
+        the graph is not modified.
+
+        Args:
+            nodes: The node to remove.
+            safe: If True, performs the following actions before removal:
+                1. It checks to make sure there are no users of the node that are not
+                    to be removed before removing it.
+                2. It checks the node does not contribute to any graph outputs.
+                3. It removes references to all inputs so it is no longer a user of other nodes.
+
+        Raises:
+            ValueError: If any node to remove does not belong to this graph.
+            ValueError: (When ``safe=True``) If the node does not belong to this graph or if there are users of the node.
+            ValueError: (When ``safe=True``) If the node is still being used by other nodes not to be removed.
+        """
+        if not isinstance(nodes, Iterable):
+            nodes_set: AbstractSet[Node] = {nodes}
+        else:
+            nodes_set = frozenset(nodes)
+        graph_outputs = frozenset(self.outputs)
+        for node in nodes_set:
+            if node.graph is not self:
+                raise ValueError(f"The node '{node!r}' does not belong to this graph.")
+            if safe:
+                # Check 1, 2
+                _check_node_safe_to_remove(node, nodes_set, graph_outputs)
+        for node in nodes_set:
+            if safe:
+                # 3. Detach from all inputs so that it is no longer a user of other nodes
+                for i in range(len(node.inputs)):
+                    node.replace_input_with(i, None)
+            # Set attributes to remove the node from this graph
+            node.graph = None
+            self._nodes.remove(node)
+
+    def insert_after(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
+        """Insert new nodes after the given node in O(#new_nodes) time.
+
+        Args:
+            node: The node to insert after.
+            new_nodes: The new nodes to insert.
+
+        Raises:
+            ValueError: If any node belongs to another graph.
+        """
+        if isinstance(new_nodes, Node):
+            new_nodes = (new_nodes,)
+        new_nodes = [self._set_node_graph_to_self_and_assign_names(node) for node in new_nodes]
+        self._nodes.insert_after(node, new_nodes)
+
+    def insert_before(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
+        """Insert new nodes before the given node in O(#new_nodes) time.
+
+        Args:
+            node: The node to insert before.
+            new_nodes: The new nodes to insert.
+
+        Raises:
+            ValueError: If any node belongs to another graph.
+        """
+        if isinstance(new_nodes, Node):
+            new_nodes = (new_nodes,)
+        new_nodes = [self._set_node_graph_to_self_and_assign_names(node) for node in new_nodes]
+        self._nodes.insert_before(node, new_nodes)
+
+    def sort(self) -> None:
+        """Topologically sort the nodes in the graph."""
         raise NotImplementedError("Not implemented yet")
+
+    # End of mutation methods
 
     @property
     def meta(self) -> _metadata.MetadataStore:
@@ -1049,6 +1519,142 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             self._metadata_props = {}
         return self._metadata_props
 
+    def __str__(self) -> str:
+        return _graph_str(self)
+
+    def __repr__(self) -> str:
+        return _graph_repr(self)
+
+
+def _graph_str(graph: Graph | GraphView) -> str:
+    """Return a string representation of the graph."""
+    # TODO(justinchuby): Show docstrings and metadata
+    inputs_text = "\n" + ",\n".join(str(x) for x in graph.inputs)
+    outputs_text = "\n" + ",\n".join(str(x) for x in graph.outputs)
+    initializers_text = ",\n".join(str(x) for x in graph.initializers.values())
+    if initializers_text:
+        initializers_text = (
+            "\ninitializers=(\n" + textwrap.indent(initializers_text, " " * 4) + "\n),"
+        )
+    signature = f"""\
+graph(
+    name={graph.name or 'anonymous_graph:' + str(id(graph))},
+    inputs=({textwrap.indent(inputs_text, ' '*8)}
+    ),
+    outputs=({textwrap.indent(outputs_text, ' '*8)}
+    ),{textwrap.indent(initializers_text, ' '*4)}
+)"""
+    node_count = len(graph)
+    number_width = len(str(node_count))
+    node_lines = []
+    for i, node in enumerate(graph):
+        node_name = node.name if node.name else f":anonymous_node:{id(node)}"
+        node_text = f"# {node_name}\n{node}"
+        indented_node_text = textwrap.indent(node_text, " " * (number_width + 4))
+        # Remove the leading spaces
+        indented_node_text = indented_node_text.strip()
+        node_lines.append(f"{i:>{number_width}} |  {indented_node_text}")
+    returns = ", ".join(str(x) for x in graph.outputs)
+    body = (
+        "{\n"
+        + textwrap.indent("\n".join(node_lines), " " * 4)
+        + textwrap.indent(f"\nreturn {returns}", " " * 4)
+        + "\n}"
+    )
+
+    return f"{signature} {body}"
+
+
+def _graph_repr(graph: Graph | GraphView) -> str:
+    """Return an repr string of the graph."""
+    inputs_text = "\n" + ",\n".join(str(x) for x in graph.inputs)
+    outputs_text = "\n" + ",\n".join(str(x) for x in graph.outputs)
+    initializers_text = ",\n".join(str(x) for x in graph.initializers.values())
+    if initializers_text:
+        initializers_text = (
+            "\ninitializers=(\n" + textwrap.indent(initializers_text, " " * 4) + "\n),"
+        )
+    return f"""\
+{graph.__class__.__name__}(
+    name={graph.name or 'anonymous_graph:' + str(id(graph))!r},
+    inputs=({textwrap.indent(inputs_text, ' '*8)}
+    ),
+    outputs=({textwrap.indent(outputs_text, ' '*8)}
+    ),{textwrap.indent(initializers_text, ' '*4)}
+    len()={len(graph)}
+)"""
+
+
+class GraphView(Sequence[Node], _display.PrettyPrintable):
+    """A read-only view on a graph.
+
+    The GraphView is useful for analysis of a subgraph. It can be initialized
+    with a subset of nodes from a :class:`Graph`. Creating GraphView does not
+    change the ownership of the nodes, and so it is possible to create multiple
+    GraphViews that contain the same nodes. If the underlying nodes / connections
+    are mutated, the mutation will be reflected in all views as well.
+
+    The graph view can be serialized to ONNX::
+
+            graph_proto = ir.serde.serialize_graph(graph_view)
+
+    It can also be used to create a model::
+
+            model = ir.Model(graph_view, ir_version=8)
+            model_proto = ir.serde.serialize_model(model)
+
+    The model created with a GraphView will have a fixed topology, and its graph
+    will remain read-only as a GraphView. No copying will be done during the
+    initialization process.
+
+    Attributes:
+        name: The name of the graph.
+        inputs: The input values of the graph.
+        outputs: The output values of the graph.
+        initializers: The initializers in the graph.
+        doc_string: Documentation string.
+        opset_imports: Opsets imported by the graph.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
+    """
+
+    __slots__ = (
+        "name",
+        "inputs",
+        "outputs",
+        "initializers",
+        "doc_string",
+        "opset_imports",
+        "nodes",
+        "_metadata",
+        "_metadata_props",
+    )
+
+    def __init__(
+        self,
+        inputs: Sequence[Value],
+        outputs: Sequence[Value],
+        *,
+        nodes: Iterable[Node],
+        initializers: Sequence[_protocols.TensorProtocol] = (),
+        doc_string: str | None = None,
+        opset_imports: dict[str, int] | None = None,
+        name: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ):
+        self.name = name
+        self.inputs = tuple(inputs)
+        self.outputs = tuple(outputs)
+        for initializer in initializers:
+            if initializer.name is None:
+                raise ValueError(f"Initializer must have a name: {initializer}")
+        self.initializers = {tensor.name: tensor for tensor in initializers}
+        self.doc_string = doc_string
+        self.opset_imports = opset_imports or {}
+        self._metadata: _metadata.MetadataStore | None = None
+        self._metadata_props: dict[str, str] | None = metadata_props
+        self._nodes: tuple[Node, ...] = tuple(nodes)
+
     def __getitem__(self, index: int) -> Node:
         return self._nodes[index]
 
@@ -1058,60 +1664,31 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def __iter__(self) -> Iterator[Node]:
         return iter(self._nodes)
 
-    def __str__(self) -> str:
-        # TODO(justinchuby): Show docstrings and metadata
-        inputs_text = "\n" + ",\n".join(str(x) for x in self.inputs)
-        outputs_text = "\n" + ",\n".join(str(x) for x in self.outputs)
-        initializers_text = ",\n".join(str(x) for x in self.initializers.values())
-        if initializers_text:
-            initializers_text = (
-                "\ninitializers=(\n" + textwrap.indent(initializers_text, " " * 4) + "\n),"
-            )
-        signature = f"""\
-graph(
-    name={self.name or ':anonymous_graph:' + str(id(self))},
-    inputs=({textwrap.indent(inputs_text, ' '*8)}
-    ),
-    outputs=({textwrap.indent(outputs_text, ' '*8)}
-    ),{textwrap.indent(initializers_text, ' '*4)}
-)"""
-        node_count = len(self._nodes)
-        number_width = len(str(node_count))
-        node_lines = []
-        for i, node in enumerate(self._nodes):
-            node_name = node.name if node.name else f":anonymous_node:{id(node)}"
-            node_text = f"# {node_name}\n{node}"
-            indented_node_text = textwrap.indent(node_text, " " * (number_width + 4))
-            # Remove the leading spaces
-            indented_node_text = indented_node_text.strip()
-            node_lines.append(f"{i:>{number_width}} |  {indented_node_text}")
-        returns = ", ".join(str(x) for x in self.outputs)
-        body = (
-            "{\n"
-            + textwrap.indent("\n".join(node_lines), " " * 4)
-            + textwrap.indent(f"\nreturn {returns}", " " * 4)
-            + "\n}"
-        )
+    def __reversed__(self) -> Iterator[Node]:
+        return reversed(self._nodes)
 
-        return f"{signature} {body}"
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
+
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
+
+    def __str__(self) -> str:
+        return _graph_str(self)
 
     def __repr__(self) -> str:
-        inputs_text = "\n" + ",\n".join(str(x) for x in self.inputs)
-        outputs_text = "\n" + ",\n".join(str(x) for x in self.outputs)
-        initializers_text = ",\n".join(str(x) for x in self.initializers.values())
-        if initializers_text:
-            initializers_text = (
-                "\ninitializers=(\n" + textwrap.indent(initializers_text, " " * 4) + "\n),"
-            )
-        return f"""\
-{self.__class__.__name__}(
-    name={self.name or ':anonymous_graph:' + str(id(self))!r},
-    inputs=({textwrap.indent(inputs_text, ' '*8)}
-    ),
-    outputs=({textwrap.indent(outputs_text, ' '*8)}
-    ),{textwrap.indent(initializers_text, ' '*4)}
-    len(nodes)={len(self._nodes)}
-)"""
+        return _graph_repr(self)
 
 
 class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
@@ -1154,6 +1731,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
         model_version: int | None = None,
         doc_string: str | None = None,
         functions: Sequence[Function] = (),
+        meta_data_props: dict[str, str] | None = None,
     ) -> None:
         self.graph: Graph = graph
         self.ir_version = ir_version
@@ -1164,7 +1742,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
         self.doc_string = doc_string
         self._functions = {func.identifier(): func for func in functions}
         self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = None
+        self._metadata_props: dict[str, str] | None = meta_data_props
 
     @property
     def functions(self) -> dict[_protocols.OperatorIdentifier, Function]:
@@ -1176,7 +1754,11 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
 
     @property
     def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for this node."""
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
         if self._metadata is None:
             self._metadata = _metadata.MetadataStore()
         return self._metadata
@@ -1216,7 +1798,29 @@ Model(
 )"""
 
 
-class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
+class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrintable):
+    """IR functions.
+
+    Like a graph, a function can have nodes that are not topologically sorted. It is
+    the responsibility of the user to maintain a topological order of the nodes.
+
+    Note that there is not a ``node`` attribute in the Function. The Function can be
+    seen as a Sequence of nodes and should be used as such. For example, to obtain
+    all nodes as a list, call ``list(function)``.
+
+    Attributes:
+        name: The function name.
+        domain: The domain this function is defined in.
+        overload: The overload name when the function is overloaded.
+        inputs: The input values of the function.
+        attributes: The attributes this function defines.
+        outputs: The output values of the function.
+        opset_imports: Opsets imported by the function.
+        doc_string: Documentation string.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
+    """
+
     __slots__ = (
         "_domain",
         "_name",
@@ -1237,6 +1841,7 @@ class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
         # and not from an outer scope
         graph: Graph,
         attributes: Sequence[Attr],
+        metadata_props: dict[str, str] | None = None,
     ) -> None:
         self._domain = domain
         self._name = name
@@ -1244,54 +1849,7 @@ class Function(_protocols.FunctionProtocol, _display.PrettyPrintable):
         self._graph = graph
         self._attributes = OrderedDict((attr.name, attr) for attr in attributes)
         self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = None
-
-    def __str__(self) -> str:
-        full_name = f"{self.domain}::{self.name}" + f":{self.overload}" * (self.overload != "")
-        inputs_text = ",\n".join(str(x) for x in self.inputs)
-        outputs_text = ",\n".join(str(x) for x in self.outputs)
-        attributes_text = ",\n".join(
-            attr.name + f": {attr.type}" + f"= {attr.value}" * (attr.value is None)
-            for attr in self.attributes.values()
-        )
-        if attributes_text:
-            attributes_text = (
-                "\nattributes={\n" + textwrap.indent(attributes_text, " " * 4) + "\n}"
-            )
-        signature = f"""\
-<
-    opset_imports={self.opset_imports!r},
->
-def {full_name}(
-    inputs=(
-{textwrap.indent(inputs_text, ' '*8)}
-    ),{textwrap.indent(attributes_text, ' '*4)}
-    outputs=(
-{textwrap.indent(outputs_text, ' '*8)}
-    ),
-)"""
-        node_count = len(self.nodes)
-        number_width = len(str(node_count))
-        node_lines = []
-        for i, node in enumerate(self.nodes):
-            node_name = node.name if node.name else f":anonymous_node:{id(node)}"
-            node_text = f"# {node_name}\n{node}"
-            indented_node_text = textwrap.indent(node_text, " " * (number_width + 4))
-            # Remove the leading spaces
-            indented_node_text = indented_node_text.strip()
-            node_lines.append(f"{i:>{number_width}} |  {indented_node_text}")
-        returns = ", ".join(str(x) for x in self.outputs)
-        body = (
-            "{\n"
-            + textwrap.indent("\n".join(node_lines), " " * 4)
-            + textwrap.indent(f"\nreturn {returns}", " " * 4)
-            + "\n}"
-        )
-
-        return f"{signature} {body}"
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.domain!r}, {self.name!r}, {self.overload!r}, inputs={self.inputs!r}, attributes={self.attributes!r}), outputs={self.outputs!r})"
+        self._metadata_props: dict[str, str] | None = metadata_props
 
     def identifier(self) -> _protocols.OperatorIdentifier:
         return self.domain, self.name, self.overload
@@ -1321,23 +1879,28 @@ def {full_name}(
         self._overload = value
 
     @property
-    def inputs(self) -> Sequence[Value]:
+    def inputs(self) -> list[Input]:
         return self._graph.inputs
 
     @property
-    def outputs(self) -> Sequence[Value]:
+    def outputs(self) -> list[Value]:
         return self._graph.outputs
 
     @property
     def attributes(self) -> OrderedDict[str, Attr]:
         return self._attributes
 
-    @property
-    def nodes(self) -> Sequence[Node]:
-        return self._graph.nodes
+    def __getitem__(self, index: int) -> Node:
+        return self._graph.__getitem__(index)
 
-    def topologically_sorted_nodes(self) -> Sequence[Node]:
-        raise NotImplementedError("Not implemented yet")
+    def __len__(self) -> int:
+        return self._graph.__len__()
+
+    def __iter__(self) -> Iterator[Node]:
+        return self._graph.__iter__()
+
+    def __reversed__(self) -> Iterator[Node]:
+        return self._graph.__reversed__()
 
     @property
     def doc_string(self) -> str | None:
@@ -1353,7 +1916,11 @@ def {full_name}(
 
     @property
     def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for this node."""
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
         if self._metadata is None:
             self._metadata = _metadata.MetadataStore()
         return self._metadata
@@ -1363,6 +1930,97 @@ def {full_name}(
         if self._metadata_props is None:
             self._metadata_props = {}
         return self._metadata_props
+
+    # Mutation methods
+    def append(self, node: Node, /) -> None:
+        """Append a node to the function in O(1) time."""
+        self._graph.append(node)
+
+    def extend(self, nodes: Iterable[Node], /) -> None:
+        """Extend the function with the given nodes in O(#new_nodes) time."""
+        self._graph.extend(nodes)
+
+    def remove(self, nodes: Node | Iterable[Node], /, safe: bool = False) -> None:
+        """Remove nodes from the graph in O(#num of nodes) time.
+
+        If any errors are raise, to ensure the graph is not left in an inconsistent state,
+        the graph is not modified.
+
+        Args:
+            nodes: The node to remove.
+            safe: If True, performs the following actions before removal:
+                1. It checks to make sure there are no users of the node that are not
+                    to be removed before removing it.
+                2. It checks the node does not contribute to any graph outputs.
+                3. It removes references to all inputs so it is no longer a user of other nodes.
+
+        Raises:
+            ValueError: If any node to remove does not belong to this graph.
+            ValueError: (When ``safe=True``) If the node does not belong to this graph or if there are users of the node.
+            ValueError: (When ``safe=True``) If the node is still being used by other nodes not to be removed.
+        """
+        self._graph.remove(nodes, safe=safe)
+
+    def insert_after(self, node: Node, new_nodes: Iterable[Node], /) -> None:
+        """Insert new nodes after the given node in O(#new_nodes) time."""
+        self._graph.insert_after(node, new_nodes)
+
+    def insert_before(self, node: Node, new_nodes: Iterable[Node], /) -> None:
+        """Insert new nodes before the given node in O(#new_nodes) time."""
+        self._graph.insert_before(node, new_nodes)
+
+    def sort(self) -> None:
+        """Topologically sort the nodes in the function."""
+        self._graph.sort()
+
+    # End of mutation methods
+
+    def __str__(self) -> str:
+        full_name = f"{self.domain}::{self.name}" + f":{self.overload}" * (self.overload != "")
+        inputs_text = ",\n".join(str(x) for x in self.inputs)
+        outputs_text = ",\n".join(str(x) for x in self.outputs)
+        attributes_text = ",\n".join(
+            f"{attr.name}: {attr.type}" + f" = {attr.value}" * (attr.value is None)
+            for attr in self.attributes.values()
+        )
+        if attributes_text:
+            attributes_text = (
+                "\nattributes={\n" + textwrap.indent(attributes_text, " " * 4) + "\n}"
+            )
+        signature = f"""\
+<
+    opset_imports={self.opset_imports!r},
+>
+def {full_name}(
+    inputs=(
+{textwrap.indent(inputs_text, ' '*8)}
+    ),{textwrap.indent(attributes_text, ' '*4)}
+    outputs=(
+{textwrap.indent(outputs_text, ' '*8)}
+    ),
+)"""
+        node_count = len(self)
+        number_width = len(str(node_count))
+        node_lines = []
+        for i, node in enumerate(self):
+            node_name = node.name if node.name else f":anonymous_node:{id(node)}"
+            node_text = f"# {node_name}\n{node}"
+            indented_node_text = textwrap.indent(node_text, " " * (number_width + 4))
+            # Remove the leading spaces
+            indented_node_text = indented_node_text.strip()
+            node_lines.append(f"{i:>{number_width}} |  {indented_node_text}")
+        returns = ", ".join(str(x) for x in self.outputs)
+        body = (
+            "{\n"
+            + textwrap.indent("\n".join(node_lines), " " * 4)
+            + textwrap.indent(f"\nreturn {returns}", " " * 4)
+            + "\n}"
+        )
+
+        return f"{signature} {body}"
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.domain!r}, {self.name!r}, {self.overload!r}, inputs={self.inputs!r}, attributes={self.attributes!r}), outputs={self.outputs!r})"
 
 
 class RefAttr(_protocols.ReferenceAttributeProtocol, _display.PrettyPrintable):
@@ -1450,10 +2108,15 @@ class Attr(_protocols.AttributeProtocol, _display.PrettyPrintable):
         return f"{self.__class__.__name__}({self.name!r}, {self.type!r}, {self.value!r})"
 
 
+class _SpecializedAttr(Attr):
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name!r}, {self.value!r})"
+
+
 # NOTE: The following classes are just supporting classes (partially applied) for convenience
 # But I think they would be useful to have in the IR by having the type info
 # explicitly in the class type.
-class AttrFloat32(Attr):
+class AttrFloat32(_SpecializedAttr):
     def __init__(self, name: str, value: float, doc_string: str | None = None):
         super().__init__(
             name,
@@ -1463,7 +2126,7 @@ class AttrFloat32(Attr):
         )
 
 
-class AttrInt64(Attr):
+class AttrInt64(_SpecializedAttr):
     def __init__(self, name: str, value: int, doc_string: str | None = None):
         super().__init__(
             name,
@@ -1473,7 +2136,7 @@ class AttrInt64(Attr):
         )
 
 
-class AttrString(Attr):
+class AttrString(_SpecializedAttr):
     def __init__(self, name: str, value: str, doc_string: str | None = None):
         super().__init__(
             name,
@@ -1483,7 +2146,7 @@ class AttrString(Attr):
         )
 
 
-class AttrTensor(Attr):
+class AttrTensor(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -1498,7 +2161,7 @@ class AttrTensor(Attr):
         )
 
 
-class AttrGraph(Attr):
+class AttrGraph(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -1516,7 +2179,7 @@ class AttrGraph(Attr):
         return textwrap.indent("\n" + super().__str__(), " " * 4)
 
 
-class AttrFloat32s(Attr):
+class AttrFloat32s(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -1531,7 +2194,7 @@ class AttrFloat32s(Attr):
         )
 
 
-class AttrInt64s(Attr):
+class AttrInt64s(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -1546,7 +2209,7 @@ class AttrInt64s(Attr):
         )
 
 
-class AttrStrings(Attr):
+class AttrStrings(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -1561,7 +2224,7 @@ class AttrStrings(Attr):
         )
 
 
-class AttrTensors(Attr):
+class AttrTensors(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -1576,7 +2239,7 @@ class AttrTensors(Attr):
         )
 
 
-class AttrGraphs(Attr):
+class AttrGraphs(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -1592,7 +2255,7 @@ class AttrGraphs(Attr):
 
 
 # NOTE: SparseTensor should be a sparse tensor proto
-class AttrSparseTensor(Attr):
+class AttrSparseTensor(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -1607,7 +2270,7 @@ class AttrSparseTensor(Attr):
         )
 
 
-class AttrSparseTensors(Attr):
+class AttrSparseTensors(_SpecializedAttr):
     def __init__(
         self,
         name: str,
@@ -1622,7 +2285,7 @@ class AttrSparseTensors(Attr):
         )
 
 
-class AttrTypeProto(Attr):
+class AttrTypeProto(_SpecializedAttr):
     def __init__(
         self,
         name: str,

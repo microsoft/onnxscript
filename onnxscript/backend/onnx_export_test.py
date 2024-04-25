@@ -20,7 +20,7 @@ import onnxscript
 import onnxscript.testing
 import onnxscript.values
 from onnxscript.backend import onnx_backend, onnx_export
-from onnxscript.tests.models import type_double
+from tests.models import type_double
 
 
 @dataclasses.dataclass
@@ -112,7 +112,7 @@ def extract_functions(name: str, content: str, test_folder: pathlib.Path):
         init.touch(exist_ok=True)
     file = test_folder / f"{name}.py"
     file.write_text(content, encoding="utf-8")
-    import_name = f"onnxscript.tests.{test_folder.parts[-1]}.{name}"
+    import_name = f"tests.{test_folder.parts[-1]}.{name}"
     try:
         mod = importlib.import_module(import_name)
     except (SyntaxError, ImportError) as e:
@@ -133,7 +133,7 @@ def exec_main(f, *inputs):
 
 
 class TestOnnxBackEnd(unittest.TestCase):
-    root_folder = pathlib.Path(__file__).parent.parent
+    root_folder = pathlib.Path(__file__).parent.parent.parent
     test_folder = root_folder / "tests" / "onnx_backend_test_code"
     temp_folder = root_folder / "tests" / "export"
 

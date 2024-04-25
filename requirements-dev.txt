@@ -3,11 +3,10 @@ numpy
 onnx-weekly>=1.17.0.dev20240325
 onnxruntime>=1.17.0
 typing_extensions
-rich
+rich>=13.7.1
 
 # Docs site
 furo
-jinja2
 matplotlib
 myst-parser[linkify]
 sphinx-copybutton
@@ -28,6 +27,7 @@ pytest-xdist
 pytest!=7.1.0
 pyyaml
 torch>=2.1
+pyinstrument
 
 # Lint
 lintrunner>=0.10.7

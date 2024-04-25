@@ -96,7 +96,7 @@ def colored(char, color):
 _DEFAULT_SYMBOLS = ("┼", "┤", "╶", "╴", "─", "╰", "╭", "╮", "╯", "│")
 
 
-def plot(series, bin_edges=None, cfg=None):
+def plot(series, *, bin_edges=None, cfg=None):
     """Generate an ascii chart for a series of numbers.
 
     `series` should be a list of ints or floats. Missing data values in the
@@ -114,11 +114,11 @@ def plot(series, bin_edges=None, cfg=None):
     `series` can also be a list of lists to support multiple data series.
 
         >>> series = [[10,20,30,40,30,20,10], [40,30,20,10,20,30,40]]
-        >>> print(plot(series, {'height': 3}))
-            40.00  ┤╮ ╭╮ ╭
-            30.00  ┤╰╮╯╰╭╯
-            20.00  ┤╭╰╮╭╯╮
-            10.00  ┼╯ ╰╯ ╰
+        >>> print(plot(series, cfg={'height': 3}))
+           40.00  ┤╮ ╭╮ ╭
+           30.00  ┤╰╮╯╰╭╯
+           20.00  ┤╭╰╮╭╯╮
+           10.00  ┼╯ ╰╯ ╰
 
     `bin_edges` is an optional list of bin edges to display on the x-axis. If
     provided, the x-axis will be labeled with the bin edges. If there are too
@@ -130,19 +130,19 @@ def plot(series, bin_edges=None, cfg=None):
     of the chart. `min` and `max` will clamp the y-axis and all values:
 
         >>> series = [1,2,3,4,float("nan"),4,3,2,1]
-        >>> print(plot(series, {'min': 0}))
+        >>> print(plot(series, cfg={'min': 0}))
             4.00  ┼  ╭╴╶╮
             3.00  ┤ ╭╯  ╰╮
             2.00  ┤╭╯    ╰╮
             1.00  ┼╯      ╰
             0.00  ┤
 
-        >>> print(plot(series, {'min': 2}))
+        >>> print(plot(series, cfg={'min': 2}))
             4.00  ┤  ╭╴╶╮
             3.00  ┤ ╭╯  ╰╮
             2.00  ┼─╯    ╰─
 
-        >>> print(plot(series, {'min': 2, 'max': 3}))
+        >>> print(plot(series, cfg={'min': 2, 'max': 3}))
             3.00  ┤ ╭─╴╶─╮
             2.00  ┼─╯    ╰─
 
@@ -150,24 +150,24 @@ def plot(series, bin_edges=None, cfg=None):
     used to scale down a graph with large data values:
 
         >>> series = [10,20,30,40,50,40,30,20,10]
-        >>> print(plot(series, {'height': 4}))
-            50.00  ┤   ╭╮
-            40.00  ┤  ╭╯╰╮
-            30.00  ┤ ╭╯  ╰╮
-            20.00  ┤╭╯    ╰╮
-            10.00  ┼╯      ╰
+        >>> print(plot(series, cfg={'height': 4}))
+           50.00  ┤   ╭╮
+           40.00  ┤  ╭╯╰╮
+           30.00  ┤ ╭╯  ╰╮
+           20.00  ┤╭╯    ╰╮
+           10.00  ┼╯      ╰
 
     `format` specifies a Python format string used to format the labels on the
     y-axis. The default value is "{:8.2f} ". This can be used to remove the
     decimal point:
 
         >>> series = [10,20,30,40,50,40,30,20,10]
-        >>> print(plot(series, {'height': 4, 'format':'{:8.0f}'}))
-            50 ┤   ╭╮
-            40 ┤  ╭╯╰╮
-            30 ┤ ╭╯  ╰╮
-            20 ┤╭╯    ╰╮
-            10 ┼╯      ╰
+        >>> print(plot(series, cfg={'height': 4, 'format':'{:8.0f}'}))
+              50 ┤   ╭╮
+              40 ┤  ╭╯╰╮
+              30 ┤ ╭╯  ╰╮
+              20 ┤╭╯    ╰╮
+              10 ┼╯      ╰
     """
     if len(series) == 0:
         return ""

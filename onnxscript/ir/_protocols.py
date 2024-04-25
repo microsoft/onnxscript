@@ -1,36 +1,30 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 """Protocols for the ONNX IR.
 
 This file defines the interfaces for tools to interact with the IR. The interfaces
 are designed such that tools leveraging the IR can be decoupled from the IR
 implementation. This allows for the implementation to evolve independently of the
 tools.
-
-The file contains two sets of interfaces:
-1. Topologically immutable interfaces:
-    These interfaces provide a complete view of the ONNX model and allows mutation
-    against any metadata fields like shape, type, and node attributes. However, the
-    interfaces are topologically immutable, meaning that the structure of the graph
-    cannot be changed. This is useful for tools that need to analyze the model
-    without modifying how nodes are connected.
-2. Mutable interfaces:
-    These interfaces provide a mutable view of the ONNX model. They allow for
-    modification of the graph structure. This is useful for tools that need to
-    transform the model.
 """
 
 from __future__ import annotations
 
 import typing
 from typing import (
-    AbstractSet,
     Any,
+    Collection,
+    Iterable,
     Iterator,
     Mapping,
+    MutableMapping,
+    MutableSequence,
     OrderedDict,
     Protocol,
     Sequence,
     Tuple,
-    Union,
 )
 
 from onnxscript.ir import _enums
@@ -38,11 +32,6 @@ from onnxscript.ir import _enums
 if typing.TYPE_CHECKING:
     import numpy as np
     from typing_extensions import TypeAlias
-
-# Representation of a dimension. int is a known axis, str represents a dynamic axis, None is an unnamed dynamic axis.
-SimpleDim: TypeAlias = Union[int, str, None]
-# Representation of a shape. Each element is a simple dimension.
-SimpleShape: TypeAlias = Sequence[SimpleDim]
 
 # An identifier that will uniquely identify an operator. E.g (domain, op_type, overload)
 OperatorIdentifier: TypeAlias = Tuple[str, str, str]
@@ -61,7 +50,7 @@ class ArrayCompatible(Protocol):
 
 @typing.runtime_checkable
 class DLPackCompatible(Protocol):
-    """Protocol objects that can support dlpack.
+    """Protocol for objects that can support dlpack.
 
     Computation backends can call __dlpack__ to obtain the underlying data in a
     tensor without copying the data. This allows use to use tensorflow tensors etc.
@@ -70,6 +59,10 @@ class DLPackCompatible(Protocol):
 
     def __dlpack__(self, *, stream: Any = ...) -> Any:
         """Return PyCapsule."""
+        ...
+
+    def __dlpack_device__(self) -> Any:
+        """Return the device."""
         ...
 
 
@@ -96,6 +89,8 @@ class TensorProtocol(ArrayCompatible, Protocol):
         raw: The raw data behind this tensor. It can be anything.
         size: The number of elements in the tensor.
         nbytes: The number of bytes in the tensor.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     name: str
@@ -103,6 +98,8 @@ class TensorProtocol(ArrayCompatible, Protocol):
     dtype: _enums.DataType
     doc_string: str | None
     raw: Any
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
     @property
     def size(self) -> int: ...
@@ -125,42 +122,48 @@ class TensorProtocol(ArrayCompatible, Protocol):
 
 @typing.runtime_checkable
 class ValueProtocol(Protocol):
-    """Values.
+    """Protocol for values.
 
     A value is a named entity that can be used to represent an input or output of a graph,
-    a function, or a node. The information it stores corresponds to ValueInfoProto
+    a function, or a node. The information it stores generalizes over ``ValueInfoProto``
     in the ONNX specification.
 
     A :class:`Value` is always not owned or owned by exactly one node. When the value is not
-    owned, it must be an input of a graph or a function. The def_node and def_index
-    attributes are None.
+    owned, it must be an input of a graph or a function. ``producer`` and ``index``
+    are ``None``.
 
     When the value is owned by a node, it is an output of the node.
-    The node that produces the value is stored in the :attr:`def_node` attribute.
-    The index of the output of the node that produces the value is stored in the
-    :attr:`def_index` attribute.
+    The node that produces the value can be accessed with :meth:`producer`.
+    The index of the output of the node that produces the value can be accessed with
+    :meth:`index`.
 
-    To find all the nodes that use this value as an input, call :meth:`users`.
+    To find all the nodes that use this value as an input, call :meth:`uses`.
 
     To check if the value is an output of a graph, call :meth:`is_graph_output`.
 
     Attributes:
         name: The name of the value. A value is always named when it is part of a graph.
-        def_node: The node that produces this value.
-        def_index: The index of the output of the node that produces this value.
         shape: The shape of the value.
         type: The type of the value.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     name: str
-    def_node: NodeProtocol | None
-    def_index: int | None
     shape: ShapeProtocol | None
     type: TypeProtocol | None
-    metadata_props: Mapping[str, str]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
-    def users(self) -> AbstractSet[tuple[NodeProtocol, int]]:
+    def producer(self) -> NodeProtocol | None:
+        """The node that produces this value."""
+        ...
+
+    def index(self) -> int | None:
+        """The index of the output of the node that produces this value."""
+        ...
+
+    def uses(self) -> Collection[tuple[NodeProtocol, int]]:
         """The set of (node, input_index) with node being those that use this value as an input."""
         ...
 
@@ -171,7 +174,7 @@ class ValueProtocol(Protocol):
 
 @typing.runtime_checkable
 class NodeProtocol(Protocol):
-    """Nodes.
+    """Protocol for nodes.
 
     A node represents an invocation of an operation on the :class:`Value` s in
     the computational graph.
@@ -206,7 +209,8 @@ class NodeProtocol(Protocol):
         attributes: The attributes of the operator.
         version: The version of the operator.
         doc_string: Documentation string.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     name: str | None
@@ -218,51 +222,121 @@ class NodeProtocol(Protocol):
     attributes: OrderedDict[str, AttributeProtocol | ReferenceAttributeProtocol]
     version: int | None
     doc_string: str | None
-    metadata_props: Mapping[str, str]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
+
+    def replace_input_with(self, index: int, value: ValueProtocol | None) -> None:
+        """Set the input at the given index to the given value, replacing the original value."""
+        ...
 
 
 @typing.runtime_checkable
 class GraphProtocol(Protocol):
-    """Graphs.
+    """Protocol for graphs.
 
     Graph represents a computation graph. In addition to the ONNX specification
     specified fields, it also contains a mapping of :attr:`opset_imports`. This
     allows different subgraphs to import different opsets. It is the responsibility
     of the deserializer to reconcile the different opsets.
 
-    The :attr:`nodes` are not guaranteed to be topologically sorted. But the
+    The nodes are not guaranteed to be topologically sorted. But the
     iteration order should be deterministic across different runs. It is the
     responsibility of the user to maintain a topological order of the nodes.
+
+    Note that there is not a ``node`` attribute in the Graph. The Graph can be
+    seen as a Sequence of nodes and should be used as such. For example, to obtain
+    all nodes as a list, call ``list(graph)``.
 
     Attributes:
         name: The name of the graph.
         inputs: The input values of the graph.
         outputs: The output values of the graph.
-        nodes: All nodes this graph directly owns. They do not have to be sorted.
         initializers: The initializers in the graph.
         doc_string: Documentation string.
         opset_imports: Opsets imported by the graph.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     # TODO(justinchuby): Support quantization_annotation
     name: str | None
-    inputs: Sequence[ValueProtocol]
-    outputs: Sequence[ValueProtocol]
-    nodes: Sequence[NodeProtocol]
-    initializers: Mapping[str, TensorProtocol]
+    inputs: MutableSequence[ValueProtocol]
+    outputs: MutableSequence[ValueProtocol]
+    initializers: MutableMapping[str, TensorProtocol]
     doc_string: str
-    opset_imports: Mapping[str, int]
-    metadata_props: Mapping[str, str]
+    opset_imports: MutableMapping[str, int]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
-    def topologically_sorted_nodes(self) -> Sequence[NodeProtocol]:
-        """Return the nodes in topological order."""
+    def __getitem__(self, index: int) -> NodeProtocol: ...
+    def __len__(self) -> int: ...
+    def __iter__(self) -> Iterator[NodeProtocol]: ...
+    def __reversed__(self) -> Iterator[NodeProtocol]: ...
+
+    # Mutation methods
+    def append(self, node: NodeProtocol, /) -> None:
+        """Append a node to the graph."""
+        ...
+
+    def extend(self, nodes: Iterable[NodeProtocol], /) -> None:
+        """Extend the graph with the given nodes."""
+        ...
+
+    def remove(self, node: NodeProtocol, /) -> None:
+        """Remove a node from the graph."""
+        ...
+
+    def insert_after(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol], /) -> None:
+        """Insert new nodes after the given node."""
+        ...
+
+    def insert_before(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol], /) -> None:
+        """Insert new nodes before the given node."""
+        ...
+
+    def sort(self) -> None:
+        """Topologically sort the nodes in the graph."""
         ...
 
 
 @typing.runtime_checkable
+class GraphViewProtocol(Protocol):
+    """Protocol for a read-only view on a graph.
+
+    The GraphView is useful for analysis of a subgraph. It can be initialized
+    with a subset of nodes from a :class:`Graph`. Creating GraphView does not
+    change the ownership of the nodes, and so it is possible to create multiple
+    GraphViews that contain the same nodes.
+
+    Attributes:
+        name: The name of the graph.
+        inputs: The input values of the graph.
+        outputs: The output values of the graph.
+        initializers: The initializers in the graph.
+        doc_string: Documentation string.
+        opset_imports: Opsets imported by the graph.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
+    """
+
+    name: str | None
+    inputs: Sequence[ValueProtocol]
+    outputs: Sequence[ValueProtocol]
+    initializers: Mapping[str, TensorProtocol]
+    doc_string: str
+    opset_imports: Mapping[str, int]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
+
+    def __getitem__(self, index: int) -> NodeProtocol: ...
+    def __len__(self) -> int: ...
+    def __iter__(self) -> Iterator[NodeProtocol]: ...
+    def __reversed__(self) -> Iterator[NodeProtocol]: ...
+
+
+@typing.runtime_checkable
 class ModelProtocol(Protocol):
-    """Models.
+    """Protocol for models.
 
     A model is a container for a graph and metadata. It is the top-level object
     that represents an ONNX model.
@@ -276,7 +350,8 @@ class ModelProtocol(Protocol):
         model_version: The version of the model.
         doc_string: Documentation string.
         functions: The functions defined in the model.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     graph: GraphProtocol
@@ -286,10 +361,11 @@ class ModelProtocol(Protocol):
     domain: str | None
     model_version: int | None
     doc_string: str | None
-    functions: Mapping[str, FunctionProtocol]
+    functions: MutableMapping[str, FunctionProtocol]
     # TODO(justinchuby): Add training_info
-    opset_imports: Mapping[str, int]
-    metadata_props: Mapping[str, str]
+    opset_imports: MutableMapping[str, int]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
 
 @typing.runtime_checkable
@@ -336,21 +412,14 @@ class SparseTensorProtocol(Protocol):
 
 
 @typing.runtime_checkable
-class DimensionProtocol(Protocol):
-    """Value of a single dimension in a shape.
+class SymbolicDimProtocol(Protocol):
+    """Value of a single symbolic/dynamic dimension in a shape.
 
     Attributes:
         value: The value of the dimension.
-        denotation: The denotation of the dimension.
-            Standard denotation can optionally be used to denote tensor
-            dimensions with standard semantic descriptions to ensure
-            that operations are applied to the correct axis of a tensor.
-            Refer to https://github.com/onnx/onnx/blob/main/docs/DimensionDenotation.md#denotation-definition
-            for pre-defined dimension denotations.
     """
 
-    value: int | str | None
-    denotation: str | None
+    value: str | None  # TODO(justinchuby): Maybe support sympy
 
 
 @typing.runtime_checkable
@@ -363,15 +432,23 @@ class ShapeProtocol(Protocol):
         dims: The dimensions of the shape.
     """
 
-    dims: Sequence[DimensionProtocol]
+    dims: Sequence[int | SymbolicDimProtocol]
 
-    def __iter__(self) -> Iterator[DimensionProtocol]: ...
-
-    def __getitem__(self, index: int) -> DimensionProtocol: ...
-
-    def simple(self) -> SimpleShape: ...
-
+    def __len__(self) -> int: ...
+    def __iter__(self) -> Iterator[int | SymbolicDimProtocol]: ...
+    @typing.overload
+    def __getitem__(self, index: int) -> int | SymbolicDimProtocol: ...
+    @typing.overload
+    def __getitem__(self, index: slice) -> tuple[int | SymbolicDimProtocol, ...]: ...
+    def __setitem__(
+        self, index: int, value: int | SymbolicDimProtocol | str | None
+    ) -> None: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __ne__(self, value: object) -> bool: ...
+    def get_denotation(self, index: int) -> str | None: ...
+    def set_denotation(self, index: int, denotation: str | None) -> None: ...
     def numpy(self) -> Sequence[int]: ...
+    def rank(self) -> int: ...
 
 
 @typing.runtime_checkable
@@ -389,12 +466,12 @@ class TypeProtocol(Protocol):
             Refer to https://github.com/onnx/onnx/blob/main/docs/TypeDenotation.md#type-denotation-definition
             for pre-defined type denotations.
         elem_type: The type of its elements for nested types like Sequence[Optional] tensors.
-            Or None if the type is not nested.
+            Or the DataType if the type is not nested.
         dtype: The data type of the tensor or the nested tensor.
     """
 
     denotation: str | None
-    elem_type: TypeProtocol | None
+    elem_type: TypeProtocol | _enums.DataType
     dtype: _enums.DataType
 
     def __eq__(self, __value: object) -> bool: ...
@@ -428,6 +505,10 @@ class FunctionProtocol(Protocol):
     Like a graph, a function can have nodes that are not topologically sorted. It is
     the responsibility of the user to maintain a topological order of the nodes.
 
+    Note that there is not a ``node`` attribute in the Function. The Function can be
+    seen as a Sequence of nodes and should be used as such. For example, to obtain
+    all nodes as a list, call ``list(function)``.
+
     Attributes:
         name: The function name.
         domain: The domain this function is defined in.
@@ -437,8 +518,8 @@ class FunctionProtocol(Protocol):
         outputs: The output values of the function.
         opset_imports: Opsets imported by the function.
         doc_string: Documentation string.
-        nodes: All nodes this function directly owns. They do not have to be sorted.
-        metadata_props: Metadata.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
     """
 
     name: str
@@ -448,14 +529,40 @@ class FunctionProtocol(Protocol):
     attributes: OrderedDict[str, AttributeProtocol]
     outputs: Sequence[ValueProtocol]
     doc_string: str
-    opset_imports: Mapping[str, int]
-    nodes: Sequence[NodeProtocol]
-    metadata_props: Mapping[str, str]
+    opset_imports: MutableMapping[str, int]
+    metadata_props: MutableMapping[str, str]
+    meta: MutableMapping[str, Any]
 
+    def __getitem__(self, index: int) -> NodeProtocol: ...
+    def __len__(self) -> int: ...
+    def __iter__(self) -> Iterator[NodeProtocol]: ...
+    def __reversed__(self) -> Iterator[NodeProtocol]: ...
     def identifier(self) -> OperatorIdentifier:
         """Return the unique identifier of the function."""
         ...
 
-    def topologically_sorted_nodes(self) -> Sequence[NodeProtocol]:
-        """Return the nodes in topological order."""
+    # Mutation methods
+    # End Block
+    def append(self, node: NodeProtocol, /) -> None:
+        """Append a node to the function."""
+        ...
+
+    def extend(self, nodes: Iterable[NodeProtocol], /) -> None:
+        """Extend the function with the given nodes."""
+        ...
+
+    def remove(self, node: NodeProtocol, /) -> None:
+        """Remove a node from the function."""
+        ...
+
+    def insert_after(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol], /) -> None:
+        """Insert new nodes after the given node."""
+        ...
+
+    def insert_before(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol], /) -> None:
+        """Insert new nodes before the given node."""
+        ...
+
+    def sort(self) -> None:
+        """Topologically sort the nodes in the function."""
         ...

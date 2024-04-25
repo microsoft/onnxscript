@@ -1,3 +1,7 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 """In-memory intermediate representation for ONNX graphs."""
 
 __all__ = [
@@ -18,10 +22,11 @@ __all__ = [
     "AttrTensor",
     "AttrTensors",
     "AttrTypeProto",
-    "Dimension",
+    "SymbolicDim",
     "ExternalTensor",
     "Function",
     "Graph",
+    "GraphView",
     "Input",
     "Model",
     "Node",
@@ -41,10 +46,11 @@ __all__ = [
     "ModelProtocol",
     "NodeProtocol",
     "GraphProtocol",
+    "GraphViewProtocol",
     "AttributeProtocol",
     "ReferenceAttributeProtocol",
     "SparseTensorProtocol",
-    "DimensionProtocol",
+    "SymbolicDimProtocol",
     "ShapeProtocol",
     "TypeProtocol",
     "MapTypeProtocol",
@@ -52,6 +58,8 @@ __all__ = [
     # Enums
     "AttributeType",
     "DataType",
+    # Types
+    "OperatorIdentifier",
 ]
 
 from onnxscript.ir import serde
@@ -70,10 +78,10 @@ from onnxscript.ir._core import (
     AttrTensor,
     AttrTensors,
     AttrTypeProto,
-    Dimension,
     ExternalTensor,
     Function,
     Graph,
+    GraphView,
     Input,
     Model,
     Node,
@@ -82,6 +90,7 @@ from onnxscript.ir._core import (
     SequenceType,
     Shape,
     SparseTensorType,
+    SymbolicDim,
     Tensor,
     TensorType,
     Value,
@@ -93,16 +102,18 @@ from onnxscript.ir._enums import (
 from onnxscript.ir._protocols import (
     ArrayCompatible,
     AttributeProtocol,
-    DimensionProtocol,
     DLPackCompatible,
     FunctionProtocol,
     GraphProtocol,
+    GraphViewProtocol,
     MapTypeProtocol,
     ModelProtocol,
     NodeProtocol,
+    OperatorIdentifier,
     ReferenceAttributeProtocol,
     ShapeProtocol,
     SparseTensorProtocol,
+    SymbolicDimProtocol,
     TensorProtocol,
     TypeProtocol,
     ValueProtocol,
