@@ -1,3 +1,5 @@
+"""Integration tests using Dynamo-ORT (DORT)."""
+from __future__ import annotations
 import contextlib
 import copy
 import io
@@ -9,14 +11,21 @@ from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import onnx
+import torch
+from torch.onnx._internal.diagnostics import infra
+from torch.onnx._internal.exporter import OnnxRegistry
+from torch.onnx._internal.fx import (
+    diagnostics,
+    fx_onnx_interpreter,
+    onnxfunction_dispatcher,
+)
 
-VERBOSE: int = 0
-
-
-def has_cuda():
-    import torch
-
-    return torch.cuda.is_available()
+import onnxruntime as ort
+from transformers import LlamaConfig
+from transformers.models.llama.modeling_llama import LlamaModel
+import torch._dynamo.backends.common
+import torch.fx
+import torch._decomp
 
 
 def hide_stdout():
@@ -62,27 +71,19 @@ def dump_onnx(prefix: str, folder: Optional[str] = None, clean: bool = False):
         os.environ["ONNXRT_DUMP_PATH"] = value or ""
 
 
-def make_aot_ort(dynamic: bool = False, verbose: int = 0):
-    import onnxruntime  # noqa: I001
-    from torch.onnx import (
-        _OrtBackend as OrtBackend,
-        _OrtBackendOptions as OrtBackendOptions,
-        ExportOptions,
-    )
+def make_aot_ort(dynamic: bool = False):
 
-    ort_session_options = onnxruntime.SessionOptions()
-    export_options = ExportOptions(dynamic_shapes=dynamic)
-    options = OrtBackendOptions(
+    ort_session_options = ort.SessionOptions()
+    export_options = torch.onnx.ExportOptions(dynamic_shapes=dynamic)
+    options = torch.onnx._OrtBackendOptions(
         export_options=export_options,
         ort_session_options=ort_session_options,
     )
-    ort_backend = OrtBackend(options=options)
+    ort_backend = torch.onnx._OrtBackend(options=options)
     return ort_backend, ort_backend
 
 
 def ids_tensor(shape, vocab_size):
-    import torch
-
     total_dims = 1
     for dim in shape:
         total_dims *= dim
@@ -94,42 +95,12 @@ def ids_tensor(shape, vocab_size):
     return torch.tensor(data=values, dtype=torch.long).view(shape).contiguous()
 
 
-def _extract_graph_module_outputs(
-    graph_module: "torch.fx.GraphModule",  # noqa: F821
-) -> Any:
-    """Collect "val" fields from outputs metadata in this torch.fx.GraphModule."""
-    for node in graph_module.graph.nodes:
-        if node.op == "output":
-            # Output node is unique. Let's retrieve output values from
-            # this node's input list. And then just return.
-            return node.args[0]
-    raise ValueError("No output node found in this torch.fx.GraphModule.")
-
-
-def _maybe_map_to_meta_val(value):
-    if hasattr(value, "meta") and "val" in value.meta:
-        # Select outputs with "val" information. Without "val",
-        # it's not possible access output_arg.meta["val"].device.
-        return value.meta["val"]
-    else:
-        return value
-
-
 def _dynamo_export(
     graph_module,
-    args,
-    verbose,
     target_opset,
     **kwargs,
 ):
-    import torch
-    from torch.onnx._internal.diagnostics import infra
-    from torch.onnx._internal.exporter import OnnxRegistry
-    from torch.onnx._internal.fx import (
-        diagnostics,
-        fx_onnx_interpreter,
-        onnxfunction_dispatcher,
-    )
+
 
     context = diagnostics.DiagnosticContext(
         "_dynamo_export",
@@ -189,19 +160,13 @@ class TestCustomOps(unittest.TestCase):
         logger.setLevel(logging.ERROR)
         logger.propagate = False
 
-        import onnxruntime  # noqa: F401
-
     @hide_stdout()
     def test_llama(self):
-        import torch
-        import torch.onnx
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            from transformers import LlamaConfig
-            from transformers.models.llama.modeling_llama import LlamaModel
 
-        local_aot_ort, _ = make_aot_ort(dynamic=False, verbose=1)
+        local_aot_ort, _ = make_aot_ort(dynamic=False)
 
         config = LlamaConfig(
             hidden_size=16,
@@ -213,13 +178,12 @@ class TestCustomOps(unittest.TestCase):
         )
         config._attn_implementation = "eager"
 
-        model = LlamaModel(config)  # .to("cuda")
+        model = LlamaModel(config)
 
         batch, seq, vocab_size = 2, 1024, 1024
-        input_ids = ids_tensor([batch, seq], vocab_size)  # .to("cuda")
-        # input_mask = torch.tril(torch.ones(batch, seq, dtype=torch.float32))
+        input_ids = ids_tensor([batch, seq], vocab_size)
 
-        model(input_ids)  # , input_mask)
+        model(input_ids)
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -229,20 +193,8 @@ class TestCustomOps(unittest.TestCase):
                 output[0].sum().backward()
 
         names = [_ for _ in os.listdir("dump_eager_llama") if _.endswith(".onnx")]
-        if VERBOSE:
-            print("------------------------------------------")
-            print(f"exported model: {names}")
         for name in names:
-            if VERBOSE:
-                print()
-                print(f"NODES in {name!r}")
             onx = onnx.load(os.path.join("dump_eager_llama", name))
-            if VERBOSE:
-                for i, node in enumerate(onx.graph.node):
-                    print(
-                        f"{i+1}/{len(onx.graph.node)}: "
-                        f"{node.op_type} {node.input} -> {node.output}"
-                    )
             output_names = [o.name for o in onx.graph.output]
 
             for o in output_names:
@@ -254,15 +206,11 @@ class TestCustomOps(unittest.TestCase):
                 ), f"One output of the output is likely to be null, see {output_names}"
 
     def common_llama_mixed_precision_small(self, folder_suffix, **kwargs):
-        import torch
-        import torch.onnx
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            from transformers import LlamaConfig
-            from transformers.models.llama.modeling_llama import LlamaModel
 
-        local_aot_ort, _ = make_aot_ort(dynamic=False, verbose=1)
+        local_aot_ort, _ = make_aot_ort(dynamic=False)
 
         config = LlamaConfig(**kwargs)
         config._attn_implementation = "eager"
@@ -316,7 +264,7 @@ class TestCustomOps(unittest.TestCase):
                     "new_zeros"
                 ), f"One output of the output is likely to be null, see {output_names}"
 
-    @unittest.skipIf(not has_cuda(), reason="not available on cpu")
+    @unittest.skipIf(not torch.cuda.is_available(), reason="not available on cpu")
     @hide_stdout()
     def test_llama_mixed_precision_small(self):
         self.common_llama_mixed_precision_small(
@@ -329,7 +277,7 @@ class TestCustomOps(unittest.TestCase):
             num_attention_heads=2,
         )
 
-    @unittest.skipIf(not has_cuda(), reason="not available on cpu")
+    @unittest.skipIf(not torch.cuda.is_available(), reason="not available on cpu")
     @hide_stdout()
     def test_llama_mixed_precision_large(self):
         # This test seems to produce a different model even though
@@ -347,10 +295,8 @@ class TestCustomOps(unittest.TestCase):
 
     @hide_stdout()
     def test_mlp_dort(self):
-        import torch
-        import torch.onnx
 
-        local_aot_ort, _ = make_aot_ort(dynamic=False, verbose=1)
+        local_aot_ort, _ = make_aot_ort(dynamic=False)
 
         class MLP(torch.nn.Module):
             def __init__(self):
@@ -373,46 +319,42 @@ class TestCustomOps(unittest.TestCase):
         grad_expected = params[0].grad
 
         optimized_mod = torch.compile(model, backend=local_aot_ort, fullgraph=True)
-        got = optimized_mod(x)
-        assert torch.allclose(expected, got)
+        actual = optimized_mod(x)
+        torch.testing.assert_close(expected, actual)
 
-        got.sum().backward()
+        actual.sum().backward()
         params2 = list(optimized_mod.parameters())
-        grad_got = params2[0].grad
-        assert torch.allclose(grad_expected, grad_got)
+        grad_actual = params2[0].grad
+        torch.testing.assert_close(grad_expected, grad_actual)
 
     @hide_stdout()
     def test_mlp_dort_custom_backend(self):
-        import torch
-        import torch.onnx
-        from torch._dynamo.backends.common import aot_autograd
 
         def custom_backend(
-            graph_module: "torch.fx.GraphModule",
-            args: List["torch.Tensor"],
+            graph_module: torch.fx.GraphModule,
             target_opset: Optional[int] = None,
-            verbose: Union[int, Tuple[int, int]] = 0,
             use_cuda: bool = False,
         ) -> Callable:
             import onnxruntime
             import torch
 
-            onx = _dynamo_export(graph_module, args, verbose, target_opset)
+            exported = _dynamo_export(graph_module, target_opset)
 
-            providers = ["CPUExecutionProvider"]
             if use_cuda:
-                providers.insert(0, "CUDAExecutionProvider")
-            sess = onnxruntime.InferenceSession(
-                onx.SerializeToString(), providers=["CPUExecutionProvider"]
+                providers = ("CUDAExecutionProvider", "CPUExecutionProvider")
+            else:
+                providers = ("CPUExecutionProvider",)
+            inference_session = onnxruntime.InferenceSession(
+                exported.SerializeToString(), providers=providers
             )
-            input_names = [i.name for i in sess.get_inputs()]
+            input_names = [i.name for i in inference_session.get_inputs()]
 
             def run(*args, **kwargs):
                 assert len(kwargs) == 0, f"Not implemented with kwargs={kwargs}"
                 # All inputs are moved to cpu with numpy. Not efficient but it simplifies
                 # the unit tests.
                 feeds = dict(zip(input_names, [x.detach().cpu().numpy() for x in args]))
-                results = sess.run(None, feeds)
+                results = inference_session.run(None, feeds)
                 return tuple(map(torch.Tensor, results))
 
             return run
@@ -437,7 +379,7 @@ class TestCustomOps(unittest.TestCase):
         params = list(model.parameters())
         grad_expected = params[0].grad
 
-        aot_compiler = aot_autograd(
+        aot_compiler = torch._dynamo.backends.common.aot_autograd(
             fw_compiler=lambda *args, **kwargs: custom_backend(
                 *args, target_opset=18, **kwargs
             ),
@@ -447,13 +389,13 @@ class TestCustomOps(unittest.TestCase):
             model, backend=aot_compiler, fullgraph=True, dynamic=False
         )
 
-        got = optimized_mod(x)
-        assert torch.allclose(expected, got)
+        actual = optimized_mod(x)
+        torch.testing.assert_close(expected, actual)
 
-        got.sum().backward()
+        actual.sum().backward()
         params2 = list(optimized_mod.parameters())
-        grad_got = params2[0].grad
-        assert torch.allclose(grad_expected, grad_got)
+        grad_actual = params2[0].grad
+        torch.testing.assert_close(grad_expected, grad_actual)
 
 
 if __name__ == "__main__":
