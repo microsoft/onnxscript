@@ -6,6 +6,7 @@ import unittest
 
 import numpy as np
 import onnx
+import onnx.inliner
 import onnxruntime
 import parameterized
 
