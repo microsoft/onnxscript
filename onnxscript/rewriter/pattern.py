@@ -334,41 +334,36 @@ class MatchResult:
     contain the values that are bound to the variables `x`, `shape1`, and `shape2`.
     """
 
-    def __init__(
-        self, matched_nodes=None, bindings: dict[str, ir.Value | Any] | None = None
-    ) -> None:
-        assert matched_nodes is None or isinstance(matched_nodes, list)
-        self.success: bool = matched_nodes is not None
+    def __init__(self, success: bool) -> None:
+        self.success: bool = success
         # For a successful match, matched_nodes is a list of values that matched the pattern.
         # These include the internal nodes of the pattern that were matched, but not
         # the leaves (sub-trees) that match against the variables in the pattern.
         # These represent the values that will be replaced by the replacement pattern.
-        self.matched_nodes: Sequence[ir.Node] | None = matched_nodes
+        self.matched_nodes: Sequence[ir.Node] = []
         # For a successful match, bindings is a dictionary of mapping pattern-variable-names
         # to values.
-        self.bindings: dict[str, Any] = bindings if bindings is not None else {}
+        self.bindings: dict[str, Any] = {}
 
     def __bool__(self):
         return self.success
 
     @classmethod
     def FAIL(cls):
-        return cls(None)
+        return cls(False)
 
     @property
     def nodes(self) -> Sequence[ir.Node] | None:
         return self.matched_nodes
 
-    def fail(self):
-        self.success = False
-        self.matched_nodes = None
-        self.bindings = {}
+    def bind(self, var: str, value: Any):
+        self.bindings[var] = value
 
     def extend(self, other: MatchResult | bool):
         if not self.success:
             return
         if not other:
-            self.fail()
+            self.success = False
             return
         if isinstance(other, bool):
             return
@@ -376,7 +371,7 @@ class MatchResult:
             if var in self.bindings:
                 # TODO: handle attribute var bindings
                 if self.bindings[var] != val:
-                    self.fail()
+                    self.success = False
                     return
             else:
                 self.bindings[var] = val
@@ -398,9 +393,10 @@ class ValuePattern:
         return f"ValuePattern({self.name!r})"
 
     def matches(self, value: ir.Value, model: ir.Model):
-        if self.name is None:
-            return MatchResult([], {})
-        return MatchResult([], {self.name: value})
+        result = MatchResult(success=True)
+        if self.name is not None:
+            result.bind(self.name, value)
+        return result
 
     def commute(self) -> Sequence[ValuePattern]:
         """Return a list of commuted patterns.
@@ -466,7 +462,7 @@ class NodePattern:
             return MatchResult.FAIL()
         if not self.op.matches(node.op_type):
             return MatchResult.FAIL()
-        match = MatchResult([])
+        match = MatchResult(success=True)
         # TODO: We should add filtered logging starting from here to emit why
         # matching failed. This should cut a lot of noises compared to logging everything,
         # because at least the starting node op_type is already matched.
@@ -562,10 +558,15 @@ class Constant(ValuePattern):
         self.rel_tol = rel_tol
         self.abs_tol = abs_tol
 
-    def match_scalar(self, scalar_value, return_value: Sequence[ir.Node]):
-        if math.isclose(scalar_value, self.value, rel_tol=self.rel_tol, abs_tol=self.abs_tol):
-            return MatchResult(return_value)
-        return MatchResult.FAIL()
+    def match_scalar(self, scalar_value):
+        status = math.isclose(
+            scalar_value, self.value, rel_tol=self.rel_tol, abs_tol=self.abs_tol
+        )
+        # Note: If the value is produced by a Constant node, we could include
+        # the Constant node in the return_value list. However, we don't do that.
+        # Instead, we will rely on DCE to remove the constant node if it is not
+        # used elsewhere.
+        return MatchResult(status)
 
     def matches(self, value: ir.Value, model: ir.Model):
         value = _ir_utils.propagate_const_value(value)
@@ -577,13 +578,7 @@ class Constant(ValuePattern):
         if constant_value.size != 1:
             return MatchResult.FAIL()
 
-        return_value: list[ir.Node] = []
-        # Note: If the value is produced by a Constant node, we could include
-        # the Constant node in the return_value list. However, we don't do that.
-        # Instead, we will rely on DCE to remove the constant node if it is not
-        # used elsewhere.
-
-        return self.match_scalar(constant_value.item(), return_value)
+        return self.match_scalar(constant_value.item())
 
     def commute(self) -> list[ValuePattern]:
         return [self]
