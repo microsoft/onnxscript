@@ -21,7 +21,9 @@ __all__ = [
     "AttrStrings",
     "AttrTensor",
     "AttrTensors",
+    "TypeAndShape",
     "AttrTypeProto",
+    "AttrTypeProtos",
     "SymbolicDim",
     "ExternalTensor",
     "StringTensor",
@@ -86,6 +88,7 @@ from onnxscript.ir._core import (
     AttrTensor,
     AttrTensors,
     AttrTypeProto,
+    AttrTypeProtos,
     ExternalTensor,
     Function,
     Graph,
@@ -102,6 +105,7 @@ from onnxscript.ir._core import (
     SymbolicDim,
     Tensor,
     TensorType,
+    TypeAndShape,
     Value,
 )
 from onnxscript.ir._enums import (
