@@ -24,6 +24,7 @@ __all__ = [
     "AttrTypeProto",
     "SymbolicDim",
     "ExternalTensor",
+    "StringTensor",
     "Function",
     "Graph",
     "GraphView",
@@ -60,6 +61,13 @@ __all__ = [
     "DataType",
     # Types
     "OperatorIdentifier",
+    # Protobuf compatible tensors
+    "DoubleDataTensor",
+    "FloatDataTensor",
+    "Int32DataTensor",
+    "Int64DataTensor",
+    "TensorProtoTensor",
+    "UInt64DataTensor",
 ]
 
 from onnxscript.ir import serde
@@ -90,6 +98,7 @@ from onnxscript.ir._core import (
     SequenceType,
     Shape,
     SparseTensorType,
+    StringTensor,
     SymbolicDim,
     Tensor,
     TensorType,
@@ -117,4 +126,12 @@ from onnxscript.ir._protocols import (
     TensorProtocol,
     TypeProtocol,
     ValueProtocol,
+)
+from onnxscript.ir.serde import (
+    DoubleDataTensor,
+    FloatDataTensor,
+    Int32DataTensor,
+    Int64DataTensor,
+    TensorProtoTensor,
+    UInt64DataTensor,
 )
