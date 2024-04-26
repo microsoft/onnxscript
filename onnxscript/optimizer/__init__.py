@@ -58,8 +58,12 @@ def optimize(
     for _ in range(num_iterations):
         if onnx_shape_inference:
             if model.ByteSize() < 1024 * 1024 * 1024 * 2:
+                # NOTE: strict mode is disabled because it crashes on the models
+                # that have different shapes inferred from the model carried shapes.
+                # The case can be found in:
+                # https://github.com/microsoft/onnxscript/issues/1443
                 model = onnx.shape_inference.infer_shapes(
-                    model, check_type=True, strict_mode=True, data_prop=True
+                    model, check_type=True, strict_mode=False, data_prop=True
                 )
             else:
                 logger.warning(
