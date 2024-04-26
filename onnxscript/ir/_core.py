@@ -47,6 +47,7 @@ from onnxscript.ir import (
 )
 
 if typing.TYPE_CHECKING:
+    import numpy.typing as npt
     from typing_extensions import TypeGuard
 
 TArrayCompatible = typing.TypeVar(
@@ -435,6 +436,116 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         offset = self._offset or 0
         length = self._length or self.nbytes
         return self.raw[offset : offset + length]
+
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
+
+
+class StringTensor(TensorBase, _protocols.TensorProtocol):
+    """Multidimensional array of strings (as binary data to match the string_data field in TensorProto)."""
+
+    __slots__ = (
+        "_raw",
+        "_shape",
+        "name",
+        "doc_string",
+        "_metadata_props",
+        "_metadata",
+    )
+
+    def __init__(
+        self,
+        value: Sequence[bytes] | npt.NDArray[np.bytes_],
+        *,
+        shape: Shape | None = None,
+        name: str = "",
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
+        """Initialize a tensor.
+
+        Args:
+            value: The backing data of the tensor. It can be a numpy array or a Sequence of strings.
+            shape: The shape of the tensor. If None, the shape is obtained from the value.
+            name: The name of the tensor.
+            doc_string: The documentation string.
+            metadata_props: The metadata properties.
+        """
+        if shape is None:
+            if not hasattr(value, "shape"):
+                raise ValueError(
+                    f"Expected an object with a shape attribute, but {type(value)} does not have shape. "
+                    "Please specify the shape explicitly."
+                )
+            self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
+        else:
+            self._shape = shape
+            self._shape._frozen = True
+        self._raw = value
+        self.name = name
+        self.doc_string = doc_string
+        self._metadata: _metadata.MetadataStore | None = None
+        self._metadata_props = metadata_props
+
+    def __array__(self, dtype: Any = None) -> np.ndarray:
+        if isinstance(self._raw, np.ndarray):
+            return self._raw
+        assert isinstance(
+            self._raw, Sequence
+        ), f"Bug: Expected a sequence, got {type(self._raw)}"
+        return np.array(self._raw, dtype=dtype).reshape(self.shape.numpy())
+
+    def __dlpack__(self, *, stream: Any = None) -> Any:
+        del stream  # unused
+        raise TypeError("StringTensor does not support DLPack")
+
+    def __dlpack_device__(self) -> tuple[int, int]:
+        raise TypeError("StringTensor does not support DLPack")
+
+    def __repr__(self) -> str:
+        return f"{self._repr_base()}({self._raw!r}, name={self.name!r})"
+
+    @property
+    def dtype(self) -> _enums.DataType:
+        """The data type of the tensor. Immutable."""
+        return _enums.DataType.STRING
+
+    @property
+    def shape(self) -> Shape:
+        """The shape of the tensor. Immutable."""
+        return self._shape
+
+    @property
+    def raw(self) -> str:
+        """Backing data of the tensor. Immutable."""
+        return self._raw  # type: ignore[return-value]
+
+    def numpy(self) -> np.ndarray:
+        """Return the tensor as a numpy array."""
+        return self.__array__()
+
+    def tobytes(self) -> bytes:
+        raise ValueError("StringTensor does not support tobytes. Use 'string_data' instead.")
+
+    def string_data(self) -> Sequence[bytes]:
+        """Return the string data of the tensor."""
+        if isinstance(self._raw, np.ndarray):
+            return self._raw.flatten().tolist()
+        return self._raw
 
     @property
     def metadata_props(self) -> dict[str, str]:

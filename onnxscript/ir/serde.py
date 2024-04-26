@@ -621,6 +621,17 @@ def deserialize_tensor(
         return DoubleDataTensor(proto)
     if proto.data_type in UInt64DataTensor.compatible_types:
         return UInt64DataTensor(proto)
+    if proto.data_type == _enums.DataType.STRING:
+        name = _get_field(proto, "name")
+        doc_string = _get_field(proto, "doc_string")
+        metadata_props = deserialize_metadata_props(proto.metadata_props)
+        return _core.StringTensor(
+            proto.string_data,
+            shape=_core.Shape(proto.dims),
+            name=name,
+            doc_string=doc_string,
+            metadata_props=metadata_props,
+        )
     raise ValueError(
         f"TensorProto(name={proto.name}) does not have any data fields set and is not an external tensor."
     )
@@ -1086,6 +1097,8 @@ def serialize_tensor_into(
                 entry = tensor_proto.external_data.add()
                 entry.key = k
                 entry.value = str(v)
+    elif isinstance(from_, _core.StringTensor):
+        tensor_proto.string_data.extend(from_.string_data())
     else:
         tensor_proto.raw_data = from_.tobytes()
     _serialize_metadata_props_into(tensor_proto.metadata_props, from_.metadata_props)
