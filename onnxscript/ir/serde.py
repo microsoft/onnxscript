@@ -687,11 +687,17 @@ def _deserialize_attribute(
         raise NotImplementedError("Sparse tensors are not supported yet")
     if type_ == _enums.AttributeType.TYPE_PROTO:
         ir_type = deserialize_type_proto_for_type(proto.tp)
-        if ir_type is None:
-            raise ValueError(f"TypeProto cannot be None for attribute '{name}'")
-        return _core.AttrTypeProto(name, ir_type, doc_string=doc_string)
+        shape = deserialize_type_proto_for_shape(proto.tp)
+        return _core.AttrTypeProto(
+            name, _core.TypeAndShape(ir_type, shape), doc_string=doc_string
+        )
     if type_ == _enums.AttributeType.TYPE_PROTOS:
-        raise NotImplementedError("Type protos are not supported yet")
+        type_and_shapes = []
+        for type_proto in proto.type_protos:
+            ir_type = deserialize_type_proto_for_type(type_proto)
+            shape = deserialize_type_proto_for_shape(type_proto)
+            type_and_shapes.append(_core.TypeAndShape(ir_type, shape))
+        return _core.AttrTypeProtos(name, type_and_shapes, doc_string=doc_string)
     if type_ == _enums.AttributeType.UNDEFINED:
         return _core.Attr(name, type_, None, doc_string=doc_string)
     raise ValueError(f"Unsupported attribute type: '{type_}'")
@@ -1104,34 +1110,44 @@ def _fill_in_value_for_attribute(
     attribute_proto: onnx.AttributeProto, type_: _enums.AttributeType, value: Any
 ) -> None:
     if type_ == _enums.AttributeType.INT:
+        # value: int
         attribute_proto.i = value
         attribute_proto.type = onnx.AttributeProto.INT
     elif type_ == _enums.AttributeType.FLOAT:
+        # value: float
         attribute_proto.f = value
         attribute_proto.type = onnx.AttributeProto.FLOAT
     elif type_ == _enums.AttributeType.STRING:
+        # value: str
         attribute_proto.s = value.encode("utf-8")
         attribute_proto.type = onnx.AttributeProto.STRING
     elif type_ == _enums.AttributeType.INTS:
+        # value: Sequence[int]
         attribute_proto.ints.extend(value)
         attribute_proto.type = onnx.AttributeProto.INTS
     elif type_ == _enums.AttributeType.FLOATS:
+        # value: Sequence[float]
         attribute_proto.floats.extend(value)
         attribute_proto.type = onnx.AttributeProto.FLOATS
     elif type_ == _enums.AttributeType.STRINGS:
+        # value: Sequence[str]
         attribute_proto.strings.extend([s.encode("utf-8") for s in value])
         attribute_proto.type = onnx.AttributeProto.STRINGS
     elif type_ == _enums.AttributeType.TENSOR:
+        # value: _protocols.TensorProtocol
         serialize_tensor_into(attribute_proto.t, value)
         attribute_proto.type = onnx.AttributeProto.TENSOR
     elif type_ == _enums.AttributeType.GRAPH:
+        # value: _protocols.GraphProtocol
         serialize_graph_into(attribute_proto.g, value)
         attribute_proto.type = onnx.AttributeProto.GRAPH
     elif type_ == _enums.AttributeType.TENSORS:
+        # value: Sequence[_protocols.TensorProtocol]
         for tensor in value:
             serialize_tensor_into(attribute_proto.tensors.add(), tensor)
         attribute_proto.type = onnx.AttributeProto.TENSORS
     elif type_ == _enums.AttributeType.GRAPHS:
+        # value: Sequence[_protocols.GraphProtocol]
         for graph in value:
             serialize_graph_into(attribute_proto.graphs.add(), graph)
         attribute_proto.type = onnx.AttributeProto.GRAPHS
@@ -1140,6 +1156,7 @@ def _fill_in_value_for_attribute(
     elif type_ == _enums.AttributeType.SPARSE_TENSORS:
         raise NotImplementedError("Sparse tensors are not supported yet")
     elif type_ == _enums.AttributeType.TYPE_PROTO:
+        # value: _core.TypeAndShape
         if value.type is not None:
             serialize_type_into(attribute_proto.tp, value.type)
         # Need to create the type _before_ writing the shape
@@ -1147,7 +1164,15 @@ def _fill_in_value_for_attribute(
             serialize_shape_into(attribute_proto.tp, value.shape)
         attribute_proto.type = onnx.AttributeProto.TYPE_PROTO
     elif type_ == _enums.AttributeType.TYPE_PROTOS:
-        raise NotImplementedError("Type protos are not supported yet")
+        for ir_type in value:
+            # ir_type: _core.TypeAndShape
+            type_proto = attribute_proto.type_protos.add()
+            if ir_type.type is not None:
+                serialize_type_into(type_proto, ir_type.type)
+            # Need to create the type _before_ writing the shape
+            if ir_type.shape is not None:
+                serialize_shape_into(type_proto, ir_type.shape)
+        attribute_proto.type = onnx.AttributeProto.TYPE_PROTOS
     else:
         raise TypeError(f"Unsupported attribute type: {type_}")
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import abc
 import contextlib
+import dataclasses
 import math
 import mmap
 import os
@@ -2285,17 +2286,42 @@ class AttrSparseTensors(_SpecializedAttr):
         )
 
 
+@dataclasses.dataclass
+class TypeAndShape:
+    """Type and shape.
+
+    Useful for constructing a type proto.
+    """
+
+    type: _protocols.TypeProtocol | None
+    shape: Shape | None
+
+
 class AttrTypeProto(_SpecializedAttr):
     def __init__(
         self,
         name: str,
-        value: _protocols.TypeProtocol,
+        value: TypeAndShape,
         doc_string: str | None = None,
     ):
-        # TODO(justinchuby): Include shape as well
         super().__init__(
             name,
             _enums.AttributeType.TYPE_PROTO,
+            value,
+            doc_string=doc_string,
+        )
+
+
+class AttrTypeProtos(_SpecializedAttr):
+    def __init__(
+        self,
+        name: str,
+        value: Sequence[TypeAndShape],
+        doc_string: str | None = None,
+    ):
+        super().__init__(
+            name,
+            _enums.AttributeType.TYPE_PROTOS,
             value,
             doc_string=doc_string,
         )
