@@ -2,6 +2,7 @@ import logging
 import unittest
 
 import numpy as np
+import onnx.checker
 import onnx.parser
 
 from onnxscript import ir
@@ -337,7 +338,7 @@ class RewriteRuleTest(unittest.TestCase):
             <ir_version: 7, opset_import: [ "" : 17, "pkg.custom": 1]>
             agraph (float[N] x) => (float[M] z)
             {
-                z = afunction (x)
+                z = pkg.custom.afunction (x)
             }
             <domain: "pkg.custom", opset_import: [ "" : 17]>
             afunction (x) => (z)
@@ -355,6 +356,7 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(
             model.functions[("pkg.custom", "afunction", "")].opset_imports["custom.domain"], 10
         )
+        onnx.checker.check_model(ir.serde.serialize_model(model))
 
 
 if __name__ == "__main__":
