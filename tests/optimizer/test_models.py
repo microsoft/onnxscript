@@ -10,6 +10,7 @@ import onnxruntime
 import parameterized
 
 from onnxscript import optimizer
+from onnxscript.rewriter import onnxruntime as ort_rewriter
 from onnxscript.utils import evaluation_utils
 
 _SKIP_TABLE = {}
@@ -64,6 +65,43 @@ class ModelTest(unittest.TestCase):
             for output, expected_output in zip(outputs, expected_outputs):
                 np.testing.assert_allclose(output, expected_output, rtol=1e-3, atol=1e-3)
 
+    def test_optimizer_after_inlining(self):
+        model_dir = pathlib.Path(model_folder_path) / ".." / "dort_models"
+        filename = model_dir / "llama_forward.onnx"
+        if not filename.exists():
+            self.skipTest(f"Model {filename!r} does not exist")
+
+        onnx_model = onnx.load(filename)
+        onnxruntime.InferenceSession(
+            onnx_model.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+
+        # first time
+        onnx_model = optimizer.optimize(onnx_model)
+        onnxruntime.InferenceSession(
+            onnx_model.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+        onnx_model = ort_rewriter.rewrite(onnx_model)
+        onnxruntime.InferenceSession(
+            onnx_model.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+
+        # inline
+        onnx_model = onnx.inliner.inline_local_functions(onnx_model)
+        onnxruntime.InferenceSession(
+            onnx_model.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+
+        # second time
+        onnx_model = optimizer.optimize(onnx_model)
+        onnxruntime.InferenceSession(
+            onnx_model.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+        onnx_model = ort_rewriter.rewrite(onnx_model)
+        onnxruntime.InferenceSession(
+            onnx_model.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)
