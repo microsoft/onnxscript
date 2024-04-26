@@ -530,11 +530,11 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):
         return self._shape
 
     @property
-    def raw(self) -> str:
+    def raw(self) -> Sequence[bytes] | npt.NDArray[np.bytes_]:
         """Backing data of the tensor. Immutable."""
         return self._raw  # type: ignore[return-value]
 
-    def numpy(self) -> np.ndarray:
+    def numpy(self) -> npt.NDArray[np.bytes_]:
         """Return the tensor as a numpy array."""
         return self.__array__()
 
