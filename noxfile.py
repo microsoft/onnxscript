@@ -26,6 +26,7 @@ COMMON_TEST_DEPENDENCIES = (
     "pyyaml",
     "types-PyYAML",
     "typing_extensions",
+    "transformers==4.40.1",
 )
 ONNX = "onnx==1.16"
 ONNX_RUNTIME = "onnxruntime==1.17.1"

@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import contextlib
 import copy
-import io
 import logging
 import os
 import unittest
 import warnings
-from typing import Callable
+from typing import Callable, Sequence
 
 import numpy as np
 import onnx
@@ -26,42 +25,19 @@ from torch.onnx._internal.fx import (
     diagnostics,
     fx_onnx_interpreter,
     onnxfunction_dispatcher,
+    passes,
 )
 
 
-def hide_stdout():
-    """Hides stdout."""
-
-    def wrapper(fct):
-        def call_f(self):
-            st = io.StringIO()
-            with contextlib.redirect_stdout(st), warnings.catch_warnings():
-                warnings.simplefilter("ignore", (UserWarning,))
-                try:
-                    return fct(self)
-                except AssertionError as e:
-                    if "torch is not recent enough, file" in str(e):
-                        raise unittest.SkipTest(str(e)) from None
-                    raise
-
-        return call_f
-
-    return wrapper
-
-
 @contextlib.contextmanager
-def dump_onnx(prefix: str, folder: str | None = None, clean: bool = False):
-    if folder:
-        if not os.path.exists(folder):
-            os.makedirs(folder)
-        if clean:
-            for f in os.listdir(folder):
-                ff = os.path.join(folder, f)
-                if os.path.isfile(ff):
-                    os.remove(ff)
-    else:
-        assert not clean, "cleaning can only happen if folder is specified"
-
+def dump_onnx(prefix: str, *, folder: str, clean: bool = False):
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+    if clean:
+        for f in os.listdir(folder):
+            ff = os.path.join(folder, f)
+            if os.path.isfile(ff):
+                os.remove(ff)
     value = os.environ.get("ONNXRT_DUMP_PATH", None)
     os.environ["ONNXRT_DUMP_PATH"] = os.path.join(folder, f"{prefix}_")
 
@@ -96,8 +72,9 @@ def ids_tensor(shape, vocab_size):
 
 def _dynamo_export(
     graph_module,
+    args,
+    *,
     target_opset,
-    **kwargs,
 ):
     context = diagnostics.DiagnosticContext(
         "_dynamo_export",
@@ -106,13 +83,11 @@ def _dynamo_export(
     )
     onnx_registry = torch.onnx._internal.exporter.OnnxRegistry()
 
-    self_onnxfunction_dispatcher = onnxfunction_dispatcher.OnnxFunctionDispatcher(
+    function_dispatcher = onnxfunction_dispatcher.OnnxFunctionDispatcher(
         onnx_registry, context
     )
 
-    graph_module = torch.onnx._internal.fx.passes.MovePlaceholderToFront(
-        context, graph_module
-    ).run()
+    graph_module = passes.MovePlaceholderToFront(context, graph_module).run()
 
     # Create the object to iterate through the nodes in graph one-by-one
     # and calls the corresponding ONNX exporter for each node.
@@ -120,15 +95,13 @@ def _dynamo_export(
     # Cast FX variables if they will result schema-mismatch when searching
     # for ONNX operator. E.g., add(double_tensor, int_tensor) is fine in PyTorch,
     # but ONNX expects add(double_tensor, double_tensor).
-    graph_module = torch.onnx._internal.fx.passes.InsertTypePromotion(
-        context, graph_module
-    ).run()
+    graph_module = passes.InsertTypePromotion(context, graph_module).run()
 
     # Start the per-node exporting process. It's conceptually a for loop
     # scanning through the nodes in the graph.
     exported = fx_interpreter.run(
         fx_graph_module=graph_module,
-        onnxfunction_dispatcher=self_onnxfunction_dispatcher,
+        onnxfunction_dispatcher=function_dispatcher,
         op_level_debug=False,
     )
     # Convert the exported result to ONNX ModelProto.
@@ -141,13 +114,58 @@ def _dynamo_export(
 
 
 def get_decomposition_table():
-    import torch
-
     new_table = {}
     for k, v in torch._decomp.decomposition_table.items():
         if k.name() in {"aten::sigmoid_backward"}:
             new_table[k] = v
     return new_table
+
+
+def common_llama_mixed_precision_small(folder_suffix: str, **kwargs):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+
+    local_aot_ort, _ = make_aot_ort(dynamic=False)
+
+    config = transformers.LlamaConfig(**kwargs)
+    config._attn_implementation = "eager"
+
+    model = transformers.models.llama.modeling_llama.LlamaModel(config).to("cuda")
+
+    batch, seq, vocab_size = 2, 1024, 1024
+    input_ids = ids_tensor([batch, seq], vocab_size).to("cuda")
+    input_mask = torch.tril(torch.ones(batch, seq, dtype=torch.float32)).to("cuda")
+
+    model(input_ids, input_mask)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with torch.autocast(device_type="cuda", dtype=torch.float16):
+            optimized_mod = torch.compile(model, backend=local_aot_ort, fullgraph=True)
+            with dump_onnx(
+                "dort-llama-ort",
+                folder=f"dump_eager_llama_mixed_{folder_suffix}",
+                clean=True,
+            ):
+                output = optimized_mod(input_ids, input_mask)
+                output[0].sum().backward()
+
+    names = [
+        name
+        for name in os.listdir(f"dump_eager_llama_mixed_{folder_suffix}")
+        if name.endswith(".onnx")
+    ]
+    for name in names:
+        model_proto = onnx.load(os.path.join(f"dump_eager_llama_mixed_{folder_suffix}", name))
+        output_names = [o.name for o in model_proto.graph.output]
+
+        for output_name in output_names:
+            # This test fails if _unsafe_index_put is not supported, in that case,
+            # DORT detects that a graph break is needed and let torch execute this instruction.
+            # This is not desired.
+            assert not output_name.startswith(
+                "new_zeros"
+            ), f"One output of the output is likely to be null, see {output_names}"
 
 
 class TestCustomOps(unittest.TestCase):
@@ -157,7 +175,6 @@ class TestCustomOps(unittest.TestCase):
         logger.setLevel(logging.ERROR)
         logger.propagate = False
 
-    @hide_stdout()
     def test_llama(self):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -201,68 +218,9 @@ class TestCustomOps(unittest.TestCase):
                     "new_zeros"
                 ), f"One output of the output is likely to be null, see {output_names}"
 
-    def common_llama_mixed_precision_small(self, folder_suffix, **kwargs):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-
-        local_aot_ort, _ = make_aot_ort(dynamic=False)
-
-        config = transformers.LlamaConfig(**kwargs)
-        config._attn_implementation = "eager"
-
-        model = transformers.models.llama.modeling_llama.LlamaModel(config).to("cuda")
-
-        batch, seq, vocab_size = 2, 1024, 1024
-        input_ids = ids_tensor([batch, seq], vocab_size).to("cuda")
-        input_mask = torch.tril(torch.ones(batch, seq, dtype=torch.float32)).to("cuda")
-
-        model(input_ids, input_mask)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            with torch.autocast(device_type="cuda", dtype=torch.float16):
-                optimized_mod = torch.compile(model, backend=local_aot_ort, fullgraph=True)
-                with dump_onnx(
-                    "dort-llama-ort",
-                    folder=f"dump_eager_llama_mixed_{folder_suffix}",
-                    clean=True,
-                ):
-                    output = optimized_mod(input_ids, input_mask)
-                    output[0].sum().backward()
-
-        names = [
-            _
-            for _ in os.listdir(f"dump_eager_llama_mixed_{folder_suffix}")
-            if _.endswith(".onnx")
-        ]
-        if VERBOSE:
-            print("------------------------------------------")
-            print(f"exported model: {names}")
-        for name in names:
-            if VERBOSE:
-                print()
-                print(f"NODES in {name!r}")
-            onx = onnx.load(os.path.join(f"dump_eager_llama_mixed_{folder_suffix}", name))
-            if VERBOSE:
-                for i, node in enumerate(onx.graph.node):
-                    print(
-                        f"{i+1}/{len(onx.graph.node)}: "
-                        f"{node.op_type} {node.input} -> {node.output}"
-                    )
-            output_names = [o.name for o in onx.graph.output]
-
-            for o in output_names:
-                # This test fails if _unsafe_index_put is not supported, in that case,
-                # DORT detects that a graph break is needed and let torch execute this instruction.
-                # This is not desired.
-                assert not o.startswith(
-                    "new_zeros"
-                ), f"One output of the output is likely to be null, see {output_names}"
-
     @unittest.skipIf(not torch.cuda.is_available(), reason="not available on cpu")
-    @hide_stdout()
     def test_llama_mixed_precision_small(self):
-        self.common_llama_mixed_precision_small(
+        common_llama_mixed_precision_small(
             "small",
             hidden_size=16,
             num_hidden_layers=1,
@@ -273,12 +231,11 @@ class TestCustomOps(unittest.TestCase):
         )
 
     @unittest.skipIf(not torch.cuda.is_available(), reason="not available on cpu")
-    @hide_stdout()
     def test_llama_mixed_precision_large(self):
         # This test seems to produce a different model even though
         # the only difference is the model size. It might go through
         # a different code path in transformers.
-        self.common_llama_mixed_precision_small(
+        common_llama_mixed_precision_small(
             "large",
             hidden_size=4096,
             num_hidden_layers=1,
@@ -288,7 +245,6 @@ class TestCustomOps(unittest.TestCase):
             num_attention_heads=32,
         )
 
-    @hide_stdout()
     def test_mlp_dort(self):
         local_aot_ort, _ = make_aot_ort(dynamic=False)
 
@@ -321,23 +277,20 @@ class TestCustomOps(unittest.TestCase):
         grad_actual = params2[0].grad
         torch.testing.assert_close(grad_expected, grad_actual)
 
-    @hide_stdout()
     def test_mlp_dort_custom_backend(self):
         def custom_backend(
             graph_module: torch.fx.GraphModule,
+            args: Sequence[torch.Tensor],
             target_opset: int | None = None,
             use_cuda: bool = False,
         ) -> Callable:
-            import onnxruntime
-            import torch
-
-            exported = _dynamo_export(graph_module, target_opset)
+            exported = _dynamo_export(graph_module, args, target_opset=target_opset)
 
             if use_cuda:
                 providers = ("CUDAExecutionProvider", "CPUExecutionProvider")
             else:
                 providers = ("CPUExecutionProvider",)
-            inference_session = onnxruntime.InferenceSession(
+            inference_session = ort.InferenceSession(
                 exported.SerializeToString(), providers=providers
             )
             input_names = [i.name for i in inference_session.get_inputs()]

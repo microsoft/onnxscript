@@ -28,6 +28,7 @@ pytest!=7.1.0
 pyyaml
 torch>=2.1
 pyinstrument
+transformers==4.40.1
 
 # Lint
 lintrunner>=0.10.7
