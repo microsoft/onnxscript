@@ -6,29 +6,22 @@ import unittest
 import warnings
 from typing import Optional
 
+import onnxruntime
 import torch
 import torch.nn as nn
 import torch.onnx
 from onnx.inliner import inline_local_functions
-from torch.nn import Module, Parameter
 
 
 def make_aot_ort(
     dynamic: bool = False,
-    verbose: int = 0,
     ort_optimization_level: Optional[str] = None,
 ) -> tuple:
-    import onnxruntime
-    from torch.onnx import ExportOptions
-    from torch.onnx import _OrtBackend as OrtBackend
-    from torch.onnx import _OrtBackendOptions as OrtBackendOptions
-    from torch.onnx._internal import onnxruntime as torch_onnxruntime
-
-    code = inspect.getsource(torch_onnxruntime)
+    code = inspect.getsource(torch.onnx._internal.onnxruntime)
     if "optimizer.optimize" not in code:
         raise unittest.SkipTest(
             f"torch=={torch.__version__!r} is not recent enough, "
-            f"file {torch_onnxruntime.__file__!r} "
+            f"file {torch.onnx._internal.onnxruntime.__file__!r} "
             f"does not optimize the exported model."
         )
 
@@ -42,7 +35,7 @@ def make_aot_ort(
             onnxruntime.GraphOptimizationLevel, ort_optimization_level
         )
 
-    export_options = ExportOptions(dynamic_shapes=dynamic)
+    export_options = torch.onnx.ExportOptions(dynamic_shapes=dynamic)
 
     def inline_function(*args, **kwargs):
         first_model_proto = args[0]
@@ -60,25 +53,23 @@ def make_aot_ort(
 
         return first_model_proto
 
-    options = OrtBackendOptions(
+    options = torch.onnx._OrtBackendOptions(
         export_options=export_options,
         ort_session_options=ort_session_options,
         pre_ort_model_transforms=[inline_function],
     )
 
-    ort_backend = OrtBackend(options=options)
-
-    return ort_backend
+    return torch.onnx._OrtBackend(options=options)
 
 
-class FuncModule(Module):
+class FuncModule(torch.nn.Module):
     def __init__(self, f, params=None):
         if params is None:
             params = ()
         super().__init__()
         self.f = f
-        self.ppp = Parameter(torch.Tensor([1]))
-        self.params = nn.ParameterList(list(params))
+        self.ppp = torch.nn.Parameter(torch.Tensor([1]))
+        self.params = torch.nn.ParameterList(list(params))
 
     def forward(self, *args):
         f_args = list(itertools.chain(args, self.params))
@@ -87,12 +78,12 @@ class FuncModule(Module):
         return res
 
 
-class FuncModuleModule(Module):
+class FuncModuleModule(torch.nn.Module):
     def __init__(self, f):
         super().__init__()
         self.f = f
         self.mod = f
-        self.ppp = Parameter(torch.Tensor([1]))
+        self.ppp = torch.nn.Parameter(torch.Tensor([1]))
 
     def forward(self, *args):
         x = args[0] + self.ppp
@@ -103,7 +94,7 @@ class FuncModuleModule(Module):
 class TestSimpleDort(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        torch._dynamo.reset()
+        torch._dynamo.reset()  # pylint: disable=protected-access
         # hides the warnings
         # torch.onnx.dynamo_export only implements opset version 18 for now.
         # torch.library.impl_abstract was renamed to torch.library.register_fake.
@@ -118,14 +109,7 @@ class TestSimpleDort(unittest.TestCase):
         fullgraph: bool = True,
         atol=1e-6,
         rtol=1e-6,
-        opset_version=None,
-        test_backward=True,
-        impl="ort",
-        #
-        input_names=None,
         dynamic_axes=None,
-        keep_initializers_as_inputs=None,
-        training=None,
     ):
         if sys.platform == "win32":
             raise unittest.SkipTest("Windows not supported yet.")
@@ -134,7 +118,7 @@ class TestSimpleDort(unittest.TestCase):
             args = [args]
         if params is None:
             params = ()
-        if isinstance(f, nn.Module):
+        if isinstance(f, torch.nn.Module):
             model = FuncModuleModule(f)
         else:
             model = FuncModule(f, params)
@@ -194,7 +178,6 @@ class TestSimpleDort(unittest.TestCase):
         self.assertONNX(
             nn.BatchNorm2d(2),
             x,
-            keep_initializers_as_inputs=True,
             onnx_export=inspect.currentframe().f_code.co_name,
         )
 
@@ -209,17 +192,6 @@ class TestSimpleDort(unittest.TestCase):
         self.assertONNX(
             nn.BatchNorm1d(2),
             x,
-            keep_initializers_as_inputs=True,
-            onnx_export=inspect.currentframe().f_code.co_name,
-        )
-
-    def test_batchnorm_training(self):
-        x = torch.ones(2, 2, 2, 2, requires_grad=True)
-        self.assertONNX(
-            nn.BatchNorm2d(2),
-            x,
-            training=torch.onnx.TrainingMode.TRAINING,
-            keep_initializers_as_inputs=True,
             onnx_export=inspect.currentframe().f_code.co_name,
         )
 
