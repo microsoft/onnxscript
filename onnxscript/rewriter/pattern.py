@@ -340,7 +340,7 @@ class MatchResult:
         # These include the internal nodes of the pattern that were matched, but not
         # the leaves (sub-trees) that match against the variables in the pattern.
         # These represent the values that will be replaced by the replacement pattern.
-        self.matched_nodes: Sequence[ir.Node] = []
+        self.matched_nodes: MutableSequence[ir.Node] = []
         # For a successful match, bindings is a dictionary of mapping pattern-variable-names
         # to values.
         self.bindings: dict[str, Any] = {}
