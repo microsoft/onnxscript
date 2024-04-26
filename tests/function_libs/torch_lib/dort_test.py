@@ -1,5 +1,7 @@
 """Integration tests using Dynamo-ORT (DORT)."""
+
 from __future__ import annotations
+
 import contextlib
 import copy
 import io
@@ -7,32 +9,30 @@ import logging
 import os
 import unittest
 import warnings
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Callable
 
 import numpy as np
 import onnx
+import onnxruntime as ort
 import torch
-from torch.onnx._internal.diagnostics import infra
-from torch.onnx._internal.exporter import OnnxRegistry
+import torch._decomp
+import torch._dynamo.backends.common
+import torch.fx
+import torch.onnx._internal.exporter
+import transformers
+import transformers.models.llama.modeling_llama
+from torch.onnx._internal.diagnostics import infra as diagnostics_infra
 from torch.onnx._internal.fx import (
     diagnostics,
     fx_onnx_interpreter,
     onnxfunction_dispatcher,
 )
 
-import onnxruntime as ort
-from transformers import LlamaConfig
-from transformers.models.llama.modeling_llama import LlamaModel
-import torch._dynamo.backends.common
-import torch.fx
-import torch._decomp
-
 
 def hide_stdout():
     """Hides stdout."""
 
     def wrapper(fct):
-
         def call_f(self):
             st = io.StringIO()
             with contextlib.redirect_stdout(st), warnings.catch_warnings():
@@ -50,7 +50,7 @@ def hide_stdout():
 
 
 @contextlib.contextmanager
-def dump_onnx(prefix: str, folder: Optional[str] = None, clean: bool = False):
+def dump_onnx(prefix: str, folder: str | None = None, clean: bool = False):
     if folder:
         if not os.path.exists(folder):
             os.makedirs(folder)
@@ -72,7 +72,6 @@ def dump_onnx(prefix: str, folder: Optional[str] = None, clean: bool = False):
 
 
 def make_aot_ort(dynamic: bool = False):
-
     ort_session_options = ort.SessionOptions()
     export_options = torch.onnx.ExportOptions(dynamic_shapes=dynamic)
     options = torch.onnx._OrtBackendOptions(
@@ -100,14 +99,12 @@ def _dynamo_export(
     target_opset,
     **kwargs,
 ):
-
-
     context = diagnostics.DiagnosticContext(
         "_dynamo_export",
         torch.__version__,
-        infra.DiagnosticOptions(),
+        diagnostics_infra.DiagnosticOptions(),
     )
-    onnx_registry = OnnxRegistry()
+    onnx_registry = torch.onnx._internal.exporter.OnnxRegistry()
 
     self_onnxfunction_dispatcher = onnxfunction_dispatcher.OnnxFunctionDispatcher(
         onnx_registry, context
@@ -162,13 +159,12 @@ class TestCustomOps(unittest.TestCase):
 
     @hide_stdout()
     def test_llama(self):
-
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
 
         local_aot_ort, _ = make_aot_ort(dynamic=False)
 
-        config = LlamaConfig(
+        config = transformers.LlamaConfig(
             hidden_size=16,
             num_hidden_layers=1,
             vocab_size=1024,
@@ -178,7 +174,7 @@ class TestCustomOps(unittest.TestCase):
         )
         config._attn_implementation = "eager"
 
-        model = LlamaModel(config)
+        model = transformers.models.llama.modeling_llama.LlamaModel(config)
 
         batch, seq, vocab_size = 2, 1024, 1024
         input_ids = ids_tensor([batch, seq], vocab_size)
@@ -206,16 +202,15 @@ class TestCustomOps(unittest.TestCase):
                 ), f"One output of the output is likely to be null, see {output_names}"
 
     def common_llama_mixed_precision_small(self, folder_suffix, **kwargs):
-
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
 
         local_aot_ort, _ = make_aot_ort(dynamic=False)
 
-        config = LlamaConfig(**kwargs)
+        config = transformers.LlamaConfig(**kwargs)
         config._attn_implementation = "eager"
 
-        model = LlamaModel(config).to("cuda")
+        model = transformers.models.llama.modeling_llama.LlamaModel(config).to("cuda")
 
         batch, seq, vocab_size = 2, 1024, 1024
         input_ids = ids_tensor([batch, seq], vocab_size).to("cuda")
@@ -295,7 +290,6 @@ class TestCustomOps(unittest.TestCase):
 
     @hide_stdout()
     def test_mlp_dort(self):
-
         local_aot_ort, _ = make_aot_ort(dynamic=False)
 
         class MLP(torch.nn.Module):
@@ -329,10 +323,9 @@ class TestCustomOps(unittest.TestCase):
 
     @hide_stdout()
     def test_mlp_dort_custom_backend(self):
-
         def custom_backend(
             graph_module: torch.fx.GraphModule,
-            target_opset: Optional[int] = None,
+            target_opset: int | None = None,
             use_cuda: bool = False,
         ) -> Callable:
             import onnxruntime
