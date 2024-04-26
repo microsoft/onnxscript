@@ -479,7 +479,7 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):
         """Initialize a tensor.
 
         Args:
-            value: The backing data of the tensor. It can be a numpy array or a Sequence of strings.
+            value: The backing data of the tensor. It can be a numpy array or a Sequence of bytes.
             shape: The shape of the tensor. If None, the shape is obtained from the value.
             name: The name of the tensor.
             doc_string: The documentation string.
