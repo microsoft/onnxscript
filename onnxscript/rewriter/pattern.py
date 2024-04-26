@@ -221,36 +221,20 @@ class OpsetPattern:
     of OpPattern, and  `op.Matmul(x, y)` is an instance of NodePattern.
 
     An opset pattern is also matched against the actual opset used in the
-    input model. Typically, we match against an ONNX opset (ignoring the
-    version), but we can match against a specific version of the opset too.
-    However, it is preferable that version-dependences are handled at the
-    level of a rewrite rule, rather than at the level of a pattern.
-
+    input model.
     """
 
-    def __init__(
-        self,
-        domain_pattern: PythonPattern | PrefixPattern,
-        version_pattern: PythonPattern | AnyPattern,
-    ) -> None:
+    def __init__(self, domain_pattern: PythonPattern | PrefixPattern | str) -> None:
+        if isinstance(domain_pattern, str):
+            domain_pattern = PythonPattern(domain_pattern)
         self.domain_pattern = domain_pattern
-        self.version_pattern = version_pattern
-
-    @classmethod
-    def singleton(cls, domain: str, version: int) -> OpsetPattern:
-        return cls(PythonPattern(domain), PythonPattern(version))
-
-    @classmethod
-    def domain(cls, domain: str) -> OpsetPattern:
-        return cls(PythonPattern(domain), AnyPattern())
 
     @classmethod
     def domain_prefix(cls, domain: str) -> OpsetPattern:
-        return cls(PrefixPattern(domain), AnyPattern())
+        return cls(PrefixPattern(domain))
 
-    def matches(self, opset):
-        domain, version = opset
-        return self.domain_pattern.matches(domain) and self.version_pattern.matches(version)
+    def matches(self, domain):
+        return self.domain_pattern.matches(domain)
 
     def __getattr__(self, name: str) -> Any:
         return OpPattern(self, PythonPattern(name))
@@ -260,11 +244,9 @@ class OpsetPattern:
         return OpPattern(self, PrefixPattern(name))
 
 
-opset17 = OpsetPattern.singleton("", 17)
+onnxop = OpsetPattern("")
 
-onnxop = OpsetPattern.domain("")
-
-msft_op = OpsetPattern.singleton("com.microsoft", 1)
+msft_op = OpsetPattern("com.microsoft")
 
 torch_module_op = OpsetPattern.domain_prefix("pkg.torch")
 
@@ -383,8 +365,7 @@ class MatchResult:
         self.matched_values = None
         self.bindings = {}
 
-    def extend(self, other: MatchResult | bool, model):
-        del model  # Unused
+    def extend(self, other: MatchResult | bool):
         if not self.success:
             return
         if not other:
@@ -423,6 +404,12 @@ class ValuePattern:
         return MatchResult([], {self.name: value})
 
     def commute(self) -> Sequence[ValuePattern]:
+        """Return a list of commuted patterns.
+
+        This is used to handle commutative operations like addition and multiplication.
+        A single pattern is converted into a list of equivalent patterns by swapping
+        the parameters of commutative operations.
+        """
         return [self]
 
     def __add__(self, other):
@@ -474,24 +461,9 @@ class NodePattern:
         self.attributes = attributes
         self.bound_value = None
 
-    def matches(self, value: ir.Value, model: ir.Model):
-        if self.bound_value is not None:
-            # DAG-matching, not Tree-matching.
-            if self.bound_value.is_same_as(value):
-                return MatchResult([])
-            else:
-                return MatchResult.FAIL()
-        node = value.producer()
-        if node is None:
-            # Eg., value could be an input parameter, which will not match a value
-            # computed by the op in this pattern.
-            return MatchResult.FAIL()
-        return self.matches_node(node, model)
-
     def matches_node(self, node: ir.Node, model: ir.Model) -> MatchResult:
         """Examine if the IR node matches the self pattern."""
-        node_version = model.graph.opset_imports.get(node.domain, 1)
-        if not self.domain.matches((node.domain, node_version)):
+        if not self.domain.matches(node.domain):
             return MatchResult.FAIL()
         if not self.op.matches(node.op_type):
             return MatchResult.FAIL()
@@ -506,7 +478,7 @@ class NodePattern:
             if arg_value is None or previous_node_output_pattern is None:
                 return MatchResult.FAIL()
             sub_match = previous_node_output_pattern.matches(arg_value, model)  # type: ignore[attr-defined]
-            match.extend(sub_match, model)
+            match.extend(sub_match)
             if not match:  # If sub-match failed,
                 return match
         # Sub-graphs not handled yet.
@@ -517,7 +489,7 @@ class NodePattern:
             sub_match = attr_pattern.matches(attr_value, model)  # type: ignore[arg-type]
             if not sub_match:
                 return MatchResult.FAIL()
-            match.extend(sub_match, model)
+            match.extend(sub_match)
         for name in node.attributes:
             # TODO: Support matching default values for attributes.
             if name not in self.attributes:
@@ -540,9 +512,7 @@ class NodePattern:
                         yield [pattern, *rest]
 
         inputs = list(enumerate_inputs(list_of_lists, 0))
-        if self.domain.matches(("", None)) and (
-            self.op.matches("Add") or self.op.matches("Mul")
-        ):
+        if self.domain.matches("") and (self.op.matches("Add") or self.op.matches("Mul")):
             # TODO: handle cases where number of inputs is not 2.
             swapped = [[x[1], x[0]] for x in inputs]
             inputs.extend(swapped)
@@ -571,6 +541,12 @@ class NodeOutputPattern(ValuePattern):
         if value.index() != self.output_index:
             return MatchResult.FAIL()
         return self.node_pattern.matches_node(node, model)
+
+    def commute(self) -> Sequence[ValuePattern]:
+        return [
+            NodeOutputPattern(pattern, self.output_index, self.name)
+            for pattern in self.node_pattern.commute()
+        ]
 
 
 Var = ValuePattern
@@ -649,8 +625,11 @@ def _handle_pattern_return_value(
         num_outputs = len(node_output_pattern)
         for i, p in enumerate(node_output_pattern):
             assert isinstance(p, NodeOutputPattern)
-            assert p.node_pattern is node_pattern
-            assert p.output_index == i
+            if (p.node_pattern is not node_pattern) or (p.output_index != i):
+                raise NotImplementedError(
+                    "Multi-output pattern not handled by this API. "
+                    "Use other APIs to handle multi-output patterns."
+                )
     else:
         raise TypeError(f"Invalid type {type(node_output_pattern)} for pattern")
     return node_pattern, num_outputs
@@ -768,6 +747,21 @@ class ReplacementPatternFunction:
         return ReplacementSubgraph(new_values, context.nodes, context.used_opsets)
 
 
+def _update_opset_imports(
+    graph_or_function: ir.Graph | ir.Function, delta: ReplacementSubgraph
+):
+    imports = graph_or_function.opset_imports
+    for domain, version in delta.used_opsets:
+        if domain not in imports:
+            # use 1 as default version if not explicitly specified
+            imports[domain] = version if version is not None else 1
+        elif version is not None and version != imports[domain]:
+            raise ValueError(
+                f"Multiple versions of opset {domain} used. "
+                f"Expected version {imports[domain]}, but got {version}."
+            )
+
+
 class RewriteRule:
     def __init__(
         self,
@@ -828,7 +822,7 @@ class RewriteRule:
         return match
 
     def try_rewrite(
-        self, model: ir.Model, node: ir.Node
+        self, model: ir.Model, graph_or_function: ir.Graph | ir.Function, node: ir.Node
     ):  # TODO(rama) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
         match = self.matches(node, model)
@@ -844,21 +838,13 @@ class RewriteRule:
                     )
                 # TODO(rama): Check/update opset-imports
                 # (i) Integrate following with the multi-output matcher and code elsewhere:
-                # (ii) For functions, we need to do this with function, not model's main graph.
+                # (ii) Remove the opset imports from deleted nodes?
                 # (iii) Code in the caller (below) checks if match overlaps previous match, which
                 # appears incorrect for single-pattern matcher. Best to alter iteration to apply
                 # each rewrite immediately, instead of accumulating them.
                 # (iv) return delta here
-                imports = model.graph.opset_imports
-                for domain, version in delta.used_opsets:
-                    if domain not in imports:
-                        # use 1 as default version if not explicitly specified
-                        imports[domain] = version if version is not None else 1
-                    elif version is not None and version != imports[domain]:
-                        raise ValueError(
-                            f"Multiple versions of opset {domain} used. "
-                            f"Expected version {imports[domain]}, but got {version}."
-                        )
+                _update_opset_imports(graph_or_function, delta)
+                _update_opset_imports(model.graph, delta)
                 return match.values, delta.new_nodes
         return None
 
@@ -924,13 +910,21 @@ def _apply_deltas(
         else:
             deleted_nodes, inserted_nodes = delta
             # Replace deleted nodes with inserted nodes.
-            # However, we merge the last deleted node and last inserted node
-            # to avoid replacing the values produced by the last deleted node
-            # in all places where they are used. So, we reuse the output
-            # values from the last deleted node and replace the node itself
             # TODO: simplify this
             last_deleted = deleted_nodes[-1]
             last_inserted = inserted_nodes[-1]
+
+            for old_value, new_value in zip(last_deleted.outputs, last_inserted.outputs):
+                # Propagate relevant info from old value to new value
+                # TODO(Rama): Perhaps we should merge old and new types. As of now, new
+                # values don't have type information. Note that this could be a problem
+                # for semantics-altering rewrite-rules: we should allow users to override
+                # this for such rules.
+                new_value.type = old_value.type
+                new_value.shape = old_value.shape
+                new_value.const_value = old_value.const_value
+                new_value.name = old_value.name
+
             # Reconnect the users of the deleted node to use the new outputs
             _convenience.replace_all_uses_with(last_deleted.outputs, last_inserted.outputs)
             # Update graph/function outputs if the node generates output
@@ -975,7 +969,7 @@ class RewriteRuleSet:
         for rule in self.rules:
             deltas = []
             for i, node in enumerate(graph_or_function):
-                delta = rule.try_rewrite(model, node)
+                delta = rule.try_rewrite(model, graph_or_function, node)
 
                 if delta is None:
                     continue
