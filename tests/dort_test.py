@@ -17,11 +17,13 @@ def make_aot_ort(
     dynamic: bool = False,
     ort_optimization_level: Optional[str] = None,
 ) -> tuple:
-    code = inspect.getsource(torch.onnx._internal.onnxruntime)
+    code = inspect.getsource(
+        torch.onnx._internal.onnxruntime  # pylint: disable=protected-access
+    )
     if "optimizer.optimize" not in code:
         raise unittest.SkipTest(
             f"torch=={torch.__version__!r} is not recent enough, "
-            f"file {torch.onnx._internal.onnxruntime.__file__!r} "
+            f"file {torch.onnx._internal.onnxruntime.__file__!r} "  # pylint: disable=protected-access
             f"does not optimize the exported model."
         )
 
@@ -53,13 +55,13 @@ def make_aot_ort(
 
         return first_model_proto
 
-    options = torch.onnx._OrtBackendOptions(
+    options = torch.onnx._OrtBackendOptions(  # pylint: disable=protected-access
         export_options=export_options,
         ort_session_options=ort_session_options,
         pre_ort_model_transforms=[inline_function],
     )
 
-    return torch.onnx._OrtBackend(options=options)
+    return torch.onnx._OrtBackend(options=options)  # pylint: disable=protected-access
 
 
 class FuncModule(torch.nn.Module):
