@@ -353,7 +353,7 @@ class MatchResult:
         return cls(False)
 
     @property
-    def nodes(self) -> Sequence[ir.Node]:
+    def nodes(self) -> MutableSequence[ir.Node]:
         return self.matched_nodes
 
     def bind(self, var: str, value: Any):
