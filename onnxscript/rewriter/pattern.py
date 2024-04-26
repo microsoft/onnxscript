@@ -817,26 +817,26 @@ class RewriteRule:
 
     def try_rewrite(
         self, model: ir.Model, graph_or_function: ir.Graph | ir.Function, node: ir.Node
-    ):  # TODO(rama) -> ReplacementSubgraph | None:
+    ) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
         match = self.matches(node, model)
         if match:
             assert match.nodes is not None, "Matched values should not be None."
             if _valid_to_replace(match.nodes):
-                delta = self._replacement_pattern.get_replacement(match)
-                if delta is None:
+                replacement_subgraph = self._replacement_pattern.get_replacement(match)
+                if replacement_subgraph is None:
                     return None
-                if len(delta.new_outputs) != self._target_num_outputs:
+                if len(replacement_subgraph.new_outputs) != self._target_num_outputs:
                     raise ValueError(
                         f"Number of outputs from replacement function does not match the number of outputs from the target pattern. "
-                        f"Expected {self._target_num_outputs}, but got {len(delta.new_outputs)}."
+                        f"Expected {self._target_num_outputs}, but got {len(replacement_subgraph.new_outputs)}."
                     )
                 # TODO(rama): Check/update opset-imports
                 # (i) Following is required by multi-output matcher too; move this.
                 # (ii) Remove the opset imports from deleted nodes?
-                _update_opset_imports(graph_or_function, delta)
-                _update_opset_imports(model.graph, delta)
-                return delta
+                _update_opset_imports(graph_or_function, replacement_subgraph)
+                _update_opset_imports(model.graph, replacement_subgraph)
+                return replacement_subgraph
         return None
 
     def apply_to_model(self, model: ir.Model, *, commute: bool = False):
@@ -886,7 +886,7 @@ def _apply_delta(
 
     if isinstance(delta, tuple):
         # multi-output strategy
-        n_matches, deleted_nodes, inserted_nodes = delta
+        n_matches, matched_nodes, inserted_nodes = delta
 
         # TODO(rama): Was "assert i not in to_insert"; seems wrong.
         # What is this trying to check? Best effort correction below.
@@ -900,9 +900,9 @@ def _apply_delta(
                 if (index := new_output.meta.get(_ir_utils.GRAPH_OUTPUT_META_KEY)) is not None:  # type: ignore[assignment]
                     graph_or_function.outputs[index] = new_output
 
-        for d in deleted_nodes:
+        for d in matched_nodes:
             assert d in graph_or_function
-        graph_or_function.remove(deleted_nodes, safe=True)
+        graph_or_function.remove(matched_nodes, safe=True)
     else:
         assert isinstance(delta, ReplacementSubgraph)
         # Replace matched nodes with new nodes.
