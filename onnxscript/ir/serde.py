@@ -1182,7 +1182,7 @@ def _fill_in_value_for_attribute(
             type_proto = attribute_proto.type_protos.add()
             if ir_type.type is not None:
                 serialize_type_into(type_proto, ir_type.type)
-            # Need to create the type _before_ writing the shape
+            # Need to create the type _before_ writing the shape so that the shape can be written to the leaf type proto
             if ir_type.shape is not None:
                 serialize_shape_into(type_proto, ir_type.shape)
         attribute_proto.type = onnx.AttributeProto.TYPE_PROTOS
@@ -1234,7 +1234,7 @@ def serialize_value_into(
         _serialize_metadata_props_into(value_info_proto.metadata_props, from_.metadata_props)
     if from_.type is not None:
         serialize_type_into(value_info_proto.type, from_.type)
-    # Need to create the type _before_ writing the shape
+    # Need to create the type _before_ writing the shape so that the shape can be written to the leaf type proto
     if from_.shape is not None:
         serialize_shape_into(value_info_proto.type, from_.shape)
 
