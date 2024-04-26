@@ -870,9 +870,10 @@ class RewriteRule:
 
 
 def _apply_delta(
-    graph_or_function: ir.Graph | ir.Function, node: ir.Node,
+    graph_or_function: ir.Graph | ir.Function,
+    node: ir.Node,
     # TODO(jutinchuby): Use a more descriptive data structure to store deltas
-    delta
+    delta,
 ):
     """Applies delta.
 
@@ -891,14 +892,10 @@ def _apply_delta(
     We could reorder (long) or do more clever changes.
     The reordering would probably happen not very often.
     """
-    existing_ids = {id(n): (i, n) for i, n in enumerate(graph_or_function)}
 
     if len(delta) == 3:
         # multi-output strategy
         n_matches, deleted_nodes, inserted_nodes = delta
-
-        for d in deleted_nodes:
-            assert id(d) in existing_ids
 
         # TODO(rama): Was "assert i not in to_insert"; seems wrong.
         # What is this trying to check? Best effort correction below.
@@ -912,6 +909,8 @@ def _apply_delta(
                 if (index := new_output.meta.get(_ir_utils.GRAPH_OUTPUT_META_KEY)) is not None:  # type: ignore[assignment]
                     graph_or_function.outputs[index] = new_output
 
+        for d in deleted_nodes:
+            assert d in graph_or_function
         graph_or_function.remove(deleted_nodes, safe=True)
 
     else:
@@ -938,14 +937,11 @@ def _apply_delta(
         replacement_mapping = dict(zip(last_deleted.outputs, last_inserted.outputs))
         for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
             if graph_or_function_output in replacement_mapping:
-                graph_or_function.outputs[idx] = replacement_mapping[
-                    graph_or_function_output
-                ]
+                graph_or_function.outputs[idx] = replacement_mapping[graph_or_function_output]
 
         # insert new nodes after the index node
         graph_or_function.insert_after(last_deleted, inserted_nodes)
         graph_or_function.remove(deleted_nodes, safe=True)
-
 
 
 class RewriteRuleSet:
@@ -960,32 +956,14 @@ class RewriteRuleSet:
         graph_or_function: ir.Graph | ir.Function,
     ) -> int:
         count = 0
-        marked = set()
+
         # NOTE: Rules should be prioritized in the order they are added to the RewriteRuleSet.
         # And the graph is applied in order.
         for rule in self.rules:
-            deltas = []
-            for i, node in enumerate(graph_or_function):
+            for node in graph_or_function:
                 delta = rule.try_rewrite(model, graph_or_function, node)
-
                 if delta is None:
                     continue
-
-                matched_nodes, _ = delta[-2:]
-
-                conflict = False
-                for n in matched_nodes:
-                    if id(n) in marked:
-                        # The same node cannot be matched twice with different patterns.
-                        conflict = True
-                        break
-
-                if conflict:
-                    # Some nodes are already marked as rewritten.
-                    continue
-
-                marked |= set(map(id, matched_nodes))
-
                 _apply_delta(graph_or_function, node, delta)
                 count += 1
 
