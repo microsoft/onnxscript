@@ -869,12 +869,12 @@ class RewriteRule:
         return [replace_pattern(p) for p in self._target_node_pattern.commute()]
 
 
-def _apply_deltas(
-    graph_or_function: ir.Graph | ir.Function,
+def _apply_delta(
+    graph_or_function: ir.Graph | ir.Function, node: ir.Node,
     # TODO(jutinchuby): Use a more descriptive data structure to store deltas
-    deltas: Sequence[tuple[int, tuple[Sequence[ir.Node], Sequence[ir.Node]]]],
+    delta
 ):
-    """Applies deltas.
+    """Applies delta.
 
     This code is valid is the considered pattern has only one output.
     In case of multi output replacements, there is not need to rename
@@ -892,55 +892,19 @@ def _apply_deltas(
     The reordering would probably happen not very often.
     """
     existing_ids = {id(n): (i, n) for i, n in enumerate(graph_or_function)}
-    to_delete: set[ir.Node] = set()
-    to_insert: list[tuple[ir.Node, list[ir.Node]]] = []
 
-    for i, delta in reversed(deltas):
-        if len(delta) == 3:
-            # multi-outut strategy
-            n_matches, deleted_nodes, inserted_nodes = delta
-            for d in deleted_nodes:
-                assert id(d) in existing_ids
-                to_delete.add(d)
+    if len(delta) == 3:
+        # multi-output strategy
+        n_matches, deleted_nodes, inserted_nodes = delta
 
-            # the position to insert must be chosen.
-            # we'll try position i
-            assert i not in to_insert  # conflicts should avoid that case
-            to_insert.append((graph_or_function[i], inserted_nodes))
-        else:
-            deleted_nodes, inserted_nodes = delta
-            # Replace deleted nodes with inserted nodes.
-            # TODO: simplify this
-            last_deleted = deleted_nodes[-1]
-            last_inserted = inserted_nodes[-1]
+        for d in deleted_nodes:
+            assert id(d) in existing_ids
 
-            for old_value, new_value in zip(last_deleted.outputs, last_inserted.outputs):
-                # Propagate relevant info from old value to new value
-                # TODO(Rama): Perhaps we should merge old and new types. As of now, new
-                # values don't have type information. Note that this could be a problem
-                # for semantics-altering rewrite-rules: we should allow users to override
-                # this for such rules.
-                new_value.type = old_value.type
-                new_value.shape = old_value.shape
-                new_value.const_value = old_value.const_value
-                new_value.name = old_value.name
+        # TODO(rama): Was "assert i not in to_insert"; seems wrong.
+        # What is this trying to check? Best effort correction below.
+        assert node not in inserted_nodes  # conflicts should avoid that case
 
-            # Reconnect the users of the deleted node to use the new outputs
-            _convenience.replace_all_uses_with(last_deleted.outputs, last_inserted.outputs)
-            # Update graph/function outputs if the node generates output
-            replacement_mapping = dict(zip(last_deleted.outputs, last_inserted.outputs))
-            for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
-                if graph_or_function_output in replacement_mapping:
-                    graph_or_function.outputs[idx] = replacement_mapping[
-                        graph_or_function_output
-                    ]
-
-            # insert new nodes after the index node
-            graph_or_function.insert_after(last_deleted, inserted_nodes)
-            graph_or_function.remove(deleted_nodes, safe=True)
-
-    for replaced_node, inserted_nodes in to_insert:
-        graph_or_function.insert_after(replaced_node, inserted_nodes)
+        graph_or_function.insert_after(node, inserted_nodes)
         # TODO: improve this
         # This is updating the graph/function outputs to use the new outputs
         for inserted_node in inserted_nodes:
@@ -948,7 +912,40 @@ def _apply_deltas(
                 if (index := new_output.meta.get(_ir_utils.GRAPH_OUTPUT_META_KEY)) is not None:  # type: ignore[assignment]
                     graph_or_function.outputs[index] = new_output
 
-    graph_or_function.remove(to_delete, safe=True)
+        graph_or_function.remove(deleted_nodes, safe=True)
+
+    else:
+        deleted_nodes, inserted_nodes = delta
+        # Replace deleted nodes with inserted nodes.
+        # TODO: simplify this
+        last_deleted = deleted_nodes[-1]
+        last_inserted = inserted_nodes[-1]
+
+        for old_value, new_value in zip(last_deleted.outputs, last_inserted.outputs):
+            # Propagate relevant info from old value to new value
+            # TODO(Rama): Perhaps we should merge old and new types. As of now, new
+            # values don't have type information. Note that this could be a problem
+            # for semantics-altering rewrite-rules: we should allow users to override
+            # this for such rules.
+            new_value.type = old_value.type
+            new_value.shape = old_value.shape
+            new_value.const_value = old_value.const_value
+            new_value.name = old_value.name
+
+        # Reconnect the users of the deleted node to use the new outputs
+        _convenience.replace_all_uses_with(last_deleted.outputs, last_inserted.outputs)
+        # Update graph/function outputs if the node generates output
+        replacement_mapping = dict(zip(last_deleted.outputs, last_inserted.outputs))
+        for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
+            if graph_or_function_output in replacement_mapping:
+                graph_or_function.outputs[idx] = replacement_mapping[
+                    graph_or_function_output
+                ]
+
+        # insert new nodes after the index node
+        graph_or_function.insert_after(last_deleted, inserted_nodes)
+        graph_or_function.remove(deleted_nodes, safe=True)
+
 
 
 class RewriteRuleSet:
@@ -989,10 +986,9 @@ class RewriteRuleSet:
 
                 marked |= set(map(id, matched_nodes))
 
-                deltas.append((i, delta))
+                _apply_delta(graph_or_function, node, delta)
                 count += 1
 
-            _apply_deltas(graph_or_function, deltas)
         return count
 
     def apply_to_model(self, model: ir.Model) -> int:
