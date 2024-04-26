@@ -566,7 +566,7 @@ class Constant(ValuePattern):
         # the Constant node in the return_value list. However, we don't do that.
         # Instead, we will rely on DCE to remove the constant node if it is not
         # used elsewhere.
-        return MatchResult(status)
+        return MatchResult(success=status)
 
     def matches(self, value: ir.Value, model: ir.Model):
         value = _ir_utils.propagate_const_value(value)
