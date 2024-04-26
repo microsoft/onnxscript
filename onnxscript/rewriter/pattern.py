@@ -320,7 +320,7 @@ class MatchResult:
     """Represents the result of a match operation.
 
     A match can either succeed or fail.
-    If it succeeds, it returns a list of IR values that matched the pattern
+    If it succeeds, it returns a list of nodes that matched the pattern
     and a set of bindings for the variables in the pattern.
 
     Example:
@@ -330,21 +330,20 @@ class MatchResult:
             t2 = op.Reshape(t1, shape2)
             return t2
     The above pattern matches a sequence of two Reshape ops.
-    The matched_values will contain the values representing the (output of)
-    the two Reshape ops, and the bindings will contain the values that
-    are bound to the variables `x`, `shape1`, and `shape2`.
+    The matched_nodes will contain the two Reshape ops, and the bindings will
+    contain the values that are bound to the variables `x`, `shape1`, and `shape2`.
     """
 
     def __init__(
-        self, matched_values=None, bindings: dict[str, ir.Value | Any] | None = None
+        self, matched_nodes=None, bindings: dict[str, ir.Value | Any] | None = None
     ) -> None:
-        assert matched_values is None or isinstance(matched_values, list)
-        self.success: bool = matched_values is not None
-        # For a successful match, matched_values is a list of values that matched the pattern.
+        assert matched_nodes is None or isinstance(matched_nodes, list)
+        self.success: bool = matched_nodes is not None
+        # For a successful match, matched_nodes is a list of values that matched the pattern.
         # These include the internal nodes of the pattern that were matched, but not
         # the leaves (sub-trees) that match against the variables in the pattern.
         # These represent the values that will be replaced by the replacement pattern.
-        self.matched_values: Sequence[Any] | None = matched_values
+        self.matched_nodes: Sequence[ir.Node] | None = matched_nodes
         # For a successful match, bindings is a dictionary of mapping pattern-variable-names
         # to values.
         self.bindings: dict[str, Any] = bindings if bindings is not None else {}
@@ -357,12 +356,12 @@ class MatchResult:
         return cls(None)
 
     @property
-    def values(self) -> Sequence[Any] | None:
-        return self.matched_values
+    def nodes(self) -> Sequence[ir.Node] | None:
+        return self.matched_nodes
 
     def fail(self):
         self.success = False
-        self.matched_values = None
+        self.matched_nodes = None
         self.bindings = {}
 
     def extend(self, other: MatchResult | bool):
@@ -381,8 +380,8 @@ class MatchResult:
                     return
             else:
                 self.bindings[var] = val
-        assert self.matched_values is not None, "matched_values should not be None."
-        self.matched_values.extend(other.matched_values)  # type: ignore[attr-defined]
+        assert self.matched_nodes is not None, "matched_nodes should not be None."
+        self.matched_nodes.extend(other.matched_nodes)  # type: ignore[attr-defined]
 
 
 class ValuePattern:
@@ -491,11 +490,11 @@ class NodePattern:
                 return MatchResult.FAIL()
             match.extend(sub_match)
         for name in node.attributes:
-            # TODO: Support matching default values for attributes.
+            # TODO: Support matching default nodes for attributes.
             if name not in self.attributes:
                 return MatchResult.FAIL()
-        assert match.values is not None, "Matched values should not be None."
-        match.values.append(node)  #  type: ignore[attr-defined]
+        assert match.nodes is not None, "Matched nodes should not be None."
+        match.nodes.append(node)  #  type: ignore[attr-defined]
         return match
 
     def commute(self) -> Sequence[NodePattern]:
@@ -635,7 +634,7 @@ def _handle_pattern_return_value(
     return node_pattern, num_outputs
 
 
-def _valid_to_replace(matched_nodes: Sequence[Any]) -> bool:
+def _valid_to_replace(matched_nodes: Sequence[ir.Node]) -> bool:
     """Check that values computed by the matched_nodes, except for the last one, are used only by the matched_nodes."""
     # * Must check that all values matched by pattern are used only by pattern,
     # except for the value that is replaced.
@@ -721,7 +720,8 @@ class RewriterContext:
 class ReplacementSubgraph:
     """A subgraph that will replace the matched pattern."""
 
-    new_values: Sequence[ir.Value]
+    match: MatchResult
+    new_outputs: Sequence[ir.Value]
     new_nodes: Sequence[ir.Node]
     used_opsets: UsedOpsets
 
@@ -736,15 +736,14 @@ class ReplacementPatternFunction:
     def __init__(self, function) -> None:
         self._function = function
 
-    def get_replacement(
-        self,
-        match_bindings: dict[str, ir.Value | Any] | None = None,
-    ) -> ReplacementSubgraph:
+    def get_replacement(self, match: MatchResult) -> ReplacementSubgraph | None:
         context = RewriterContext()
-        new_values = self._function(context, **match_bindings)
-        if not isinstance(new_values, Sequence):
-            new_values = [new_values]
-        return ReplacementSubgraph(new_values, context.nodes, context.used_opsets)
+        new_outputs = self._function(context, **match.bindings)
+        if new_outputs is None:
+            return None  # Failed to create replacement subgraph
+        if not isinstance(new_outputs, Sequence):
+            new_outputs = [new_outputs]
+        return ReplacementSubgraph(match, new_outputs, context.nodes, context.used_opsets)
 
 
 def _update_opset_imports(
@@ -827,25 +826,22 @@ class RewriteRule:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
         match = self.matches(node, model)
         if match:
-            assert match.values is not None, "Matched values should not be None."
-            if _valid_to_replace(match.values):
-                # bindings will be consumed by the replacement function
-                delta = self._replacement_pattern.get_replacement(match.bindings)
-                if len(delta.new_values) != self._target_num_outputs:
+            assert match.nodes is not None, "Matched values should not be None."
+            if _valid_to_replace(match.nodes):
+                delta = self._replacement_pattern.get_replacement(match)
+                if delta is None:
+                    return None
+                if len(delta.new_outputs) != self._target_num_outputs:
                     raise ValueError(
                         f"Number of outputs from replacement function does not match the number of outputs from the target pattern. "
-                        f"Expected {self._target_num_outputs}, but got {len(delta.new_values)}."
+                        f"Expected {self._target_num_outputs}, but got {len(delta.new_outputs)}."
                     )
                 # TODO(rama): Check/update opset-imports
-                # (i) Integrate following with the multi-output matcher and code elsewhere:
+                # (i) Following is required by multi-output matcher too; move this.
                 # (ii) Remove the opset imports from deleted nodes?
-                # (iii) Code in the caller (below) checks if match overlaps previous match, which
-                # appears incorrect for single-pattern matcher. Best to alter iteration to apply
-                # each rewrite immediately, instead of accumulating them.
-                # (iv) return delta here
                 _update_opset_imports(graph_or_function, delta)
                 _update_opset_imports(model.graph, delta)
-                return match.values, delta.new_nodes
+                return delta
         return None
 
     def apply_to_model(self, model: ir.Model, *, commute: bool = False):
@@ -893,7 +889,7 @@ def _apply_delta(
     The reordering would probably happen not very often.
     """
 
-    if len(delta) == 3:
+    if isinstance(delta, tuple):
         # multi-output strategy
         n_matches, deleted_nodes, inserted_nodes = delta
 
@@ -912,15 +908,12 @@ def _apply_delta(
         for d in deleted_nodes:
             assert d in graph_or_function
         graph_or_function.remove(deleted_nodes, safe=True)
-
     else:
-        deleted_nodes, inserted_nodes = delta
-        # Replace deleted nodes with inserted nodes.
-        # TODO: simplify this
-        last_deleted = deleted_nodes[-1]
-        last_inserted = inserted_nodes[-1]
+        assert isinstance(delta, ReplacementSubgraph)
+        # Replace matched nodes with new nodes.
+        last_inserted = delta.new_nodes[-1]
 
-        for old_value, new_value in zip(last_deleted.outputs, last_inserted.outputs):
+        for old_value, new_value in zip(node.outputs, last_inserted.outputs):
             # Propagate relevant info from old value to new value
             # TODO(Rama): Perhaps we should merge old and new types. As of now, new
             # values don't have type information. Note that this could be a problem
@@ -932,16 +925,16 @@ def _apply_delta(
             new_value.name = old_value.name
 
         # Reconnect the users of the deleted node to use the new outputs
-        _convenience.replace_all_uses_with(last_deleted.outputs, last_inserted.outputs)
+        _convenience.replace_all_uses_with(node.outputs, last_inserted.outputs)
         # Update graph/function outputs if the node generates output
-        replacement_mapping = dict(zip(last_deleted.outputs, last_inserted.outputs))
+        replacement_mapping = dict(zip(node.outputs, last_inserted.outputs))
         for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
             if graph_or_function_output in replacement_mapping:
                 graph_or_function.outputs[idx] = replacement_mapping[graph_or_function_output]
 
         # insert new nodes after the index node
-        graph_or_function.insert_after(last_deleted, inserted_nodes)
-        graph_or_function.remove(deleted_nodes, safe=True)
+        graph_or_function.insert_after(node, delta.new_nodes)
+        graph_or_function.remove(delta.match.nodes, safe=True)
 
 
 class RewriteRuleSet:
