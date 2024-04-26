@@ -69,8 +69,6 @@ class ModelTest(unittest.TestCase):
     def test_optimizer_after_inlining(self):
         model_dir = pathlib.Path(model_folder_path) / ".." / "dort_models"
         filename = model_dir / "llama_forward.onnx"
-        if not filename.exists():
-            self.skipTest(f"Model {filename!r} does not exist")
 
         onnx_model = onnx.load(filename)
         onnxruntime.InferenceSession(
