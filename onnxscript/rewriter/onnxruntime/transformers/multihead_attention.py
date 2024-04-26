@@ -71,6 +71,8 @@ class AttnSizeConfig:
 class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
     def infer_attn_size_config(self, function: ir.Function) -> AttnSizeConfig:
         if len(function.outputs) == 3:
+            # Usually the Attention related modules have 3 outputs:
+            # present_value, present_key, attn_output
             present_value, _, attn_output = function.outputs
             if present_value.shape is None:
                 raise function_rule.FunctionRewriteError(
@@ -91,6 +93,8 @@ class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
                 hidden_size=hidden_size,
             )
         elif any("scaled_dot_product_attention" in node.op_type for node in function):
+            # If the Attention related modules use scaled_dot_product_attention,
+            # present_value and present_key are not present in the output.
             hidden_size = function.outputs[0].shape[2]
             # Get head size and number of heads from the Reshape node.
             # Reference:
@@ -116,10 +120,12 @@ class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
                         hidden_size=hidden_size,
                     )
             raise function_rule.FunctionRewriteError(
-                "Failed to infer head size and number of heads from Reshape nodes."
+                "Failed to infer head size and number of heads from QKV Reshape nodes. \
+                Expected 4D shape in the constant node (batch_size, seq_length, num_attention_heads, head_size)."
             )
         raise function_rule.FunctionRewriteError(
-            f"Unexpected function structure, got output: {len(function.outputs)}."
+            f"Attenion modules should have 3 outputs or scaled_dot_product_attention node, \
+            got output: {len(function.outputs)} and no scaled_dot_product_attention."
         )
 
 
@@ -626,6 +632,8 @@ class AttnPhi15RewriteRule(AttentionRewriteRule):
 
 
 class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
+    """Rewrite rule for Attention in diffusers."""
+
     FUNCTION_KEYWORD = "Attention"
     PACKAGE_NAME = "diffusers"
     _version_controller = function_rule.VersionController()
@@ -635,6 +643,8 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
 
     @_version_controller.register_version()
     def _fusion(self, function: ir.Function) -> ir.Function:
+        # Attention inputs could be 6 or 7:
+        # hidden_states, encoder_hidden_states(optional), q_weight, k_weight, v_weight, o_weight, o_bias
         if len(function.inputs) != 6 and len(function.inputs) != 7:
             raise function_rule.FunctionRewriteError(
                 f"Unexpected number of inputs. Expected 6 or 7, got {len(function.inputs)}."
@@ -661,7 +671,7 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
             )
 
             # NOTE: MHA does not work when Q, K, and V has the same root inputs.
-            mha_output, _ = msft_op.Attention(
+            attn_output, _ = msft_op.Attention(
                 hidden_states,
                 qkv_weight,
                 None,
@@ -670,7 +680,7 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
             )
 
             # linear projection
-            output = op.Add(op.MatMul(mha_output, op.Transpose(o_weight, [1, 0])), o_bias)
+            output = op.Add(op.MatMul(attn_output, op.Transpose(o_weight, [1, 0])), o_bias)
             return output
 
         def mha(
@@ -688,7 +698,7 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
 
             # NOTE: Q and K needs to have the sequence length (dim 1) to use
             # GQA.
-            gqa_output, _, _ = msft_op.MultiHeadAttention(
+            mha_output, _, _ = msft_op.MultiHeadAttention(
                 q,
                 k,
                 v,
@@ -696,7 +706,7 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
                 None,
                 num_heads=attn_size_config.num_attention_heads,
             )
-            attn_output = op.Add(op.MatMul(gqa_output, op.Transpose(o_weight, [1, 0])), o_bias)
+            attn_output = op.Add(op.MatMul(mha_output, op.Transpose(o_weight, [1, 0])), o_bias)
             return attn_output
 
         if len(function.inputs) == 6:
