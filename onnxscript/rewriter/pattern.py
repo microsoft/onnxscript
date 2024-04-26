@@ -490,7 +490,7 @@ class NodePattern:
             if name not in self.attributes:
                 return MatchResult.FAIL()
         assert match.nodes is not None, "Matched nodes should not be None."
-        match.nodes.append(node)  #  type: ignore[attr-defined]
+        match.nodes.append(node)
         return match
 
     def commute(self) -> Sequence[NodePattern]:
