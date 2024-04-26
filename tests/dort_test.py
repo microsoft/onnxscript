@@ -39,7 +39,7 @@ def make_aot_ort(
 
     export_options = torch.onnx.ExportOptions(dynamic_shapes=dynamic)
 
-    def inline_function(*args, **kwargs):
+    def inline_function(*args, **kwargs):  # pylint: disable=unused-argument
         first_model_proto = args[0]
 
         next_model = inline_local_functions(first_model_proto)
