@@ -4,7 +4,7 @@ import dataclasses
 import inspect
 import itertools
 import math
-from typing import Any, Callable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, List, MutableSequence, Optional, Sequence, Tuple
 
 import numpy as np
 import onnx
