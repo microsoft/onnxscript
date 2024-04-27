@@ -124,8 +124,8 @@ class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
                 Expected 4D shape in the constant node (batch_size, seq_length, num_attention_heads, head_size)."
             )
         raise function_rule.FunctionRewriteError(
-            f"Attenion modules should have 3 outputs or scaled_dot_product_attention node, \
-            got output: {len(function.outputs)} and no scaled_dot_product_attention."
+            f"Attenion modules should have 3 outputs or scaled_dot_product_attention node, "
+            f"got output: {len(function.outputs)} and no scaled_dot_product_attention."
         )
 
 
@@ -133,9 +133,6 @@ class MHALlama2RewriteRule(AttentionRewriteRule):
     FUNCTION_KEYWORD = "LlamaAttention"
     PACKAGE_NAME = "transformers"
     _version_controller = function_rule.VersionController()
-
-    def __init__(self) -> None:
-        super().__init__()
 
     @_version_controller.register_version(min_version="4.33", max_version="4.36")
     def _fusion_with_4d_cache(self, function: ir.Function) -> ir.Function:
@@ -271,9 +268,6 @@ class GQALlama2RewriteRule(AttentionRewriteRule):
     FUNCTION_KEYWORD = "LlamaAttention"
     PACKAGE_NAME = "transformers"
     _version_controller = function_rule.VersionController()
-
-    def __init__(self) -> None:
-        super().__init__()
 
     @_version_controller.register_version(min_version="4.33", max_version="4.36")
     def _fusion_with_4d_cache(self, function: ir.Function) -> ir.Function:
@@ -422,9 +416,6 @@ class GQALlamaSdpa2RewriteRule(AttentionRewriteRule):
     PACKAGE_NAME = "transformers"
     _version_controller = function_rule.VersionController()
 
-    def __init__(self) -> None:
-        super().__init__()
-
     @_version_controller.register_version(min_version="4.36", max_version="4.38")
     def _fusion(self, function: ir.Function) -> ir.Function:
         # Infer size configurations from the function.
@@ -565,9 +556,6 @@ class AttnPhi15RewriteRule(AttentionRewriteRule):
     PACKAGE_NAME = "transformers_modules"
     _version_controller = function_rule.VersionController()
 
-    def __init__(self) -> None:
-        super().__init__()
-
     @_version_controller.register_version()
     def _fusion(self, function: ir.Function) -> ir.Function:
         # Infer size configurations from the function.
@@ -637,9 +625,6 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
     FUNCTION_KEYWORD = "Attention"
     PACKAGE_NAME = "diffusers"
     _version_controller = function_rule.VersionController()
-
-    def __init__(self) -> None:
-        super().__init__()
 
     @_version_controller.register_version()
     def _fusion(self, function: ir.Function) -> ir.Function:
