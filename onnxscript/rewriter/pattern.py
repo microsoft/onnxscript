@@ -4,7 +4,7 @@ import dataclasses
 import inspect
 import itertools
 import math
-from typing import Any, Callable, List, MutableSequence, Optional, Sequence, Tuple
+from typing import Any, Callable, List, MutableSequence, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
@@ -22,236 +22,161 @@ from onnxscript.rewriter import _ir_utils, _tape
 # TODO: Ensure that all matches() methods have same type signature (where
 # appropriate).
 
+from typing import Any, Protocol, TypeVar, Generic
+from onnxscript import ir
 
-class PythonPattern:
-    def __init__(self, value: int | str | Sequence, name: str | None = None) -> None:
+T = TypeVar('T')
+
+class Pattern(Protocol, Generic[T]):
+    '''This is essentially a Predicate[T], that is, a Callable[[T], bool] bound to the name "matches".'''
+    def matches(self, item: T) -> bool:
+        ...
+
+class StringConstantPattern(Pattern[str]):
+    """Matches strings with given value."""
+    def __init__(self, value: str):
         self._value = value
-        self._name = name
 
-    @property
-    def value(self) -> int | str | Sequence:
-        return self._value
+    def matches(self, item: str) -> bool:
+        return item == self._value
 
-    @property
-    def name(self) -> str | None:
-        return self._name
-
-    def matches(self, value: int | str | Sequence) -> bool:
-        return value == self.value
-
-
-class StringConstantPattern:
-    def __init__(self, value: str, name: str) -> None:
-        self._value = value
-        self._name = name
-
-    @property
-    def value(self) -> str:
-        return self._value
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    def matches(self, attr: ir.AttrString) -> bool:
-        return attr.value == self.value
-
-
-class IntConstantPattern:
-    def __init__(self, value: int, name: str) -> None:
-        self._value = value
-        self._name = name
-
-    @property
-    def value(self) -> int:
-        return self._value
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    def matches(self, attr: ir.AttrInt64) -> bool:
-        return attr.value == self.value
-
-
-class ListConstantPattern:
-    def __init__(self, value: Sequence[int | str | float], name: str) -> None:
-        self._value = value
-        self._name = name
-
-    @property
-    def value(self) -> Sequence[int | str | float]:
-        return self._value
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    def matches(self, attr: ir.AttrFloat32s | ir.AttrInt64s | ir.AttrStrings) -> bool:
-        # TODO: Need more data points to determine if this is the right way to compare lists.
-        return attr.value == self.value
-
-
-class PrefixPattern:
-    """This pattern is used to simplify submodule opset pattern matching."""
+class PrefixPattern(Pattern[str]):
+    """Matches strings with a given prefix."""
 
     def __init__(self, value: str) -> None:
         self._value = value
 
-    @property
-    def value(self) -> str:
-        return self._value
-
     def matches(self, value: str) -> bool:
-        return value.startswith(self.value)
+        return value.startswith(self._value)
 
+class AttrPattern(Pattern[Union[ir.Attr, ir.RefAttr]]):
+    """Base class for an attribute pattern. Matches any attribute value by default."""
+    def __init__(self, name: str | None):
+        self.name = name
 
-class FloatConstantPattern:
-    def __init__(
-        self, value: float, name: str, rel_tol: float = 1e-5, abs_tol: float = 1e-8
-    ) -> None:
+    def matches(self, attr: ir.Attr | ir.RefAttr) -> bool:
+        return True
+    
+class AttrConstantPattern(AttrPattern):
+    """Matches attributes with given value.
+    
+    Uses standard equality for matching. For list-valued attributes, the order of elements matters.
+    If order is immaterial, we need to define a separate pattern for that.
+    """
+    def __init__(self, value: Any):
+        super().__init__(None)
         self._value = value
-        self._name = name
+
+    def matches(self, attr: ir.Attr | ir.RefAttr) -> bool:
+        return isinstance(attr, ir.Attr) and attr.value == self._value
+
+
+class ApproximateAttrConstantPattern(AttrPattern):
+    """Matches attributes with given value, with specified tolerance."""
+
+    def __init__(
+        self, value: Any, rel_tol: float = 1e-5, abs_tol: float = 1e-8
+    ) -> None:
+        super().__init__(None)
+        self._value = value
         self._rel_tol = rel_tol
         self._abs_tol = abs_tol
 
-    @property
-    def value(self):
-        return self._value
-
-    @property
-    def name(self):
-        return self._name
-
-    def matches(self, attr: ir.AttrFloat32):
-        return math.isclose(
-            attr.value, self.value, rel_tol=self._rel_tol, abs_tol=self._abs_tol
-        )
-
-
-class TensorConstantPattern:
-    def __init__(
-        self, value: ir.TensorProtocol, name, rel_tol: float = 1e-3, abs_tol: float = 1e-3
-    ) -> None:
-        self._value = value
-        self._name = name
-        self._rel_tol = rel_tol
-        self._abs_tol = abs_tol
-
-    @property
-    def value(self):
-        return self._value
-
-    @property
-    def name(self):
-        return self._name
-
-    def matches(self, attr: ir.AttrTensor):
-        return (
-            attr.value.dtype == self._value.dtype
-            and attr.value.shape == self._value.shape
-            and np.allclose(
-                attr.value,
-                self._value,
-                rtol=self._rel_tol,
-                atol=self._abs_tol,
-            )
-        )
-
-
-def _make_constant_pattern(
-    value: float | int | Sequence | ir.TensorProtocol, name: str
-) -> (
-    IntConstantPattern
-    | FloatConstantPattern
-    | TensorConstantPattern
-    | StringConstantPattern
-    | ListConstantPattern
-):
-    """Convert an attrbute value to a ConstantPattern."""
-    if isinstance(value, float):
-        return FloatConstantPattern(value, name)
-    if isinstance(value, int):
-        return IntConstantPattern(value, name)
-    if isinstance(value, str):
-        return StringConstantPattern(value, name)
-    if isinstance(value, Sequence):
-        return ListConstantPattern(value, name)
-    if isinstance(value, ir.TensorProtocol):
-        return TensorConstantPattern(value, name)
-    raise TypeError(f"Cannot convert {type(value)} to ConstantPattern")
-
+    def matches(self, attr: ir.Attr | ir.RefAttr) -> bool:
+        if isinstance(attr, ir.RefAttr):
+            return False
+        if isinstance(self._value, float):
+            return (attr.type == ir.AttrType.FLOAT and
+                math.isclose(
+                        attr.value, self._value, rel_tol=self._rel_tol, abs_tol=self._abs_tol
+                    ))
+        if isinstance(self._value, ir.TensorProtocol):
+            return (attr.type == ir.AttrType.TENSOR and
+                attr.value.dtype == self._value.dtype and
+                attr.value.shape == self._value.shape and
+                np.allclose(
+                    attr.value,
+                    self._value,
+                    rtol=self._rel_tol,
+                    atol=self._abs_tol,
+                ))
+        if isinstance(self._value, list):
+            return (attr.type == ir.AttrType.FLOATS and
+                len(attr.value) == len(self._value) and
+                all(
+                    math.isclose(
+                        attr.value[i], self._value[i], rel_tol=self._rel_tol, abs_tol=self._abs_tol
+                    )
+                    for i in range(len(self._value))
+                ))
 
 class AnyPattern:
     def matches(self, value) -> bool:
         return True
 
+def _to_attr_pattern(value: AttrPattern | int | float | str | list | ir.TensorProtocol | Var ) -> AttrPattern:
+    if isinstance(value, AttrPattern):
+        return value
+    if type(value) == ValuePattern:
+        # This is a hack. Currently, when we create pattern-variables, we create them as ValuePattern,
+        # and change them to AttrPattern if/when used in an attribute context. We could use type
+        # annotations to distinguish between ValuePattern and AttrPattern, but forces users to
+        # use these type annotations.
+        # TODO: check for misuse at rule-creation time. (Currently will be caught by matcher at match-time.)
+        return AttrPattern(value.name)
+    if isinstance(value, (int, str, float)):
+        return AttrConstantPattern(value)
+    if isinstance(value, list):
+        if all(isinstance(i, (int, str, float)) for i in value):
+            return AttrConstantPattern(value)
+    # if isinstance(value, ir.TensorProtocol):
+    #     return ApproximateAttrConstantPattern(value)
+    raise TypeError(f"Cannot convert {type(value)} to AttrPattern")
 
-class AttrPattern:
-    def __init__(
-        self, value: Var | int | float | Sequence | ir.TensorProtocol, name: str
-    ) -> None:
-        if isinstance(value, Var):
-            self.value_pattern = value
-        elif isinstance(value, (int, float, Sequence, ir.TensorProtocol)):
-            self.value_pattern = _make_constant_pattern(value, name)  # type: ignore[assignment]
-        else:
-            raise TypeError(f"Cannot convert {type(value)} to AttrPattern")
-
-    def matches(
-        self,
-        attr_val: int | float | Sequence | Var | ir.TensorProtocol | ir.Value,
-        model: ir.Model,
-    ) -> MatchResult:
-        if isinstance(self.value_pattern, Var):
-            return self.value_pattern.matches(attr_val, model)  # type: ignore[arg-type]
-        return self.value_pattern.matches(attr_val)
-
-
-class OpsetPattern:
+class OpsetPatternBuilder(Pattern[str]):
     """Represents an opset pattern.
 
-    It is used primarily to create a NodePattern (via OpPattern).
+    (i) It is used to create a NodePattern (via OpPatternBuilder).
     Example usage:
     ::
 
         z = op.Matmul(x, y)
 
-    Here, `op` is an instance of OpsetPattern and `op.Matmul` is an instance
-    of OpPattern, and  `op.Matmul(x, y)` is an instance of NodePattern.
+    Here, `op` is an instance of OpsetPatternBuilder and `op.Matmul` is an instance
+    of OpPatternBuilder, and  `op.Matmul(x, y)` is an instance of NodePattern.
 
-    An opset pattern is also matched against the actual opset used in the
+    (ii) An opset pattern is also matched against the actual opset domain used in the
     input model.
     """
 
-    def __init__(self, domain_pattern: PythonPattern | PrefixPattern | str) -> None:
+    def __init__(self, domain_pattern: Pattern[str] | str) -> None:
         if isinstance(domain_pattern, str):
-            domain_pattern = PythonPattern(domain_pattern)
+            domain_pattern = StringConstantPattern(domain_pattern)
         self.domain_pattern = domain_pattern
 
     @classmethod
-    def domain_prefix(cls, domain: str) -> OpsetPattern:
+    def domain_prefix(cls, domain: str) -> OpsetPatternBuilder:
         return cls(PrefixPattern(domain))
 
     def matches(self, domain):
         return self.domain_pattern.matches(domain)
 
     def __getattr__(self, name: str) -> Any:
-        return OpPattern(self, PythonPattern(name))
+        return OpPatternBuilder(self, StringConstantPattern(name))
 
     def submodule(self, name: str) -> Any:
         """This method is used to match against submodule ops with prefix."""
-        return OpPattern(self, PrefixPattern(name))
+        return OpPatternBuilder(self, PrefixPattern(name))
 
 
-onnxop = OpsetPattern("")
+onnxop = OpsetPatternBuilder("")
 
-msft_op = OpsetPattern("com.microsoft")
+msft_op = OpsetPatternBuilder("com.microsoft")
 
-torch_module_op = OpsetPattern.domain_prefix("pkg.torch")
+torch_module_op = OpsetPatternBuilder.domain_prefix("pkg.torch")
 
 
-class OpPattern:
+class OpPatternBuilder:
     """A utility class to build a NodePattern.
 
     It is used primarily to create a NodePattern.
@@ -260,15 +185,15 @@ class OpPattern:
 
         z = op.Matmul(x, y)
 
-    Here, `op` is an instance of OpsetPattern and `op.Matmul` is an instance
-    of OpPattern, and  `op.Matmul(x, y)` is an instance of NodePattern.
+    Here, `op` is an instance of OpsetPatternBuilder and `op.Matmul` is an instance
+    of OpPatternBuilder, and  `op.Matmul(x, y)` is an instance of NodePattern.
 
     """
 
     def __init__(
         self,
-        opset_pattern: OpsetPattern,
-        op_name_pattern: PythonPattern | PrefixPattern,
+        opset_pattern: Pattern[str],
+        op_name_pattern: Pattern[str],
     ) -> None:
         self.opset_pattern = opset_pattern
         self.op_name_pattern = op_name_pattern
@@ -280,10 +205,11 @@ class OpPattern:
             del kwargs["_num_outputs"]
         else:
             num_outputs = 1
+        inputs = [_to_value_pattern(x) for x in args]
         attributes = {
-            name: AttrPattern(value=value, name=name) for (name, value) in kwargs.items()
+            name: _to_attr_pattern(value) for (name, value) in kwargs.items()
         }
-        node_pattern = NodePattern(self.opset_pattern, self.op_name_pattern, args, attributes)
+        node_pattern = NodePattern(self.opset_pattern, self.op_name_pattern, inputs, attributes)
         if num_outputs == 1:
             return NodeOutputPattern(node_pattern, 0)
         else:
@@ -291,8 +217,8 @@ class OpPattern:
 
 
 def _to_value_pattern(
-    x: ValuePattern | int | float | None,
-) -> NodeOutputPattern | Constant | ValuePattern | None:
+    x: ValuePattern | int | float | list | None,
+) -> ValuePattern | None:
     """Promotes an input-value used to construct a NodePattern to a ValuePattern.
 
     Example usage:
@@ -310,8 +236,12 @@ def _to_value_pattern(
     """
     if x is None or isinstance(x, ValuePattern):
         return x
-    if isinstance(x, (int, float, Sequence)):
+    if isinstance(x, (int, float)):
         return Constant(x)
+    if isinstance(x, list):
+        if all(isinstance(i, (int, float)) for i in x):
+            return Constant(x)
+        raise ValueError(f"Only lists of int/float can be used as a ValuePattern")
     # TODO(titaiwang): Could this be wrapped Constant?
     raise TypeError(f"Cannot convert {type(x)} to ValuePattern")
 
@@ -356,8 +286,15 @@ class MatchResult:
     def nodes(self) -> MutableSequence[ir.Node]:
         return self.matched_nodes
 
-    def bind(self, var: str, value: Any):
+    def bind(self, var: str, value: Any) -> bool:
+        if var in self.bindings:
+            # TODO(rama): Use appropriate equality-check here.
+            if self.bindings[var] == value:
+                return True
+            self.success = False
+            return False
         self.bindings[var] = value
+        return True
 
     def extend(self, other: MatchResult | bool):
         if not self.success:
@@ -445,8 +382,8 @@ class NodePattern:
 
     def __init__(
         self,
-        domain: OpsetPattern,
-        op: PythonPattern | PrefixPattern,
+        domain: Pattern[str],
+        op: Pattern[str],
         inputs: Sequence[int | float | ValuePattern | None],
         attributes: dict[str, AttrPattern],
     ):
@@ -454,7 +391,6 @@ class NodePattern:
         self.op = op
         self.inputs = [_to_value_pattern(x) for x in inputs]
         self.attributes = attributes
-        self.bound_value = None
 
     def matches_node(self, node: ir.Node, model: ir.Model) -> MatchResult:
         """Examine if the IR node matches the self pattern."""
@@ -481,15 +417,15 @@ class NodePattern:
             attr_value = node.attributes.get(name)
             if attr_value is None:
                 return MatchResult.FAIL()
-            sub_match = attr_pattern.matches(attr_value, model)  # type: ignore[arg-type]
-            if not sub_match:
+            if not attr_pattern.matches(attr_value):
                 return MatchResult.FAIL()
-            match.extend(sub_match)
+            if attr_pattern.name is not None:
+                if not match.bind(attr_pattern.name, attr_value):
+                    return match
         for name in node.attributes:
             # TODO: Support matching default nodes for attributes.
             if name not in self.attributes:
                 return MatchResult.FAIL()
-        assert match.nodes is not None, "Matched nodes should not be None."
         match.nodes.append(node)
         return match
 
