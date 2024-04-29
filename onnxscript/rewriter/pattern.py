@@ -4,41 +4,44 @@ import dataclasses
 import inspect
 import itertools
 import math
-from typing import Any, Callable, List, MutableSequence, Optional, Sequence, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    List,
+    MutableSequence,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
-import numpy as np
 import onnx
-import onnx.numpy_helper
-import onnx.printer
 
 from onnxscript import ir
 from onnxscript.ir import _convenience
 from onnxscript.rewriter import _ir_utils, _tape
 
-# Overview of the pattern module: The classes below are used to define both
-# patterns (that we search for) and replacements for rewrite rules.
-# The matches() method of a pattern is used to check if an IR component
-# matches the pattern.
-# TODO: Ensure that all matches() methods have same type signature (where
-# appropriate).
+T = TypeVar("T")
 
-from typing import Any, Protocol, TypeVar, Generic
-from onnxscript import ir
-
-T = TypeVar('T')
 
 class Pattern(Protocol, Generic[T]):
-    '''This is essentially a Predicate[T], that is, a Callable[[T], bool] bound to the name "matches".'''
-    def matches(self, item: T) -> bool:
-        ...
+    """This is essentially a Predicate[T], that is, a Callable[[T], bool] bound to the name "matches"."""
+
+    def matches(self, item: T) -> bool: ...
+
 
 class StringConstantPattern(Pattern[str]):
     """Matches strings with given value."""
+
     def __init__(self, value: str):
         self._value = value
 
     def matches(self, item: str) -> bool:
         return item == self._value
+
 
 class PrefixPattern(Pattern[str]):
     """Matches strings with a given prefix."""
@@ -49,21 +52,36 @@ class PrefixPattern(Pattern[str]):
     def matches(self, value: str) -> bool:
         return value.startswith(self._value)
 
+
 class AttrPattern(Pattern[Union[ir.Attr, ir.RefAttr]]):
     """Base class for an attribute pattern. Matches any attribute value by default."""
+
     def __init__(self, name: str | None):
         self.name = name
 
     def matches(self, attr: ir.Attr | ir.RefAttr) -> bool:
         return True
-    
+
+
+# TODO: Support tensors. Align with usage elsewhere.
+SupportedAttrTypes = Union[
+    int,
+    float,
+    str,
+    Sequence[int],
+    Sequence[float],
+    Sequence[str],
+]
+
+
 class AttrConstantPattern(AttrPattern):
     """Matches attributes with given value.
-    
+
     Uses standard equality for matching. For list-valued attributes, the order of elements matters.
     If order is immaterial, we need to define a separate pattern for that.
     """
-    def __init__(self, value: Any):
+
+    def __init__(self, value: SupportedAttrTypes):
         super().__init__(None)
         self._value = value
 
@@ -71,50 +89,7 @@ class AttrConstantPattern(AttrPattern):
         return isinstance(attr, ir.Attr) and attr.value == self._value
 
 
-class ApproximateAttrConstantPattern(AttrPattern):
-    """Matches attributes with given value, with specified tolerance."""
-
-    def __init__(
-        self, value: Any, rel_tol: float = 1e-5, abs_tol: float = 1e-8
-    ) -> None:
-        super().__init__(None)
-        self._value = value
-        self._rel_tol = rel_tol
-        self._abs_tol = abs_tol
-
-    def matches(self, attr: ir.Attr | ir.RefAttr) -> bool:
-        if isinstance(attr, ir.RefAttr):
-            return False
-        if isinstance(self._value, float):
-            return (attr.type == ir.AttrType.FLOAT and
-                math.isclose(
-                        attr.value, self._value, rel_tol=self._rel_tol, abs_tol=self._abs_tol
-                    ))
-        if isinstance(self._value, ir.TensorProtocol):
-            return (attr.type == ir.AttrType.TENSOR and
-                attr.value.dtype == self._value.dtype and
-                attr.value.shape == self._value.shape and
-                np.allclose(
-                    attr.value,
-                    self._value,
-                    rtol=self._rel_tol,
-                    atol=self._abs_tol,
-                ))
-        if isinstance(self._value, list):
-            return (attr.type == ir.AttrType.FLOATS and
-                len(attr.value) == len(self._value) and
-                all(
-                    math.isclose(
-                        attr.value[i], self._value[i], rel_tol=self._rel_tol, abs_tol=self._abs_tol
-                    )
-                    for i in range(len(self._value))
-                ))
-
-class AnyPattern:
-    def matches(self, value) -> bool:
-        return True
-
-def _to_attr_pattern(value: AttrPattern | int | float | str | list | ir.TensorProtocol | Var ) -> AttrPattern:
+def _to_attr_pattern(value: AttrPattern | ValuePattern | SupportedAttrTypes) -> AttrPattern:
     if isinstance(value, AttrPattern):
         return value
     if type(value) == ValuePattern:
@@ -124,14 +99,16 @@ def _to_attr_pattern(value: AttrPattern | int | float | str | list | ir.TensorPr
         # use these type annotations.
         # TODO: check for misuse at rule-creation time. (Currently will be caught by matcher at match-time.)
         return AttrPattern(value.name)
-    if isinstance(value, (int, str, float)):
+    if isinstance(value, (int, float, str)):
         return AttrConstantPattern(value)
-    if isinstance(value, list):
-        if all(isinstance(i, (int, str, float)) for i in value):
+    if isinstance(value, Sequence):
+        if all(isinstance(i, (int, float)) for i in value):
             return AttrConstantPattern(value)
-    # if isinstance(value, ir.TensorProtocol):
-    #     return ApproximateAttrConstantPattern(value)
+        if all(isinstance(i, str) for i in value):
+            return AttrConstantPattern(value)
+        raise ValueError("Only lists of int/float/str can be used as an AttrPattern")
     raise TypeError(f"Cannot convert {type(value)} to AttrPattern")
+
 
 class OpsetPatternBuilder(Pattern[str]):
     """Represents an opset pattern.
@@ -206,10 +183,10 @@ class OpPatternBuilder:
         else:
             num_outputs = 1
         inputs = [_to_value_pattern(x) for x in args]
-        attributes = {
-            name: _to_attr_pattern(value) for (name, value) in kwargs.items()
-        }
-        node_pattern = NodePattern(self.opset_pattern, self.op_name_pattern, inputs, attributes)
+        attributes = {name: _to_attr_pattern(value) for (name, value) in kwargs.items()}
+        node_pattern = NodePattern(
+            self.opset_pattern, self.op_name_pattern, inputs, attributes
+        )
         if num_outputs == 1:
             return NodeOutputPattern(node_pattern, 0)
         else:
@@ -241,7 +218,7 @@ def _to_value_pattern(
     if isinstance(x, list):
         if all(isinstance(i, (int, float)) for i in x):
             return Constant(x)
-        raise ValueError(f"Only lists of int/float can be used as a ValuePattern")
+        raise ValueError("Only lists of int/float can be used as a ValuePattern")
     # TODO(titaiwang): Could this be wrapped Constant?
     raise TypeError(f"Cannot convert {type(x)} to ValuePattern")
 
