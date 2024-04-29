@@ -306,7 +306,7 @@ class ValuePattern:
     def __repr__(self) -> str:
         return f"ValuePattern({self.name!r})"
 
-    def matches(self, value: ir.Value, model: ir.Model):
+    def matches(self, value: ir.Value):
         result = MatchResult(success=True)
         if self.name is not None:
             result.bind(self.name, value)
@@ -369,7 +369,31 @@ class NodePattern:
         self.inputs = [_to_value_pattern(x) for x in inputs]
         self.attributes = attributes
 
-    def matches_node(self, node: ir.Node, model: ir.Model) -> MatchResult:
+    def matches(self, node: ir.Node) -> bool:
+        """Examine if the IR node matches the self pattern."""
+        if not self.domain.matches(node.domain):
+            return False
+        if not self.op.matches(node.op_type):
+            return False
+        match = MatchResult(success=True)
+
+        # Sub-graphs not handled.
+        for name, attr_pattern in self.attributes.items():
+            attr_value = node.attributes.get(name)
+            if attr_value is None:
+                return False
+            if not attr_pattern.matches(attr_value):
+                return False
+            if attr_pattern.name is not None:
+                if not match.bind(attr_pattern.name, attr_value):
+                    return match
+        for name in node.attributes:
+            # TODO: Support matching default nodes for attributes.
+            if name not in self.attributes:
+                return False
+        return True
+
+    def matches_node(self, node: ir.Node) -> MatchResult:
         """Examine if the IR node matches the self pattern."""
         if not self.domain.matches(node.domain):
             return MatchResult.FAIL()
@@ -385,7 +409,7 @@ class NodePattern:
                 continue
             if arg_value is None or previous_node_output_pattern is None:
                 return MatchResult.FAIL()
-            sub_match = previous_node_output_pattern.matches(arg_value, model)  # type: ignore[attr-defined]
+            sub_match = previous_node_output_pattern.matches(arg_value)  # type: ignore[attr-defined]
             match.extend(sub_match)
             if not match:  # If sub-match failed,
                 return match
@@ -441,14 +465,14 @@ class NodeOutputPattern(ValuePattern):
         self.node_pattern = node_pattern
         self.output_index = output_index
 
-    def matches(self, value: ir.Value, model: ir.Model):
+    def matches(self, value: ir.Value):
         """Match the StaticValueInfo from IR with the `matches_node()` in node pattern."""
         node = value.producer()
         if node is None:
             return MatchResult.FAIL()
         if value.index() != self.output_index:
             return MatchResult.FAIL()
-        return self.node_pattern.matches_node(node, model)
+        return self.node_pattern.matches_node(node)
 
     def commute(self) -> Sequence[ValuePattern]:
         return [
@@ -481,7 +505,7 @@ class Constant(ValuePattern):
         # used elsewhere.
         return MatchResult(success=status)
 
-    def matches(self, value: ir.Value, model: ir.Model):
+    def matches(self, value: ir.Value):
         value = _ir_utils.propagate_const_value(value)
         constant_value = _ir_utils.get_numpy_from_ir_value(value)
         if constant_value is None:
@@ -719,7 +743,7 @@ class RewriteRule:
         """Check if the node from IR matches the pattern."""
         if len(node.outputs) != self._target_num_outputs:
             return MatchResult.FAIL()
-        match = self._target_node_pattern.matches_node(node, model)
+        match = self._target_node_pattern.matches_node(node)
         if (
             self._condition_function is not None
             and match
