@@ -7,53 +7,32 @@ First we write a dummy model with a several Reshape nodes and a Matmul node
 ===================
 """
 
+import logging
 
-import math
-import numpy as np
-import torch
+import numpy
+
 import onnx
-import onnx.helper as oh
-import onnx.numpy_helper as onh
 
 import onnxscript
-from onnxscript.rewriter import pattern
+from onnxscript import FLOAT, opset18, script
+from onnxscript import ir
+from onnxscript.rewriter import _ir_utils, pattern
 
 
-def original_model():
-    inputs = [
-        oh.make_tensor_value_info("x", onnx.TensorProto.FLOAT, shape=[1, 4, 512, 512]),
-        oh.make_tensor_value_info("y", onnx.TensorProto.FLOAT, shape=[1, 4, 512, 64]),
-    ]
-    nodes = [
-        oh.make_node("Constant", inputs=[], outputs=["_onx_shape_const0"], value=oh.make_tensor("shape_a", onnx.TensorProto.INT64, [3], np.array([4, 512, 512]).astype(np.int64))),
-        oh.make_node("Reshape", ["x", "_onx_shape_const0"], ["_onx_reshape0"]),
-        oh.make_node("Constant", inputs=[], outputs=["_onx_shape_const1"], value=oh.make_tensor("shape_b", onnx.TensorProto.INT64, [3], np.array([4, 512, 64]).astype(np.int64))),
-        oh.make_node("Reshape", ["y", "_onx_shape_const1"], ["_onx_reshape1"]),
-        oh.make_node("MatMul", ["_onx_reshape0", "_onx_reshape1"], ["_onx_matmul"]),
-        oh.make_node("Constant", inputs=[], outputs=["_onx_shape_const2"], value=oh.make_tensor("shape_c", onnx.TensorProto.INT64, [4], np.array([1, 4, 512, 64]).astype(np.int64))),
-        oh.make_node("Reshape", ["_onx_matmul", "_onx_shape_const2"], ["_onx_reshape2"]),
-    ]
-    outputs = [
-        oh.make_tensor_value_info("_onx_reshape2", onnx.TensorProto.FLOAT, []),
-    ]
-    model = oh.make_model(
-        oh.make_graph(
-            nodes,
-            "experiment",
-            inputs,
-            outputs,
-        ),
-        opset_imports=[
-            oh.make_opsetid("", 18),
-            oh.make_opsetid("com.microsoft", 18),
-        ],
-    )
-    return model
+@script()
+def original_model(A: FLOAT[1, 4, 512, 512], B: FLOAT[1, 4, 512, 64]) -> FLOAT[1, 4, 512, 64]:
+    shape_a = opset18.Constant(value_ints=[4, 512, 512])
+    reshape_a = opset18.Reshape(A, shape_a)
+    shape_b = opset18.Constant(value_ints=[4, 512, 64])
+    reshape_a = opset18.Reshape(B, shape_b)
+    matmul = opset18.MatMul(reshape_a, reshape_a)
+    shape_c = opset18.Constant(value_ints=[1, 4, 512, 64])
+    result = opset18.Reshape(matmul, shape_c)
+    return result
 
 
-model = original_model()
-onnx.save(model, 'test.onnx')
-onnx.checker.check_model(model)
+model = original_model.to_model_proto()
+# onnx.checker.check_model(model)
 
 
 ####################################
@@ -76,10 +55,7 @@ def two_reshapes_matmul_reshape_pattern(input_a, input_b, shape_a, shape_b, shap
 # =====================
 
 
-def matmul_with_two_shape_inputs(input_a, input_b, shape_a, shape_b, shape_c):
-    del shape_a  # Unused
-    del shape_b  # Unused
-    del shape_c  # Unused
+def matmul(op, input_a, input_b, **_):
     return op.MatMul(input_a, input_b)
 
 
@@ -89,7 +65,14 @@ def matmul_with_two_shape_inputs(input_a, input_b, shape_a, shape_b, shape_c):
 
 
 def check_if_need_reshape(match_bindings) -> bool:
-    """
+    """If matmul broadcasting is enough, then we don't need the reshapes.
+
+    To validate this, we need to check the following:
+    1. Input shapes check: input_a and input_b should be broadcastable
+    2. Output shape check: shape_c should be the same as the output shape from the matmul(input_a, input_b)
+
+    If the above are true, then we don't need the reshapes.
+
     Args:
         match_bindings: The match binding dictionary from a MatchResult.
 
@@ -99,7 +82,9 @@ def check_if_need_reshape(match_bindings) -> bool:
     """
     input_a_shape = match_bindings["input_a"].shape
     input_b_shape = match_bindings["input_b"].shape
-    shape_c = match_bindings["shape_c"].value_as_np_array
+    # TODO: Get a helper func to get const_value
+    shape_c_value = _ir_utils.propagate_const_value(match_bindings["shape_c"])
+    shape_c = shape_c_value.const_value.numpy()  # type: ignore[union-attr]
     if shape_c is None:
         return False
     if not isinstance(shape_c, np.ndarray):
@@ -118,6 +103,8 @@ def check_if_need_reshape(match_bindings) -> bool:
     if input_a_shape is None or input_b_shape is None or shape_c is None:
         logger.info("Shape information is not available for the inputs and outputs.")
         return False
+    input_a_shape = list(input_a_shape)
+    input_b_shape = list(input_b_shape)
 
     dim_a = len(input_a_shape)
     dim_b = len(input_b_shape)
@@ -196,14 +183,32 @@ def check_if_need_reshape(match_bindings) -> bool:
 # Create Rewrite Rule and Apply to Model
 # =====================
 
-two_reshapes_matmul_reshape_rule = pattern.RewriteRule(
-    two_reshapes_matmul_reshape_pattern,    # target pattern
-    matmul_with_two_shape_inputs,           # replacement pattern
-    check_if_need_reshape,                  # match_condition function
-)
-model_with_rewrite = onnxscript.rewriter.rewrite(
+
+def apply_rewrite(
     model,
-    pattern_rewrite_rules=[two_reshapes_matmul_reshape_rule],
+    two_reshapes_matmul_reshape_pattern,  # target pattern
+    matmul,  # replacement pattern
+    check_if_need_reshape,  # match_condition function
+):
+    # Create rewrite rules
+    two_reshapes_matmul_reshape_rule = pattern.RewriteRule(
+        two_reshapes_matmul_reshape_pattern,  # target pattern
+        matmul,  # replacement pattern
+        check_if_need_reshape,  # match_condition function
+    )
+    # Create a Rewrite Rule Set
+    rewrite_rule_set = pattern.RewriteRuleSet(rules=[two_reshapes_matmul_reshape_rule])
+    # Apply rewrite while passing match_condition
+    model_with_rewrite = onnxscript.rewriter.rewrite(
+        model,
+        pattern_rewrite_rules=[two_reshapes_matmul_reshape_rule],
+    )
+
+
+model_with_rewrite = apply_rewrite(
+    model,
+    two_reshapes_matmul_reshape_pattern,
+    matmul,
+    check_if_need_reshape,
 )
-        
-onnx.checker.check_model(model_with_rewrite)
+# onnx.checker.check_model(model_with_rewrite)

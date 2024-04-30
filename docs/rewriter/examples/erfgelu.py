@@ -6,54 +6,64 @@ First a dummy model with a GELU activation
 ===================
 """
 
-
 import math
-import numpy as np
+
 import onnx
-import onnx.helper as oh
-import onnx.numpy_helper as onh
 
 import onnxscript
+from onnxscript import FLOAT, opset18, script
 from onnxscript.rewriter import pattern
 
 
-def original_model():
-    inputs = [
-        oh.make_tensor_value_info("x", onnx.TensorProto.FLOAT, shape=[]),
-        oh.make_tensor_value_info("y", onnx.TensorProto.FLOAT, shape=[]),
-    ]
-    nodes = [
-        oh.make_node("Add", ["x", "y"], ["_onx_add0"]),
-        oh.make_node("Constant", inputs=[], outputs=['_onx_const0'], value_float=math.sqrt(2)),
-        oh.make_node("Div", ["_onx_add0", "_onx_const0"], ["_onx_div0"]),
-        oh.make_node("Erf", ["_onx_div0"], ["_onx_erf0"]),
-        oh.make_node("Constant", inputs=[], outputs=['_onx_const1'], value_float=1.0),
-        oh.make_node("Add", ["_onx_erf0", "_onx_const1"], ["_onx_add1"]),
-        oh.make_node("Mul", ["_onx_add0", "_onx_add1"], ["_onx_mul0"]),
-        oh.make_node("Constant", inputs=[], outputs=['_onx_const2'], value_float=0.5),
-        oh.make_node("Mul", ["_onx_const2", "_onx_mul0"], ["_onx_mul1"]),
-
-    ]
-    outputs = [
-        oh.make_tensor_value_info("_onx_mul1", onnx.TensorProto.FLOAT, []),
-    ]
-    model = oh.make_model(
-        oh.make_graph(
-            nodes,
-            "experiment",
-            inputs,
-            outputs,
-        ),
-        opset_imports=[
-            oh.make_opsetid("", 18),
-            oh.make_opsetid("com.microsoft", 18),
-        ],
-    )
-    return model
+@script()
+def original_model(X: FLOAT[64, 128], Y: FLOAT[64, 128]) -> FLOAT[64, 128]:
+    input_add = opset18.Add(X, Y)
+    sqrt2 = opset18.Constant(value_float=math.sqrt(2))
+    erf = opset18.Erf(input_add / sqrt2)
+    add_const = opset18.Constant(value_float=1.0)
+    plus_one = erf + add_const
+    mul1 = input_add * plus_one
+    mul_const = opset18.Constant(value_float=0.5)
+    result = mul_const * mul1
+    return result
 
 
-model = original_model()
+model = original_model.to_model_proto()
 onnx.checker.check_model(model)
+
+
+####################################
+# Model demonstrating multiple patterns and variations of GELU activation
+# =====================
+
+
+@script()
+def commute_model(X: FLOAT[64, 128], Y: FLOAT[64, 128]) -> FLOAT[64, 128]:
+    # Create first GELU variant
+    sqrt2_v1 = opset18.Constant(value_float=math.sqrt(2))
+    erf_v1 = opset18.Erf(X / sqrt2_v1)
+    add_const_v1 = opset18.Constant(value_float=1.0)
+    plus_one_v1 = erf_v1 + add_const_v1
+    mul1_v1 = X * plus_one_v1
+    mul_const_v1 = opset18.Constant(value_float=0.5)
+    gelu1 = mul_const_v1 * mul1_v1
+
+    # Create second GELU variant
+    sqrt2_v2 = opset18.Constant(value_float=math.sqrt(2))
+    erf_v2 = opset18.Erf(Y / sqrt2_v2)
+    add_const_v2 = opset18.Constant(value_float=1.0)
+    plus_one_v2 = erf_v2 + add_const_v2
+    mul1_v2 = Y * plus_one_v2
+    mul_const_v2 = opset18.Constant(value_float=0.5)
+    gelu2 = mul1_v2 * mul_const_v2
+
+    # Add both GELU functions
+    result = opset18.Add(gelu1, gelu2)
+    return result
+
+
+commute_model = commute_model.to_model_proto()
+# onnx.checker.check_model(commute_model)
 
 
 ####################################
@@ -61,11 +71,14 @@ onnx.checker.check_model(model)
 # =====================
 
 op = pattern.onnxop
-msft_op = pattern.msft_op
 
 
 def erf_gelu_pattern(x):
     return 0.5 * (x * (op.Erf(x / math.sqrt(2)) + 1.0))
+
+
+def erf_gelu_pattern_2(x):
+    return (x * (op.Erf(x / math.sqrt(2)) + 1.0)) * 0.5
 
 
 ####################################
@@ -73,21 +86,80 @@ def erf_gelu_pattern(x):
 # =====================
 
 
-def gelu(x):
-    return msft_op.Gelu(x)
+def gelu(op, x):
+    return op.Gelu(x, domain="com.microsoft")
 
 
 ####################################
 # Create Rewrite Rule and Apply to Model
 # =====================
 
-rule = pattern.RewriteRule(
-    erf_gelu_pattern,       # Target Pattern
-    gelu,                   # Replacement Pattern
+
+def apply_rewrite(model, target_pattern, replacement_pattern):
+    rule = pattern.RewriteRule(
+        erf_gelu_pattern,  # Target Pattern
+        gelu,  # Replacement Pattern
+    )
+    model_with_rewrite_applied = onnxscript.rewriter.rewrite(
+        model,
+        pattern_rewrite_rules=[rule],
+    )
+    return model_with_rewrite_applied
+
+
+def apply_rewrite_with_ruleset(
+    model, erf_gelu_pattern, erf_gelu_pattern_2, replacement_pattern
+):
+    # Create multiple rules
+    rule1 = pattern.RewriteRule(
+        erf_gelu_pattern,  # Target Pattern
+        gelu,  # Replacement Pattern
+    )
+    rule2 = pattern.RewriteRule(
+        erf_gelu_pattern_2,  # Target Pattern
+        gelu,  # Replacement Pattern
+    )
+    # Create a Rewrite Rule Set with multiple rules.
+    rewrite_rule_set = pattern.RewriteRuleSet(rules=[rule1, rule2])
+    # Apply rewrites
+    model_with_rewrite_applied = onnxscript.rewriter.rewrite(
+        model,
+        pattern_rewrite_rules=rewrite_rule_set,
+        # pattern_rewrite_rules=[rule1, rule2], # Alternative method of passing mutliple rules
+    )
+    return model_with_rewrite_applied
+
+
+def apply_rewrite_with_commute(model, target_pattern, replacement_pattern):
+    rule = pattern.RewriteRule(
+        erf_gelu_pattern,  # Target Pattern
+        gelu,  # Replacement Pattern
+    )
+    # Create a Rewrite Rule Set with commute=True
+    rewrite_rule_set = pattern.RewriteRuleSet(rules=[rule], commute=True)
+    # Apply rewrites
+    model_with_rewrite_applied = onnxscript.rewriter.rewrite(
+        model,
+        pattern_rewrite_rules=rewrite_rule_set,
+    )
+    return model_with_rewrite_applied
+
+
+# Rewrite-Simple
+model_with_rewrite = apply_rewrite(model, erf_gelu_pattern, gelu)
+# onnx.checker.check_model(model_with_rewrite)
+
+# Rewrite-Single-Patterns
+# Incorrect number of rewrites
+model_with_single_rewrite_ruleset = apply_rewrite(commute_model, erf_gelu_pattern, gelu)
+# onnx.checker.check_model(model_with_single_rewrite_ruleset)
+
+# Rewrite-Multiple-Patterns-RuleSet
+model_with_rewrite_ruleset = apply_rewrite_with_ruleset(
+    commute_model, erf_gelu_pattern, erf_gelu_pattern_2, gelu
 )
-model_with_rewrite = onnxscript.rewriter.rewrite(
-    model,
-    pattern_rewrite_rules=[rule],
-)
-        
-onnx.checker.check_model(model_with_rewrite)
+# onnx.checker.check_model(model_with_rewrite_ruleset)
+
+# Rewrite-Multiple-Patterns-Commute
+model_with_rewrite_commute = apply_rewrite_with_commute(commute_model, erf_gelu_pattern, gelu)
+# onnx.checker.check_model(model_with_rewrite_commute)
