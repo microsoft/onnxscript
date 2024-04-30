@@ -11,6 +11,7 @@ from onnxscript.rewriter.onnxruntime import (
     softmax,
     transformers,
 )
+from onnxscript.rewriter.onnxruntime.bfloat16_utils import bfloat16_converter
 
 ORT_FUNCTION_REWRITE_RULES = [*transformers.TRANSFORMERS_FUNCTION_REWRITE_RULES]
 
@@ -51,6 +52,10 @@ def rewrite(
     if pattern_rules:
         count = pattern.RewriteRuleSet(pattern_rules).apply_to_model(model)
         print(f"Applied {count} of onnxruntime specific pattern rewrite rules.")
+
+    # TODO: remove this after onnxruntime supports bfloat16
+    model = bfloat16_converter.dtype_adapter_for_bfloat16_model(model)
+
     model_proto = ir.serde.serialize_model(model)
     remove_unused.remove_unused_nodes(model_proto)
     remove_unused_function.remove_unused_functions(model_proto)
