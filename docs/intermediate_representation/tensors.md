@@ -25,12 +25,12 @@ For tensors whose data are stored in the ``raw_data`` field, we use the :class:`
         "tensor", onnx.TensorProto.INT16, (3,), b'\x01\x00\x02\x00\x03\x00', raw=True
     )
     tensor = ir.TensorProtoTensor(tensor_proto)
-    print(tensor)  # TensorProtoTensor<INT16,[3]>(name='tensor')
-    print(tensor.shape)  # ir.Shape([3])
-    print(tensor.dtype)  # ir.DataType.INT16
+    print(tensor: ", tensor)  # TensorProtoTensor<INT16,[3]>(name='tensor')
+    print("shape: ", tensor.shape)  # ir.Shape([3])
+    print("dtype: ", tensor.dtype)  # ir.DataType.INT16
     print(tensor.raw == tensor_proto)  # The raw field is the exact tensor_proto provided at initialization
-    print(tensor.tobytes())  # b'\x01\x00\x02\x00\x03\x00'
-    print(tensor.numpy())  # array([1, 2, 3], dtype=int16)
+    print("tobytes: ", tensor.tobytes())  # b'\x01\x00\x02\x00\x03\x00'
+    print("numpy: ", tensor.numpy())  # array([1, 2, 3], dtype=int16)
 ```
 
 When tensors store their data in a different data field like `int32_data`, use the corresponding class as a wrapper:
@@ -44,10 +44,10 @@ When tensors store their data in a different data field like `int32_data`, use t
     tensor = ir.TensorProtoTensor(tensor_proto)
     print("tensor: ", tensor)  # TensorProtoTensor<INT16,[3]>(name='tensor')
     print("shape: ", tensor.shape)  # ir.Shape([3])
-    print(tensor.dtype)  # ir.DataType.INT16
+    print("dtype: ", tensor.dtype)  # ir.DataType.INT16
     print(tensor.raw == tensor_proto)  # The raw field is the exact tensor_proto provided at initialization
-    print(print(tensor.int32_data()))  # [1, 2, 3]
-    print(tensor.numpy())  # array([1, 2, 3], dtype=int16)
+    print("int32_data: ", print(tensor.int32_data()))  # [1, 2, 3]
+    print("numpy: ", tensor.numpy())  # array([1, 2, 3], dtype=int16)
 ```
 
 ### ir.Tensor
@@ -144,10 +144,11 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
     torch_tensor = torch.tensor([1,2,3], dtype=torch.bfloat16)
     tensor = TorchTensor(torch_tensor)
     print("tensor: ", tensor)
-    print("ndarray: ", tensor.numpy())  # [1. 2. 3.]
+    print("numpy: ", tensor.numpy())  # [1. 2. 3.]
     print("tobytes: ", tensor.tobytes())  # b'\x80?\x00@@@'
     print("nbytes: ", tensor.nbytes)  # 6
 ```
 
-The ``TorchTensor`` class above implements tobytes to produce the correct bytes
-representation for the tensor when it is serialized into an ONNX file / TensorProto. The class also implements the ``__array__()`` method to return float32 for types numpy does not support. This way analysis passes can still perform computation on these values.
+The ``TorchTensor`` class above implements ``tobytes()`` to produce the correct bytes representation for the tensor when it is serialized into an ONNX file / TensorProto. The class also implements the ``__array__()`` method to return float32 for types numpy does not support. This way analysis passes can still perform computation on these values.
+
+<!-- TODO(justinchuby): Document make tensor helper -->
