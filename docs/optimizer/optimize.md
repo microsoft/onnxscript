@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The ONNXScript `Optimizer` tool provides the user with the functionality to optimize an ONNX model by performing optimizations and clean-ups such as constant folding, dead code elimination, etc.
+The ONNX Script `Optimizer` tool provides the user with the functionality to optimize an ONNX model by performing optimizations and clean-ups such as constant folding, dead code elimination, etc.
 
 ## Usage
 
@@ -10,6 +10,7 @@ In order to utilize the optimizer tool,
 
 ```python
     import onnxscript
+
     onnxscript.optimizer.optimize(model)
 ```
 

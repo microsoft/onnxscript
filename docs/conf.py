@@ -26,7 +26,7 @@ extensions = [
     "sphinx.ext.ifconfig",
     "sphinx.ext.viewcode",
     "sphinx.ext.autodoc",
-    "sphinx.ext.autosummary", 
+    "sphinx.ext.autosummary",
     "sphinx.ext.githubpages",
     "sphinx_gallery.gen_gallery",
     "sphinx.ext.autodoc",
