@@ -111,6 +111,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._torch_dtype: Optional[torch.dtype] = None
         self._name: Optional[str] = None
         self._is_complex: bool = False
+        self._device: Optional[torch.device] = None
 
     def __repr__(self):
         return f"TorchScriptTensor('{self._torch_value!r}')"
@@ -206,6 +207,16 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
     def is_complex(self, is_complex: bool):
         self._is_complex = is_complex
 
+    # TODO: Remove this when there is no mismatch output shapes between device:
+    # https://github.com/pytorch/pytorch/blob/a44f8894fa6d973693aab44a3dda079a168b05c1/torch/_decomp/decompositions.py#L1451-L1457
+    @property
+    def device(self) -> torch.device | None:
+        return self._device
+
+    @device.setter
+    def device(self, device: torch.device):
+        self._device = device
+
     @property
     def onnx_dtype(self):
         # Local import to avoid circular dependency
@@ -262,6 +273,7 @@ def _wrap_torch_value_to_tensor(
     *,
     shape: Optional[Union[torch.Size, Tuple[Union[int, str, None], ...]]] = None,
     dtype: Optional[torch.dtype] = None,
+    device: Optional[torch.device] = None,
 ) -> Union[
     ValidArgumentType,
     Dict[str, ValidArgumentType],
@@ -275,6 +287,8 @@ def _wrap_torch_value_to_tensor(
             tensor.shape = shape
         if dtype is not None:
             tensor.dtype = dtype
+        if device is not None:
+            tensor.device = device
         return tensor
     if isinstance(value, dict):
         return {k: _wrap_torch_value_to_tensor(v) for k, v in value.items()}  # type: ignore[misc,return-value]
@@ -574,6 +588,7 @@ class TorchScriptGraph:
         input_name: Optional[str],
         shape: Optional[Union[torch.Size, Tuple[Union[int, str, None], ...]]] = None,
         dtype: Optional[torch.dtype] = None,
+        device: Optional[torch.device] = None,
     ) -> TorchScriptTensor:
         if input_name is None:
             # This input argument is None, which is mapped
@@ -593,7 +608,9 @@ class TorchScriptGraph:
                     [dim if isinstance(dim, int) else None for dim in shape]  # type: ignore[union-attr]
                 )
             )
-        tensor_value = _wrap_torch_value_to_tensor(torch_value, shape=shape, dtype=dtype)
+        tensor_value = _wrap_torch_value_to_tensor(
+            torch_value, shape=shape, dtype=dtype, device=device
+        )
         if isinstance(tensor_value, TorchScriptTensor):
             # NOTE: Only track value that maps to tensor.
             # Value that maps to Sequence/Dict of tensors is not tracked.
