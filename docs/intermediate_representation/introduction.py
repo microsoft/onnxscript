@@ -23,11 +23,24 @@
 #
 # This tutorial will demonstrate how you can use the ONNX IR to inspect, manipulate
 # and build ONNX models.
-
+#
+# ## Installation
+#
+# The ONNX IR is part of the `onnxscript` package. You can install it via pip:
+# ```bash
+# pip install onnxscript
+# ```
+# Then import the package:
+#
 # %%
 import onnx
+
 from onnxscript import ir
 
+# %% [markdown]
+# ## Data Structures
+# The ONNX IR models an ONNX graph similar to the ONNX protobuf definitions. You
+# expect familiar classes like `ir.Model`, `ir.Graph`, `ir.Node`, and `ir.Tensor`.
 # %%
 # Load ONNX model
 
