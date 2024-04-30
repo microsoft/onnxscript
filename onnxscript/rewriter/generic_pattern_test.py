@@ -526,6 +526,9 @@ class GenericPatternTest(unittest.TestCase):
         # starts matching
         rule = generic_pattern.make_pattern_rule(
             transpose_transpose_pattern,
+            # TODO: investigate, the original PR contained transpose_transpose_apply_pattern
+            # and it should be only transpose_transpose_apply_pattern with no parameter.
+            # The parameters are set up after the match happened. They are unknown until then.
             transpose_transpose_apply_pattern(perm=[2, 0, 1]),
             transpose_transpose_mapping,
             verbose=0,
