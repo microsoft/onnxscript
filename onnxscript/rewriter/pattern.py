@@ -475,6 +475,7 @@ class NodeOutputPattern(ValuePattern):
         return self.node_pattern.matches_node(node)
 
     def commute(self) -> Sequence[ValuePattern]:
+        # TODO
         return [
             NodeOutputPattern(pattern, self.output_index, self.name)
             for pattern in self.node_pattern.commute()
@@ -521,10 +522,45 @@ class Constant(ValuePattern):
         return [self]
 
 
-def _handle_pattern_return_value(
-    node_output_pattern: NodeOutputPattern | list[NodeOutputPattern],
-) -> tuple[NodePattern, int]:
-    """This checks and cleans up the return value of a pattern-construction function.
+class GraphPattern:
+    """Represents a pattern that can be matched against a subgraph."""
+
+    def __init__(self, outputs: Sequence[ValuePattern]) -> None:
+        self.outputs = outputs
+        if len(outputs) == 0:
+            raise ValueError("GraphPattern must have at least one output")
+        # Check if all outputs are produced by the same node.
+        output_node = outputs[0].node_pattern  # TODO
+        for i, p in enumerate(outputs):
+            if not isinstance(p, ValuePattern):
+                raise TypeError(f"Invalid type {type(p)} for graph pattern output.")
+            if (p.node_pattern is not output_node) or (p.output_index != i):
+                output_node = None
+        self._output_node = output_node
+
+    @property
+    def num_outputs(self) -> int:
+        return len(self.outputs)
+
+    def matches_node(self, node: ir.Node) -> MatchResult:
+        if self._output_node is None:
+            return MatchResult.FAIL()
+        return self._output_node.matches_node(node)
+
+    def commute(self) -> Sequence[GraphPattern]:
+        if self._output_node is None:
+            raise NotImplementedError(
+                "Cannot commute a graph pattern with multiple output nodes."
+            )
+        nodes = self._output_node.commute()
+        return [
+            GraphPattern([NodeOutputPattern(n, i) for i in range(self.num_outputs)])
+            for n in nodes
+        ]
+
+
+def _to_graph_pattern(pattern_constructor: Callable) -> GraphPattern:
+    """Convert a pattern-construction function to a GraphPattern.
 
     A pattern-construction function will return values as below:
     ::
@@ -548,22 +584,14 @@ def _handle_pattern_return_value(
     Returns:
         tuple[NodePattern, int]: The last node_pattern, num_outputs
     """
-    if isinstance(node_output_pattern, NodeOutputPattern):
-        node_pattern = node_output_pattern.node_pattern
-        num_outputs = 1
-    elif isinstance(node_output_pattern, Sequence):
-        node_pattern = node_output_pattern[0].node_pattern
-        num_outputs = len(node_output_pattern)
-        for i, p in enumerate(node_output_pattern):
-            assert isinstance(p, NodeOutputPattern)
-            if (p.node_pattern is not node_pattern) or (p.output_index != i):
-                raise NotImplementedError(
-                    "Multi-output pattern not handled by this API. "
-                    "Use other APIs to handle multi-output patterns."
-                )
-    else:
-        raise TypeError(f"Invalid type {type(node_output_pattern)} for pattern")
-    return node_pattern, num_outputs
+    _pattern_vars = inspect.signature(pattern_constructor).parameters
+    vars = [Var(v) for v in _pattern_vars]
+    pattern_outputs = pattern_constructor(*vars)
+    # Returned value could be a single ValuePattern or a list of ValuePatterns.
+    # Normalize representation to a list of ValuePatterns.
+    if isinstance(pattern_outputs, ValuePattern):
+        pattern_outputs = [pattern_outputs]
+    return GraphPattern(pattern_outputs)
 
 
 def _valid_to_replace(matched_nodes: Sequence[ir.Node]) -> bool:
@@ -582,25 +610,6 @@ def _valid_to_replace(matched_nodes: Sequence[ir.Node]) -> bool:
                 if consumer not in matched_nodes:
                     return False
     return True
-
-
-class TargetPatternFunction:
-    """The targeted pattern that will be replaced by the replacement pattern.
-
-    Attributes:
-        function (Callable): The pattern function that will be matched against the IR.
-    """
-
-    def __init__(self, function: Callable) -> None:
-        self._function = function
-
-    @property
-    def function(self) -> Callable:
-        return self._function
-
-    def get_pattern(self, variables: Sequence[Var]) -> tuple[NodePattern, int]:
-        node_output_pattern = self._function(*variables)
-        return _handle_pattern_return_value(node_output_pattern)
 
 
 # A type representing the domains/versions used in creating a replacement subgraph
@@ -696,7 +705,7 @@ def _update_opset_imports(
 class RewriteRule:
     def __init__(
         self,
-        target_pattern: TargetPatternFunction | Callable | None = None,
+        target_pattern: Callable | None = None,
         replacement_pattern: ReplacementPatternFunction | Callable | None = None,
         condition_function: Callable | None = None,
     ) -> None:
@@ -721,29 +730,21 @@ class RewriteRule:
             raise ValueError(
                 "replacement_pattern must be provided if target_pattern is provided"
             )
-        # TODO: Do we want to tolerate Callable inputs?
-        if callable(target_pattern):
-            target_pattern = TargetPatternFunction(target_pattern)
+
         if callable(replacement_pattern):
             replacement_pattern = ReplacementPatternFunction(replacement_pattern)
 
-        self._target_pattern = target_pattern
         self._replacement_pattern = replacement_pattern
         self._condition_function = condition_function
 
-        _pattern_vars = inspect.signature(self._target_pattern.function).parameters
-
-        self._vars = [Var(v) for v in _pattern_vars]
         # Get the last node pattern and number of outputs from the pattern function
-        self._target_node_pattern, self._target_num_outputs = self._target_pattern.get_pattern(
-            self._vars  # type: ignore[arg-type]
-        )
+        self._target_pattern = _to_graph_pattern(target_pattern)
 
     def matches(self, node: ir.Node, model: ir.Model) -> MatchResult:
         """Check if the node from IR matches the pattern."""
-        if len(node.outputs) != self._target_num_outputs:
+        if len(node.outputs) != self._target_pattern.num_outputs:
             return MatchResult.FAIL()
-        match = self._target_node_pattern.matches_node(node)
+        match = self._target_pattern.matches_node(node)
         if (
             self._condition_function is not None
             and match
@@ -763,10 +764,10 @@ class RewriteRule:
                 replacement_subgraph = self._replacement_pattern.get_replacement(match)
                 if replacement_subgraph is None:
                     return None
-                if len(replacement_subgraph.new_outputs) != self._target_num_outputs:
+                if len(replacement_subgraph.new_outputs) != self._target_pattern.num_outputs:
                     raise ValueError(
                         f"Number of outputs from replacement function does not match the number of outputs from the target pattern. "
-                        f"Expected {self._target_num_outputs}, but got {len(replacement_subgraph.new_outputs)}."
+                        f"Expected {self._target_pattern.num_outputs}, but got {len(replacement_subgraph.new_outputs)}."
                     )
                 # TODO(rama): Check/update opset-imports
                 # (i) Following is required by multi-output matcher too; move this.
@@ -788,13 +789,11 @@ class RewriteRule:
             """Return a shallow copy of self with node_pattern replaced by new_pattern."""
             rule = RewriteRule()
             rule._condition_function = self._condition_function
-            rule._target_node_pattern = new_pattern
-            rule._target_num_outputs = self._target_num_outputs
+            rule._target_pattern = new_pattern
             rule._replacement_pattern = self._replacement_pattern
-            rule._vars = self._vars
             return rule
 
-        return [replace_pattern(p) for p in self._target_node_pattern.commute()]
+        return [replace_pattern(p) for p in self._target_pattern.commute()]
 
 
 def _apply_delta(
