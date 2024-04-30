@@ -26,6 +26,16 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
         self.onnxscript_graph = graph_building.TorchScriptGraph()
         self.tracer = graph_building.TorchScriptTracingEvaluator(self.onnxscript_graph)
 
+    def test_torchscript_tensor_keeps_torch_device(self):
+        x_tensor = torch.ones((1, 2, 3), dtype=torch.float32)
+        x = self.onnxscript_graph.add_input(
+            "x", x_tensor.shape, x_tensor.dtype, x_tensor.device
+        )
+        self.assertEqual(x.device, x_tensor.device)
+
+        x.device = torch.device("cuda")
+        self.assertEqual(x.device, torch.device("cuda"))
+
     def test_traced_constant_op_is_same_as_compiled_graph(self):
         """Test for op.Constant created in graph builder"""
         with evaluator.default_as(self.tracer):
