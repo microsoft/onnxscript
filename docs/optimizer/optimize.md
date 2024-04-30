@@ -38,7 +38,7 @@ The `onnxscript.optimizer.optimize` call takes in several optional parameters th
 
 ```
 
-## Description of pattern rewrite rules applied by `onnxscript.optimizer.optimize`
+## List of pattern rewrite rules applied by `onnxscript.optimizer.optimize`
 
 ```{eval-rst}
 .. autosummary::

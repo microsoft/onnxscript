@@ -68,6 +68,7 @@ class SymbolicEvaluator(CopyPropagator):
 
 
 def do_copy_propagation(model: onnx.ModelProto, *, remove_unused: bool = True) -> None:
+    """Applies copy propagation optimization to the model."""
     transformer = CopyPropagator()
     transformer.visit_model(model)
     if remove_unused:
@@ -75,6 +76,7 @@ def do_copy_propagation(model: onnx.ModelProto, *, remove_unused: bool = True) -
 
 
 def do_sequence_simplification(model: onnx.ModelProto, *, remove_unused: bool = True) -> None:
+    """Simplifies Sequence based ops (SequenceConstruct, ConcatFromSequence) present in the model."""
     transformer = SymbolicEvaluator()
     transformer.visit_model(model)
     if remove_unused:

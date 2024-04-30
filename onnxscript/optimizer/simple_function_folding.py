@@ -200,6 +200,7 @@ class FindFunctionWithUnusedOutputsVisitor(visitor.ProtoVisitor):
 
 
 def inline_simple_functions(model: onnx.ModelProto, node_count: int = 2) -> bool:
+    """Inlines simple functions based on a node count threshold"""
     inliner = FunctionInliner(node_count)
     inliner.visit_model(model)
     logger.info(
@@ -218,6 +219,7 @@ def inline_simple_functions(model: onnx.ModelProto, node_count: int = 2) -> bool
 
 
 def inline_functions_with_unused_outputs(model: onnx.ModelProto) -> bool:
+    """Inlines function nodes that have unused outputs."""
     # TODO: Use onnx.inliner after 1.16.
     # This visitor based inliner is used to ensure the function inner value info remains consistent.
     visitor = FindFunctionWithUnusedOutputsVisitor()
