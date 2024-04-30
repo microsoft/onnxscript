@@ -63,7 +63,7 @@ def commute_model(X: FLOAT[64, 128], Y: FLOAT[64, 128]) -> FLOAT[64, 128]:
 
 
 commute_model = commute_model.to_model_proto()
-# onnx.checker.check_model(commute_model)
+onnx.checker.check_model(commute_model)
 
 
 ####################################
@@ -120,12 +120,12 @@ def apply_rewrite_with_ruleset(
         gelu,  # Replacement Pattern
     )
     # Create a Rewrite Rule Set with multiple rules.
-    rewrite_rule_set = pattern.RewriteRuleSet(rules=[rule1, rule2])
+    rewrite_rule_set = pattern.RewriteRuleSet([rule1, rule2])
     # Apply rewrites
     model_with_rewrite_applied = onnxscript.rewriter.rewrite(
         model,
         pattern_rewrite_rules=rewrite_rule_set,
-        # pattern_rewrite_rules=[rule1, rule2], # Alternative method of passing mutliple rules
+        # pattern_rewrite_rules=[rule1, rule2], # Alternative method of passing multiple rules
     )
     return model_with_rewrite_applied
 
@@ -136,7 +136,7 @@ def apply_rewrite_with_commute(model, target_pattern, replacement_pattern):
         gelu,  # Replacement Pattern
     )
     # Create a Rewrite Rule Set with commute=True
-    rewrite_rule_set = pattern.RewriteRuleSet(rules=[rule], commute=True)
+    rewrite_rule_set = pattern.RewriteRuleSet([rule], commute=True)
     # Apply rewrites
     model_with_rewrite_applied = onnxscript.rewriter.rewrite(
         model,
@@ -147,19 +147,19 @@ def apply_rewrite_with_commute(model, target_pattern, replacement_pattern):
 
 # Rewrite-Simple
 model_with_rewrite = apply_rewrite(model, erf_gelu_pattern, gelu)
-# onnx.checker.check_model(model_with_rewrite)
+onnx.checker.check_model(model_with_rewrite)
 
 # Rewrite-Single-Patterns
 # Incorrect number of rewrites
 model_with_single_rewrite_ruleset = apply_rewrite(commute_model, erf_gelu_pattern, gelu)
-# onnx.checker.check_model(model_with_single_rewrite_ruleset)
+onnx.checker.check_model(model_with_single_rewrite_ruleset)
 
 # Rewrite-Multiple-Patterns-RuleSet
 model_with_rewrite_ruleset = apply_rewrite_with_ruleset(
     commute_model, erf_gelu_pattern, erf_gelu_pattern_2, gelu
 )
-# onnx.checker.check_model(model_with_rewrite_ruleset)
+onnx.checker.check_model(model_with_rewrite_ruleset)
 
 # Rewrite-Multiple-Patterns-Commute
 model_with_rewrite_commute = apply_rewrite_with_commute(commute_model, erf_gelu_pattern, gelu)
-# onnx.checker.check_model(model_with_rewrite_commute)
+onnx.checker.check_model(model_with_rewrite_commute)

@@ -104,7 +104,7 @@ If we utilize the same `target_pattern` created for the earlier [simple example]
 :align: center
 ```
 
-Only one of the patterns has been succesfully matched and replaced by a `GELU` node. In order to successfully rewrite both the patterns, there are two methods.
+Only one of the patterns has been successfully matched and replaced by a `GELU` node. In order to rewrite both the existing patterns in the graph, there are two methods.
 
 (heading-target-commute-ruleset)=
 ### 1. Creating a rule-set with different patterns.
@@ -170,10 +170,10 @@ Once we have the `match_condition` function, we can write a target pattern and r
 ```
 
 ```{literalinclude} examples/broadcast_matmul.py
-:pyobject: matmul_with_two_shape_inputs
+:pyobject: matmul
 ```
 
-With all the necessary components in place, the pattern rewrite rule is created and then the `rewriter.rewrite` is called to apply the rewrite.
+With all the necessary components in place, the pattern rewrite rule with the `match_condition` function is created and then the `rewriter.rewrite` is called to apply the rewrite.
 
 ```{literalinclude} examples/broadcast_matmul.py
 :pyobject: apply_rewrite

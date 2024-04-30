@@ -9,30 +9,32 @@ First we write a dummy model with a several Reshape nodes and a Matmul node
 
 import logging
 
-import numpy
+import numpy as np
 
 import onnx
 
 import onnxscript
 from onnxscript import FLOAT, opset18, script
-from onnxscript import ir
 from onnxscript.rewriter import _ir_utils, pattern
+
+logger = logging.getLogger(__name__)
 
 
 @script()
 def original_model(A: FLOAT[1, 4, 512, 512], B: FLOAT[1, 4, 512, 64]) -> FLOAT[1, 4, 512, 64]:
-    shape_a = opset18.Constant(value_ints=[4, 512, 512])
+    # NOTE: Modified from `value_ints` to `value`
+    shape_a = opset18.Constant(value=[4, 512, 512])
     reshape_a = opset18.Reshape(A, shape_a)
-    shape_b = opset18.Constant(value_ints=[4, 512, 64])
-    reshape_a = opset18.Reshape(B, shape_b)
-    matmul = opset18.MatMul(reshape_a, reshape_a)
-    shape_c = opset18.Constant(value_ints=[1, 4, 512, 64])
+    shape_b = opset18.Constant(value=[4, 512, 64])
+    reshape_b = opset18.Reshape(B, shape_b)
+    matmul = opset18.MatMul(reshape_a, reshape_b)
+    shape_c = opset18.Constant(value=[1, 4, 512, 64])
     result = opset18.Reshape(matmul, shape_c)
     return result
 
 
 model = original_model.to_model_proto()
-# onnx.checker.check_model(model)
+onnx.checker.check_model(model)
 
 
 ####################################
@@ -40,7 +42,6 @@ model = original_model.to_model_proto()
 # =====================
 
 op = pattern.onnxop
-msft_op = pattern.msft_op
 
 
 def two_reshapes_matmul_reshape_pattern(input_a, input_b, shape_a, shape_b, shape_c):
@@ -197,12 +198,13 @@ def apply_rewrite(
         check_if_need_reshape,  # match_condition function
     )
     # Create a Rewrite Rule Set
-    rewrite_rule_set = pattern.RewriteRuleSet(rules=[two_reshapes_matmul_reshape_rule])
+    rewrite_rule_set = pattern.RewriteRuleSet([two_reshapes_matmul_reshape_rule])
     # Apply rewrite while passing match_condition
     model_with_rewrite = onnxscript.rewriter.rewrite(
         model,
-        pattern_rewrite_rules=[two_reshapes_matmul_reshape_rule],
+        pattern_rewrite_rules=rewrite_rule_set,
     )
+    return model_with_rewrite
 
 
 model_with_rewrite = apply_rewrite(
@@ -211,4 +213,4 @@ model_with_rewrite = apply_rewrite(
     matmul,
     check_if_need_reshape,
 )
-# onnx.checker.check_model(model_with_rewrite)
+onnx.checker.check_model(model_with_rewrite)
