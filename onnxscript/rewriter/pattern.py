@@ -705,7 +705,7 @@ def _update_opset_imports(
 class RewriteRule:
     def __init__(
         self,
-        target_pattern: Callable | None = None,
+        target_pattern: GraphPattern | Callable | None = None,
         replacement_pattern: ReplacementPatternFunction | Callable | None = None,
         condition_function: Callable | None = None,
     ) -> None:
@@ -731,14 +731,14 @@ class RewriteRule:
                 "replacement_pattern must be provided if target_pattern is provided"
             )
 
-        if callable(replacement_pattern):
-            replacement_pattern = ReplacementPatternFunction(replacement_pattern)
+        if not isinstance(target_pattern, GraphPattern):
+            target_pattern = _to_graph_pattern(target_pattern)
+        self._target_pattern = target_pattern
 
+        if not isinstance(replacement_pattern, ReplacementPatternFunction):
+            replacement_pattern = ReplacementPatternFunction(replacement_pattern)
         self._replacement_pattern = replacement_pattern
         self._condition_function = condition_function
-
-        # Get the last node pattern and number of outputs from the pattern function
-        self._target_pattern = _to_graph_pattern(target_pattern)
 
     def matches(self, node: ir.Node, model: ir.Model) -> MatchResult:
         """Check if the node from IR matches the pattern."""
