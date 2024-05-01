@@ -4,7 +4,7 @@ The ONNX IR offers the :class:`TensorProtocol` interface for usings different da
 
 ## The ``TensorProtocol``
 
-:class:`ir.TensorProtocol` defines a read-only interface for representing tensors. A tensor class implementing the interface has attributes like ``name``, ``shape``, ``dtype``, ``size``, ``nbytes`` and ``metadata_props`` to describe basic properties of the tensor. Additionally, it implements two methods ``numpy()`` and ``__array__()`` which will produce equivalent numpy arrays from the backing data.
+:class:`ir.TensorProtocol` defines a read-only interface for representing tensors. A tensor class implementing the interface has attributes like ``name``, ``shape``, ``dtype``, ``size``, ``nbytes`` and ``metadata_props`` to describe basic properties of the tensor. Additionally, it implements two methods ``numpy()`` and ``__array__()`` which will produce equivalent NumPy arrays from the backing data.
 
 When interacting with initializers, constant values and tensor attributes, it is best to assume ``TensorProtocol`` and only use ``isinstance`` to check for concrete classes when there is a need.
 
@@ -33,9 +33,9 @@ We use the :class:`ir.TensorProtoTensor` as a wrapper around the proto to implem
 
 ### ir.Tensor
 
-:class:`ir.Tensor` is a wrapper around Numpy array compatible array objects like ``np.ndarray`` and ``torch.Tensor``. An array object is compatible if it defines the ``__array__`` method.
+:class:`ir.Tensor` is a wrapper around NumPy array compatible array objects like ``np.ndarray`` and ``torch.Tensor``. An array object is compatible if it defines the ``__array__`` method.
 
-To create a tensor from an array, simply initialize it with an numpy array
+To create a tensor from an array, simply initialize it with an NumPy array
 
 ```python
 tensor = ir.Tensor(np.random.rand(1, 2))
@@ -43,21 +43,22 @@ tensor = ir.Tensor(np.random.rand(1, 2))
 
 The initializer will obtain dtype and shape information from the array.
 
-To create a tensor from objects other than numpy array, you need to specify the dtype:
+To create a tensor from objects other than NumPy array, you need to specify the dtype:
 
-```python
-import torch
-from onnxscript import ir
+```{eval-rst}
+.. exec_code::
+    import torch
+    from onnxscript import ir
 
 
-torch_tensor = torch.tensor([1, 2, 3], dtype=torch.float16)
-tensor = ir.Tensor(torch_tensor, dtype=ir.DataType.FLOAT16)
-print(tensor.numpy())  # array([1., 2., 3.], dtype=float16))
+    torch_tensor = torch.tensor([1, 2, 3], dtype=torch.float16)
+    tensor = ir.Tensor(torch_tensor, dtype=ir.DataType.FLOAT16)
+    print(tensor.numpy())  # array([1., 2., 3.], dtype=float16))
 ```
 
 ### Subclass ir.Tensor for more efficient access and broader dtype support
 
-:class:`ir.Tensor` internally converts any array compatible objects into numpy arrays to produce the byte representation in ``tobytes()``. This can be inefficient due to the additional conversion. It also limits support for dtypes not supported by numpy like bfloat16, because the ``__array__`` method would fail.
+:class:`ir.Tensor` internally converts any array compatible objects into NumPy arrays to produce the byte representation in ``tobytes()``. This can be inefficient due to the additional conversion. It also limits support for dtypes not supported by NumPy like bfloat16, because the ``__array__`` method would fail.
 
 To fully support arrays from other frameworks, it is usually a good idea to create specialized classes to handle them. The ``TorchTensor`` class below demonstrates how you can subclass ``ir.Tensor`` to handle PyTorch tensors:
 
@@ -113,7 +114,7 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
         def tobytes(self) -> bytes:
             # Implement tobytes to support native PyTorch types so we can use types like bloat16
             # Reading from memory directly is also more efficient because
-            # it avoids the copy to numpy array
+            # it avoids the copy to NumPy array
             tensor = self.raw.detach().cpu().contiguous()
             return bytes(
                 (ctypes.c_ubyte * tensor.element_size() * tensor.numel()).from_address(
@@ -130,6 +131,10 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
     print("nbytes: ", tensor.nbytes)  # 6
 ```
 
-The ``TorchTensor`` class above implements ``tobytes()`` to produce the correct bytes representation for the tensor when it is serialized into an ONNX file / TensorProto. The class also implements the ``__array__()`` method to return float32 for types numpy does not support. This way analysis passes can still perform computation on these values.
+The ``TorchTensor`` class above implements ``tobytes()`` to produce the correct bytes representation for the tensor when it is serialized into an ONNX file / TensorProto. The class also implements the ``__array__()`` method to return float32 for types NumPy does not support. This way analysis passes can still perform computation on these values.
 
 <!-- TODO(justinchuby): Document make tensor helper -->
+
+## Sparse Tensor
+
+Sparse tensors are not yet supported, but they are on our roadmap.
