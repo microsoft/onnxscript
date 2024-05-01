@@ -1,6 +1,9 @@
 # Tensor representation in the IR
 
-The ONNX IR offers the :class:`TensorProtocol` interface for usings different data structures as backing data for tensors. Besides the traditional ``onnx.TensorProto``, you can also use ``np.ndarray``, ``torch.Tensor``, and virtually anything else to represent tensors in the graph. This allows for  They can be accessed and serialized via the same `TensorProtocol` interface.
+The ONNX IR offers the :class:`TensorProtocol` interface for usings different data structures as backing data for tensors. Besides the traditional ``onnx.TensorProto``, you can also use ``np.ndarray``, ``torch.Tensor``, and virtually anything else to represent tensors in the graph. This allows for efficient
+
+
+ They can be accessed and serialized via the same `TensorProtocol` interface.
 
 ## The ``TensorProtocol``
 
