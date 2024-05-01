@@ -1,4 +1,4 @@
-# Tensor representation in the IR
+# Tensor Representation in the IR
 
 The ONNX IR offers the :class:`TensorProtocol` interface for usings different data structures as backing data for tensors. Besides the traditional ``onnx.TensorProto``, you can also use ``np.ndarray``, ``torch.Tensor``, and virtually anything else to represent tensors in the graph. This allows for them to be accessed and serialized via the same `TensorProtocol` interface, without incurring additional copies at initialization.
 
@@ -6,11 +6,13 @@ The ONNX IR offers the :class:`TensorProtocol` interface for usings different da
 
 :class:`ir.TensorProtocol` defines a read-only interface for representing tensors. A tensor class implementing the interface has attributes like ``name``, ``shape``, ``dtype``, ``size``, ``nbytes`` and ``metadata_props`` to describe basic properties of the tensor. Additionally, it implements two methods ``numpy()`` and ``__array__()`` which will produce equivalent NumPy arrays from the backing data.
 
+:::{note}
 When interacting with initializers, constant values and tensor attributes, it is best to assume ``TensorProtocol`` and only use ``isinstance`` to check for concrete classes when there is a need.
+:::
 
-## Tensor classes
+## Tensor Classes
 
-### TensorProto
+### ir.TensorProtoTensor
 
 The ONNX spec defines [different ways](https://github.com/onnx/onnx/blob/d6f87121ba256ac6cc4d1da0463c300c278339d2/onnx/onnx.proto#L567-L654) for storing tensor data as a ``TensorProto`` protocol buffer message. The IR has corresponding classes for each of these data storage methods.
 
@@ -31,9 +33,19 @@ We use the :class:`ir.TensorProtoTensor` as a wrapper around the proto to implem
     print("numpy: ", tensor.numpy())  # array([1, 2, 3], dtype=int16)
 ```
 
+### ir.ExternalTensor
+
+Tensor data stored externally in the disk are typically large and will take up memory when loaded. The :class:`ir.ExternalTensor` class uses memory mapping to avoid loading the tensor into memory. You are able to use the tensor as a normal NumPy array with minimal memory usage.
+
+Refer to :func:`ir.serde.deserialize_tensor` to find an example on converting a :class:`onnx.TensorProto` to a :class:`ir.ExternalTensor`.
+
 ### ir.Tensor
 
-:class:`ir.Tensor` is a wrapper around NumPy array compatible array objects like ``np.ndarray`` and ``torch.Tensor``. An array object is compatible if it defines the ``__array__`` method.
+:class:`ir.Tensor` is a wrapper around NumPy array compatible array objects like ``np.ndarray`` and ``torch.Tensor``. It is best for creating in-memory tensors without converting it to a ``TensorProto`` to reduce the conversion overhead.
+
+:::{tip}
+An array object is compatible if it defines the ``__array__`` method.
+:::
 
 To create a tensor from an array, simply initialize it with an NumPy array
 
@@ -56,7 +68,7 @@ To create a tensor from objects other than NumPy array, you need to specify the 
     print(tensor.numpy())  # array([1., 2., 3.], dtype=float16))
 ```
 
-### Subclass ir.Tensor for more efficient access and broader dtype support
+### Subclass ir.Tensor for More Efficient Access and Broader dtype Support
 
 :class:`ir.Tensor` internally converts any array compatible objects into NumPy arrays to produce the byte representation in ``tobytes()``. This can be inefficient due to the additional conversion. It also limits support for dtypes not supported by NumPy like bfloat16, because the ``__array__`` method would fail.
 
@@ -132,6 +144,11 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
 ```
 
 The ``TorchTensor`` class above implements ``tobytes()`` to produce the correct bytes representation for the tensor when it is serialized into an ONNX file / TensorProto. The class also implements the ``__array__()`` method to return float32 for types NumPy does not support. This way analysis passes can still perform computation on these values.
+
+### String Tensor
+
+Use class:`ir.StringTensor` to create a string tensor.
+
 
 <!-- TODO(justinchuby): Document make tensor helper -->
 
