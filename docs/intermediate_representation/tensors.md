@@ -12,28 +12,9 @@ When interacting with initializers, constant values and tensor attributes, it is
 
 ### TensorProto
 
-The ONNX spec defines [different ways](https://github.com/onnx/onnx/blob/d6f87121ba256ac6cc4d1da0463c300c278339d2/onnx/onnx.proto#L567-L654) for storing tensor data as a TensorProto protocol buffer message. The IR has corresponding classes for each of these data storage methods.
+The ONNX spec defines [different ways](https://github.com/onnx/onnx/blob/d6f87121ba256ac6cc4d1da0463c300c278339d2/onnx/onnx.proto#L567-L654) for storing tensor data as a ``TensorProto`` protocol buffer message. The IR has corresponding classes for each of these data storage methods.
 
-For tensors whose data are stored in the ``raw_data`` field, we use the :class:`ir.TensorProtoTensor` as a wrapper around the proto to implement the ``ir.TensorProtocol`` interface. You can access ``shape``, ``dtype`` etc. as usual. A copy is incurred only when ``numpy()`` is called.
-
-```{eval-rst}
-.. exec_code::
-    import onnx
-    from onnxscript import ir
-
-    tensor_proto = onnx.helper.make_tensor(
-        "tensor", onnx.TensorProto.INT16, (3,), b'\x01\x00\x02\x00\x03\x00', raw=True
-    )
-    tensor = ir.TensorProtoTensor(tensor_proto)
-    print(tensor: ", tensor)  # TensorProtoTensor<INT16,[3]>(name='tensor')
-    print("shape: ", tensor.shape)  # ir.Shape([3])
-    print("dtype: ", tensor.dtype)  # ir.DataType.INT16
-    print(tensor.raw == tensor_proto)  # The raw field is the exact tensor_proto provided at initialization
-    print("tobytes: ", tensor.tobytes())  # b'\x01\x00\x02\x00\x03\x00'
-    print("numpy: ", tensor.numpy())  # array([1, 2, 3], dtype=int16)
-```
-
-When tensors store their data in a different data field like `int32_data`, use the corresponding class as a wrapper:
+We use the :class:`ir.TensorProtoTensor` as a wrapper around the proto to implement the ``ir.TensorProtocol`` interface. You can access ``shape``, ``dtype`` etc. as usual. A copy is incurred only when ``numpy()`` is called.
 
 ```{eval-rst}
 .. exec_code::
@@ -42,11 +23,11 @@ When tensors store their data in a different data field like `int32_data`, use t
 
     tensor_proto = onnx.helper.make_tensor("tensor", onnx.TensorProto.INT16, (3,), [1, 2, 3])
     tensor = ir.TensorProtoTensor(tensor_proto)
-    print("tensor: ", tensor)  # TensorProtoTensor<INT16,[3]>(name='tensor')
+    print(tensor: ", tensor)  # TensorProtoTensor<INT16,[3]>(name='tensor')
     print("shape: ", tensor.shape)  # ir.Shape([3])
     print("dtype: ", tensor.dtype)  # ir.DataType.INT16
     print(tensor.raw == tensor_proto)  # The raw field is the exact tensor_proto provided at initialization
-    print("int32_data: ", print(tensor.int32_data()))  # [1, 2, 3]
+    print("tobytes: ", tensor.tobytes())  # b'\x01\x00\x02\x00\x03\x00'
     print("numpy: ", tensor.numpy())  # array([1, 2, 3], dtype=int16)
 ```
 
