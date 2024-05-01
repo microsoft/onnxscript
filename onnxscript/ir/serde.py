@@ -17,12 +17,7 @@ from __future__ import annotations
 
 __all__ = [
     # Tensors
-    "DoubleDataTensor",
-    "FloatDataTensor",
-    "Int32DataTensor",
-    "Int64DataTensor",
     "TensorProtoTensor",
-    "UInt64DataTensor",
     # Deserialization
     "deserialize_attribute",
     "deserialize_function",
@@ -123,11 +118,47 @@ class TensorProtoTensor(_core.TensorBase):
 
     def tobytes(self) -> bytes:
         """Return the tensor as a byte string conformed to the ONNX specification, in little endian."""
-        if not self._proto.HasField("raw_data"):
-            raise ValueError(
-                "Cannot convert non-raw tensor to bytes. Use a specialized tensor class like FloatDataTensor instead."
-            )
-        return self._proto.raw_data
+        if self._proto.HasField("raw_data"):
+            return self._proto.raw_data
+        if self._proto.HasField("float_data"):
+            return np.array(self._proto.float_data, dtype=np.float32).tobytes()
+        if self._proto.HasField("int32_data"):
+            array = np.array(self._proto.int32_data, dtype=np.int32)
+            if self.dtype in {
+                _enums.DataType.INT16,
+                _enums.DataType.UINT16,
+                _enums.DataType.FLOAT16,
+                _enums.DataType.BFLOAT16,
+            }:
+                return array.astype(np.uint16).tobytes()
+            if self.dtype in {
+                _enums.DataType.INT8,
+                _enums.DataType.UINT8,
+                _enums.DataType.BOOL,
+                _enums.DataType.FLOAT8E4M3FN,
+                _enums.DataType.FLOAT8E4M3FNUZ,
+                _enums.DataType.FLOAT8E5M2,
+                _enums.DataType.FLOAT8E5M2FNUZ,
+            }:
+                # TODO: Is BOOL the same as UINT8?
+                return array.astype(np.uint8).tobytes()
+            if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
+                return _type_casting.pack_int4(array).tobytes()
+            assert self.dtype == _enums.DataType.INT32
+            return array.tobytes()
+        if self._proto.HasField("int64_data"):
+            return np.array(self._proto.int64_data, dtype=np.int64).tobytes()
+        if self._proto.HasField("double_data"):
+            return np.array(self._proto.double_data, dtype=np.float64).tobytes()
+        if self._proto.HasField("uint64_data"):
+            array = np.array(self._proto.uint64_data, dtype=np.uint64)
+            if self.dtype == _enums.DataType.UINT32:
+                return array.astype(np.uint32).tobytes()
+            assert self.dtype == _enums.DataType.UINT64
+            return array.tobytes()
+        # The repeating fields can be empty and still valid.
+        # For example, int32_data can be empty and still be a valid tensor.
+        return b""
 
     @property
     def meta(self) -> _metadata.MetadataStore:
@@ -145,141 +176,6 @@ class TensorProtoTensor(_core.TensorBase):
         if self._metadata_props is None:
             self._metadata_props = {}
         return self._metadata_props
-
-
-class FloatDataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
-    """Specialized tensor for float data.
-
-    When serializing, the data can be stored in the float_data field.
-    """
-
-    compatible_types = frozenset((_enums.DataType.FLOAT, _enums.DataType.COMPLEX64))
-
-    def __init__(self, proto: onnx.TensorProto) -> None:
-        super().__init__(proto)
-        if proto.data_type not in self.compatible_types:
-            raise ValueError(
-                f"Expected FLOAT or COMPLEX64 data type, got {_enums.DataType(proto.data_type)}"
-            )
-
-    def float_data(self) -> Sequence[float]:
-        return self._proto.float_data
-
-    def tobytes(self) -> bytes:
-        return np.array(self._proto.float_data, dtype=np.float32).tobytes()
-
-
-class Int32DataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
-    compatible_types = frozenset(
-        (
-            _enums.DataType.INT32,
-            _enums.DataType.INT16,
-            _enums.DataType.INT8,
-            _enums.DataType.INT4,
-            _enums.DataType.UINT16,
-            _enums.DataType.UINT8,
-            _enums.DataType.UINT4,
-            _enums.DataType.BOOL,
-            _enums.DataType.FLOAT16,
-            _enums.DataType.BFLOAT16,
-            _enums.DataType.FLOAT8E4M3FN,
-            _enums.DataType.FLOAT8E4M3FNUZ,
-            _enums.DataType.FLOAT8E5M2,
-            _enums.DataType.FLOAT8E5M2FNUZ,
-        )
-    )
-
-    def __init__(self, proto: onnx.TensorProto) -> None:
-        super().__init__(proto)
-        if proto.data_type not in self.compatible_types:
-            raise ValueError(
-                "Expected INT32, INT16, INT8, INT4, UINT16, UINT8, UINT4, BOOL, "
-                "FLOAT16, BFLOAT16, FLOAT8E4M3FN, FLOAT8E4M3FNUZ, FLOAT8E5M2, FLOAT8E5M2FNUZ "
-                f"data type, got {_enums.DataType(proto.data_type)}"
-            )
-
-    def int32_data(self) -> Sequence[int]:
-        return self._proto.int32_data
-
-    def tobytes(self) -> bytes:
-        array = np.array(self._proto.int32_data, dtype=np.int32)
-        if self.dtype in {
-            _enums.DataType.INT16,
-            _enums.DataType.UINT16,
-            _enums.DataType.FLOAT16,
-            _enums.DataType.BFLOAT16,
-        }:
-            return array.astype(np.uint16).tobytes()
-        if self.dtype in {
-            _enums.DataType.INT8,
-            _enums.DataType.UINT8,
-            _enums.DataType.BOOL,
-            _enums.DataType.FLOAT8E4M3FN,
-            _enums.DataType.FLOAT8E4M3FNUZ,
-            _enums.DataType.FLOAT8E5M2,
-            _enums.DataType.FLOAT8E5M2FNUZ,
-        }:
-            # TODO: Is BOOL the same as UINT8?
-            return array.astype(np.uint8).tobytes()
-        if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
-            return _type_casting.pack_int4(array).tobytes()
-        assert self.dtype == _enums.DataType.INT32
-        return array.tobytes()
-
-
-class Int64DataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
-    compatible_types = frozenset((_enums.DataType.INT64,))
-
-    def __init__(self, proto: onnx.TensorProto) -> None:
-        super().__init__(proto)
-        if proto.data_type not in self.compatible_types:
-            raise ValueError(
-                f"Expected INT64 data type, got {_enums.DataType(proto.data_type)}"
-            )
-
-    def int64_data(self) -> Sequence[int]:
-        return self._proto.int64_data
-
-    def tobytes(self) -> bytes:
-        return np.array(self._proto.int64_data, dtype=np.int64).tobytes()
-
-
-class DoubleDataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
-    compatible_types = frozenset((_enums.DataType.DOUBLE, _enums.DataType.COMPLEX128))
-
-    def __init__(self, proto: onnx.TensorProto) -> None:
-        super().__init__(proto)
-        if proto.data_type not in self.compatible_types:
-            raise ValueError(
-                f"Expected DOUBLE or COMPLEX128 data type, got {_enums.DataType(proto.data_type)}"
-            )
-
-    def double_data(self) -> Sequence[float]:
-        return self._proto.double_data
-
-    def tobytes(self) -> bytes:
-        return np.array(self._proto.double_data, dtype=np.float64).tobytes()
-
-
-class UInt64DataTensor(TensorProtoTensor):  # pylint: disable=too-many-ancestors
-    compatible_types = frozenset((_enums.DataType.UINT64, _enums.DataType.UINT32))
-
-    def __init__(self, proto: onnx.TensorProto) -> None:
-        super().__init__(proto)
-        if proto.data_type not in self.compatible_types:
-            raise ValueError(
-                f"Expected UINT64 or UINT32 data type, got {_enums.DataType(proto.data_type)}"
-            )
-
-    def uint64_data(self) -> Sequence[int]:
-        return self._proto.uint64_data
-
-    def tobytes(self) -> bytes:
-        array = np.array(self._proto.uint64_data, dtype=np.uint64)
-        if self.dtype == _enums.DataType.UINT32:
-            return array.astype(np.uint32).tobytes()
-        assert self.dtype == _enums.DataType.UINT64
-        return array.tobytes()
 
 
 def _get_field(proto: Any, field: str) -> Any:
@@ -627,24 +523,7 @@ def deserialize_tensor(
             doc_string=proto.doc_string,
             metadata_props=deserialize_metadata_props(proto.metadata_props),
         )
-    # Check for the raw_data filed first. The rest of the repeating fields can be
-    # empty and still valid, so we don't need to check their length
-    # For example, int32_data can be empty and still be a valid tensor.
-    if proto.HasField("raw_data"):
-        return TensorProtoTensor(proto)
-    if proto.data_type in FloatDataTensor.compatible_types:
-        return FloatDataTensor(proto)
-    if proto.data_type in Int32DataTensor.compatible_types:
-        return Int32DataTensor(proto)
-    if proto.data_type in Int64DataTensor.compatible_types:
-        return Int64DataTensor(proto)
-    if proto.data_type in DoubleDataTensor.compatible_types:
-        return DoubleDataTensor(proto)
-    if proto.data_type in UInt64DataTensor.compatible_types:
-        return UInt64DataTensor(proto)
-    raise ValueError(
-        f"TensorProto(name={proto.name}) does not have any data fields set and is not an external tensor."
-    )
+    return TensorProtoTensor(proto)
 
 
 def deserialize_metadata_props(
