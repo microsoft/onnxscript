@@ -1,4 +1,4 @@
-"""Numpy utilities for subbyte operation."""
+"""Numpy utilities for non-native type operation."""
 # TODO(justinchuby): Upstream the logic to onnx
 
 from __future__ import annotations
