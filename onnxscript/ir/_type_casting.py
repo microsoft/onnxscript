@@ -28,7 +28,7 @@ def pack_int4(array: np.ndarray) -> npt.NDArray[np.uint8]:
 def float32_to_bfloat16(array: npt.NDArray[np.float32]) -> npt.NDArray[np.uint16]:
     """Convert a numpy array to uint16 representation of bfloat16."""
     bfloat16_array = array.astype(np.float32).view(np.uint32)
-    # NaN requires at least 1 significand bit set
+    # NaN requires at least 1 significant bit set
     bfloat16_array[np.isnan(array)] = 0x7FC0  # sign=0, exp=all-ones, sig=0b1000000
     # Drop bottom 16-bits
     # Round remaining bits using round-to-nearest-even
