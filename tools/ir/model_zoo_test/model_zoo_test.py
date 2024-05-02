@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
 import gc
+import multiprocessing.pool
 import sys
 import tempfile
 import time
@@ -14,7 +16,7 @@ import onnxscript.testing
 from onnxscript import ir
 
 
-def test_model(model_info: hub.ModelInfo) -> None:
+def test_model(model_info: hub.ModelInfo) -> float:
     with tempfile.TemporaryDirectory() as temp_dir:
         hub.set_dir(temp_dir)
         model_name = model_info.model
@@ -25,36 +27,66 @@ def test_model(model_info: hub.ModelInfo) -> None:
     model.graph.name = "main_graph"
 
     # Profile the serialization and deserialization process
+    start = time.time()
     ir_model = ir.serde.deserialize_model(model)
     serialized = ir.serde.serialize_model(ir_model)
+    end = time.time()
     onnxscript.testing.assert_onnx_proto_equal(serialized, model)
     onnx.checker.check_model(serialized)
+    return end - start
+
+
+def run_one_test(model_info: hub.ModelInfo) -> tuple[str, Exception | None]:
+    start = time.time()
+    model_name = model_info.model
+    model_path = model_info.model_path
+    message = f"----Testing: {model_name} @ {model_path}----"
+    try:
+        time_passed = test_model(model_info)
+        message += green(f"\n[PASS]: {model_name} roundtrip test passed.")
+    except Exception as e:
+        time_passed = -1
+        message += red(f"\n[FAIL]: {e}")
+    else:
+        e = None
+    end = time.time()
+    message += f"\n-------Time used: {end - start} secs, roundtrip: {time_passed} secs -------"
+    print(message, flush=True)
+    # enable gc collection to prevent MemoryError by loading too many large models
+    gc.collect()
+    return model_name, e
+
+
+def green(text: str) -> str:
+    return f"\033[32m{text}\033[0m"
+
+
+def red(text: str) -> str:
+    return f"\033[31m{text}\033[0m"
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Test IR roundtrip with ONNX model zoo.")
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="Number of parallel jobs to run. Default is 1.",
+    )
+    args = parser.parse_args()
+
     model_list = hub.list_models()
     print(f"=== Testing IR on {len(model_list)} models ===")
 
     # run checker on each model
     failed_models = []
     failed_messages = []
-    for model_info in model_list:
-        start = time.time()
-        model_name = model_info.model
-        model_path = model_info.model_path
-        print(f"----Testing: {model_name} @ {model_path}----")
-        try:
-            test_model(model_info)
-            print(f"[PASS]: {model_name} roundtrip test passed.")
-        except Exception as e:
-            print(f"[FAIL]: {e}")
+    # Use multi-threading to speed up the testing process
+    results = multiprocessing.pool.ThreadPool(args.jobs).map(run_one_test, model_list)
+    for model_name, error in results:
+        if error is not None:
             failed_models.append(model_name)
-            failed_messages.append((model_name, e))
-        end = time.time()
-        print(f"--------------Time used: {end - start} secs-------------")
-        # enable gc collection to prevent MemoryError by loading too many large models
-        gc.collect()
-
+            failed_messages.append((model_name, error))
     if len(failed_models) == 0:
         print(f"{len(model_list)} models have been checked.")
     else:
