@@ -78,6 +78,12 @@ def red(text: str) -> str:
 def main():
     parser = argparse.ArgumentParser(description="Test IR roundtrip with ONNX model zoo.")
     parser.add_argument(
+        "-k",
+        type=str,
+        default=None,
+        help="Keyword to filter the models. Default is None.",
+    )
+    parser.add_argument(
         "--jobs",
         type=int,
         default=1,
@@ -86,6 +92,10 @@ def main():
     args = parser.parse_args()
 
     model_list = hub.list_models()
+    if args.k:
+        # Filter the models by name
+        name = args.k.lower()
+        model_list = [model for model in model_list if name in model.model.lower()]
     print(f"=== Testing IR on {len(model_list)} models ===")
 
     # run checker on each model
