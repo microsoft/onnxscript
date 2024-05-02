@@ -171,7 +171,7 @@ First, write a target pattern and replacement pattern in a similar way to the fi
 ```
 
 ```{literalinclude} examples/broadcast_matmul.py
-:pyobject: matmul
+:pyobject: matmul_pattern
 ```
 
 :::{note}
