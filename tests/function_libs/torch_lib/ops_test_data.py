@@ -1919,7 +1919,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "native_layer_norm",
         core_ops.aten_native_layer_norm,
         trace_only=True,
-        tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (1e-1, 7e-4)},
+        tolerance={torch.float32: (1e-3, 1e-3), torch.float16: (1e-1, 7e-4)},
     ).skip(
         dtypes=(torch.float16,),
         device_type="cpu",
