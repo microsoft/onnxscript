@@ -167,6 +167,7 @@ def run_test_output_match(
             a function and its arguments and returns the output of the function.
         tested_op_mapping: The mapping of op name to the tested op.
     """
+    torch.manual_seed(0)
     samples = op.sample_inputs(
         device,
         dtype,
@@ -193,6 +194,7 @@ def run_test_output_match(
     rtol, atol = torchlib_op_info.get_tolerance(dtype)
     for i, cpu_sample in enumerate(samples):
         inputs = (cpu_sample.input, *cpu_sample.args)
+        print(inputs)
         # Provide the repr to subtest because tensors are not serializable in parallel test runs
         with test_suite.subTest(
             sample_num=i,
