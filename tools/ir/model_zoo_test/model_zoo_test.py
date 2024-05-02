@@ -20,6 +20,7 @@ from onnx import hub
 
 import onnxscript.testing
 from onnxscript import ir
+import rich.progress
 
 
 def test_model(model_info: hub.ModelInfo) -> float:
@@ -48,7 +49,7 @@ def run_one_test(model_info: hub.ModelInfo) -> tuple[str, str | None]:
     start = time.time()
     model_name = model_info.model
     model_path = model_info.model_path
-    message = f"----Testing: {model_name} @ {model_path}----"
+    message = f"\n----Testing: {model_name} @ {model_path}----"
     try:
         time_passed = test_model(model_info)
         message += green(f"\n[PASS]: {model_name} roundtrip test passed.")
@@ -59,7 +60,7 @@ def run_one_test(model_info: hub.ModelInfo) -> tuple[str, str | None]:
     else:
         error = None
     end = time.time()
-    message += f"\n-------Time used: {end - start} secs, roundtrip: {time_passed} secs -------"
+    message += f"\n[Time]: {end - start} secs, roundtrip: {time_passed} secs"
     print(message, flush=True)
     # enable gc collection to prevent MemoryError by loading too many large models
     gc.collect()
@@ -91,7 +92,14 @@ def main():
     failed_models = []
     failed_messages = []
     # Use multi-processing to speed up the testing process
-    results = multiprocessing.pool.Pool(args.jobs).map(run_one_test, model_list)
+    from tqdm import tqdm
+
+    with multiprocessing.pool.Pool(args.jobs) as pool:
+        results = list(
+            rich.progress.track(
+                pool.imap_unordered(run_one_test, model_list), "Testing...", total=len(model_list)
+            )
+        )
     for model_name, error in results:
         if error is not None:
             failed_models.append(model_name)
@@ -101,7 +109,7 @@ def main():
     else:
         print(red(f"In all {len(model_list)} models, {len(failed_models)} models failed"))
         for i, (model_name, error) in enumerate(failed_messages):
-            print(f"[{i} / {len(failed_models)}] {red(model_name)} failed because: {error}\n")
+            print(f"[{i} / {len(failed_models)}] {red(model_name)} failed because: {error}")
         sys.exit(1)
 
 
