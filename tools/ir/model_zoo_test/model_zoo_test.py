@@ -17,10 +17,8 @@ from onnxscript import ir
 
 
 def test_model(model_info: hub.ModelInfo) -> float:
-    with tempfile.TemporaryDirectory() as temp_dir:
-        hub.set_dir(temp_dir)
-        model_name = model_info.model
-        model = hub.load(model_name)
+    model_name = model_info.model
+    model = hub.load(model_name)
     assert model is not None
     onnx.checker.check_model(model)
     # Fix the missing graph name of some test models
@@ -82,7 +80,9 @@ def main():
     failed_models = []
     failed_messages = []
     # Use multi-threading to speed up the testing process
-    results = multiprocessing.pool.ThreadPool(args.jobs).map(run_one_test, model_list)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        hub.set_dir(temp_dir)
+        results = multiprocessing.pool.ThreadPool(args.jobs).map(run_one_test, model_list)
     for model_name, error in results:
         if error is not None:
             failed_models.append(model_name)
