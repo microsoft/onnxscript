@@ -24,7 +24,7 @@ The `onnxscript.optimizer.optimize` call takes in several optional parameters th
 
 ## Description of optimizations applied by `onnxscript.optimizer.optimize`
 
-:::{table} 
+:::{table}
 :widths: auto
 :align: center
 
