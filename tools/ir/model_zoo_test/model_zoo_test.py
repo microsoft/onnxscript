@@ -49,19 +49,19 @@ def run_one_test(model_info: hub.ModelInfo) -> tuple[str, Exception | None]:
     try:
         time_passed = test_model(model_info)
         message += green(f"\n[PASS]: {model_name} roundtrip test passed.")
-    except Exception as e:  # noqa: F841
+    except Exception as e:
         time_passed = -1
-        error = traceback.format_exc()
-        message += red(f"\n[FAIL]: {error}")
+        stack_trace = traceback.format_exc()
+        message += red(f"\n[FAIL]: {stack_trace}")
+        error = e
     else:
-        e = None
         error = None
     end = time.time()
     message += f"\n-------Time used: {end - start} secs, roundtrip: {time_passed} secs -------"
     print(message, flush=True)
     # enable gc collection to prevent MemoryError by loading too many large models
     gc.collect()
-    return model_name, e
+    return model_name, error
 
 
 def green(text: str) -> str:
