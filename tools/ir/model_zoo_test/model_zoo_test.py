@@ -41,7 +41,7 @@ def test_model(model_info: hub.ModelInfo) -> float:
     return end - start
 
 
-def run_one_test(model_info: hub.ModelInfo) -> tuple[str, Exception | None]:
+def run_one_test(model_info: hub.ModelInfo) -> tuple[str, str | None]:
     start = time.time()
     model_name = model_info.model
     model_path = model_info.model_path
@@ -51,9 +51,8 @@ def run_one_test(model_info: hub.ModelInfo) -> tuple[str, Exception | None]:
         message += green(f"\n[PASS]: {model_name} roundtrip test passed.")
     except Exception as e:  # noqa: W0718
         time_passed = -1
-        stack_trace = traceback.format_exc()
-        message += red(f"\n[FAIL]: {stack_trace}")
-        error = e
+        error = traceback.format_exc()
+        message += red(f"\n[FAIL]: {e}")
     else:
         error = None
     end = time.time()
@@ -100,8 +99,9 @@ def main():
         print(green(f"{len(model_list)} models have been checked."))
     else:
         print(red(f"In all {len(model_list)} models, {len(failed_models)} models failed"))
-        for model_name, error in failed_messages:
-            print(f"{red(model_name)} failed because: {error}\n")
+        for i, (model_name, error) in enumerate(failed_messages):
+
+            print(f"[{i} / {len(failed_models)}] {red(model_name)} failed because: {error}\n")
         sys.exit(1)
 
 
