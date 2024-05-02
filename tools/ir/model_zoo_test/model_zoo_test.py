@@ -49,7 +49,7 @@ def run_one_test(model_info: hub.ModelInfo) -> tuple[str, str | None]:
     try:
         time_passed = test_model(model_info)
         message += green(f"\n[PASS]: {model_name} roundtrip test passed.")
-    except Exception as e:  # noqa: W0718
+    except Exception as e:  # pylint: disable=broad-exception-caught
         time_passed = -1
         error = traceback.format_exc()
         message += red(f"\n[FAIL]: {e}")
