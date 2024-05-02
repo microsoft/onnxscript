@@ -1,4 +1,8 @@
-"""Test IR roundtrip with ONNX model zoo."""
+"""Test IR roundtrip with ONNX model zoo.
+
+Usage:
+    python model_zoo_test.py --jobs 8
+"""
 
 from __future__ import annotations
 
