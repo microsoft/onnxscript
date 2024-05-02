@@ -16,11 +16,11 @@ import time
 import traceback
 
 import onnx
+import tqdm
 from onnx import hub
 
 import onnxscript.testing
 from onnxscript import ir
-import rich.progress
 
 
 def test_model(model_info: hub.ModelInfo) -> float:
@@ -92,12 +92,12 @@ def main():
     failed_models = []
     failed_messages = []
     # Use multi-processing to speed up the testing process
-    from tqdm import tqdm
-
     with multiprocessing.pool.Pool(args.jobs) as pool:
         results = list(
-            rich.progress.track(
-                pool.imap_unordered(run_one_test, model_list), "Testing...", total=len(model_list)
+            tqdm.tqdm(
+                pool.imap_unordered(run_one_test, model_list),
+                "Testing...",
+                total=len(model_list),
             )
         )
     for model_name, error in results:
