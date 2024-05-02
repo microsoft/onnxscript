@@ -391,7 +391,7 @@ class NodePattern:
                 continue
             if arg_value is None or previous_node_output_pattern is None:
                 return MatchResult.FAIL()
-            sub_match = previous_node_output_pattern.matches(arg_value)  # type: ignore[attr-defined]
+            sub_match = previous_node_output_pattern.matches(arg_value)
             match.extend(sub_match)
             if not match:  # If sub-match failed,
                 return match
