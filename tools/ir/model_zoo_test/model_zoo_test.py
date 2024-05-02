@@ -97,11 +97,11 @@ def main():
             failed_models.append(model_name)
             failed_messages.append((model_name, error))
     if len(failed_models) == 0:
-        print(f"{len(model_list)} models have been checked.")
+        print(green(f"{len(model_list)} models have been checked."))
     else:
-        print(f"In all {len(model_list)} models, {len(failed_models)} models failed")
+        print(red(f"In all {len(model_list)} models, {len(failed_models)} models failed"))
         for model_name, error in failed_messages:
-            print(f"{model_name} failed because: {error}")
+            print(f"{red(model_name)} failed because: {error}\n")
         sys.exit(1)
 
 
