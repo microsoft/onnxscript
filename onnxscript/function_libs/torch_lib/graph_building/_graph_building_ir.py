@@ -106,6 +106,7 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
         ir.Value.__init__(self, producer, index=index, name=name)
         self._is_complex: bool = False
         self._concrete_value: np.ndarray | None = None
+        self._device: torch.device | None = None
 
     @property
     def value(self) -> Optional[np.ndarray]:
@@ -149,6 +150,16 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
             self._type = ir.TensorType(onnx_dtype)
         else:
             self._type.dtype = onnx_dtype
+
+    # TODO: Remove this when there is no mismatch output shapes between device:
+    # https://github.com/pytorch/pytorch/blob/a44f8894fa6d973693aab44a3dda079a168b05c1/torch/_decomp/decompositions.py#L1451-L1457
+    @property
+    def device(self) -> torch.device | None:
+        return self._device
+
+    @device.setter
+    def device(self, device: torch.device):
+        self._device = device
 
     @property
     def is_complex(self) -> bool:
@@ -441,6 +452,7 @@ class TorchScriptGraph:
         input_name: Optional[str],
         shape: Optional[Union[torch.Size, Tuple[Union[int, str, None], ...]]] = None,
         dtype: Optional[torch.dtype] = None,
+        device: Optional[torch.device] = None,
     ) -> TorchScriptTensor | None:
         if input_name is None:
             # This input argument is None, which is mapped
@@ -449,6 +461,7 @@ class TorchScriptGraph:
         else:
             value = TorchScriptTensor(name=input_name)
             value.shape = shape  # type: ignore[arg-type,assignment]
+            value.device = device
             if dtype is not None:
                 value.dtype = dtype  # type: ignore[assignment]
             # TODO(titaiwang): This approach loses the information that "same SymInts
