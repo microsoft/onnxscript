@@ -68,7 +68,16 @@ def _check_if_simulated_instance_norm_is_used_impl(
     return True
 
 
-def check_if_simulated_instance_norm_is_used(**_) -> bool:
+def check_if_simulated_instance_norm_is_used(
+    input_x,
+    adjusted_input_shape,
+    original_input_shape,
+    weight_for_norm,
+    bias_for_norm,
+    weight_full,
+    bias_full,
+    **_,
+) -> bool:
     """Check if the simulated instance normalization is used.
 
     In torchlib with opset18, onnx.GroupNorm is using wrong definition, so
@@ -89,7 +98,16 @@ def check_if_simulated_instance_norm_is_used(**_) -> bool:
     Returns:
         bool: True if the simulated instance normalization is used, False otherwise.
     """
-    return _check_if_simulated_instance_norm_is_used_impl(**_)
+    return _check_if_simulated_instance_norm_is_used_impl(
+        input_x,
+        adjusted_input_shape,
+        original_input_shape,
+        weight_for_norm,
+        bias_for_norm,
+        weight_full,
+        bias_full,
+        **_,
+    )
 
 
 def instance_simulates_group_normalization_pattern(
