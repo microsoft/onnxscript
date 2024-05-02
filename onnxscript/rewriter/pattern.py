@@ -512,11 +512,19 @@ class GraphPattern:
         if len(outputs) == 0:
             raise ValueError("GraphPattern must have at least one output")
         # Check if all outputs are produced by the same node.
-        output_node = outputs[0].node_pattern  # TODO
-        for i, p in enumerate(outputs):
-            if not isinstance(p, ValuePattern):
-                raise TypeError(f"Invalid type {type(p)} for graph pattern output.")
-            if (p.node_pattern is not output_node) or (p.output_index != i):
+        output_node = None
+        for i, value_pattern in enumerate(outputs):
+            if not isinstance(value_pattern, ValuePattern):
+                raise TypeError(
+                    f"Invalid type {type(value_pattern)} for graph pattern output."
+                )
+            if not isinstance(value_pattern, NodeOutputPattern) or (
+                value_pattern.output_index != i
+            ):
+                output_node = None
+            elif i == 0:
+                output_node = value_pattern.node_pattern
+            elif value_pattern.node_pattern is not output_node:
                 output_node = None
         self._output_node = output_node
 
