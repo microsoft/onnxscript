@@ -57,7 +57,7 @@ def rewrite(
 
     # TODO: remove this after onnxruntime supports bfloat16
     if convert_bloat16_to_float16:
-        model = bfloat16_converter.dtype_adapter_for_bfloat16_model(model)
+        bfloat16_converter.dtype_adapter_for_bfloat16_model(model)
 
     model_proto = ir.serde.serialize_model(model)
     remove_unused.remove_unused_nodes(model_proto)
