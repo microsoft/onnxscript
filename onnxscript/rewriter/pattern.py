@@ -26,7 +26,7 @@ from onnxscript.rewriter import _ir_utils, _tape
 T = TypeVar("T")
 
 
-class Pattern(Protocol[T]):
+class Pattern(Protocol[T]):  # type: ignore[misc]
     """This is essentially a Predicate[T], that is, a Callable[[T], bool] bound to the name "matches"."""
 
     def matches(self, item: T) -> bool: ...
