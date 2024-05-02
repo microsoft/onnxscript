@@ -10,11 +10,10 @@ First we write a dummy model with a several Reshape nodes and a Matmul node
 import logging
 
 import numpy as np
-
 import onnx
 
 import onnxscript
-from onnxscript import FLOAT, opset18, script
+from onnxscript import FLOAT, ir, opset18, script
 from onnxscript.rewriter import _ir_utils, pattern
 
 logger = logging.getLogger(__name__)
@@ -56,7 +55,7 @@ def two_reshapes_matmul_reshape_pattern(input_a, input_b, shape_a, shape_b, shap
 # =====================
 
 
-def matmul(op, input_a, input_b, **_):
+def matmul(op, input_a: ir.Value, input_b: ir.Value, **_):
     return op.MatMul(input_a, input_b)
 
 
@@ -65,7 +64,7 @@ def matmul(op, input_a, input_b, **_):
 # =====================
 
 
-def check_if_need_reshape(match_bindings) -> bool:
+def check_if_need_reshape(input_a, input_b, shape_c, **_) -> bool:
     """If matmul broadcasting is enough, then we don't need the reshapes.
 
     To validate this, we need to check the following:
@@ -73,18 +72,11 @@ def check_if_need_reshape(match_bindings) -> bool:
     2. Output shape check: shape_c should be the same as the output shape from the matmul(input_a, input_b)
 
     If the above are true, then we don't need the reshapes.
-
-    Args:
-        match_bindings: The match binding dictionary from a MatchResult.
-
-    Returns:
-        bool: True if we need to replace the pattern, False otherwise.
-
     """
-    input_a_shape = match_bindings["input_a"].shape
-    input_b_shape = match_bindings["input_b"].shape
+    input_a_shape = input_a.shape
+    input_b_shape = input_b.shape
     # TODO: Get a helper func to get const_value
-    shape_c_value = _ir_utils.propagate_const_value(match_bindings["shape_c"])
+    shape_c_value = _ir_utils.propagate_const_value(shape_c)
     shape_c = shape_c_value.const_value.numpy()  # type: ignore[union-attr]
     if shape_c is None:
         return False
@@ -185,12 +177,7 @@ def check_if_need_reshape(match_bindings) -> bool:
 # =====================
 
 
-def apply_rewrite(
-    model,
-    two_reshapes_matmul_reshape_pattern,  # target pattern
-    matmul,  # replacement pattern
-    check_if_need_reshape,  # match_condition function
-):
+def apply_rewrite(model):
     # Create rewrite rules
     two_reshapes_matmul_reshape_rule = pattern.RewriteRule(
         two_reshapes_matmul_reshape_pattern,  # target pattern
@@ -207,10 +194,5 @@ def apply_rewrite(
     return model_with_rewrite
 
 
-model_with_rewrite = apply_rewrite(
-    model,
-    two_reshapes_matmul_reshape_pattern,
-    matmul,
-    check_if_need_reshape,
-)
+model_with_rewrite = apply_rewrite(model)
 onnx.checker.check_model(model_with_rewrite)

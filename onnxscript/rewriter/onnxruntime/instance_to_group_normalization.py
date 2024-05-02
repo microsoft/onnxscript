@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import numpy as np
 import onnx
 
-from onnxscript import ir
 from onnxscript.rewriter import _ir_utils, pattern
 
 op = pattern.onnxop
@@ -70,9 +68,7 @@ def _check_if_simulated_instance_norm_is_used_impl(
     return True
 
 
-def check_if_simulated_instance_norm_is_used(
-    match_bindings: dict[str, ir.Value | Any],
-) -> bool:
+def check_if_simulated_instance_norm_is_used(**_) -> bool:
     """Check if the simulated instance normalization is used.
 
     In torchlib with opset18, onnx.GroupNorm is using wrong definition, so
@@ -93,7 +89,7 @@ def check_if_simulated_instance_norm_is_used(
     Returns:
         bool: True if the simulated instance normalization is used, False otherwise.
     """
-    return _check_if_simulated_instance_norm_is_used_impl(**match_bindings)
+    return _check_if_simulated_instance_norm_is_used_impl(**_)
 
 
 def instance_simulates_group_normalization_pattern(

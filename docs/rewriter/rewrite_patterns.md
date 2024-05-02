@@ -29,6 +29,8 @@ Firstly, include all the rewriter relevant imports.
 
 ```python
     from onnxscript.rewriter import pattern
+    from onnxscript import ir
+
     op = pattern.onnxop
 ```
 
@@ -38,14 +40,17 @@ Then create a target pattern that needs to be replaced using onnxscript operator
 :pyobject: erf_gelu_pattern
 ```
 
-After this, create a replacement pattern that consists of the GELU onnxscript operator
+After this, create a replacement pattern that consists of the GELU onnxscript operator.
 
-```python
-    msft_op = pattern.msft_op
-```
 ```{literalinclude} examples/erfgelu.py
 :pyobject: gelu
 ```
+:::{note}
+:name: type annotate ir.Value
+
+The inputs to the replacement pattern are of type `ir.Value`. For detailed usage of `ir.Value` refer to the {py:class}`ir.Value <onnxscript.ir._core.Value>` class.
+:::
+
 
 For this example, we do not require a `match_condition` so that option is skipped for now. Then the rewrite rule is created using the `RewriteRule` function.
 
@@ -157,13 +162,9 @@ Based on the [ONNX Matmul spec](https://github.com/onnx/onnx/blob/main/docs/Oper
 1. Input shapes check: `input_a` and `input_b` should be broadcastable
 2. Output shape check: `shape_c` should be the same as the output shape from the `matmul(input_a, input_b)`
 
-If the above are true, then we don't need the reshapes and we can eliminate them using a pattern based rewrite. In order to validate whether matmul broadcast is sufficient, we write a condition checking function as follows:
+If the above are true, then we don't need the reshapes and we can eliminate them using a pattern based rewrite.
 
-```{literalinclude} examples/broadcast_matmul.py
-:pyobject: check_if_need_reshape
-```
-
-Once we have the `match_condition` function, we can write a target pattern and replacement pattern in a similar way to the first example.
+First, write a target pattern and replacement pattern in a similar way to the first example.
 
 ```{literalinclude} examples/broadcast_matmul.py
 :pyobject: two_reshapes_matmul_reshape_pattern
@@ -173,8 +174,25 @@ Once we have the `match_condition` function, we can write a target pattern and r
 :pyobject: matmul
 ```
 
+:::{note}
+:name: omitting inputs in signature
+
+The target pattern in this case has 5 inputs `input_a`, `input_b`, `shape_a`, `shape_b`, `shape_c`. However, the replacement pattern only utilizes `input_a` and `input_b`. To avoid referencing all the unused parameters in the replacement pattern signature, pass only `input_a` and `input_b` and use `**_` to represent all the unused parameters.
+
+Similarly for writing the condition checking function, we require only `input_a`, `input_b` and `shape_c`. Use `**_` to represent all the unused parameters in the condition matching function signature.
+:::
+
+In order to validate whether matmul broadcast is sufficient, we write a condition checking function as follows:
+
+```{literalinclude} examples/broadcast_matmul.py
+:pyobject: check_if_need_reshape
+```
+
 With all the necessary components in place, the pattern rewrite rule with the `match_condition` function is created and then the `rewriter.rewrite` is called to apply the rewrite.
 
 ```{literalinclude} examples/broadcast_matmul.py
 :pyobject: apply_rewrite
 ```
+
+The final graph with the applied rewrite looks as follows:
+![broadcast_rewrite](examples/img/broadcast_02.png){align=center}

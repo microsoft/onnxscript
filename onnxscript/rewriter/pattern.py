@@ -807,10 +807,15 @@ class RewriteRule:
         if len(node.outputs) != self._target_num_outputs:
             return MatchResult.FAIL()
         match = self._target_node_pattern.matches_node(node, model)
+        # NOTE: migrating to a simpler interface for match_condition signature.
+        # Ideally, the caller should pass in match_bindings as **match_bindings.
+        # This makes it easier to define this as a function with inputs like
+        # (input_a, input_b, **_) and omit all references to match_bindings.
+        # **_ refers to all the unused parameters in the match_condition function.
         if (
             self._condition_function is not None
             and match
-            and not self._condition_function(match.bindings)
+            and not self._condition_function(**match.bindings)
         ):
             return MatchResult.FAIL()
         return match
