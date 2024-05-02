@@ -196,7 +196,7 @@ class OpPatternBuilder:
 
 
 def _to_value_pattern(
-    x: ValuePattern | int | float | list | None,
+    x: ValuePattern | int | float | None,
 ) -> ValuePattern | None:
     """Promotes an input-value used to construct a NodePattern to a ValuePattern.
 
@@ -217,10 +217,11 @@ def _to_value_pattern(
         return x
     if isinstance(x, (int, float)):
         return Constant(x)
-    if isinstance(x, list):
-        if all(isinstance(i, (int, float)) for i in x):
-            return Constant(x)
-        raise ValueError("Only lists of int/float can be used as a ValuePattern")
+    # TODO(rama): support lists of int/float
+    # if isinstance(x, list):
+    #     if all(isinstance(i, (int, float)) for i in x):
+    #         return Constant(x)
+    #     raise ValueError("Only lists of int/float can be used as a ValuePattern")
     # TODO(titaiwang): Could this be wrapped Constant?
     raise TypeError(f"Cannot convert {type(x)} to ValuePattern")
 
@@ -554,25 +555,19 @@ def _to_graph_pattern(pattern_constructor: Callable) -> GraphPattern:
 
     A pattern-construction function will return values as below:
     ::
-        def pattern(x, shape1, shape2):
+        def pattern(x: Var, shape1: Var, shape2: Var):
             ...
-            return op.SomeOp(...)
-    However, `SomeOp` may represent an ONNX op that produces multiple outputs.
-    This function validates that the return values represent the outputs of
-    a single NodePattern. It returns the node_pattern and the number of outputs.
+            return outputs
 
-    This follows an important restriction of the pattern-matcher algorithm: it
-    only matches against subgraphs that end in a single terminal node. If we
-    permit two terminal nodes, then we would have to match against all possible
-    pairs of nodes in the graph, which produces an extra quadratic factor in the
-    complexity of the pattern-matching algorithm. In general, the complexity becomes
-    exponential in the number of terminal nodes.
+    We create a pattern graph by creating pattern-variables for each parameter of the function,
+    and calling the function. The returned values are normalized to a list of ValuePatterns,
+    which represent the outputs of the pattern graph.
 
     Args:
-        node_output_pattern: NodeOutputPattern | Sequence[NodeOutputPattern]
+        pattern_constructor: Callable
 
     Returns:
-        tuple[NodePattern, int]: The last node_pattern, num_outputs
+        GraphPattern: A representation of the pattern that can be matched against a subgraph.
     """
     _pattern_vars = inspect.signature(pattern_constructor).parameters
     vars = [Var(v) for v in _pattern_vars]
