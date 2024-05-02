@@ -1,4 +1,8 @@
+import logging
+
 from onnxscript import ir
+
+logger = logging.getLogger(__name__)
 
 
 def _convert_inputs_from_bfloat16_to_float16(value: ir.Input):
@@ -12,7 +16,11 @@ def _convert_inputs_from_bfloat16_to_float16(value: ir.Input):
 def _convert_outputs_from_bfloat16_to_float16(value: ir.Value):
     if value.dtype == ir.DataType.BFLOAT16:
         node = value.producer()
-        _insert_cast_nodes_for_bfloat16_to_float16_to_outputs(node, value.index())
+        index = value.index()
+        if node is None or index is None:
+            logger.warning("Output value %s has no producer or index", value)
+            return
+        _insert_cast_nodes_for_bfloat16_to_float16_to_outputs(node, index)
 
 
 def _insert_cast_nodes_for_float16_to_bfloat16_to_inputs(node: ir.Node, index: int):
@@ -24,14 +32,14 @@ def _insert_cast_nodes_for_float16_to_bfloat16_to_inputs(node: ir.Node, index: i
         num_outputs=1,
         attributes=[attr],
     )
-    cast.outputs[0].dtype = ir.DataType.BFLOAT16
-    cast.outputs[0].shape = node.inputs[index].shape
+    cast.outputs[0].dtype = ir.DataType.BFLOAT16  # type: ignore[union-attr]
+    cast.outputs[0].shape = node.inputs[index].shape  # type: ignore[union-attr]
     node.prepend(cast)
     node.replace_input_with(index, cast.outputs[0])
 
 
 def _insert_cast_nodes_for_bfloat16_to_float16_to_outputs(node: ir.Node, index: int):
-    attr = ir.AttrInt64(name="to", value=ir.DataType.BFLOAT16)
+    attr = ir.AttrInt64(name="to", value=ir.DataType.FLOAT16)
     cast = ir.Node(
         domain=node.domain,
         op_type="Cast",
@@ -42,6 +50,9 @@ def _insert_cast_nodes_for_bfloat16_to_float16_to_outputs(node: ir.Node, index: 
     cast.outputs[0].dtype = ir.DataType.FLOAT16
     cast.outputs[0].shape = node.outputs[index].shape
     node.append(cast)
+    if node.graph is None:
+        logger.warning("Node %s has no graph", node)
+        return
     # Update graph/function outputs
     for idx, graph_or_function_output in enumerate(node.graph.outputs):
         if graph_or_function_output == node.outputs[index]:
