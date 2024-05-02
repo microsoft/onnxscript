@@ -1149,6 +1149,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.cross_entropy",
         # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
         nn_ops.aten_cross_entropy_loss,
+        tolerance={torch.float16: (1e-2, 1e-2)},
         input_wrangler=_cross_entropy_input_wrangler,
     ).xfail(
         matcher=lambda sample: len(sample.args) < 1
@@ -1202,6 +1203,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.nll_loss_weight",
         nn_ops.aten_nll_loss_weight,
+        tolerance={torch.float16: (5e-2, 1e-2)},
         input_wrangler=_nll_loss_input_wrangler,
     ).skip(
         matcher=lambda sample: "weight" not in sample.kwargs,
