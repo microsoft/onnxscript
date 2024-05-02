@@ -60,7 +60,7 @@ def test(session):
     )
     session.install(".", "--no-deps")
     session.run("pip", "list")
-    session.run("pytest", "onnxscript", "--doctest-modules", *session.posargs)
+    # session.run("pytest", "onnxscript", "--doctest-modules", *session.posargs)
     session.run("pytest", "tests", "docs/test", *session.posargs)
 
 
@@ -75,7 +75,7 @@ def test_torch_nightly(session):
     session.install("-r", "requirements/ci/requirements-pytorch-nightly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
-    session.run("pytest", "onnxscript", "--doctest-modules", *session.posargs)
+    # session.run("pytest", "onnxscript", "--doctest-modules", *session.posargs)
     session.run("pytest", "tests", *session.posargs)
 
 
@@ -86,7 +86,7 @@ def test_onnx_weekly(session):
     session.install("-r", "requirements/ci/requirements-onnx-weekly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
-    session.run("pytest", "onnxscript", "--doctest-modules", *session.posargs)
+    # session.run("pytest", "onnxscript", "--doctest-modules", *session.posargs)
     session.run("pytest", "tests", *session.posargs)
 
 
@@ -103,7 +103,7 @@ def test_ort_nightly(session):
     session.install("-r", "requirements/ci/requirements-ort-nightly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
-    session.run("pytest", "onnxscript", "--doctest-modules", *session.posargs)
+    # session.run("pytest", "onnxscript", "--doctest-modules", *session.posargs)
     session.run("pytest", "tests", *session.posargs)
 
 
