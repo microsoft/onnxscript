@@ -7,7 +7,6 @@ import math
 from typing import (
     Any,
     Callable,
-    Generic,
     List,
     MutableSequence,
     Optional,
@@ -732,7 +731,7 @@ class RewriteRule:
         if (
             self._condition_function is not None
             and match
-            and not self._condition_function(match.bindings)
+            and not self._condition_function(**match.bindings)
         ):
             return MatchResult.FAIL()
         return match

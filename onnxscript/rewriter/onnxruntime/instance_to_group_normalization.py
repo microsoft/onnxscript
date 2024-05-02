@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import numpy as np
 import onnx
 
-from onnxscript import ir
 from onnxscript.rewriter import _ir_utils, pattern
 
 op = pattern.onnxop
@@ -16,7 +14,7 @@ torch_module_op = pattern.torch_module_op
 logger = logging.getLogger(__name__)
 
 
-def _check_if_simulated_instance_norm_is_used_impl(
+def check_if_simulated_instance_norm_is_used(
     input_x,
     adjusted_input_shape,
     original_input_shape,
@@ -24,8 +22,25 @@ def _check_if_simulated_instance_norm_is_used_impl(
     bias_for_norm,
     weight_full,
     bias_full,
-    **kwargs,
+    **_,
 ) -> bool:
+    """Check if the simulated instance normalization is used.
+
+    In torchlib with opset18, onnx.GroupNorm is using wrong definition, so
+    we use InstanceNormalization to simulate GroupNormalization. We need to check if there are arguments created to simulation.
+    If there are, then we need to replace the pattern. If they are not used, then we don't need to replace the pattern.
+
+    To validate this, we need to check the following:
+    1. weight_for_norm are all 1 and bias_for_norm are all 0, as they are created for the simulation.
+    2. weight_full and bias_full are unsqueezed to be easily broadcastable.
+    3. input rank should be 4
+    4. weight_full and bias_full should have ones except first dim.
+    5. adjusted_input_shape is a constant tensor of form [0, g, -1]
+    6. original_input_shape is the same as input_x shape.
+
+    Returns:
+        bool: True if the simulated instance normalization is used, False otherwise.
+    """
     weight_for_norm = _ir_utils.propagate_const_value(weight_for_norm)
     weight_for_norm = _ir_utils.get_numpy_from_ir_value(weight_for_norm)
 
@@ -68,32 +83,6 @@ def _check_if_simulated_instance_norm_is_used_impl(
         return False
 
     return True
-
-
-def check_if_simulated_instance_norm_is_used(
-    match_bindings: dict[str, ir.Value | Any],
-) -> bool:
-    """Check if the simulated instance normalization is used.
-
-    In torchlib with opset18, onnx.GroupNorm is using wrong definition, so
-    we use InstanceNormalization to simulate GroupNormalization. We need to check if there are arguments created to simulation.
-    If there are, then we need to replace the pattern. If they are not used, then we don't need to replace the pattern.
-
-    To validate this, we need to check the following:
-    1. weight_for_norm are all 1 and bias_for_norm are all 0, as they are created for the simulation.
-    2. weight_full and bias_full are unsqueezed to be easily broadcastable.
-    3. input rank should be 4
-    4. weight_full and bias_full should have ones except first dim.
-    5. adjusted_input_shape is a constant tensor of form [0, g, -1]
-    6. original_input_shape is the same as input_x shape.
-
-    Args:
-        match_bindings: The match binding dictionary from a MatchResult.
-
-    Returns:
-        bool: True if the simulated instance normalization is used, False otherwise.
-    """
-    return _check_if_simulated_instance_norm_is_used_impl(**match_bindings)
 
 
 def instance_simulates_group_normalization_pattern(

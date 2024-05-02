@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import onnx
 
@@ -32,15 +31,14 @@ def softmax_without_axis(op, input):
     return op.Softmax(input)
 
 
-def check_if_fp16_input(match_bindings: dict[str, ir.Value | Any]) -> bool:
-    input_val = match_bindings.get("input")
-    if input_val is None:
+def check_if_fp16_input(input, **_) -> bool:
+    if input is None:
         logger.warning(
             "Cannot perform softmax upcast removal: "
             "cannot retrieve match_bindings for 'input' for dtype validation."
         )
         return False
-    return input_val.dtype == ir.DataType.FLOAT16
+    return input.dtype == ir.DataType.FLOAT16
 
 
 # pylint: disable=pointless-string-statement
