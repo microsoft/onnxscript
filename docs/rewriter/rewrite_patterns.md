@@ -55,10 +55,10 @@ The inputs to the replacement pattern are of type `ir.Value`. For detailed usage
 For this example, we do not require a `match_condition` so that option is skipped for now. Then the rewrite rule is created using the `RewriteRule` function.
 
 ```python
-    rule = pattern.RewriteRule(
-        erf_gelu_pattern,  # Target Pattern
-        gelu,  # Replacement Pattern
-    )
+rule = pattern.RewriteRule(
+    erf_gelu_pattern,  # Target Pattern
+    gelu,  # Replacement Pattern
+)
 ```
 
 Now that the rewrite rule has been created, the next step is to apply these pattern-based rewrite rules. The `rewriter.rewrite` call consists of three main components:
@@ -117,8 +117,8 @@ Only one of the patterns has been successfully matched and replaced by a `GELU` 
 This method requires creating two separate rules and packing them into either a sequence of `PatternRewriteRule`s or a `RewriteRuleSet`. Creating a `RewriteRuleSet` is the preferable option but either can be used. In order to create a `RewriteRuleSet` with multiple rules `rule1` and `rule2` for example:
 
 ```python
-    from onnxscript.rewriter import pattern
-    rewrite_rule_set = pattern.RewriteRuleSet(rules=[rule1, rule2])
+from onnxscript.rewriter import pattern
+rewrite_rule_set = pattern.RewriteRuleSet(rules=[rule1, rule2])
 ```
 
 In order to apply this method to the example above, first create the two separate target patterns as follows:
