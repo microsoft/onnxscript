@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import gc
 import multiprocessing.pool
 import sys
@@ -18,7 +19,8 @@ from onnxscript import ir
 
 def test_model(model_info: hub.ModelInfo) -> float:
     model_name = model_info.model
-    model = hub.load(model_name)
+    with contextlib.redirect_stdout(None):
+        model = hub.load(model_name)
     assert model is not None
     onnx.checker.check_model(model)
     # Fix the missing graph name of some test models
