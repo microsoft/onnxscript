@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import unittest
 
 import torch
@@ -169,6 +170,10 @@ class _MLP(torch.nn.Module):
 @unittest.skipIf(
     IS_WINDOWS and version_utils.torch_older_than("2.3"),
     "dynamo_export not supported on Windows in PyTorch<2.3",
+)
+@unittest.skipIf(
+    sys.version_info > (3, 11),
+    "dynamo_export not supported due to torch.compile not functional for python>3.11",
 )
 class TestModelSaving(unittest.TestCase):
     def test_save_initializer_to_files_for_large_model(self):
