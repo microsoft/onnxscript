@@ -30,7 +30,8 @@ T = TypeVar("T")
 class Pattern(Protocol, Generic[T]):
     """This is essentially a Predicate[T], that is, a Callable[[T], bool] bound to the name "matches"."""
 
-    def matches(self, item: T) -> bool: ...
+    def matches(self, item: T) -> bool:
+        ...
 
 
 class StringConstantPattern(Pattern[str]):
@@ -90,6 +91,7 @@ class AttrConstantPattern(AttrPattern):
 
 
 def _to_attr_pattern(value: AttrPattern | ValuePattern | SupportedAttrTypes) -> AttrPattern:
+    """Represents promotion of values allowed as keyword-arguments in a pattern-builder call to an AttrPattern."""
     if isinstance(value, AttrPattern):
         return value
     if type(value) == ValuePattern:
@@ -138,10 +140,10 @@ class OpsetPatternBuilder(Pattern[str]):
     def matches(self, domain):
         return self.domain_pattern.matches(domain)
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> OpPatternBuilder:
         return OpPatternBuilder(self, StringConstantPattern(name))
 
-    def submodule(self, name: str) -> Any:
+    def submodule(self, name: str) -> OpPatternBuilder:
         """This method is used to match against submodule ops with prefix."""
         return OpPatternBuilder(self, PrefixPattern(name))
 
@@ -264,6 +266,10 @@ class MatchResult:
         return self.matched_nodes
 
     def bind(self, var: str, value: Any) -> bool:
+        """Binds a pattern variable name to a value from the matched IR.
+
+        Returns True if the binding is successful, False otherwise (when the binding is inconsistent).
+        """
         if var in self.bindings:
             # TODO(rama): Use appropriate equality-check here.
             if self.bindings[var] == value:
@@ -368,30 +374,6 @@ class NodePattern:
         self.op = op
         self.inputs = [_to_value_pattern(x) for x in inputs]
         self.attributes = attributes
-
-    def matches(self, node: ir.Node) -> bool:
-        """Examine if the IR node matches the self pattern."""
-        if not self.domain.matches(node.domain):
-            return False
-        if not self.op.matches(node.op_type):
-            return False
-        match = MatchResult(success=True)
-
-        # Sub-graphs not handled.
-        for name, attr_pattern in self.attributes.items():
-            attr_value = node.attributes.get(name)
-            if attr_value is None:
-                return False
-            if not attr_pattern.matches(attr_value):
-                return False
-            if attr_pattern.name is not None:
-                if not match.bind(attr_pattern.name, attr_value):
-                    return match
-        for name in node.attributes:
-            # TODO: Support matching default nodes for attributes.
-            if name not in self.attributes:
-                return False
-        return True
 
     def matches_node(self, node: ir.Node) -> MatchResult:
         """Examine if the IR node matches the self pattern."""
