@@ -42,7 +42,7 @@ def main():
         start = time.time()
         model_name = model_info.model
         model_path = model_info.model_path
-        print(f"-----------------Testing: {model_name} @ {model_path}-----------------")
+        print(f"----Testing: {model_name} @ {model_path}----")
         try:
             test_model(model_info)
             print(f"[PASS]: {model_name} roundtrip test passed.")
