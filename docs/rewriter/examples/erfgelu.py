@@ -70,15 +70,15 @@ onnx.checker.check_model(commute_model)
 # The target pattern
 # =====================
 
-op = pattern.onnxop
+_op = pattern.onnxop
 
 
 def erf_gelu_pattern(x):
-    return 0.5 * (x * (op.Erf(x / math.sqrt(2)) + 1.0))
+    return 0.5 * (x * (_op.Erf(x / math.sqrt(2)) + 1.0))
 
 
 def erf_gelu_pattern_2(x):
-    return (x * (op.Erf(x / math.sqrt(2)) + 1.0)) * 0.5
+    return (x * (_op.Erf(x / math.sqrt(2)) + 1.0)) * 0.5
 
 
 ####################################

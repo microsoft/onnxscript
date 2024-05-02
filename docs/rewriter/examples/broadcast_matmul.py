@@ -40,14 +40,14 @@ onnx.checker.check_model(_model)
 # The target pattern
 # =====================
 
-op = pattern.onnxop
+_op = pattern.onnxop
 
 
 def two_reshapes_matmul_reshape_pattern(input_a, input_b, shape_a, shape_b, shape_c):
-    reshape_a = op.Reshape(input_a, shape_a)
-    reshape_b = op.Reshape(input_b, shape_b)
-    matmul = op.MatMul(reshape_a, reshape_b)
-    return op.Reshape(matmul, shape_c)
+    reshape_a = _op.Reshape(input_a, shape_a)
+    reshape_b = _op.Reshape(input_b, shape_b)
+    matmul = _op.MatMul(reshape_a, reshape_b)
+    return _op.Reshape(matmul, shape_c)
 
 
 ####################################
