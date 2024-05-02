@@ -9,6 +9,7 @@ import multiprocessing.pool
 import sys
 import tempfile
 import time
+import traceback
 
 import onnx
 from onnx import hub
@@ -44,11 +45,13 @@ def run_one_test(model_info: hub.ModelInfo) -> tuple[str, Exception | None]:
     try:
         time_passed = test_model(model_info)
         message += green(f"\n[PASS]: {model_name} roundtrip test passed.")
-    except Exception as e:
+    except Exception as e:  # noqa: F841
         time_passed = -1
-        message += red(f"\n[FAIL]: {e}")
+        error = traceback.format_exc()
+        message += red(f"\n[FAIL]: {error}")
     else:
         e = None
+        error = None
     end = time.time()
     message += f"\n-------Time used: {end - start} secs, roundtrip: {time_passed} secs -------"
     print(message, flush=True)
@@ -81,10 +84,10 @@ def main():
     # run checker on each model
     failed_models = []
     failed_messages = []
-    # Use multi-threading to speed up the testing process
+    # Use multi-processing to speed up the testing process
     with tempfile.TemporaryDirectory() as temp_dir:
         hub.set_dir(temp_dir)
-        results = multiprocessing.pool.ThreadPool(args.jobs).map(run_one_test, model_list)
+        results = multiprocessing.pool.Pool(args.jobs).map(run_one_test, model_list)
     for model_name, error in results:
         if error is not None:
             failed_models.append(model_name)
