@@ -100,7 +100,6 @@ def main():
     else:
         print(red(f"In all {len(model_list)} models, {len(failed_models)} models failed"))
         for i, (model_name, error) in enumerate(failed_messages):
-
             print(f"[{i} / {len(failed_models)}] {red(model_name)} failed because: {error}\n")
         sys.exit(1)
 
