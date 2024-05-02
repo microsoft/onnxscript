@@ -28,8 +28,8 @@ def original_model(X: FLOAT[64, 128], Y: FLOAT[64, 128]) -> FLOAT[64, 128]:
     return result
 
 
-model = original_model.to_model_proto()
-onnx.checker.check_model(model)
+_model = original_model.to_model_proto()
+onnx.checker.check_model(_model)
 
 
 ####################################
@@ -144,7 +144,7 @@ def apply_rewrite_with_commute(model):
 
 
 # Rewrite-Simple
-model_with_rewrite = apply_rewrite(model)
+model_with_rewrite = apply_rewrite(_model)
 onnx.checker.check_model(model_with_rewrite)
 
 # Rewrite-Single-Patterns

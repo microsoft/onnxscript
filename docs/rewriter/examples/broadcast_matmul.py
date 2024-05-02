@@ -32,8 +32,8 @@ def original_model(A: FLOAT[1, 4, 512, 512], B: FLOAT[1, 4, 512, 64]) -> FLOAT[1
     return result
 
 
-model = original_model.to_model_proto()
-onnx.checker.check_model(model)
+_model = original_model.to_model_proto()
+onnx.checker.check_model(_model)
 
 
 ####################################
@@ -55,7 +55,7 @@ def two_reshapes_matmul_reshape_pattern(input_a, input_b, shape_a, shape_b, shap
 # =====================
 
 
-def matmul(op, input_a: ir.Value, input_b: ir.Value, **_):
+def matmul_pattern(op, input_a: ir.Value, input_b: ir.Value, **_):
     return op.MatMul(input_a, input_b)
 
 
@@ -181,7 +181,7 @@ def apply_rewrite(model):
     # Create rewrite rules
     two_reshapes_matmul_reshape_rule = pattern.RewriteRule(
         two_reshapes_matmul_reshape_pattern,  # target pattern
-        matmul,  # replacement pattern
+        matmul_pattern,  # replacement pattern
         check_if_need_reshape,  # match_condition function
     )
     # Create a Rewrite Rule Set
@@ -194,5 +194,5 @@ def apply_rewrite(model):
     return model_with_rewrite
 
 
-model_with_rewrite = apply_rewrite(model)
-onnx.checker.check_model(model_with_rewrite)
+_model_with_rewrite = apply_rewrite(_model)
+onnx.checker.check_model(_model_with_rewrite)
