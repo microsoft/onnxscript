@@ -6,11 +6,12 @@ logger = logging.getLogger(__name__)
 
 
 def _convert_inputs_from_bfloat16_to_float16(value: ir.Input) -> None:
-    if value.dtype == ir.DataType.BFLOAT16:
-        value.dtype = ir.DataType.FLOAT16
-        value_users = tuple(value.uses())
-        for node, index in value_users:
-            _insert_cast_nodes_for_float16_to_bfloat16_to_inputs(node, index)
+    if value.dtype != ir.DataType.BFLOAT16:
+        return
+    value.dtype = ir.DataType.FLOAT16
+    value_users = tuple(value.uses())
+    for node, index in value_users:
+        _insert_cast_nodes_for_float16_to_bfloat16_to_inputs(node, index)
 
 
 def _convert_outputs_from_bfloat16_to_float16(value: ir.Value) -> None:
