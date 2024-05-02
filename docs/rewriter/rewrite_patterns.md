@@ -28,10 +28,10 @@ We will show how we can find a subgraph matching this computation and replace it
 Firstly, include all the rewriter relevant imports.
 
 ```python
-    from onnxscript.rewriter import pattern
-    from onnxscript import ir
+from onnxscript.rewriter import pattern
+from onnxscript import ir
 
-    _op = pattern.onnxop
+_op = pattern.onnxop
 ```
 
 Then create a target pattern that needs to be replaced using onnxscript operators.
@@ -55,10 +55,10 @@ The inputs to the replacement pattern are of type `ir.Value`. For detailed usage
 For this example, we do not require a `match_condition` so that option is skipped for now. Then the rewrite rule is created using the `RewriteRule` function.
 
 ```python
-    rule = pattern.RewriteRule(
-        erf_gelu_pattern,  # Target Pattern
-        gelu,  # Replacement Pattern
-    )
+rule = pattern.RewriteRule(
+    erf_gelu_pattern,  # Target Pattern
+    gelu,  # Replacement Pattern
+)
 ```
 
 Now that the rewrite rule has been created, the next step is to apply these pattern-based rewrite rules. The `rewriter.rewrite` call consists of three main components:
@@ -117,8 +117,8 @@ Only one of the patterns has been successfully matched and replaced by a `GELU` 
 This method requires creating two separate rules and packing them into either a sequence of `PatternRewriteRule`s or a `RewriteRuleSet`. Creating a `RewriteRuleSet` is the preferable option but either can be used. In order to create a `RewriteRuleSet` with multiple rules `rule1` and `rule2` for example:
 
 ```python
-    from onnxscript.rewriter import pattern
-    rewrite_rule_set = pattern.RewriteRuleSet(rules=[rule1, rule2])
+from onnxscript.rewriter import pattern
+rewrite_rule_set = pattern.RewriteRuleSet(rules=[rule1, rule2])
 ```
 
 In order to apply this method to the example above, first create the two separate target patterns as follows:
@@ -171,7 +171,7 @@ First, write a target pattern and replacement pattern in a similar way to the fi
 ```
 
 ```{literalinclude} examples/broadcast_matmul.py
-:pyobject: matmul
+:pyobject: matmul_pattern
 ```
 
 :::{note}

@@ -99,8 +99,9 @@ result = MatmulAdd(x, wt, bias)
 tutorial/index
 api/index
 intermediate_representation/index
-auto_examples/index
+optimizer/index
 rewriter/index
+auto_examples/index
 articles/index
 ```
 
