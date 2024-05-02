@@ -24,19 +24,20 @@ The `onnxscript.optimizer.optimize` call takes in several optional parameters th
 
 ## Description of optimizations applied by `onnxscript.optimizer.optimize`
 
-```{eval-rst}
-.. autosummary::
-    :nosignatures:
+:::{table} 
+:widths: auto
+:align: center
 
-    onnxscript.optimizer.constant_folding.fold_constants
-    onnxscript.optimizer.copy_propagation.do_copy_propagation
-    onnxscript.optimizer.copy_propagation.do_sequence_simplification
-    onnxscript.optimizer.remove_unused.remove_unused_nodes
-    onnxscript.optimizer.remove_unused_function.remove_unused_functions
-    onnxscript.optimizer.simple_function_folding.inline_functions_with_unused_outputs
-    onnxscript.optimizer.simple_function_folding.inline_simple_functions
-
-```
+| Optimization 'onnxscript.optimizer.` + .. | Description |
+| - | - |
+| **Constant folding** <br>`constant_folding.fold_constants` | Applies constant folding optimization to the model. |
+| **Constant propagation** <br>`constant_folding.fold_constants` | Applies constant propagation optimization to the model. Applied as part of the constant folding optimization. |
+| **Sequence simplification** <br>`constant_folding.fold_constants` | Simplifies Sequence based ops (SequenceConstruct, ConcatFromSequence) present in the model. Applied as part of the constant folding optimization. |
+| **Remove unused nodes** <br>`remove_unused.remove_unused_nodes` | Removes unused nodes from the model. |
+| **Remove unused functions** <br>`remove_unused_function.remove_unused_functions` | Removes unused function protos from the model. |
+| **Inline functions with unused outputs** <br>`simple_function_folding.inline_functions_with_unused_outputs` | Inlines function nodes that have unused outputs. |
+| **Inline simple functions** <br>`simple_function_folding.inline_simple_functions` | Inlines simple functions based on a node count threshold. |
+:::
 
 ## List of pattern rewrite rules applied by `onnxscript.optimizer.optimize`
 
