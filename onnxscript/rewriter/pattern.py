@@ -30,8 +30,7 @@ T = TypeVar("T")
 class Pattern(Protocol, Generic[T]):  # type: ignore[misc]
     """This is essentially a Predicate[T], that is, a Callable[[T], bool] bound to the name "matches"."""
 
-    def matches(self, item: T) -> bool:
-        ...
+    def matches(self, item: T) -> bool: ...
 
 
 class StringConstantPattern(Pattern[str]):
