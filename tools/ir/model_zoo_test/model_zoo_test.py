@@ -24,7 +24,10 @@ from onnxscript import ir
 
 def test_model(model_info: hub.ModelInfo) -> float:
     model_name = model_info.model
-    with contextlib.redirect_stdout(None):
+    with tempfile.TemporaryDirectory() as temp_dir, contextlib.redirect_stdout(None):
+        # For parallel testing, this must be in a separate process because hub.set_dir
+        # is not thread-safe.
+        hub.set_dir(temp_dir)
         model = hub.load(model_name)
     assert model is not None
     onnx.checker.check_model(model)
@@ -88,14 +91,12 @@ def main():
     failed_models = []
     failed_messages = []
     # Use multi-processing to speed up the testing process
-    with tempfile.TemporaryDirectory() as temp_dir:
-        hub.set_dir(temp_dir)
-        results = multiprocessing.pool.Pool(args.jobs).map(run_one_test, model_list)
+    results = multiprocessing.pool.Pool(args.jobs).map(run_one_test, model_list)
     for model_name, error in results:
         if error is not None:
             failed_models.append(model_name)
             failed_messages.append((model_name, error))
-    if len(failed_models) == 0:
+    if not failed_models:
         print(green(f"{len(model_list)} models have been checked."))
     else:
         print(red(f"In all {len(model_list)} models, {len(failed_models)} models failed"))
