@@ -9,9 +9,9 @@ The ONNX Script `Optimizer` tool provides the user with the functionality to opt
 In order to utilize the optimizer tool,
 
 ```python
-    import onnxscript
+import onnxscript
 
-    onnxscript.optimizer.optimize(model)
+onnxscript.optimizer.optimize(model)
 ```
 
 ### optimize API
