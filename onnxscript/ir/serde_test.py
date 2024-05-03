@@ -22,6 +22,9 @@ class TensorProtoTensorTest(unittest.TestCase):
         ]
     )
     def test_tensor_proto_tensor(self, _: str, dtype: int):
+        if dtype in (onnx.TensorProto.FLOAT8E4M3FN, onnx.TensorProto.FLOAT8E4M3FNUZ):
+            # TODO: Remove the fix when ONNX 1.17 releases
+            self.skipTest("ONNX to_array fails: https://github.com/onnx/onnx/pull/6124")
         tensor_proto = onnx.helper.make_tensor(
             "test_tensor", dtype, [1, 9], [-3.0, -1.0, -0.5, -0.0, +0.0, 0.5, 1.0, 42.0, 2.0]
         )
@@ -90,6 +93,7 @@ class TensorProtoTensorTest(unittest.TestCase):
         ]
     )
     @unittest.skip(
+        # TODO: Remove the fix when ONNX 1.17 releases
         "numpy_helper.to_array fails on complex numbers: https://github.com/onnx/onnx/pull/6124"
     )
     def test_tensor_proto_tensor_complex(self, _: str, dtype: int):
