@@ -6,10 +6,6 @@ import onnx.shape_inference
 
 from onnxscript import rewriter
 from onnxscript.optimizer.constant_folding import fold_constants
-from onnxscript.optimizer.copy_propagation import (
-    do_copy_propagation,
-    do_sequence_simplification,
-)
 from onnxscript.optimizer.remove_unused import remove_unused_nodes
 from onnxscript.optimizer.remove_unused_function import remove_unused_functions
 from onnxscript.optimizer.simple_function_folding import (
@@ -108,7 +104,6 @@ def optimize(
                 node.name,
             )
 
-    # do_sequence_simplification(model)
     return model
 
 
@@ -116,6 +111,4 @@ __all__ = [
     "fold_constants",
     "remove_unused_nodes",
     "optimize",
-    "do_copy_propagation",
-    "do_sequence_simplification",
 ]
