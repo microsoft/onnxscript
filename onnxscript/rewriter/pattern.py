@@ -792,8 +792,7 @@ class RewriteRule:
 def _apply_delta(
     graph_or_function: ir.Graph | ir.Function,
     node: ir.Node,
-    # TODO(jutinchuby): Use a more descriptive data structure to store deltas
-    delta,
+    delta: ReplacementSubgraph,
 ):
     """Applies delta.
 
@@ -813,53 +812,33 @@ def _apply_delta(
     The reordering would probably happen not very often.
     """
 
-    if isinstance(delta, tuple):
-        # multi-output strategy
-        n_matches, matched_nodes, inserted_nodes = delta
+    assert isinstance(delta, ReplacementSubgraph)
+    # Replace matched nodes with new nodes, matched values with new values
+    old_values = delta.match.outputs
+    new_values = delta.new_outputs
 
-        # TODO(rama): Was "assert i not in to_insert"; seems wrong.
-        # What is this trying to check? Best effort correction below.
-        assert node not in inserted_nodes  # conflicts should avoid that case
+    for old_value, new_value in zip(old_values, new_values):
+        # Propagate relevant info from old value to new value
+        # TODO(Rama): Perhaps we should merge old and new types. As of now, new
+        # values don't have type information. Note that this could be a problem
+        # for semantics-altering rewrite-rules: we should allow users to override
+        # this for such rules.
+        new_value.type = old_value.type
+        new_value.shape = old_value.shape
+        new_value.const_value = old_value.const_value
+        new_value.name = old_value.name
 
-        graph_or_function.insert_after(node, inserted_nodes)
-        # TODO: improve this
-        # This is updating the graph/function outputs to use the new outputs
-        for inserted_node in inserted_nodes:
-            for new_output in inserted_node.outputs:
-                if (index := new_output.meta.get(_ir_utils.GRAPH_OUTPUT_META_KEY)) is not None:  # type: ignore[assignment]
-                    graph_or_function.outputs[index] = new_output
+    # Reconnect the users of the deleted node to use the new outputs
+    _convenience.replace_all_uses_with(old_values, new_values)
+    # Update graph/function outputs if the node generates output
+    replacement_mapping = dict(zip(old_values, new_values))
+    for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
+        if graph_or_function_output in replacement_mapping:
+            graph_or_function.outputs[idx] = replacement_mapping[graph_or_function_output]
 
-        for d in matched_nodes:
-            assert d in graph_or_function
-        graph_or_function.remove(matched_nodes, safe=True)
-    else:
-        assert isinstance(delta, ReplacementSubgraph)
-        # Replace matched nodes with new nodes, matched values with new values
-        old_values = delta.match.outputs
-        new_values = delta.new_outputs
-
-        for old_value, new_value in zip(old_values, new_values):
-            # Propagate relevant info from old value to new value
-            # TODO(Rama): Perhaps we should merge old and new types. As of now, new
-            # values don't have type information. Note that this could be a problem
-            # for semantics-altering rewrite-rules: we should allow users to override
-            # this for such rules.
-            new_value.type = old_value.type
-            new_value.shape = old_value.shape
-            new_value.const_value = old_value.const_value
-            new_value.name = old_value.name
-
-        # Reconnect the users of the deleted node to use the new outputs
-        _convenience.replace_all_uses_with(old_values, new_values)
-        # Update graph/function outputs if the node generates output
-        replacement_mapping = dict(zip(old_values, new_values))
-        for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
-            if graph_or_function_output in replacement_mapping:
-                graph_or_function.outputs[idx] = replacement_mapping[graph_or_function_output]
-
-        # insert new nodes after the index node
-        graph_or_function.insert_after(node, delta.new_nodes)
-        graph_or_function.remove(delta.match.nodes, safe=True)
+    # insert new nodes after the index node
+    graph_or_function.insert_after(node, delta.new_nodes)
+    graph_or_function.remove(delta.match.nodes, safe=True)
 
 
 class RewriteRuleSet:
