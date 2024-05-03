@@ -21,7 +21,7 @@ def transpose_identity_check(x: ir.Value, perm: ir.Attr | ir.RefAttr) -> bool:
     return False
 
 
-def transpose_identity_rewrite(x: ir.Value, perm: ir.Attr | ir.RefAttr):
+def transpose_identity_rewrite(x: ir.Value, perm: ir.Attr):
     return op.Transpose(x, perm=perm)
 
 
@@ -55,9 +55,7 @@ def _apply_transposes(
     return on
 
 
-def transpose_transpose_rewrite(
-    x: ir.Value, perm1: ir.Attr | ir.RefAttr, perm2: ir.Attr | ir.RefAttr
-):
+def transpose_transpose_rewrite(x: ir.Value, perm1: ir.Attr, perm2: ir.Attr):
     first = list(range(len(perm1)))
     last = _apply_transposes([perm1, perm2])
     if first == last:
@@ -75,8 +73,8 @@ transpose_transpose_rule = pattern.RewriteRule(
 
 def llama_p0_rule_set(verbose: int = 0) -> orp.RewriteRuleSet:
     """Returns a set of rules which should be applied
-    before anyother one as they usually remove unnecessary computation
-    such as the multiplication by 1.
+    before any other one as they usually remove unnecessary computation
+    such as the multiplication by 1 or two consecutive transpose.
 
     Args:
         verbose: verbosity
