@@ -57,6 +57,12 @@ def _insert_cast_nodes_for_bfloat16_to_float16_to_outputs(node: ir.Node, index: 
     for idx, graph_or_function_output in enumerate(node.graph.outputs):
         if graph_or_function_output == node.outputs[index]:
             node.graph.outputs[idx] = cast.outputs[0]
+    # Swap the output name of the node with the output name of the cast node to
+    # preserve the output name in the graph
+    node.outputs[index].name, cast.outputs[0].name = (
+        cast.outputs[0].name,
+        node.outputs[index].name,
+    )
 
 
 def dtype_adapter_for_bfloat16_model(model: ir.Model) -> None:

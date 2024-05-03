@@ -32,6 +32,7 @@ class Bfloat16ConversionTest(unittest.TestCase):
             nodes=(self.add_node, self.mul_node),
             opset_imports={"": 18},
         )
+        self.original_output_names = [output.name for output in self.graph.outputs]
         self.model = ir.Model(
             graph=self.graph,
             ir_version=8,
@@ -59,6 +60,12 @@ class Bfloat16ConversionTest(unittest.TestCase):
         for output in self.model.graph.outputs:
             self.assertEqual(output.producer().op_type, "Cast")
             self.assertEqual(output.producer().inputs[0].dtype, ir.DataType.BFLOAT16)
+
+    def test_graph_output_name_is_preserved(self):
+        self.assertEqual(
+            [output.name for output in self.model.graph.outputs],
+            self.original_output_names,
+        )
 
     def test_bfloat16_converted_model_runtime(self):
         model_proto = ir.serde.serialize_model(self.model)
