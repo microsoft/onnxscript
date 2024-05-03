@@ -50,7 +50,7 @@ class TestDocumentationExample(unittest.TestCase):
 
         test("..", "..", "docs", "examples")
         test("..", "..", "docs", "tutorial", "examples")
-        test("..", "..", "docs", "rewriter", "examples")
+        test("..", "..", "docs", "tutorial", "rewriter", "examples")
 
 
 if __name__ == "__main__":
