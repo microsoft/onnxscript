@@ -252,6 +252,7 @@ class MatchResult:
         # For a successful match, bindings is a dictionary of mapping pattern-variable-names
         # to values.
         self.bindings: dict[str, Any] = {}
+        self.outputs: MutableSequence[ir.Value] = []
 
     def __bool__(self):
         return self.success
@@ -611,6 +612,7 @@ class RewriterContext:
         return lambda *args, **kwargs: self._make_node(op_type, args, kwargs)
 
     def _make_node(self, op_type: str, inputs: Sequence[ir.Value], kwargs: dict[str, Any]):
+        # TODO(rama): some of the following logic should move into the tape.
         domain = kwargs.pop("domain", "")
         version = kwargs.pop("version", None)
         self._used_opsets.append((domain, version))
@@ -621,10 +623,17 @@ class RewriterContext:
             assert isinstance(outputs, int)
             num_outputs = outputs
         if num_outputs == 1:
-            return self._tape.op(op_type, inputs=inputs, attributes=kwargs, domain=domain)
-        return self._tape.op_multi_output(
+            value = self._tape.op(op_type, inputs=inputs, attributes=kwargs, domain=domain)
+            if isinstance(outputs, Sequence):
+                value.name = outputs[0]
+            return value
+        values = self._tape.op_multi_output(
             op_type, inputs=inputs, attributes=kwargs, domain=domain, num_outputs=num_outputs
         )
+        if isinstance(outputs, Sequence):
+            for value, name in zip(values, outputs):
+                value.name = name
+        return values
 
     @property
     def nodes(self) -> Sequence[ir.Node]:
@@ -734,6 +743,7 @@ class RewriteRule:
             and not self._condition_function(**match.bindings)
         ):
             return MatchResult.FAIL()
+        match.outputs.extend(node.outputs)
         return match
 
     def try_rewrite(
@@ -824,10 +834,11 @@ def _apply_delta(
         graph_or_function.remove(matched_nodes, safe=True)
     else:
         assert isinstance(delta, ReplacementSubgraph)
-        # Replace matched nodes with new nodes.
-        last_inserted = delta.new_nodes[-1]
+        # Replace matched nodes with new nodes, matched values with new values
+        old_values = delta.match.outputs
+        new_values = delta.new_outputs
 
-        for old_value, new_value in zip(node.outputs, last_inserted.outputs):
+        for old_value, new_value in zip(old_values, new_values):
             # Propagate relevant info from old value to new value
             # TODO(Rama): Perhaps we should merge old and new types. As of now, new
             # values don't have type information. Note that this could be a problem
@@ -839,9 +850,9 @@ def _apply_delta(
             new_value.name = old_value.name
 
         # Reconnect the users of the deleted node to use the new outputs
-        _convenience.replace_all_uses_with(node.outputs, last_inserted.outputs)
+        _convenience.replace_all_uses_with(old_values, new_values)
         # Update graph/function outputs if the node generates output
-        replacement_mapping = dict(zip(node.outputs, last_inserted.outputs))
+        replacement_mapping = dict(zip(old_values, new_values))
         for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
             if graph_or_function_output in replacement_mapping:
                 graph_or_function.outputs[idx] = replacement_mapping[graph_or_function_output]
