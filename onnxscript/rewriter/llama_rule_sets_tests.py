@@ -84,7 +84,7 @@ class LlamaRuleSetsTest(unittest.TestCase):
         ]
         return models
 
-    def test_llama_p0_rule_set(self):
+    def test_llama_p0_rule_set_identity(self):
         for model in self._identity_models():
 
             ir_model = ir.serde.deserialize_model(model)
@@ -93,6 +93,34 @@ class LlamaRuleSetsTest(unittest.TestCase):
             rewritten_model = ir.serde.serialize_model(ir_model)
 
             self.assertEqual(["Identity"], [n.op_type for n in rewritten_model.graph.node])
+            self._check_model(model, rewritten_model)
+
+    def _transpose_transpose_models(self):
+        models = [
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["X"], ["xt"], perm=[1, 2, 0]),
+                        onnx.helper.make_node("Transpose", ["xt"], ["Y"], perm=[1, 2, 0]),
+                    ],
+                    "name",
+                    [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None])],
+                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [None, None])],
+                ),
+                opset_imports=[onnx.helper.make_opsetid("", 18)],
+            ),
+        ]
+        return models
+
+    def test_llama_p0_rule_set_transpose_transpose(self):
+        for model in self._transpose_transpose_models():
+
+            ir_model = ir.serde.deserialize_model(model)
+            rule_set = llama_rule_sets.llama_p0_rule_set()
+            rule_set.apply_to_model(ir_model)
+            rewritten_model = ir.serde.serialize_model(ir_model)
+
+            self.assertEqual(["Transpose"], [n.op_type for n in rewritten_model.graph.node])
             self._check_model(model, rewritten_model)
 
 
