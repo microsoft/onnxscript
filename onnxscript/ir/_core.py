@@ -189,6 +189,7 @@ def _check_numpy_representation_type(array: np.ndarray, dtype: _enums.DataType) 
     """
     if dtype in _NON_NUMPY_NATIVE_TYPES:
         if array.dtype != np.float32:
+            # TODO(justinchuby): Support the storage dtypes like uint16 for bfloat16.
             raise TypeError(
                 f"The numpy array dtype must be float32 (not {dtype}) for IR data type {dtype}."
             )
