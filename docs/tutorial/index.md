@@ -8,7 +8,7 @@ myst:
 
 ## Welcome to ONNX Script Tutorials
 
-For extended tutorials on how to use the **Optimizer** and **Rewriter** tools, refer to the relevant sub-sections within the Tutorial section. 
+For extended tutorials on how to use the **Optimizer** and **Rewriter** tools, refer to the relevant sub-sections within the Tutorial section.
 - <project:optimizer/optimize.md>
 - <project:rewriter/rewrite_patterns.md>
 
