@@ -33,7 +33,8 @@ class LlamaRuleSetsTest(unittest.TestCase):
         atol: float = 0.0,
         rtol: float = 1e-7,
     ):
-        feeds = self._get_random_inputs(model)
+        if not feeds:
+            feeds = self._get_random_inputs(model)
         ref = onnx.reference.ReferenceEvaluator(model)
         opt = onnx.reference.ReferenceEvaluator(optimized_model)
         expected = ref.run(None, feeds)
