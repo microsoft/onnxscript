@@ -120,9 +120,9 @@ class TensorProtoTensor(_core.TensorBase):
         """Return the tensor as a byte string conformed to the ONNX specification, in little endian."""
         if self._proto.HasField("raw_data"):
             return self._proto.raw_data
-        if self._proto.HasField("float_data"):
+        if self._proto.float_data:
             return np.array(self._proto.float_data, dtype=np.float32).tobytes()
-        if self._proto.HasField("int32_data"):
+        if self._proto.int32_data:
             array = np.array(self._proto.int32_data, dtype=np.int32)
             if self.dtype in {
                 _enums.DataType.INT16,
@@ -146,11 +146,11 @@ class TensorProtoTensor(_core.TensorBase):
                 return _type_casting.pack_int4(array).tobytes()
             assert self.dtype == _enums.DataType.INT32
             return array.tobytes()
-        if self._proto.HasField("int64_data"):
+        if self._proto.int64_data:
             return np.array(self._proto.int64_data, dtype=np.int64).tobytes()
-        if self._proto.HasField("double_data"):
+        if self._proto.double_data:
             return np.array(self._proto.double_data, dtype=np.float64).tobytes()
-        if self._proto.HasField("uint64_data"):
+        if self._proto.uint64_data:
             array = np.array(self._proto.uint64_data, dtype=np.uint64)
             if self.dtype == _enums.DataType.UINT32:
                 return array.astype(np.uint32).tobytes()

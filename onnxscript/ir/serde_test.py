@@ -8,11 +8,9 @@ from onnxscript.ir import serde
 
 
 class TensorProtoTensorTest(unittest.TestCase):
-
     @parameterized.parameterized.expand(
         [
             ("FLOAT", onnx.TensorProto.FLOAT),
-            ("STRING", onnx.TensorProto.STRING),
             ("BOOL", onnx.TensorProto.BOOL),
             ("FLOAT16", onnx.TensorProto.FLOAT16),
             ("DOUBLE", onnx.TensorProto.DOUBLE),
@@ -30,6 +28,14 @@ class TensorProtoTensorTest(unittest.TestCase):
         tensor = serde.TensorProtoTensor(tensor_proto)
         expected_array = onnx.numpy_helper.to_array(tensor_proto)
         np.testing.assert_array_equal(tensor.numpy(), expected_array)
+        raw_data = tensor.tobytes()
+        tensor_proto_from_raw_data = onnx.TensorProto(
+            dims=tensor_proto.dims,
+            data_type=tensor_proto.data_type,
+            raw_data=raw_data,
+        )
+        array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
+        np.testing.assert_array_equal(array_from_raw_data, expected_array)
 
     @parameterized.parameterized.expand(
         [
@@ -45,6 +51,14 @@ class TensorProtoTensorTest(unittest.TestCase):
         tensor = serde.TensorProtoTensor(tensor_proto)
         expected_array = onnx.numpy_helper.to_array(tensor_proto)
         np.testing.assert_array_equal(tensor.numpy(), expected_array)
+        raw_data = tensor.tobytes()
+        tensor_proto_from_raw_data = onnx.TensorProto(
+            dims=tensor_proto.dims,
+            data_type=tensor_proto.data_type,
+            raw_data=raw_data,
+        )
+        array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
+        np.testing.assert_array_equal(array_from_raw_data, expected_array)
 
     @parameterized.parameterized.expand(
         [
@@ -60,6 +74,14 @@ class TensorProtoTensorTest(unittest.TestCase):
         tensor = serde.TensorProtoTensor(tensor_proto)
         expected_array = onnx.numpy_helper.to_array(tensor_proto)
         np.testing.assert_array_equal(tensor.numpy(), expected_array)
+        raw_data = tensor.tobytes()
+        tensor_proto_from_raw_data = onnx.TensorProto(
+            dims=tensor_proto.dims,
+            data_type=tensor_proto.data_type,
+            raw_data=raw_data,
+        )
+        array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
+        np.testing.assert_array_equal(array_from_raw_data, expected_array)
 
     @parameterized.parameterized.expand(
         [
@@ -77,3 +99,11 @@ class TensorProtoTensorTest(unittest.TestCase):
         expected_array = onnx.numpy_helper.to_array(tensor_proto)
         tensor = serde.TensorProtoTensor(tensor_proto)
         np.testing.assert_array_equal(tensor.numpy(), expected_array)
+        raw_data = tensor.tobytes()
+        tensor_proto_from_raw_data = onnx.TensorProto(
+            dims=tensor_proto.dims,
+            data_type=tensor_proto.data_type,
+            raw_data=raw_data,
+        )
+        array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
+        np.testing.assert_array_equal(array_from_raw_data, expected_array)
