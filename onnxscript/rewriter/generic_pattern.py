@@ -140,7 +140,16 @@ class GenericRewriteRule(orp.RewriteRule):
                 )
                 return None
 
-            return self.pattern.apply(model, match_result, verbose=self.verbose)
+            x = self.pattern.apply_pattern
+            replacement = x.get_replacement(match_result)
+            # if replacement is not None:
+            #     TODO(Rama)
+            #     assert len(replacement.new_outputs) == len(match_result.pattern_outputs), (
+            #         f"Not the same number of outputs, matched "
+            #         f"outputs={match_result.pattern_outputs}, "
+            #         f"got {replacement.new_outputs} in the applied pattern."
+            #     )
+            return replacement
         return None
 
     def count_matches(self, model: ir.Model, *, commute: bool = False) -> int:
@@ -640,23 +649,6 @@ class GenericPattern:
             match_pattern.outputs,
         )
 
-    def apply(
-        self,
-        model: ir.Model,
-        match_result: orp.MatchResult,
-        verbose: int = 0,
-    ) -> orp.ReplacementSubgraph | None:
-        x = orp.ReplacementPatternFunction(self.apply_pattern)
-        replacement = x.get_replacement(match_result)
-        # if replacement is not None:
-        #     TODO(Rama)
-        #     assert len(replacement.new_outputs) == len(match_result.pattern_outputs), (
-        #         f"Not the same number of outputs, matched "
-        #         f"outputs={match_result.pattern_outputs}, "
-        #         f"got {replacement.new_outputs} in the applied pattern."
-        #     )
-        return replacement
-
     def make_rule(self) -> orp.RewriteRule:
         """Creates the corresponding rule for this pattern."""
         return GenericRewriteRule(self)
@@ -744,10 +736,11 @@ def make_pattern_rule(
     """
 
     match_pattern_ir = _build_pattern(match_pattern_function)
+    replacement_builder = orp.ReplacementPatternFunction(apply_pattern_function)
 
     pat = FunctionPattern(
         match_pattern_ir,
-        apply_pattern_function,
+        replacement_builder,
         validate_mapping or (lambda *_, **__: True),
         verbose=verbose,
     )

@@ -659,6 +659,10 @@ class ReplacementSubgraph:
     used_opsets: UsedOpsets
 
 
+def always_true(*args, **kwargs) -> bool:
+    return True
+
+
 class ReplacementPatternFunction:
     """The replacement pattern that will replace the targeted pattern.
 
@@ -730,18 +734,16 @@ class RewriteRule:
         if not isinstance(replacement_pattern, ReplacementPatternFunction):
             replacement_pattern = ReplacementPatternFunction(replacement_pattern)
         self._replacement_pattern = replacement_pattern
-        self._condition_function = condition_function
+        self._condition_function = condition_function or always_true
 
     def matches(self, node: ir.Node, model: ir.Model) -> MatchResult:
         """Check if the node from IR matches the pattern."""
         if len(node.outputs) != self._target_pattern.num_outputs:
             return MatchResult.FAIL()
         match = self._target_pattern.matches_node(node)
-        if (
-            self._condition_function is not None
-            and match
-            and not self._condition_function(**match.bindings)
-        ):
+        if (not match) or (not self._condition_function(**match.bindings)):
+            return MatchResult.FAIL()
+        if not _valid_to_replace(match.nodes):
             return MatchResult.FAIL()
         match.outputs.extend(node.outputs)
         return match
@@ -752,22 +754,20 @@ class RewriteRule:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
         match = self.matches(node, model)
         if match:
-            assert match.nodes is not None, "Matched values should not be None."
-            if _valid_to_replace(match.nodes):
-                replacement_subgraph = self._replacement_pattern.get_replacement(match)
-                if replacement_subgraph is None:
-                    return None
-                if len(replacement_subgraph.new_outputs) != self._target_pattern.num_outputs:
-                    raise ValueError(
-                        f"Number of outputs from replacement function does not match the number of outputs from the target pattern. "
-                        f"Expected {self._target_pattern.num_outputs}, but got {len(replacement_subgraph.new_outputs)}."
-                    )
-                # TODO(rama): Check/update opset-imports
-                # (i) Following is required by multi-output matcher too; move this.
-                # (ii) Remove the opset imports from deleted nodes?
-                _update_opset_imports(graph_or_function, replacement_subgraph)
-                _update_opset_imports(model.graph, replacement_subgraph)
-                return replacement_subgraph
+            replacement_subgraph = self._replacement_pattern.get_replacement(match)
+            if replacement_subgraph is None:
+                return None
+            if len(replacement_subgraph.new_outputs) != self._target_pattern.num_outputs:
+                raise ValueError(
+                    f"Number of outputs from replacement function does not match the number of outputs from the target pattern. "
+                    f"Expected {self._target_pattern.num_outputs}, but got {len(replacement_subgraph.new_outputs)}."
+                )
+            # TODO(rama): Check/update opset-imports
+            # (i) Following is required by multi-output matcher too; move this.
+            # (ii) Remove the opset imports from deleted nodes?
+            _update_opset_imports(graph_or_function, replacement_subgraph)
+            _update_opset_imports(model.graph, replacement_subgraph)
+            return replacement_subgraph
         return None
 
     def apply_to_model(self, model: ir.Model, *, commute: bool = False):
