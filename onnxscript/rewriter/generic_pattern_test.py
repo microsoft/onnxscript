@@ -32,11 +32,11 @@ class GenericPatternTest(unittest.TestCase):
             tmp = op.Add(x, y)
             return op.Add(tmp, z)
 
-        def apply_pattern(op, x, y, z):
+        def apply_pattern(op, x, y, z, **_):
             """Builds the replacement graph."""
             return op.AddAdd(x, y, z, domain="ZZZ")
 
-        def validate_mapping(context, x, y, z) -> bool:
+        def validate_mapping(context, x, y, z, **_) -> bool:
             """Validates the mapping."""
             del context
             return True
@@ -111,7 +111,7 @@ class GenericPatternTest(unittest.TestCase):
             r1 = op.Add(tmp, z)
             return tmp2, r1
 
-        def apply_pattern(op, x, y, w, z):
+        def apply_pattern(op, x, y, w, z, **_):
             """Builds the pattern to match."""
             return op.AddAddAddAdd(x, y, w, z, domain="ZZZ", outputs=2)
 
@@ -267,7 +267,7 @@ class GenericPatternTest(unittest.TestCase):
             del match_result
             return True
 
-        def apply_pattern(op, x, pos_ids, axis):
+        def apply_pattern(op, x, pos_ids, axis, **_):
             del axis
             cos_cache = op.Constant(
                 value=onnx.numpy_helper.from_array(np.random.rand(256, 256).astype(np.float16))
@@ -327,12 +327,12 @@ class GenericPatternTest(unittest.TestCase):
             cast2 = op.Cast(cos, to=FLOAT)
             return cast1, cast2
 
-        def validate_rotary_mapping(match_result) -> bool:
+        def validate_rotary_mapping(match_result, **_) -> bool:
             # If some pattern needs to be rejected.
             del match_result
             return True
 
-        def rotary_apply_pattern(op, x, pos_ids, axis):
+        def rotary_apply_pattern(op, x, pos_ids, axis, **_):
             cos_cache = op.Constant(
                 value=onnx.numpy_helper.from_array(np.random.rand(256, 256).astype(np.float16))
             )

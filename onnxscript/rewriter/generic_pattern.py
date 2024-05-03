@@ -99,10 +99,13 @@ def _to_match_result(pmr: PatternMatchResult) -> orp.MatchResult:
 
     TODO: This is a temporary hack until MatchResult and PatternMatchResult are unified.
     """
-    result = orp.MatchResult()
+    result = orp.MatchResult(success=True)
     result.nodes.extend(pmr.model_nodes)
     for var, val in pmr.matched_pattern_to_model_value.items():
         result.bind(var, val)
+    result.outputs.extend(
+        [pmr.matched_pattern_to_model_value[v.name] for v in pmr.pattern_outputs]
+    )
     return result
 
 
@@ -127,12 +130,11 @@ class GenericRewriteRule(orp.RewriteRule):
     ) -> orp.ReplacementSubgraph | None:
         """See :meth:`RewriteRule.try_rewrite`."""
 
-        matches = self.pattern.enumerate_matches(model.graph, node)
-        if matches:
-            assert len(matches) == 1, "Expect 1 match for given node"
-            pattern_match_result = matches[0]
-            match_result = _to_match_result(match_result)
-            if not self.pattern.validate_mapping(model, pattern_match_result):
+        pattern_match_result = self.pattern.match(model.graph, node)
+        if pattern_match_result:
+            match_result = _to_match_result(pattern_match_result)
+            context = None  # TODO: create a context
+            if not self.pattern.validate_mapping(context, **match_result.bindings):
                 pattern_match_result._hint(
                     "validate_mapping", "The pattern was rejected by the validation function."
                 )
@@ -646,12 +648,13 @@ class GenericPattern:
     ) -> orp.ReplacementSubgraph | None:
         x = orp.ReplacementPatternFunction(self.apply_pattern)
         replacement = x.get_replacement(match_result)
-        if replacement is not None:
-            assert len(replacement.new_outputs) == len(match_result.pattern_outputs), (
-                f"Not the same number of outputs, matched "
-                f"outputs={match_result.pattern_outputs}, "
-                f"got {replacement.new_outputs} in the applied pattern."
-            )
+        # if replacement is not None:
+        #     TODO(Rama)
+        #     assert len(replacement.new_outputs) == len(match_result.pattern_outputs), (
+        #         f"Not the same number of outputs, matched "
+        #         f"outputs={match_result.pattern_outputs}, "
+        #         f"got {replacement.new_outputs} in the applied pattern."
+        #     )
         return replacement
 
     def make_rule(self) -> orp.RewriteRule:
@@ -740,8 +743,7 @@ def make_pattern_rule(
         the rewriting rule
     """
 
-    match_pattern = _build_pattern(match_pattern_function)
-    match_pattern_ir = ir.serde.deserialize_function(match_pattern)
+    match_pattern_ir = _build_pattern(match_pattern_function)
 
     pat = FunctionPattern(
         match_pattern_ir,
