@@ -100,7 +100,6 @@ tutorial/index
 api/index
 intermediate_representation/index
 auto_examples/index
-rewriter/index
 articles/index
 ```
 
