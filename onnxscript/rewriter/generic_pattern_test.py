@@ -285,7 +285,7 @@ class GenericPatternTest(unittest.TestCase):
             )
 
         rule = generic_pattern.make_pattern_rule(
-            match_pattern, apply_pattern, validate_mapping
+            match_pattern, apply_pattern, validate_mapping, verbose=10
         )
 
         model = self.get_rotary_model()
@@ -305,6 +305,7 @@ class GenericPatternTest(unittest.TestCase):
         expected = ["Constant", "Constant", "RotaryEmbedding"]
         self.assertEqual(expected, [n.op_type for n in rewriten_model.graph.node])
         out = buffer.getvalue()
+        # TODO(Rama): What is this assertion testing? Is it to check that `verbose` is working?
         self.assertIn("[GenericPattern.match", out)
 
     def test_rotary_embedding_onnxscript(self):
@@ -434,11 +435,15 @@ class GenericPatternTest(unittest.TestCase):
         self.check_with_ort(rewriten_model)
 
     def test_transpose_transpose_onnxscript(self):
-        # The test work on a model if it has the expected name.
-        # A dummy model is used if not present (not implemented yet).
-        def transpose_transpose_pattern(op, X, perm0, perm1):
-            xt = op.Transpose(X, perm=perm0)
-            Y = op.Transpose(xt, perm=perm1)
+        # TODO(rama): Attribute-parameters not yet supported in multi-output matching.
+        # def transpose_transpose_pattern(op, X, perm0, perm1):
+        #     xt = op.Transpose(X, perm=perm0)
+        #     Y = op.Transpose(xt, perm=perm1)
+        #     return Y
+
+        def transpose_transpose_pattern(op, X):
+            XT = op.Transpose(X, outputs=["XT"])
+            Y = op.Transpose(XT, outputs=["Y"])
             return Y
 
         def transpose_transpose_mapping(perm0, perm1):
@@ -448,10 +453,16 @@ class GenericPatternTest(unittest.TestCase):
             # replace by return [perm0[p] for p in perm1] ?
             return new_perm
 
-        def transpose_transpose_check(op, X, perm0, perm1) -> bool:
+        def transpose_transpose_check(op, **_) -> bool:
             return True
 
-        def transpose_transpose_apply_pattern(op, X, perm0, perm1):
+        def transpose_transpose_apply_pattern(op, X, XT: ir.Value, Y, **_):
+            perm0 = XT.producer().attributes.get("perm")
+            if perm0 is not None:
+                perm0 = perm0.value  # TODO(rama): handle RefAttr
+            perm1 = Y.producer().attributes.get("perm")
+            if perm1 is not None:
+                perm1 = perm1.value  # TODO(rama): handle RefAttr
             if perm0 is None and perm1 is None:
                 return op.Identity(X)
             if perm0 is None:

@@ -612,6 +612,7 @@ class RewriterContext:
         return lambda *args, **kwargs: self._make_node(op_type, args, kwargs)
 
     def _make_node(self, op_type: str, inputs: Sequence[ir.Value], kwargs: dict[str, Any]):
+        # TODO(rama): some of the following logic should move into the tape.
         domain = kwargs.pop("domain", "")
         version = kwargs.pop("version", None)
         self._used_opsets.append((domain, version))
@@ -622,10 +623,17 @@ class RewriterContext:
             assert isinstance(outputs, int)
             num_outputs = outputs
         if num_outputs == 1:
-            return self._tape.op(op_type, inputs=inputs, attributes=kwargs, domain=domain)
-        return self._tape.op_multi_output(
+            value = self._tape.op(op_type, inputs=inputs, attributes=kwargs, domain=domain)
+            if isinstance(outputs, Sequence):
+                value.name = outputs[0]
+            return value
+        values = self._tape.op_multi_output(
             op_type, inputs=inputs, attributes=kwargs, domain=domain, num_outputs=num_outputs
         )
+        if isinstance(outputs, Sequence):
+            for value, name in zip(values, outputs):
+                value.name = name
+        return values
 
     @property
     def nodes(self) -> Sequence[ir.Node]:
