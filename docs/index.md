@@ -6,9 +6,7 @@ myst:
 
 # ONNX Script
 
-Link to [ONNX Script Github Repo](https://github.com/microsoft/onnxscript)
-
-[![PyPI - Version](https://img.shields.io/pypi/v/onnxscript.svg)](https://pypi.org/project/onnxscript)
+For instructions on how to install **ONNX Script** refer to [ONNX Script Github Repo](https://github.com/microsoft/onnxscript)
 
 
 ## Overview
@@ -41,26 +39,6 @@ ONNX models and functions:
 Note that the runtime is intended to help understand and debug function definitions.
 Performance is not a goal here.
 
-## Installing ONNX Script
-
-```bash
-pip install --upgrade onnxscript
-```
-
-### Install for Development
-
-```bash
-pip install onnx onnxruntime pytest
-git clone https://github.com/microsoft/onnxscript
-cd onnxscript
-pip install -e .
-```
-
-### Run Unit Tests
-
-```bash
-pytest onnxscript
-```
 
 ## Example
 
@@ -122,6 +100,7 @@ result = MatmulAdd(x, wt, bias)
 ```{toctree}
 :maxdepth: 1
 
+Overview <self>
 tutorial/index
 api/index
 intermediate_representation/index
