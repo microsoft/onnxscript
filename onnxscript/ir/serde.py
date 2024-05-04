@@ -156,11 +156,6 @@ class TensorProtoTensor(_core.TensorBase):
         Raises:
             ValueError: If the data type is UNDEFINED.
         """
-        # This is an improved version of onnx.numpy_helper.to_array.
-        # It first reads the data using the dtype corresponding to the tensor
-        # proto data field, then converts it to the correct dtype and shape.
-        # Special cases are bfloat16, complex and int4 where we need to
-        # reinterpret the data. Other types can simply be casted.
         dtype = self.dtype
         if dtype == _enums.DataType.UNDEFINED:
             raise ValueError("Cannot convert UNDEFINED tensor to numpy array.")
