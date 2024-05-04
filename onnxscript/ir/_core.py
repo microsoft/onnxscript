@@ -392,8 +392,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         array = self.numpy()
         if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
             # Pack the array into int4
-            if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
-                array = _type_casting.pack_int4(array)
+            array = _type_casting.pack_int4(array)
         else:
             assert self.dtype.itemsize == array.itemsize, "Bug: The itemsize should match"
         if not _IS_LITTLE_ENDIAN:
