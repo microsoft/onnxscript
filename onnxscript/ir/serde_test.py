@@ -66,7 +66,7 @@ class TensorProtoTensorTest(unittest.TestCase):
             (
                 "FLOAT8E5M2",
                 onnx.TensorProto.FLOAT8E5M2,
-                lambda x: onnx.numpy_helper.float8e5m2_to_float32(x),
+                onnx.numpy_helper.float8e5m2_to_float32,
             ),
             (
                 "FLOAT8E5M2FNUZ",
