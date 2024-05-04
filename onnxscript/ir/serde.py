@@ -59,14 +59,15 @@ from typing import Any, List, Mapping, Sequence
 import numpy as np
 import onnx
 import onnx.external_data_helper
-import onnx.numpy_helper
 
-from onnxscript.ir import _core, _enums, _metadata, _protocols
+from onnxscript.ir import _core, _enums, _metadata, _protocols, _type_casting
 
 if typing.TYPE_CHECKING:
     import google.protobuf.internal.containers as proto_containers
+    import numpy.typing as npt
 
 logger = logging.getLogger(__name__)
+
 _FUNCTION_VALUE_INFO_SUPPORTED_VERSION = (
     10  # ONNX IR version where value info in functions was introduced
 )
@@ -79,6 +80,13 @@ def _little_endian_dtype(dtype) -> np.dtype:
     endian platforms, we still need to interpret the raw_data in small endian.
     """
     return np.dtype(dtype).newbyteorder("<")
+
+
+def _unflatten_complex(
+    array: npt.NDArray[np.float32 | np.float64],
+) -> npt.NDArray[np.complex64 | np.complex128]:
+    """Convert the real representation of a complex dtype to the complex dtype."""
+    return array[::2] + 1j * array[1::2]
 
 
 class TensorProtoTensor(_core.TensorBase):
@@ -122,8 +130,49 @@ class TensorProtoTensor(_core.TensorBase):
         return self.numpy().__array__(dtype)
 
     def numpy(self) -> np.ndarray:
-        """Return the tensor as a numpy array."""
-        return onnx.numpy_helper.to_array(self._proto)
+        """Return the tensor as a numpy array.
+
+        When the data type is not supported by numpy, the value is the bit representation
+        of the dtype:
+
+        - ``int8`` for int4, with the sign bit extended to 8 bits.
+        - ``uint8`` for uint4.
+        - ``uint8`` for 8-bit data types like float8.
+        - ``uint16`` for bfloat16.
+        """
+        dtype = self.dtype
+        if self._proto.HasField("raw_data"):
+            array = np.frombuffer(self._proto.raw_data, dtype=dtype.numpy().newbyteorder("<"))
+            # Cannot return now, because we may need to unpack 4bit tensors
+        elif self._proto.int32_data:
+            array = np.array(self._proto.int32_data, dtype=_little_endian_dtype(np.int32))
+            if dtype == _enums.DataType.FLOAT16:
+                # Reinterpret the int32 as float16; bfloat16 is handled on the last line
+                array = array.astype(np.uint16).view(np.float16)
+        elif self._proto.int64_data:
+            array = np.array(self._proto.int64_data, dtype=_little_endian_dtype(np.int64))
+        elif self._proto.uint64_data:
+            array = np.array(self._proto.uint64_data, dtype=_little_endian_dtype(np.uint64))
+        elif self._proto.float_data:
+            array = np.array(self._proto.float_data, dtype=_little_endian_dtype(np.float32))
+            if dtype == _enums.DataType.COMPLEX64:
+                array = _unflatten_complex(array)
+        elif self._proto.double_data:
+            array = np.array(self._proto.double_data, dtype=_little_endian_dtype(np.float64))
+            if dtype == _enums.DataType.COMPLEX128:
+                array = _unflatten_complex(array)
+        else:
+            # Empty array
+            return np.array([], dtype=dtype.numpy()).reshape(self._proto.dims)
+
+        if dtype == _enums.DataType.INT4:
+            return _type_casting.unpack_int4(array.astype(np.uint8), self._proto.dims)
+        elif dtype == _enums.DataType.UINT4:
+            return _type_casting.unpack_uint4(array.astype(np.uint8), self._proto.dims)
+        else:
+            # Otherwise convert to the correct dtype and reshape
+            # Note we cannot use view() here because the storage dtype may not be the same size as the target
+            return array.astype(dtype.numpy()).reshape(self._proto.dims)
 
     def tobytes(self) -> bytes:
         """Return the tensor as a byte string conformed to the ONNX specification, in little endian."""

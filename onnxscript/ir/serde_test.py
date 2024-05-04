@@ -1,4 +1,5 @@
 import unittest
+from typing import Callable
 
 import numpy as np
 import onnx
@@ -14,17 +15,9 @@ class TensorProtoTensorTest(unittest.TestCase):
             ("BOOL", onnx.TensorProto.BOOL),
             ("FLOAT16", onnx.TensorProto.FLOAT16),
             ("DOUBLE", onnx.TensorProto.DOUBLE),
-            ("BFLOAT16", onnx.TensorProto.BFLOAT16),
-            ("FLOAT8E4M3FN", onnx.TensorProto.FLOAT8E4M3FN),
-            ("FLOAT8E4M3FNUZ", onnx.TensorProto.FLOAT8E4M3FNUZ),
-            ("FLOAT8E5M2", onnx.TensorProto.FLOAT8E5M2),
-            ("FLOAT8E5M2FNUZ", onnx.TensorProto.FLOAT8E5M2FNUZ),
         ]
     )
     def test_tensor_proto_tensor(self, _: str, dtype: int):
-        if dtype in (onnx.TensorProto.FLOAT8E4M3FN, onnx.TensorProto.FLOAT8E4M3FNUZ):
-            # TODO: Remove the fix when ONNX 1.17 releases
-            self.skipTest("ONNX to_array fails: https://github.com/onnx/onnx/pull/6124")
         tensor_proto = onnx.helper.make_tensor(
             "test_tensor", dtype, [1, 9], [-3.0, -1.0, -0.5, -0.0, +0.0, 0.5, 1.0, 42.0, 2.0]
         )
@@ -37,6 +30,65 @@ class TensorProtoTensorTest(unittest.TestCase):
             data_type=tensor_proto.data_type,
             raw_data=raw_data,
         )
+        array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
+        np.testing.assert_array_equal(array_from_raw_data, expected_array)
+
+    def test_tensor_proto_tensor_bfloat16(self):
+        expected_array = np.array([[-3.0, -1.0, -0.5, -0.0, +0.0, 0.5, 1.0, 42.0, 2.0]])
+        tensor_proto = onnx.helper.make_tensor(
+            "test_tensor", onnx.TensorProto.BFLOAT16, [1, 9], expected_array
+        )
+        tensor = serde.TensorProtoTensor(tensor_proto)
+        np.testing.assert_array_equal(
+            onnx.numpy_helper.bfloat16_to_float32(tensor.numpy()), expected_array
+        )
+        raw_data = tensor.tobytes()
+        tensor_proto_from_raw_data = onnx.TensorProto(
+            dims=tensor_proto.dims,
+            data_type=tensor_proto.data_type,
+            raw_data=raw_data,
+        )
+        array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
+        np.testing.assert_array_equal(array_from_raw_data, expected_array)
+
+    @parameterized.parameterized.expand(
+        [
+            (
+                "FLOAT8E4M3FN",
+                onnx.TensorProto.FLOAT8E4M3FN,
+                lambda x: onnx.numpy_helper.float8e4m3_to_float32(x, fn=True),
+            ),
+            (
+                "FLOAT8E4M3FNUZ",
+                onnx.TensorProto.FLOAT8E4M3FNUZ,
+                lambda x: onnx.numpy_helper.float8e4m3_to_float32(x, fn=True, uz=True),
+            ),
+            (
+                "FLOAT8E5M2",
+                onnx.TensorProto.FLOAT8E5M2,
+                lambda x: onnx.numpy_helper.float8e5m2_to_float32(x),
+            ),
+            (
+                "FLOAT8E5M2FNUZ",
+                onnx.TensorProto.FLOAT8E5M2FNUZ,
+                lambda x: onnx.numpy_helper.float8e5m2_to_float32(x, fn=True, uz=True),
+            ),
+        ]
+    )
+    def test_tensor_proto_tensor_float8(self, _: str, dtype: int, to_float32_func: Callable):
+        expected_array = np.array([[-3.0, -1.0, -0.5, -0.0, +0.0, 0.5, 1.0, 40.0, 2.0]])
+        tensor_proto = onnx.helper.make_tensor("test_tensor", dtype, [1, 9], expected_array)
+        tensor = serde.TensorProtoTensor(tensor_proto)
+        np.testing.assert_array_equal(to_float32_func(tensor.numpy()), expected_array)
+        raw_data = tensor.tobytes()
+        tensor_proto_from_raw_data = onnx.TensorProto(
+            dims=tensor_proto.dims,
+            data_type=tensor_proto.data_type,
+            raw_data=raw_data,
+        )
+        if dtype in (onnx.TensorProto.FLOAT8E4M3FN, onnx.TensorProto.FLOAT8E4M3FNUZ):
+            # TODO: Remove the fix when ONNX 1.17 releases
+            self.skipTest("ONNX to_array fails: https://github.com/onnx/onnx/pull/6124")
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
 
@@ -90,19 +142,15 @@ class TensorProtoTensorTest(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         [
-            ("COMPLEX64", onnx.TensorProto.COMPLEX64),
-            ("COMPLEX128", onnx.TensorProto.COMPLEX128),
+            ("COMPLEX64", onnx.TensorProto.COMPLEX64, np.complex64),
+            ("COMPLEX128", onnx.TensorProto.COMPLEX128, np.complex128),
         ]
     )
-    @unittest.skip(
-        # TODO: Remove the fix when ONNX 1.17 releases
-        "numpy_helper.to_array fails on complex numbers: https://github.com/onnx/onnx/pull/6124"
-    )
-    def test_tensor_proto_tensor_complex(self, _: str, dtype: int):
+    def test_tensor_proto_tensor_complex(self, _: str, dtype: int, np_dtype: np.dtype):
+        expected_array = np.array([[0.0 + 1j, 0.2 - 1j, 0.3]], dtype=np_dtype)
         tensor_proto = onnx.helper.make_tensor(
             "test_tensor", dtype, [1, 3], [0.0 + 1j, 0.2 - 1j, 0.3]
         )
-        expected_array = onnx.numpy_helper.to_array(tensor_proto)
         tensor = serde.TensorProtoTensor(tensor_proto)
         np.testing.assert_array_equal(tensor.numpy(), expected_array)
         raw_data = tensor.tobytes()
