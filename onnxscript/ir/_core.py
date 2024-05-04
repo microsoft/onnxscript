@@ -204,7 +204,16 @@ def _check_numpy_representation_type(array: np.ndarray, dtype: _enums.DataType) 
                 )
         return
 
-    if _enums.DataType.from_numpy(array.dtype) != dtype:
+    try:
+        dtype_numpy = _enums.DataType.from_numpy(array.dtype)
+    except TypeError as e:
+        raise TypeError(
+            "Failed to convert the numpy dtype to an IR data type. "
+            "If you are using a non-native dtype, be sure to specify the corresponding IR dtype when "
+            "creating a Tensor."
+        ) from e
+
+    if dtype_numpy != dtype:
         raise TypeError(
             f"The numpy array dtype {array.dtype} does not match the IR data type {dtype}."
         )
