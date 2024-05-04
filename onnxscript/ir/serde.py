@@ -168,7 +168,7 @@ class TensorProtoTensor(_core.TensorBase):
         if self._proto.HasField("raw_data"):
             array = np.frombuffer(self._proto.raw_data, dtype=dtype.numpy().newbyteorder("<"))
             # Cannot return now, because we may need to unpack 4bit tensors
-        if dtype == _enums.DataType.STRING:
+        elif dtype == _enums.DataType.STRING:
             return np.array(self._proto.string_data).reshape(self._proto.dims)
         elif self._proto.int32_data:
             array = np.array(self._proto.int32_data, dtype=_little_endian_dtype(np.int32))
@@ -188,8 +188,13 @@ class TensorProtoTensor(_core.TensorBase):
             if dtype == _enums.DataType.COMPLEX128:
                 array = _unflatten_complex(array)
         else:
-            # Empty array
-            array = np.array([], dtype=dtype.numpy())
+            # Empty tensor
+            if not self._proto.dims:
+                # When dims not precent and there is no data, we return an empty array
+                return np.array([], dtype=dtype.numpy())
+            else:
+                # Otherwise we return a size 0 array with the correct shape
+                return np.zeros(self._proto.dims, dtype=dtype.numpy())
 
         if dtype == _enums.DataType.INT4:
             return _type_casting.unpack_int4(array.astype(np.uint8), self._proto.dims)
