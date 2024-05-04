@@ -195,4 +195,9 @@ With all the necessary components in place, the pattern rewrite rule with the `m
 ```
 
 The final graph with the applied rewrite looks as follows:
-![broadcast_rewrite](examples/img/broadcast_02.png){align=center}
+
+```{image} examples/img/broadcast_02.png
+:alt: broadcast_rewrite
+:width: 100%
+:align: center
+```
