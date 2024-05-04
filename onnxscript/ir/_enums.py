@@ -153,7 +153,7 @@ _DATA_TYPE_TO_NP_TYPE.update(
         DataType.FLOAT8E5M2: np.dtype("uint8"),
         DataType.FLOAT8E5M2FNUZ: np.dtype("uint8"),
         DataType.UINT4: np.dtype("uint8"),
-        DataType.INT4: np.dtype("uint8"),
+        DataType.INT4: np.dtype("int8"),
         DataType.BFLOAT16: np.dtype("uint16"),
     }
 )
