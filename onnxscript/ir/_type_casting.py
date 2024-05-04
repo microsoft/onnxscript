@@ -6,7 +6,6 @@ from __future__ import annotations
 import typing
 
 import numpy as np
-import onnx
 
 if typing.TYPE_CHECKING:
     import numpy.typing as npt
@@ -38,29 +37,3 @@ def float32_to_bfloat16(array: npt.NDArray[np.float32]) -> npt.NDArray[np.uint16
     # NaN requires at least 1 significant bit set
     bfloat16_array[np.isnan(array)] = 0x7FC0  # sign=0, exp=all-ones, sig=0b1000000
     return bfloat16_array.astype(np.uint16)
-
-
-def float32_to_float8e5m2(array: npt.NDArray[np.float32]) -> npt.NDArray[np.uint8]:
-    """Convert a numpy array to uint8 representation of float8e5m2."""
-    func = np.frompyfunc(onnx.helper.float32_to_float8e5m2, 1, 1)
-    return func(array)
-
-
-def float32_to_float8e5m2fnuz(array: npt.NDArray[np.float32]) -> npt.NDArray[np.uint8]:
-    """Convert a numpy array to uint8 representation of float8e5m2fnuz."""
-    func = np.frompyfunc(
-        lambda x: onnx.helper.float32_to_float8e5m2(x, fn=True, uz=True), 1, 1
-    )
-    return func(array)
-
-
-def float32_to_float8e4m3fn(array: npt.NDArray[np.float32]) -> npt.NDArray[np.uint8]:
-    """Convert a numpy array to uint8 representation of float8e4m3fn."""
-    func = np.frompyfunc(onnx.helper.float32_to_float8e4m3, 1, 1)
-    return func(array)
-
-
-def float32_to_float8e4m3fnuz(array: npt.NDArray[np.float32]) -> npt.NDArray[np.uint8]:
-    """Convert a numpy array to uint8 representation of float8e4m3fnuz."""
-    func = np.frompyfunc(lambda x: onnx.helper.float32_to_float8e4m3(x, uz=True), 1, 1)
-    return func(array)

@@ -68,22 +68,6 @@ class TypeCastingTest(unittest.TestCase):
         actual = _type_casting.float32_to_bfloat16(value)
         np.testing.assert_array_equal(actual, expected)
 
-    def test_float32_to_float8e5m2(self):
-        array = np.array([-1.0, -0.5, -0.0, 0.0, 0.5, 1.0], dtype=np.float32)
-        _type_casting.float32_to_float8e5m2(array)
-
-    def test_float32_to_float8e5m2fnuz(self):
-        array = np.array([-1.0, -0.5, -0.0, 0.0, 0.5, 1.0], dtype=np.float32)
-        _type_casting.float32_to_float8e5m2fnuz(array)
-
-    def test_float32_to_float8e4m3fn(self):
-        array = np.array([-1.0, -0.5, -0.0, 0.0, 0.5, 1.0], dtype=np.float32)
-        _type_casting.float32_to_float8e4m3fn(array)
-
-    def test_float32_to_float8e4m3fnuz(self):
-        array = np.array([-1.0, -0.5, -0.0, 0.0, 0.5, 1.0], dtype=np.float32)
-        _type_casting.float32_to_float8e4m3fnuz(array)
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
