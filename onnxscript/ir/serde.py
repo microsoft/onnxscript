@@ -466,6 +466,7 @@ def _deserialize_graph(
         inputs,
         outputs,
         nodes=nodes,
+        # TODO(justinchuby): Attach the values associated with the initializers
         initializers=initializers,
         doc_string=_get_field(proto, "doc_string"),
         name=_get_field(proto, "name"),
