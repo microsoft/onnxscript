@@ -140,6 +140,11 @@ class TensorProtoTensor(_core.TensorBase):
         - ``uint8`` for 8-bit data types like float8.
         - ``uint16`` for bfloat16.
         """
+        # This is an improved version of onnx.numpy_helper.to_array.
+        # It first reads the data using the dtype corresponding to the tensor
+        # proto data field, then converts it to the correct dtype and shape.
+        # Special cases are bfloat16, complex and int4 where we need to
+        # reinterpret the data. Other types can simply be casted.
         dtype = self.dtype
         if self._proto.HasField("raw_data"):
             array = np.frombuffer(self._proto.raw_data, dtype=dtype.numpy().newbyteorder("<"))
@@ -163,7 +168,7 @@ class TensorProtoTensor(_core.TensorBase):
                 array = _unflatten_complex(array)
         else:
             # Empty array
-            return np.array([], dtype=dtype.numpy()).reshape(self._proto.dims)
+            array = np.array([], dtype=dtype.numpy())
 
         if dtype == _enums.DataType.INT4:
             return _type_casting.unpack_int4(array.astype(np.uint8), self._proto.dims)
