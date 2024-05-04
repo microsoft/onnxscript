@@ -36,10 +36,10 @@ class StringConstantPattern(Pattern[str]):
     """Matches strings with given value."""
 
     def __init__(self, value: str):
-        self._value = value
+        self.value = value
 
     def matches(self, item: str) -> bool:
-        return item == self._value
+        return item == self.value
 
 
 class PrefixPattern(Pattern[str]):
@@ -126,20 +126,19 @@ class OpsetPatternBuilder(Pattern[str]):
     input model.
     """
 
-    def __init__(self, domain_pattern: Pattern[str] | str) -> None:
-        if isinstance(domain_pattern, str):
-            domain_pattern = StringConstantPattern(domain_pattern)
-        self.domain_pattern = domain_pattern
-
-    @classmethod
-    def domain_prefix(cls, domain: str) -> OpsetPatternBuilder:
-        return cls(PrefixPattern(domain))
+    def __init__(self, domain: Pattern[str] | str) -> None:
+        if isinstance(domain, str):
+            self.domain_name = domain
+            self.domain_pattern = StringConstantPattern(domain)
+        else:
+            self.domain_name = None
+            self.domain_pattern = domain
 
     def matches(self, domain):
         return self.domain_pattern.matches(domain)
 
-    def __getattr__(self, name: str) -> OpPatternBuilder:
-        return OpPatternBuilder(self, StringConstantPattern(name))
+    def __getattr__(self, op_name: str) -> OpPatternBuilder:
+        return OpPatternBuilder(self, StringConstantPattern(op_name))
 
     def submodule(self, name: str) -> OpPatternBuilder:
         """This method is used to match against submodule ops with prefix."""
@@ -150,7 +149,7 @@ onnxop = OpsetPatternBuilder("")
 
 msft_op = OpsetPatternBuilder("com.microsoft")
 
-torch_module_op = OpsetPatternBuilder.domain_prefix("pkg.torch")
+torch_module_op = OpsetPatternBuilder(PrefixPattern("pkg.torch"))
 
 
 class OpPatternBuilder:
@@ -169,11 +168,11 @@ class OpPatternBuilder:
 
     def __init__(
         self,
-        opset_pattern: Pattern[str],
-        op_name_pattern: Pattern[str],
+        opset_pattern: OpsetPatternBuilder,
+        op_name: str | Pattern[str],
     ) -> None:
         self.opset_pattern = opset_pattern
-        self.op_name_pattern = op_name_pattern
+        self.op_name = op_name
 
     def __call__(self, *args, **kwargs):
         # TODO(rama): Unify with convention used elsewhere.
@@ -184,9 +183,7 @@ class OpPatternBuilder:
             num_outputs = 1
         inputs = [_to_value_pattern(x) for x in args]
         attributes = {name: _to_attr_pattern(value) for (name, value) in kwargs.items()}
-        node_pattern = NodePattern(
-            self.opset_pattern, self.op_name_pattern, inputs, attributes
-        )
+        node_pattern = NodePattern(self.opset_pattern, self.op_name, inputs, attributes)
         if num_outputs == 1:
             return NodeOutputPattern(node_pattern, 0)
         else:
@@ -365,18 +362,25 @@ class NodePattern:
 
     def __init__(
         self,
-        domain: Pattern[str],
-        op: Pattern[str],
+        domain: OpsetPatternBuilder,
+        op: str | Pattern[str],
         inputs: Sequence[int | float | ValuePattern | None],
         attributes: dict[str, AttrPattern],
     ):
         self.domain = domain
-        self.op = op
+        self.op = StringConstantPattern(op) if isinstance(op, str) else op
         self.inputs = [_to_value_pattern(x) for x in inputs]
         self.attributes = attributes
+        # In the common case, domain and op are constants, which can be used to optimize matching.
+        if isinstance(op, str) and domain.domain_name is not None:
+            # TODO(rama): support overloaded operators.
+            overload = ""
+            self.op_identifier = (domain.domain_name, op, overload)
+        else:
+            self.op_identifier = None
 
-    def matches_node(self, node: ir.Node) -> MatchResult:
-        """Examine if the IR node matches the self pattern."""
+    def matches_subgraph(self, node: ir.Node) -> MatchResult:
+        """Matches the pattern subgraph represented by self against subgraph rooted at node."""
         if not self.domain.matches(node.domain):
             return MatchResult.FAIL()
         if not self.op.matches(node.op_type):
@@ -448,13 +452,13 @@ class NodeOutputPattern(ValuePattern):
         self.output_index = output_index
 
     def matches(self, value: ir.Value):
-        """Match the StaticValueInfo from IR with the `matches_node()` in node pattern."""
+        """Match the StaticValueInfo from IR with the `matches_subgraph()` in node pattern."""
         node = value.producer()
         if node is None:
             return MatchResult.FAIL()
         if value.index() != self.output_index:
             return MatchResult.FAIL()
-        return self.node_pattern.matches_node(node)
+        return self.node_pattern.matches_subgraph(node)
 
     def commute(self) -> Sequence[ValuePattern]:
         # TODO
@@ -532,10 +536,10 @@ class GraphPattern:
     def num_outputs(self) -> int:
         return len(self.outputs)
 
-    def matches_node(self, node: ir.Node) -> MatchResult:
+    def matches_subgraph(self, node: ir.Node) -> MatchResult:
         if self._output_node is None:
             return MatchResult.FAIL()
-        return self._output_node.matches_node(node)
+        return self._output_node.matches_subgraph(node)
 
     def commute(self) -> Sequence[GraphPattern]:
         if self._output_node is None:
@@ -740,7 +744,7 @@ class RewriteRule:
         """Check if the node from IR matches the pattern."""
         if len(node.outputs) != self._target_pattern.num_outputs:
             return MatchResult.FAIL()
-        match = self._target_pattern.matches_node(node)
+        match = self._target_pattern.matches_subgraph(node)
         if (not match) or (not self._condition_function(**match.bindings)):
             return MatchResult.FAIL()
         if not _valid_to_replace(match.nodes):

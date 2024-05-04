@@ -140,8 +140,7 @@ class GenericRewriteRule(orp.RewriteRule):
                 )
                 return None
 
-            x = self.pattern.apply_pattern
-            replacement = x.get_replacement(match_result)
+            replacement = self.pattern.apply_pattern.get_replacement(match_result)
             # if replacement is not None:
             #     TODO(Rama)
             #     assert len(replacement.new_outputs) == len(match_result.pattern_outputs), (
