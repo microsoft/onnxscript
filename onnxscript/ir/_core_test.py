@@ -72,6 +72,12 @@ class TensorTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             _core.Tensor(array, dtype=_enums.DataType.INT64)
 
+    def test_initialize_raises_when_numpy_dtype_doesnt_match_custom_dtype(self):
+        custom_dtype = np.dtype((np.uint8, {"e4m3fn": (np.uint8, 0)}))
+        array = np.random.rand(1, 2).astype(custom_dtype)
+        with self.assertRaises(TypeError):
+            _core.Tensor(array, dtype=_enums.DataType.BFLOAT16)
+
     def test_initialize_with_torch_tensor(self):
         array = np.random.rand(1, 2).astype(np.int64)
         np_tensor = _core.Tensor(array)
