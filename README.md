@@ -47,16 +47,16 @@ pip install --upgrade onnxscript
 ### Install for Development
 
 ```bash
-pip install onnx onnxruntime pytest
 git clone https://github.com/microsoft/onnxscript
 cd onnxscript
+pip install -r requirements-dev.txt
 pip install -e .
 ```
 
 ### Run Unit Tests
 
 ```bash
-pytest onnxscript
+pytest .
 ```
 
 ## Example
