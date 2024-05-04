@@ -45,11 +45,11 @@ class PatternMatchResult:
         matched_pattern_to_model_value: dict[str, ir.Value] = {}
         for gn, pn in zip(model_nodes, pattern_nodes):
             assert (
-                gn.op_type == pn.op_type
-            ), f"Unexpected type mismatch {gn.op_type!r} != {pn.op_type!r}"
+                gn.op_identifier() == pn.op_identifier()
+            ), f"Unexpected type mismatch {gn.op_identifier()!r} != {pn.op_identifier()!r}"
             assert len(gn.inputs) == len(
                 pn.inputs
-            ), f"Unexpected number of inputs for type {gn.op_type}"
+            ), f"Unexpected number of inputs for type {gn.op_identifier()}"
             for a, b in zip(gn.inputs, pn.inputs):
                 if b is None:
                     # optional input or not an interesting input
@@ -66,7 +66,7 @@ class PatternMatchResult:
 
             assert len(gn.outputs) == len(
                 pn.outputs
-            ), f"Unexpected number of outputs for type {gn.op_type}"
+            ), f"Unexpected number of outputs for type {gn.op_identifier()}"
             for a, b in zip(gn.outputs, pn.outputs):
                 b_name = b.name
                 assert b_name is not None
@@ -130,7 +130,8 @@ class GenericRewriteRule(orp.RewriteRule):
     ) -> orp.ReplacementSubgraph | None:
         """See :meth:`RewriteRule.try_rewrite`."""
 
-        pattern_match_result = self.pattern.match(model.graph, node)
+        pattern_graph = self.pattern.match_pattern
+        pattern_match_result = self.pattern.match(pattern_graph, model.graph, node)
         if pattern_match_result:
             match_result = _to_match_result(pattern_match_result)
             context = None  # TODO: create a context
@@ -139,16 +140,7 @@ class GenericRewriteRule(orp.RewriteRule):
                     "validate_mapping", "The pattern was rejected by the validation function."
                 )
                 return None
-
-            replacement = self.pattern.apply_pattern.get_replacement(match_result)
-            # if replacement is not None:
-            #     TODO(Rama)
-            #     assert len(replacement.new_outputs) == len(match_result.pattern_outputs), (
-            #         f"Not the same number of outputs, matched "
-            #         f"outputs={match_result.pattern_outputs}, "
-            #         f"got {replacement.new_outputs} in the applied pattern."
-            #     )
-            return replacement
+            return self.pattern.apply_pattern.get_replacement(match_result)
         return None
 
     def count_matches(self, model: ir.Model, *, commute: bool = False) -> int:
@@ -179,18 +171,18 @@ class GenericPattern:
         self._cache: dict = {}
 
     def enumerate_matches(
-        self, graph: ir.Graph | ir.GraphView, node: ir.Node | None = None
+        self, pattern_graph, graph: ir.Graph | ir.GraphView, node: ir.Node | None = None
     ) -> Iterator:
         """Enumerates all the matches."""
         if node is None:
             matched = []
             for node in graph:
-                res = self.match(graph, node)
+                res = self.match(pattern_graph, graph, node)
                 if res:
                     matched.append(res)
                     yield res
         else:
-            res = self.match(graph, node)
+            res = self.match(pattern_graph, graph, node)
             if res:
                 yield res
 
@@ -349,7 +341,7 @@ class GenericPattern:
             if pred is None:
                 # No node in the graph.
                 return self.none(node, inspect.currentframe().f_lineno)
-            if pred.op_type != ppred.op_type:
+            if pred.op_identifier() != ppred.op_identifier():
                 self._hint(
                     "BACKWARD: different node types",
                     "--pattern",
@@ -421,7 +413,10 @@ class GenericPattern:
 
             if len(graph_node_users) == len(pattern_node_users) == 1:
                 # Let's deal with the simple case
-                if graph_node_users[0].op_type != pattern_node_users[0].op_type:
+                if (
+                    graph_node_users[0].op_identifier()
+                    != pattern_node_users[0].op_identifier()
+                ):
                     return self.none(root_node, inspect.currentframe().f_lineno)
 
                 node = pattern_node_users[0]
@@ -464,7 +459,10 @@ class GenericPattern:
             if len(pattern_node_users_not_matched) == len(free) == 1:
                 # Only one option again.
                 graph_node = free[0]
-                if pattern_node_users_not_matched[0].op_type != graph_node.op_type:
+                if (
+                    pattern_node_users_not_matched[0].op_identifier()
+                    != graph_node.op_identifier()
+                ):
                     return self.none(node, inspect.currentframe().f_lineno)
 
                 key = pattern_node_users_not_matched[0]
@@ -480,8 +478,8 @@ class GenericPattern:
             # And now another fun part, let's try to handle the case when
             # there is only one option, matching on node type only returns one
             # option.
-            expected_op_type = [_.op_type for _ in pattern_node_users_not_matched]
-            got_op_type = [_.op_type for _ in free]
+            expected_op_type = [_.op_identifier() for _ in pattern_node_users_not_matched]
+            got_op_type = [_.op_identifier() for _ in free]
 
             ec = collections.Counter(expected_op_type)
             gc = collections.Counter(got_op_type)
@@ -506,8 +504,8 @@ class GenericPattern:
 
             # At this stage, we know matching the types is possible.
             # We first mark whatever is possible.
-            ptype_to_node = {_.op_type: _ for _ in pattern_node_users_not_matched}
-            gtype_to_node = {_.op_type: _ for _ in free}
+            ptype_to_node = {_.op_identifier(): _ for _ in pattern_node_users_not_matched}
+            gtype_to_node = {_.op_identifier(): _ for _ in free}
             missing = []
             for k, v in ec.items():
                 if gc[k] == v == 1:
@@ -540,18 +538,18 @@ class GenericPattern:
 
     def match(
         self,
+        pattern_graph,
         g: ir.Graph | ir.GraphView,
         node: ir.Node,
     ) -> PatternMatchResult | None:
+        del g
         self._debug = {}
-
-        match_pattern: ir.Graph = self._get_match_pattern(g)
 
         # Let's match the last node.
         # Then we need to match successors and predecessors.
-        last_pattern_node = match_pattern[-1]
-        if node.op_type != last_pattern_node.op_type:
-            # The last node does not have the same op_type.
+        last_pattern_node = pattern_graph[-1]
+        if node.op_identifier() != last_pattern_node.op_identifier():
+            # The last node does not have the same op_identifier().
             return self.none()
 
         if self.verbose > 5:
@@ -559,23 +557,23 @@ class GenericPattern:
             if self.verbose >= 10:
                 print(f"[GenericPattern.match] match pattern {self!r}")
 
-        all_pattern_nodes = set(match_pattern)
+        all_pattern_nodes = set(pattern_graph)
         matched: dict[ir.Node, ir.Node] = {last_pattern_node: node}
         stack: list[ir.Node] = [last_pattern_node]
         iteration = 0
 
         if self.verbose > 5:
             self._debug = dict(
-                pattern=match_pattern,
+                pattern=pattern_graph,
                 matched=matched,
                 stack=stack,
                 iteration=iteration,
                 node=node,
                 pattern_node=last_pattern_node,
-                pattern_nodes=match_pattern,
+                pattern_nodes=pattern_graph,
             )
 
-        max_iter = len(match_pattern) * 2
+        max_iter = len(pattern_graph) * 2
         while stack and iteration < max_iter:
             nodes_not_in_pattern = set(matched.keys()) - all_pattern_nodes
             assert not nodes_not_in_pattern, (
@@ -589,7 +587,7 @@ class GenericPattern:
                 print(
                     f"[GenericPattern.match] iteration={iteration} "
                     f"n_matched={len(matched)}, n_stack={len(stack)}, "
-                    f"matched_types={collections.Counter(_.op_type for _ in matched)}"
+                    f"matched_types={collections.Counter(_.op_identifier() for _ in matched)}"
                 )
             pattern_node_from_stack = stack.pop()
             pattern_to_graph_node = matched[pattern_node_from_stack]
@@ -631,21 +629,21 @@ class GenericPattern:
             print(f"[GenericPattern.match] done. {len(matched)} matched nodes")
 
         # At this point, the pattern is matched but let's make sure.
-        assert len(matched) == len(match_pattern), (
+        assert len(matched) == len(pattern_graph), (
             f"Number of matched nodes is different, {len(matched)} matched nodes, "
-            f"and {len(match_pattern)} nodes in the pattern, matched is {matched}"
+            f"and {len(pattern_graph)} nodes in the pattern, matched is {matched}"
         )
         assert len(stack) == 0, f"There are still {len(stack)} nodes to explore."
 
         # We order the matched nodes in the same order than the pattern
         # to let next functions to be able to build the matching again.
-        matched_nodes = [matched[pattern_node] for pattern_node in match_pattern]
+        matched_nodes = [matched[pattern_node] for pattern_node in pattern_graph]
         return PatternMatchResult(
             self,
             matched_nodes,
-            tuple(match_pattern),
-            match_pattern.inputs,
-            match_pattern.outputs,
+            tuple(pattern_graph),
+            pattern_graph.inputs,
+            pattern_graph.outputs,
         )
 
     def make_rule(self) -> orp.RewriteRule:
@@ -678,9 +676,6 @@ class FunctionPattern(GenericPattern):
         self.apply_pattern = apply_pattern
         self.validate_mapping = validate_mapping
         self.verbose = verbose
-
-    def _get_match_pattern(self, *_, **__):
-        return self.match_pattern
 
 
 def _build_pattern(match_pattern_function: Callable) -> ir.Graph:
