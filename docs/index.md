@@ -6,6 +6,9 @@ myst:
 
 # ONNX Script
 
+For instructions on how to install **ONNX Script** refer to [ONNX Script Github Repo](https://github.com/microsoft/onnxscript)
+
+
 ## Overview
 
 {{ onnxscript }} enables developers to naturally author ONNX functions and
@@ -36,7 +39,8 @@ ONNX models and functions:
 Note that the runtime is intended to help understand and debug function definitions.
 Performance is not a goal here.
 
-### Example
+
+## Example
 
 The following toy example illustrates how to use onnxscript.
 
@@ -96,11 +100,11 @@ result = MatmulAdd(x, wt, bias)
 ```{toctree}
 :maxdepth: 1
 
+Overview <self>
 tutorial/index
 api/index
 intermediate_representation/index
 auto_examples/index
-rewriter/index
 articles/index
 ```
 

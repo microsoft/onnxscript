@@ -64,7 +64,9 @@ def matmul_pattern(op, input_a: ir.Value, input_b: ir.Value, **_):
 # =====================
 
 
-def check_if_need_reshape(input_a, input_b, shape_c, **_) -> bool:
+def check_if_need_reshape(
+    input_a: ir.Value, input_b: ir.Value, shape_c: ir.Value, **_
+) -> bool:
     """If matmul broadcasting is enough, then we don't need the reshapes.
 
     To validate this, we need to check the following:
@@ -89,7 +91,7 @@ def check_if_need_reshape(input_a, input_b, shape_c, **_) -> bool:
             shape_c.shape,
         )
         return False
-    shape_c = shape_c.tolist()
+    shape_c_list = shape_c.tolist()
 
     # NOTE: When there is a subset match with a pattern. The MatchResult won't have the shape
     # information. So, we need to check if the shape is None and return False.
@@ -161,10 +163,10 @@ def check_if_need_reshape(input_a, input_b, shape_c, **_) -> bool:
         broadcast_matmul_output_shape = broadcast_matmul_output_shape[:-1]
     if mimic_matmul_broadcast_behavior and dim_a == 2:
         broadcast_matmul_output_shape.pop(-2)
-    if shape_c != broadcast_matmul_output_shape:
+    if shape_c_list != broadcast_matmul_output_shape:
         logger.info(
             "Final output shape is not the same. Expected %s vs actual %s",
-            shape_c,
+            shape_c_list,
             broadcast_matmul_output_shape,
         )
         return False
