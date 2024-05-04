@@ -65,11 +65,6 @@ __all__ = [
     "OperatorIdentifier",
     # Protobuf compatible tensors
     "TensorProtoTensor",
-    "DoubleDataTensor",
-    "FloatDataTensor",
-    "Int32DataTensor",
-    "Int64DataTensor",
-    "UInt64DataTensor",
 ]
 
 from onnxscript.ir import serde
@@ -131,11 +126,4 @@ from onnxscript.ir._protocols import (
     TypeProtocol,
     ValueProtocol,
 )
-from onnxscript.ir.serde import (
-    DoubleDataTensor,
-    FloatDataTensor,
-    Int32DataTensor,
-    Int64DataTensor,
-    TensorProtoTensor,
-    UInt64DataTensor,
-)
+from onnxscript.ir.serde import TensorProtoTensor
