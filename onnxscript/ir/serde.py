@@ -61,7 +61,7 @@ import onnx
 import onnx.external_data_helper
 import onnx.numpy_helper
 
-from onnxscript.ir import _core, _enums, _metadata, _protocols, _type_casting
+from onnxscript.ir import _core, _enums, _metadata, _protocols
 
 if typing.TYPE_CHECKING:
     import google.protobuf.internal.containers as proto_containers
@@ -70,6 +70,15 @@ logger = logging.getLogger(__name__)
 _FUNCTION_VALUE_INFO_SUPPORTED_VERSION = (
     10  # ONNX IR version where value info in functions was introduced
 )
+
+
+def _small_endian_dtype(dtype) -> np.dtype:
+    """Create a small endian dtype on all platforms.
+
+    This is useful because ONNX always stores raw_data in small endian. On big
+    endian platforms, we still need to interpret the raw_data in small endian.
+    """
+    return np.dtype(dtype).newbyteorder("<")
 
 
 class TensorProtoTensor(_core.TensorBase):
@@ -121,7 +130,9 @@ class TensorProtoTensor(_core.TensorBase):
         if self._proto.HasField("raw_data"):
             return self._proto.raw_data
         if self._proto.float_data:
-            return np.array(self._proto.float_data, dtype=np.float32).tobytes()
+            return np.array(
+                self._proto.float_data, dtype=_small_endian_dtype(np.float32)
+            ).tobytes()
         if self._proto.int32_data:
             array = np.array(self._proto.int32_data, dtype=np.int32)
             if self.dtype in {
@@ -130,7 +141,7 @@ class TensorProtoTensor(_core.TensorBase):
                 _enums.DataType.FLOAT16,
                 _enums.DataType.BFLOAT16,
             }:
-                return array.astype(np.uint16).tobytes()
+                return array.astype(_small_endian_dtype(np.uint16)).tobytes()
             if self.dtype in {
                 _enums.DataType.INT8,
                 _enums.DataType.UINT8,
@@ -139,21 +150,26 @@ class TensorProtoTensor(_core.TensorBase):
                 _enums.DataType.FLOAT8E4M3FNUZ,
                 _enums.DataType.FLOAT8E5M2,
                 _enums.DataType.FLOAT8E5M2FNUZ,
+                _enums.DataType.INT4,
+                _enums.DataType.UINT4,
             }:
-                # TODO: Is BOOL the same as UINT8?
-                return array.astype(np.uint8).tobytes()
-            if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
-                return _type_casting.pack_int4(array).tobytes()
+                # uint4 and int4 values are already packed, even when stored as int32
+                # so we don't need to pack them again
+                return array.astype(_small_endian_dtype(np.uint8)).tobytes()
             assert self.dtype == _enums.DataType.INT32
             return array.tobytes()
         if self._proto.int64_data:
-            return np.array(self._proto.int64_data, dtype=np.int64).tobytes()
+            return np.array(
+                self._proto.int64_data, dtype=_small_endian_dtype(np.int64)
+            ).tobytes()
         if self._proto.double_data:
-            return np.array(self._proto.double_data, dtype=np.float64).tobytes()
+            return np.array(
+                self._proto.double_data, dtype=_small_endian_dtype(np.float64)
+            ).tobytes()
         if self._proto.uint64_data:
-            array = np.array(self._proto.uint64_data, dtype=np.uint64)
+            array = np.array(self._proto.uint64_data, dtype=_small_endian_dtype(np.uint64))
             if self.dtype == _enums.DataType.UINT32:
-                return array.astype(np.uint32).tobytes()
+                return array.astype(_small_endian_dtype(np.uint32)).tobytes()
             assert self.dtype == _enums.DataType.UINT64
             return array.tobytes()
         # The repeating fields can be empty and still valid.

@@ -52,7 +52,9 @@ class TensorProtoTensorTest(unittest.TestCase):
     def test_tensor_proto_tensor_int(self, _: str, dtype: int):
         tensor_proto = onnx.helper.make_tensor("test_tensor", dtype, [1, 4], [-1, 0, 1, 8])
         tensor = serde.TensorProtoTensor(tensor_proto)
-        expected_array = onnx.numpy_helper.to_array(tensor_proto)
+        expected_array = onnx.numpy_helper.to_array(
+            tensor_proto
+        )  # [-1, 0, 1, 7], 8 is clamped to 7
         np.testing.assert_array_equal(tensor.numpy(), expected_array)
         raw_data = tensor.tobytes()
         tensor_proto_from_raw_data = onnx.TensorProto(
@@ -102,6 +104,20 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         expected_array = onnx.numpy_helper.to_array(tensor_proto)
         tensor = serde.TensorProtoTensor(tensor_proto)
+        np.testing.assert_array_equal(tensor.numpy(), expected_array)
+        raw_data = tensor.tobytes()
+        tensor_proto_from_raw_data = onnx.TensorProto(
+            dims=tensor_proto.dims,
+            data_type=tensor_proto.data_type,
+            raw_data=raw_data,
+        )
+        array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
+        np.testing.assert_array_equal(array_from_raw_data, expected_array)
+
+    def test_tensor_proto_tensor_empty_tensor(self):
+        tensor_proto = onnx.helper.make_tensor("test_tensor", onnx.TensorProto.FLOAT, [0], [])
+        tensor = serde.TensorProtoTensor(tensor_proto)
+        expected_array = onnx.numpy_helper.to_array(tensor_proto)
         np.testing.assert_array_equal(tensor.numpy(), expected_array)
         raw_data = tensor.tobytes()
         tensor_proto_from_raw_data = onnx.TensorProto(

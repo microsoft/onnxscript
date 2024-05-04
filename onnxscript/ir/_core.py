@@ -175,25 +175,33 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
 def _check_numpy_representation_type(array: np.ndarray, dtype: _enums.DataType) -> None:
     """Check if the numpy array dtype matches the IR data type.
 
-    For numpy unsupported dtypes, the array must be ``np.float32``. Otherwise
-    the data types must match exactly.
+    When the dtype is not one of the numpy native dtypes, the value needs need to be:
 
-    The reason for requiring ``np.float32`` for unsupported dtypes, instead of
-    a byte representation like uint16 or uint8, is that users will not need to provide
-    the btype representation for the array when they want to initialize a Tensor,
-    and we will not need to cast the bytes back to float32 when users call :meth:`Tensor.numpy`
-    to obtain the array for computation and analysis.
-
-    The correct byte representation is only needed when the tensor is serialized,
-    which is done in the :meth:`Tensor.tobytes` method.
+    - ``int8`` or ``uint8`` for int4, with the sign bit extended to 8 bits.
+    - ``uint8`` for uint4.
+    - ``uint8`` for 8-bit data types.
+    - ``uint16`` for bfloat16
     """
     if dtype in _NON_NUMPY_NATIVE_TYPES:
-        if array.dtype != np.float32:
+        if dtype.itemsize == 2:
             # TODO(justinchuby): Support the storage dtypes like uint16 for bfloat16.
             raise TypeError(
-                f"The numpy array dtype must be float32 (not {dtype}) for IR data type {dtype}."
+                f"The numpy array dtype must be uint16 (not {array.dtype}) for IR data type {dtype}."
             )
-        # TODO(justinchuby): Check that the values are in range?
+        if dtype.itemsize == 1 and array.dtype != np.uint8:
+            raise TypeError(
+                f"The numpy array dtype must be uint8 (not {array.dtype}) for IR data type {dtype}."
+            )
+        if dtype == _enums.DataType.INT4:
+            if array.dtype not in (np.int8, np.uint8):
+                raise TypeError(
+                    f"The numpy array dtype must be int8 or uint8 (not {array.dtype}) for IR data type {dtype}."
+                )
+        if dtype == _enums.DataType.UINT4:
+            if array.dtype != np.uint8:
+                raise TypeError(
+                    f"The numpy array dtype must be uint8 (not {array.dtype}) for IR data type {dtype}."
+                )
         return
 
     if _enums.DataType.from_numpy(array.dtype) != dtype:
@@ -264,8 +272,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         Args:
             value: The backing data of the tensor. It can be a numpy array compatible object or a DLPack compatible object.
                 When the dtype is not one of the numpy native dtypes, the value needs
-                to be ``int8`` for ``INT4``; ``uint8`` for ``UNT4``; ``float32`` for ``BFLOAT16``,
-                ``FLOAT8E4M3FN``, ``FLOAT8E4M3FNUZ``, ``FLOAT8E5M2``, ``FLOAT8E5M2FNUZ``
+                to be ``uint8`` for 4-bit and 8-bit data types, and ``uint16`` for bfloat16
                 when the value is a numpy array; :param:`dtype` must be specified in this case.
             dtype: The data type of the tensor. It can be None only when value is a numpy array.
                 Users are responsible for making sure the dtype matches the value when value is not a numpy array.
@@ -351,7 +358,16 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         return self._raw  # type: ignore[return-value]
 
     def numpy(self) -> np.ndarray:
-        """Return the tensor as a numpy array."""
+        """Return the tensor as a numpy array.
+
+        When the data type is not supported by numpy, the value is the bit representation
+        of the dtype:
+
+        - ``int8`` for int4, with the sign bit extended to 8 bits.
+        - ``uint8`` for uint4.
+        - ``uint8`` for 8-bit data types like float8.
+        - ``uint16`` for bfloat16.
+        """
         if isinstance(self._raw, np.ndarray):
             return self._raw
         # We do not cache the value to save memory
@@ -365,20 +381,12 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         """
         # TODO(justinchuby): Support DLPack
         array = self.numpy()
-        if self.dtype in _NON_NUMPY_NATIVE_TYPES:
-            # Handle non-native numpy types by casting them to the correct byte representation
+        if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
+            # Pack the array into int4
             if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
                 array = _type_casting.pack_int4(array)
-            elif self.dtype == _enums.DataType.BFLOAT16:
-                array = _type_casting.float32_to_bfloat16(array)
-            elif self.dtype == _enums.DataType.FLOAT8E4M3FN:
-                array = _type_casting.float32_to_float8e4m3fn(array)
-            elif self.dtype == _enums.DataType.FLOAT8E4M3FNUZ:
-                array = _type_casting.float32_to_float8e4m3fnuz(array)
-            elif self.dtype == _enums.DataType.FLOAT8E5M2:
-                array = _type_casting.float32_to_float8e5m2(array)
-            elif self.dtype == _enums.DataType.FLOAT8E5M2FNUZ:
-                array = _type_casting.float32_to_float8e5m2fnuz(array)
+        else:
+            assert self.dtype.itemsize == array.itemsize, "Bug: The itemsize should match"
         if not _IS_LITTLE_ENDIAN:
             array = array.view(array.dtype.newbyteorder("<"))
         return array.tobytes()
