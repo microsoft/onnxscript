@@ -40,11 +40,27 @@ class TensorTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             _core.Tensor(torch_tensor)
 
-    def test_init_with_non_native_numpy_dtype(self):
-        float8e4m3fn = np.dtype((np.uint8, {"e4m3fn": (np.uint8, 0)}))
-        array = np.array([0b1, 0b11], dtype=float8e4m3fn)
-        tensor = _core.Tensor(array, dtype=_enums.DataType.FLOAT8E4M3FN)
-        self.assertEqual(tensor.dtype, _enums.DataType.FLOAT8E4M3FN)
+    @parameterized.parameterized.expand(
+        [
+            ("bfloat16", np.uint16, _enums.DataType.BFLOAT16),
+            (
+                "float8e4m3fn",
+                np.dtype((np.uint8, {"e4m3fn": (np.uint8, 0)})),
+                _enums.DataType.FLOAT8E4M3FN,
+            ),
+            ("float8e4m3fnuz", np.uint8, _enums.DataType.FLOAT8E4M3FNUZ),
+            ("float8e5m2", np.uint8, _enums.DataType.FLOAT8E5M2),
+            ("float8e5m2fnuz", np.uint8, _enums.DataType.FLOAT8E5M2FNUZ),
+            ("int4", np.int8, _enums.DataType.INT4),
+            ("int4_uint8", np.uint8, _enums.DataType.INT4),
+            ("uint4", np.uint8, _enums.DataType.UINT4),
+        ]
+    )
+    def test_init_with_non_native_numpy_dtype(self, _: str, np_dtype, dtype: _enums.DataType):
+        array = np.array([0b1, 0b11], dtype=np_dtype)
+        tensor = _core.Tensor(array, dtype=dtype)
+        self.assertEqual(tensor.dtype, dtype)
+        np.testing.assert_array_equal(tensor, array)
 
     def test_initialize_with_just_np_array(self):
         array = np.random.rand(1, 2)
