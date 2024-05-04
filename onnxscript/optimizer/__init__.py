@@ -6,10 +6,6 @@ import onnx.shape_inference
 
 from onnxscript import rewriter
 from onnxscript.optimizer.constant_folding import fold_constants
-from onnxscript.optimizer.copy_propagation import (
-    do_copy_propagation,
-    do_sequence_simplification,
-)
 from onnxscript.optimizer.remove_unused import remove_unused_nodes
 from onnxscript.optimizer.remove_unused_function import remove_unused_functions
 from onnxscript.optimizer.simple_function_folding import (
@@ -58,8 +54,12 @@ def optimize(
     for _ in range(num_iterations):
         if onnx_shape_inference:
             if model.ByteSize() < 1024 * 1024 * 1024 * 2:
+                # NOTE: strict mode is disabled because it crashes on the models
+                # that have different shapes inferred from the model carried shapes.
+                # The case can be found in:
+                # https://github.com/microsoft/onnxscript/issues/1443
                 model = onnx.shape_inference.infer_shapes(
-                    model, check_type=True, strict_mode=True, data_prop=True
+                    model, check_type=True, strict_mode=False, data_prop=True
                 )
             else:
                 logger.warning(
@@ -104,7 +104,6 @@ def optimize(
                 node.name,
             )
 
-    # do_sequence_simplification(model)
     return model
 
 
@@ -112,6 +111,4 @@ __all__ = [
     "fold_constants",
     "remove_unused_nodes",
     "optimize",
-    "do_copy_propagation",
-    "do_sequence_simplification",
 ]

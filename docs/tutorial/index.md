@@ -6,6 +6,13 @@ myst:
 
 # Tutorial
 
+## Welcome to ONNX Script Tutorials
+
+For extended tutorials on how to use the **Optimizer** and **Rewriter** tools, refer to the relevant sub-sections within the Tutorial section.
+- <project:optimizer/optimize.md>
+- <project:rewriter/rewrite_patterns.md>
+
+
 In this tutorial, we illustrate the features supported by {{ onnxscript }} using examples.
 
 ## Basic Features
@@ -257,3 +264,11 @@ ONNX perspective, the two assignments to *g* represent two distinct tensors
 
 ```{literalinclude} examples/outerscope_redef_error.py
 ```
+
+```{toctree}
+:maxdepth: 1
+
+optimizer/index
+rewriter/index
+```
+
