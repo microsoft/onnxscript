@@ -159,6 +159,11 @@ class TensorProtoTensor(_core.TensorBase):
         dtype = self.dtype
         if dtype == _enums.DataType.UNDEFINED:
             raise ValueError("Cannot convert UNDEFINED tensor to numpy array.")
+        if self._proto.data_location == onnx.TensorProto.EXTERNAL:
+            raise ValueError(
+                "Cannot convert external tensor to numpy array. "
+                "Use ir.ExternalTensor instead."
+            )
 
         if self._proto.HasField("raw_data"):
             array = np.frombuffer(self._proto.raw_data, dtype=dtype.numpy().newbyteorder("<"))
@@ -203,7 +208,9 @@ class TensorProtoTensor(_core.TensorBase):
             ValueError: If the tensor is of UNDEFINED data type.
         """
         if self._proto.data_location == onnx.TensorProto.EXTERNAL:
-            raise ValueError("Cannot convert external tensor to bytes.")
+            raise ValueError(
+                "Cannot convert external tensor to bytes. Use ir.ExternalTensor instead."
+            )
         if self.dtype == _enums.DataType.STRING:
             raise ValueError("Cannot convert string tensor to bytes.")
         if self.dtype == _enums.DataType.UNDEFINED:
