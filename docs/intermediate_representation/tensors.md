@@ -69,85 +69,6 @@ To create a tensor from objects other than NumPy array, you need to specify the 
     print(tensor.numpy())  # array([1., 2., 3.], dtype=float16)
 ```
 
-### Subclass ir.Tensor for More Efficient Access and Broader dtype Support
-
-{py:class}`ir.Tensor` internally converts any array compatible objects into NumPy arrays to produce the byte representation in `tobytes()`. This can be inefficient due to the additional conversion. It also limits support for dtypes not supported by NumPy like bfloat16, because the `__array__` method would fail.
-
-To fully support arrays from other frameworks, it is usually a good idea to create specialized classes to handle them. The `TorchTensor` class below demonstrates how you can subclass `ir.Tensor` to handle PyTorch tensors:
-
-```{eval-rst}
-.. exec_code::
-
-    import ctypes
-    from typing import Any
-
-    import torch
-    from onnxscript import ir
-
-    # Define utilities to convert PyTorch data types so users do not need to specify manually
-    _TORCH_DTYPE_TO_ONNX: dict[torch.dtype, ir.DataType] = {
-        torch.bfloat16: ir.DataType.BFLOAT16,
-        torch.bool: ir.DataType.BOOL,
-        torch.complex128: ir.DataType.COMPLEX128,
-        torch.complex64: ir.DataType.COMPLEX64,
-        torch.float16: ir.DataType.FLOAT16,
-        torch.float32: ir.DataType.FLOAT,
-        torch.float64: ir.DataType.DOUBLE,
-        torch.float8_e4m3fn: ir.DataType.FLOAT8E4M3FN,
-        torch.float8_e4m3fnuz: ir.DataType.FLOAT8E4M3FNUZ,
-        torch.float8_e5m2: ir.DataType.FLOAT8E5M2,
-        torch.float8_e5m2fnuz: ir.DataType.FLOAT8E5M2FNUZ,
-        torch.int16: ir.DataType.INT16,
-        torch.int32: ir.DataType.INT32,
-        torch.int64: ir.DataType.INT64,
-        torch.int8: ir.DataType.INT8,
-        torch.uint8: ir.DataType.UINT8,
-    }
-
-
-    def _torch_dtype_to_onnx_dtype(dtype: torch.dtype) -> ir.DataType:
-        return _TORCH_DTYPE_TO_ONNX[dtype]
-
-    class TorchTensor(ir.Tensor):
-        def __init__(self, tensor: torch.Tensor):
-            # Pass the tensor as the raw data to ir.Tensor's constructor
-            super().__init__(tensor, dtype=_torch_dtype_to_onnx_dtype(tensor.dtype))
-
-        def __array__(self, dtype: Any = None) -> "np.ndarray":
-            # numpy() calls __array__ in ir.Tensor
-            if self.dtype == ir.DataType.BFLOAT16:
-                return self.raw.view(torch.uint16).__array__(dtype)
-            if self.dtype in {
-                ir.DataType.FLOAT8E4M3FN,
-                ir.DataType.FLOAT8E4M3FNUZ,
-                ir.DataType.FLOAT8E5M2,
-                ir.DataType.FLOAT8E5M2FNUZ
-            }:
-                return self.raw.view(torch.uint8).__array__(dtype)
-            return self.raw.__array__(dtype)
-
-        def tobytes(self) -> bytes:
-            # Implement tobytes to support native PyTorch types so we can use types like bloat16
-            # Reading from memory directly is also more efficient because
-            # it avoids the copy to NumPy array
-            tensor = self.raw.detach().cpu().contiguous()
-            return bytes(
-                (ctypes.c_ubyte * tensor.element_size() * tensor.numel()).from_address(
-                    tensor.data_ptr()
-                )
-            )
-
-    # Test the implementation
-    torch_tensor = torch.tensor([1,2,3], dtype=torch.bfloat16)
-    tensor = TorchTensor(torch_tensor)
-    print("tensor: ", tensor)
-    print("numpy: ", tensor.numpy())
-    print("tobytes: ", tensor.tobytes())  # b'\x80?\x00@@@'
-    print("nbytes: ", tensor.nbytes)  # 6
-```
-
-The `TorchTensor` class above implements `tobytes()` to produce the correct bytes representation for the tensor when it is serialized into an ONNX file / TensorProto. The class also implements the `__array__()` method to return float32 for types NumPy does not support. This way analysis passes can still perform computation on these values.
-
 ### String Tensor
 
 Use {py:class}`ir.StringTensor <onnxscript.ir.StringTensor>` to create a string tensor.
@@ -270,6 +191,85 @@ The following example shows how to create a `FLOAT8E4M3FN` tensor, transform its
 ```
 
 ## Advanced usage
+
+### Subclass ir.Tensor for More Efficient Access and Broader dtype Support
+
+{py:class}`ir.Tensor` internally converts any array compatible objects into NumPy arrays to produce the byte representation in `tobytes()`. This can be inefficient due to the additional conversion. It also limits support for dtypes not supported by NumPy like bfloat16, because the `__array__` method would fail.
+
+To fully support arrays from other frameworks, it is usually a good idea to create specialized classes to handle them. The `TorchTensor` class below demonstrates how you can subclass `ir.Tensor` to handle PyTorch tensors:
+
+```{eval-rst}
+.. exec_code::
+
+    import ctypes
+    from typing import Any
+
+    import torch
+    from onnxscript import ir
+
+    # Define utilities to convert PyTorch data types so users do not need to specify manually
+    _TORCH_DTYPE_TO_ONNX: dict[torch.dtype, ir.DataType] = {
+        torch.bfloat16: ir.DataType.BFLOAT16,
+        torch.bool: ir.DataType.BOOL,
+        torch.complex128: ir.DataType.COMPLEX128,
+        torch.complex64: ir.DataType.COMPLEX64,
+        torch.float16: ir.DataType.FLOAT16,
+        torch.float32: ir.DataType.FLOAT,
+        torch.float64: ir.DataType.DOUBLE,
+        torch.float8_e4m3fn: ir.DataType.FLOAT8E4M3FN,
+        torch.float8_e4m3fnuz: ir.DataType.FLOAT8E4M3FNUZ,
+        torch.float8_e5m2: ir.DataType.FLOAT8E5M2,
+        torch.float8_e5m2fnuz: ir.DataType.FLOAT8E5M2FNUZ,
+        torch.int16: ir.DataType.INT16,
+        torch.int32: ir.DataType.INT32,
+        torch.int64: ir.DataType.INT64,
+        torch.int8: ir.DataType.INT8,
+        torch.uint8: ir.DataType.UINT8,
+    }
+
+
+    def _torch_dtype_to_onnx_dtype(dtype: torch.dtype) -> ir.DataType:
+        return _TORCH_DTYPE_TO_ONNX[dtype]
+
+    class TorchTensor(ir.Tensor):
+        def __init__(self, tensor: torch.Tensor):
+            # Pass the tensor as the raw data to ir.Tensor's constructor
+            super().__init__(tensor, dtype=_torch_dtype_to_onnx_dtype(tensor.dtype))
+
+        def __array__(self, dtype: Any = None) -> "np.ndarray":
+            # numpy() calls __array__ in ir.Tensor
+            if self.dtype == ir.DataType.BFLOAT16:
+                return self.raw.view(torch.uint16).__array__(dtype)
+            if self.dtype in {
+                ir.DataType.FLOAT8E4M3FN,
+                ir.DataType.FLOAT8E4M3FNUZ,
+                ir.DataType.FLOAT8E5M2,
+                ir.DataType.FLOAT8E5M2FNUZ
+            }:
+                return self.raw.view(torch.uint8).__array__(dtype)
+            return self.raw.__array__(dtype)
+
+        def tobytes(self) -> bytes:
+            # Implement tobytes to support native PyTorch types so we can use types like bloat16
+            # Reading from memory directly is also more efficient because
+            # it avoids the copy to NumPy array
+            tensor = self.raw.detach().cpu().contiguous()
+            return bytes(
+                (ctypes.c_ubyte * tensor.element_size() * tensor.numel()).from_address(
+                    tensor.data_ptr()
+                )
+            )
+
+    # Test the implementation
+    torch_tensor = torch.tensor([1,2,3], dtype=torch.bfloat16)
+    tensor = TorchTensor(torch_tensor)
+    print("tensor: ", tensor)
+    print("numpy: ", tensor.numpy())
+    print("tobytes: ", tensor.tobytes())  # b'\x80?\x00@@@'
+    print("nbytes: ", tensor.nbytes)  # 6
+```
+
+The `TorchTensor` class above implements `tobytes()` to produce the correct bytes representation for the tensor when it is serialized into an ONNX file / TensorProto. The class also implements the `__array__()` method to return float32 for types NumPy does not support. This way analysis passes can still perform computation on these values.
 
 ### Computation with different Frameworks
 
