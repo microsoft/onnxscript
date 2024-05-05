@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import unittest
 
 import torch
@@ -25,6 +26,16 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
         # does not check for initializers.
         self.onnxscript_graph = graph_building.TorchScriptGraph()
         self.tracer = graph_building.TorchScriptTracingEvaluator(self.onnxscript_graph)
+
+    def test_torchscript_tensor_keeps_torch_device(self):
+        x_tensor = torch.ones((1, 2, 3), dtype=torch.float32)
+        x = self.onnxscript_graph.add_input(
+            "x", x_tensor.shape, x_tensor.dtype, x_tensor.device
+        )
+        self.assertEqual(x.device, x_tensor.device)
+
+        x.device = torch.device("cuda")
+        self.assertEqual(x.device, torch.device("cuda"))
 
     def test_traced_constant_op_is_same_as_compiled_graph(self):
         """Test for op.Constant created in graph builder"""
@@ -159,6 +170,10 @@ class _MLP(torch.nn.Module):
 @unittest.skipIf(
     IS_WINDOWS and version_utils.torch_older_than("2.3"),
     "dynamo_export not supported on Windows in PyTorch<2.3",
+)
+@unittest.skipIf(
+    sys.version_info > (3, 11),
+    "dynamo_export not supported due to torch.compile not functional for python>3.11",
 )
 class TestModelSaving(unittest.TestCase):
     def test_save_initializer_to_files_for_large_model(self):
