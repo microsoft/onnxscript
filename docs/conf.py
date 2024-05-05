@@ -33,6 +33,7 @@ extensions = [
     "sphinx.ext.doctest",
     "sphinx.ext.napoleon",
     "sphinx_copybutton",
+    "sphinx_exec_code",
 ]
 
 myst_enable_extensions = [
