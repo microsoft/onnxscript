@@ -79,7 +79,7 @@ Use {py:class}`ir.StringTensor <onnxscript.ir.StringTensor>` to create a string 
 
 Sparse tensors are not yet supported, but they are on our roadmap.
 
-## From and to `TensorProto`s
+## From `TensorProto`s and back
 
 In the following scenario, we show how to go from a `TensorProto` to an `ir.Tensor`, run some computation, then turn it back to an `ir.Tensor` and finally `TensorProto`
 
