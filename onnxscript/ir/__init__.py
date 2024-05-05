@@ -60,6 +60,8 @@ __all__ = [
     "DataType",
     # Types
     "OperatorIdentifier",
+    # Protobuf compatible types
+    "TensorProtoTensor",
 ]
 
 from onnxscript.ir import serde
@@ -118,3 +120,4 @@ from onnxscript.ir._protocols import (
     TypeProtocol,
     ValueProtocol,
 )
+from onnxscript.ir.serde import TensorProtoTensor
