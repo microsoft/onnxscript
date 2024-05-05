@@ -4,7 +4,7 @@ The ONNX IR offers the {py:class}`ir.TensorProtocol <onnxscript.ir.TensorProtoco
 
 ## The `TensorProtocol`
 
-{py:class}`ir.TensorProtocol <onnxscript.ir.TensorProtocol>` defines a read-only interface for representing tensors. A tensor class implementing the interface has attributes like `name`, `shape`, `dtype`, `size`, `nbytes` and `metadata_props` to describe basic properties of the tensor. Additionally, it implements two methods {py:meth}`numpy <onnxscript.ir.TensorProtocol.numpy>` and {py:meth}`__array__  <onnxscript.ir.TensorProtocol.__array__>` which will produce equivalent NumPy arrays from the backing data.
+{py:class}`ir.TensorProtocol <onnxscript.ir.TensorProtocol>` defines a read-only interface for representing tensors. A tensor class implementing the interface has attributes like `name`, `shape`, `dtype`, `size`, `nbytes` and `metadata_props` to describe basic properties of the tensor. Additionally, it should implement two methods {py:meth}`numpy <onnxscript.ir.TensorProtocol.numpy>` and {py:meth}`__array__  <onnxscript.ir.TensorProtocol.__array__>` which will produce equivalent NumPy arrays from the backing data.
 
 :::{note}
 When interacting with initializers, constant values and tensor attributes, it is best to assume `TensorProtocol` and only use `isinstance` to check for concrete classes when there is a need.
@@ -20,12 +20,13 @@ We use the {py:class}`ir.TensorProtoTensor <onnxscript.ir.TensorProtoTensor>` as
 
 ```{eval-rst}
 .. exec_code::
+
     import onnx
     from onnxscript import ir
 
     tensor_proto = onnx.helper.make_tensor("tensor", onnx.TensorProto.INT16, (3,), [1, 2, 3])
     tensor = ir.TensorProtoTensor(tensor_proto)
-    print(tensor: ", tensor)  # TensorProtoTensor<INT16,[3]>(name='tensor')
+    print("tensor: ", tensor)  # TensorProtoTensor<INT16,[3]>(name='tensor')
     print("shape: ", tensor.shape)  # ir.Shape([3])
     print("dtype: ", tensor.dtype)  # ir.DataType.INT16
     print(tensor.raw == tensor_proto)  # The raw field is the exact tensor_proto provided at initialization
@@ -59,9 +60,9 @@ To create a tensor from objects other than NumPy array, you need to specify the 
 
 ```{eval-rst}
 .. exec_code::
+
     import torch
     from onnxscript import ir
-
 
     torch_tensor = torch.tensor([1, 2, 3], dtype=torch.float16)
     tensor = ir.Tensor(torch_tensor, dtype=ir.DataType.FLOAT16)
@@ -76,6 +77,7 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
 
 ```{eval-rst}
 .. exec_code::
+
     import ctypes
     from typing import Any
 
@@ -148,8 +150,7 @@ The `TorchTensor` class above implements `tobytes()` to produce the correct byte
 
 ### String Tensor
 
-Use class:`ir.StringTensor` to create a string tensor.
-
+Use {py:class}`ir.StringTensor <onnxscript.ir.StringTensor>` to create a string tensor.
 
 <!-- TODO(justinchuby): Document make tensor helper -->
 
@@ -157,6 +158,107 @@ Use class:`ir.StringTensor` to create a string tensor.
 
 Sparse tensors are not yet supported, but they are on our roadmap.
 
+## From and to `TensorProto`s
+
+In the following scenario, we show how to go from a `TensorProto` to an `ir.Tensor`, run some computation, then turn it back to an `ir.Tensor` and finally `TensorProto`
+
+```{eval-rst}
+.. exec_code::
+
+    from onnxscript import ir
+    import onnx
+    import numpy as np
+
+    # 1. Create the TensorProto
+    proto = onnx.helper.make_tensor(
+        "tensor", onnx.TensorProto.FLOAT16, [2, 3], [1, 2, 3, 4, 5, 6]
+    )
+
+    # 2. Create an IR Tensor from the Protobuf message
+    tensor = ir.serde.deserialize_tensor(proto)
+    # Note that we get a TensorProtoTensor that implements the TensorProtocol
+    print("tensor:", tensor)  # TensorProtoTensor<FLOAT16,[2,3]>(name='tensor')
+    print("tensor.numpy():", tensor.numpy())   # [[1. 2. 3.]
+                                               #  [4. 5. 6.]]
+    print("tensor.tobytes():", tensor.tobytes())  # b'\x00<\x00@\x00B\x00D\x00E\x00F'
+
+    # 3. Do computation using numpy
+    mean = tensor.numpy().mean(axis=0)
+    print("mean:", mean)  # array([2.5, 3.5, 4.5], dtype=float16)
+
+    # 4. Create a Tensor from the ndarray. Note that we use ir.Tensor
+    tensor_mean = ir.Tensor(mean)
+    print("tensor_mean:", tensor_mean)  # Tensor<FLOAT16,[3]>(array([2.5, 3.5, 4.5], dtype=float16), name='')
+
+    # 5. Obtain the TensorProto from ir.Tensor
+    mean_tensor_proto: onnx.TensorProto = ir.serde.serialize_tensor(tensor_mean)
+    print("mean_tensor_proto:", mean_tensor_proto)
+    print(
+        "onnx.numpy_helper.to_array(mean_tensor_proto):",
+        onnx.numpy_helper.to_array(mean_tensor_proto)
+        # array([2.5, 3.5, 4.5], dtype=float16)
+    )
+
+    # You can obtain the bytes data as well
+    print("tensor_mean.tobytes():", tensor_mean.tobytes())
+
+    # Explore other methods defined by TensorProtocol:
+    print("\n# Explore other methods defined by TensorProtocol:")
+    print("tensor_mean.shape:", tensor_mean.shape)
+    print("tensor_mean.dtype:", tensor_mean.dtype)
+    print("tensor_mean.name:", tensor_mean.name)
+    print("tensor_mean.doc_string:", tensor_mean.doc_string)
+    print("tensor_mean.raw:", tensor_mean.raw)
+    print("tensor_mean.metadata_props:", tensor_mean.metadata_props)
+    print("tensor_mean.size:", tensor_mean.size)
+    print("tensor_mean.nbytes:", tensor_mean.nbytes)
+    print("tensor_mean.raw:", tensor_mean.raw)
+    print("\nUse the display() method to view the tensor")
+    tensor_mean.display()
+```
+
 ## Advanced usage
 
-Since `ir.Tensor`
+Since `ir.Tensor` implements the `__array__` method and `__dlpack__` methods, its content can be shared with computation frameworks without copying. For example:
+
+```{eval-rst}
+.. exec_code::
+
+    from onnxscript import ir
+
+    # We can call numpy methods directly on ir.Tensor
+    import numpy as np
+    print(np.multiply(ir.Tensor(np.array([1, 2])), 42))  # array([42., 84.])
+
+    # We can transfer arrays to different frameworks
+    import jax.numpy as jnp
+    import jax
+    import torch
+
+    # Create ir.Tensor
+    jax_array = jnp.array([10., 20.])
+    ir_tensor_jax = ir.Tensor(jax_array, dtype=ir.DataType.FLOAT)
+    torch_tensor = torch.tensor([30., 40.])
+    ir_tensor_torch = ir.Tensor(torch_tensor, dtype=ir.DataType.FLOAT)
+
+    # Use numpy for computation
+    print(np.multiply(ir_tensor_jax, ir_tensor_torch))  # array([300., 800.], dtype=float32)
+
+    # Use jax for computation by calling from_dlpack to transfer the tensor data without copying
+    jax_array_from_ir = jax.dlpack.from_dlpack(ir_tensor_torch)
+    print(jax_array_from_ir + jax_array)  # [40. 60.]
+
+    # Use PyTorch for computation
+    torch_tensor_from_ir = torch.from_dlpack(ir_tensor_jax)
+    print(torch_tensor_from_ir - torch_tensor)  # tensor([-20., -20.])
+
+    # They can all be serialized into TensorProto
+    proto = ir.serde.serialize_tensor(ir_tensor_jax)
+    print(type(proto))  # <class 'onnx.onnx_ml_pb2.TensorProto'>
+    print(proto)
+
+    # The value is exactly the same as jax_array
+    print(ir.serde.deserialize_tensor(proto).numpy())  # [10. 20.]
+```
+
+This is particularly useful if you are creating passes on the graph that requires doing computation on concrete values. You are free to use your favorite frameworks to create the passes. The transformed graph that contains newly created `ir.Tensor`s will be compatible with downstream passes even if they leverage other computation frameworks.

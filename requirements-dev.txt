@@ -12,6 +12,7 @@ myst-parser[linkify]
 sphinx-copybutton
 sphinx-gallery
 sphinx>=6
+jax
 
 # Torch lib
 beartype!=0.16.0
