@@ -190,7 +190,7 @@ The following example shows how to create a `FLOAT8E4M3FN` tensor, transform its
 
 ```
 
-## Advanced usage
+## Advanced Usage
 
 ### Subclass ir.Tensor for More Efficient Access and Broader dtype Support
 
