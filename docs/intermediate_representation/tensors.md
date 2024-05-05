@@ -269,7 +269,7 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
     print("nbytes: ", tensor.nbytes)  # 6
 ```
 
-The `TorchTensor` class above implements `tobytes()` to produce the correct bytes representation for the tensor when it is serialized into an ONNX file / TensorProto. The class also implements the `__array__()` method to return float32 for types NumPy does not support. This way analysis passes can still perform computation on these values.
+The `TorchTensor` class above implements `tobytes()` to produce the correct bytes representation for the tensor when it is serialized into an ONNX file / TensorProto. The class also implements the `__array__()` method to return the bit representation for types NumPy does not support. This way analysis passes can still perform computation on these values.
 
 ### Computation with different Frameworks
 
