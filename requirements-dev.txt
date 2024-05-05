@@ -7,13 +7,14 @@ rich>=13.7.1
 
 # Docs site
 furo
+jax
 matplotlib
+ml_dtypes
 myst-parser[linkify]
 sphinx-copybutton
+sphinx-exec-code
 sphinx-gallery
 sphinx>=6
-jax
-ml_dtypes
 
 # Torch lib
 beartype!=0.16.0
