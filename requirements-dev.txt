@@ -7,7 +7,7 @@ rich>=13.7.1
 
 # Docs site
 furo
-jax
+jax[cpu]
 matplotlib
 ml_dtypes
 myst-parser[linkify]
