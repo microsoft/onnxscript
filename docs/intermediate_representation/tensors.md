@@ -218,7 +218,60 @@ In the following scenario, we show how to go from a `TensorProto` to an `ir.Tens
     tensor_mean.display()
 ```
 
+## Working with non-native NumPy dtypes: bfloat16, float8, int4
+
+`ir.Tensor.numpy()` produces a NumPy array representation of the tensor's value. When the tensor has dtype `BFLOAT16`, `FLOAT8[...]` or `[U]INT4` which are not supported by NumPy, the value is the bit representation for the dtype:
+
+- `int8` for (unpacked) int4, with the sign bit extended to 8 bits.
+- `uint8` for (unpacked) uint4.
+- `uint8` for 8-bit data types like float8.
+- `uint16` for bfloat16.
+
+uint4/int4 is always unpacked; `tobyte()` produces a packed representation as expected.
+
+Initialization of `ir.Tensor` requires the NumPy array to follow these typing constraints as well.
+
+:::{tip}
+You can use the [ml_dtypes package](https://github.com/jax-ml/ml_dtypes) to extend NumPy and work with these values.
+
+```bash
+pip install --upgrade ml_dtypes
+```
+
+:::
+
+The following example shows how to create a `FLOAT8E4M3FN` tensor, transform its values, and create a new tensor to store the transformed values.
+
+```{eval-rst}
+.. exec_code::
+
+    from onnxscript import ir
+    import numpy as np
+
+    array = np.array([0b1, 0b11], dtype=np.uint8)
+    tensor = ir.Tensor(array, dtype=ir.DataType.FLOAT8E4M3FN)
+    print(tensor)  # Tensor<FLOAT8E4M3FN,[2]>(array([1, 3], dtype=uint8), name='')
+    print("tensor.numpy():", tensor.numpy())  # array([1, 3], dtype=uint8)
+
+    # You can use the ml_dtypes package to work with these values in NumPy
+    import ml_dtypes
+    float8_array = tensor.numpy().view(ml_dtypes.float8_e4m3fn)
+    print("float8_array:", float8_array)  # array([0.00195312, 0.00585938], dtype='float8_e4m3fn')
+
+    # Compute
+    times_100 = float8_array * 100
+    print("times_100:", times_100)
+
+    # Create a new tensor out of the new value; dtype must be specified
+    new_tensor = ir.Tensor(times_100.view(np.uint8), dtype=ir.DataType.FLOAT8E4M3FN)
+    print("new_tensor:", new_tensor)  # Tensor<FLOAT8E4M3FN,[2]>(array([36, 49], dtype=uint8), name='')
+    print("new_tensor == times_100", new_tensor.numpy().view(ml_dtypes.float8_e4m3fn) == times_100)  # array([ True,  True])
+
+```
+
 ## Advanced usage
+
+### Computation with different Frameworks
 
 Since `ir.Tensor` implements the `__array__` method and `__dlpack__` methods, its content can be shared with computation frameworks without copying. For example:
 
@@ -245,7 +298,7 @@ Since `ir.Tensor` implements the `__array__` method and `__dlpack__` methods, it
     # Use numpy for computation
     print(np.multiply(ir_tensor_jax, ir_tensor_torch))  # array([300., 800.], dtype=float32)
 
-    # Use jax for computation by calling from_dlpack to transfer the tensor data without copying
+    # Use jax for computation by calling from_dlpack to transfer the tensor data without copying when the device is the same
     jax_array_from_ir = jax.dlpack.from_dlpack(ir_tensor_torch)
     print(jax_array_from_ir + jax_array)  # [40. 60.]
 

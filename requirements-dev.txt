@@ -13,6 +13,7 @@ sphinx-copybutton
 sphinx-gallery
 sphinx>=6
 jax
+ml_dtypes
 
 # Torch lib
 beartype!=0.16.0
