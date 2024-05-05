@@ -245,7 +245,7 @@ class RewriteRuleTest(unittest.TestCase):
             del newshape  # Unused
             return op.Identity(x)
 
-        def _check_for_redundant_reshape(x, newshape):
+        def check_for_redundant_reshape(x, newshape):
             oldshape = x.shape
             newshape = _ir_utils.propagate_const_value(newshape)
             newshape = _ir_utils.get_numpy_from_ir_value(newshape)
@@ -256,9 +256,6 @@ class RewriteRuleTest(unittest.TestCase):
             if len(oldshape) != len(newshape):
                 return False
             return all(not (d1 != d2 and d2 != -1) for d1, d2 in zip(oldshape, newshape))  # pylint: disable=consider-using-in
-
-        def check_for_redundant_reshape(bindings):
-            return _check_for_redundant_reshape(**bindings)
 
         rule = pattern.RewriteRule(reshape, identity, check_for_redundant_reshape)
 
