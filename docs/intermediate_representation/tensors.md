@@ -201,6 +201,7 @@ In the following scenario, we show how to go from a `TensorProto` to an `ir.Tens
 
     # You can obtain the bytes data as well
     print("tensor_mean.tobytes():", tensor_mean.tobytes())
+    print("Bytes same as proto:", mean_tensor_proto.raw_data == tensor_mean.tobytes())
 
     # Explore other methods defined by TensorProtocol:
     print("\n# Explore other methods defined by TensorProtocol:")
