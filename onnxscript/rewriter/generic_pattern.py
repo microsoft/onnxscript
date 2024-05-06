@@ -42,43 +42,35 @@ class PatternMatchResult:
         self.pattern_outputs = pattern_outputs
         self.kwargs: dict[str, Any] = {}
 
-        matched_pattern_to_model_value: dict[str, ir.Value] = {}
-        for gn, pn in zip(model_nodes, pattern_nodes):
+        self.matched_pattern_to_model_value: dict[orp.ValuePattern, ir.Value] = {}
+        for graph_node, pattern_node in zip(model_nodes, pattern_nodes):
             assert (
-                gn.op_identifier() == pn.op_identifier()
-            ), f"Unexpected type mismatch {gn.op_identifier()!r} != {pn.op_identifier()!r}"
-            assert len(gn.inputs) == len(
-                pn.inputs
-            ), f"Unexpected number of inputs for type {gn.op_identifier()}"
-            for a, b in zip(gn.inputs, pn.inputs):
+                graph_node.op_identifier() == pattern_node.op_identifier()
+            ), f"Unexpected type mismatch {graph_node.op_identifier()!r} != {pattern_node.op_identifier()!r}"
+            assert len(graph_node.inputs) == len(
+                pattern_node.inputs
+            ), f"Unexpected number of inputs for type {graph_node.op_identifier()}"
+            for a, b in zip(graph_node.inputs, pattern_node.inputs):
                 if b is None:
                     # optional input or not an interesting input
                     continue
-                b_name = b.name
-                assert b_name is not None
-                if b_name in matched_pattern_to_model_value:
-                    assert matched_pattern_to_model_value[b_name] == a, (
-                        f"Ambiguities, pattern input '{b_name}' means "
-                        f"'{a!r}' or '{matched_pattern_to_model_value[b_name]}'"
-                    )
-                else:
-                    matched_pattern_to_model_value[b_name] = a
+                self._bind(b, a)
 
-            assert len(gn.outputs) == len(
-                pn.outputs
-            ), f"Unexpected number of outputs for type {gn.op_identifier()}"
-            for a, b in zip(gn.outputs, pn.outputs):
-                b_name = b.name
-                assert b_name is not None
-                if b_name in matched_pattern_to_model_value:
-                    assert matched_pattern_to_model_value[b_name] == a, (
-                        f"Ambiguities, pattern output {b_name!r} means "
-                        f"{a!r} or {matched_pattern_to_model_value[b_name]}"
-                    )
-                else:
-                    matched_pattern_to_model_value[b_name] = a
+            assert len(graph_node.outputs) == len(
+                pattern_node.outputs
+            ), f"Unexpected number of outputs for type {graph_node.op_identifier()}"
+            for a, b in zip(graph_node.outputs, pattern_node.outputs):
+                self._bind(b, a)
 
-        self.matched_pattern_to_model_value = matched_pattern_to_model_value
+    def _bind(self, value_pattern: orp.ValuePattern, value: ir.Value) -> None:
+        map = self.matched_pattern_to_model_value
+        if value_pattern in map:
+            assert map[value_pattern] == value, (
+                f"Ambiguities, pattern output {value_pattern!r} means "
+                f"{value!r} or {map[value_pattern]}"
+            )
+        else:
+            map[value_pattern] = value
 
     def add_kwargs(self, name: str, value: Any):
         """Adds an attribute, it can be done when the match is being validated,
@@ -102,10 +94,9 @@ def _to_match_result(pmr: PatternMatchResult) -> orp.MatchResult:
     result = orp.MatchResult(success=True)
     result.nodes.extend(pmr.model_nodes)
     for var, val in pmr.matched_pattern_to_model_value.items():
-        result.bind(var, val)
-    result.outputs.extend(
-        [pmr.matched_pattern_to_model_value[v.name] for v in pmr.pattern_outputs]
-    )
+        if var.name is not None:
+            result.bind(var.name, val)
+    result.outputs.extend([pmr.matched_pattern_to_model_value[v] for v in pmr.pattern_outputs])
     return result
 
 
@@ -300,7 +291,7 @@ class GenericPattern:
 
     def _match_backward(
         self,
-        node: ir.Node,
+        starting_node: ir.Node,
         matched: dict[ir.Node, ir.Node],
         stack: list[ir.Node],
         graph_node: ir.Node,
@@ -310,7 +301,7 @@ class GenericPattern:
         Matches backward.
 
         Args:
-            node: root node (the node the matched begain with, used only for debugging)
+            starting_node: root node (the node the matched begain with, used only for debugging)
             matched: nodes of the pattern matched as already matched
             stack: next node to look into
             graph_node: node coming from the graph
@@ -331,31 +322,34 @@ class GenericPattern:
                 "-- model",
                 graph_node,
             )
-            return self.none(node, inspect.currentframe().f_lineno)
-        for i, pi in zip(graph_node.inputs, pattern_node.inputs):
-            ppred = pi.producer()
-            if ppred is None:
-                # ppred is None means the pattern ends here.
+            return self.none(starting_node, inspect.currentframe().f_lineno)
+        for graph_value, pattern_value in zip(graph_node.inputs, pattern_node.inputs):
+            # TODO(rama): Handle constant-pattern
+            pattern_pred = pattern_value.producer()
+            if pattern_pred is None:
+                # pattern_pred is None means the pattern ends here.
                 continue
-            pred = i.producer()
-            if pred is None:
+            graph_pred = graph_value.producer()
+            if graph_pred is None:
                 # No node in the graph.
-                return self.none(node, inspect.currentframe().f_lineno)
-            if pred.op_identifier() != ppred.op_identifier():
+                return self.none(starting_node, inspect.currentframe().f_lineno)
+            if graph_pred.op_identifier() != pattern_pred.op_identifier():
                 self._hint(
                     "BACKWARD: different node types",
                     "--pattern",
-                    ppred,
+                    pattern_pred,
                     "-- model",
-                    pred,
+                    graph_pred,
                 )
-                return self.none(node, inspect.currentframe().f_lineno)
+                return self.none(starting_node, inspect.currentframe().f_lineno)
             # matching backward
-            if ppred not in matched:
+            if pattern_pred not in matched:
                 if self.verbose >= 10:
-                    print(f"[GenericPattern._match_backward] {self.print_match(pred, ppred)}")
-                matched[ppred] = pred
-                stack.append(ppred)
+                    print(
+                        f"[GenericPattern._match_backward] {self.print_match(graph_pred, pattern_pred)}"
+                    )
+                matched[pattern_pred] = graph_pred
+                stack.append(pattern_pred)
                 match_count += 1
         if self.verbose > 5 and match_count > 0:
             print(f"[GenericPattern._match_backward] add {match_count} nodes")
@@ -363,7 +357,7 @@ class GenericPattern:
 
     def _match_forward(
         self,
-        root_node: ir.Node,
+        starting_node: ir.Node,
         matched: dict[ir.Node, ir.Node],
         stack: list[int],
         graph_node: ir.Node,
@@ -373,7 +367,7 @@ class GenericPattern:
         Matches forward.
 
         Args:
-            root_node: root node (the node the match begins with, used only for debugging)
+            starting_node: root node (the node the match begins with, used only for debugging)
             matched: nodes of the pattern matched as already matched
             stack: next node to look into
             graph_node: node coming from the graph
@@ -394,17 +388,17 @@ class GenericPattern:
                 "-- model",
                 graph_node,
             )
-            return self.none(root_node, inspect.currentframe().f_lineno)
+            return self.none(starting_node, inspect.currentframe().f_lineno)
 
-        for o, op in zip(graph_node.outputs, pattern_node.outputs):
-            graph_node_users = [user for user, _ in o.uses()]
-            pattern_node_users = [user for user, _ in op.uses()]
+        for graph_output, pattern_output in zip(graph_node.outputs, pattern_node.outputs):
+            graph_node_users = [user for user, _ in graph_output.uses()]
+            pattern_node_users = [user for user, _ in pattern_output.uses()]
             if not pattern_node_users:
                 # The pattern has no node forward, the matching stops.
                 continue
             if len(graph_node_users) < len(pattern_node_users):
                 # Not enough node in the graph to match the pattern. A match is not possible
-                return self.none(root_node, inspect.currentframe().f_lineno)
+                return self.none(starting_node, inspect.currentframe().f_lineno)
 
             # Here comes the fun part, there is the same number of successors or more
             # nodes in the graph to match with the pattern.
@@ -417,7 +411,7 @@ class GenericPattern:
                     graph_node_users[0].op_identifier()
                     != pattern_node_users[0].op_identifier()
                 ):
-                    return self.none(root_node, inspect.currentframe().f_lineno)
+                    return self.none(starting_node, inspect.currentframe().f_lineno)
 
                 node = pattern_node_users[0]
                 if node not in matched:
@@ -539,10 +533,10 @@ class GenericPattern:
     def match(
         self,
         pattern_graph,
-        g: ir.Graph | ir.GraphView,
+        graph: ir.Graph | ir.GraphView,
         node: ir.Node,
     ) -> PatternMatchResult | None:
-        del g
+        del graph
         self._debug = {}
 
         # Let's match the last node.
@@ -589,11 +583,11 @@ class GenericPattern:
                     f"n_matched={len(matched)}, n_stack={len(stack)}, "
                     f"matched_types={collections.Counter(_.op_identifier() for _ in matched)}"
                 )
-            pattern_node_from_stack = stack.pop()
-            pattern_to_graph_node = matched[pattern_node_from_stack]
+            next_pattern_node = stack.pop()
+            next_graph_node = matched[next_pattern_node]
 
             result = self._match_backward(
-                node, matched, stack, pattern_to_graph_node, pattern_node_from_stack
+                node, matched, stack, next_graph_node, next_pattern_node
             )
             if result is None:
                 if self.verbose > 5:
@@ -606,7 +600,7 @@ class GenericPattern:
             ), f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"
 
             result = self._match_forward(
-                node, matched, stack, pattern_to_graph_node, pattern_node_from_stack
+                node, matched, stack, next_graph_node, next_pattern_node
             )
             if result is None:
                 if self.verbose > 5:
@@ -695,15 +689,46 @@ def _build_pattern(match_pattern_function: Callable) -> ir.Graph:
 
     assert len(kwargs) == 0, f"Attributes are not supported yet but kwargs={kwargs}"
 
-    inputs = [ir.Input(name=name) for name in args]
-    builder = orp.RewriterContext()
+    # inputs = [ir.Input(name=name) for name in args]
+    # builder = orp.RewriterContext()
+    inputs = [orp.Var(name) for name in args]
+    builder = orp.onnxop
     outputs = match_pattern_function(builder, *inputs, **kwargs)
-    if isinstance(outputs, ir.Value):
+    if not isinstance(outputs, Sequence):
         outputs = [outputs]
     # TODO(Rama): Should construct a function!
     graph = ir.Graph(inputs=inputs, outputs=outputs, nodes=builder.nodes)
     graph.outputs[:] = outputs
     return graph
+
+
+def _to_graph_pattern(pattern_constructor: Callable) -> orp.GraphPattern:
+    """Convert a pattern-construction function to a GraphPattern.
+
+    A pattern-construction function will return values as below:
+    ::
+        def pattern(x: Var, shape1: Var, shape2: Var):
+            ...
+            return outputs
+
+    We create a pattern graph by creating pattern-variables for each parameter of the function,
+    and calling the function. The returned values are normalized to a list of ValuePatterns,
+    which represent the outputs of the pattern graph.
+
+    Args:
+        pattern_constructor: Callable
+
+    Returns:
+        GraphPattern: A representation of the pattern that can be matched against a subgraph.
+    """
+    _pattern_vars = inspect.signature(pattern_constructor).parameters
+    pattern_inputs = [orp.Var(v) for v in _pattern_vars][1:]  # Skip the first parameter
+    pattern_outputs = pattern_constructor(orp.onnxop, *pattern_inputs)
+    # Returned value could be a single ValuePattern or a list of ValuePatterns.
+    # Normalize representation to a list of ValuePatterns.
+    if isinstance(pattern_outputs, orp.ValuePattern):
+        pattern_outputs = [pattern_outputs]
+    return orp.GraphPattern(pattern_inputs, pattern_outputs)
 
 
 def make_pattern_rule(
@@ -729,7 +754,7 @@ def make_pattern_rule(
         the rewriting rule
     """
 
-    match_pattern_ir = _build_pattern(match_pattern_function)
+    match_pattern_ir = _to_graph_pattern(match_pattern_function)
     replacement_builder = orp.ReplacementPatternFunction(apply_pattern_function)
 
     pat = FunctionPattern(

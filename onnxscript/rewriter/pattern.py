@@ -138,7 +138,7 @@ class OpsetPatternBuilder(Pattern[str]):
         return self.domain_pattern.matches(domain)
 
     def __getattr__(self, op_name: str) -> OpPatternBuilder:
-        return OpPatternBuilder(self, StringConstantPattern(op_name))
+        return OpPatternBuilder(self, op_name)
 
     def submodule(self, name: str) -> OpPatternBuilder:
         """This method is used to match against submodule ops with prefix."""
@@ -175,19 +175,36 @@ class OpPatternBuilder:
         self.op_name = op_name
 
     def __call__(self, *args, **kwargs):
-        # TODO(rama): Unify with convention used elsewhere.
         if "_num_outputs" in kwargs:
-            num_outputs = kwargs["_num_outputs"]
-            del kwargs["_num_outputs"]
+            raise ValueError("Use 'outputs' instead of '_num_outputs'.")
+        if "version" in kwargs:
+            raise ValueError(
+                "The pattern builder does not support 'version' keyword argument."
+            )
+        if "domain" in kwargs:
+            domain = kwargs.pop("domain")
+            if isinstance(domain, str):
+                opset_pattern = OpsetPatternBuilder(domain)
+            else:
+                raise ValueError("domain must be a string.")
         else:
-            num_outputs = 1
+            opset_pattern = self.opset_pattern
+        outputs = kwargs.pop("outputs", 1)
+        if isinstance(outputs, int):
+            outputs = [None for _ in range(outputs)]
+        elif not isinstance(outputs, Sequence) or not all(
+            isinstance(x, (str, type(None))) for x in outputs
+        ):
+            raise ValueError("outputs must be an int or a list[str|None].")
         inputs = [_to_value_pattern(x) for x in args]
         attributes = {name: _to_attr_pattern(value) for (name, value) in kwargs.items()}
-        node_pattern = NodePattern(self.opset_pattern, self.op_name, inputs, attributes)
-        if num_outputs == 1:
-            return NodeOutputPattern(node_pattern, 0)
+        node_pattern = NodePattern(opset_pattern, self.op_name, inputs, attributes, outputs)
+        output_values = node_pattern.outputs
+        # Unpack outputs if there is only one output, the common case.
+        if len(output_values) == 1:
+            return output_values[0]
         else:
-            return [NodeOutputPattern(node_pattern, i) for i in range(num_outputs)]
+            return output_values
 
 
 def _to_value_pattern(
@@ -305,6 +322,14 @@ class ValuePattern:
 
     def __init__(self, name: str | None) -> None:
         self.name = name
+        # Note: uses will be computed only when the full graph-pattern is constructed.
+        self._uses: list[tuple[NodePattern, int]] = []
+
+    def producer(self) -> None | NodePattern:
+        return None
+
+    def uses(self) -> list[tuple[NodePattern, int]]:
+        return self._uses
 
     def __repr__(self) -> str:
         return f"ValuePattern({self.name!r})"
@@ -366,6 +391,7 @@ class NodePattern:
         op: str | Pattern[str],
         inputs: Sequence[int | float | ValuePattern | None],
         attributes: dict[str, AttrPattern],
+        outputs: Sequence[str],
     ):
         self.domain = domain
         self.op = StringConstantPattern(op) if isinstance(op, str) else op
@@ -375,9 +401,39 @@ class NodePattern:
         if isinstance(op, str) and domain.domain_name is not None:
             # TODO(rama): support overloaded operators.
             overload = ""
-            self.op_identifier = (domain.domain_name, op, overload)
+            self._op_identifier = (domain.domain_name, op, overload)
         else:
-            self.op_identifier = None
+            self._op_identifier = None
+        self.outputs = [NodeOutputPattern(self, i, name) for i, name in enumerate(outputs)]
+
+    def op_identifier(self) -> Tuple[str, str, str]:
+        return self._op_identifier
+
+    @property
+    def op_type(self) -> str:
+        if self._op_identifier is not None:
+            return self._op_identifier[1]
+        return "unknown"  # used primarily for debugging
+
+    def matches(self, node: ir.Node) -> bool:
+        """Matches the pattern represented by self against a node.
+
+        This is purely a local node-level match, and does not consider the subgraph rooted at the node.
+        We check the domain, op_type, and attributes of the node, but not the inputs.
+        """
+        if not self.op.matches(node.op_type):
+            return False
+        # TODO(rama): Ensure we handle "" and "onnx.ai" correctly.
+        if not self.domain.matches(node.domain):
+            return False
+
+        # for name, attr_pattern in self.attributes.items():
+        #     attr_value = node.attributes.get(name)
+        #     if attr_value is None:
+        #         return False
+        #     if not attr_pattern.matches(attr_value):
+        #         return False
+        return True
 
     def matches_subgraph(self, node: ir.Node) -> MatchResult:
         """Matches the pattern subgraph represented by self against subgraph rooted at node."""
@@ -434,7 +490,10 @@ class NodePattern:
             # TODO: handle cases where number of inputs is not 2.
             swapped = [[x[1], x[0]] for x in inputs]
             inputs.extend(swapped)
-        return [NodePattern(self.domain, self.op, input, self.attributes) for input in inputs]
+        return [
+            NodePattern(self.domain, self.op, input, self.attributes, self.outputs)
+            for input in inputs
+        ]
 
 
 class NodeOutputPattern(ValuePattern):
@@ -445,10 +504,10 @@ class NodeOutputPattern(ValuePattern):
     """
 
     def __init__(
-        self, node_pattern: NodePattern, output_index: int, name: str | None = None
+        self, producer: NodePattern, output_index: int, name: str | None = None
     ) -> None:
         super().__init__(name)
-        self.node_pattern = node_pattern
+        self._producer = producer
         self.output_index = output_index
 
     def matches(self, value: ir.Value):
@@ -458,14 +517,17 @@ class NodeOutputPattern(ValuePattern):
             return MatchResult.FAIL()
         if value.index() != self.output_index:
             return MatchResult.FAIL()
-        return self.node_pattern.matches_subgraph(node)
+        return self._producer.matches_subgraph(node)
 
     def commute(self) -> Sequence[ValuePattern]:
         # TODO
         return [
             NodeOutputPattern(pattern, self.output_index, self.name)
-            for pattern in self.node_pattern.commute()
+            for pattern in self._producer.commute()
         ]
+
+    def producer(self) -> NodePattern:
+        return self._producer
 
 
 Var = ValuePattern
@@ -508,13 +570,44 @@ class Constant(ValuePattern):
         return [self]
 
 
+def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[ValuePattern]:
+    """Computes inputs and nodes from outputs of a pattern."""
+    node_patterns: list[NodePattern] = []
+
+    def visit(value_patterns: Sequence[ValuePattern]) -> None:
+        for value_pattern in value_patterns:
+            if isinstance(value_pattern, NodeOutputPattern):
+                node_pattern = value_pattern.producer()
+                if node_pattern not in node_patterns:
+                    node_patterns.append(node_pattern)
+                    visit(node_pattern.inputs)
+
+    visit(outputs)
+    node_patterns.reverse()
+    return node_patterns
+
+
+def _compute_uses(nodepatterns: Sequence[NodePattern]) -> None:
+    """Compute the uses of values in the pattern."""
+    for nodepattern in nodepatterns:
+        for index, value in enumerate(nodepattern.inputs):
+            if value is not None:
+                value.uses().append((nodepattern, index))
+
+
 class GraphPattern:
     """Represents a pattern that can be matched against a subgraph."""
 
-    def __init__(self, outputs: Sequence[ValuePattern]) -> None:
+    def __init__(
+        self, inputs: Sequence[ValuePattern], outputs: Sequence[ValuePattern]
+    ) -> None:
+        self.inputs = inputs
         self.outputs = outputs
         if len(outputs) == 0:
             raise ValueError("GraphPattern must have at least one output")
+        self.nodes = _nodes_in_pattern(outputs)
+        _compute_uses(self.nodes)
+
         # Check if all outputs are produced by the same node.
         output_node = None
         for i, value_pattern in enumerate(outputs):
@@ -527,10 +620,22 @@ class GraphPattern:
             ):
                 output_node = None
             elif i == 0:
-                output_node = value_pattern.node_pattern
-            elif value_pattern.node_pattern is not output_node:
+                output_node = value_pattern.producer()
+            elif value_pattern.producer() is not output_node:
                 output_node = None
         self._output_node = output_node
+
+    def __getitem__(self, index: int) -> NodePattern:
+        return self.nodes[index]
+
+    def __len__(self) -> int:
+        return len(self.nodes)
+
+    def __iter__(self) -> Iterator[NodePattern]:
+        return iter(self.nodes)
+
+    def __reversed__(self) -> Iterator[NodePattern]:
+        return reversed(self.nodes)
 
     @property
     def num_outputs(self) -> int:
@@ -548,7 +653,9 @@ class GraphPattern:
             )
         nodes = self._output_node.commute()
         return [
-            GraphPattern([NodeOutputPattern(n, i) for i in range(self.num_outputs)])
+            GraphPattern(
+                self.inputs, [NodeOutputPattern(n, i) for i in range(self.num_outputs)]
+            )
             for n in nodes
         ]
 
@@ -573,13 +680,13 @@ def _to_graph_pattern(pattern_constructor: Callable) -> GraphPattern:
         GraphPattern: A representation of the pattern that can be matched against a subgraph.
     """
     _pattern_vars = inspect.signature(pattern_constructor).parameters
-    vars = [Var(v) for v in _pattern_vars]
-    pattern_outputs = pattern_constructor(*vars)
+    pattern_inputs = [Var(v) for v in _pattern_vars]
+    pattern_outputs = pattern_constructor(*pattern_inputs)
     # Returned value could be a single ValuePattern or a list of ValuePatterns.
     # Normalize representation to a list of ValuePatterns.
     if isinstance(pattern_outputs, ValuePattern):
         pattern_outputs = [pattern_outputs]
-    return GraphPattern(pattern_outputs)
+    return GraphPattern(pattern_inputs, pattern_outputs)
 
 
 def _valid_to_replace(matched_nodes: Sequence[ir.Node]) -> bool:
@@ -619,13 +726,14 @@ class RewriterContext:
         # TODO(rama): some of the following logic should move into the tape.
         domain = kwargs.pop("domain", "")
         version = kwargs.pop("version", None)
-        self._used_opsets.append((domain, version))
         outputs = kwargs.pop("outputs", 1)
         if isinstance(outputs, Sequence):
             num_outputs = len(outputs)
         else:
             assert isinstance(outputs, int)
             num_outputs = outputs
+
+        self._used_opsets.append((domain, version))
         if num_outputs == 1:
             value = self._tape.op(op_type, inputs=inputs, attributes=kwargs, domain=domain)
             if isinstance(outputs, Sequence):
