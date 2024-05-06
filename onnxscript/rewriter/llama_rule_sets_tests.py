@@ -14,7 +14,6 @@ FLOAT = onnx.TensorProto.FLOAT
 
 
 class LlamaRuleSetsTest(unittest.TestCase):
-
     def _get_random_inputs(self, model: onnx.ModelProto) -> dict[str, Any]:
         feeds: dict[str, Any] = {}
         for i in model.graph.input:
@@ -89,7 +88,6 @@ class LlamaRuleSetsTest(unittest.TestCase):
 
     def test_llama_p0_rule_set_identity(self):
         for model in self._identity_models():
-
             ir_model = ir.serde.deserialize_model(model)
             rule_set = llama_rule_sets.llama_p0_rule_set()
             rule_set.apply_to_model(ir_model)
@@ -117,7 +115,6 @@ class LlamaRuleSetsTest(unittest.TestCase):
 
     def test_llama_p0_rule_set_transpose_transpose(self):
         for model in self._transpose_transpose_models():
-
             ir_model = ir.serde.deserialize_model(model)
             rule_set = llama_rule_sets.llama_p0_rule_set()
             rule_set.apply_to_model(ir_model)
