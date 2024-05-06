@@ -76,6 +76,7 @@ def llama_p0_rule_set(verbose: int = 0) -> orp.RewriteRuleSet:
 
     Args:
         verbose: verbosity
+
     Returns:
         RewriteRuleSet
     """
