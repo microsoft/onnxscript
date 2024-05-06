@@ -10,6 +10,26 @@ implementation. This allows for the implementation to evolve independently of th
 tools.
 """
 
+# 👀
+# NOTE: Why are we using protocols, instead of abstract base classes?
+#
+# Protocols are more flexible than abstract base classes. Users can define their
+# own classes that implement the protocols without having to inherit from a
+# specific base class. For example, a user can define a custom tensor class that
+# implements the TensorProtocol without explicitly inheriting, and the IR can
+# work with that class without any changes.
+#
+# `isinstance` checks can be slower with protocols. Avoid using `isinstance`
+# checks when you can. Always check for concrete classes first.
+#
+# NOTE: Why are we using protocols, instead of using concrete classes directly?
+#
+# Protocols define the interface that is typically more stable. If you find yourself
+# updating the protocols, pause 🛑, and carefully make sure it is absolutely needed
+# and will improve the design. If you are adding new methods, consider if the method
+# should be part of the protocol or if it should be a higher level convenience function
+# defined outside the protocol.
+
 from __future__ import annotations
 
 import typing
@@ -41,7 +61,7 @@ OperatorIdentifier: TypeAlias = Tuple[str, str, str]
 class ArrayCompatible(Protocol):
     """Protocol for array-like objects.
 
-    An example of an array-like object is a numpy array or a PyTorch array.
+    An example of an array-like object is a numpy ndarray or a PyTorch Tensor.
     Read more at https://numpy.org/devdocs/user/basics.interoperability.html
     """
 
