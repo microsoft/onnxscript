@@ -22,6 +22,7 @@ release = version
 extensions = [
     "myst_parser",
     "sphinx_copybutton",
+    "sphinx_exec_code",
     "sphinx_gallery.gen_gallery",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",

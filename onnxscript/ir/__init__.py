@@ -63,7 +63,7 @@ __all__ = [
     "DataType",
     # Types
     "OperatorIdentifier",
-    # Protobuf compatible tensors
+    # Protobuf compatible types
     "TensorProtoTensor",
 ]
 
