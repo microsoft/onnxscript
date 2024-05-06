@@ -5,11 +5,11 @@ import onnxscript.rewriter.no_op as no_op
 import onnxscript.rewriter.pattern as orp
 from onnxscript.rewriter import pattern
 
-op = pattern.onnxop
+_op = pattern.onnxop
 
 
 def transpose_identity(x, perm):
-    return op.Transpose(x, perm=perm)
+    return _op.Transpose(x, perm=perm)
 
 
 def transpose_identity_check(x: ir.Value, perm: ir.Attr | ir.RefAttr) -> bool:
@@ -21,12 +21,12 @@ def transpose_identity_check(x: ir.Value, perm: ir.Attr | ir.RefAttr) -> bool:
     return False
 
 
-def transpose_identity_rewrite(x: ir.Value, perm: ir.Attr):
-    return op.Transpose(x, perm=perm)
+def transpose_identity_rewrite(op, x: ir.Value, perm: ir.Attr | None = None):
+    return op.Identity(x)
 
 
 def transpose_transpose(x, perm1, perm2):
-    return op.Transpose(op.Transpose(x, perm1=[1, 0]), perm2=[1, 0])
+    return _op.Transpose(_op.Transpose(x, perm=perm1), perm=perm2)
 
 
 def transpose_transpose_check(
@@ -37,7 +37,7 @@ def transpose_transpose_check(
     return True
 
 
-def _apply_transpose(cls, perm: tuple[int, ...], on: list[int | str]) -> list[int | str]:
+def _apply_transpose(perm: tuple[int, ...], on: list[int | str]) -> list[int | str]:
     assert len(perm) == len(on), "length mismatch"
     res = [None for i in on]
     for i, p in enumerate(perm):
@@ -46,28 +46,28 @@ def _apply_transpose(cls, perm: tuple[int, ...], on: list[int | str]) -> list[in
 
 
 def _apply_transposes(
-    cls, perms: list[tuple[int, ...]], on: list[int | str] | None = None
+    perms: list[tuple[int, ...]], on: list[int | str] | None = None
 ) -> list[int | str]:
     if on is None:
         on = list(range(len(perms[0])))
     for p in perms:
-        on = cls.apply_transpose(p, on)
+        on = _apply_transpose(p, on)
     return on
 
 
-def transpose_transpose_rewrite(x: ir.Value, perm1: ir.Attr, perm2: ir.Attr):
-    first = list(range(len(perm1)))
-    last = _apply_transposes([perm1, perm2])
+def transpose_transpose_rewrite(op, x: ir.Value, perm1: ir.Attr, perm2: ir.Attr):
+    first = list(range(len(perm1.value)))
+    last = _apply_transposes([perm1.value, perm2.value])
     if first == last:
         return op.Identity(x)
     return op.Transpose(x, perm=last)
 
 
 transpose_identity_rule = pattern.RewriteRule(
-    transpose_identity, transpose_identity_check, transpose_identity_rewrite
+    transpose_identity, transpose_identity_rewrite, transpose_identity_check
 )
 transpose_transpose_rule = pattern.RewriteRule(
-    transpose_transpose, transpose_transpose_check, transpose_transpose_rewrite
+    transpose_transpose, transpose_transpose_rewrite, transpose_transpose_check
 )
 
 

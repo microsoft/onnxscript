@@ -48,6 +48,17 @@ class LlamaRuleSetsTest(unittest.TestCase):
             onnx.helper.make_model(
                 onnx.helper.make_graph(
                     [
+                        onnx.helper.make_node("Transpose", ["X"], ["Y"], perm=[0, 1, 2]),
+                    ],
+                    "name",
+                    [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None, None])],
+                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [None, None, None])],
+                ),
+                opset_imports=[onnx.helper.make_opsetid("", 18)],
+            ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
                         onnx.helper.make_node("Mul", ["X", "one"], ["Y"]),
                     ],
                     "name",
@@ -70,17 +81,6 @@ class LlamaRuleSetsTest(unittest.TestCase):
                     "name",
                     [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None])],
                     [onnx.helper.make_tensor_value_info("Y", FLOAT, [None, None])],
-                ),
-                opset_imports=[onnx.helper.make_opsetid("", 18)],
-            ),
-            onnx.helper.make_model(
-                onnx.helper.make_graph(
-                    [
-                        onnx.helper.make_node("Transpose", ["X"], ["Y"], perm=[0, 1, 2]),
-                    ],
-                    "name",
-                    [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None, None])],
-                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [None, None, None])],
                 ),
                 opset_imports=[onnx.helper.make_opsetid("", 18)],
             ),
@@ -107,8 +107,8 @@ class LlamaRuleSetsTest(unittest.TestCase):
                         onnx.helper.make_node("Transpose", ["xt"], ["Y"], perm=[1, 2, 0]),
                     ],
                     "name",
-                    [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None])],
-                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [None, None])],
+                    [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None, None])],
+                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [None, None, None])],
                 ),
                 opset_imports=[onnx.helper.make_opsetid("", 18)],
             ),
