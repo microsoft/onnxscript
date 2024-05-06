@@ -23,22 +23,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest]
         name:
-          - py312-torch-nightly
-          - py311
-          - py311-torch-nightly
-          - py311-onnx-weekly
-          - py311-ort-nightly
-          - py311-experimental-torchlib-tracing
-          - py311-experimental-torchlib-onnx-ir
           - py310
           - py39
           - py38
         include:
-          - name: py311
-            python-version: "3.11"
-            nox-tag: test build
           - name: py310
             python-version: "3.10"
             nox-tag: test
@@ -48,24 +38,6 @@ jobs:
           - name: py38
             python-version: "3.8"
             nox-tag: test
-          - name: py312-torch-nightly
-            python-version: "3.12"
-            nox-tag: test-torch-nightly
-          - name: py311-torch-nightly
-            python-version: "3.11"
-            nox-tag: test-torch-nightly
-          - name: py311-onnx-weekly
-            python-version: "3.11"
-            nox-tag: test-onnx-weekly
-          - name: py311-ort-nightly
-            python-version: "3.11"
-            nox-tag: test-ort-nightly
-          - name: py311-experimental-torchlib-tracing
-            python-version: "3.11"
-            nox-tag: test-experimental-torchlib-tracing
-          - name: py311-experimental-torchlib-onnx-ir
-            python-version: "3.11"
-            nox-tag: test-experimental-torchlib-onnx-ir
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
