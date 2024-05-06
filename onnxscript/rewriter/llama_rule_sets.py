@@ -45,9 +45,7 @@ def _apply_transpose(perm: tuple[int, ...], on: list[int]) -> list[int]:
     return res
 
 
-def _apply_transposes(
-    perms: list[tuple[int, ...]], on: list[int] | None = None
-) -> list[int]:
+def _apply_transposes(perms: list[tuple[int, ...]], on: list[int] | None = None) -> list[int]:
     if on is None:
         on = list(range(len(perms[0])))
     for p in perms:
