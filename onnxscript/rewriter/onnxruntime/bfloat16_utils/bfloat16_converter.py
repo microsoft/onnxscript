@@ -34,7 +34,7 @@ def _insert_cast_nodes_for_float16_to_bfloat16_to_inputs(value: ir.Input) -> Non
     cast.outputs[0].shape = value.shape
 
     for node, index in tuple(value.uses()):
-        if node == cast:
+        if node is cast:
             continue
         node.replace_input_with(index, cast.outputs[0])
 
