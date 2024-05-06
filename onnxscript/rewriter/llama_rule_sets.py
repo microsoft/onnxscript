@@ -37,17 +37,17 @@ def transpose_transpose_check(
     return True
 
 
-def _apply_transpose(perm: tuple[int, ...], on: list[int | str]) -> list[int | str]:
+def _apply_transpose(perm: tuple[int, ...], on: list[int]) -> list[int]:
     assert len(perm) == len(on), "length mismatch"
-    res = [None for i in on]
+    res = [-1 for i in on]
     for i, p in enumerate(perm):
         res[i] = on[p]
     return res
 
 
 def _apply_transposes(
-    perms: list[tuple[int, ...]], on: list[int | str] | None = None
-) -> list[int | str]:
+    perms: list[tuple[int, ...]], on: list[int] | None = None
+) -> list[int]:
     if on is None:
         on = list(range(len(perms[0])))
     for p in perms:
