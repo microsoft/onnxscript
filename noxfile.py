@@ -27,7 +27,7 @@ COMMON_TEST_DEPENDENCIES = (
     "types-PyYAML",
     "typing_extensions",
 )
-ONNX = "onnx==1.15"
+ONNX = "onnx==1.16"
 ONNX_RUNTIME = "onnxruntime==1.15.0"
 PYTORCH = "torch==2.2.2"
 TORCHVISON = "torchvision==0.17.2"
