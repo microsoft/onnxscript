@@ -1317,15 +1317,16 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     """
 
     __slots__ = (
-        "_producer",
+        "_const_value",
         "_index",
-        "_metadata",
         "_metadata_props",
+        "_metadata",
         "_name",
+        "_producer",
         "_shape",
         "_type",
-        "_const_value",
         "_uses",
+        "doc_string",
     )
 
     def __init__(
@@ -1336,6 +1337,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         name: str | None = None,
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
+        doc_string: str | None = None,
         const_value: _protocols.TensorProtocol
         | Sequence[_protocols.TensorProtocol]
         | None = None,
@@ -1356,6 +1358,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # because a single use can use the same value multiple times.
         # Use a dictionary to preserve insertion order so that the visiting order is deterministic
         self._uses: dict[tuple[Node, int], None] = {}
+        self.doc_string = doc_string
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
@@ -1519,11 +1522,11 @@ class Input(Value):
         name: str | None = None,
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
+        doc_string: str | None = None,
     ) -> None:
-        super().__init__(None, index=None)
-        self._name = name
-        self._shape = shape
-        self._type = type
+        super().__init__(
+            None, index=None, name=name, shape=shape, type=type, doc_string=doc_string
+        )
 
 
 def _check_node_safe_to_remove(

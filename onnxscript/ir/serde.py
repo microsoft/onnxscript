@@ -519,6 +519,7 @@ def deserialize_value_info_proto(
     metadata_props = deserialize_metadata_props(proto.metadata_props)
     if metadata_props is not None:
         value.metadata_props.update(metadata_props)
+    value.doc_string = _get_field(proto, "doc_string")
     return value
 
 
@@ -1284,6 +1285,8 @@ def serialize_value_into(
     # Need to create the type _before_ writing the shape so that the shape can be written to the leaf type proto
     if from_.shape is not None:
         serialize_shape_into(value_info_proto.type, from_.shape)
+    if from_.doc_string:
+        value_info_proto.doc_string = from_.doc_string
 
 
 def serialize_type_into(type_proto: onnx.TypeProto, from_: _protocols.TypeProtocol) -> None:
