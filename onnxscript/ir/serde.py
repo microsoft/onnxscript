@@ -815,7 +815,7 @@ def _deserialize_node(
             # Nodes need to check the value pool for potentially initialized outputs
             logger.warning(
                 "Input '%s' of node '%s(%s::%s:%s)' not found in any scope. "
-                "The graph may be unsorted. Creating a new input. (current depth: %s)",
+                "The graph may be unsorted. Creating a new input (current depth: %s) .",
                 name,
                 proto.name,
                 proto.domain,
@@ -823,7 +823,18 @@ def _deserialize_node(
                 getattr(proto, "overload", ""),
                 len(scoped_values),
             )
-            node_inputs.append(_core.Value(None, index=None, name=name))
+            if len(scoped_values) > 1:
+                logger.warning(
+                    "Caveat: The value is created in the subgraph. If "
+                    "the node is referencing a value that is not in the current graph, "
+                    "it is impossible to create it in the correct scope.",
+                )
+            value = _core.Value(None, index=None, name=name)
+            node_inputs.append(value)
+            # We can only create the value in the current scope. If the subgraph is
+            # referencing a value that is not in the current scope, it is impossible
+            # to create it in the correct scope.
+            scoped_values[-1][name] = value
 
     # Build the output values for the node so that we can obtain value already created
     # if the graph is unsorted.
