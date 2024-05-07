@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Sequence
-
 import onnxscript.ir as ir
 import onnxscript.rewriter.no_op as no_op
 import onnxscript.rewriter.pattern as orp
@@ -38,7 +36,7 @@ def transpose_transpose_check(
     return True
 
 
-def _apply_transpose(perm: tuple[int, ...], on: Sequence[int]) -> list[int]:
+def _apply_transpose(perm: tuple[int, ...], on: list[int]) -> list[int]:
     assert len(perm) == len(on), "length mismatch"
     res = [-1 for i in on]
     for i, p in enumerate(perm):
@@ -47,7 +45,7 @@ def _apply_transpose(perm: tuple[int, ...], on: Sequence[int]) -> list[int]:
 
 
 def _apply_transposes(
-    perms: Sequence[tuple[int, ...]], on: Sequence[int] | None = None
+    perms: list[tuple[int, ...]], on: list[int] | None = None
 ) -> list[int]:
     if on is None:
         on = list(range(len(perms[0])))
