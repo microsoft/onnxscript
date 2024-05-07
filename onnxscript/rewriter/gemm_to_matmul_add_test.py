@@ -245,7 +245,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        count = gemm_to_matmul_add.rule.apply_to_model(model)
+        replacement_count = gemm_to_matmul_add.rule.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 4)
 
