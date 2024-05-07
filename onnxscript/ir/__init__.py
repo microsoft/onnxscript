@@ -65,9 +65,6 @@ __all__ = [
     "OperatorIdentifier",
     # Protobuf compatible types
     "TensorProtoTensor",
-    # Conversion functions
-    "from_proto",
-    "to_proto",
 ]
 
 from onnxscript.ir import serde
@@ -129,4 +126,4 @@ from onnxscript.ir._protocols import (
     TypeProtocol,
     ValueProtocol,
 )
-from onnxscript.ir.serde import TensorProtoTensor, from_proto, to_proto
+from onnxscript.ir.serde import TensorProtoTensor
