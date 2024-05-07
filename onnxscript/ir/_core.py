@@ -996,10 +996,11 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             # Check all output values are valid first
             for output in outputs:
                 if output is None:
-                    raise ValueError("Output value cannot be None.")
+                    raise ValueError(f"Output value cannot be None. All outputs: {outputs}")
                 if output.producer() is not None:
                     raise ValueError(
-                        "Output value cannot have a producer when used for initializing a Value."
+                        f"Output value cannot have a producer when used for initializing a Value. "
+                        f"output: {output}. All outputs: {outputs}"
                     )
             result = []
             for i, output in enumerate(outputs):
