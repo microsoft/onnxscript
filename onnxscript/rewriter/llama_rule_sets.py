@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from typing import Sequence
+
 import onnxscript.ir as ir
 import onnxscript.rewriter.no_op as no_op
 import onnxscript.rewriter.pattern as orp
-from onnxscript.rewriter import pattern
 
-_op = pattern.onnxop
+_op = orp.onnxop
 
 
 def transpose_identity(x, perm):
@@ -37,7 +38,7 @@ def transpose_transpose_check(
     return True
 
 
-def _apply_transpose(perm: tuple[int, ...], on: list[int]) -> list[int]:
+def _apply_transpose(perm: tuple[int, ...], on: Sequence[int]) -> list[int]:
     assert len(perm) == len(on), "length mismatch"
     res = [-1 for i in on]
     for i, p in enumerate(perm):
@@ -45,7 +46,9 @@ def _apply_transpose(perm: tuple[int, ...], on: list[int]) -> list[int]:
     return res
 
 
-def _apply_transposes(perms: list[tuple[int, ...]], on: list[int] | None = None) -> list[int]:
+def _apply_transposes(
+    perms: Sequence[tuple[int, ...]], on: Sequence[int] | None = None
+) -> list[int]:
     if on is None:
         on = list(range(len(perms[0])))
     for p in perms:
@@ -61,10 +64,10 @@ def transpose_transpose_rewrite(op, x: ir.Value, perm1: ir.Attr, perm2: ir.Attr)
     return op.Transpose(x, perm=last)
 
 
-transpose_identity_rule = pattern.RewriteRule(
+transpose_identity_rule = orp.RewriteRule(
     transpose_identity, transpose_identity_rewrite, transpose_identity_check
 )
-transpose_transpose_rule = pattern.RewriteRule(
+transpose_transpose_rule = orp.RewriteRule(
     transpose_transpose, transpose_transpose_rewrite, transpose_transpose_check
 )
 
