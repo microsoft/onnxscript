@@ -167,6 +167,7 @@ class ValueProtocol(Protocol):
         type: The type of the value.
         metadata_props: Metadata that will be serialized to the ONNX file.
         meta: Metadata store for graph transform passes.
+        doc_string: Documentation string.
     """
 
     name: str
@@ -174,6 +175,7 @@ class ValueProtocol(Protocol):
     type: TypeProtocol | None
     metadata_props: MutableMapping[str, str]
     meta: MutableMapping[str, Any]
+    doc_string: str | None
 
     def producer(self) -> NodeProtocol | None:
         """The node that produces this value."""

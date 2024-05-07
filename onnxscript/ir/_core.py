@@ -1317,15 +1317,16 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     """
 
     __slots__ = (
-        "_producer",
+        "_const_value",
         "_index",
-        "_metadata",
         "_metadata_props",
+        "_metadata",
         "_name",
+        "_producer",
         "_shape",
         "_type",
-        "_const_value",
         "_uses",
+        "doc_string",
     )
 
     def __init__(
@@ -1336,6 +1337,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         name: str | None = None,
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
+        doc_string: str | None = None,
         const_value: _protocols.TensorProtocol
         | Sequence[_protocols.TensorProtocol]
         | None = None,
@@ -1356,19 +1358,20 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # because a single use can use the same value multiple times.
         # Use a dictionary to preserve insertion order so that the visiting order is deterministic
         self._uses: dict[tuple[Node, int], None] = {}
+        self.doc_string = doc_string
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
         producer = self.producer()
         producer_text = (
-            producer.name or "anonymous_node:" + str(id(producer))
+            producer.name is not None or "anonymous_node:" + str(id(producer))
             if producer is not None
             else None
         )
         return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, producer={producer_text}, index={self.index()})"
 
     def __str__(self) -> str:
-        value_name = self.name if self.name else "anonymous:" + str(id(self))
+        value_name = self.name if self.name is not None else "anonymous:" + str(id(self))
         shape_text = str(self.shape) if self.shape is not None else "?"
         type_text = str(self.type) if self.type is not None else "?"
 
@@ -1519,11 +1522,11 @@ class Input(Value):
         name: str | None = None,
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
+        doc_string: str | None = None,
     ) -> None:
-        super().__init__(None, index=None)
-        self._name = name
-        self._shape = shape
-        self._type = type
+        super().__init__(
+            None, index=None, name=name, shape=shape, type=type, doc_string=doc_string
+        )
 
 
 def _check_node_safe_to_remove(
