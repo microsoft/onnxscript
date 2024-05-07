@@ -42,7 +42,7 @@ class GenericPatternTest(unittest.TestCase):
             return True
 
         rule = generic_pattern.make_pattern_rule(
-            match_pattern, apply_pattern, validate_mapping, verbose=0
+            match_pattern, apply_pattern, validate_mapping
         )
 
         class AddAdd(onnx.reference.op_run.OpRun):

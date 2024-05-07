@@ -100,35 +100,15 @@ class GenericRewriteRule(orp.RewriteRule):
         match_pattern: orp.GraphPattern,
         apply_pattern: orp.ReplacementPatternFunction,
         validate_mapping: Callable,
+        matcher,
         verbose: int = 0,
     ):
         super().__init__(match_pattern, apply_pattern, validate_mapping)
+        self.matcher = matcher
         self.verbose = verbose
 
     def matches(self, node: ir.Node, model: ir.Model) -> orp.MatchResult:
-        pattern_graph = self._target_pattern
-        matcher = GenericPattern(verbose=self.verbose)
-        pattern_match_result = matcher.match(pattern_graph, model.graph, node)
-        if pattern_match_result:
-            return _to_match_result(pattern_match_result)
-        return orp.MatchResult.FAIL()
-
-    # def try_rewrite(
-    #     self, model: ir.Model, graph_or_function: ir.Graph | ir.Function, node: ir.Node
-    # ) -> orp.ReplacementSubgraph | None:
-    #     """See :meth:`RewriteRule.try_rewrite`."""
-
-    #     match_result = self.matches(node, model)
-    #     if match_result:
-    #         context = None  # TODO: create a context
-    #         if not self.validate_mapping(context, **match_result.bindings):
-    #             # TODO(rama):
-    #             # pattern_match_result._hint(
-    #             #     "validate_mapping", "The pattern was rejected by the validation function."
-    #             # )
-    #             return None
-    #         return self.apply_pattern.get_replacement(match_result)
-    #     return None
+        return self.matcher.match(model.graph, node)
 
     def count_matches(self, model: ir.Model, *, commute: bool = False) -> int:
         """See :meth:`RewriteRule.count_matches`."""
@@ -153,12 +133,12 @@ class GenericPattern:
     * It does not compares attributes either (easy fix as well).
     """
 
-    def __init__(self, verbose: int = 0):
+    def __init__(self, pattern_graph: orp.GraphPattern, verbose: int = 0):
+        self.pattern_graph = pattern_graph
         self.verbose = verbose
 
     def enumerate_matches(
         self,
-        pattern_graph: orp.GraphPattern,
         graph: ir.Graph | ir.GraphView,
         node: ir.Node | None = None,
     ) -> Iterator:
@@ -166,12 +146,12 @@ class GenericPattern:
         if node is None:
             matched = []
             for node in graph:
-                res = self.match(pattern_graph, graph, node)
+                res = self.match(graph, node)
                 if res:
                     matched.append(res)
                     yield res
         else:
-            res = self.match(pattern_graph, graph, node)
+            res = self.match(graph, node)
             if res:
                 yield res
 
@@ -180,7 +160,7 @@ class GenericPattern:
         node: ir.Node | None = None,
         lineno: int | None = None,
         msg: str = "",
-    ) -> None:
+    ) -> orp.MatchResult:
         """Must be called every time a match fails to trace it.
 
         It may be useful which reason made a pattern matching fail.
@@ -236,6 +216,7 @@ class GenericPattern:
                     f"{os.path.split(self.__class__.__module__)[-1]}, "
                     f"op_type={node.op_type}{msg}{msg2}"
                 )
+        return None
 
     def print_match(self, n1: ir.Node, n2: orp.NodePattern) -> str:
         s1 = f"{n1.op_type}({n1.inputs})"
@@ -530,16 +511,15 @@ class GenericPattern:
 
     def match(
         self,
-        pattern_graph: orp.GraphPattern,
         graph: ir.Graph | ir.GraphView,
         node: ir.Node,
-    ) -> PatternMatchResult | None:
+    ) -> orp.MatchResult | None:
         del graph
         self._debug = {}
 
         # Let's match the last node.
         # Then we need to match successors and predecessors.
-        last_pattern_node = pattern_graph[-1]
+        last_pattern_node = self.pattern_graph[-1]
         if node.op_identifier() != last_pattern_node.op_identifier():
             # The last node does not have the same op_identifier().
             return self.none()
@@ -549,23 +529,23 @@ class GenericPattern:
             if self.verbose >= 10:
                 print(f"[GenericPattern.match] match pattern {self!r}")
 
-        all_pattern_nodes = set(pattern_graph)
+        all_pattern_nodes = set(self.pattern_graph)
         matched: dict[ir.Node, ir.Node] = {last_pattern_node: node}
         stack: list[ir.Node] = [last_pattern_node]
         iteration = 0
 
         if self.verbose > 5:
             self._debug = dict(
-                pattern=pattern_graph,
+                pattern=self.pattern_graph,
                 matched=matched,
                 stack=stack,
                 iteration=iteration,
                 node=node,
                 pattern_node=last_pattern_node,
-                pattern_nodes=pattern_graph,
+                pattern_nodes=self.pattern_graph,
             )
 
-        max_iter = len(pattern_graph) * 2
+        max_iter = len(self.pattern_graph) * 2
         while stack and iteration < max_iter:
             nodes_not_in_pattern = set(matched.keys()) - all_pattern_nodes
             assert not nodes_not_in_pattern, (
@@ -621,16 +601,16 @@ class GenericPattern:
             print(f"[GenericPattern.match] done. {len(matched)} matched nodes")
 
         # At this point, the pattern is matched but let's make sure.
-        assert len(matched) == len(pattern_graph), (
+        assert len(matched) == len(self.pattern_graph), (
             f"Number of matched nodes is different, {len(matched)} matched nodes, "
-            f"and {len(pattern_graph)} nodes in the pattern, matched is {matched}"
+            f"and {len(self.pattern_graph)} nodes in the pattern, matched is {matched}"
         )
         assert len(stack) == 0, f"There are still {len(stack)} nodes to explore."
 
         # We order the matched nodes in the same order than the pattern
         # to let next functions to be able to build the matching again.
-        matched_nodes = [matched[pattern_node] for pattern_node in pattern_graph]
-        return PatternMatchResult(pattern_graph, matched_nodes)
+        matched_nodes = [matched[pattern_node] for pattern_node in self.pattern_graph]
+        return _to_match_result(PatternMatchResult(self.pattern_graph, matched_nodes))
 
 
 def make_pattern_rule(
@@ -657,11 +637,13 @@ def make_pattern_rule(
     """
 
     match_pattern_ir = orp._to_graph_pattern(match_pattern_function)
+    matcher = GenericPattern(match_pattern_ir, verbose=verbose)
     replacement_builder = orp.ReplacementPatternFunction(apply_pattern_function)
 
     return GenericRewriteRule(
         match_pattern_ir,
         replacement_builder,
         validate_mapping or (lambda *_, **__: True),
+        matcher,
         verbose=verbose,
     )
