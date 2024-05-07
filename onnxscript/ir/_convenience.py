@@ -147,13 +147,13 @@ def convert_attribute(
         if isinstance(attr, onnx.TensorProto):
             return _core.AttrTensor(name, serde.TensorProtoTensor(attr))
     if attr_type == _enums.AttributeType.GRAPH:
-        return _core.AttrGraph(name, attr)
+        return _core.AttrGraph(name, attr)  # type: ignore[arg-type]
     if attr_type == _enums.AttributeType.GRAPHS:
-        return _core.AttrGraphs(name, attr)
+        return _core.AttrGraphs(name, attr)  # type: ignore[arg-type]
     if attr_type == _enums.AttributeType.TYPE_PROTO:
-        return _core.AttrTypeProto(name, attr)
+        return _core.AttrTypeProto(name, attr)  # type: ignore[arg-type]
     if attr_type == _enums.AttributeType.TYPE_PROTOS:
-        return _core.AttrTypeProtos(name, attr)
+        return _core.AttrTypeProtos(name, attr)  # type: ignore[arg-type]
     raise TypeError(f"Unsupported attribute type: '{type(attr)}'")
 
 
