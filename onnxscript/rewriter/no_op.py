@@ -7,19 +7,19 @@ op = pattern.onnxop
 
 
 # Pattern to match against
-def mul_by_1(x):
+def mul_by_1(op, x):
     return x * 1
 
 
-def add_0(x):
+def add_0(op, x):
     return x + 0
 
 
-def sub_0(x):
+def sub_0(op, x):
     return x - 0
 
 
-def div_by_1(x):
+def div_by_1(op, x):
     return x / 1
 
 

@@ -5,7 +5,7 @@ op = pattern.onnxop
 
 
 # Pattern to match against
-def reshape_gemm_reshape_pattern(input_a, input_b, input_c, shape_a, shape_c):
+def reshape_gemm_reshape_pattern(op, input_a, input_b, input_c, shape_a, shape_c):
     reshape_a = op.Reshape(input_a, shape_a)
     # TODO: Temporary workaround to support benchmodels.
     # Tracked by https://github.com/microsoft/onnx-rewriter/issues/197.

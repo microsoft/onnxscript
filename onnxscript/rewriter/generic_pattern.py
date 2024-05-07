@@ -158,7 +158,10 @@ class GenericPattern:
         self.verbose = verbose
 
     def enumerate_matches(
-        self, pattern_graph: orp.GraphPattern, graph: ir.Graph | ir.GraphView, node: ir.Node | None = None
+        self,
+        pattern_graph: orp.GraphPattern,
+        graph: ir.Graph | ir.GraphView,
+        node: ir.Node | None = None,
     ) -> Iterator:
         """Enumerates all the matches."""
         if node is None:
