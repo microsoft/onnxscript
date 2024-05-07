@@ -814,8 +814,8 @@ def _deserialize_node(
             # Here we create the value with the name and add it to the current scope.
             # Nodes need to check the value pool for potentially initialized outputs
             logger.warning(
-                "Input '%s' of node '%s(%s::%s:%s)' not found in any scope. Creating a new one. "
-                "(current depth: %s)",
+                "Input '%s' of node '%s(%s::%s:%s)' not found in any scope. "
+                "The graph may be unsorted. Creating a new input. (current depth: %s)",
                 name,
                 proto.name,
                 proto.domain,
