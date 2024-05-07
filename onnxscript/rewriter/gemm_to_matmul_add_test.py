@@ -228,7 +228,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 5)
 
-    def test_reshape_gemm_reshape_replace_when_inputs_are_two_dimension_and_broadcastable(
+    def test_reshape_gemm_reshape_replaces_when_inputs_are_two_dimensional_and_broadcastable(
         self,
     ):
         model_proto = onnx.parser.parse_model(
