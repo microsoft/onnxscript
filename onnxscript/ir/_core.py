@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import abc
 import contextlib
+import dataclasses
 import math
 import mmap
 import os
@@ -47,6 +48,7 @@ from onnxscript.ir import (
 )
 
 if typing.TYPE_CHECKING:
+    import numpy.typing as npt
     from typing_extensions import TypeGuard
 
 TArrayCompatible = typing.TypeVar(
@@ -576,6 +578,116 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         return self._metadata
 
 
+class StringTensor(TensorBase, _protocols.TensorProtocol):
+    """Multidimensional array of strings (as binary data to match the string_data field in TensorProto)."""
+
+    __slots__ = (
+        "_raw",
+        "_shape",
+        "name",
+        "doc_string",
+        "_metadata_props",
+        "_metadata",
+    )
+
+    def __init__(
+        self,
+        value: Sequence[bytes] | npt.NDArray[np.bytes_],
+        *,
+        shape: Shape | None = None,
+        name: str = "",
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
+        """Initialize a tensor.
+
+        Args:
+            value: The backing data of the tensor. It can be a numpy array or a Sequence of bytes.
+            shape: The shape of the tensor. If None, the shape is obtained from the value.
+            name: The name of the tensor.
+            doc_string: The documentation string.
+            metadata_props: The metadata properties.
+        """
+        if shape is None:
+            if not hasattr(value, "shape"):
+                raise ValueError(
+                    f"Expected an object with a shape attribute, but {type(value)} does not have shape. "
+                    "Please specify the shape explicitly."
+                )
+            self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
+        else:
+            self._shape = shape
+            self._shape._frozen = True
+        self._raw = value
+        self.name = name
+        self.doc_string = doc_string
+        self._metadata: _metadata.MetadataStore | None = None
+        self._metadata_props = metadata_props
+
+    def __array__(self, dtype: Any = None) -> np.ndarray:
+        if isinstance(self._raw, np.ndarray):
+            return self._raw
+        assert isinstance(
+            self._raw, Sequence
+        ), f"Bug: Expected a sequence, got {type(self._raw)}"
+        return np.array(self._raw, dtype=dtype).reshape(self.shape.numpy())
+
+    def __dlpack__(self, *, stream: Any = None) -> Any:
+        del stream  # unused
+        raise TypeError("StringTensor does not support DLPack")
+
+    def __dlpack_device__(self) -> tuple[int, int]:
+        raise TypeError("StringTensor does not support DLPack")
+
+    def __repr__(self) -> str:
+        return f"{self._repr_base()}({self._raw!r}, name={self.name!r})"
+
+    @property
+    def dtype(self) -> _enums.DataType:
+        """The data type of the tensor. Immutable."""
+        return _enums.DataType.STRING
+
+    @property
+    def shape(self) -> Shape:
+        """The shape of the tensor. Immutable."""
+        return self._shape
+
+    @property
+    def raw(self) -> Sequence[bytes] | npt.NDArray[np.bytes_]:
+        """Backing data of the tensor. Immutable."""
+        return self._raw  # type: ignore[return-value]
+
+    def numpy(self) -> npt.NDArray[np.bytes_]:
+        """Return the tensor as a numpy array."""
+        return self.__array__()
+
+    def tobytes(self) -> bytes:
+        raise ValueError("StringTensor does not support tobytes. Use 'string_data' instead.")
+
+    def string_data(self) -> Sequence[bytes]:
+        """Return the string data of the tensor."""
+        if isinstance(self._raw, np.ndarray):
+            return self._raw.flatten().tolist()
+        return self._raw
+
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
+
+
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
     __slots__ = ("_value",)
 
@@ -789,7 +901,8 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         attributes: Iterable[Attr | RefAttr] = (),
         *,
         overload: str = "",
-        num_outputs: int = 1,
+        num_outputs: int | None = None,
+        outputs: Sequence[Value] | None = None,
         version: int | None = None,
         graph: Graph | None = None,
         name: str | None = None,
@@ -804,13 +917,20 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             inputs: The input values. When an input is None, it is an empty input.
             attributes: The attributes. RefAttr can be used only when the node is defined in a Function.
             overload: The overload name when the node is invoking a function.
-            num_outputs: The number of outputs of the node.
+            num_outputs: The number of outputs of the node. If not specified, the number is 1.
+            outputs: The output values. If None, the outputs are created during initialization.
             version: The version of the operator. If None, the version is unspecified and will follow that of the graph.
             graph: The graph that the node belongs to. If None, the node is not added to any graph.
                 A `Node` must belong to zero or one graph.
             name: The name of the node. If None, the node is anonymous.
             doc_string: The documentation string.
             metadata_props: The metadata properties.
+
+        Raises:
+            TypeError: If the attributes are not Attr or RefAttr.
+            ValueError: If `num_outputs`, when not None, is not the same as the length of the outputs.
+            ValueError: If an output value is None, when outputs is specified.
+            ValueError: If an output value has a producer set already, when outputs is specified.
         """
         self._name = name
         self._domain: str = domain
@@ -820,9 +940,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         # If necessary, we can cache the inputs and outputs as tuples.
         self._inputs: tuple[Value | None, ...] = tuple(inputs)
         # Values belong to their defining nodes. The values list is immutable
-        self._outputs: tuple[Value, ...] = tuple(
-            Value(self, index=i) for i in range(num_outputs)
-        )
+        self._outputs: tuple[Value, ...] = self._create_outputs(num_outputs, outputs)
         attributes = tuple(attributes)
         if attributes and not isinstance(attributes[0], (Attr, RefAttr)):
             raise TypeError(
@@ -849,6 +967,54 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         # Add the node to the graph if graph is specified
         if self._graph is not None:
             self._graph.append(self)
+
+    def _create_outputs(
+        self, num_outputs: int | None, outputs: Sequence[Value] | None
+    ) -> tuple[Value, ...]:
+        """Check the parameters and create outputs for the node.
+
+        Args:
+            num_outputs: The number of outputs of the node.
+            outputs: The output values of the node.
+
+        Returns:
+            The output values of the node.
+
+        Raises:
+            ValueError: If `num_outputs`, when not None, is not the same as the length of the outputs.
+            ValueError: If an output value is None.
+            ValueError: If an output value has a producer set already.
+        """
+        # Check num_outputs and outputs are consistent
+        if num_outputs is not None and outputs is not None and num_outputs != len(outputs):
+            raise ValueError(
+                "num_outputs must be the same as len(outputs) when num_outputs is specified."
+                "num_outputs: {num_outputs}, outputs: {outputs}"
+            )
+        # 1. If outputs is specified (can be empty []), use the outputs
+        if outputs is not None:
+            # Check all output values are valid first
+            for output in outputs:
+                if output is None:
+                    raise ValueError(f"Output value cannot be None. All outputs: {outputs}")
+                if output.producer() is not None:
+                    raise ValueError(
+                        f"Supplied output value cannot have a producer when used for initializing a Node. "
+                        f"Output: {output}. All outputs: {outputs}"
+                    )
+            result = []
+            for i, output in enumerate(outputs):
+                output._producer = self  # pylint: disable=protected-access
+                output._index = i  # pylint: disable=protected-access
+                result.append(output)
+            return tuple(result)
+
+        # 2. If num_outputs is specified, create num_outputs outputs
+        if num_outputs is None:
+            # Default to 1 output
+            num_outputs = 1
+        assert num_outputs is not None
+        return tuple(Value(self, index=i) for i in range(num_outputs))
 
     def __str__(self) -> str:
         node_type_text = f"{self._domain}::{self._op_type}" + f":{self._overload}" * (
@@ -1151,15 +1317,16 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     """
 
     __slots__ = (
-        "_producer",
+        "_const_value",
         "_index",
-        "_metadata",
         "_metadata_props",
+        "_metadata",
         "_name",
+        "_producer",
         "_shape",
         "_type",
-        "_const_value",
         "_uses",
+        "doc_string",
     )
 
     def __init__(
@@ -1170,6 +1337,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         name: str | None = None,
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
+        doc_string: str | None = None,
         const_value: _protocols.TensorProtocol
         | Sequence[_protocols.TensorProtocol]
         | None = None,
@@ -1190,19 +1358,20 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # because a single use can use the same value multiple times.
         # Use a dictionary to preserve insertion order so that the visiting order is deterministic
         self._uses: dict[tuple[Node, int], None] = {}
+        self.doc_string = doc_string
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
         producer = self.producer()
         producer_text = (
-            producer.name or "anonymous_node:" + str(id(producer))
+            producer.name is not None or "anonymous_node:" + str(id(producer))
             if producer is not None
             else None
         )
         return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, producer={producer_text}, index={self.index()})"
 
     def __str__(self) -> str:
-        value_name = self.name if self.name else "anonymous:" + str(id(self))
+        value_name = self.name if self.name is not None else "anonymous:" + str(id(self))
         shape_text = str(self.shape) if self.shape is not None else "?"
         type_text = str(self.type) if self.type is not None else "?"
 
@@ -1353,11 +1522,11 @@ class Input(Value):
         name: str | None = None,
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
+        doc_string: str | None = None,
     ) -> None:
-        super().__init__(None, index=None)
-        self._name = name
-        self._shape = shape
-        self._type = type
+        super().__init__(
+            None, index=None, name=name, shape=shape, type=type, doc_string=doc_string
+        )
 
 
 def _check_node_safe_to_remove(
@@ -2408,17 +2577,42 @@ class AttrSparseTensors(_SpecializedAttr):
         )
 
 
+@dataclasses.dataclass
+class TypeAndShape:
+    """Type and shape.
+
+    Useful for constructing a type proto.
+    """
+
+    type: _protocols.TypeProtocol | None
+    shape: Shape | None
+
+
 class AttrTypeProto(_SpecializedAttr):
     def __init__(
         self,
         name: str,
-        value: _protocols.TypeProtocol,
+        value: TypeAndShape,
         doc_string: str | None = None,
     ):
-        # TODO(justinchuby): Include shape as well
         super().__init__(
             name,
             _enums.AttributeType.TYPE_PROTO,
+            value,
+            doc_string=doc_string,
+        )
+
+
+class AttrTypeProtos(_SpecializedAttr):
+    def __init__(
+        self,
+        name: str,
+        value: Sequence[TypeAndShape],
+        doc_string: str | None = None,
+    ):
+        super().__init__(
+            name,
+            _enums.AttributeType.TYPE_PROTOS,
             value,
             doc_string=doc_string,
         )
