@@ -572,8 +572,7 @@ def deserialize_value_info_proto(
     proto: onnx.ValueInfoProto, value: _core.Value | None
 ) -> _core.Value:
     if value is None:
-        value = _core.Value(None, index=None)
-        value.name = proto.name
+        value = _core.Value(None, index=None, name=proto.name)
     value.shape = deserialize_type_proto_for_shape(proto.type)
     value.type = deserialize_type_proto_for_type(proto.type)
     metadata_props = deserialize_metadata_props(proto.metadata_props)
@@ -793,8 +792,8 @@ def _deserialize_node(
     value_info: dict[str, onnx.ValueInfoProto],
 ) -> _core.Node:
     node_inputs: list[_core.Value | None] = []
-    for name in proto.input:
-        if name == "":
+    for input_name in proto.input:
+        if input_name == "":
             # Empty input
             node_inputs.append(None)
             continue
@@ -802,9 +801,9 @@ def _deserialize_node(
         # Find the input in all value scopes
         found = False
         for values in reversed(scoped_values):
-            if name not in values:
+            if input_name not in values:
                 continue
-            node_inputs.append(values[name])
+            node_inputs.append(values[input_name])
             found = True
             del values  # Remove the reference so it is not used by mistake
             break
@@ -816,7 +815,7 @@ def _deserialize_node(
             logger.warning(
                 "Input '%s' of node '%s(%s::%s:%s)' not found in any scope. "
                 "The graph may be unsorted. Creating a new input (current depth: %s) .",
-                name,
+                input_name,
                 proto.name,
                 proto.domain,
                 proto.op_type,
@@ -829,26 +828,30 @@ def _deserialize_node(
                     "the node is referencing a value that is not in the current graph, "
                     "it is impossible to create it in the correct scope.",
                 )
-            value = _core.Value(None, index=None, name=name)
+            value = _core.Value(None, index=None, name=input_name)
             node_inputs.append(value)
             # We can only create the value in the current scope. If the subgraph is
             # referencing a value that is not in the current scope, it is impossible
             # to create it in the correct scope.
-            scoped_values[-1][name] = value
+            scoped_values[-1][input_name] = value
 
     # Build the output values for the node so that we can obtain value already created
     # if the graph is unsorted.
     node_outputs: list[_core.Value] = []
     for output_name in proto.output:
+        if output_name == "":
+            # Empty output
+            node_outputs.append(_core.Value(None, index=None))
+            continue
         # The output can only be found in the current scope. It is impossible for
         # a node to produce an output that is not in its own scope.
         current_scope = scoped_values[-1]
         if output_name in current_scope:
-            value = current_scope[name]
+            value = current_scope[output_name]
         else:
             # Create the output
             value = _core.Value(None, index=None, name=output_name)
-        current_scope[output_name] = value
+            current_scope[output_name] = value
         node_outputs.append(value)
         if output_name in value_info:
             deserialize_value_info_proto(value_info[output_name], value)
