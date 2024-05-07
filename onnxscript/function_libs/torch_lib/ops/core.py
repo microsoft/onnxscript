@@ -6402,17 +6402,29 @@ def aten_pinverse(self: TensorType, rcond: float = 1e-15) -> TensorType:
 
     raise NotImplementedError()
 
-
-def aten_pixel_shuffle(self: TensorType, upscale_factor: int) -> TensorType:
+@torch_op("aten::pixel_shuffle")
+def aten_pixel_shuffle(self: TReal, upscale_factor: int) -> TReal:
     """pixel_shuffle(Tensor self, int upscale_factor) -> Tensor"""
+    self_shape = op.Shape(self)
+    batch = self_shape[:-3]
+    C_out = op.Unsqueeze(self_shape[-3], [0])
+    H_out = op.Unsqueeze(self_shape[-2], [0])
+    W_out = op.Unsqueeze(self_shape[-1], [0])
+    # Reshaping input by collapsing all leading dimensions to match ONNX op requirement (4D)
+    reshaped_self = op.Reshape(self, op.Concat(op.Unsqueeze(-1, [0]), C_out, H_out, W_out, axis=0))
+    depth_to_space_output = op.DepthToSpace(reshaped_self, blocksize=upscale_factor, mode="CRD")
+    output_shape = op.Concat(batch, op.Shape(depth_to_space_output)[1:],axis=0)
+    return op.Reshape(depth_to_space_output, output_shape)
 
-    raise NotImplementedError()
 
 
 def aten_pixel_unshuffle(self: TensorType, downscale_factor: int) -> TensorType:
     """pixel_unshuffle(Tensor self, int downscale_factor) -> Tensor"""
 
-    raise NotImplementedError()
+    # rank = symbolic_helper._get_tensor_rank(self)
+    # if rank is not None and rank != 4:
+    #     return symbolic_helper._unimplemented("pixel_shuffle", "only support 4d input")
+    # return g.op("DepthToSpace", self, blocksize_i=upscale_factor, mode_s="CRD")
 
 
 def aten_poisson(self: TensorType, generator: Optional[str] = None) -> TensorType:
