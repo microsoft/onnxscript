@@ -64,7 +64,7 @@ def matmul_pattern(op, input_a: ir.Value, input_b: ir.Value, **_):
 # =====================
 
 
-def check_if_need_reshape(
+def check_if_not_need_reshape(
     input_a: ir.Value, input_b: ir.Value, shape_c: ir.Value, **_
 ) -> bool:
     """If matmul broadcasting is enough, then we don't need the reshapes.
@@ -184,7 +184,7 @@ def apply_rewrite(model):
     two_reshapes_matmul_reshape_rule = pattern.RewriteRule(
         two_reshapes_matmul_reshape_pattern,  # target pattern
         matmul_pattern,  # replacement pattern
-        check_if_need_reshape,  # match_condition function
+        check_if_not_need_reshape,  # match_condition function
     )
     # Create a Rewrite Rule Set
     rewrite_rule_set = pattern.RewriteRuleSet([two_reshapes_matmul_reshape_rule])
