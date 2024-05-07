@@ -112,7 +112,8 @@ def check_if_not_need_reshape(input_a, input_b, shape_c, **_) -> bool:
         # If input_b is expanded to 2-D, then we need to remove the last dimension
         broadcast_matmul_output_shape = broadcast_matmul_output_shape[:-1]
     if mimic_matmul_broadcast_behavior and dim_a == 2 and input_a_shape[0] == 1:
-        # If input_a is expanded to 2-D, then we need to remove the duplicated dimension
+        # If input_a is expanded to 2-D, then we need to remove the first dimension
+        # of input_a, which would be the -2nd dimension of the output shape.
         broadcast_matmul_output_shape.pop(-2)
     if shape_c != broadcast_matmul_output_shape:
         logger.info(

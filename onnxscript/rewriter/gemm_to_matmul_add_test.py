@@ -246,7 +246,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         )
         model = ir.serde.deserialize_model(model_proto)
         replacement_count = gemm_to_matmul_add.rule.apply_to_model(model)
-        self.assertEqual(count, 1)
+        self.assertEqual(replacement_count, 1)
         self.assertEqual(len(model.graph), 4)
 
     def test_reshape_gemm_reshape_remain_when_inputs_are_two_dimension_and_not_broadcastable(
