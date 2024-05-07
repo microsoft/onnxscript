@@ -416,12 +416,57 @@ class NodeTest(unittest.TestCase):
         self.v1 = _core.Value(None, index=None)
         self.node = _core.Node("test", "TestOp", inputs=(self.v0, self.v1), num_outputs=3)
 
-    def test_initialize_with_values(self):
+    def test_init_with_values(self):
         self.assertEqual(self.node.domain, "test")
         self.assertEqual(self.node.op_type, "TestOp")
         self.assertEqual(self.node.inputs, (self.v0, self.v1))
         self.assertEqual(len(self.node.outputs), 3)
         self.assertEqual(self.node.attributes, {})
+
+    def test_init_with_preinitialized_outputs(self):
+        out_1 = _core.Value(
+            None,
+            index=None,
+            name="out_1",
+            shape=_core.Shape([1]),
+            type=_core.TensorType(_enums.DataType.BFLOAT16),
+        )
+        out_2 = _core.Value(
+            None,
+            index=None,
+            name="out_2",
+            shape=_core.Shape([2]),
+            type=_core.TensorType(_enums.DataType.INT4),
+        )
+        node = _core.Node("test", "TestOp", inputs=(self.v0, self.v1), outputs=[out_1, out_2])
+        self.assertEqual(node.outputs[0].name, "out_1")
+        self.assertEqual(node.outputs[0].shape, _core.Shape([1]))
+        self.assertEqual(node.outputs[0].dtype, _enums.DataType.BFLOAT16)
+        self.assertEqual(node.outputs[1].name, "out_2")
+        self.assertEqual(node.outputs[1].shape, _core.Shape([2]))
+        self.assertEqual(node.outputs[1].dtype, _enums.DataType.INT4)
+        self.assertIs(node.outputs[0], out_1)
+        self.assertIs(node.outputs[1], out_2)
+        self.assertIs(node.outputs[0].producer(), node)
+        self.assertIs(node.outputs[1].producer(), node)
+        self.assertIs(node.outputs[0].index(), 0)
+        self.assertIs(node.outputs[1].index(), 1)
+
+    def test_init_raises_when_num_outputs_does_not_match_outputs(self):
+        with self.assertRaisesRegex(ValueError, "outputs"):
+            _core.Node("test", "TestOp", inputs=(self.v0, self.v1), num_outputs=2, outputs=[])
+
+    def test_init_with_zero_num_outputs(self):
+        node = _core.Node("test", "TestOp", inputs=(self.v0, self.v1), num_outputs=0)
+        self.assertEqual(node.outputs, ())
+
+    def test_init_with_empty_outputs(self):
+        node = _core.Node("test", "TestOp", inputs=(self.v0, self.v1), outputs=[])
+        self.assertEqual(node.outputs, ())
+
+    def test_init_produces_one_output_with_unspecified_output_argument(self):
+        node = _core.Node("test", "TestOp", inputs=(self.v0, self.v1))
+        self.assertEqual(len(node.outputs), 1)
 
     def test_metadata(self):
         self.node.meta["test"] = 1
