@@ -999,8 +999,8 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
                     raise ValueError(f"Output value cannot be None. All outputs: {outputs}")
                 if output.producer() is not None:
                     raise ValueError(
-                        f"Output value cannot have a producer when used for initializing a Value. "
-                        f"output: {output}. All outputs: {outputs}"
+                        f"Supplied output value cannot have a producer when used for initializing a Node. "
+                        f"Output: {output}. All outputs: {outputs}"
                     )
             result = []
             for i, output in enumerate(outputs):
