@@ -33,6 +33,8 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
+        # Test dlpack
+        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     def test_tensor_proto_tensor_bfloat16(self):
         expected_array = np.array([[-3.0, -1.0, -0.5, -0.0, +0.0, 0.5, 1.0, 42.0, 2.0]])
@@ -51,6 +53,8 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
+        # Test dlpack
+        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(
         [
@@ -92,6 +96,8 @@ class TensorProtoTensorTest(unittest.TestCase):
             self.skipTest("ONNX to_array fails: https://github.com/onnx/onnx/pull/6124")
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
+        # Test dlpack
+        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(
         [
@@ -117,6 +123,8 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
+        # Test dlpack
+        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(
         [
@@ -140,6 +148,8 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
+        # Test dlpack
+        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(
         [
@@ -162,6 +172,8 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
+        # Test dlpack
+        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     def test_tensor_proto_tensor_empty_tensor(self):
         tensor_proto = onnx.helper.make_tensor("test_tensor", onnx.TensorProto.FLOAT, [0], [])
@@ -176,6 +188,8 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
+        # Test dlpack
+        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
 
 class DeserializeGraphTest(unittest.TestCase):

@@ -1,6 +1,6 @@
 # Tensor Representation in the IR
 
-The ONNX IR offers the {py:class}`ir.TensorProtocol <onnxscript.ir.TensorProtocol>` interface for using different data structures as backing data for tensors. Besides the traditional {py:class}`onnx.TensorProto`, you can also use {py:class}`np.ndarray`, {py:class}`torch.Tensor`, {py:class}`jax.Array`, and virtually anything else to represent tensors in the graph. This allows for them to be accessed and serialized via the same `TensorProtocol` interface, without incurring additional copies at initialization.
+The ONNX IR offers the {py:class}`ir.TensorProtocol <onnxscript.ir.TensorProtocol>` interface for using different data structures as backing data for tensors. Besides the traditional {py:class}`onnx.TensorProto`, you can use {py:class}`np.ndarray`, {py:class}`torch.Tensor`, {py:class}`jax.Array`, and virtually anything else to represent tensors in the graph. This allows them to be accessed and serialized via the same `TensorProtocol` interface, without incurring additional copies during initialization.
 
 ## The `TensorProtocol`
 
@@ -194,7 +194,7 @@ The following example shows how to create a `FLOAT8E4M3FN` tensor, transform its
 
 ## Advanced Usage
 
-### Subclass ir.Tensor for More Efficient Access and Broader dtype Support
+### Subclass `ir.Tensor` for More Efficient Access and Broader `dtype` Support
 
 {py:class}`ir.Tensor` internally converts any array compatible objects into NumPy arrays to produce the byte representation in `tobytes()`. This can be inefficient due to the additional conversion. It also limits support for dtypes not supported by NumPy like bfloat16, because the `__array__` method would fail.
 
@@ -254,7 +254,7 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
         def tobytes(self) -> bytes:
             # Implement tobytes to support native PyTorch types so we can use types like bloat16
             # Reading from memory directly is also more efficient because
-            # it avoids the copy to NumPy array
+            # it avoids copying to a NumPy array
             tensor = self.raw.detach().cpu().contiguous()
             return bytes(
                 (ctypes.c_ubyte * tensor.element_size() * tensor.numel()).from_address(

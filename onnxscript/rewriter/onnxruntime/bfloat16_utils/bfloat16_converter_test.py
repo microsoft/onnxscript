@@ -75,7 +75,8 @@ class Bfloat16ConversionTest(unittest.TestCase):
         onnx.checker.check_model(model_proto_filled_shape_type, full_check=True)
         try:
             ort_session = onnxruntime.InferenceSession(
-                model_proto_filled_shape_type.SerializeToString()
+                model_proto_filled_shape_type.SerializeToString(),
+                providers=["CPUExecutionProvider"],
             )
             v0 = np.random.randn(2, 3, 4).astype(np.float16)
             v1 = np.random.randn(2, 3, 4).astype(np.float16)

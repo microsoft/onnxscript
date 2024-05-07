@@ -185,7 +185,7 @@ Similarly for writing the condition checking function, we require only `input_a`
 In order to validate whether matmul broadcast is sufficient, we write a condition checking function as follows:
 
 ```{literalinclude} examples/broadcast_matmul.py
-:pyobject: check_if_need_reshape
+:pyobject: check_if_not_need_reshape
 ```
 
 With all the necessary components in place, the pattern rewrite rule with the `match_condition` function is created and then the `rewriter.rewrite` is called to apply the rewrite.
