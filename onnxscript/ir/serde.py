@@ -830,30 +830,41 @@ def _deserialize_node(
                     "it is impossible to create it in the correct scope.",
                 )
             value = _core.Value(None, index=None, name=input_name)
+            # Fill in shape/type information if they exist
+            if input_name in value_info:
+                deserialize_value_info_proto(value_info[input_name], value)
             node_inputs.append(value)
             # We can only create the value in the current scope. If the subgraph is
             # referencing a value that is not in the current scope, it is impossible
             # to create it in the correct scope.
             scoped_values[-1][input_name] = value
 
-    # Build the output values for the node so that we can obtain value already created
-    # if the graph is unsorted.
+    # Build the output values for the node.
     node_outputs: list[_core.Value] = []
     for output_name in proto.output:
         if output_name == "":
             # Empty output
             node_outputs.append(_core.Value(None, index=None, name=""))
             continue
+
+        # 1. When the graph is unsorted, we may be able to find the output already created
+        # as an input to some other nodes in the current scope.
+        # Note that a value is always owned by the producing node. Even though a value
+        # can be created when parsing inputs of other nodes, the new node created here
+        # that produces the value will assume ownership. It is then impossible to transfer
+        # the ownership to any other node.
+
         # The output can only be found in the current scope. It is impossible for
         # a node to produce an output that is not in its own scope.
         current_scope = scoped_values[-1]
         if output_name in current_scope:
             value = current_scope[output_name]
         else:
-            # Create the output
+            # 2. Common scenario: the graph is sorted and this is the first time we see the output.
+            # Create the value and add it to the current scope.
             value = _core.Value(None, index=None, name=output_name)
             current_scope[output_name] = value
-        node_outputs.append(value)
+        # Fill in shape/type information if they exist
         if output_name in value_info:
             deserialize_value_info_proto(value_info[output_name], value)
         else:
@@ -863,6 +874,7 @@ def _deserialize_node(
                 proto.name,
                 proto.op_type,
             )
+        node_outputs.append(value)
     return _core.Node(
         proto.domain,
         proto.op_type,
