@@ -56,6 +56,8 @@ def _infer_attribute_type(attr: SupportedAttrTypes) -> _enums.AttributeType:
     if isinstance(attr, (_core.TensorBase, onnx.TensorProto, _protocols.TensorProtocol)):
         # Be sure to check TensorProtocol last because isinstance checking on Protocols can be slower
         return _enums.AttributeType.TENSOR
+    if isinstance(attr, (_core.Graph, _protocols.GraphProtocol)):
+        return _enums.AttributeType.GRAPH
     raise TypeError(f"Unsupported attribute type: '{type(attr)}'")
 
 
@@ -118,6 +120,8 @@ def convert_attribute(
             return _core.AttrTensor(name, attr)
         if isinstance(attr, onnx.TensorProto):
             return _core.AttrTensor(name, serde.TensorProtoTensor(attr))
+    if attr_type == _enums.AttributeType.GRAPH:
+        return _core.AttrGraph(name, attr)
     raise TypeError(f"Unsupported attribute type: '{type(attr)}'")
 
 
