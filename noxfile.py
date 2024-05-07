@@ -28,7 +28,7 @@ COMMON_TEST_DEPENDENCIES = (
     "typing_extensions",
 )
 ONNX = "onnx==1.16"
-ONNX_RUNTIME = "onnxruntime==1.16.0"
+ONNX_RUNTIME = "onnxruntime==1.17.1"
 PYTORCH = "torch==2.2.2"
 TORCHVISON = "torchvision==0.17.2"
 ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
