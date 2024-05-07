@@ -901,7 +901,8 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         attributes: Iterable[Attr | RefAttr] = (),
         *,
         overload: str = "",
-        num_outputs: int = 1,
+        num_outputs: int | None = None,
+        outputs: Sequence[Value] | None = None,
         version: int | None = None,
         graph: Graph | None = None,
         name: str | None = None,
@@ -916,13 +917,20 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             inputs: The input values. When an input is None, it is an empty input.
             attributes: The attributes. RefAttr can be used only when the node is defined in a Function.
             overload: The overload name when the node is invoking a function.
-            num_outputs: The number of outputs of the node.
+            num_outputs: The number of outputs of the node. If not specified, the number is 1.
+            outputs: The output values. If None, the outputs are created during initialization.
             version: The version of the operator. If None, the version is unspecified and will follow that of the graph.
             graph: The graph that the node belongs to. If None, the node is not added to any graph.
                 A `Node` must belong to zero or one graph.
             name: The name of the node. If None, the node is anonymous.
             doc_string: The documentation string.
             metadata_props: The metadata properties.
+
+        Raises:
+            TypeError: If the attributes are not Attr or RefAttr.
+            ValueError: If `num_outputs`, when not None, is not the same as the length of the outputs.
+            ValueError: If an output value is None, when outputs is specified.
+            ValueError: If an output value has a producer set already, when outputs is specified.
         """
         self._name = name
         self._domain: str = domain
@@ -932,9 +940,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         # If necessary, we can cache the inputs and outputs as tuples.
         self._inputs: tuple[Value | None, ...] = tuple(inputs)
         # Values belong to their defining nodes. The values list is immutable
-        self._outputs: tuple[Value, ...] = tuple(
-            Value(self, index=i) for i in range(num_outputs)
-        )
+        self._outputs: tuple[Value, ...] = self._create_outputs(num_outputs, outputs)
         attributes = tuple(attributes)
         if attributes and not isinstance(attributes[0], (Attr, RefAttr)):
             raise TypeError(
@@ -961,6 +967,53 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         # Add the node to the graph if graph is specified
         if self._graph is not None:
             self._graph.append(self)
+
+    def _create_outputs(
+        self, num_outputs: int | None, outputs: Sequence[Value] | None
+    ) -> tuple[Value, ...]:
+        """Check the parameters and create outputs for the node.
+
+        Args:
+            num_outputs: The number of outputs of the node.
+            outputs: The output values of the node.
+
+        Returns:
+            The output values of the node.
+
+        Raises:
+            ValueError: If `num_outputs`, when not None, is not the same as the length of the outputs.
+            ValueError: If an output value is None.
+            ValueError: If an output value has a producer set already.
+        """
+        # Check num_outputs and outputs are consistent
+        if num_outputs is not None and outputs is not None and num_outputs != len(outputs):
+            raise ValueError(
+                "num_outputs must be the same as len(outputs) when num_outputs is specified."
+                "num_outputs: {num_outputs}, outputs: {outputs}"
+            )
+        # 1. If outputs is specified (can be empty []), use the outputs
+        if outputs is not None:
+            # Check all output values are valid first
+            for output in outputs:
+                if output is None:
+                    raise ValueError("Output value cannot be None.")
+                if output.producer() is not None:
+                    raise ValueError(
+                        "Output value cannot have a producer when used for initializing a Value."
+                    )
+            result = []
+            for i, output in enumerate(outputs):
+                output._producer = self  # pylint: disable=protected-access
+                output._index = i  # pylint: disable=protected-access
+                result.append(output)
+            return tuple(result)
+
+        # 2. If num_outputs is specified, create num_outputs outputs
+        if num_outputs is None:
+            # Default to 1 output
+            num_outputs = 1
+        assert num_outputs is not None
+        return tuple(Value(self, index=i) for i in range(num_outputs))
 
     def __str__(self) -> str:
         node_type_text = f"{self._domain}::{self._op_type}" + f":{self._overload}" * (

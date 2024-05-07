@@ -62,11 +62,27 @@ def _infer_attribute_type(attr: SupportedAttrTypes) -> _enums.AttributeType:
         return _enums.AttributeType.TENSOR
     if isinstance(attr, (_core.Graph, _protocols.GraphProtocol)):
         return _enums.AttributeType.GRAPH
-    if isinstance(attr, Sequence) and all(isinstance(x, (_core.Graph, _protocols.GraphProtocol)) for x in attr):
+    if isinstance(attr, Sequence) and all(
+        isinstance(x, (_core.Graph, _protocols.GraphProtocol)) for x in attr
+    ):
         return _enums.AttributeType.GRAPHS
-    if isinstance(attr, (_core.TensorType, _core.SequenceType, _core.OptionalType, _protocols.TypeProtocol)):
+    if isinstance(
+        attr,
+        (_core.TensorType, _core.SequenceType, _core.OptionalType, _protocols.TypeProtocol),
+    ):
         return _enums.AttributeType.TYPE_PROTO
-    if isinstance(attr, Sequence) and all(isinstance(x, (_core.TensorType, _core.SequenceType, _core.OptionalType, _protocols.TypeProtocol)) for x in attr):
+    if isinstance(attr, Sequence) and all(
+        isinstance(
+            x,
+            (
+                _core.TensorType,
+                _core.SequenceType,
+                _core.OptionalType,
+                _protocols.TypeProtocol,
+            ),
+        )
+        for x in attr
+    ):
         return _enums.AttributeType.TYPE_PROTOS
     raise TypeError(f"Unsupported attribute type: '{type(attr)}'")
 
