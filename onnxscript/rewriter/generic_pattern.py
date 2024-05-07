@@ -97,39 +97,38 @@ class GenericRewriteRule(orp.RewriteRule):
 
     def __init__(
         self,
-        match_pattern: ir.Function,
-        apply_pattern: Callable,
+        match_pattern: orp.GraphPattern,
+        apply_pattern: orp.ReplacementPatternFunction,
         validate_mapping: Callable,
         verbose: int = 0,
     ):
-        self.match_pattern = match_pattern
-        self.apply_pattern = apply_pattern
-        self.validate_mapping = validate_mapping
+        super().__init__(match_pattern, apply_pattern, validate_mapping)
         self.verbose = verbose
 
     def matches(self, node: ir.Node, model: ir.Model) -> orp.MatchResult:
-        del model
-        del node
-        raise RuntimeError(f"This pattern {self} is meant to replace not to only match.")
-
-    def try_rewrite(
-        self, model: ir.Model, graph_or_function: ir.Graph | ir.Function, node: ir.Node
-    ) -> orp.ReplacementSubgraph | None:
-        """See :meth:`RewriteRule.try_rewrite`."""
-
-        pattern_graph = self.match_pattern
+        pattern_graph = self._target_pattern
         matcher = GenericPattern(verbose=self.verbose)
         pattern_match_result = matcher.match(pattern_graph, model.graph, node)
         if pattern_match_result:
-            match_result = _to_match_result(pattern_match_result)
-            context = None  # TODO: create a context
-            if not self.validate_mapping(context, **match_result.bindings):
-                pattern_match_result._hint(
-                    "validate_mapping", "The pattern was rejected by the validation function."
-                )
-                return None
-            return self.apply_pattern.get_replacement(match_result)
-        return None
+            return _to_match_result(pattern_match_result)
+        return orp.MatchResult.FAIL()
+
+    # def try_rewrite(
+    #     self, model: ir.Model, graph_or_function: ir.Graph | ir.Function, node: ir.Node
+    # ) -> orp.ReplacementSubgraph | None:
+    #     """See :meth:`RewriteRule.try_rewrite`."""
+
+    #     match_result = self.matches(node, model)
+    #     if match_result:
+    #         context = None  # TODO: create a context
+    #         if not self.validate_mapping(context, **match_result.bindings):
+    #             # TODO(rama):
+    #             # pattern_match_result._hint(
+    #             #     "validate_mapping", "The pattern was rejected by the validation function."
+    #             # )
+    #             return None
+    #         return self.apply_pattern.get_replacement(match_result)
+    #     return None
 
     def count_matches(self, model: ir.Model, *, commute: bool = False) -> int:
         """See :meth:`RewriteRule.count_matches`."""
@@ -634,35 +633,6 @@ class GenericPattern:
         return PatternMatchResult(pattern_graph, matched_nodes)
 
 
-def _to_graph_pattern(pattern_constructor: Callable) -> orp.GraphPattern:
-    """Convert a pattern-construction function to a GraphPattern.
-
-    A pattern-construction function will return values as below:
-    ::
-        def pattern(x: Var, shape1: Var, shape2: Var):
-            ...
-            return outputs
-
-    We create a pattern graph by creating pattern-variables for each parameter of the function,
-    and calling the function. The returned values are normalized to a list of ValuePatterns,
-    which represent the outputs of the pattern graph.
-
-    Args:
-        pattern_constructor: Callable
-
-    Returns:
-        GraphPattern: A representation of the pattern that can be matched against a subgraph.
-    """
-    _pattern_vars = inspect.signature(pattern_constructor).parameters
-    pattern_inputs = [orp.Var(v) for v in _pattern_vars][1:]  # Skip the first parameter
-    pattern_outputs = pattern_constructor(orp.onnxop, *pattern_inputs)
-    # Returned value could be a single ValuePattern or a list of ValuePatterns.
-    # Normalize representation to a list of ValuePatterns.
-    if isinstance(pattern_outputs, orp.ValuePattern):
-        pattern_outputs = [pattern_outputs]
-    return orp.GraphPattern(pattern_inputs, pattern_outputs)
-
-
 def make_pattern_rule(
     match_pattern_function: Callable,
     apply_pattern_function: Callable,
@@ -686,7 +656,7 @@ def make_pattern_rule(
         the rewriting rule
     """
 
-    match_pattern_ir = _to_graph_pattern(match_pattern_function)
+    match_pattern_ir = orp._to_graph_pattern(match_pattern_function)
     replacement_builder = orp.ReplacementPatternFunction(apply_pattern_function)
 
     return GenericRewriteRule(

@@ -683,40 +683,12 @@ def _to_graph_pattern(pattern_constructor: Callable) -> GraphPattern:
     _pattern_vars = inspect.signature(pattern_constructor).parameters
     pattern_inputs = [Var(v) for v in _pattern_vars][1:]  # Skip the first parameter
     pattern_outputs = pattern_constructor(onnxop, *pattern_inputs)
+    # TODO(rama): classify inputs as value/attribute vars
     # Returned value could be a single ValuePattern or a list of ValuePatterns.
     # Normalize representation to a list of ValuePatterns.
     if isinstance(pattern_outputs, ValuePattern):
         pattern_outputs = [pattern_outputs]
     return GraphPattern(pattern_inputs, pattern_outputs)
-
-
-# def _to_graph_pattern(pattern_constructor: Callable) -> GraphPattern:
-#     """Convert a pattern-construction function to a GraphPattern.
-
-#     A pattern-construction function will return values as below:
-#     ::
-#         def pattern(x: Var, shape1: Var, shape2: Var):
-#             ...
-#             return outputs
-
-#     We create a pattern graph by creating pattern-variables for each parameter of the function,
-#     and calling the function. The returned values are normalized to a list of ValuePatterns,
-#     which represent the outputs of the pattern graph.
-
-#     Args:
-#         pattern_constructor: Callable
-
-#     Returns:
-#         GraphPattern: A representation of the pattern that can be matched against a subgraph.
-#     """
-#     _pattern_vars = inspect.signature(pattern_constructor).parameters
-#     pattern_inputs = [Var(v) for v in _pattern_vars]
-#     pattern_outputs = pattern_constructor(*pattern_inputs)
-#     # Returned value could be a single ValuePattern or a list of ValuePatterns.
-#     # Normalize representation to a list of ValuePatterns.
-#     if isinstance(pattern_outputs, ValuePattern):
-#         pattern_outputs = [pattern_outputs]
-#     return GraphPattern(pattern_inputs, pattern_outputs)
 
 
 def _valid_to_replace(matched_nodes: Sequence[ir.Node]) -> bool:
@@ -883,9 +855,6 @@ class RewriteRule:
         if len(node.outputs) != self._target_pattern.num_outputs:
             return MatchResult.FAIL()
         match = self._target_pattern.matches_subgraph(node)
-        context = None  # TODO(rama)
-        if (not match) or (not self._condition_function(context, **match.bindings)):
-            return MatchResult.FAIL()
         if not _valid_to_replace(match.nodes):
             return MatchResult.FAIL()
         match.outputs.extend(node.outputs)
@@ -897,6 +866,9 @@ class RewriteRule:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
         match = self.matches(node, model)
         if match:
+            context = None  # TODO(rama)
+            if not self._condition_function(context, **match.bindings):
+                return None
             replacement_subgraph = self._replacement_pattern.get_replacement(match)
             if replacement_subgraph is None:
                 return None
