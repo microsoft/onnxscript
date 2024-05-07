@@ -456,7 +456,6 @@ def _deserialize_graph(
     value_info = {info.name: info for info in proto.value_info}
 
     # Deserialize nodes with all known values
-    # TODO(justinchuby): Handle unsorted nodes
     nodes = [_deserialize_node(node, scoped_values, value_info) for node in proto.node]
 
     # Fill in values for graph outputs
@@ -514,8 +513,7 @@ def deserialize_value_info_proto(
     proto: onnx.ValueInfoProto, value: _core.Value | None
 ) -> _core.Value:
     if value is None:
-        value = _core.Value(None, index=None)
-        value.name = proto.name
+        value = _core.Value(None, index=None, name=proto.name)
     value.shape = deserialize_type_proto_for_shape(proto.type)
     value.type = deserialize_type_proto_for_type(proto.type)
     metadata_props = deserialize_metadata_props(proto.metadata_props)
@@ -735,49 +733,87 @@ def _deserialize_node(
     value_info: dict[str, onnx.ValueInfoProto],
 ) -> _core.Node:
     node_inputs: list[_core.Value | None] = []
-    for name in proto.input:
-        if name == "":
+    for input_name in proto.input:
+        if input_name == "":
             # Empty input
             node_inputs.append(None)
             continue
+
+        # Find the input in all value scopes
         found = False
         for values in reversed(scoped_values):
-            if name not in values:
+            if input_name not in values:
                 continue
-            node_inputs.append(values[name])
+            node_inputs.append(values[input_name])
             found = True
+            del values  # Remove the reference so it is not used by mistake
             break
         if not found:
-            raise ValueError(
-                f"Input '{name}' of node '{proto.name}({proto.domain}::{proto.op_type}:{getattr(proto, 'overload', '')})' not found in any scope"
-                f" (current depth: {len(scoped_values)})"
+            # If the input is not found, we know the graph may be unsorted and
+            # the input may be a supposed-to-be initializer or an output of a node that comes later.
+            # Here we create the value with the name and add it to the current scope.
+            # Nodes need to check the value pool for potentially initialized outputs
+            logger.warning(
+                "Input '%s' of node '%s(%s::%s:%s)' not found in any scope. "
+                "The graph may be unsorted. Creating a new input (current depth: %s) .",
+                input_name,
+                proto.name,
+                proto.domain,
+                proto.op_type,
+                getattr(proto, "overload", ""),
+                len(scoped_values),
             )
-    node = _core.Node(
+            if len(scoped_values) > 1:
+                logger.warning(
+                    "Caveat: The value is created in the subgraph. If "
+                    "the node is referencing a value that is not in the current graph, "
+                    "it is impossible to create it in the correct scope.",
+                )
+            value = _core.Value(None, index=None, name=input_name)
+            node_inputs.append(value)
+            # We can only create the value in the current scope. If the subgraph is
+            # referencing a value that is not in the current scope, it is impossible
+            # to create it in the correct scope.
+            scoped_values[-1][input_name] = value
+
+    # Build the output values for the node so that we can obtain value already created
+    # if the graph is unsorted.
+    node_outputs: list[_core.Value] = []
+    for output_name in proto.output:
+        if output_name == "":
+            # Empty output
+            node_outputs.append(_core.Value(None, index=None, name=""))
+            continue
+        # The output can only be found in the current scope. It is impossible for
+        # a node to produce an output that is not in its own scope.
+        current_scope = scoped_values[-1]
+        if output_name in current_scope:
+            value = current_scope[output_name]
+        else:
+            # Create the output
+            value = _core.Value(None, index=None, name=output_name)
+            current_scope[output_name] = value
+        node_outputs.append(value)
+        if output_name in value_info:
+            deserialize_value_info_proto(value_info[output_name], value)
+        else:
+            logger.debug(
+                "ValueInfoProto not found for output '%s' in node '%s' of type '%s'",
+                output_name,
+                proto.name,
+                proto.op_type,
+            )
+    return _core.Node(
         proto.domain,
         proto.op_type,
         node_inputs,
         [_deserialize_attribute(a, scoped_values) for a in proto.attribute],
         overload=getattr(proto, "overload", ""),
-        num_outputs=len(proto.output),
+        outputs=node_outputs,
         name=proto.name,
         doc_string=_get_field(proto, "doc_string"),
         metadata_props=deserialize_metadata_props(proto.metadata_props),
     )
-
-    for output, value in zip(proto.output, node.outputs):
-        value.name = output
-        if output in value_info:
-            deserialize_value_info_proto(value_info[output], value)
-        else:
-            logger.debug(
-                "ValueInfoProto not found for output '%s' in node '%s' of type '%s'",
-                output,
-                proto.name,
-                proto.op_type,
-            )
-        scoped_values[-1][output] = value
-
-    return node
 
 
 # Serialization
