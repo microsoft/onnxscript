@@ -4,7 +4,7 @@ import dataclasses
 import inspect
 import itertools
 import math
-from enum import Enum
+from abc import ABC, abstractmethod
 from typing import (
     Any,
     Callable,
@@ -640,6 +640,10 @@ class GraphPattern:
         return reversed(self.nodes)
 
     @property
+    def has_single_output_node(self) -> bool:
+        return self._output_node is not None
+
+    @property
     def num_outputs(self) -> int:
         return len(self.outputs)
 
@@ -813,21 +817,56 @@ def _update_opset_imports(
             )
 
 
-class Matcher(Enum):
-    """The matching algorithm to use for pattern matching."""
+class PatternMatcher(ABC):
+    def __init__(self, pattern: GraphPattern) -> None:
+        self.pattern = pattern
 
-    DEFAULT = 0
-    SINGLE = 1
-    MULTI = 2
+    @abstractmethod
+    def match(
+        self,
+        model: ir.Model,
+        graph_or_function: ir.Graph | ir.Function,
+        node: ir.Node,
+        verbose: int = 0,
+    ) -> MatchResult:
+        pass
+
+
+class SimplePatternMatcher(PatternMatcher):
+    def __init__(self, pattern: GraphPattern) -> None:
+        assert (
+            pattern.has_single_output_node
+        ), "SimplePatternMatcher only supports patterns with a single output node."
+        super().__init__(pattern)
+
+    def match(
+        self,
+        model: ir.Model,
+        graph_or_function: ir.Graph | ir.Function,
+        node: ir.Node,
+        verbose: int = 0,
+    ) -> MatchResult:
+        # TODO(rama): support verbose
+        del model
+        del graph_or_function
+        if len(node.outputs) != self.pattern.num_outputs:
+            return MatchResult.FAIL()
+        match = self.pattern.matches_subgraph(node)
+        if not match:
+            return MatchResult.FAIL()
+        if not _valid_to_replace(match.nodes):
+            return MatchResult.FAIL()
+        match.outputs.extend(node.outputs)
+        return match
 
 
 class RewriteRule:
     def __init__(
         self,
-        target_pattern: GraphPattern | Callable | None = None,
-        replacement_pattern: ReplacementPatternFunction | Callable | None = None,
+        target_pattern: GraphPattern | Callable,
+        replacement_pattern: ReplacementPatternFunction | Callable,
         condition_function: Callable | None = None,
-        matcher: Matcher = Matcher.DEFAULT,
+        matcher: PatternMatcher | None = None,
         verbose: int = 0,
     ) -> None:
         """Create a rewrite rule.
@@ -842,15 +881,6 @@ class RewriteRule:
                 constraints in consideration.
 
         """
-        if target_pattern is None:
-            # NOTE: this is a default-constructor. Caller responsible for filling in the fields.
-            assert replacement_pattern is None
-            assert condition_function is None
-            return
-        elif replacement_pattern is None:
-            raise ValueError(
-                "replacement_pattern must be provided if target_pattern is provided"
-            )
 
         if not isinstance(target_pattern, GraphPattern):
             target_pattern = _to_graph_pattern(target_pattern)
@@ -860,31 +890,33 @@ class RewriteRule:
             replacement_pattern = ReplacementPatternFunction(replacement_pattern)
         self._replacement_pattern = replacement_pattern
         self._condition_function = condition_function or always_true
-        if matcher == Matcher.MULTI:
-            from onnxscript.rewriter.generic_pattern import GenericPattern
+        if matcher is None:
+            if target_pattern.has_single_output_node:
+                matcher = SimplePatternMatcher(self._target_pattern)
+            else:
+                import generic_pattern
 
-            self._matcher = GenericPattern(target_pattern, verbose=verbose)
-        else:
-            self._matcher = None
+                matcher = generic_pattern.GenericPatternMatcher(self._target_pattern)
+        self._matcher = matcher
         self._verbose = verbose
 
-    def matches(self, node: ir.Node, model: ir.Model) -> MatchResult:
-        """Check if the node from IR matches the pattern."""
-        if self._matcher:
-            return self._matcher.match(model.graph, node)
-        if len(node.outputs) != self._target_pattern.num_outputs:
-            return MatchResult.FAIL()
-        match = self._target_pattern.matches_subgraph(node)
-        if not _valid_to_replace(match.nodes):
-            return MatchResult.FAIL()
-        match.outputs.extend(node.outputs)
-        return match
+    # def matches(self, node: ir.Node, model: ir.Model) -> MatchResult:
+    #     """Check if the node from IR matches the pattern."""
+    #     if self._matcher:
+    #         return self._matcher.match(model.graph, node)
+    #     if len(node.outputs) != self._target_pattern.num_outputs:
+    #         return MatchResult.FAIL()
+    #     match = self._target_pattern.matches_subgraph(node)
+    #     if not _valid_to_replace(match.nodes):
+    #         return MatchResult.FAIL()
+    #     match.outputs.extend(node.outputs)
+    #     return match
 
     def try_rewrite(
         self, model: ir.Model, graph_or_function: ir.Graph | ir.Function, node: ir.Node
     ) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
-        match = self.matches(node, model)
+        match = self._matcher.match(model, graph_or_function, node, verbose=self._verbose)
         if match:
             context = None  # TODO(rama)
             if not self._condition_function(context, **match.bindings):
@@ -897,9 +929,7 @@ class RewriteRule:
                     f"Number of outputs from replacement function does not match the number of outputs from the target pattern. "
                     f"Expected {self._target_pattern.num_outputs}, but got {len(replacement_subgraph.new_outputs)}."
                 )
-            # TODO(rama): Check/update opset-imports
-            # (i) Following is required by multi-output matcher too; move this.
-            # (ii) Remove the opset imports from deleted nodes?
+            # TODO(rama): Remove the opset imports from deleted nodes?
             _update_opset_imports(graph_or_function, replacement_subgraph)
             _update_opset_imports(model.graph, replacement_subgraph)
             return replacement_subgraph
@@ -915,13 +945,15 @@ class RewriteRule:
     def commute(self) -> Sequence[RewriteRule]:
         def replace_pattern(new_pattern):
             """Return a shallow copy of self with node_pattern replaced by new_pattern."""
-            rule = RewriteRule()
-            rule._condition_function = self._condition_function
-            rule._target_pattern = new_pattern
-            rule._replacement_pattern = self._replacement_pattern
-            rule._matcher = self._matcher
-            rule._verbose = self._verbose
-            return rule
+            # TODO(rama): Maybe we should use a better alternative to construct new matcher.
+            matcher_class = type(self._matcher)
+            return RewriteRule(
+                new_pattern,
+                self._replacement_pattern,
+                self._condition_function,
+                matcher_class(new_pattern),
+                self._verbose,
+            )
 
         return [replace_pattern(p) for p in self._target_pattern.commute()]
 
