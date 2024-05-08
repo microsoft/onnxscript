@@ -1,6 +1,6 @@
 import unittest
-from typing import Callable
 
+import ml_dtypes
 import numpy as np
 import onnx
 import parameterized
@@ -33,16 +33,21 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
+        # Test dlpack
+        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     def test_tensor_proto_tensor_bfloat16(self):
-        expected_array = np.array([[-3.0, -1.0, -0.5, -0.0, +0.0, 0.5, 1.0, 42.0, 2.0]])
+        expected_array = np.array(
+            [[-3.0, -1.0, -0.5, -0.0, +0.0, 0.5, 1.0, 42.0, 2.0]], dtype=ml_dtypes.bfloat16
+        )
         tensor_proto = onnx.helper.make_tensor(
-            "test_tensor", onnx.TensorProto.BFLOAT16, [1, 9], expected_array
+            "test_tensor",
+            onnx.TensorProto.BFLOAT16,
+            [1, 9],
+            np.array([[-3.0, -1.0, -0.5, -0.0, +0.0, 0.5, 1.0, 42.0, 2.0]]),
         )
         tensor = serde.TensorProtoTensor(tensor_proto)
-        np.testing.assert_array_equal(
-            onnx.numpy_helper.bfloat16_to_float32(tensor.numpy()), expected_array
-        )
+        np.testing.assert_array_equal(tensor.numpy().view(ml_dtypes.bfloat16), expected_array)
         raw_data = tensor.tobytes()
         tensor_proto_from_raw_data = onnx.TensorProto(
             dims=tensor_proto.dims,
@@ -51,47 +56,55 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
+        # Test dlpack
+        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(
         [
             (
                 "FLOAT8E4M3FN",
                 onnx.TensorProto.FLOAT8E4M3FN,
-                lambda x: onnx.numpy_helper.float8e4m3_to_float32(x, fn=True),
+                ml_dtypes.float8_e4m3fn,
             ),
             (
                 "FLOAT8E4M3FNUZ",
                 onnx.TensorProto.FLOAT8E4M3FNUZ,
-                lambda x: onnx.numpy_helper.float8e4m3_to_float32(x, fn=True, uz=True),
+                ml_dtypes.float8_e4m3fnuz,
             ),
             (
                 "FLOAT8E5M2",
                 onnx.TensorProto.FLOAT8E5M2,
-                onnx.numpy_helper.float8e5m2_to_float32,
+                ml_dtypes.float8_e5m2,
             ),
             (
                 "FLOAT8E5M2FNUZ",
                 onnx.TensorProto.FLOAT8E5M2FNUZ,
-                lambda x: onnx.numpy_helper.float8e5m2_to_float32(x, fn=True, uz=True),
+                ml_dtypes.float8_e5m2fnuz,
             ),
         ]
     )
-    def test_tensor_proto_tensor_float8(self, _: str, dtype: int, to_float32_func: Callable):
+    def test_tensor_proto_tensor_float8(self, _: str, dtype: int, np_dtype):
         expected_array = np.array([[-3.0, -1.0, -0.5, -0.0, +0.0, 0.5, 1.0, 40.0, 2.0]])
         tensor_proto = onnx.helper.make_tensor("test_tensor", dtype, [1, 9], expected_array)
         tensor = serde.TensorProtoTensor(tensor_proto)
-        np.testing.assert_array_equal(to_float32_func(tensor.numpy()), expected_array)
+        np.testing.assert_array_equal(
+            tensor.numpy().view(np_dtype).astype(np.float32), expected_array
+        )
         raw_data = tensor.tobytes()
         tensor_proto_from_raw_data = onnx.TensorProto(
             dims=tensor_proto.dims,
             data_type=tensor_proto.data_type,
             raw_data=raw_data,
         )
-        if dtype in (onnx.TensorProto.FLOAT8E4M3FN, onnx.TensorProto.FLOAT8E4M3FNUZ):
-            # TODO: Remove the fix when ONNX 1.17 releases
-            self.skipTest("ONNX to_array fails: https://github.com/onnx/onnx/pull/6124")
-        array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
+        array_from_raw_data = (
+            serde.TensorProtoTensor(tensor_proto_from_raw_data)
+            .numpy()
+            .view(np_dtype)
+            .astype(np.float32)
+        )
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
+        # Test dlpack
+        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(
         [
@@ -117,6 +130,8 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
+        # Test dlpack
+        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(
         [
@@ -140,6 +155,8 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
+        # Test dlpack
+        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(
         [
@@ -162,6 +179,8 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
+        # Test dlpack
+        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     def test_tensor_proto_tensor_empty_tensor(self):
         tensor_proto = onnx.helper.make_tensor("test_tensor", onnx.TensorProto.FLOAT, [0], [])
@@ -176,6 +195,8 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
+        # Test dlpack
+        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
 
 class DeserializeGraphTest(unittest.TestCase):
