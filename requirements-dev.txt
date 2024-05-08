@@ -9,7 +9,6 @@ rich>=13.7.1
 furo
 jax[cpu]
 matplotlib
-ml_dtypes
 myst-parser[linkify]
 sphinx-copybutton
 sphinx-exec-code
@@ -22,7 +21,9 @@ beartype!=0.16.0
 # Testing
 expecttest==0.1.6
 hypothesis
+ml_dtypes
 parameterized
+pyinstrument
 pytest-cov
 pytest-randomly
 pytest-subtests
@@ -30,7 +31,6 @@ pytest-xdist
 pytest!=7.1.0
 pyyaml
 torch>=2.1
-pyinstrument
 
 # Lint
 lintrunner>=0.10.7

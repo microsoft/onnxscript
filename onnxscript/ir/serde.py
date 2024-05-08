@@ -111,7 +111,7 @@ def from_proto(
         return deserialize_attribute(proto)
     raise NotImplementedError(
         f"Deserialization of {type(proto)} in from_proto is not implemented. "
-        "Use the specific deserialize* function instead."
+        "Use a specific ir.serde.deserialize* function instead."
     )
 
 
@@ -144,11 +144,11 @@ def to_proto(
         return serialize_graph(ir_object)
     raise NotImplementedError(
         f"Serialization of {type(ir_object)} in to_proto is not implemented. "
-        "Use the specific serialize* function instead."
+        "Use a specific ir.serde.serialize* function instead."
     )
 
 
-class TensorProtoTensor(_core.TensorBase):
+class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
     """A tensor initialized from a tensor proto."""
 
     def __init__(self, proto: onnx.TensorProto) -> None:
@@ -187,6 +187,12 @@ class TensorProtoTensor(_core.TensorBase):
     def __array__(self, dtype: Any = None) -> np.ndarray:
         """Return the tensor as a numpy array, compatible with np.array."""
         return self.numpy().__array__(dtype)
+
+    def __dlpack__(self, *, stream: Any = None) -> Any:
+        return self.numpy().__dlpack__(stream=stream)
+
+    def __dlpack_device__(self) -> tuple[int, int]:
+        return self.numpy().__dlpack_device__()
 
     def numpy(self) -> np.ndarray:
         """Return the tensor as a numpy array.
