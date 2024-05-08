@@ -269,6 +269,9 @@ class ExternalTensorTest(unittest.TestCase):
             _to_external_tensor(tensor_proto, temp_dir, "tensor.bin")
             tensor = ir.serde.deserialize_tensor(tensor_proto, temp_dir)
             np.testing.assert_array_equal(tensor.numpy(), expected_array)
+            # Close the mmap file by deleting the reference to tensor so Windows doesn't complain
+            # about permission errors
+            del tensor
 
     def test_external_tensor_bfloat16(self):
         expected_array = np.array(
@@ -283,6 +286,8 @@ class ExternalTensorTest(unittest.TestCase):
             np.testing.assert_array_equal(
                 tensor.numpy().view(ml_dtypes.bfloat16), expected_array
             )
+            # Close the mmap file by deleting the reference to tensor so Windows doesn't complain
+            # about permission errors
             del tensor
 
     @parameterized.parameterized.expand(
@@ -320,6 +325,8 @@ class ExternalTensorTest(unittest.TestCase):
             _to_external_tensor(tensor_proto, temp_dir, "tensor.bin")
             tensor = ir.serde.deserialize_tensor(tensor_proto, temp_dir)
             np.testing.assert_array_equal(tensor.numpy().view(np_dtype), expected_array)
+            # Close the mmap file by deleting the reference to tensor so Windows doesn't complain
+            # about permission errors
             del tensor
 
     @parameterized.parameterized.expand(
@@ -338,6 +345,8 @@ class ExternalTensorTest(unittest.TestCase):
             _to_external_tensor(tensor_proto, temp_dir, "tensor.bin")
             tensor = ir.serde.deserialize_tensor(tensor_proto, temp_dir)
             np.testing.assert_array_equal(tensor.numpy(), expected_array)
+            # Close the mmap file by deleting the reference to tensor so Windows doesn't complain
+            # about permission errors
             del tensor
 
     @parameterized.parameterized.expand(
@@ -356,6 +365,8 @@ class ExternalTensorTest(unittest.TestCase):
             _to_external_tensor(tensor_proto, temp_dir, "tensor.bin")
             tensor = ir.serde.deserialize_tensor(tensor_proto, temp_dir)
             np.testing.assert_array_equal(tensor.numpy(), expected_array)
+            # Close the mmap file by deleting the reference to tensor so Windows doesn't complain
+            # about permission errors
             del tensor
 
     @parameterized.parameterized.expand(
@@ -371,6 +382,8 @@ class ExternalTensorTest(unittest.TestCase):
             _to_external_tensor(tensor_proto, temp_dir, "tensor.bin")
             tensor = ir.serde.deserialize_tensor(tensor_proto, temp_dir)
             np.testing.assert_array_equal(tensor.numpy(), expected_array)
+            # Close the mmap file by deleting the reference to tensor so Windows doesn't complain
+            # about permission errors
             del tensor
 
     def test_external_tensor_empty_tensor(self):
@@ -380,6 +393,8 @@ class ExternalTensorTest(unittest.TestCase):
             _to_external_tensor(tensor_proto, temp_dir, "tensor.bin")
             tensor = ir.serde.deserialize_tensor(tensor_proto, temp_dir)
             np.testing.assert_array_equal(tensor.numpy(), expected_array)
+            # Close the mmap file by deleting the reference to tensor so Windows doesn't complain
+            # about permission errors
             del tensor
 
 

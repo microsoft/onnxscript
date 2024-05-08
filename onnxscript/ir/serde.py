@@ -339,7 +339,7 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:

@@ -6,6 +6,7 @@ import onnx
 import parameterized
 
 from onnxscript import ir
+from onnxscript._internal import version_utils
 from onnxscript.ir import serde
 
 
@@ -34,6 +35,8 @@ class TensorProtoTensorTest(unittest.TestCase):
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
         # Test dlpack
+        if dtype == onnx.TensorProto.BOOL and version_utils.numpy_older_than("1.25"):
+            self.skipTest("numpy<1.25 does not support bool dtype in from_dlpack")
         np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     def test_tensor_proto_tensor_bfloat16(self):
