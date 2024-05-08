@@ -1700,11 +1700,12 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
 
         This is an O(n) operation. Getting nodes on the ends of the graph (0 or -1) is O(1).
 
+        .. note::
+            If you need repeated random access, consider turning it into a list with ``list(graph)`` .
+            Or a dictionary for repeated access by name: ``{node.name for node in graph}`` .
+
         When a name is provided and if there are multiple nodes with the same name,
         the first node with the name is returned.
-
-        If you need repeated random access, consider turning it into a list with ``list(graph)`` .
-        Or a dictionary for repeated access by name: ``{node.name for node in graph}`` .
 
         Args:
             index_or_name: The index or name of the node.
