@@ -283,6 +283,7 @@ class ExternalTensorTest(unittest.TestCase):
             np.testing.assert_array_equal(
                 tensor.numpy().view(ml_dtypes.bfloat16), expected_array
             )
+            del tensor
 
     @parameterized.parameterized.expand(
         [
@@ -319,6 +320,7 @@ class ExternalTensorTest(unittest.TestCase):
             _to_external_tensor(tensor_proto, temp_dir, "tensor.bin")
             tensor = ir.serde.deserialize_tensor(tensor_proto, temp_dir)
             np.testing.assert_array_equal(tensor.numpy().view(np_dtype), expected_array)
+            del tensor
 
     @parameterized.parameterized.expand(
         [
@@ -336,6 +338,7 @@ class ExternalTensorTest(unittest.TestCase):
             _to_external_tensor(tensor_proto, temp_dir, "tensor.bin")
             tensor = ir.serde.deserialize_tensor(tensor_proto, temp_dir)
             np.testing.assert_array_equal(tensor.numpy(), expected_array)
+            del tensor
 
     @parameterized.parameterized.expand(
         [
@@ -353,6 +356,7 @@ class ExternalTensorTest(unittest.TestCase):
             _to_external_tensor(tensor_proto, temp_dir, "tensor.bin")
             tensor = ir.serde.deserialize_tensor(tensor_proto, temp_dir)
             np.testing.assert_array_equal(tensor.numpy(), expected_array)
+            del tensor
 
     @parameterized.parameterized.expand(
         [
@@ -367,6 +371,7 @@ class ExternalTensorTest(unittest.TestCase):
             _to_external_tensor(tensor_proto, temp_dir, "tensor.bin")
             tensor = ir.serde.deserialize_tensor(tensor_proto, temp_dir)
             np.testing.assert_array_equal(tensor.numpy(), expected_array)
+            del tensor
 
     def test_external_tensor_empty_tensor(self):
         expected_array = np.array([], dtype=np.float32)
@@ -375,6 +380,7 @@ class ExternalTensorTest(unittest.TestCase):
             _to_external_tensor(tensor_proto, temp_dir, "tensor.bin")
             tensor = ir.serde.deserialize_tensor(tensor_proto, temp_dir)
             np.testing.assert_array_equal(tensor.numpy(), expected_array)
+            del tensor
 
 
 class SymbolicDimTest(unittest.TestCase):
