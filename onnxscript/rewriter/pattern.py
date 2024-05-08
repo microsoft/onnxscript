@@ -900,18 +900,6 @@ class RewriteRule:
         self._matcher = matcher
         self._verbose = verbose
 
-    # def matches(self, node: ir.Node, model: ir.Model) -> MatchResult:
-    #     """Check if the node from IR matches the pattern."""
-    #     if self._matcher:
-    #         return self._matcher.match(model.graph, node)
-    #     if len(node.outputs) != self._target_pattern.num_outputs:
-    #         return MatchResult.FAIL()
-    #     match = self._target_pattern.matches_subgraph(node)
-    #     if not _valid_to_replace(match.nodes):
-    #         return MatchResult.FAIL()
-    #     match.outputs.extend(node.outputs)
-    #     return match
-
     def try_rewrite(
         self, model: ir.Model, graph_or_function: ir.Graph | ir.Function, node: ir.Node
     ) -> ReplacementSubgraph | None:
