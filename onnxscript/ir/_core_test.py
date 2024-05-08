@@ -490,7 +490,9 @@ class GraphTest(unittest.TestCase):
     def setUp(self) -> None:
         self.v0 = _core.Input(name="v0")
         self.v1 = _core.Input(name="v1")
-        self.node = _core.Node("", "Add", inputs=(self.v0, self.v1), num_outputs=1, name="node_add")
+        self.node = _core.Node(
+            "", "Add", inputs=(self.v0, self.v1), num_outputs=1, name="node_add"
+        )
         self.graph = _core.Graph(
             (self.v0, self.v1),
             self.node.outputs,
