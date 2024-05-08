@@ -1718,7 +1718,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         node.graph = self
         return node
 
-    def node(self, index_or_name: int | str, /) -> Node:
+    def node(self, index_or_name: SupportsIndex | str, /) -> Node:
         """Get a node by index or name.
 
         This is an O(n) operation. Getting nodes on the ends of the graph (0 or -1) is O(1).
