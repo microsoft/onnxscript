@@ -32,7 +32,6 @@ from typing import (
     Iterator,
     OrderedDict,
     Sequence,
-    SupportsIndex,
     Union,
 )
 
@@ -722,7 +721,10 @@ class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
             value: The value of the dimension. It should not be an int.
         """
         if isinstance(value, int):
-            raise TypeError("The value of a SymbolicDim cannot be an int")
+            raise TypeError(
+                "The value of a SymbolicDim cannot be an int. "
+                "If you are creating a Shape, use int directly instead of SymbolicDim."
+            )
         self._value = value
 
     def __eq__(self, other: object) -> bool:
@@ -1718,7 +1720,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         node.graph = self
         return node
 
-    def node(self, index_or_name: SupportsIndex | str, /) -> Node:
+    def node(self, index_or_name: int | str, /) -> Node:
         """Get a node by index or name.
 
         This is an O(n) operation. Getting nodes on the ends of the graph (0 or -1) is O(1).
@@ -1741,7 +1743,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             ValueError: If the node with the given name is not found.
         """
         # NOTE: This is a method specific to Graph, not required by the protocol unless proven
-        if isinstance(index_or_name, SupportsIndex):
+        if isinstance(index_or_name, int):
             return self[index_or_name]
         for node in self:
             if node.name == index_or_name:
