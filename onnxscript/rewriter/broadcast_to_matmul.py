@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 # condition to check if we need to replace the pattern
-def check_if_need_reshape(context, input_a, input_b, shape_c, **_) -> bool:
+def check_if_not_need_reshape(context, input_a, input_b, shape_c, **_) -> bool:
     """If matmul broadcasting is enough, then we don't need the reshapes.
 
     To validate this, we need to check the following:
@@ -108,9 +108,12 @@ def check_if_need_reshape(context, input_a, input_b, shape_c, **_) -> bool:
     broadcast_matmul_output_shape = (
         longer_shape[: -len(shorter_shape)] + broadcast_matmul_output_shape
     )
-    if mimic_matmul_broadcast_behavior and dim_b == 2:
+    if mimic_matmul_broadcast_behavior and dim_b == 2 and input_b_shape[-1] == 1:
+        # If input_b is expanded to 2-D, then we need to remove the last dimension
         broadcast_matmul_output_shape = broadcast_matmul_output_shape[:-1]
-    if mimic_matmul_broadcast_behavior and dim_a == 2:
+    if mimic_matmul_broadcast_behavior and dim_a == 2 and input_a_shape[0] == 1:
+        # If input_a is expanded to 2-D, then we need to remove the first dimension
+        # of input_a, which would be the -2nd dimension of the output shape.
         broadcast_matmul_output_shape.pop(-2)
     if shape_c != broadcast_matmul_output_shape:
         logger.info(
@@ -149,14 +152,14 @@ def one_reshape_matmul_reshape_pattern(op, input_a, input_b, shape_a, shape_c):
 two_reshapes_matmul_reshape_rule = pattern.RewriteRule(
     two_reshapes_matmul_reshape_pattern,
     matmul,
-    check_if_need_reshape,
+    check_if_not_need_reshape,
 )
 one_reshape_matmul_reshape_rule = pattern.RewriteRule(
     one_reshape_matmul_reshape_pattern,
     matmul,
-    # We can use the same check_if_need_reshape function for both the rules,
+    # We can use the same check_if_not_need_reshape function for both the rules,
     # as one_reshape_matmul_reshape_pattern is a subset of two_reshapes_matmul_reshape_pattern.
-    check_if_need_reshape,
+    check_if_not_need_reshape,
 )
 
 # NOTE: The order of the rules is important. Larger pattern should be checked first.

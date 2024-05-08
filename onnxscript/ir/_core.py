@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import abc
 import contextlib
+import dataclasses
 import math
 import mmap
 import os
@@ -43,9 +44,11 @@ from onnxscript.ir import (
     _metadata,
     _name_authority,
     _protocols,
+    _type_casting,
 )
 
 if typing.TYPE_CHECKING:
+    import numpy.typing as npt
     from typing_extensions import TypeGuard
 
 TArrayCompatible = typing.TypeVar(
@@ -54,7 +57,19 @@ TArrayCompatible = typing.TypeVar(
 )
 
 # System is little endian
-IS_LITTLE_ENDIAN = sys.byteorder == "little"
+_IS_LITTLE_ENDIAN = sys.byteorder == "little"
+# Data types that are not supported by numpy
+_NON_NUMPY_NATIVE_TYPES = frozenset(
+    (
+        _enums.DataType.BFLOAT16,
+        _enums.DataType.FLOAT8E4M3FN,
+        _enums.DataType.FLOAT8E4M3FNUZ,
+        _enums.DataType.FLOAT8E5M2,
+        _enums.DataType.FLOAT8E5M2FNUZ,
+        _enums.DataType.INT4,
+        _enums.DataType.UINT4,
+    )
+)
 
 
 def _compatible_with_numpy(obj: Any) -> TypeGuard[_protocols.ArrayCompatible]:
@@ -159,8 +174,89 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
             rich.print(text)
 
 
-class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
-    """An immutable concrete value."""
+def _check_numpy_representation_type(array: np.ndarray, dtype: _enums.DataType) -> None:
+    """Check if the numpy array dtype matches the IR data type.
+
+    When the dtype is not one of the numpy native dtypes, the value needs need to be:
+
+    - ``int8`` or ``uint8`` for int4, with the sign bit extended to 8 bits.
+    - ``uint8`` for uint4.
+    - ``uint8`` for 8-bit data types.
+    - ``uint16`` for bfloat16
+    """
+    if dtype in _NON_NUMPY_NATIVE_TYPES:
+        if dtype.itemsize == 2 and array.dtype != np.uint16:
+            # TODO(justinchuby): Support the storage dtypes like uint16 for bfloat16.
+            raise TypeError(
+                f"The numpy array dtype must be uint16 (not {array.dtype}) for IR data type {dtype}."
+            )
+        if dtype.itemsize == 1 and array.dtype != np.uint8:
+            raise TypeError(
+                f"The numpy array dtype must be uint8 (not {array.dtype}) for IR data type {dtype}."
+            )
+        if dtype == _enums.DataType.INT4:
+            if array.dtype not in (np.int8, np.uint8):
+                raise TypeError(
+                    f"The numpy array dtype must be int8 or uint8 (not {array.dtype}) for IR data type {dtype}."
+                )
+        if dtype == _enums.DataType.UINT4:
+            if array.dtype != np.uint8:
+                raise TypeError(
+                    f"The numpy array dtype must be uint8 (not {array.dtype}) for IR data type {dtype}."
+                )
+        return
+
+    try:
+        dtype_numpy = _enums.DataType.from_numpy(array.dtype)
+    except TypeError as e:
+        raise TypeError(
+            "Failed to convert the numpy dtype to an IR data type. "
+            "If you are using a non-native dtype, be sure to specify the corresponding IR dtype when "
+            "creating a Tensor."
+        ) from e
+
+    if dtype_numpy != dtype:
+        raise TypeError(
+            f"The numpy array dtype {array.dtype} does not match the IR data type {dtype}."
+        )
+
+
+class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):  # pylint: disable=too-many-ancestors
+    """An immutable concrete tensor.
+
+    This class is a wrapper around the raw tensor data. The raw tensor data can be a numpy array
+    compatible object (e.g. ``np.ndarray``, ``torch.Tensor``) or a ``DLPack`` compatible object.
+    The tensor is immutable and the data is not copied at initialization.
+
+    To create a tensor from a numpy array::
+
+        >>> import numpy as np
+        >>> array = np.array([1, 2, 3])
+        >>> tensor = Tensor(array)
+        >>> # The tensor itself can be treated as a numpy array because it implements the __array__ method
+        >>> np.allclose(tensor, array)
+        True
+
+    To get a numpy array from the tensor, call :meth:`numpy`. To convert the tensor
+    to a byte string for serialization, call :meth:`tobytes`.
+
+    It is recommended to check the size of the tensor first before accessing the
+    underlying data, because accessing the data may be expensive and incur IO
+    overhead.
+
+    Subclass this class to efficiently handle different types of tensors from different frameworks.
+
+    Attributes:
+        name: The name of the tensor.
+        shape: The shape of the tensor.
+        dtype: The data type of the elements of the tensor. It is an :class:`ir.DataType` enum.
+        doc_string: Documentation string.
+        raw: The raw data behind this tensor. It can be anything.
+        size: The number of elements in the tensor.
+        nbytes: The number of bytes in the tensor.
+        metadata_props: Metadata that will be serialized to the ONNX file.
+        meta: Metadata store for graph transform passes.
+    """
 
     __slots__ = (
         "_raw",
@@ -185,17 +281,28 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         """Initialize a tensor.
 
         Args:
-            value: The backing data of the tensor. It can be a numpy array or a DLPack compatible object.
+            value: The backing data of the tensor. It can be a numpy array compatible object or a DLPack compatible object.
+                When the dtype is not one of the numpy native dtypes, the value needs
+                to be ``uint8`` for 4-bit and 8-bit data types, and ``uint16`` for bfloat16
+                when the value is a numpy array; :param:`dtype` must be specified in this case.
             dtype: The data type of the tensor. It can be None only when value is a numpy array.
+                Users are responsible for making sure the dtype matches the value when value is not a numpy array.
             shape: The shape of the tensor. If None, the shape is obtained from the value.
             name: The name of the tensor.
             doc_string: The documentation string.
             metadata_props: The metadata properties.
+
+        Raises:
+            TypeError: If the value is not a numpy array compatible or a DLPack compatible object.
+            TypeError: If the value is a numpy array and the dtype is specified but does not match the dtype of the array.
+            ValueError: If the shape is not specified and the value does not have a shape attribute.
+            ValueError: If the dtype is not specified and the value is not a numpy array.
         """
         # NOTE: We should not do any copying here for performance reasons
         if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
             raise TypeError(f"Expected an array compatible object, got {type(value)}")
         if shape is None:
+            # Obtain the shape from the value
             if not hasattr(value, "shape"):
                 raise ValueError(
                     f"Expected an object with a shape attribute, but {type(value)} does not have shape. "
@@ -213,6 +320,11 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
                     "The dtype must be specified when the value is not a numpy array."
                 )
         else:
+            if isinstance(value, np.ndarray):
+                # Make sure the dtype matches the value
+                _check_numpy_representation_type(value, dtype)
+            # Users are responsible for making sure the dtype matches the value
+            # when value is not a numpy array
             self._dtype = dtype
         self._raw = value
         self.name = name
@@ -221,7 +333,6 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         self._metadata_props = metadata_props
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
-        # TODO(justinchuby): Support numpy unsupported types
         if isinstance(self._raw, np.ndarray) or _compatible_with_numpy(self._raw):
             return self._raw.__array__(dtype)
         assert _compatible_with_dlpack(
@@ -258,7 +369,16 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         return self._raw  # type: ignore[return-value]
 
     def numpy(self) -> np.ndarray:
-        """Return the tensor as a numpy array."""
+        """Return the tensor as a numpy array.
+
+        When the data type is not supported by numpy, the value is the bit representation
+        of the dtype:
+
+        - ``int8`` for int4, with the sign bit extended to 8 bits.
+        - ``uint8`` for uint4.
+        - ``uint8`` for 8-bit data types like float8.
+        - ``uint16`` for bfloat16.
+        """
         if isinstance(self._raw, np.ndarray):
             return self._raw
         # We do not cache the value to save memory
@@ -272,8 +392,13 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         """
         # TODO(justinchuby): Support DLPack
         array = self.numpy()
-        if not IS_LITTLE_ENDIAN:
-            return array.view(array.dtype.newbyteorder("<")).tobytes()
+        if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
+            # Pack the array into int4
+            array = _type_casting.pack_int4(array)
+        else:
+            assert self.dtype.itemsize == array.itemsize, "Bug: The itemsize should match"
+        if not _IS_LITTLE_ENDIAN:
+            array = array.view(array.dtype.newbyteorder("<"))
         return array.tobytes()
 
     @property
@@ -286,7 +411,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -294,7 +419,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         return self._metadata
 
 
-class ExternalTensor(TensorBase, _protocols.TensorProtocol):
+class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
     """An immutable concrete tensor with its data store on disk.
 
     This class uses memory mapping to avoid loading the tensor into memory,
@@ -307,7 +432,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
     To obtain an array, call :meth:`numpy`. To obtain the bytes,
     call :meth:`tobytes`.
 
-    The :attribute:`path` can be a relative path or an absolute path.
+    The :attr:`path` can be a relative path or an absolute path.
     Serializers should handle the path correctly to conform with the ONNX spec.
 
     Attributes:
@@ -387,6 +512,10 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
 
     def _load(self):
         assert self._array is None, "Bug: The array should be loaded only once."
+        if self.size == 0:
+            # When the size is 0, mmap is impossible and meaningless
+            self._array = np.empty(self.shape.numpy(), dtype=self.dtype.numpy())
+            return
         # Map the whole file into the memory
         # TODO(justinchuby): Verify if this would exhaust the memory address space
         with open(self._path, "rb") as f:
@@ -397,9 +526,19 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
             )
         # Handle the byte order correctly by always using little endian
         dt = np.dtype(self.dtype.numpy()).newbyteorder("<")
-        self._array = np.frombuffer(
-            self.raw, dtype=dt, offset=self.offset or 0, count=self.size
-        ).reshape(self.shape.numpy())
+        if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
+            count = self.size // 2 + self.size % 2
+        else:
+            count = self.size
+        self._array = np.frombuffer(self.raw, dtype=dt, offset=self.offset or 0, count=count)
+        shape = self.shape.numpy()
+        if self.dtype == _enums.DataType.INT4:
+            # Unpack the int4 arrays
+            self._array = _type_casting.unpack_int4(self._array, shape)
+        elif self.dtype == _enums.DataType.UINT4:
+            self._array = _type_casting.unpack_uint4(self._array, shape)
+        else:
+            self._array = self._array.reshape(shape)
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if self._array is None:
@@ -408,7 +547,16 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         return self._array.__array__(dtype)
 
     def __dlpack__(self, *, stream: Any = None) -> Any:
-        return self.numpy().__dlpack__(stream=stream)
+        raise NotImplementedError(
+            "ExternalTensor does not support DLPack because it uses memory mapping. "
+            "Call numpy() to get a numpy array instead."
+        )
+
+    def __dlpack_device__(self) -> tuple[int, int]:
+        raise NotImplementedError(
+            "ExternalTensor does not support DLPack because it uses memory mapping. "
+            "Call numpy() to get a numpy array instead."
+        )
 
     def __repr__(self) -> str:
         return f"{self._repr_base()}(path='{self._path}', name={self.name!r}, offset={self._offset!r}), length={self._length!r})"
@@ -445,7 +593,117 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
+
+
+class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
+    """Multidimensional array of strings (as binary data to match the string_data field in TensorProto)."""
+
+    __slots__ = (
+        "_raw",
+        "_shape",
+        "name",
+        "doc_string",
+        "_metadata_props",
+        "_metadata",
+    )
+
+    def __init__(
+        self,
+        value: Sequence[bytes] | npt.NDArray[np.bytes_],
+        *,
+        shape: Shape | None = None,
+        name: str = "",
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
+        """Initialize a tensor.
+
+        Args:
+            value: The backing data of the tensor. It can be a numpy array or a Sequence of bytes.
+            shape: The shape of the tensor. If None, the shape is obtained from the value.
+            name: The name of the tensor.
+            doc_string: The documentation string.
+            metadata_props: The metadata properties.
+        """
+        if shape is None:
+            if not hasattr(value, "shape"):
+                raise ValueError(
+                    f"Expected an object with a shape attribute, but {type(value)} does not have shape. "
+                    "Please specify the shape explicitly."
+                )
+            self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
+        else:
+            self._shape = shape
+            self._shape._frozen = True
+        self._raw = value
+        self.name = name
+        self.doc_string = doc_string
+        self._metadata: _metadata.MetadataStore | None = None
+        self._metadata_props = metadata_props
+
+    def __array__(self, dtype: Any = None) -> np.ndarray:
+        if isinstance(self._raw, np.ndarray):
+            return self._raw
+        assert isinstance(
+            self._raw, Sequence
+        ), f"Bug: Expected a sequence, got {type(self._raw)}"
+        return np.array(self._raw, dtype=dtype).reshape(self.shape.numpy())
+
+    def __dlpack__(self, *, stream: Any = None) -> Any:
+        del stream  # unused
+        raise TypeError("StringTensor does not support DLPack")
+
+    def __dlpack_device__(self) -> tuple[int, int]:
+        raise TypeError("StringTensor does not support DLPack")
+
+    def __repr__(self) -> str:
+        return f"{self._repr_base()}({self._raw!r}, name={self.name!r})"
+
+    @property
+    def dtype(self) -> _enums.DataType:
+        """The data type of the tensor. Immutable."""
+        return _enums.DataType.STRING
+
+    @property
+    def shape(self) -> Shape:
+        """The shape of the tensor. Immutable."""
+        return self._shape
+
+    @property
+    def raw(self) -> Sequence[bytes] | npt.NDArray[np.bytes_]:
+        """Backing data of the tensor. Immutable."""
+        return self._raw  # type: ignore[return-value]
+
+    def numpy(self) -> npt.NDArray[np.bytes_]:
+        """Return the tensor as a numpy array."""
+        return self.__array__()
+
+    def tobytes(self) -> bytes:
+        raise ValueError("StringTensor does not support tobytes. Use 'string_data' instead.")
+
+    def string_data(self) -> Sequence[bytes]:
+        """Return the string data of the tensor."""
+        if isinstance(self._raw, np.ndarray):
+            return self._raw.flatten().tolist()
+        return self._raw
+
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -666,7 +924,8 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         attributes: Iterable[Attr | RefAttr] = (),
         *,
         overload: str = "",
-        num_outputs: int = 1,
+        num_outputs: int | None = None,
+        outputs: Sequence[Value] | None = None,
         version: int | None = None,
         graph: Graph | None = None,
         name: str | None = None,
@@ -681,13 +940,20 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             inputs: The input values. When an input is None, it is an empty input.
             attributes: The attributes. RefAttr can be used only when the node is defined in a Function.
             overload: The overload name when the node is invoking a function.
-            num_outputs: The number of outputs of the node.
+            num_outputs: The number of outputs of the node. If not specified, the number is 1.
+            outputs: The output values. If None, the outputs are created during initialization.
             version: The version of the operator. If None, the version is unspecified and will follow that of the graph.
             graph: The graph that the node belongs to. If None, the node is not added to any graph.
                 A `Node` must belong to zero or one graph.
             name: The name of the node. If None, the node is anonymous.
             doc_string: The documentation string.
             metadata_props: The metadata properties.
+
+        Raises:
+            TypeError: If the attributes are not Attr or RefAttr.
+            ValueError: If `num_outputs`, when not None, is not the same as the length of the outputs.
+            ValueError: If an output value is None, when outputs is specified.
+            ValueError: If an output value has a producer set already, when outputs is specified.
         """
         self._name = name
         self._domain: str = domain
@@ -697,9 +963,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         # If necessary, we can cache the inputs and outputs as tuples.
         self._inputs: tuple[Value | None, ...] = tuple(inputs)
         # Values belong to their defining nodes. The values list is immutable
-        self._outputs: tuple[Value, ...] = tuple(
-            Value(self, index=i) for i in range(num_outputs)
-        )
+        self._outputs: tuple[Value, ...] = self._create_outputs(num_outputs, outputs)
         attributes = tuple(attributes)
         if attributes and not isinstance(attributes[0], (Attr, RefAttr)):
             raise TypeError(
@@ -726,6 +990,54 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         # Add the node to the graph if graph is specified
         if self._graph is not None:
             self._graph.append(self)
+
+    def _create_outputs(
+        self, num_outputs: int | None, outputs: Sequence[Value] | None
+    ) -> tuple[Value, ...]:
+        """Check the parameters and create outputs for the node.
+
+        Args:
+            num_outputs: The number of outputs of the node.
+            outputs: The output values of the node.
+
+        Returns:
+            The output values of the node.
+
+        Raises:
+            ValueError: If `num_outputs`, when not None, is not the same as the length of the outputs.
+            ValueError: If an output value is None.
+            ValueError: If an output value has a producer set already.
+        """
+        # Check num_outputs and outputs are consistent
+        if num_outputs is not None and outputs is not None and num_outputs != len(outputs):
+            raise ValueError(
+                "num_outputs must be the same as len(outputs) when num_outputs is specified."
+                "num_outputs: {num_outputs}, outputs: {outputs}"
+            )
+        # 1. If outputs is specified (can be empty []), use the outputs
+        if outputs is not None:
+            # Check all output values are valid first
+            for output in outputs:
+                if output is None:
+                    raise ValueError(f"Output value cannot be None. All outputs: {outputs}")
+                if output.producer() is not None:
+                    raise ValueError(
+                        f"Supplied output value cannot have a producer when used for initializing a Node. "
+                        f"Output: {output}. All outputs: {outputs}"
+                    )
+            result = []
+            for i, output in enumerate(outputs):
+                output._producer = self  # pylint: disable=protected-access
+                output._index = i  # pylint: disable=protected-access
+                result.append(output)
+            return tuple(result)
+
+        # 2. If num_outputs is specified, create num_outputs outputs
+        if num_outputs is None:
+            # Default to 1 output
+            num_outputs = 1
+        assert num_outputs is not None
+        return tuple(Value(self, index=i) for i in range(num_outputs))
 
     def __str__(self) -> str:
         node_type_text = f"{self._domain}::{self._op_type}" + f":{self._overload}" * (
@@ -879,7 +1191,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -1028,15 +1340,16 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     """
 
     __slots__ = (
-        "_producer",
+        "_const_value",
         "_index",
-        "_metadata",
         "_metadata_props",
+        "_metadata",
         "_name",
+        "_producer",
         "_shape",
         "_type",
-        "_const_value",
         "_uses",
+        "doc_string",
     )
 
     def __init__(
@@ -1047,6 +1360,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         name: str | None = None,
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
+        doc_string: str | None = None,
         const_value: _protocols.TensorProtocol
         | Sequence[_protocols.TensorProtocol]
         | None = None,
@@ -1067,19 +1381,20 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # because a single use can use the same value multiple times.
         # Use a dictionary to preserve insertion order so that the visiting order is deterministic
         self._uses: dict[tuple[Node, int], None] = {}
+        self.doc_string = doc_string
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
         producer = self.producer()
         producer_text = (
-            producer.name or "anonymous_node:" + str(id(producer))
+            producer.name is not None or "anonymous_node:" + str(id(producer))
             if producer is not None
             else None
         )
         return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, producer={producer_text}, index={self.index()})"
 
     def __str__(self) -> str:
-        value_name = self.name if self.name else "anonymous:" + str(id(self))
+        value_name = self.name if self.name is not None else "anonymous:" + str(id(self))
         shape_text = str(self.shape) if self.shape is not None else "?"
         type_text = str(self.type) if self.type is not None else "?"
 
@@ -1131,7 +1446,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
         Example types can be ``TensorType``, ``SparseTensorType``, ``SequenceType``, ``OptionalType``.
         To obtain the data type of the tensor, use ``type.dtype`` or conveniently
-        :attribute:`dtype`.
+        :attr:`dtype`.
         """
         return self._type
 
@@ -1152,7 +1467,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
         If the type is not set, it will be initialized to a new TensorType. To
         set the type as other types like ``SequenceType``, initialize the type
-        then set :attribute:`type` instead.
+        then set :attr:`type` instead.
         """
         if self._type is None:
             self._type = TensorType(value)
@@ -1195,7 +1510,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -1230,11 +1545,11 @@ class Input(Value):
         name: str | None = None,
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
+        doc_string: str | None = None,
     ) -> None:
-        super().__init__(None, index=None)
-        self._name = name
-        self._shape = shape
-        self._type = type
+        super().__init__(
+            None, index=None, name=name, shape=shape, type=type, doc_string=doc_string
+        )
 
 
 def _check_node_safe_to_remove(
@@ -1436,8 +1751,9 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         Args:
             nodes: The node to remove.
             safe: If True, performs the following actions before removal:
+
                 1. It checks to make sure there are no users of the node that are not
-                    to be removed before removing it.
+                to be removed before removing it.
                 2. It checks the node does not contribute to any graph outputs.
                 3. It removes references to all inputs so it is no longer a user of other nodes.
 
@@ -1506,7 +1822,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -1671,7 +1987,7 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -1756,7 +2072,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -1918,7 +2234,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -1949,8 +2265,9 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         Args:
             nodes: The node to remove.
             safe: If True, performs the following actions before removal:
+
                 1. It checks to make sure there are no users of the node that are not
-                    to be removed before removing it.
+                to be removed before removing it.
                 2. It checks the node does not contribute to any graph outputs.
                 3. It removes references to all inputs so it is no longer a user of other nodes.
 
@@ -2285,17 +2602,42 @@ class AttrSparseTensors(_SpecializedAttr):
         )
 
 
+@dataclasses.dataclass
+class TypeAndShape:
+    """Type and shape.
+
+    Useful for constructing a type proto.
+    """
+
+    type: _protocols.TypeProtocol | None
+    shape: Shape | None
+
+
 class AttrTypeProto(_SpecializedAttr):
     def __init__(
         self,
         name: str,
-        value: _protocols.TypeProtocol,
+        value: TypeAndShape,
         doc_string: str | None = None,
     ):
-        # TODO(justinchuby): Include shape as well
         super().__init__(
             name,
             _enums.AttributeType.TYPE_PROTO,
+            value,
+            doc_string=doc_string,
+        )
+
+
+class AttrTypeProtos(_SpecializedAttr):
+    def __init__(
+        self,
+        name: str,
+        value: Sequence[TypeAndShape],
+        doc_string: str | None = None,
+    ):
+        super().__init__(
+            name,
+            _enums.AttributeType.TYPE_PROTOS,
             value,
             doc_string=doc_string,
         )

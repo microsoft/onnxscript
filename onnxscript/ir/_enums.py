@@ -146,3 +146,14 @@ _NP_TYPE_TO_DATA_TYPE = {
 # ONNX DataType to Numpy dtype. This mapping does not capture ONNX data
 # types that are not supported by numpy.
 _DATA_TYPE_TO_NP_TYPE = {v: k for k, v in _NP_TYPE_TO_DATA_TYPE.items()}
+_DATA_TYPE_TO_NP_TYPE.update(
+    {
+        DataType.FLOAT8E4M3FN: np.dtype("uint8"),
+        DataType.FLOAT8E4M3FNUZ: np.dtype("uint8"),
+        DataType.FLOAT8E5M2: np.dtype("uint8"),
+        DataType.FLOAT8E5M2FNUZ: np.dtype("uint8"),
+        DataType.UINT4: np.dtype("uint8"),
+        DataType.INT4: np.dtype("int8"),
+        DataType.BFLOAT16: np.dtype("uint16"),
+    }
+)
