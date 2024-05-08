@@ -4,6 +4,7 @@ import dataclasses
 import inspect
 import itertools
 import math
+from enum import Enum
 from typing import (
     Any,
     Callable,
@@ -812,12 +813,22 @@ def _update_opset_imports(
             )
 
 
+class Matcher(Enum):
+    """The matching algorithm to use for pattern matching."""
+
+    DEFAULT = 0
+    SINGLE = 1
+    MULTI = 2
+
+
 class RewriteRule:
     def __init__(
         self,
         target_pattern: GraphPattern | Callable | None = None,
         replacement_pattern: ReplacementPatternFunction | Callable | None = None,
         condition_function: Callable | None = None,
+        matcher: Matcher = Matcher.DEFAULT,
+        verbose: int = 0,
     ) -> None:
         """Create a rewrite rule.
 
@@ -849,9 +860,18 @@ class RewriteRule:
             replacement_pattern = ReplacementPatternFunction(replacement_pattern)
         self._replacement_pattern = replacement_pattern
         self._condition_function = condition_function or always_true
+        if matcher == Matcher.MULTI:
+            from onnxscript.rewriter.generic_pattern import GenericPattern
+
+            self._matcher = GenericPattern(target_pattern, verbose=verbose)
+        else:
+            self._matcher = None
+        self._verbose = verbose
 
     def matches(self, node: ir.Node, model: ir.Model) -> MatchResult:
         """Check if the node from IR matches the pattern."""
+        if self._matcher:
+            return self._matcher.match(model.graph, node)
         if len(node.outputs) != self._target_pattern.num_outputs:
             return MatchResult.FAIL()
         match = self._target_pattern.matches_subgraph(node)
@@ -899,6 +919,8 @@ class RewriteRule:
             rule._condition_function = self._condition_function
             rule._target_pattern = new_pattern
             rule._replacement_pattern = self._replacement_pattern
+            rule._matcher = self._matcher
+            rule._verbose = self._verbose
             return rule
 
         return [replace_pattern(p) for p in self._target_pattern.commute()]

@@ -88,41 +88,6 @@ def _to_match_result(pmr: PatternMatchResult) -> orp.MatchResult:
     return result
 
 
-class GenericRewriteRule(orp.RewriteRule):
-    """
-    Defines a rewriting rule.
-
-        pattern: a pattern defines by :class:`GenericPattern`.
-    """
-
-    def __init__(
-        self,
-        match_pattern: orp.GraphPattern,
-        apply_pattern: orp.ReplacementPatternFunction,
-        validate_mapping: Callable,
-        matcher,
-        verbose: int = 0,
-    ):
-        super().__init__(match_pattern, apply_pattern, validate_mapping)
-        self.matcher = matcher
-        self.verbose = verbose
-
-    def matches(self, node: ir.Node, model: ir.Model) -> orp.MatchResult:
-        return self.matcher.match(model.graph, node)
-
-    def count_matches(self, model: ir.Model, *, commute: bool = False) -> int:
-        """See :meth:`RewriteRule.count_matches`."""
-        raise NotImplementedError("Not supported yet.")
-
-    def commute(self) -> list[orp.RewriteRule]:
-        """See :meth:`RewriteRule.commute`."""
-        raise RuntimeError("Not supported (yet?). It could lead to many patterns.")
-
-    def apply_to_model(self, model: ir.Model, *, commute: bool = False) -> int:
-        """See :meth:`RewriteRule.apply_to_model`."""
-        return orp.RewriteRuleSet([self], commute=commute).apply_to_model(model)
-
-
 class GenericPattern:
     """
     Implements a pattern optimization for quick experimentation.
@@ -636,14 +601,10 @@ def make_pattern_rule(
         the rewriting rule
     """
 
-    match_pattern_ir = orp._to_graph_pattern(match_pattern_function)
-    matcher = GenericPattern(match_pattern_ir, verbose=verbose)
-    replacement_builder = orp.ReplacementPatternFunction(apply_pattern_function)
-
-    return GenericRewriteRule(
-        match_pattern_ir,
-        replacement_builder,
-        validate_mapping or (lambda *_, **__: True),
-        matcher,
+    return orp.RewriteRule(
+        match_pattern_function,
+        apply_pattern_function,
+        validate_mapping,
+        matcher=orp.Matcher.MULTI,
         verbose=verbose,
     )
