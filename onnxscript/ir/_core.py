@@ -1722,7 +1722,11 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def num_nodes(self) -> int:
         """Get the number of nodes in the graph in O(1) time.
 
-        This is an alias for len(graph). Use it if you prefer a more descriptive name.
+        Note that this method returns the number of nodes this graph directly contains.
+        It does not count nodes in subgraphs.
+
+        This is an alias for ``len(graph)``. Use this if you prefer a more descriptive
+        name for readability.
         """
         # NOTE: This is a method specific to Graph, not required by the protocol unless proven
         return len(self)
