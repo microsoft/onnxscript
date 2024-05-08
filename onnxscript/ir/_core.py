@@ -1698,14 +1698,19 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def node(self, index_or_name: int | str, /) -> Node:
         """Get a node by index or name.
 
-        If there are multiple nodes with the same name, the first node with the name is returned.
         This is an O(n) operation. Getting nodes on the ends of the graph (0 or -1) is O(1).
+
+        When a name is provided and if there are multiple nodes with the same name,
+        the first node with the name is returned.
+
+        If you need repeated random access, consider turning it into a list with ``list(graph)`` .
+        Or a dictionary for repeated access by name: ``{node.name for node in graph}`` .
 
         Args:
             index_or_name: The index or name of the node.
 
         Returns:
-            The node.
+            The node if found.
 
         Raises:
             IndexError: If the index is out of range.
@@ -1757,7 +1762,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._nodes.extend(nodes)
 
     def remove(self, nodes: Node | Iterable[Node], /, safe: bool = False) -> None:
-        """Remove nodes from the graph in O(#num of nodes) time.
+        """Remove nodes from the graph in O(#num of nodes to remove) time.
 
         If any errors are raise, to ensure the graph is not left in an inconsistent state,
         the graph is not modified.
