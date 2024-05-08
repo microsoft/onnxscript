@@ -87,7 +87,7 @@ class DLPackCompatible(Protocol):
 
 
 @typing.runtime_checkable
-class TensorProtocol(ArrayCompatible, Protocol):
+class TensorProtocol(ArrayCompatible, DLPackCompatible, Protocol):
     """Concrete tensor backed by data.
 
     The protocol does not specify how the data is stored. That data is exposed
@@ -133,6 +133,14 @@ class TensorProtocol(ArrayCompatible, Protocol):
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         """Return the tensor as a numpy array, compatible with np.array."""
+        ...
+
+    def __dlpack__(self, *, stream: Any = ...) -> Any:
+        """Return PyCapsule."""
+        ...
+
+    def __dlpack_device__(self) -> Any:
+        """Return the device."""
         ...
 
     def tobytes(self) -> bytes:

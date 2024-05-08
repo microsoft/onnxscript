@@ -222,7 +222,7 @@ def _check_numpy_representation_type(array: np.ndarray, dtype: _enums.DataType) 
         )
 
 
-class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
+class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):  # pylint: disable=too-many-ancestors
     """An immutable concrete tensor.
 
     This class is a wrapper around the raw tensor data. The raw tensor data can be a numpy array
@@ -412,7 +412,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -420,7 +420,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):
         return self._metadata
 
 
-class ExternalTensor(TensorBase, _protocols.TensorProtocol):
+class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
     """An immutable concrete tensor with its data store on disk.
 
     This class uses memory mapping to avoid loading the tensor into memory,
@@ -433,7 +433,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
     To obtain an array, call :meth:`numpy`. To obtain the bytes,
     call :meth:`tobytes`.
 
-    The :attribute:`path` can be a relative path or an absolute path.
+    The :attr:`path` can be a relative path or an absolute path.
     Serializers should handle the path correctly to conform with the ONNX spec.
 
     Attributes:
@@ -513,6 +513,10 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
 
     def _load(self):
         assert self._array is None, "Bug: The array should be loaded only once."
+        if self.size == 0:
+            # When the size is 0, mmap is impossible and meaningless
+            self._array = np.empty(self.shape.numpy(), dtype=self.dtype.numpy())
+            return
         # Map the whole file into the memory
         # TODO(justinchuby): Verify if this would exhaust the memory address space
         with open(self._path, "rb") as f:
@@ -523,9 +527,19 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
             )
         # Handle the byte order correctly by always using little endian
         dt = np.dtype(self.dtype.numpy()).newbyteorder("<")
-        self._array = np.frombuffer(
-            self.raw, dtype=dt, offset=self.offset or 0, count=self.size
-        ).reshape(self.shape.numpy())
+        if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
+            count = self.size // 2 + self.size % 2
+        else:
+            count = self.size
+        self._array = np.frombuffer(self.raw, dtype=dt, offset=self.offset or 0, count=count)
+        shape = self.shape.numpy()
+        if self.dtype == _enums.DataType.INT4:
+            # Unpack the int4 arrays
+            self._array = _type_casting.unpack_int4(self._array, shape)
+        elif self.dtype == _enums.DataType.UINT4:
+            self._array = _type_casting.unpack_uint4(self._array, shape)
+        else:
+            self._array = self._array.reshape(shape)
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if self._array is None:
@@ -534,7 +548,16 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         return self._array.__array__(dtype)
 
     def __dlpack__(self, *, stream: Any = None) -> Any:
-        return self.numpy().__dlpack__(stream=stream)
+        raise NotImplementedError(
+            "ExternalTensor does not support DLPack because it uses memory mapping. "
+            "Call numpy() to get a numpy array instead."
+        )
+
+    def __dlpack_device__(self) -> tuple[int, int]:
+        raise NotImplementedError(
+            "ExternalTensor does not support DLPack because it uses memory mapping. "
+            "Call numpy() to get a numpy array instead."
+        )
 
     def __repr__(self) -> str:
         return f"{self._repr_base()}(path='{self._path}', name={self.name!r}, offset={self._offset!r}), length={self._length!r})"
@@ -571,7 +594,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -579,7 +602,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):
         return self._metadata
 
 
-class StringTensor(TensorBase, _protocols.TensorProtocol):
+class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
     """Multidimensional array of strings (as binary data to match the string_data field in TensorProto)."""
 
     __slots__ = (
@@ -681,7 +704,7 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -1169,7 +1192,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -1424,7 +1447,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
         Example types can be ``TensorType``, ``SparseTensorType``, ``SequenceType``, ``OptionalType``.
         To obtain the data type of the tensor, use ``type.dtype`` or conveniently
-        :attribute:`dtype`.
+        :attr:`dtype`.
         """
         return self._type
 
@@ -1445,7 +1468,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
         If the type is not set, it will be initialized to a new TensorType. To
         set the type as other types like ``SequenceType``, initialize the type
-        then set :attribute:`type` instead.
+        then set :attr:`type` instead.
         """
         if self._type is None:
             self._type = TensorType(value)
@@ -1488,7 +1511,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -1771,8 +1794,9 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         Args:
             nodes: The node to remove.
             safe: If True, performs the following actions before removal:
+
                 1. It checks to make sure there are no users of the node that are not
-                    to be removed before removing it.
+                to be removed before removing it.
                 2. It checks the node does not contribute to any graph outputs.
                 3. It removes references to all inputs so it is no longer a user of other nodes.
 
@@ -1841,7 +1865,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -2006,7 +2030,7 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -2091,7 +2115,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -2253,7 +2277,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:
@@ -2284,8 +2308,9 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         Args:
             nodes: The node to remove.
             safe: If True, performs the following actions before removal:
+
                 1. It checks to make sure there are no users of the node that are not
-                    to be removed before removing it.
+                to be removed before removing it.
                 2. It checks the node does not contribute to any graph outputs.
                 3. It removes references to all inputs so it is no longer a user of other nodes.
 
