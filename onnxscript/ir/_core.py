@@ -32,6 +32,7 @@ from typing import (
     Iterator,
     OrderedDict,
     Sequence,
+    SupportsIndex,
     Union,
 )
 
@@ -1693,6 +1694,38 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
                 self._name_authority.name_value(value)
         node.graph = self
         return node
+
+    def node(self, index_or_name: int | str, /) -> Node:
+        """Get a node by index or name.
+
+        If there are multiple nodes with the same name, the first node with the name is returned.
+        This is an O(n) operation. Getting nodes on the ends of the graph (0 or -1) is O(1).
+
+        Args:
+            index_or_name: The index or name of the node.
+
+        Returns:
+            The node.
+
+        Raises:
+            IndexError: If the index is out of range.
+            ValueError: If the node with the given name is not found.
+        """
+        # NOTE: This is a method specific to Graph, not required by the protocol unless proven
+        if isinstance(index_or_name, SupportsIndex):
+            return self[index_or_name]
+        for node in self:
+            if node.name == index_or_name:
+                return node
+        raise ValueError(f"Node with name '{index_or_name}' not found.")
+
+    def num_nodes(self) -> int:
+        """Get the number of nodes in the graph in O(1) time.
+
+        This is an alias for len(graph). Use it if you prefer a more descriptive name.
+        """
+        # NOTE: This is a method specific to Graph, not required by the protocol unless proven
+        return len(self)
 
     # Mutation methods
     def append(self, node: Node, /) -> None:
