@@ -19,7 +19,6 @@ __all__ = [
     # Tensors
     "TensorProtoTensor",
     # Deserialization
-    "from_proto",
     "deserialize_attribute",
     "deserialize_function",
     "deserialize_graph",
@@ -31,7 +30,6 @@ __all__ = [
     "deserialize_type_proto_for_type",
     "deserialize_value_info_proto",
     # Serialization
-    "to_proto",
     "serialize_attribute_into",
     "serialize_attribute",
     "serialize_dimension_into",
@@ -89,63 +87,6 @@ def _unflatten_complex(
 ) -> npt.NDArray[np.complex64 | np.complex128]:
     """Convert the real representation of a complex dtype to the complex dtype."""
     return array[::2] + 1j * array[1::2]
-
-
-def from_proto(
-    proto: onnx.ModelProto
-    | onnx.GraphProto
-    | onnx.NodeProto
-    | onnx.TensorProto
-    | onnx.AttributeProto,
-) -> Any:
-    """Deserialize an ONNX proto message to an IR object."""
-    if isinstance(proto, onnx.ModelProto):
-        return deserialize_model(proto)
-    if isinstance(proto, onnx.GraphProto):
-        return deserialize_graph(proto)
-    if isinstance(proto, onnx.NodeProto):
-        return deserialize_node(proto)
-    if isinstance(proto, onnx.TensorProto):
-        return deserialize_tensor(proto)
-    if isinstance(proto, onnx.AttributeProto):
-        return deserialize_attribute(proto)
-    raise NotImplementedError(
-        f"Deserialization of {type(proto)} in from_proto is not implemented. "
-        "Use the specific deserialize* function instead."
-    )
-
-
-def to_proto(
-    ir_object: _protocols.ModelProtocol
-    | _protocols.GraphProtocol
-    | _protocols.NodeProtocol
-    | _protocols.ValueProtocol
-    | _protocols.AttributeProtocol
-    | _protocols.ReferenceAttributeProtocol
-    | _protocols.TensorProtocol
-    | _protocols.GraphViewProtocol,
-) -> Any:
-    """Serialize an IR object to a proto."""
-    if isinstance(ir_object, _protocols.ModelProtocol):
-        return serialize_model(ir_object)
-    if isinstance(ir_object, _protocols.GraphProtocol):
-        return serialize_graph(ir_object)
-    if isinstance(ir_object, _protocols.NodeProtocol):
-        return serialize_node(ir_object)
-    if isinstance(ir_object, _protocols.TensorProtocol):
-        return serialize_tensor(ir_object)
-    if isinstance(ir_object, _protocols.ValueProtocol):
-        return serialize_value(ir_object)
-    if isinstance(ir_object, _protocols.AttributeProtocol):
-        return serialize_attribute(ir_object)
-    if isinstance(ir_object, _protocols.ReferenceAttributeProtocol):
-        return serialize_reference_attribute_into(onnx.AttributeProto(), ir_object)
-    if isinstance(ir_object, _protocols.GraphViewProtocol):
-        return serialize_graph(ir_object)
-    raise NotImplementedError(
-        f"Serialization of {type(ir_object)} in to_proto is not implemented. "
-        "Use the specific serialize* function instead."
-    )
 
 
 class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors

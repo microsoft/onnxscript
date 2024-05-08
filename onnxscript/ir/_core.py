@@ -512,6 +512,10 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
 
     def _load(self):
         assert self._array is None, "Bug: The array should be loaded only once."
+        if self.size == 0:
+            # When the size is 0, mmap is impossible and meaningless
+            self._array = np.empty(self.shape.numpy(), dtype=self.dtype.numpy())
+            return
         # Map the whole file into the memory
         # TODO(justinchuby): Verify if this would exhaust the memory address space
         with open(self._path, "rb") as f:
@@ -522,9 +526,11 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             )
         # Handle the byte order correctly by always using little endian
         dt = np.dtype(self.dtype.numpy()).newbyteorder("<")
-        self._array = np.frombuffer(
-            self.raw, dtype=dt, offset=self.offset or 0, count=self.size
-        )
+        if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
+            count = self.size // 2 + self.size % 2
+        else:
+            count = self.size
+        self._array = np.frombuffer(self.raw, dtype=dt, offset=self.offset or 0, count=count)
         shape = self.shape.numpy()
         if self.dtype == _enums.DataType.INT4:
             # Unpack the int4 arrays
@@ -541,10 +547,16 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         return self._array.__array__(dtype)
 
     def __dlpack__(self, *, stream: Any = None) -> Any:
-        return self.numpy().__dlpack__(stream=stream)
+        raise NotImplementedError(
+            "ExternalTensor does not support DLPack because it uses memory mapping. "
+            "Call numpy() to get a numpy array instead."
+        )
 
     def __dlpack_device__(self) -> tuple[int, int]:
-        return self.numpy().__dlpack_device__()
+        raise NotImplementedError(
+            "ExternalTensor does not support DLPack because it uses memory mapping. "
+            "Call numpy() to get a numpy array instead."
+        )
 
     def __repr__(self) -> str:
         return f"{self._repr_base()}(path='{self._path}', name={self.name!r}, offset={self._offset!r}), length={self._length!r})"
