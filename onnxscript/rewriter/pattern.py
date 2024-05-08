@@ -188,7 +188,7 @@ class OpPatternBuilder:
             if isinstance(domain, str):
                 opset_pattern = OpsetPatternBuilder(domain)
             else:
-                raise ValueError("domain must be a string.")
+                raise TypeError("domain must be a string.")
         else:
             opset_pattern = self.opset_pattern
         outputs = kwargs.pop("outputs", 1)
