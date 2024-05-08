@@ -5,6 +5,7 @@ import numpy as np
 import onnx
 import parameterized
 
+from onnxscript import ir
 from onnxscript.ir import serde
 
 
@@ -175,3 +176,36 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
+
+
+class DeserializeGraphTest(unittest.TestCase):
+    def test_deserialize_graph_handles_unsorted_graph(self):
+        node_0 = ir.Node(
+            "",
+            "Op_0",
+            inputs=[ir.Input("input_0"), ir.Input("input_1")],
+            num_outputs=2,
+            name="node_0",
+        )
+        node_1 = ir.Node(
+            "",
+            "Op_1",
+            inputs=[node_0.outputs[0]],
+            num_outputs=1,
+            name="node_1",
+        )
+        graph = ir.Graph(
+            inputs=node_0.inputs,  # type: ignore
+            outputs=[node_1.outputs[0]],
+            # Unsorted nodes
+            nodes=[node_1, node_0],
+            name="test_graph",
+        )
+        graph_proto = serde.serialize_graph(graph)
+        deserialized_graph = serde.deserialize_graph(graph_proto)
+        self.assertEqual(deserialized_graph[0].op_type, "Op_1")
+        self.assertEqual(deserialized_graph[1].op_type, "Op_0")
+
+
+if __name__ == "__main__":
+    unittest.main()
