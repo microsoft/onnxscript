@@ -401,7 +401,7 @@ class NodePattern:
         op: str | Pattern[str],
         inputs: Sequence[int | float | ValuePattern | None],
         attributes: dict[str, AttrPattern],
-        outputs: Sequence[str],
+        outputs: Sequence[str | None],
     ):
         self.domain = domain
         self.op = StringConstantPattern(op) if isinstance(op, str) else op
@@ -585,7 +585,7 @@ class Constant(ValuePattern):
         return [self]
 
 
-def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[ValuePattern]:
+def _nodes_in_pattern(outputs: Sequence[ValuePattern | None]) -> list[NodePattern]:
     """Computes inputs and nodes from outputs of a pattern."""
     node_patterns: list[NodePattern] = []
 
