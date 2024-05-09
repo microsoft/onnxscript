@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import abc
 import dataclasses
 import inspect
 import itertools
 import math
-from abc import ABC, abstractmethod
 from typing import (
     Any,
     Callable,
@@ -822,11 +822,11 @@ def _update_opset_imports(
             )
 
 
-class PatternMatcher(ABC):
+class PatternMatcher(abc.ABC):
     def __init__(self, pattern: GraphPattern) -> None:
         self.pattern = pattern
 
-    @abstractmethod
+    @abc.abstractmethod
     def match(
         self,
         model: ir.Model,

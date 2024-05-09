@@ -184,9 +184,9 @@ class GenericPatternMatcher(orp.PatternMatcher):
                 )
         return None
 
-    def print_match(self, n1: ir.Node, n2: orp.NodePattern) -> str:
-        s1 = f"{n1.op_type}({n1.inputs})"
-        s2 = f"{n2.op_type}({n2.inputs})"
+    def print_match(self, graph_node: ir.Node, pattern_node: orp.NodePattern) -> str:
+        s1 = f"{graph_node.op_type}({graph_node.inputs})"
+        s2 = f"{pattern_node.op_type}({pattern_node.inputs})"
         return f"match {s1} with {s2} (pattern)"
 
     def _debug_print(self) -> str:
