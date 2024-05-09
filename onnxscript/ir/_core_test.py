@@ -646,7 +646,9 @@ class GraphTest(unittest.TestCase):
     def setUp(self) -> None:
         self.v0 = _core.Input(name="v0")
         self.v1 = _core.Input(name="v1")
-        self.node = _core.Node("", "Add", inputs=(self.v0, self.v1), num_outputs=1)
+        self.node = _core.Node(
+            "", "Add", inputs=(self.v0, self.v1), num_outputs=1, name="node_add"
+        )
         self.graph = _core.Graph(
             (self.v0, self.v1),
             self.node.outputs,
@@ -663,6 +665,24 @@ class GraphTest(unittest.TestCase):
 
     def test_it_is_iterable_of_nodes(self):
         self.assertEqual(list(self.graph), [self.node])
+
+    def test_node_returns_node_by_name(self):
+        self.assertIs(self.graph.node("node_add"), self.node)
+
+    def test_node_returns_node_by_index(self):
+        self.assertIs(self.graph.node(0), self.node)
+
+    def test_node_raises_when_node_does_not_exist(self):
+        with self.assertRaisesRegex(ValueError, "not found"):
+            self.graph.node("non_existent")
+
+    def test_node_raises_when_index_out_of_range(self):
+        with self.assertRaises(IndexError):
+            self.graph.node(1)
+
+    def test_num_nodes_returns_the_count_of_nodes(self):
+        self.assertEqual(self.graph.num_nodes(), 1)
+        self.assertEqual(self.graph.num_nodes(), len(self.graph))
 
     def test_metadata(self):
         self.graph.meta["test"] = 1

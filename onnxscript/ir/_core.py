@@ -721,7 +721,10 @@ class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
             value: The value of the dimension. It should not be an int.
         """
         if isinstance(value, int):
-            raise TypeError("The value of a SymbolicDim cannot be an int")
+            raise TypeError(
+                "The value of a SymbolicDim cannot be an int. "
+                "If you are creating a Shape, use int directly instead of SymbolicDim."
+            )
         self._value = value
 
     def __eq__(self, other: object) -> bool:
@@ -1717,6 +1720,48 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         node.graph = self
         return node
 
+    def node(self, index_or_name: int | str, /) -> Node:
+        """Get a node by index or name.
+
+        This is an O(n) operation. Getting nodes on the ends of the graph (0 or -1) is O(1).
+
+        .. note::
+            If you need repeated random access, consider turning it into a list with ``list(graph)`` .
+            Or a dictionary for repeated access by name: ``{node.name for node in graph}`` .
+
+        When a name is provided and if there are multiple nodes with the same name,
+        the first node with the name is returned.
+
+        Args:
+            index_or_name: The index or name of the node.
+
+        Returns:
+            The node if found.
+
+        Raises:
+            IndexError: If the index is out of range.
+            ValueError: If the node with the given name is not found.
+        """
+        # NOTE: This is a method specific to Graph, not required by the protocol unless proven
+        if isinstance(index_or_name, int):
+            return self[index_or_name]
+        for node in self:
+            if node.name == index_or_name:
+                return node
+        raise ValueError(f"Node with name '{index_or_name}' not found.")
+
+    def num_nodes(self) -> int:
+        """Get the number of nodes in the graph in O(1) time.
+
+        Note that this method returns the number of nodes this graph directly contains.
+        It does not count nodes in subgraphs.
+
+        This is an alias for ``len(graph)``. Use this if you prefer a more descriptive
+        name for readability.
+        """
+        # NOTE: This is a method specific to Graph, not required by the protocol unless proven
+        return len(self)
+
     # Mutation methods
     def append(self, node: Node, /) -> None:
         """Append a node to the graph in O(1) time.
@@ -1743,7 +1788,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._nodes.extend(nodes)
 
     def remove(self, nodes: Node | Iterable[Node], /, safe: bool = False) -> None:
-        """Remove nodes from the graph in O(#num of nodes) time.
+        """Remove nodes from the graph in O(#num of nodes to remove) time.
 
         If any errors are raise, to ensure the graph is not left in an inconsistent state,
         the graph is not modified.
