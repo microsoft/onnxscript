@@ -38,10 +38,10 @@ class StringConstantPattern(Pattern[str]):
     """Matches strings with given value."""
 
     def __init__(self, value: str):
-        self.value = value
+        self._value = value
 
     def matches(self, item: str) -> bool:
-        return item == self.value
+        return item == self._value
 
 
 class PrefixPattern(Pattern[str]):
@@ -58,7 +58,11 @@ class AttrPattern(Pattern[Union[ir.Attr, ir.RefAttr]]):
     """Base class for an attribute pattern. Matches any attribute value by default."""
 
     def __init__(self, name: str | None):
-        self.name = name
+        self._name = name
+
+    @property
+    def name(self) -> str | None:
+        return self._name
 
     def matches(self, attr: ir.Attr | ir.RefAttr) -> bool:
         return True
@@ -130,14 +134,18 @@ class OpsetPatternBuilder(Pattern[str]):
 
     def __init__(self, domain: Pattern[str] | str) -> None:
         if isinstance(domain, str):
-            self.domain_name = domain
-            self.domain_pattern = StringConstantPattern(domain)
+            self._domain_name = domain
+            self._domain_pattern = StringConstantPattern(domain)
         else:
-            self.domain_name = None
-            self.domain_pattern = domain
+            self._domain_name = None
+            self._domain_pattern = domain
+
+    @property
+    def domain_name(self) -> str | None:
+        return self._domain_name
 
     def matches(self, domain):
-        return self.domain_pattern.matches(domain)
+        return self._domain_pattern.matches(domain)
 
     def __getattr__(self, op_name: str) -> OpPatternBuilder:
         return OpPatternBuilder(self, op_name)
@@ -264,19 +272,19 @@ class MatchResult:
     """
 
     def __init__(self, success: bool) -> None:
-        self.success: bool = success
-        # For a successful match, matched_nodes is a list of values that matched the pattern.
+        self._success: bool = success
+        # For a successful match, _matched_nodes is a list of values that matched the pattern.
         # These include the internal nodes of the pattern that were matched, but not
         # the leaves (sub-trees) that match against the variables in the pattern.
         # These represent the values that will be replaced by the replacement pattern.
-        self.matched_nodes: MutableSequence[ir.Node] = []
+        self._matched_nodes: MutableSequence[ir.Node] = []
         # For a successful match, bindings is a dictionary of mapping pattern-variable-names
         # to values.
         self.bindings: dict[str, Any] = {}
-        self.outputs: MutableSequence[ir.Value] = []
+        self.outputs: list[ir.Value] = []
 
     def __bool__(self):
-        return self.success
+        return self._success
 
     @classmethod
     def FAIL(cls):
@@ -284,7 +292,7 @@ class MatchResult:
 
     @property
     def nodes(self) -> MutableSequence[ir.Node]:
-        return self.matched_nodes
+        return self._matched_nodes
 
     def bind(self, var: str, value: Any) -> bool:
         """Binds a pattern variable name to a value from the matched IR.
@@ -295,16 +303,16 @@ class MatchResult:
             # TODO(rama): Use appropriate equality-check here.
             if self.bindings[var] == value:
                 return True
-            self.success = False
+            self._success = False
             return False
         self.bindings[var] = value
         return True
 
     def extend(self, other: MatchResult | bool):
-        if not self.success:
+        if not self._success:
             return
         if not other:
-            self.success = False
+            self._success = False
             return
         if isinstance(other, bool):
             return
@@ -312,12 +320,12 @@ class MatchResult:
             if var in self.bindings:
                 # TODO: handle attribute var bindings
                 if self.bindings[var] != val:
-                    self.success = False
+                    self._success = False
                     return
             else:
                 self.bindings[var] = val
-        assert self.matched_nodes is not None, "matched_nodes should not be None."
-        self.matched_nodes.extend(other.matched_nodes)  # type: ignore[attr-defined]
+        assert self._matched_nodes is not None, "_matched_nodes should not be None."
+        self._matched_nodes.extend(other._matched_nodes)  # type: ignore[attr-defined]
 
 
 class ValuePattern:
@@ -328,9 +336,13 @@ class ValuePattern:
     """
 
     def __init__(self, name: str | None) -> None:
-        self.name = name
+        self._name = name
         # Note: uses will be computed only when the full graph-pattern is constructed.
         self._uses: list[tuple[NodePattern, int]] = []
+
+    @property
+    def name(self) -> str | None:
+        return self._name
 
     def producer(self) -> None | NodePattern:
         return None
@@ -342,12 +354,12 @@ class ValuePattern:
         self._uses.append((node, index))
 
     def __repr__(self) -> str:
-        return f"ValuePattern({self.name!r})"
+        return f"ValuePattern({self._name!r})"
 
     def matches(self, value: ir.Value):
         result = MatchResult(success=True)
-        if self.name is not None:
-            result.bind(self.name, value)
+        if self._name is not None:
+            result.bind(self._name, value)
         return result
 
     def commute(self) -> Sequence[ValuePattern]:
@@ -523,21 +535,25 @@ class NodeOutputPattern(ValuePattern):
     ) -> None:
         super().__init__(name)
         self._producer = producer
-        self.output_index = output_index
+        self._output_index = output_index
+
+    @property
+    def output_index(self) -> int:
+        return self._output_index
 
     def matches(self, value: ir.Value):
         """Match the StaticValueInfo from IR with the `matches_subgraph()` in node pattern."""
         node = value.producer()
         if node is None:
             return MatchResult.FAIL()
-        if value.index() != self.output_index:
+        if value.index() != self._output_index:
             return MatchResult.FAIL()
         return self._producer.matches_subgraph(node)
 
     def commute(self) -> Sequence[ValuePattern]:
         # TODO
         return [
-            NodeOutputPattern(pattern, self.output_index, self.name)
+            NodeOutputPattern(pattern, self._output_index, self.name)
             for pattern in self._producer.commute()
         ]
 
@@ -555,13 +571,13 @@ class Constant(ValuePattern):
         self, value: int | float, rel_tol: float = 1e-5, abs_tol: float = 1e-8
     ) -> None:
         super().__init__(None)
-        self.value = value
-        self.rel_tol = rel_tol
-        self.abs_tol = abs_tol
+        self._value = value
+        self._rel_tol = rel_tol
+        self._abs_tol = abs_tol
 
     def match_scalar(self, scalar_value):
         status = math.isclose(
-            scalar_value, self.value, rel_tol=self.rel_tol, abs_tol=self.abs_tol
+            scalar_value, self._value, rel_tol=self._rel_tol, abs_tol=self._abs_tol
         )
         # Note: If the value is produced by a Constant node, we could include
         # the Constant node in the return_value list. However, we don't do that.
@@ -608,11 +624,11 @@ class GraphPattern:
     def __init__(
         self, inputs: Sequence[ValuePattern], outputs: Sequence[ValuePattern]
     ) -> None:
-        self.inputs = inputs
-        self.outputs = outputs
+        self._inputs = inputs
+        self._outputs = outputs
         if len(outputs) == 0:
             raise ValueError("GraphPattern must have at least one output")
-        self.nodes = _nodes_in_pattern(outputs)
+        self._nodes = _nodes_in_pattern(outputs)
 
         # Check if all outputs are produced by the same node.
         output_node = None
@@ -631,17 +647,29 @@ class GraphPattern:
                 output_node = None
         self._output_node = output_node
 
+    @property
+    def inputs(self) -> Sequence[ValuePattern]:
+        return self._inputs
+
+    @property
+    def outputs(self) -> Sequence[ValuePattern]:
+        return self._outputs
+
+    @property
+    def nodes(self) -> Sequence[NodePattern]:
+        return self._nodes
+    
     def __getitem__(self, index: int) -> NodePattern:
-        return self.nodes[index]
+        return self._nodes[index]
 
     def __len__(self) -> int:
-        return len(self.nodes)
+        return len(self._nodes)
 
     def __iter__(self) -> Iterator[NodePattern]:
-        return iter(self.nodes)
+        return iter(self._nodes)
 
     def __reversed__(self) -> Iterator[NodePattern]:
-        return reversed(self.nodes)
+        return reversed(self._nodes)
 
     @property
     def has_single_output_node(self) -> bool:
@@ -649,7 +677,7 @@ class GraphPattern:
 
     @property
     def num_outputs(self) -> int:
-        return len(self.outputs)
+        return len(self._outputs)
 
     def matches_subgraph(self, node: ir.Node) -> MatchResult:
         if self._output_node is None:
@@ -664,7 +692,7 @@ class GraphPattern:
         nodes = self._output_node.commute()
         return [
             GraphPattern(
-                self.inputs, [NodeOutputPattern(n, i) for i in range(self.num_outputs)]
+                self._inputs, [NodeOutputPattern(n, i) for i in range(self.num_outputs)]
             )
             for n in nodes
         ]
