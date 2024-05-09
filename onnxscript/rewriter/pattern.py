@@ -176,22 +176,27 @@ class OpPatternBuilder:
         self.opset_pattern = opset_pattern
         self.op_name = op_name
 
-    def __call__(self, *args, **kwargs):
-        if "_num_outputs" in kwargs:
-            raise ValueError("Use 'outputs' instead of '_num_outputs'.")
-        if "version" in kwargs:
+    def __call__(
+        self,
+        *args,
+        domain: str | None = None,
+        version: int | None = None,
+        outputs: int | list[str | None] = 1,
+        **kwargs,
+    ):
+        if version is not None:
             raise ValueError(
-                "The pattern builder does not support 'version' keyword argument."
+                "The pattern builder does not support 'version' keyword argument. "
+                "Version restrictions should be handled by rewrite rules."
             )
-        if "domain" in kwargs:
-            domain = kwargs.pop("domain")
-            if isinstance(domain, str):
-                opset_pattern = OpsetPatternBuilder(domain)
-            else:
-                raise TypeError("domain must be a string.")
-        else:
+        if domain is None:
             opset_pattern = self.opset_pattern
-        outputs = kwargs.pop("outputs", 1)
+        elif isinstance(domain, str):
+            opset_pattern = OpsetPatternBuilder(domain)
+        else:
+            # TODO(rama): allow OpsetPatternBuilder as domain.
+            raise TypeError("domain must be a string.")
+
         if isinstance(outputs, int):
             outputs = [None for _ in range(outputs)]
         elif not isinstance(outputs, Sequence) or not all(
