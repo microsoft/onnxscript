@@ -335,8 +335,11 @@ class ValuePattern:
     def producer(self) -> None | NodePattern:
         return None
 
-    def uses(self) -> list[tuple[NodePattern, int]]:
+    def uses(self) -> Sequence[tuple[NodePattern, int]]:
         return self._uses
+
+    def append_use(self, node: NodePattern, index: int):
+        self._uses.append((node, index))
 
     def __repr__(self) -> str:
         return f"ValuePattern({self.name!r})"
@@ -412,6 +415,11 @@ class NodePattern:
         else:
             self._op_identifier = None
         self.outputs = [NodeOutputPattern(self, i, name) for i, name in enumerate(outputs)]
+
+        # Update uses for inputs.
+        for index, value in enumerate(self.inputs):
+            if value is not None:
+                value.append_use(self, index)
 
     def op_identifier(self) -> Tuple[str, str, str]:
         return self._op_identifier
@@ -594,14 +602,6 @@ def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[ValuePattern]:
     return node_patterns
 
 
-def _compute_uses(nodepatterns: Sequence[NodePattern]) -> None:
-    """Compute the uses of values in the pattern."""
-    for nodepattern in nodepatterns:
-        for index, value in enumerate(nodepattern.inputs):
-            if value is not None:
-                value.uses().append((nodepattern, index))
-
-
 class GraphPattern:
     """Represents a pattern that can be matched against a subgraph."""
 
@@ -613,7 +613,6 @@ class GraphPattern:
         if len(outputs) == 0:
             raise ValueError("GraphPattern must have at least one output")
         self.nodes = _nodes_in_pattern(outputs)
-        _compute_uses(self.nodes)
 
         # Check if all outputs are produced by the same node.
         output_node = None
@@ -784,6 +783,10 @@ class ReplacementSubgraph:
 
 
 def always_true(*args, **kwargs) -> bool:
+    """A condition function that always returns True.
+
+    This is used when no condition function is provided for a rewrite rule.
+    """
     return True
 
 
