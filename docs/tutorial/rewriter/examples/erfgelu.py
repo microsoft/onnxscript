@@ -70,15 +70,13 @@ onnx.checker.check_model(commute_model)
 # The target pattern
 # =====================
 
-_op = pattern.onnxop
+
+def erf_gelu_pattern(op, x):
+    return 0.5 * (x * (op.Erf(x / math.sqrt(2)) + 1.0))
 
 
-def erf_gelu_pattern(x):
-    return 0.5 * (x * (_op.Erf(x / math.sqrt(2)) + 1.0))
-
-
-def erf_gelu_pattern_2(x):
-    return (x * (_op.Erf(x / math.sqrt(2)) + 1.0)) * 0.5
+def erf_gelu_pattern_2(op, x):
+    return (x * (op.Erf(x / math.sqrt(2)) + 1.0)) * 0.5
 
 
 ####################################
@@ -98,7 +96,7 @@ def gelu(op, x: ir.Value):
 def apply_rewrite(model):
     rule = pattern.RewriteRule(
         erf_gelu_pattern,  # Target Pattern
-        gelu,  # Replacement Pattern
+        gelu,  # Replacement
     )
     model_with_rewrite_applied = onnxscript.rewriter.rewrite(
         model,
@@ -111,11 +109,11 @@ def apply_rewrite_with_ruleset(model):
     # Create multiple rules
     rule1 = pattern.RewriteRule(
         erf_gelu_pattern,  # Target Pattern
-        gelu,  # Replacement Pattern
+        gelu,  # Replacement
     )
     rule2 = pattern.RewriteRule(
         erf_gelu_pattern_2,  # Target Pattern
-        gelu,  # Replacement Pattern
+        gelu,  # Replacement
     )
     # Create a Rewrite Rule Set with multiple rules.
     rewrite_rule_set = pattern.RewriteRuleSet([rule1, rule2])
@@ -131,7 +129,7 @@ def apply_rewrite_with_ruleset(model):
 def apply_rewrite_with_commute(model):
     rule = pattern.RewriteRule(
         erf_gelu_pattern,  # Target Pattern
-        gelu,  # Replacement Pattern
+        gelu,  # Replacement
     )
     # Create a Rewrite Rule Set with commute=True
     rewrite_rule_set = pattern.RewriteRuleSet([rule], commute=True)
