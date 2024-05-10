@@ -13,7 +13,6 @@ import onnx
 import onnx.helper as oh
 import onnx.numpy_helper as onh
 
-import onnxscript
 from onnxscript import ir
 from onnxscript.rewriter import generic_pattern
 
@@ -83,11 +82,14 @@ def rotary_match_pattern(op, x, pos_ids, axis):
     cast2 = op.Cast(cos, to=onnx.TensorProto.FLOAT)
     return cast1, cast2
 
+
 def rotary_apply_pattern(op, x, pos_ids, axis):
     """The replacement pattern."""
     cos_cache = op.Constant(value=onh.from_array(np.random.rand(256, 256).astype(np.float16)))
     sin_cache = op.Constant(value=onh.from_array(np.random.rand(256, 256).astype(np.float16)))
-    part1, part2 = op.RotaryEmbedding(x, pos_ids, cos_cache, sin_cache, domain="com.microsoft", outputs=2)
+    part1, part2 = op.RotaryEmbedding(
+        x, pos_ids, cos_cache, sin_cache, domain="com.microsoft", outputs=2
+    )
     return part1, part2
 
 
@@ -97,7 +99,9 @@ def rotary_apply_pattern(op, x, pos_ids, axis):
 #
 # The rule is easy to create.
 
-rule = generic_pattern.make_pattern_rule(rotary_match_pattern, rotary_apply_pattern)
+rule = generic_pattern.make_pattern_rule(
+    rotary_match_pattern, rotary_apply_pattern, verbose=10
+)
 
 ##########################
 # Let's apply it.
