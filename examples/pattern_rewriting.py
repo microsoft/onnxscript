@@ -13,7 +13,6 @@ import onnx
 import onnx.helper as oh
 import onnx.numpy_helper as onh
 
-import onnxscript
 from onnxscript import ir
 from onnxscript.rewriter import generic_pattern
 
@@ -67,18 +66,15 @@ ir_model = ir.serde.deserialize_model(model)
 # The rewriting pattern
 # =====================
 
-op = onnxscript.opset18
-msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
-
-def rotary_match_pattern(x, pos_ids, axis):
+def rotary_match_pattern(op, x, pos_ids, axis):
     """The pattern to match."""
     unsqueeze = op.Unsqueeze(x, axis)
     cast = op.Cast(unsqueeze, to=onnx.TensorProto.FLOAT)
 
     matmul = op.MatMul(pos_ids, cast)
     transpose = op.Transpose(matmul)
-    output, length = msft_op.ConcatTraining(transpose, transpose)
+    output, length = op.ConcatTraining(transpose, transpose, domain="com.microsoft", outputs=2)
 
     sin = op.Sin(output)
     cast1 = op.Cast(sin, to=onnx.TensorProto.FLOAT)
@@ -87,25 +83,13 @@ def rotary_match_pattern(x, pos_ids, axis):
     return cast1, cast2
 
 
-def validate_rotary_mapping(g, match_result) -> bool:
-    """The validation post matching.
-
-    Returns True to validate the replacement,
-    False not to apply it.
-
-    :param g: model
-    :param match_result: matched nodes
-    """
-    del g
-    del match_result
-    return True
-
-
-def rotary_apply_pattern(x, pos_ids, axis):
+def rotary_apply_pattern(op, x, pos_ids, axis):
     """The replacement pattern."""
     cos_cache = op.Constant(value=onh.from_array(np.random.rand(256, 256).astype(np.float16)))
     sin_cache = op.Constant(value=onh.from_array(np.random.rand(256, 256).astype(np.float16)))
-    part1, part2 = msft_op.RotaryEmbedding(x, pos_ids, cos_cache, sin_cache)
+    part1, part2 = op.RotaryEmbedding(
+        x, pos_ids, cos_cache, sin_cache, domain="com.microsoft", outputs=2
+    )
     return part1, part2
 
 
@@ -115,18 +99,9 @@ def rotary_apply_pattern(x, pos_ids, axis):
 #
 # The rule is easy to create.
 
-
-rule_with_validation_function = generic_pattern.make_pattern_rule(
-    rotary_match_pattern,
-    rotary_apply_pattern,
-    validate_rotary_mapping,
+rule = generic_pattern.make_pattern_rule(
+    rotary_match_pattern, rotary_apply_pattern, verbose=10
 )
-
-################################
-# ``validate_rotary_mapping`` always return True.
-# This argument can be ignored in that case.
-
-rule = generic_pattern.make_pattern_rule(rotary_match_pattern, rotary_apply_pattern)
 
 ##########################
 # Let's apply it.
@@ -166,6 +141,8 @@ rule = generic_pattern.make_pattern_rule(
 )
 
 rule.apply_to_model(ir_model)
+
+# TODO(rama): Update the following, the trace-printed looks different now.
 
 ######################################
 # The logs shows every time the algorithm rejected a pattern.

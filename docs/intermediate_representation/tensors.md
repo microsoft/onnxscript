@@ -137,8 +137,6 @@ In the following scenario, we show how to go from a `TensorProto` to an `ir.Tens
     print("tensor_mean.size:", tensor_mean.size)
     print("tensor_mean.nbytes:", tensor_mean.nbytes)
     print("tensor_mean.raw:", tensor_mean.raw)
-    print("\nUse the display() method to view the tensor")
-    tensor_mean.display()
 ```
 
 ## Working with non-native NumPy dtypes: bfloat16, float8, int4
