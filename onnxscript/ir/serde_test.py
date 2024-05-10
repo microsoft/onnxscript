@@ -10,6 +10,51 @@ from onnxscript._internal import version_utils
 from onnxscript.ir import serde
 
 
+class ConvenienceFunctionsTest(unittest.TestCase):
+    @parameterized.parameterized.expand(
+        [
+            ("model", onnx.ModelProto()),
+            ("graph", onnx.GraphProto()),
+            ("node", onnx.NodeProto()),
+            (
+                "tensor",
+                onnx.helper.make_tensor("test_tensor", onnx.TensorProto.FLOAT, [1], [1.0]),
+            ),
+            ("value_info", onnx.ValueInfoProto()),
+            ("type", onnx.TypeProto()),
+            ("attribute", onnx.AttributeProto()),
+        ]
+    )
+    def test_from_proto(self, _: str, proto):
+        serde.from_proto(proto)
+
+    @parameterized.parameterized.expand(
+        [
+            ("model", ir.Model(ir.Graph([], [], nodes=[]), ir_version=1)),
+            ("graph", ir.Graph([], [], nodes=[])),
+            (
+                "node",
+                ir.Node(
+                    "", "Op", inputs=[], outputs=[ir.Value(None, index=None, name="value")]
+                ),
+            ),
+            (
+                "tensor",
+                serde.TensorProtoTensor(
+                    onnx.helper.make_tensor("test_tensor", onnx.TensorProto.FLOAT, [1], [1.0])
+                ),
+            ),
+            ("value", ir.Value(None, index=None, name="value")),
+            ("type", ir.SequenceType(ir.OptionalType(ir.TensorType(ir.DataType.COMPLEX128)))),
+            ("attribute", ir.Attr("attribute", ir.AttributeType.FLOAT, 1)),
+            ("ref_attribute", ir.RefAttr("ref_attr", "attr", ir.AttributeType.FLOAT)),
+            ("graph_view", ir.GraphView([], [], nodes=[])),
+        ]
+    )
+    def test_to_proto(self, _: str, ir_object):
+        serde.to_proto(ir_object)
+
+
 class TensorProtoTensorTest(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
