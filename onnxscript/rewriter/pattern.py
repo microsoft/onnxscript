@@ -964,9 +964,6 @@ class RewriteRule:
         # TODO(titaiwang): Why do we need RewriteRuleSet?
         return RewriteRuleSet([self], commute=commute).apply_to_model(model)
 
-    def count_matches(self, model: ir.Model, *, commute: bool = False):
-        return RewriteRuleSet([self], commute=commute).count_matches(model)
-
     def commute(self) -> Sequence[RewriteRule]:
         def replace_pattern(new_pattern):
             """Return a shallow copy of self with node_pattern replaced by new_pattern."""
