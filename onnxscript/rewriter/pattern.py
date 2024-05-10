@@ -134,8 +134,8 @@ class OpsetPatternBuilder(Pattern[str]):
 
     def __init__(self, domain: Pattern[str] | str) -> None:
         if isinstance(domain, str):
-            self._domain_name = domain
-            self._domain_pattern = StringConstantPattern(domain)
+            self._domain_name: str | None = domain
+            self._domain_pattern: Pattern[str] = StringConstantPattern(domain)
         else:
             self._domain_name = None
             self._domain_pattern = domain
@@ -601,11 +601,11 @@ class Constant(ValuePattern):
         return [self]
 
 
-def _nodes_in_pattern(outputs: Sequence[ValuePattern | None]) -> list[NodePattern]:
-    """Computes inputs and nodes from outputs of a pattern."""
+def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[NodePattern]:
+    """Returns all nodes used in a pattern, given the outputs of the pattern."""
     node_patterns: list[NodePattern] = []
 
-    def visit(value_patterns: Sequence[ValuePattern]) -> None:
+    def visit(value_patterns: Sequence[ValuePattern | None]) -> None:
         for value_pattern in value_patterns:
             if isinstance(value_pattern, NodeOutputPattern):
                 node_pattern = value_pattern.producer()
