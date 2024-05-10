@@ -104,20 +104,20 @@ class GenericPatternMatcher(orp.PatternMatcher):
     def enumerate_matches(
         self,
         model: ir.Model,
-        graph: ir.Graph | ir.Function,
+        graph_or_function: ir.Graph | ir.Function,
         node: ir.Node | None = None,
         verbose: int = 0,
     ) -> Iterator:
         """Enumerates all the matches."""
         if node is None:
             matched = []
-            for node in graph:
-                res = self.match(model, graph, node, verbose=verbose)
+            for node in graph_or_function:
+                res = self.match(model, graph_or_function, node, verbose=verbose)
                 if res:
                     matched.append(res)
                     yield res
         else:
-            res = self.match(model, graph, node, verbose=verbose)
+            res = self.match(model, graph_or_function, node, verbose=verbose)
             if res:
                 yield res
 
@@ -184,9 +184,9 @@ class GenericPatternMatcher(orp.PatternMatcher):
                 )
         return None
 
-    def print_match(self, n1: ir.Node, n2: orp.NodePattern) -> str:
-        s1 = f"{n1.op_type}({n1.inputs})"
-        s2 = f"{n2.op_type}({n2.inputs})"
+    def print_match(self, graph_node: ir.Node, pattern_node: orp.NodePattern) -> str:
+        s1 = f"{graph_node.op_type}({graph_node.inputs})"
+        s2 = f"{pattern_node.op_type}({pattern_node.inputs})"
         return f"match {s1} with {s2} (pattern)"
 
     def _debug_print(self) -> str:
@@ -478,12 +478,12 @@ class GenericPatternMatcher(orp.PatternMatcher):
     def match(
         self,
         model: ir.Model,
-        graph: ir.Graph | ir.Function,
+        graph_or_function: ir.Graph | ir.Function,
         node: ir.Node,
         verbose: int = 0,
     ) -> orp.MatchResult | None:
         del model
-        del graph
+        del graph_or_function
         self.verbose = verbose
         self._debug = {}
 
