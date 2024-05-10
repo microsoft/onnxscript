@@ -41,6 +41,9 @@ class StringConstantPattern(Pattern[str]):
     def matches(self, item: str) -> bool:
         return item == self._value
 
+    def __str__(self) -> str:
+        return self._value
+
 
 class PrefixPattern(Pattern[str]):
     """Matches strings with a given prefix."""
@@ -50,6 +53,9 @@ class PrefixPattern(Pattern[str]):
 
     def matches(self, value: str) -> bool:
         return value.startswith(self._value)
+
+    def __str__(self) -> str:
+        return f"{self._value}*"
 
 
 class AttrPattern(Pattern[Union[ir.Attr, ir.RefAttr]]):
@@ -396,6 +402,9 @@ class ValuePattern:
     def __pow__(self, other):
         return onnxop.Pow(self, other)
 
+    def __str__(self) -> str:
+        return self._name or "None"
+
 
 class NodePattern:
     """Represents a pattern that matches against a Node.
@@ -440,9 +449,7 @@ class NodePattern:
 
     @property
     def op_type(self) -> str:
-        if self._op_identifier is not None:
-            return self._op_identifier[1]
-        return "unknown"  # used primarily for debugging
+        return str(self.op)
 
     def matches(self, node: ir.Node) -> bool:
         """Matches the pattern represented by self against a node.
@@ -696,6 +703,9 @@ class GraphPattern:
             for n in nodes
         ]
 
+    def __str__(self) -> str:
+        return "TODO: GraphPattern.__str__"
+
 
 def _to_graph_pattern(pattern_constructor: Callable) -> GraphPattern:
     """Convert a pattern-construction function to a GraphPattern.
@@ -865,6 +875,9 @@ class PatternMatcher(abc.ABC):
         verbose: int = 0,
     ) -> MatchResult:
         pass
+
+    def __str__(self) -> str:
+        return str(self.pattern)
 
 
 class SimplePatternMatcher(PatternMatcher):

@@ -88,6 +88,26 @@ def _to_match_result(pmr: PatternMatchResult) -> orp.MatchResult:
     return result
 
 
+def _value_to_str(value: ir.Value | orp.ValuePattern) -> str:
+    return value.name if value.name is not None else "anonymous:" + str(id(value))
+
+
+def _opt_value_to_str(value: ir.Value | orp.ValuePattern | None) -> str:
+    return _value_to_str(value) if value is not None else "None"
+
+
+def _node_to_str(node: ir.Node) -> str:
+    inputs = ", ".join(_opt_value_to_str(input) for input in node.inputs)
+    outputs = ", ".join(_opt_value_to_str(output) for output in node.outputs)
+    return f"{outputs} = {node.op_type}({inputs})"
+
+
+def _pattern_node_to_str(node: orp.NodePattern) -> str:
+    inputs = ", ".join(_opt_value_to_str(input) for input in node.inputs)
+    outputs = ", ".join(_opt_value_to_str(output) for output in node.outputs)
+    return f"{outputs} = {node.op_type}({inputs})"
+
+
 class GenericPatternMatcher(orp.PatternMatcher):
     """
     Implements a pattern optimization for quick experimentation.
@@ -178,16 +198,16 @@ class GenericPatternMatcher(orp.PatternMatcher):
                 else:
                     msg2 = ""
                 print(
-                    f"[{self.__class__.__name__}.match] NONE - line: {lineno}:"
+                    f"[{self.__class__.__name__}.match] Match failed at line: {lineno}:"
                     f"{os.path.split(self.__class__.__module__)[-1]}, "
                     f"op_type={node.op_type}{msg}{msg2}"
                 )
         return None
 
     def print_match(self, graph_node: ir.Node, pattern_node: orp.NodePattern) -> str:
-        s1 = f"{graph_node.op_type}({graph_node.inputs})"
-        s2 = f"{pattern_node.op_type}({pattern_node.inputs})"
-        return f"match {s1} with {s2} (pattern)"
+        s1 = _node_to_str(graph_node)
+        s2 = _pattern_node_to_str(pattern_node)
+        return f"match {s1} with pattern: {s2}"
 
     def _debug_print(self) -> str:
         if not hasattr(self, "_debug"):
@@ -201,7 +221,7 @@ class GenericPatternMatcher(orp.PatternMatcher):
         def _p(n: ir.Node, full: bool = False) -> str:
             if full:
                 return str(n)
-            return f"{n.op_type}({', '.join([str(input) for input in n.inputs])})"
+            return _node_to_str(n)
 
         rows = []
         for k, v in sorted(self._debug.items()):
@@ -221,6 +241,8 @@ class GenericPatternMatcher(orp.PatternMatcher):
             if k == "hint":
                 rows.append(f"--hint--: {v[0]}")  # type: ignore[arg-type]
                 for i in v[1:]:
+                    if isinstance(i, str):
+                        rows.append("  " + i)
                     if isinstance(i, ir.Node):
                         rows.append("  " + _p(i, full=True))
                 continue
@@ -282,9 +304,9 @@ class GenericPatternMatcher(orp.PatternMatcher):
                 self._hint(
                     "BACKWARD: different node types",
                     "--pattern",
-                    pattern_pred,
+                    _pattern_node_to_str(pattern_pred),
                     "-- model",
-                    graph_pred,
+                    _node_to_str(graph_pred),
                 )
                 return self.none(starting_node, inspect.currentframe().f_lineno)
             # matching backward
@@ -495,13 +517,15 @@ class GenericPatternMatcher(orp.PatternMatcher):
             return self.none()
 
         if self.verbose > 5:
-            print(f"[GenericPatternMatcher.match] starts with {node}")
+            print(
+                f"[GenericPatternMatcher.match] Matching started at node: {_node_to_str(node)}"
+            )
             if self.verbose >= 10:
-                print(f"[GenericPatternMatcher.match] match pattern {self!r}")
+                print(f"[GenericPatternMatcher.match] match pattern {self}")
 
         all_pattern_nodes = set(self.pattern)
-        matched: dict[ir.Node, ir.Node] = {last_pattern_node: node}
-        stack: list[ir.Node] = [last_pattern_node]
+        matched: dict[orp.NodePattern, ir.Node] = {last_pattern_node: node}
+        stack: list[orp.NodePattern] = [last_pattern_node]
         iteration = 0
 
         if self.verbose > 5:
