@@ -627,10 +627,16 @@ class GraphPattern:
                 output_node = None
         self._output_node = output_node
 
-    def __getitem__(self, index: int) -> NodePattern:
-        return self.nodes[index]
+    # def __getitem__(self, index: int) -> NodePattern:
+    #     return self.nodes[index]
 
-    def __len__(self) -> int:
+    def node(self, index: int) -> NodePattern:
+        return self.nodes[index]
+    
+    # def __len__(self) -> int:
+    #     return len(self.nodes)
+
+    def num_nodes(self) -> int:
         return len(self.nodes)
 
     def __iter__(self) -> Iterator[NodePattern]:

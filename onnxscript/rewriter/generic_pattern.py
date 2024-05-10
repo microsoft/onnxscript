@@ -489,7 +489,7 @@ class GenericPatternMatcher(orp.PatternMatcher):
 
         # Let's match the last node.
         # Then we need to match successors and predecessors.
-        last_pattern_node = self.pattern[-1]
+        last_pattern_node = self.pattern.node(-1)
         if node.op_identifier() != last_pattern_node.op_identifier():
             # The last node does not have the same op_identifier().
             return self.none()
@@ -515,7 +515,7 @@ class GenericPatternMatcher(orp.PatternMatcher):
                 pattern_nodes=self.pattern,
             )
 
-        max_iter = len(self.pattern) * 2
+        max_iter = self.pattern.num_nodes() * 2
         while stack and iteration < max_iter:
             nodes_not_in_pattern = set(matched.keys()) - all_pattern_nodes
             assert not nodes_not_in_pattern, (
@@ -571,7 +571,7 @@ class GenericPatternMatcher(orp.PatternMatcher):
             print(f"[GenericPatternMatcher.match] done. {len(matched)} matched nodes")
 
         # At this point, the pattern is matched but let's make sure.
-        assert len(matched) == len(self.pattern), (
+        assert len(matched) == self.pattern.num_nodes(), (
             f"Number of matched nodes is different, {len(matched)} matched nodes, "
             f"and {len(self.pattern)} nodes in the pattern, matched is {matched}"
         )
