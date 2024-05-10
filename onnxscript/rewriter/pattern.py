@@ -19,8 +19,6 @@ from typing import (
     Union,
 )
 
-import onnx
-
 from onnxscript import ir
 from onnxscript.ir import _convenience
 from onnxscript.rewriter import _ir_utils, _tape
@@ -916,7 +914,9 @@ class RewriteRule:
             condition_function: The condition function that
                 will be used to check if the pattern matches the IR with ir.Values
                 constraints in consideration.
-
+            matcher: The pattern matcher that will be used to match the pattern.
+                If not provided, a default matcher will be used.
+            verbose: The verbosity level of the rule.
         """
 
         if not isinstance(target_pattern, GraphPattern):
@@ -1065,25 +1065,4 @@ class RewriteRuleSet:
         count = self._apply_to_graph_or_function(model, model.graph)
         for function in model.functions.values():
             count += self._apply_to_graph_or_function(model, function)
-        return count
-
-    def _count_matches_in_graph_or_function(
-        self, model: ir.Model, graph_or_function: ir.Graph | ir.Function
-    ) -> int:
-        count = 0
-        for node in graph_or_function:
-            for rule in self.rules:
-                if rule.matches(node, model):
-                    count += 1
-                    break
-        return count
-
-    def count_matches(self, model: onnx.ModelProto | ir.Model):
-        if isinstance(model, onnx.ModelProto):
-            model = ir.serde.deserialize_model(model)
-        else:
-            assert isinstance(model, ir.Model)
-        count = self._count_matches_in_graph_or_function(model, model.graph)
-        for function in model.functions.values():
-            count += self._count_matches_in_graph_or_function(model, function)
         return count

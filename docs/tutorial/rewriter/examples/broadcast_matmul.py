@@ -41,8 +41,6 @@ onnx.checker.check_model(_model)
 # =====================
 
 
-
-
 def two_reshapes_matmul_reshape_pattern(op, input_a, input_b, shape_a, shape_b, shape_c):
     reshape_a = op.Reshape(input_a, shape_a)
     reshape_b = op.Reshape(input_b, shape_b)
@@ -75,6 +73,7 @@ def check_if_not_need_reshape(
 
     If the above are true, then we don't need the reshapes.
     """
+    del context  # Reserved for future extensions
     input_a_shape = input_a.shape
     input_b_shape = input_b.shape
     # TODO: Get a helper func to get const_value
