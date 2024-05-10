@@ -437,7 +437,7 @@ class NodePattern:
             if value is not None:
                 value.append_use(self, index)
 
-    def op_identifier(self) -> Tuple[str, str, str]:
+    def op_identifier(self) -> Tuple[str, str, str] | None:
         return self._op_identifier
 
     @property
