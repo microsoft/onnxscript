@@ -41,6 +41,9 @@ class StringConstantPattern(Pattern[str]):
     def matches(self, item: str) -> bool:
         return item == self._value
 
+    def __str__(self) -> str:
+        return self._value
+
 
 class PrefixPattern(Pattern[str]):
     """Matches strings with a given prefix."""
@@ -50,6 +53,9 @@ class PrefixPattern(Pattern[str]):
 
     def matches(self, value: str) -> bool:
         return value.startswith(self._value)
+
+    def __str__(self) -> str:
+        return f"{self._value}*"
 
 
 class AttrPattern(Pattern[Union[ir.Attr, ir.RefAttr]]):
@@ -64,6 +70,9 @@ class AttrPattern(Pattern[Union[ir.Attr, ir.RefAttr]]):
 
     def matches(self, attr: ir.Attr | ir.RefAttr) -> bool:
         return True
+
+    def __str__(self) -> str:
+        return self._name if self._name is not None else "anonymous:" + str(id(self))
 
 
 # TODO: Support tensors. Align with usage elsewhere.
@@ -90,6 +99,9 @@ class AttrConstantPattern(AttrPattern):
 
     def matches(self, attr: ir.Attr | ir.RefAttr) -> bool:
         return isinstance(attr, ir.Attr) and attr.value == self._value
+
+    def __str__(self) -> str:
+        return str(self._value)
 
 
 def _to_attr_pattern(value: AttrPattern | ValuePattern | SupportedAttrTypes) -> AttrPattern:
@@ -151,6 +163,9 @@ class OpsetPatternBuilder(Pattern[str]):
     def submodule(self, name: str) -> OpPatternBuilder:
         """This method is used to match against submodule ops with prefix."""
         return OpPatternBuilder(self, PrefixPattern(name))
+
+    def __str__(self) -> str:
+        return str(self._domain_pattern)
 
 
 onnxop = OpsetPatternBuilder("")
@@ -396,6 +411,9 @@ class ValuePattern:
     def __pow__(self, other):
         return onnxop.Pow(self, other)
 
+    def __str__(self) -> str:
+        return self._name if self._name is not None else "anonymous:" + str(id(self))
+
 
 class NodePattern:
     """Represents a pattern that matches against a Node.
@@ -435,14 +453,22 @@ class NodePattern:
             if value is not None:
                 value.append_use(self, index)
 
+    def __str__(self) -> str:
+        inputs = ", ".join(str(v) for v in self.inputs)
+        outputs = ", ".join(str(v) for v in self.outputs)
+        attributes = ", ".join(f"{k}={v}" for k, v in self.attributes.items())
+        op = str(self.op)
+        domain = str(self.domain)
+        qualified_op = f"{domain}.{op}" if domain else op
+        inputs_and_attributes = f"{inputs}, {attributes}" if attributes else inputs
+        return f"{outputs} = {qualified_op} ({inputs_and_attributes})"
+
     def op_identifier(self) -> Tuple[str, str, str] | None:
         return self._op_identifier
 
     @property
     def op_type(self) -> str:
-        if self._op_identifier is not None:
-            return self._op_identifier[1]
-        return "unknown"  # used primarily for debugging
+        return str(self.op)
 
     def matches(self, node: ir.Node) -> bool:
         """Matches the pattern represented by self against a node.
@@ -603,6 +629,9 @@ class Constant(ValuePattern):
     def commute(self) -> list[ValuePattern]:
         return [self]
 
+    def __str__(self) -> str:
+        return str(self._value)
+
 
 def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[NodePattern]:
     """Returns all nodes used in a pattern, given the outputs of the pattern."""
@@ -695,6 +724,12 @@ class GraphPattern:
             )
             for n in nodes
         ]
+
+    def __str__(self) -> str:
+        inputs = ", ".join(str(v) for v in self._inputs)
+        outputs = ", ".join(str(v) for v in self._outputs)
+        nodes = "\n   ".join(str(n) for n in self._nodes)
+        return f"pattern ({inputs}) {{\n   {nodes}\n   return {outputs}\n}}"
 
 
 def _to_graph_pattern(pattern_constructor: Callable) -> GraphPattern:
@@ -865,6 +900,9 @@ class PatternMatcher(abc.ABC):
         verbose: int = 0,
     ) -> MatchResult:
         pass
+
+    def __str__(self) -> str:
+        return str(self.pattern)
 
 
 class SimplePatternMatcher(PatternMatcher):
