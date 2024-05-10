@@ -96,16 +96,19 @@ def _opt_value_to_str(value: ir.Value | orp.ValuePattern | None) -> str:
     return _value_to_str(value) if value is not None else "None"
 
 
-def _node_to_str(node: ir.Node) -> str:
+def _node_to_str(node: ir.Node | orp.NodePattern) -> str:
     inputs = ", ".join(_opt_value_to_str(input) for input in node.inputs)
     outputs = ", ".join(_opt_value_to_str(output) for output in node.outputs)
-    return f"{outputs} = {node.op_type}({inputs})"
+    op_type = node.op_type
+    domain = str(node.domain)
+    qualified_op = f"{domain}.{op_type}" if domain else op_type
+    return f"{outputs} = {qualified_op}({inputs})"
 
 
-def _pattern_node_to_str(node: orp.NodePattern) -> str:
-    inputs = ", ".join(_opt_value_to_str(input) for input in node.inputs)
-    outputs = ", ".join(_opt_value_to_str(output) for output in node.outputs)
-    return f"{outputs} = {node.op_type}({inputs})"
+# def _pattern_node_to_str(node: orp.NodePattern) -> str:
+#     inputs = ", ".join(_opt_value_to_str(input) for input in node.inputs)
+#     outputs = ", ".join(_opt_value_to_str(output) for output in node.outputs)
+#     return f"{outputs} = {node.op_type}({inputs})"
 
 
 class GenericPatternMatcher(orp.PatternMatcher):
@@ -206,7 +209,7 @@ class GenericPatternMatcher(orp.PatternMatcher):
 
     def print_match(self, graph_node: ir.Node, pattern_node: orp.NodePattern) -> str:
         s1 = _node_to_str(graph_node)
-        s2 = _pattern_node_to_str(pattern_node)
+        s2 = _node_to_str(pattern_node)
         return f"match {s1} with pattern: {s2}"
 
     def _debug_print(self) -> str:
@@ -304,7 +307,7 @@ class GenericPatternMatcher(orp.PatternMatcher):
                 self._hint(
                     "BACKWARD: different node types",
                     "--pattern",
-                    _pattern_node_to_str(pattern_pred),
+                    _node_to_str(pattern_pred),
                     "-- model",
                     _node_to_str(graph_pred),
                 )
