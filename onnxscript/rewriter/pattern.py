@@ -423,7 +423,11 @@ class NodePattern:
         if isinstance(op, str) and domain.domain_name is not None:
             # TODO(rama): support overloaded operators.
             overload = ""
-            self._op_identifier = (domain.domain_name, op, overload)
+            self._op_identifier: tuple[str, str, str] | None = (
+                domain.domain_name,
+                op,
+                overload,
+            )
         else:
             self._op_identifier = None
         self.outputs = [NodeOutputPattern(self, i, name) for i, name in enumerate(outputs)]
@@ -517,8 +521,9 @@ class NodePattern:
             # TODO: handle cases where number of inputs is not 2.
             swapped = [[x[1], x[0]] for x in inputs]
             inputs.extend(swapped)
+        outputs = [value.name for value in self.outputs]
         return [
-            NodePattern(self.domain, self.op, input, self.attributes, self.outputs)
+            NodePattern(self.domain, self.op, input, self.attributes, outputs)
             for input in inputs
         ]
 
@@ -926,7 +931,7 @@ class RewriteRule:
             if target_pattern.has_single_output_node:
                 matcher = SimplePatternMatcher(self._target_pattern)
             else:
-                import generic_pattern
+                import onnxscript.rewriter.generic_pattern as generic_pattern
 
                 matcher = generic_pattern.GenericPatternMatcher(self._target_pattern)
         self._matcher = matcher
