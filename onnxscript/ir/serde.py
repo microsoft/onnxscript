@@ -96,7 +96,9 @@ def from_proto(
     | onnx.GraphProto
     | onnx.NodeProto
     | onnx.TensorProto
-    | onnx.AttributeProto,
+    | onnx.AttributeProto
+    | onnx.ValueInfoProto
+    | onnx.TypeProto,
 ) -> Any:
     """Deserialize an ONNX proto message to an IR object."""
     if isinstance(proto, onnx.ModelProto):
@@ -109,6 +111,13 @@ def from_proto(
         return deserialize_tensor(proto)
     if isinstance(proto, onnx.AttributeProto):
         return deserialize_attribute(proto)
+    if isinstance(proto, onnx.ValueInfoProto):
+        return deserialize_value_info_proto(proto, None)
+    if isinstance(proto, onnx.TypeProto):
+        return _core.TypeAndShape(
+            deserialize_type_proto_for_type(proto),
+            deserialize_type_proto_for_shape(proto),
+        )
     raise NotImplementedError(
         f"Deserialization of {type(proto)} in from_proto is not implemented. "
         "Use a specific ir.serde.deserialize* function instead."
@@ -123,6 +132,7 @@ def to_proto(
     | _protocols.AttributeProtocol
     | _protocols.ReferenceAttributeProtocol
     | _protocols.TensorProtocol
+    | onnx.TypeProto
     | _protocols.GraphViewProtocol,
 ) -> Any:
     """Serialize an IR object to a proto."""
@@ -140,6 +150,8 @@ def to_proto(
         return serialize_attribute(ir_object)
     if isinstance(ir_object, _protocols.ReferenceAttributeProtocol):
         return serialize_reference_attribute_into(onnx.AttributeProto(), ir_object)
+    if isinstance(ir_object, _protocols.TypeProtocol):
+        return serialize_type_into(onnx.TypeProto(), ir_object)
     if isinstance(ir_object, _protocols.GraphViewProtocol):
         return serialize_graph(ir_object)
     raise NotImplementedError(

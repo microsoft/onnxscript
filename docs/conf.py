@@ -20,7 +20,7 @@ release = version
 # -- General configuration ---------------------------------------------------
 
 extensions = [
-    "myst_parser",
+    "myst_nb",
     "sphinx_copybutton",
     "sphinx_exec_code",
     "sphinx_gallery.gen_gallery",
