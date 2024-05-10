@@ -70,6 +70,7 @@ _NON_NUMPY_NATIVE_TYPES = frozenset(
         _enums.DataType.UINT4,
     )
 )
+_IS_WINDOWS = os.name == 'nt'
 
 
 def _compatible_with_numpy(obj: Any) -> TypeGuard[_protocols.ArrayCompatible]:
@@ -118,7 +119,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
     def display(self, *, page: bool | None = None) -> None:
         rich = _display.require_rich()
 
-        if rich is None:
+        if rich is None or _IS_WINDOWS:
             status_manager = contextlib.nullcontext()
         else:
             import rich.status  # type: ignore[import-not-found, no-redef]  # pylint: disable=import-outside-toplevel
@@ -162,7 +163,8 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
 
             text = "\n".join(lines)
 
-        if rich is None:
+        if rich is None or _IS_WINDOWS:
+            # Traditional Windows terminal does not support some charsets
             print(text)
         elif page:
             import rich.console  # type: ignore[import-not-found, no-redef]  # pylint: disable=import-outside-toplevel
