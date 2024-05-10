@@ -71,6 +71,8 @@ class AttrPattern(Pattern[Union[ir.Attr, ir.RefAttr]]):
     def matches(self, attr: ir.Attr | ir.RefAttr) -> bool:
         return True
 
+    def __str__(self) -> str:
+        return self._name if self._name is not None else "anonymous:" + str(id(self))
 
 # TODO: Support tensors. Align with usage elsewhere.
 SupportedAttrTypes = Union[
@@ -97,6 +99,8 @@ class AttrConstantPattern(AttrPattern):
     def matches(self, attr: ir.Attr | ir.RefAttr) -> bool:
         return isinstance(attr, ir.Attr) and attr.value == self._value
 
+    def __str__(self) -> str:
+        return str(self._value)
 
 def _to_attr_pattern(value: AttrPattern | ValuePattern | SupportedAttrTypes) -> AttrPattern:
     """Represents promotion of values allowed as keyword-arguments in a pattern-builder call to an AttrPattern."""
@@ -158,6 +162,8 @@ class OpsetPatternBuilder(Pattern[str]):
         """This method is used to match against submodule ops with prefix."""
         return OpPatternBuilder(self, PrefixPattern(name))
 
+    def __str__(self) -> str:
+        return str(self._domain_pattern)
 
 onnxop = OpsetPatternBuilder("")
 
@@ -403,8 +409,7 @@ class ValuePattern:
         return onnxop.Pow(self, other)
 
     def __str__(self) -> str:
-        return self._name or "None"
-
+        return self._name if self._name is not None else "anonymous:" + str(id(self))
 
 class NodePattern:
     """Represents a pattern that matches against a Node.
@@ -443,6 +448,16 @@ class NodePattern:
         for index, value in enumerate(self.inputs):
             if value is not None:
                 value.append_use(self, index)
+
+    def __str__(self) -> str:
+        inputs = ", ".join(str(v) for v in self.inputs)
+        outputs = ", ".join(str(v) for v in self.outputs)
+        attributes = ", ".join(f"{k}={v}" for k, v in self.attributes.items())
+        op = str(self.op)
+        domain = str(self.domain)
+        qualified_op = f"{domain}.{op}" if domain else op
+        inputs_and_attributes = f"{inputs}, {attributes}" if attributes else inputs
+        return f"{outputs} = {qualified_op} ({inputs_and_attributes})"
 
     def op_identifier(self) -> Tuple[str, str, str] | None:
         return self._op_identifier
@@ -610,6 +625,8 @@ class Constant(ValuePattern):
     def commute(self) -> list[ValuePattern]:
         return [self]
 
+    def __str__(self) -> str:
+        return str(self._value)
 
 def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[NodePattern]:
     """Returns all nodes used in a pattern, given the outputs of the pattern."""
@@ -704,7 +721,10 @@ class GraphPattern:
         ]
 
     def __str__(self) -> str:
-        return "TODO: GraphPattern.__str__"
+        inputs = ", ".join(str(v) for v in self._inputs)
+        outputs = ", ".join(str(v) for v in self._outputs)
+        nodes = "\n   ".join(str(n) for n in self._nodes)
+        return f"pattern ({inputs}) {{\n   {nodes}\n   return {outputs}\n}}"
 
 
 def _to_graph_pattern(pattern_constructor: Callable) -> GraphPattern:
@@ -735,6 +755,7 @@ def _to_graph_pattern(pattern_constructor: Callable) -> GraphPattern:
     if isinstance(pattern_outputs, ValuePattern):
         pattern_outputs = [pattern_outputs]
     return GraphPattern(pattern_inputs, pattern_outputs)
+
 
 
 def _valid_to_replace(matched_nodes: Sequence[ir.Node]) -> bool:
