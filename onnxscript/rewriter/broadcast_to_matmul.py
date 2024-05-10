@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 # condition to check if we need to replace the pattern
-def check_if_not_need_reshape(input_a, input_b, shape_c, **_) -> bool:
+def check_if_not_need_reshape(context, input_a, input_b, shape_c, **_) -> bool:
     """If matmul broadcasting is enough, then we don't need the reshapes.
 
     To validate this, we need to check the following:
@@ -126,7 +126,7 @@ def check_if_not_need_reshape(input_a, input_b, shape_c, **_) -> bool:
     return True
 
 
-def two_reshapes_matmul_reshape_pattern(input_a, input_b, shape_a, shape_b, shape_c):
+def two_reshapes_matmul_reshape_pattern(op, input_a, input_b, shape_a, shape_b, shape_c):
     # TODO: Modified from `value_ints` to `value` to match pattern in benchmark models.
     # This implementation misses pattern of Constants with `value_ints` attribute.
     # See more at https://github.com/microsoft/onnx-rewriter/issues/191.
@@ -142,7 +142,7 @@ def matmul(op, input_a, input_b, **_):
     return op.MatMul(input_a, input_b)
 
 
-def one_reshape_matmul_reshape_pattern(input_a, input_b, shape_a, shape_c):
+def one_reshape_matmul_reshape_pattern(op, input_a, input_b, shape_a, shape_c):
     reshape_a = op.Reshape(input_a, shape_a)
     matmul = op.MatMul(reshape_a, input_b)
     return op.Reshape(matmul, shape_c)

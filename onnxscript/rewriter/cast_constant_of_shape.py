@@ -11,7 +11,7 @@ op = pattern.onnxop
 logger = logging.getLogger(__name__)
 
 
-def cast_constant_of_shape(shape, scalar, dtype):
+def cast_constant_of_shape(op, shape, scalar, dtype):
     constant = op.ConstantOfShape(shape, value=scalar)
     return op.Cast(constant, to=dtype)
 
@@ -23,7 +23,7 @@ def fused_cast_constant_of_shape(op, shape: ir.Value, scalar: ir.Attr, dtype: ir
     return op.ConstantOfShape(shape, value=cast_value)
 
 
-def cast_constant_of_shape_without_value(shape, dtype):
+def cast_constant_of_shape_without_value(op, shape, dtype):
     constant = op.ConstantOfShape(shape)
     return op.Cast(constant, to=dtype)
 

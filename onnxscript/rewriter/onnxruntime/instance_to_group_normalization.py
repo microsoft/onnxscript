@@ -7,14 +7,13 @@ import onnx
 
 from onnxscript.rewriter import _ir_utils, pattern
 
-op = pattern.onnxop
-msft_op = pattern.msft_op
 torch_module_op = pattern.torch_module_op
 
 logger = logging.getLogger(__name__)
 
 
 def check_if_simulated_instance_norm_is_used(
+    context,
     input_x,
     adjusted_input_shape,
     original_input_shape,
@@ -86,6 +85,7 @@ def check_if_simulated_instance_norm_is_used(
 
 
 def instance_simulates_group_normalization_pattern(
+    op,
     input_x,
     adjusted_input_shape,
     original_input_shape,

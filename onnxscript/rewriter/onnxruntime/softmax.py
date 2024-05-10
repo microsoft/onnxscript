@@ -11,7 +11,7 @@ op = pattern.onnxop
 logger = logging.getLogger(__name__)
 
 
-def softmax_with_fp32_upcast(input, axis):
+def softmax_with_fp32_upcast(op, input, axis):
     upcast = op.Cast(input, to=onnx.TensorProto.FLOAT)
     softmax = op.Softmax(upcast, axis=axis)  # pylint: disable=redefined-outer-name
     return op.Cast(softmax, to=onnx.TensorProto.FLOAT16)
@@ -21,7 +21,7 @@ def softmax(op, input, axis):
     return op.Softmax(input, axis=axis)
 
 
-def softmax_with_fp32_upcast_without_axis(input):
+def softmax_with_fp32_upcast_without_axis(op, input):
     upcast = op.Cast(input, to=onnx.TensorProto.FLOAT)
     softmax = op.Softmax(upcast)  # pylint: disable=redefined-outer-name
     return op.Cast(softmax, to=onnx.TensorProto.FLOAT16)
@@ -31,7 +31,7 @@ def softmax_without_axis(op, input):
     return op.Softmax(input)
 
 
-def check_if_fp16_input(input, **_) -> bool:
+def check_if_fp16_input(context, input, **_) -> bool:
     if input is None:
         logger.warning(
             "Cannot perform softmax upcast removal: "
