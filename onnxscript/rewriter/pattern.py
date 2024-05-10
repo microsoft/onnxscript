@@ -74,6 +74,7 @@ class AttrPattern(Pattern[Union[ir.Attr, ir.RefAttr]]):
     def __str__(self) -> str:
         return self._name if self._name is not None else "anonymous:" + str(id(self))
 
+
 # TODO: Support tensors. Align with usage elsewhere.
 SupportedAttrTypes = Union[
     int,
@@ -101,6 +102,7 @@ class AttrConstantPattern(AttrPattern):
 
     def __str__(self) -> str:
         return str(self._value)
+
 
 def _to_attr_pattern(value: AttrPattern | ValuePattern | SupportedAttrTypes) -> AttrPattern:
     """Represents promotion of values allowed as keyword-arguments in a pattern-builder call to an AttrPattern."""
@@ -164,6 +166,7 @@ class OpsetPatternBuilder(Pattern[str]):
 
     def __str__(self) -> str:
         return str(self._domain_pattern)
+
 
 onnxop = OpsetPatternBuilder("")
 
@@ -411,6 +414,7 @@ class ValuePattern:
     def __str__(self) -> str:
         return self._name if self._name is not None else "anonymous:" + str(id(self))
 
+
 class NodePattern:
     """Represents a pattern that matches against a Node.
 
@@ -628,6 +632,7 @@ class Constant(ValuePattern):
     def __str__(self) -> str:
         return str(self._value)
 
+
 def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[NodePattern]:
     """Returns all nodes used in a pattern, given the outputs of the pattern."""
     node_patterns: list[NodePattern] = []
@@ -755,7 +760,6 @@ def _to_graph_pattern(pattern_constructor: Callable) -> GraphPattern:
     if isinstance(pattern_outputs, ValuePattern):
         pattern_outputs = [pattern_outputs]
     return GraphPattern(pattern_inputs, pattern_outputs)
-
 
 
 def _valid_to_replace(matched_nodes: Sequence[ir.Node]) -> bool:

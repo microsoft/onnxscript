@@ -82,6 +82,7 @@ def rotary_match_pattern(op, x, pos_ids, axis):
     cast2 = op.Cast(cos, to=onnx.TensorProto.FLOAT)
     return cast1, cast2
 
+
 def rotary_apply_pattern(op, x, pos_ids, axis):
     """The replacement pattern."""
     cos_cache = op.Constant(value=onh.from_array(np.random.rand(256, 256).astype(np.float16)))
