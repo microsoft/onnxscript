@@ -68,6 +68,9 @@ __all__ = [
     # Conversion functions
     "from_proto",
     "to_proto",
+    # Pass infrastructure
+    "PassBase",
+    "Interpreter",
 ]
 
 from onnxscript.ir import serde
@@ -110,6 +113,7 @@ from onnxscript.ir._enums import (
     AttributeType,
     DataType,
 )
+from onnxscript.ir._pass_infra import Interpreter, PassBase
 from onnxscript.ir._protocols import (
     ArrayCompatible,
     AttributeProtocol,
