@@ -1,6 +1,7 @@
 """Passes infrastructure for the IR."""
 
 import abc
+
 from onnxscript import ir
 
 # This module implements interpreter API described in
