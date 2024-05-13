@@ -69,8 +69,7 @@ __all__ = [
     "from_proto",
     "to_proto",
     # Pass infrastructure
-    "PassBase",
-    "Interpreter",
+    "passes",
 ]
 
 from onnxscript.ir import serde
@@ -113,7 +112,7 @@ from onnxscript.ir._enums import (
     AttributeType,
     DataType,
 )
-from onnxscript.ir._pass_infra import Interpreter, PassBase
+from onnxscript.ir import passes
 from onnxscript.ir._protocols import (
     ArrayCompatible,
     AttributeProtocol,
