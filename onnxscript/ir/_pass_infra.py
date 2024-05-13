@@ -71,9 +71,11 @@ class Interpreter(PassBase):
     def _call_node(self, node: ir.Node):
         self.call_node(node)
         for attr in node.attributes.values():
-            if attr.type == ir.AttributeType.GRAPH and isinstance(attr, ir.Attr):
+            if not isinstance(attr, ir.Attr):
+                continue
+            if attr.type == ir.AttributeType.GRAPH:
                 self._call_graph(attr.value)
-            elif attr.type == ir.AttributeType.GRAPHS and isinstance(attr, ir.Attr):
+            elif attr.type == ir.AttributeType.GRAPHS:
                 for graph in attr.value:
                     self._call_graph(graph)
 
