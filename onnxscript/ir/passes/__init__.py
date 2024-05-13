@@ -3,6 +3,6 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-__all__ = ['PassBase', 'NodeTransformer']
+__all__ = ["PassBase", "NodeTransformer"]
 
-from onnxscript.ir.passes._pass_infra import PassBase, NodeTransformer
+from onnxscript.ir.passes._pass_infra import NodeTransformer, PassBase

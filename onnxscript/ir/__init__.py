@@ -72,7 +72,7 @@ __all__ = [
     "passes",
 ]
 
-from onnxscript.ir import serde
+from onnxscript.ir import passes, serde
 from onnxscript.ir._core import (
     Attr,
     AttrFloat32,
@@ -112,7 +112,6 @@ from onnxscript.ir._enums import (
     AttributeType,
     DataType,
 )
-from onnxscript.ir import passes
 from onnxscript.ir._protocols import (
     ArrayCompatible,
     AttributeProtocol,
