@@ -6421,10 +6421,7 @@ def aten_pixel_shuffle(self: TReal, upscale_factor: int) -> TReal:
 def aten_pixel_unshuffle(self: TensorType, downscale_factor: int) -> TensorType:
     """pixel_unshuffle(Tensor self, int downscale_factor) -> Tensor"""
 
-    # rank = symbolic_helper._get_tensor_rank(self)
-    # if rank is not None and rank != 4:
-    #     return symbolic_helper._unimplemented("pixel_shuffle", "only support 4d input")
-    # return g.op("DepthToSpace", self, blocksize_i=upscale_factor, mode_s="CRD")
+    raise NotImplementedError()
 
 
 def aten_poisson(self: TensorType, generator: Optional[str] = None) -> TensorType:
