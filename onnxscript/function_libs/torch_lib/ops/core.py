@@ -6414,10 +6414,10 @@ def aten_pixel_shuffle(self: TReal, upscale_factor: int) -> TReal:
     # Reshaping input by collapsing all leading dimensions to match ONNX op requirement (4D)
     reshaped_self = op.Reshape(
         self, op.Concat(op.Unsqueeze(-1, [0]), C_out, H_out, W_out, axis=0)
-        )
+    )
     depth_to_space_output = op.DepthToSpace(
         reshaped_self, blocksize=upscale_factor, mode="CRD"
-        )
+    )
     output_shape = op.Concat(batch, op.Shape(depth_to_space_output)[1:], axis=0)
     return op.Reshape(depth_to_space_output, output_shape)
 
