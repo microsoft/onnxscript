@@ -19,7 +19,6 @@ class NameAuthority:
     the name authority will not change its name.
     It is the responsibility of the user to ensure that the names are unique
     (typically by running a name-fixing pass on the graph).
-    
     TODO(justichuby): Describe the pass when we have a reference implementation.
     """
 
