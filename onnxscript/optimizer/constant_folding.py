@@ -281,7 +281,10 @@ def fold_constants(
     *,
     onnx_shape_inference: bool = False,
 ) -> bool:
-    """Returns true iff the model was modified."""
+    """
+    Applies constant folding optimization to the model.
+    Returns true iff the model was modified.
+    """
     folder = ConstantFolder(
         evaluator.registry,
         external_data_folder,

@@ -13,8 +13,8 @@ COMMON_TEST_DEPENDENCIES = (
     "beartype==0.17.2",
     "expecttest==0.1.6",
     "hypothesis",
-    'numpy==1.24.4; python_version<"3.12"',
-    'numpy>1.26.0; python_version>="3.12"',
+    'numpy==1.24.4; python_version<"3.9"',
+    'numpy==1.26.0; python_version>="3.9"',
     "packaging",
     "parameterized",
     "pyinstrument",
@@ -26,6 +26,7 @@ COMMON_TEST_DEPENDENCIES = (
     "pyyaml",
     "types-PyYAML",
     "typing_extensions",
+    "ml_dtypes",
 )
 ONNX = "onnx==1.16"
 ONNX_RUNTIME = "onnxruntime==1.17.1"

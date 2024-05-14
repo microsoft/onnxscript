@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import onnx
 
@@ -12,7 +11,7 @@ op = pattern.onnxop
 logger = logging.getLogger(__name__)
 
 
-def softmax_with_fp32_upcast(input, axis):
+def softmax_with_fp32_upcast(op, input, axis):
     upcast = op.Cast(input, to=onnx.TensorProto.FLOAT)
     softmax = op.Softmax(upcast, axis=axis)  # pylint: disable=redefined-outer-name
     return op.Cast(softmax, to=onnx.TensorProto.FLOAT16)
@@ -22,7 +21,7 @@ def softmax(op, input, axis):
     return op.Softmax(input, axis=axis)
 
 
-def softmax_with_fp32_upcast_without_axis(input):
+def softmax_with_fp32_upcast_without_axis(op, input):
     upcast = op.Cast(input, to=onnx.TensorProto.FLOAT)
     softmax = op.Softmax(upcast)  # pylint: disable=redefined-outer-name
     return op.Cast(softmax, to=onnx.TensorProto.FLOAT16)
@@ -32,15 +31,14 @@ def softmax_without_axis(op, input):
     return op.Softmax(input)
 
 
-def check_if_fp16_input(match_bindings: dict[str, ir.Value | Any]) -> bool:
-    input_val = match_bindings.get("input")
-    if input_val is None:
+def check_if_fp16_input(context, input, **_) -> bool:
+    if input is None:
         logger.warning(
             "Cannot perform softmax upcast removal: "
             "cannot retrieve match_bindings for 'input' for dtype validation."
         )
         return False
-    return input_val.dtype == ir.DataType.FLOAT16
+    return input.dtype == ir.DataType.FLOAT16
 
 
 # pylint: disable=pointless-string-statement

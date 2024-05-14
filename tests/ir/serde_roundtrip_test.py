@@ -4,6 +4,7 @@ import pathlib
 import unittest
 
 import onnx
+import onnx.backend.test
 import parameterized
 import pyinstrument
 
@@ -11,9 +12,14 @@ import onnxscript.testing
 from onnxscript import ir
 
 model_folder_path = pathlib.Path(__file__).resolve().parent.parent.parent / "testdata"
+onnx_backend_test_path = pathlib.Path(onnx.backend.test.__file__).parent / "data"
 
-model_paths = list(model_folder_path.rglob("*.onnx"))
-test_args = [(model_path.name, model_path) for model_path in model_paths]
+model_paths = list(model_folder_path.rglob("*.onnx")) + list(
+    onnx_backend_test_path.rglob("*.onnx")
+)
+test_args = [
+    (f"{model_path.parent.name}_{model_path.name}", model_path) for model_path in model_paths
+]
 
 
 class SerdeTest(unittest.TestCase):
