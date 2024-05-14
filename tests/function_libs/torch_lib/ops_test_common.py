@@ -58,7 +58,7 @@ FLOAT_TYPES = (
 
 TEST_OPSET_VERSION = 18
 IS_MACOS = sys.platform.startswith('darwin')
-IS_WINDOWS = sys.platform.startswith('win32')
+IS_WINDOWS = os.name == "nt"
 
 
 @dataclasses.dataclass
