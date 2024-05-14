@@ -1934,7 +1934,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (1e-1, 7e-4)},
     ).xfail(
         dtypes=(torch.float32,),
-        enabled_if=not ops_test_common.IS_MACOS,
+        enabled_if=ops_test_common.IS_MACOS,
         reason="fixme: result mismatch. https://github.com/microsoft/onnxruntime/issues/20676",
     ).skip(
         dtypes=(torch.float16,),
