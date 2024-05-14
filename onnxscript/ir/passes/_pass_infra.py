@@ -18,14 +18,13 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from typing import Callable, Sequence
+from typing import Callable
 
 __all__ = ["PassBase", "NodeTransformer"]
 
 import abc
 
 from onnxscript import ir
-
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +56,7 @@ class PassResult:
 
     model: ir.Model
     modified: bool
+
 
 class PassBase(abc.ABC):
     """Base class for all passes.
@@ -159,54 +159,61 @@ class PassManager:
         steps: The number of times to run the passes.
     """
 
-    def __init__(self, passes: list[Callable[[ir.Model], PassResult]], check_invariants: bool = False, steps: int = 1):
+    def __init__(
+        self,
+        passes: list[Callable[[ir.Model], PassResult]],
+        check_invariants: bool = False,
+        steps: int = 1,
+    ):
         # TODO(justinchuby): Implement constraints
         self.passes = list(passes)
         self.check_invariants = check_invariants
         self.steps = steps
 
-    def _run_one_step(self, model: ir.Model) -> PassResult:
+    def _run_one_step(self, model: ir.Model, step: int) -> PassResult:
+        modified = False
+        for i, pass_ in enumerate(self.passes):
+            logger.debug("Running the %s-th pass '%s', (step %s)", i, pass_, step)
+
+            # 1. Check preconditions
+            if self.check_invariants:
+                try:
+                    pass_.requires(model)
+                except Exception as e:
+                    raise PreconditionError(f"Pre-condition failed for {pass_}") from e
+
+            # 2. Run the pass
+            try:
+                pass_result = pass_(model)
+            except Exception as e:
+                prev_pass_names = [str(p) for p in self.passes[:i]]
+                raise PassError(
+                    f"An error occurred when running the '{pass_}' pass after the following passes: {prev_pass_names}"
+                ) from e
+            if not isinstance(pass_result, PassResult):
+                raise TypeError(
+                    f"The result of the pass {pass_} should be type PassResult."
+                    "Please create one with ir.passes.PassResult()."
+                )
+
+            model = pass_result.model
+            modified = modified or pass_result.modified
+
+            # 3. Check postconditions
+            if self.check_invariants:
+                try:
+                    pass_.ensures(model)
+                except Exception as e:
+                    raise PostconditionError(f"Post-condition failed for {pass_}") from e
+        return PassResult(model, modified)
 
     def run(self, model: ir.Model) -> PassResult:
         # Run the set of passes `steps` number of times or until the graph stops changing
         overall_modified = False
         for step in range(self.steps):
-            modified = False
-            for i, pass_ in enumerate(self.passes):
-                logger.debug("Running the %s-th pass '%s', (step %s)", i, pass_, step)
-
-                # 1. Check preconditions
-                if self.check_invariants:
-                    try:
-                        pass_.requires(model)
-                    except Exception as e:
-                        raise PreconditionError(f"Pre-condition failed for {pass_}") from e
-
-                # 2. Run the pass
-                try:
-                    pass_result = pass_(model)
-                except Exception as e:
-                    prev_pass_names = [
-                        str(p)
-                        for p in self.passes[:i]
-                    ]
-                    raise PassError(f"An error occurred when running the '{pass_}' pass after the following passes: {prev_pass_names}") from e
-                if not isinstance(pass_result, PassResult):
-                    raise TypeError(
-                        f"The result of the pass {pass_} should be type PassResult."
-                        "Please create one with ir.passes.PassResult()."
-                    )
-
-                model = pass_result.model
-                modified = modified or pass_result.modified
-
-                # 3. Check postconditions
-                if self.check_invariants:
-                    try:
-                        pass_.ensures(model)
-                    except Exception as e:
-                        raise PostconditionError(f"Post-condition failed for {pass_}") from e
-
+            step_result = self._run_one_step(model, step)
+            model = step_result.model
+            modified = step_result.modified
             overall_modified = overall_modified or modified
             # If the graph no longer changes, then we can stop running these passes
             if not modified:
