@@ -6402,6 +6402,7 @@ def aten_pinverse(self: TensorType, rcond: float = 1e-15) -> TensorType:
 
     raise NotImplementedError()
 
+
 @torch_op("aten::pixel_shuffle")
 def aten_pixel_shuffle(self: TReal, upscale_factor: int) -> TReal:
     """pixel_shuffle(Tensor self, int upscale_factor) -> Tensor"""
@@ -6411,9 +6412,13 @@ def aten_pixel_shuffle(self: TReal, upscale_factor: int) -> TReal:
     H_out = op.Unsqueeze(self_shape[-2], [0])
     W_out = op.Unsqueeze(self_shape[-1], [0])
     # Reshaping input by collapsing all leading dimensions to match ONNX op requirement (4D)
-    reshaped_self = op.Reshape(self, op.Concat(op.Unsqueeze(-1, [0]), C_out, H_out, W_out, axis=0))
-    depth_to_space_output = op.DepthToSpace(reshaped_self, blocksize=upscale_factor, mode="CRD")
-    output_shape = op.Concat(batch, op.Shape(depth_to_space_output)[1:],axis=0)
+    reshaped_self = op.Reshape(
+        self, op.Concat(op.Unsqueeze(-1, [0]), C_out, H_out, W_out, axis=0)
+        )
+    depth_to_space_output = op.DepthToSpace(
+        reshaped_self, blocksize=upscale_factor, mode="CRD"
+        )
+    output_shape = op.Concat(batch, op.Shape(depth_to_space_output)[1:], axis=0)
     return op.Reshape(depth_to_space_output, output_shape)
 
 
