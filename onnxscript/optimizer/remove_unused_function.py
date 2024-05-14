@@ -34,13 +34,13 @@ class UnusedFunctionRemover(ir.passes.NodeTransformer):
 
     def exit_pass(self) -> None:
         # Update the model to remove unused functions
-        count = 0
-        for op_identifier in list(self.model.functions):
+        unused = set(self.model.functions) - self.used
+        for op_identifier in unused:
             if op_identifier not in self.used:
                 del self.model.functions[op_identifier]
-                count += 1
-        logger.info("Removed %s unused function protos", count)
-        logger.debug("Functions left: %s", [f.name for f in self.model.functions])
+        logger.info("Removed %s unused function protos", len(unused))
+        logger.debug("Functions left: %s", list(self.model.functions))
+        logger.debug("Functions removed: %s", unused)
 
 
 def remove_unused_functions(model_proto: onnx.ModelProto) -> onnx.ModelProto:
