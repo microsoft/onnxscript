@@ -1932,12 +1932,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_native_layer_norm,
         trace_only=True,
         tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (1e-1, 7e-4)},
-    ).xfail(
+    )
+    .xfail(
         dtypes=(torch.float32,),
         matcher=lambda sample: len(sample.input.shape) == 1,
-        enabled_if=ops_test_common.IS_MACOS,
+        enabled_if=ops_test_common.IS_MACOS and version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: result mismatch. https://github.com/microsoft/onnxruntime/issues/20676",
-    ).skip(
+    )
+    .skip(
         dtypes=(torch.float16,),
         device_type="cpu",
         reason="native_layer_norm outputs different dtypes on CPU and CUDA. Our implematation is based on that for CUDA",

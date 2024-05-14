@@ -57,7 +57,7 @@ FLOAT_TYPES = (
 )
 
 TEST_OPSET_VERSION = 18
-IS_MACOS = sys.platform.startswith('darwin')
+IS_MACOS = sys.platform.startswith("darwin")
 IS_WINDOWS = os.name == "nt"
 
 
