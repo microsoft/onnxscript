@@ -1712,11 +1712,9 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
                 f"The node '{node!r}' belongs to another graph. Please remove it first with Graph.remove()."
             )
         # Give the node and its output values names if they don't not have one
-        if node.name is None:
-            self._name_authority.name_node(node)
+        self._name_authority.register_or_name_node(node)
         for value in node._outputs:  # pylint: disable=protected-access
-            if value.name is None:
-                self._name_authority.name_value(value)
+            self._name_authority.register_or_name_value(value)
         node.graph = self
         return node
 

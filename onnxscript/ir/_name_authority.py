@@ -12,20 +12,43 @@ class NameAuthority:
     ``node_{op_type}_{node_counter}`` for nodes. The counter is incremented each time
     a new value or node is named.
 
-    The class does not keep track of the names it has given, so it is possible to
-    generate names that conflicts with existing names. It is the responsibility of the
-    user to ensure that the names are unique (typically by running a name-fixing pass
-    on the graph).
+    This class does keep track of the names it has given and all the existing names
+    in the graph to prevent producing duplicated names.
+
+    However, if a value/node is already named when added to the graph,
+    the name authority will not change its name.
+    It is the responsibility of the user to ensure that the names are unique
+    (typically by running a name-fixing pass on the graph).
     """
 
     def __init__(self):
         self._value_counter = 0
         self._node_counter = 0
+        self._value_names: set[str] = set()
+        self._node_names: set[str] = set()
 
-    def name_value(self, value: _core.Value) -> None:
-        value.name = f"val_{self._value_counter}"
-        self._value_counter += 1
+    def _unique_value_name(self) -> str:
+        """Generate a unique name for a value."""
+        while True:
+            name = f"val_{self._value_counter}"
+            self._value_counter += 1
+            if name not in self._value_names:
+                return name
 
-    def name_node(self, node: _core.Node) -> None:
-        node.name = f"node_{node.op_type}_{self._node_counter}"
-        self._node_counter += 1
+    def _unique_node_name(self, op_type: str) -> str:
+        """Generate a unique name for a node."""
+        while True:
+            name = f"node_{op_type}_{self._node_counter}"
+            self._node_counter += 1
+            if name not in self._node_names:
+                return name
+
+    def register_or_name_value(self, value: _core.Value) -> None:
+        if value.name is None:
+            value.name = self._unique_value_name()
+        self._value_names.add(value.name)
+
+    def register_or_name_node(self, node: _core.Node) -> None:
+        if node.name is None:
+            node.name = self._unique_node_name(node.op_type)
+        self._node_names.add(node.name)
