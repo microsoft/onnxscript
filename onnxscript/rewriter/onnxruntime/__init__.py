@@ -54,5 +54,5 @@ def rewrite(
 
     model_proto = ir.serde.serialize_model(model)
     remove_unused.remove_unused_nodes(model_proto)
-    remove_unused_function.remove_unused_functions(model_proto)
+    model = remove_unused_function.remove_unused_functions(model_proto)
     return model_proto

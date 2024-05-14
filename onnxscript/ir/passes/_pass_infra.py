@@ -111,7 +111,7 @@ class NodeTransformer(PassBase):
     By default, the NodeTransformer updates the model in place.
 
     Attributes:
-        _model: ir.Model: The model being interpreted.
+        model: ir.Model: The model being interpreted.
         scope (list[ir.Graph]): The current graph the NodeTransformer is running on.
     """
 
@@ -121,9 +121,17 @@ class NodeTransformer(PassBase):
         self.reversed = reversed
         self.modified = True
 
+    def model(self) -> ir.Model:
+        """Return the model being interpreted."""
+        if self._model is None:
+            raise ValueError("Model is not set. The model is set during the pass execution.")
+        return self._model
+
     def call(self, model: ir.Model) -> PassResult:
         self._model = model
+        self.enter_pass()
         self._call_graph(self._model.graph)
+        self.exit_pass()
         return PassResult(self._model, self.modified)
 
     def _call_graph(self, graph: ir.Graph):
@@ -131,11 +139,11 @@ class NodeTransformer(PassBase):
         self.scope.append(graph)
         iterable = reversed(graph) if self.reversed else graph
         for node in iterable:
-            self._call_node(node)
+            self.call_node_recursive(node)
         self.exit_graph(graph)
         self.scope.pop()
 
-    def _call_node(self, node: ir.Node):
+    def call_node_recursive(self, node: ir.Node):
         self.call_node(node)
         for attr in node.attributes.values():
             if not isinstance(attr, ir.Attr):
@@ -145,6 +153,12 @@ class NodeTransformer(PassBase):
             elif attr.type == ir.AttributeType.GRAPHS:
                 for graph in attr.value:
                     self._call_graph(graph)
+
+    def enter_pass(self):
+        """Called when entering the pass. Optional to implement."""
+
+    def exit_pass(self):
+        """Called when exiting the pass. Optional to implement."""
 
     def enter_graph(self, graph: ir.Graph):
         """Called when entering a graph. Optional to implement."""
