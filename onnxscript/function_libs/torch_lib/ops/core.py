@@ -6417,7 +6417,6 @@ def aten_pixel_shuffle(self: TReal, upscale_factor: int) -> TReal:
     return op.Reshape(depth_to_space_output, output_shape)
 
 
-
 def aten_pixel_unshuffle(self: TensorType, downscale_factor: int) -> TensorType:
     """pixel_unshuffle(Tensor self, int downscale_factor) -> Tensor"""
 
