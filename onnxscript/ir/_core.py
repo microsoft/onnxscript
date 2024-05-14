@@ -1764,6 +1764,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def append(self, node: Node, /) -> None:
         """Append a node to the graph in O(1) time.
 
+        A unique name will be assigned to the node and its values is not yet specified.
+
         Args:
             node: The node to append.
 
@@ -1775,6 +1777,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
 
     def extend(self, nodes: Iterable[Node], /) -> None:
         """Extend the graph with the given nodes in O(#new_nodes) time.
+
+        A unique name will be assigned to the node and its values is not yet specified.
 
         Args:
             nodes: The nodes to extend the graph with.
@@ -1828,6 +1832,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def insert_after(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
         """Insert new nodes after the given node in O(#new_nodes) time.
 
+        A unique name will be assigned to the node and its values is not yet specified.
+
         Args:
             node: The node to insert after.
             new_nodes: The new nodes to insert.
@@ -1842,6 +1848,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
 
     def insert_before(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
         """Insert new nodes before the given node in O(#new_nodes) time.
+
+        A unique name will be assigned to the node and its values is not yet specified.
 
         Args:
             node: The node to insert before.

@@ -44,11 +44,20 @@ class NameAuthority:
                 return name
 
     def register_or_name_value(self, value: _core.Value) -> None:
+        # TODO(justinchuby): Record names of the initializers and graph inputs
         if value.name is None:
             value.name = self._unique_value_name()
+        # If the name is already specified, we do not change it because keeping
+        # track of the used names can be costly when nodes can be removed from the graph:
+        # How do we know if a name is no longer used? We cannot reserve unused names
+        # because users may want to use them.
         self._value_names.add(value.name)
 
     def register_or_name_node(self, node: _core.Node) -> None:
         if node.name is None:
             node.name = self._unique_node_name(node.op_type)
+        # If the name is already specified, we do not change it because keeping
+        # track of the used names can be costly when nodes can be removed from the graph:
+        # How do we know if a name is no longer used? We cannot reserve unused names
+        # because users may want to use them.
         self._node_names.add(node.name)
