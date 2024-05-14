@@ -20,7 +20,17 @@ import dataclasses
 import logging
 from typing import Callable
 
-__all__ = ["PassBase", "NodeTransformer"]
+__all__ = [
+    "PassBase",
+    "PassResult",
+    "PassManager",
+    "NodeTransformer",
+    # Errors
+    "InvariantError",
+    "PreconditionError",
+    "PostconditionError",
+    "PassError",
+]
 
 import abc
 

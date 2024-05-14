@@ -3,6 +3,25 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-__all__ = ["PassBase", "NodeTransformer"]
+__all__ = [
+    "PassBase",
+    "PassResult",
+    "PassManager",
+    "NodeTransformer",
+    # Errors
+    "InvariantError",
+    "PreconditionError",
+    "PostconditionError",
+    "PassError",
+]
 
-from onnxscript.ir.passes._pass_infra import NodeTransformer, PassBase
+from onnxscript.ir.passes._pass_infra import (
+    InvariantError,
+    NodeTransformer,
+    PassBase,
+    PassError,
+    PassManager,
+    PassResult,
+    PostconditionError,
+    PreconditionError,
+)
