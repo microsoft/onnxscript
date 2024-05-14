@@ -121,6 +121,7 @@ class NodeTransformer(PassBase):
         self.reversed = reversed
         self.modified = True
 
+    @property
     def model(self) -> ir.Model:
         """Return the model being interpreted."""
         if self._model is None:
