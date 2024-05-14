@@ -163,6 +163,8 @@ class NodeTransformer(PassBase):
 class PassManager:
     """Pass manager for the IR.
 
+    The PassManager is a callable that runs a sequence of passes on a model.
+
     Attributes:
         passes: The passes to run.
         check_invariants: Whether to check invariants before and after each pass.
@@ -179,6 +181,20 @@ class PassManager:
         self.passes = list(passes)
         self.check_invariants = check_invariants
         self.steps = steps
+
+    def __call__(self, model: ir.Model) -> PassResult:
+        """Run the set of passes `steps` number of times or until the graph stops changing."""
+        overall_modified = False
+        for step in range(self.steps):
+            step_result = self._run_one_step(model, step)
+            model = step_result.model
+            modified = step_result.modified
+            overall_modified = overall_modified or modified
+            # If the graph no longer changes, then we can stop running these passes
+            if not modified:
+                logger.info("PassManager: No more graph changes detected after step %s", step)
+                break
+        return PassResult(model, overall_modified)
 
     def _run_one_step(self, model: ir.Model, step: int) -> PassResult:
         modified = False
@@ -198,7 +214,8 @@ class PassManager:
             except Exception as e:
                 prev_pass_names = [str(p) for p in self.passes[:i]]
                 raise PassError(
-                    f"An error occurred when running the '{pass_}' pass after the following passes: {prev_pass_names}"
+                    f"An error occurred when running the '{pass_}' pass after the "
+                    f"following passes: {prev_pass_names} during step {step}"
                 ) from e
             if not isinstance(pass_result, PassResult):
                 raise TypeError(
@@ -216,18 +233,3 @@ class PassManager:
                 except Exception as e:
                     raise PostconditionError(f"Post-condition failed for {pass_}") from e
         return PassResult(model, modified)
-
-    def run(self, model: ir.Model) -> PassResult:
-        # Run the set of passes `steps` number of times or until the graph stops changing
-        overall_modified = False
-        for step in range(self.steps):
-            step_result = self._run_one_step(model, step)
-            model = step_result.model
-            modified = step_result.modified
-            overall_modified = overall_modified or modified
-            # If the graph no longer changes, then we can stop running these passes
-            if not modified:
-                logger.info("PassManager: No more graph changes detected after step %s", step)
-                break
-
-        return PassResult(model, overall_modified)
