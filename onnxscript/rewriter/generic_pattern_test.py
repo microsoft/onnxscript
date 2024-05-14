@@ -42,7 +42,7 @@ class GenericPatternTest(unittest.TestCase):
             return True
 
         rule = generic_pattern.make_pattern_rule(
-            match_pattern, apply_pattern, validate_mapping, verbose=0
+            match_pattern, apply_pattern, validate_mapping
         )
 
         class AddAdd(onnx.reference.op_run.OpRun):
@@ -306,7 +306,7 @@ class GenericPatternTest(unittest.TestCase):
         self.assertEqual(expected, [n.op_type for n in rewriten_model.graph.node])
         out = buffer.getvalue()
         # TODO(Rama): What is this assertion testing? Is it to check that `verbose` is working?
-        self.assertIn("[GenericPattern.match", out)
+        self.assertIn("[GenericPatternMatcher.match", out)
 
     def test_rotary_embedding_onnxscript(self):
         # The test work on a model if it has the expected name.
@@ -370,7 +370,7 @@ class GenericPatternTest(unittest.TestCase):
         self.assertEqual(expected, [n.op_type for n in rewriten_model.graph.node])
         out = buffer.getvalue()
         # TODO(justinchuby): Remove this assert - capturing stdout is not robust
-        self.assertIn("[GenericPattern.match", out)
+        self.assertIn("[GenericPatternMatcher.match", out)
 
     def test_rotary_emb_file_onnxscript(self):
         # The test work on a model if it has the expected name.

@@ -31,3 +31,13 @@ def onnxruntime_older_than(version: str) -> bool:
         packaging.version.parse(onnxruntime.__version__).release
         < packaging.version.parse(version).release
     )
+
+
+def numpy_older_than(version: str) -> bool:
+    """Returns True if the numpy version is older than the given version."""
+    import numpy  # pylint: disable=import-outside-toplevel
+
+    return (
+        packaging.version.parse(numpy.__version__).release
+        < packaging.version.parse(version).release
+    )

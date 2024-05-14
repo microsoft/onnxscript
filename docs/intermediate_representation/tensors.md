@@ -1,6 +1,6 @@
 # Tensor Representation in the IR
 
-The ONNX IR offers the {py:class}`ir.TensorProtocol <onnxscript.ir.TensorProtocol>` interface for usings different data structures as backing data for tensors. Besides the traditional {py:class}`onnx.TensorProto`, you can also use {py:class}`np.ndarray`, {py:class}`torch.Tensor`, {py:class}`jax.Array`, and virtually anything else to represent tensors in the graph. This allows for them to be accessed and serialized via the same `TensorProtocol` interface, without incurring additional copies at initialization.
+The ONNX IR offers the {py:class}`ir.TensorProtocol <onnxscript.ir.TensorProtocol>` interface for using different data structures as backing data for tensors. Besides the traditional {py:class}`onnx.TensorProto`, you can use {py:class}`np.ndarray`, {py:class}`torch.Tensor`, {py:class}`jax.Array`, and virtually anything else to represent tensors in the graph. This allows them to be accessed and serialized via the same `TensorProtocol` interface, without incurring additional copies during initialization.
 
 ## The `TensorProtocol`
 
@@ -13,8 +13,6 @@ When interacting with initializers, constant values and tensor attributes, it is
 ## Tensor Classes
 
 ### ir.TensorProtoTensor
-
-The ONNX spec defines [different ways](https://github.com/onnx/onnx/blob/d6f87121ba256ac6cc4d1da0463c300c278339d2/onnx/onnx.proto#L567-L654) for storing tensor data as an {py:class}`onnx.TensorProto <onnx.ir.TensorProtocol>` protocol buffer message. The IR has corresponding classes for each of these data storage methods.
 
 We use the {py:class}`ir.TensorProtoTensor <onnxscript.ir.TensorProtoTensor>` as a wrapper around the proto to implement the `ir.TensorProtocol` interface. You can access `shape`, `dtype` etc. as usual. A copy is incurred only when `numpy()` is called.
 
@@ -139,8 +137,6 @@ In the following scenario, we show how to go from a `TensorProto` to an `ir.Tens
     print("tensor_mean.size:", tensor_mean.size)
     print("tensor_mean.nbytes:", tensor_mean.nbytes)
     print("tensor_mean.raw:", tensor_mean.raw)
-    print("\nUse the display() method to view the tensor")
-    tensor_mean.display()
 ```
 
 ## Working with non-native NumPy dtypes: bfloat16, float8, int4
@@ -196,7 +192,7 @@ The following example shows how to create a `FLOAT8E4M3FN` tensor, transform its
 
 ## Advanced Usage
 
-### Subclass ir.Tensor for More Efficient Access and Broader dtype Support
+### Subclass `ir.Tensor` for More Efficient Access and Broader `dtype` Support
 
 {py:class}`ir.Tensor` internally converts any array compatible objects into NumPy arrays to produce the byte representation in `tobytes()`. This can be inefficient due to the additional conversion. It also limits support for dtypes not supported by NumPy like bfloat16, because the `__array__` method would fail.
 
@@ -256,7 +252,7 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
         def tobytes(self) -> bytes:
             # Implement tobytes to support native PyTorch types so we can use types like bloat16
             # Reading from memory directly is also more efficient because
-            # it avoids the copy to NumPy array
+            # it avoids copying to a NumPy array
             tensor = self.raw.detach().cpu().contiguous()
             return bytes(
                 (ctypes.c_ubyte * tensor.element_size() * tensor.numel()).from_address(

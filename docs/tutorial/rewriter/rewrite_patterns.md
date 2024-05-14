@@ -31,7 +31,6 @@ Firstly, include all the rewriter relevant imports.
 from onnxscript.rewriter import pattern
 from onnxscript import ir
 
-_op = pattern.onnxop
 ```
 
 Then create a target pattern that needs to be replaced using onnxscript operators.

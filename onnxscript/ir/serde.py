@@ -19,6 +19,7 @@ __all__ = [
     # Tensors
     "TensorProtoTensor",
     # Deserialization
+    "from_proto",
     "deserialize_attribute",
     "deserialize_function",
     "deserialize_graph",
@@ -30,6 +31,7 @@ __all__ = [
     "deserialize_type_proto_for_type",
     "deserialize_value_info_proto",
     # Serialization
+    "to_proto",
     "serialize_attribute_into",
     "serialize_attribute",
     "serialize_dimension_into",
@@ -89,7 +91,76 @@ def _unflatten_complex(
     return array[::2] + 1j * array[1::2]
 
 
-class TensorProtoTensor(_core.TensorBase):
+def from_proto(
+    proto: onnx.ModelProto
+    | onnx.GraphProto
+    | onnx.NodeProto
+    | onnx.TensorProto
+    | onnx.AttributeProto
+    | onnx.ValueInfoProto
+    | onnx.TypeProto,
+) -> Any:
+    """Deserialize an ONNX proto message to an IR object."""
+    if isinstance(proto, onnx.ModelProto):
+        return deserialize_model(proto)
+    if isinstance(proto, onnx.GraphProto):
+        return deserialize_graph(proto)
+    if isinstance(proto, onnx.NodeProto):
+        return deserialize_node(proto)
+    if isinstance(proto, onnx.TensorProto):
+        return deserialize_tensor(proto)
+    if isinstance(proto, onnx.AttributeProto):
+        return deserialize_attribute(proto)
+    if isinstance(proto, onnx.ValueInfoProto):
+        return deserialize_value_info_proto(proto, None)
+    if isinstance(proto, onnx.TypeProto):
+        return _core.TypeAndShape(
+            deserialize_type_proto_for_type(proto),
+            deserialize_type_proto_for_shape(proto),
+        )
+    raise NotImplementedError(
+        f"Deserialization of {type(proto)} in from_proto is not implemented. "
+        "Use a specific ir.serde.deserialize* function instead."
+    )
+
+
+def to_proto(
+    ir_object: _protocols.ModelProtocol
+    | _protocols.GraphProtocol
+    | _protocols.NodeProtocol
+    | _protocols.ValueProtocol
+    | _protocols.AttributeProtocol
+    | _protocols.ReferenceAttributeProtocol
+    | _protocols.TensorProtocol
+    | onnx.TypeProto
+    | _protocols.GraphViewProtocol,
+) -> Any:
+    """Serialize an IR object to a proto."""
+    if isinstance(ir_object, _protocols.ModelProtocol):
+        return serialize_model(ir_object)
+    if isinstance(ir_object, _protocols.GraphProtocol):
+        return serialize_graph(ir_object)
+    if isinstance(ir_object, _protocols.NodeProtocol):
+        return serialize_node(ir_object)
+    if isinstance(ir_object, _protocols.TensorProtocol):
+        return serialize_tensor(ir_object)
+    if isinstance(ir_object, _protocols.ValueProtocol):
+        return serialize_value(ir_object)
+    if isinstance(ir_object, _protocols.AttributeProtocol):
+        return serialize_attribute(ir_object)
+    if isinstance(ir_object, _protocols.ReferenceAttributeProtocol):
+        return serialize_reference_attribute_into(onnx.AttributeProto(), ir_object)
+    if isinstance(ir_object, _protocols.TypeProtocol):
+        return serialize_type_into(onnx.TypeProto(), ir_object)
+    if isinstance(ir_object, _protocols.GraphViewProtocol):
+        return serialize_graph(ir_object)
+    raise NotImplementedError(
+        f"Serialization of {type(ir_object)} in to_proto is not implemented. "
+        "Use a specific ir.serde.serialize* function instead."
+    )
+
+
+class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
     """A tensor initialized from a tensor proto."""
 
     def __init__(self, proto: onnx.TensorProto) -> None:
@@ -128,6 +199,12 @@ class TensorProtoTensor(_core.TensorBase):
     def __array__(self, dtype: Any = None) -> np.ndarray:
         """Return the tensor as a numpy array, compatible with np.array."""
         return self.numpy().__array__(dtype)
+
+    def __dlpack__(self, *, stream: Any = None) -> Any:
+        return self.numpy().__dlpack__(stream=stream)
+
+    def __dlpack_device__(self) -> tuple[int, int]:
+        return self.numpy().__dlpack_device__()
 
     def numpy(self) -> np.ndarray:
         """Return the tensor as a numpy array.
@@ -274,7 +351,7 @@ class TensorProtoTensor(_core.TensorBase):
     def meta(self) -> _metadata.MetadataStore:
         """The metadata store for intermediate analysis.
 
-        Write to the :attribute:`metadata_props` if you would like the metadata to be serialized
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
         if self._metadata is None:

@@ -40,14 +40,12 @@ onnx.checker.check_model(_model)
 # The target pattern
 # =====================
 
-_op = pattern.onnxop
 
-
-def two_reshapes_matmul_reshape_pattern(input_a, input_b, shape_a, shape_b, shape_c):
-    reshape_a = _op.Reshape(input_a, shape_a)
-    reshape_b = _op.Reshape(input_b, shape_b)
-    matmul = _op.MatMul(reshape_a, reshape_b)
-    return _op.Reshape(matmul, shape_c)
+def two_reshapes_matmul_reshape_pattern(op, input_a, input_b, shape_a, shape_b, shape_c):
+    reshape_a = op.Reshape(input_a, shape_a)
+    reshape_b = op.Reshape(input_b, shape_b)
+    matmul = op.MatMul(reshape_a, reshape_b)
+    return op.Reshape(matmul, shape_c)
 
 
 ####################################
@@ -65,7 +63,7 @@ def matmul_pattern(op, input_a: ir.Value, input_b: ir.Value, **_):
 
 
 def check_if_not_need_reshape(
-    input_a: ir.Value, input_b: ir.Value, shape_c: ir.Value, **_
+    context, input_a: ir.Value, input_b: ir.Value, shape_c: ir.Value, **_
 ) -> bool:
     """If matmul broadcasting is enough, then we don't need the reshapes.
 
@@ -75,6 +73,7 @@ def check_if_not_need_reshape(
 
     If the above are true, then we don't need the reshapes.
     """
+    del context  # Reserved for future extensions
     input_a_shape = input_a.shape
     input_b_shape = input_b.shape
     # TODO: Get a helper func to get const_value
