@@ -8,6 +8,7 @@ import dataclasses
 import multiprocessing
 import os
 import pprint
+import sys
 import unittest
 import warnings
 from typing import (
@@ -56,7 +57,8 @@ FLOAT_TYPES = (
 )
 
 TEST_OPSET_VERSION = 18
-IS_WINDOWS = os.name == "nt"
+IS_MACOS = sys.platform.startswith('darwin')
+IS_WINDOWS = sys.platform.startswith('win32')
 
 
 @dataclasses.dataclass
