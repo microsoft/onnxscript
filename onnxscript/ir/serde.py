@@ -511,7 +511,7 @@ def _deserialize_graph(
         scoped_value_info: A list of dictionaries mapping value names to their corresponding ValueInfoProto.
     """
     # Create values for initializers and inputs
-    initializers = [deserialize_tensor(tensor) for tensor in proto.initializer]
+    initializer_tensors = [deserialize_tensor(tensor) for tensor in proto.initializer]
     inputs = [_core.Input(info.name) for info in proto.input]
     for info, value in zip(proto.input, inputs):
         deserialize_value_info_proto(info, value)
@@ -520,24 +520,24 @@ def _deserialize_graph(
     values: dict[str, _core.Value] = {v.name: v for v in inputs}  # type: ignore[misc]
     scoped_values.append(values)
     initializer_values = []
-    for initializer in initializers:
-        if initializer.name in values:
+    for tensor in initializer_tensors:
+        if tensor.name in values:
             # The initializer is for an input
-            values[initializer.name].const_value = initializer
-            initializer_values.append(values[initializer.name])
+            initializer_value = values[tensor.name]
+            initializer_value.const_value = tensor
         else:
             # The initializer is for some other value. Create this value first
             initializer_value = _core.Value(
                 None,
                 index=None,
-                name=initializer.name,
+                name=tensor.name,
                 # TODO(justinchuby): Fix type hinting for shape and dtype
-                shape=initializer.shape,  # type: ignore
-                type=_core.TensorType(initializer.dtype),
-                const_value=initializer,
+                shape=tensor.shape,  # type: ignore
+                type=_core.TensorType(tensor.dtype),
+                const_value=tensor,
             )
-            values[initializer.name] = initializer_value
-            initializer_values.append(initializer_value)
+            values[tensor.name] = initializer_value
+        initializer_values.append(initializer_value)
 
     # Add ValueInfos for this graph scope
     value_info = {info.name: info for info in proto.value_info}
