@@ -512,10 +512,12 @@ def _deserialize_graph(
     # Initialize the values dictionary for this graph scope with the inputs and initializers
     values: dict[str, _core.Value] = {v.name: v for v in inputs}  # type: ignore[misc]
     scoped_values.append(values)
+    initializer_values = []
     for initializer in initializers:
         if initializer.name in values:
             # The initializer is for an input
             values[initializer.name].const_value = initializer
+            initializer_values.append(values[initializer.name])
         else:
             # The initializer is for some other value. Create this value first
             initializer_value = _core.Value(
@@ -528,6 +530,7 @@ def _deserialize_graph(
                 const_value=initializer,
             )
             values[initializer.name] = initializer_value
+            initializer_values.append(initializer_value)
 
     # Add ValueInfos for this graph scope
     value_info = {info.name: info for info in proto.value_info}
@@ -542,8 +545,7 @@ def _deserialize_graph(
         inputs,
         outputs,
         nodes=nodes,
-        # TODO(justinchuby): Attach the values associated with the initializers
-        initializers=initializers,
+        initializers=initializer_values,
         doc_string=_get_field(proto, "doc_string"),
         name=_get_field(proto, "name"),
         metadata_props=deserialize_metadata_props(proto.metadata_props),
@@ -1065,7 +1067,11 @@ def serialize_graph_into(
         serialize_value_into(graph_proto.input.add(), input_)
     # TODO(justinchuby): Support sparse_initializer
     for initializer in from_.initializers.values():
-        serialize_tensor_into(graph_proto.initializer.add(), from_=initializer)
+        if initializer.const_value is None:
+            raise ValueError(
+                f"Initializer '{initializer.name}' does not have a constant value set."
+            )
+        serialize_tensor_into(graph_proto.initializer.add(), from_=initializer.const_value)
     for node in from_:
         serialize_node_into(graph_proto.node.add(), from_=node)
         for node_output in node.outputs:

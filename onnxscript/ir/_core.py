@@ -1378,7 +1378,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
             shape: The shape of the value.
             type: The type of the value.
             doc_string: The documentation string.
-            const_value: The constant tensor is the value constant.
+            const_value: The constant tensor if the value is constant.
         """
         self._producer: Node | None = producer
         self._index: int | None = index
@@ -1650,7 +1650,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         outputs: Sequence[Value],
         *,
         nodes: Iterable[Node],
-        initializers: Sequence[_protocols.TensorProtocol] = (),
+        initializers: Sequence[Value] = (),
         doc_string: str | None = None,
         opset_imports: dict[str, int] | None = None,
         name: str | None = None,
@@ -1661,16 +1661,17 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         # Private fields that are not to be accessed by any other classes
         self._inputs = list(inputs)
         self._outputs = list(outputs)
+        self._initializers = {}
         for initializer in initializers:
             if isinstance(initializer, str):
                 raise TypeError(
-                    "Initializer must be a TensorProtocol, not a string. "
+                    "Initializer must be a Value, not a string. "
                     "If you are copying the initializers from another graph, "
                     "make sure you call graph.initializers.values() because it is a dictionary."
                 )
             if initializer.name is None:
                 raise ValueError(f"Initializer must have a name: {initializer}")
-        self._initializers = {tensor.name: tensor for tensor in initializers}
+            self._initializers[initializer.name] = initializer
         self._doc_string = doc_string
         self._opset_imports = opset_imports or {}
         self._metadata: _metadata.MetadataStore | None = None
@@ -1691,7 +1692,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         return self._outputs
 
     @property
-    def initializers(self) -> dict[str, _protocols.TensorProtocol]:
+    def initializers(self) -> dict[str, Value]:
         return self._initializers
 
     @property
