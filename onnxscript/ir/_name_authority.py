@@ -12,13 +12,19 @@ class NameAuthority:
     ``node_{op_type}_{node_counter}`` for nodes. The counter is incremented each time
     a new value or node is named.
 
-    This class does keep track of the names it has given and all the existing names
+    This class keeps tracks of the names it has generated and existing names
     in the graph to prevent producing duplicated names.
+
+    .. note::
+        Once a name is tracked, it will not be made available even if the node/value
+        is removed from the graph. It is possible to improve this behavior by keeping
+        track of the names that are no longer used, but it is not implemented yet.
 
     However, if a value/node is already named when added to the graph,
     the name authority will not change its name.
     It is the responsibility of the user to ensure that the names are unique
     (typically by running a name-fixing pass on the graph).
+
     TODO(justichuby): Describe the pass when we have a reference implementation.
     """
 

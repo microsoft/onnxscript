@@ -3,7 +3,6 @@ import logging
 from onnxscript import ir
 
 logger = logging.getLogger(__name__)
-CREATED_CAST_BFLOAT16_NAME_SUFFIX = "_cast_bfloat16"
 
 
 def _convert_inputs_from_bfloat16_to_float16(value: ir.Input) -> None:
