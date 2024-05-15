@@ -85,6 +85,7 @@ def check_if_not_need_reshape(
     _ir_utils.propagate_const_value(shape_c)
     shape_c_tensor = shape_c.const_value
     if shape_c_tensor is None:
+        logger.info("The value 'shape_c' is not a constant.")
         return False
 
     if len(shape_c_tensor.shape) != 1:
