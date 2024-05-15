@@ -1357,9 +1357,9 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def __init__(
         self,
-        producer: Node | None,
+        producer: Node | None = None,
         *,
-        index: int | None,
+        index: int | None = None,
         name: str | None = None,
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
@@ -1368,7 +1368,18 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         | Sequence[_protocols.TensorProtocol]
         | None = None,
     ) -> None:
-        # producer is None when the value is an input or an initializer
+        """Initialize a value.
+
+        Args:
+            producer: The node that produces the value.
+                It can be ``None`` when the value is initialized first than its producer.
+            index: The index of the output of the defining node.
+            name: The name of the value.
+            shape: The shape of the value.
+            type: The type of the value.
+            doc_string: The documentation string.
+            const_value: The constant tensor is the value constant.
+        """
         self._producer: Node | None = producer
         self._index: int | None = index
         self._metadata: _metadata.MetadataStore | None = None
@@ -1406,7 +1417,11 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         return f"%{_quoted(value_name)}<{type_text},{shape_text}>"
 
     def producer(self) -> Node | None:
-        """The node that produces this value."""
+        """The node that produces this value.
+
+        When producer is ``None``, the value does not belong to a node, and is
+        typically a graph input or an initializer.
+        """
         return self._producer
 
     def index(self) -> int | None:
@@ -1550,9 +1565,7 @@ class Input(Value):
         type: _protocols.TypeProtocol | None = None,
         doc_string: str | None = None,
     ) -> None:
-        super().__init__(
-            None, index=None, name=name, shape=shape, type=type, doc_string=doc_string
-        )
+        super().__init__(name=name, shape=shape, type=type, doc_string=doc_string)
 
 
 def _check_node_safe_to_remove(
@@ -1712,11 +1725,9 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
                 f"The node '{node!r}' belongs to another graph. Please remove it first with Graph.remove()."
             )
         # Give the node and its output values names if they don't not have one
-        if node.name is None:
-            self._name_authority.name_node(node)
+        self._name_authority.register_or_name_node(node)
         for value in node._outputs:  # pylint: disable=protected-access
-            if value.name is None:
-                self._name_authority.name_value(value)
+            self._name_authority.register_or_name_value(value)
         node.graph = self
         return node
 
@@ -1766,6 +1777,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def append(self, node: Node, /) -> None:
         """Append a node to the graph in O(1) time.
 
+        Unique names will be assigned to the node and its values if any name is ``None``.
+
         Args:
             node: The node to append.
 
@@ -1777,6 +1790,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
 
     def extend(self, nodes: Iterable[Node], /) -> None:
         """Extend the graph with the given nodes in O(#new_nodes) time.
+
+        Unique names will be assigned to the node and its values if any name is ``None``.
 
         Args:
             nodes: The nodes to extend the graph with.
@@ -1830,6 +1845,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def insert_after(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
         """Insert new nodes after the given node in O(#new_nodes) time.
 
+        Unique names will be assigned to the node and its values if any name is ``None``.
+
         Args:
             node: The node to insert after.
             new_nodes: The new nodes to insert.
@@ -1844,6 +1861,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
 
     def insert_before(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
         """Insert new nodes before the given node in O(#new_nodes) time.
+
+        Unique names will be assigned to the node and its values if any name is ``None``.
 
         Args:
             node: The node to insert before.
