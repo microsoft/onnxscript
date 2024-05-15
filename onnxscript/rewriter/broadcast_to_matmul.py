@@ -24,6 +24,8 @@ def check_if_not_need_reshape(
     Returns:
         True if we need to replace the pattern, False otherwise.
     """
+    del context  # Reserved for future extensions
+
     input_a_shape = input_a.shape
     input_b_shape = input_b.shape
     # TODO: Get a helper func to get const_value
