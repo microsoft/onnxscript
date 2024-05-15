@@ -37,6 +37,7 @@ from typing import (
 
 import numpy as np
 
+import onnxscript
 from onnxscript.ir import (
     _display,
     _enums,
@@ -274,7 +275,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         dtype: _enums.DataType | None = None,
         *,
         shape: Shape | None = None,
-        name: str = "",
+        name: str | None = None,
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
     ) -> None:
@@ -618,7 +619,7 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
         value: Sequence[bytes] | npt.NDArray[np.bytes_],
         *,
         shape: Shape | None = None,
-        name: str = "",
+        name: str | None = None,
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
     ) -> None:
@@ -1364,9 +1365,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
         doc_string: str | None = None,
-        const_value: _protocols.TensorProtocol
-        | Sequence[_protocols.TensorProtocol]
-        | None = None,
+        const_value: _protocols.TensorProtocol | None = None,
     ) -> None:
         """Initialize a value.
 
@@ -1511,7 +1510,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     @property
     def const_value(
         self,
-    ) -> _protocols.TensorProtocol | Sequence[_protocols.TensorProtocol] | None:
+    ) -> _protocols.TensorProtocol | None:
         """A concrete value.
 
         The value can be backed by different raw data types, such as numpy arrays.
@@ -1522,8 +1521,11 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     @const_value.setter
     def const_value(
         self,
-        value: _protocols.TensorProtocol | Sequence[_protocols.TensorProtocol] | None,
+        value: _protocols.TensorProtocol | None,
     ) -> None:
+        if onnxscript.DEBUG:
+            if value is not None and not isinstance(value, _protocols.TensorProtocol):
+                raise TypeError(f"Expected value to be a TensorProtocol or None, got '{type(value)}'")
         self._const_value = value
 
     @property
@@ -1652,7 +1654,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         outputs: Sequence[Value],
         *,
         nodes: Iterable[Node],
-        initializers: Sequence[Value] = (),
+        initializers: Sequence[_protocols.TensorProtocol] = (),
         doc_string: str | None = None,
         opset_imports: dict[str, int] | None = None,
         name: str | None = None,
