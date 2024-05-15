@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from typing import Callable
+from typing import Sequence
 
 __all__ = [
     "NodeTransformer",
@@ -192,7 +192,7 @@ class PassManager:
 
     def __init__(
         self,
-        passes: list[Callable[[ir.Model], PassResult]],
+        passes: Sequence[PassBase],
         check_invariants: bool = False,
         steps: int = 1,
     ):
