@@ -2,32 +2,62 @@ import unittest
 
 import onnx.parser
 import onnx.shape_inference
-
+import parameterized
 from onnxscript import ir
 from onnxscript.rewriter import broadcast_to_matmul
 
 
 class TwoReshapesMatMulReshapeTest(unittest.TestCase):
-    def test_reshape_matmul_reshape_replace_when_nd_inputs_are_broadcastable(self):
+    @parameterized.parameterized.expand(
+        [
+            "4d",
+            "[1, 4, 512, 512]",
+            "{4, 512, 512}",
+            "[1, 4, 512, 64]",
+            "{4, 512, 64}",
+            [1, 4, 512, 64],
+            "{1, 4, 512, 64}",
+        ],
+        [
+            "1d",
+            "[4]",
+            "{1, 4}",
+            "[4, 2]",
+            "{4, 2}",
+            [1, 2],
+            "{1, 2}",
+        ]
+    )
+    def test_reshape_matmul_reshape_replace_when_nd_inputs_are_broadcastable(
+        self,
+        _: str,
+        input_x_shape: str,
+        shape_a: str,
+        input_y_shape: str,
+        shape_b: str,
+        output_shape: list[int],
+        shape_c: str,
+    ):
         model_proto = onnx.parser.parse_model(
-            """
+            f"""
             <ir_version: 7, opset_import: [ "" : 17]>
-            agraph (float[1, 4, 512, 512] input_x, float[1, 4, 512, 64] input_y) => (float[1, 4, 512, 64] output)
-            {
-                shape_a = Constant<value: tensor = int64[3] {4, 512, 512}>()
+            agraph (float{input_x_shape} input_x, float{input_y_shape} input_y) => (float{output_shape} output)
+            {{
+                shape_a = Constant<value: tensor = int64[3] {shape_a}>()
                 reshape_x = Reshape (input_x, shape_a)
-                shape_b = Constant<value: tensor = int64[3] {4, 512, 64}>()
+                shape_b = Constant<value: tensor = int64[3] {shape_b}>()
                 reshape_y = Reshape (input_y, shape_b)
                 matmul = MatMul (reshape_x, reshape_y)
-                shape_c = Constant<value: tensor = int64[4] {1, 4, 512, 64}>()
+                shape_c = Constant<value: tensor = int64[4] {shape_c}>()
                 output = Reshape (matmul, shape_c)
-            }
-        """
+            }}
+            """
         )
         model = ir.serde.deserialize_model(model_proto)
         count = broadcast_to_matmul.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 4)
+        self.assertEqual(model.graph.outputs[0].shape, ir.Shape(output_shape))
 
     def test_reshape_matmul_reshape_replace_when_nd_inputs_are_broadcastable_in_nested_function(
         self,

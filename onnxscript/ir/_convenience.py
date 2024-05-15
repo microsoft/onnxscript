@@ -285,3 +285,23 @@ def replace_all_uses_with(
     for value, replacement in zip(values, replacements):
         for user_node, index in tuple(value.uses()):
             user_node.replace_input_with(index, replacement)
+
+
+def get_value_by_name(graph: _core.Graph, name: str) -> _core.Value | None:
+    """Get a value by its name from the graph.
+
+    Args:
+        graph: The graph to search for the value.
+        name: The name of the value to search for.
+
+    Returns:
+        The value if found, otherwise ``None``.
+    """
+    for value in graph.inputs:
+        if value.name == name:
+            return value
+    for node in graph:
+        for value in node.outputs:
+            if value.name == name:
+                return value
+    return None

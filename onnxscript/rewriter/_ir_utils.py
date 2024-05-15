@@ -12,9 +12,10 @@ GRAPH_OUTPUT_META_KEY = "pkg.onnxscript.rewriter.generic_pattern.graph_output"
 
 
 def propagate_const_value(ir_value: ir.Value) -> ir.Value:
+    """Temporary method to propagate a constant value to the IR value."""
     node = ir_value.producer()
     if ir_value.const_value is None and node is not None and node.op_type == "Constant":
-        attr_names = [
+        for attr_name in (
             "value_float",
             "value_int",
             "value_string",
@@ -22,17 +23,24 @@ def propagate_const_value(ir_value: ir.Value) -> ir.Value:
             "value_floats",
             "value_ints",
             "value_strings",
-        ]
-        for attr_name in attr_names:
+        ):
             attr_value = node.attributes.get(attr_name)
-            if attr_value is not None:
-                # TODO: RefAttr should be also supported?
-                if isinstance(attr_value, ir.Attr):
-                    const_value = typing.cast(ir.TensorProtocol, attr_value.value)
-                    ir_value.const_value = const_value
-                    ir_value.shape = const_value.shape  # type: ignore
-                    ir_value.dtype = const_value.dtype
-                    break
+            if attr_value is None or not isinstance(attr_value, ir.Attr):
+                continue
+
+            if attr_name in {"value_float", "value_floats"}:
+                const_value = ir.Tensor(np.array(attr_value.value, dtype=np.float32), name=ir_value.name)
+            elif attr_name in {"value_int", "value_ints"}:
+                const_value = ir.Tensor(np.array(attr_value.value, dtype=np.int64), name=ir_value.name)
+            elif attr_name in {"value_string", "value_strings"}:
+                const_value = ir.StringTensor(np.array(attr_value.value, dtype=np.bytes_), name=ir_value.name)
+            elif attr_name == "value":
+                const_value = typing.cast(ir.TensorProtocol, attr_value.value)
+
+            ir_value.const_value = const_value
+            ir_value.shape = const_value.shape  # type: ignore
+            ir_value.dtype = const_value.dtype
+            break
     return ir_value
 
 

@@ -113,7 +113,7 @@ class TensorProtocol(ArrayCompatible, DLPackCompatible, Protocol):
         meta: Metadata store for graph transform passes.
     """
 
-    name: str
+    name: str | None
     shape: ShapeProtocol
     dtype: _enums.DataType
     doc_string: str | None

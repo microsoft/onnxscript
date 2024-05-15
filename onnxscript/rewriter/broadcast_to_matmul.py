@@ -5,7 +5,6 @@ import logging
 from onnxscript import ir
 from onnxscript.rewriter import _ir_utils, pattern
 
-op = pattern.onnxop
 logger = logging.getLogger(__name__)
 
 
@@ -128,7 +127,7 @@ def check_if_not_need_reshape(
     return True
 
 
-def two_reshapes_matmul_reshape_pattern(op, input_a, input_b, shape_a, shape_b, shape_c):
+def _two_reshapes_matmul_reshape_pattern(op, input_a, input_b, shape_a, shape_b, shape_c):
     # TODO: Modified from `value_ints` to `value` to match pattern in benchmark models.
     # This implementation misses pattern of Constants with `value_ints` attribute.
     # See more at https://github.com/microsoft/onnx-rewriter/issues/191.
@@ -152,7 +151,7 @@ def one_reshape_matmul_reshape_pattern(op, input_a, input_b, shape_a, shape_c):
 
 # Register the rewrite rules
 two_reshapes_matmul_reshape_rule = pattern.RewriteRule(
-    two_reshapes_matmul_reshape_pattern,
+    _two_reshapes_matmul_reshape_pattern,
     matmul,
     check_if_not_need_reshape,
 )
@@ -160,7 +159,7 @@ one_reshape_matmul_reshape_rule = pattern.RewriteRule(
     one_reshape_matmul_reshape_pattern,
     matmul,
     # We can use the same check_if_not_need_reshape function for both the rules,
-    # as one_reshape_matmul_reshape_pattern is a subset of two_reshapes_matmul_reshape_pattern.
+    # as one_reshape_matmul_reshape_pattern is a subset of _two_reshapes_matmul_reshape_pattern.
     check_if_not_need_reshape,
 )
 

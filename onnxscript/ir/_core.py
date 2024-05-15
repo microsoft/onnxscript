@@ -274,7 +274,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         dtype: _enums.DataType | None = None,
         *,
         shape: Shape | None = None,
-        name: str = "",
+        name: str | None = None,
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
     ) -> None:
@@ -618,7 +618,7 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
         value: Sequence[bytes] | npt.NDArray[np.bytes_],
         *,
         shape: Shape | None = None,
-        name: str = "",
+        name: str | None = None,
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
     ) -> None:
@@ -1520,6 +1520,9 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         self,
         value: _protocols.TensorProtocol | None,
     ) -> None:
+        # if DEBUG:
+        #     if value is not None and not isinstance(value, _protocols.TensorProtocol):
+        #         raise TypeError(f"Expected value to be a TensorProtocol or None, got '{type(value)}'")
         self._const_value = value
 
     @property
