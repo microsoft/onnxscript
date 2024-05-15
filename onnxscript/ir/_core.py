@@ -1656,7 +1656,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         outputs: Sequence[Value],
         *,
         nodes: Iterable[Node],
-        initializers: Sequence[_protocols.TensorProtocol] = (),
+        initializers: Sequence[Value] = (),
         doc_string: str | None = None,
         opset_imports: dict[str, int] | None = None,
         name: str | None = None,
