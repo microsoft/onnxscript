@@ -110,6 +110,9 @@ class NodeTransformer(PassBase):
 
     By default, the NodeTransformer updates the model in place.
 
+    .. warning::
+        Users should not depend on this class before the warning is removed, because it is not stable.
+
     Attributes:
         model: ir.Model: The model being interpreted.
         scope (list[ir.Graph]): The current graph the NodeTransformer is running on.
