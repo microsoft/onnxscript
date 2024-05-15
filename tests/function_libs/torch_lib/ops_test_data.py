@@ -438,6 +438,34 @@ def _where_input_wrangler(
     return args, kwargs
 
 
+def _unique_unsorted_xfail_matcher(
+    sample: Any
+) -> bool:
+    # torch.unique always sorts, so the results are not guaranteed to be
+    # equivalent to the output of the ONNX op
+    expect_fail = False
+    if sample.kwargs.get("sorted", None) is False and sample.input.numel() > 1:
+        # sorted == None is equivalent to True
+        # the result will be mismatched if the input is not sorted
+        # To expect equality, we must verify that the first appearance
+        # of each unique value is in ascending order in the input
+        test_kwargs = dict(sample.kwargs)
+        test_kwargs['return_inverse'] = True
+        test_kwargs['return_counts'] = False
+        _, inverse = torch.unique(sample.input, **test_kwargs)
+        observed = set()
+        max_observed: Optional[int] = None
+        for inv_idx in inverse.flatten().tolist():
+            if inv_idx not in observed:
+                if max_observed is not None and inv_idx < max_observed:
+                    expect_fail = True
+                    break
+                observed.add(inv_idx)
+                if max_observed is None or inv_idx > max_observed:
+                    max_observed = inv_idx
+    return expect_fail
+
+
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
@@ -2324,6 +2352,19 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("transpose", core_ops.aten_transpose, trace_only=True),
     TorchLibOpInfo(
         "transpose", core_ops.aten_transpose_complex, trace_only=True, complex=True
+    ),
+    TorchLibOpInfo(
+        "unique",
+        core_ops.aten_unique,
+        trace_only=True
+    ).xfail(
+        matcher=lambda sample: sample.input.dtype not in {
+            torch.float64, torch.float32, torch.float16, torch.int64, torch.int8,
+        },
+        reason="'onnxruntime' does not implement Unique(11) with the given dtype",
+    ).xfail(
+        matcher=_unique_unsorted_xfail_matcher,
+        reason="torch.unique always sorts, so passing 'sorted=False' leads to mismatched outputs",
     ),
     TorchLibOpInfo(
         "var_mean",

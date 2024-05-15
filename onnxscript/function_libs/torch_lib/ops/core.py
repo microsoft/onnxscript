@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import math
+import re
 from typing import Any, Optional, Sequence, Tuple, Union
 
 from onnxscript import (
@@ -8372,6 +8373,63 @@ def aten_unique_consecutive(
     raise NotImplementedError()
 
 
+_NOT_IMPLEMENTED_UNIQUE = re.compile(
+    r"NOT_IMPLEMENTED\s*:\s*Could\s+not\s+find\s+an\s+implementation\s+for\s+Unique"
+    )
+"""
+A pattern to detect an unsupported (not implemented) Unique operator
+"""
+
+@torch_op("aten::unique", trace_only=True)
+def aten_unique(
+    self: TensorType,
+    sorted: bool = True,
+    return_inverse: bool = False,
+    return_counts: bool = False,
+    dim: Optional[int] = None,
+) -> tuple[TensorType, TensorType, TensorType]:
+    """unique(Tensor self, bool sorted=True, bool return_inverse=False, bool return_counts=False, int? dim=None) -> (Tensor, Tensor?, Tensor?)"""
+
+    try:
+        if dim is None:
+            unique_values, inverse_indices, counts = aten_unique2(self, sorted, return_inverse, return_counts)
+        else:
+            unique_values, inverse_indices, counts = aten_unique_dim(self, dim, sorted, return_inverse, return_counts)
+    except Exception as e:
+        # try to provide a more informative error message
+        if _NOT_IMPLEMENTED_UNIQUE.search(str(e)) is not None:
+            raise NotImplementedError(
+                f"'onnxruntime' does not yet support Unique(11) operator with dtype={self.dtype}'"
+                ) from e
+        raise
+    if return_inverse:
+        if return_counts:
+            result = unique_values, inverse_indices, counts
+        else:
+            result = unique_values, inverse_indices
+    elif return_counts:
+        result = unique_values, counts
+    else:
+        result = unique_values
+    return result
+
+
+@torch_op("aten::_unique2", traceable=True)
+def aten_unique2(
+    self: TensorType,
+    sorted: bool = True,
+    return_inverse: bool = False,
+    return_counts: bool = False
+) -> tuple[TensorType, TensorType, TensorType]:
+    """unique(Tensor self, bool sorted=True, bool return_inverse=False, bool return_counts=False) -> (Tensor, Tensor, Tensor)"""
+
+    unique_values, _, inverse_indices, counts = op.Unique(self, axis=None, sorted=sorted)
+    input_size = op.Shape(self)
+    inverse_indices = op.Reshape(inverse_indices, input_size)
+    return unique_values, inverse_indices, counts
+
+
+@torch_op("aten::unique_dim", traceable=True)
 def aten_unique_dim(
     self: TensorType,
     dim: int,
@@ -8381,7 +8439,20 @@ def aten_unique_dim(
 ) -> tuple[TensorType, TensorType, TensorType]:
     """unique_dim(Tensor self, int dim, bool sorted=True, bool return_inverse=False, bool return_counts=False) -> (Tensor, Tensor, Tensor)"""
 
-    raise NotImplementedError()
+    unique_values, _, inverse_indices, counts = op.Unique(self, axis=dim, sorted=sorted)
+    input_size = op.Shape(self)
+    # PyTorch accepts negative dim as reversed counting
+    input_rank = op.Size(input_size)
+    dim = input_rank + dim
+    dim = dim % input_rank
+    starts = op.Reshape(dim, [-1])
+    ends = op.Reshape(dim + 1, [-1])
+    input_dim_size = op.Slice(input_size, starts=starts, ends=ends)
+    inverse_indices = op.Reshape(inverse_indices, input_dim_size)
+    output_size = op.Shape(unique_values)
+    output_dim_size = op.Slice(output_size, starts=starts, ends=ends)
+    counts = op.Reshape(counts, output_dim_size)
+    return unique_values, inverse_indices, counts
 
 
 def aten_unique_dim_consecutive(
