@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import typing
+
 import numpy as np
 
 from onnxscript import ir
@@ -26,7 +28,10 @@ def propagate_const_value(ir_value: ir.Value) -> ir.Value:
             if attr_value is not None:
                 # TODO: RefAttr should be also supported?
                 if isinstance(attr_value, ir.Attr):
-                    ir_value.const_value = attr_value.value  # type: ignore[union-attr]
+                    const_value = typing.cast(ir.TensorProtocol, attr_value.value)
+                    ir_value.const_value = const_value
+                    ir_value.shape = const_value.shape  # type: ignore
+                    ir_value.dtype = const_value.dtype
                     break
     return ir_value
 

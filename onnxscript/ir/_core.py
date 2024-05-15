@@ -1364,9 +1364,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
         doc_string: str | None = None,
-        const_value: _protocols.TensorProtocol
-        | Sequence[_protocols.TensorProtocol]
-        | None = None,
+        const_value: _protocols.TensorProtocol | None = None,
     ) -> None:
         """Initialize a value.
 
@@ -1509,7 +1507,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     @property
     def const_value(
         self,
-    ) -> _protocols.TensorProtocol | Sequence[_protocols.TensorProtocol] | None:
+    ) -> _protocols.TensorProtocol | None:
         """A concrete value.
 
         The value can be backed by different raw data types, such as numpy arrays.
@@ -1520,7 +1518,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     @const_value.setter
     def const_value(
         self,
-        value: _protocols.TensorProtocol | Sequence[_protocols.TensorProtocol] | None,
+        value: _protocols.TensorProtocol | None,
     ) -> None:
         self._const_value = value
 

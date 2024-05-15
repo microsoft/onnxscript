@@ -2,17 +2,19 @@ from __future__ import annotations
 
 import logging
 
-import numpy as np
-
+from onnxscript import ir
 from onnxscript.rewriter import _ir_utils, pattern
 
 op = pattern.onnxop
 logger = logging.getLogger(__name__)
 
 
-# condition to check if we need to replace the pattern
-def check_if_not_need_reshape(context, input_a, input_b, shape_c, **_) -> bool:
-    """If matmul broadcasting is enough, then we don't need the reshapes.
+def check_if_not_need_reshape(
+    context, input_a: ir.Value, input_b: ir.Value, shape_c: ir.Value, **_
+) -> bool:
+    """Condition to check if we need to replace the pattern.
+
+    If matmul broadcasting is enough, then we don't need the reshapes.
 
     To validate this, we need to check the following:
     1. Input shapes check: input_a and input_b should be broadcastable
@@ -27,28 +29,26 @@ def check_if_not_need_reshape(context, input_a, input_b, shape_c, **_) -> bool:
     input_a_shape = input_a.shape
     input_b_shape = input_b.shape
     # TODO: Get a helper func to get const_value
-    shape_c_value = _ir_utils.propagate_const_value(shape_c)
-    shape_c = shape_c_value.const_value.numpy()  # type: ignore[union-attr]
-    if shape_c is None:
+    _ir_utils.propagate_const_value(shape_c)
+    shape_c_tensor = shape_c.const_value
+    if shape_c_tensor is None:
         return False
-    if not isinstance(shape_c, np.ndarray):
-        logger.info("Unexpected shape_c value. Expected np.ndarray, got %s", type(shape_c))
-        return False
-    if len(shape_c.shape) != 1:
+
+    if len(shape_c_tensor.shape) != 1:
         logger.info(
             "Unexpected final shape. The shape of 'shape' value is %s",
             shape_c.shape,
         )
         return False
-    shape_c = shape_c.tolist()
 
     # NOTE: When there is a subset match with a pattern. The MatchResult won't have the shape
     # information. So, we need to check if the shape is None and return False.
-    if input_a_shape is None or input_b_shape is None or shape_c is None:
+    if input_a_shape is None or input_b_shape is None:
         logger.info("Shape information is not available for the inputs and outputs.")
         return False
-    input_a_shape = list(input_a_shape)
-    input_b_shape = list(input_b_shape)
+    input_a_shape = input_a_shape.numpy()
+    input_b_shape = input_b_shape.numpy()
+    shape_c = shape_c_tensor.numpy().tolist()
 
     dim_a = len(input_a_shape)
     dim_b = len(input_b_shape)
@@ -79,7 +79,7 @@ def check_if_not_need_reshape(context, input_a, input_b, shape_c, **_) -> bool:
     # the last dimension of the first input matches the second
     # last dimension of the second input, and shape[:-2] are
     # broadcastable.
-    input_a_shape_except_second_last_dim = input_a_shape[:-2] + [input_a_shape[-1]]
+    input_a_shape_except_second_last_dim = [*input_a_shape[:-2], *[input_a_shape[-1]]]
     input_b_shape_except_last_dim = input_b_shape[:-1]
     broadcast_matmul_output_shape = [input_a_shape[-2], input_b_shape[-1]]
     for idx, (dim_from_a, dim_from_b) in enumerate(
@@ -105,9 +105,9 @@ def check_if_not_need_reshape(context, input_a, input_b, shape_c, **_) -> bool:
     else:
         longer_shape = input_b_shape
         shorter_shape = input_a_shape
-    broadcast_matmul_output_shape = (
-        longer_shape[: -len(shorter_shape)] + broadcast_matmul_output_shape
-    )
+    broadcast_matmul_output_shape = [
+        *longer_shape[: -len(shorter_shape)], *broadcast_matmul_output_shape
+    ]
     if mimic_matmul_broadcast_behavior and dim_b == 2 and input_b_shape[-1] == 1:
         # If input_b is expanded to 2-D, then we need to remove the last dimension
         broadcast_matmul_output_shape = broadcast_matmul_output_shape[:-1]

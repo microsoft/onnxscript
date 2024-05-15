@@ -78,7 +78,7 @@ def check_if_not_need_reshape(
     input_b_shape = input_b.shape
     # TODO: Get a helper func to get const_value
     shape_c_value = _ir_utils.propagate_const_value(shape_c)
-    shape_c = shape_c_value.const_value.numpy()  # type: ignore[union-attr]
+    shape_c = shape_c_value.const_value.numpy()
     if shape_c is None:
         return False
     if not isinstance(shape_c, np.ndarray):
