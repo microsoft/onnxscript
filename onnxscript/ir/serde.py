@@ -1217,7 +1217,8 @@ def serialize_tensor_into(
             _serialize_metadata_props_into(tensor_proto.metadata_props, from_.metadata_props)
         return
 
-    tensor_proto.name = from_.name
+    if from_.name:
+        tensor_proto.name = from_.name
     if from_.doc_string:
         tensor_proto.doc_string = from_.doc_string
     tensor_proto.data_type = from_.dtype.value
