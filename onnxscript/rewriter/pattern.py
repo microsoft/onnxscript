@@ -369,11 +369,10 @@ class ValuePattern:
     def __repr__(self) -> str:
         return f"ValuePattern({self._name!r})"
 
-    def matches(self, value: ir.Value):
-        result = MatchResult(success=True)
+    def matches(self, value: ir.Value, match: MatchResult) -> MatchResult:
         if self._name is not None:
-            result.bind(self._name, value)
-        return result
+            match.bind(self._name, value)
+        return match
 
     def commute(self) -> Sequence[ValuePattern]:
         """Return a list of commuted patterns.
@@ -470,33 +469,40 @@ class NodePattern:
     def op_type(self) -> str:
         return str(self.op)
 
-    def matches(self, node: ir.Node) -> bool:
+    def matches(self, node: ir.Node, match: MatchResult) -> bool:
         """Matches the pattern represented by self against a node.
 
         This is purely a local node-level match, and does not consider the subgraph rooted at the node.
         We check the domain, op_type, and attributes of the node, but not the inputs.
         """
-        if not self.op.matches(node.op_type):
-            return False
         # TODO(rama): Ensure we handle "" and "onnx.ai" correctly.
         if not self.domain.matches(node.domain):
             return False
+        if not self.op.matches(node.op_type):
+            return False
 
-        # for name, attr_pattern in self.attributes.items():
-        #     attr_value = node.attributes.get(name)
-        #     if attr_value is None:
-        #         return False
-        #     if not attr_pattern.matches(attr_value):
-        #         return False
+        for name, attr_pattern in self.attributes.items():
+            attr_value = node.attributes.get(name)
+            if attr_value is None:
+                return False
+            if not attr_pattern.matches(attr_value):
+                return False
+            if attr_pattern.name is not None:
+                if not match.bind(attr_pattern.name, attr_value):
+                    return False
+
+        for name in node.attributes:
+            # TODO: Support matching default nodes for attributes.
+            if name not in self.attributes:
+                return False
+
         return True
 
-    def matches_subgraph(self, node: ir.Node) -> MatchResult:
+    def matches_subgraph(self, node: ir.Node, match: MatchResult) -> MatchResult:
         """Matches the pattern subgraph represented by self against subgraph rooted at node."""
-        if not self.domain.matches(node.domain):
+        if not self.matches(node, match):
             return MatchResult.FAIL()
-        if not self.op.matches(node.op_type):
-            return MatchResult.FAIL()
-        match = MatchResult(success=True)
+
         # TODO: We should add filtered logging starting from here to emit why
         # matching failed. This should cut a lot of noises compared to logging everything,
         # because at least the starting node op_type is already matched.
@@ -506,24 +512,9 @@ class NodePattern:
                 continue
             if arg_value is None or previous_node_output_pattern is None:
                 return MatchResult.FAIL()
-            sub_match = previous_node_output_pattern.matches(arg_value)
-            match.extend(sub_match)
-            if not match:  # If sub-match failed,
-                return match
-        # Sub-graphs not handled yet.
-        for name, attr_pattern in self.attributes.items():
-            attr_value = node.attributes.get(name)
-            if attr_value is None:
+            if not previous_node_output_pattern.matches(arg_value, match):
                 return MatchResult.FAIL()
-            if not attr_pattern.matches(attr_value):
-                return MatchResult.FAIL()
-            if attr_pattern.name is not None:
-                if not match.bind(attr_pattern.name, attr_value):
-                    return match
-        for name in node.attributes:
-            # TODO: Support matching default nodes for attributes.
-            if name not in self.attributes:
-                return MatchResult.FAIL()
+
         match.nodes.append(node)
         return match
 
@@ -570,14 +561,14 @@ class NodeOutputPattern(ValuePattern):
     def output_index(self) -> int:
         return self._output_index
 
-    def matches(self, value: ir.Value):
+    def matches(self, value: ir.Value, match: MatchResult):
         """Match the StaticValueInfo from IR with the `matches_subgraph()` in node pattern."""
         node = value.producer()
         if node is None:
             return MatchResult.FAIL()
         if value.index() != self._output_index:
             return MatchResult.FAIL()
-        return self._producer.matches_subgraph(node)
+        return self._producer.matches_subgraph(node, match)
 
     def commute(self) -> Sequence[ValuePattern]:
         # TODO
@@ -614,7 +605,7 @@ class Constant(ValuePattern):
         # used elsewhere.
         return MatchResult(success=status)
 
-    def matches(self, value: ir.Value):
+    def matches(self, value: ir.Value, match: MatchResult) -> MatchResult:
         value = _ir_utils.propagate_const_value(value)
         constant_value = _ir_utils.get_numpy_from_ir_value(value)
         if constant_value is None:
@@ -708,9 +699,10 @@ class GraphPattern:
         return len(self._outputs)
 
     def matches_subgraph(self, node: ir.Node) -> MatchResult:
+        match = MatchResult(success=True)
         if self._output_node is None:
             return MatchResult.FAIL()
-        return self._output_node.matches_subgraph(node)
+        return self._output_node.matches_subgraph(node, match)
 
     def commute(self) -> Sequence[GraphPattern]:
         if self._output_node is None:
@@ -925,11 +917,11 @@ class SimplePatternMatcher(PatternMatcher):
         if len(node.outputs) != self.pattern.num_outputs:
             return MatchResult.FAIL()
         match = self.pattern.matches_subgraph(node)
-        if not match:
-            return MatchResult.FAIL()
-        if not _valid_to_replace(match.nodes):
-            return MatchResult.FAIL()
-        match.outputs.extend(node.outputs)
+        if match:
+            if _valid_to_replace(match.nodes):
+                match.outputs.extend(node.outputs)
+            else:
+                match = MatchResult.FAIL()
         return match
 
 
