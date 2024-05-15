@@ -36,7 +36,7 @@ def check_if_not_need_reshape(
     if len(shape_c_tensor.shape) != 1:
         logger.info(
             "Unexpected final shape. The shape of 'shape' value is %s",
-            shape_c.shape,
+            shape_c_tensor.shape,
         )
         return False
 
@@ -49,30 +49,32 @@ def check_if_not_need_reshape(
     input_b_shape = input_b_shape.numpy()
     shape_c = shape_c_tensor.numpy().tolist()
 
-    dim_a = len(input_a_shape)
-    dim_b = len(input_b_shape)
+    a_rank = len(input_a_shape)
+    b_rank = len(input_b_shape)
+
+    # TODO(justinchuby): Check shape size
 
     # 1. Check if input shapes are broadcastable
     # 1.a. If the first input is 1-D, check whether
     # the dim matches the last second dim of the second input.
     mimic_matmul_broadcast_behavior = False
-    if dim_a < 2:
+    if a_rank < 2:
         if input_a_shape[-1] != input_b_shape[-2]:
             logger.info("Original shape is not MatMul compatible.")
             return False
         else:
             input_a_shape = [1, *input_a_shape]
-            dim_a = len(input_a_shape)
+            a_rank = len(input_a_shape)
             mimic_matmul_broadcast_behavior = True
     # 1.b. If the second input is 1-D, check whether
     # the dim matches the last dim of the first input.
-    if dim_b < 2:
+    if b_rank < 2:
         if input_b_shape[-1] != input_a_shape[-1]:
             logger.info("Original shape is not MatMul compatible.")
             return False
         else:
             input_b_shape = [*input_b_shape, 1]
-            dim_b = len(input_b_shape)
+            b_rank = len(input_b_shape)
             mimic_matmul_broadcast_behavior = True
     # 1.c. If both inputs are at least 2-D, check whether
     # the last dimension of the first input matches the second
@@ -98,7 +100,7 @@ def check_if_not_need_reshape(
 
     # 2. Check if output shape is the same as the output shape from the matmul(input_a, input_b)
     # Prepend the broadcast_matmul_output_shape with the longer shape of input
-    if dim_a > dim_b:
+    if a_rank > b_rank:
         longer_shape = input_a_shape
         shorter_shape = input_b_shape
     else:
@@ -108,10 +110,10 @@ def check_if_not_need_reshape(
         *longer_shape[: -len(shorter_shape)],
         *broadcast_matmul_output_shape,
     ]
-    if mimic_matmul_broadcast_behavior and dim_b == 2 and input_b_shape[-1] == 1:
+    if mimic_matmul_broadcast_behavior and b_rank == 2 and input_b_shape[-1] == 1:
         # If input_b is expanded to 2-D, then we need to remove the last dimension
         broadcast_matmul_output_shape = broadcast_matmul_output_shape[:-1]
-    if mimic_matmul_broadcast_behavior and dim_a == 2 and input_a_shape[0] == 1:
+    if mimic_matmul_broadcast_behavior and a_rank == 2 and input_a_shape[0] == 1:
         # If input_a is expanded to 2-D, then we need to remove the first dimension
         # of input_a, which would be the -2nd dimension of the output shape.
         broadcast_matmul_output_shape.pop(-2)
