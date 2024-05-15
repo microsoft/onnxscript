@@ -21,10 +21,10 @@ import logging
 from typing import Callable
 
 __all__ = [
-    "PassBase",
-    "PassResult",
-    "PassManager",
     "NodeTransformer",
+    "PassBase",
+    "PassManager",
+    "PassResult",
     # Errors
     "InvariantError",
     "PreconditionError",
