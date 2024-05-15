@@ -1,63 +1,116 @@
+from __future__ import annotations
+
 import unittest
 
 import onnx.parser
 import onnx.shape_inference
 import parameterized
+
 from onnxscript import ir
 from onnxscript.rewriter import broadcast_to_matmul
 
 
+def _infer_shapes(model: ir.Model) -> ir.Model:
+    """Run shape inference on the IR model."""
+    # TODO: Update when shape inference is supported on the IR
+    return ir.serde.deserialize_model(
+        onnx.shape_inference.infer_shapes(ir.serde.serialize_model(model))
+    )
+
+
 class TwoReshapesMatMulReshapeTest(unittest.TestCase):
+    def test_reshape_matmul_reshape_replace_when_nd_inputs_are_broadcastable(self):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[1, 4, 512, 512] input_x, float[1, 4, 512, 64] input_y) => (float[1, 4, 512, 64] output)
+            {
+                shape_a = Constant<value: tensor = int64[3] {4, 512, 512}>()
+                reshape_x = Reshape (input_x, shape_a)
+                shape_b = Constant<value: tensor = int64[3] {4, 512, 64}>()
+                reshape_y = Reshape (input_y, shape_b)
+                matmul = MatMul (reshape_x, reshape_y)
+                shape_c = Constant<value: tensor = int64[4] {1, 4, 512, 64}>()
+                output = Reshape (matmul, shape_c)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = broadcast_to_matmul.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(model.graph), 4)
+
     @parameterized.parameterized.expand(
         [
-            "4d",
-            "[1, 4, 512, 512]",
-            "{4, 512, 512}",
-            "[1, 4, 512, 64]",
-            "{4, 512, 64}",
-            [1, 4, 512, 64],
-            "{1, 4, 512, 64}",
-        ],
-        [
-            "1d",
-            "[4]",
-            "{1, 4}",
-            "[4, 2]",
-            "{4, 2}",
-            [1, 2],
-            "{1, 2}",
+            (
+                "0d",
+                [],
+                [1, 1],
+                [],
+                [1, 1],
+                [1, 1],
+                [1, 1],
+            ),
+            (
+                "x_1d",
+                [4],
+                [1, 4],
+                [4, 2],
+                [4, 2],
+                [1, 2],
+                [1, 2],
+            ),
+            (
+                "y_1d",
+                [1, 4],
+                [1, 4],
+                [2],
+                [4, 2],
+                [1, 2],
+                [1, 2],
+            ),
+            (
+                "both_1d",
+                [2],
+                [1, 2],
+                [2],
+                [2, 1],
+                [],
+                [],
+            ),
         ]
     )
-    def test_reshape_matmul_reshape_replace_when_nd_inputs_are_broadcastable(
+    def test_reshape_matmul_reshape_does_not_replace_when_output_sizes_do_not_match(
         self,
         _: str,
-        input_x_shape: str,
-        shape_a: str,
-        input_y_shape: str,
-        shape_b: str,
+        input_x_shape: list[int],
+        shape_a: list[int],
+        input_y_shape: list[int],
+        shape_b: list[int],
         output_shape: list[int],
-        shape_c: str,
+        shape_c: list[int],
     ):
         model_proto = onnx.parser.parse_model(
             f"""
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float{input_x_shape} input_x, float{input_y_shape} input_y) => (float{output_shape} output)
             {{
-                shape_a = Constant<value: tensor = int64[3] {shape_a}>()
+                shape_a = Constant<value: tensor = int64[{len(shape_a)}] {{ {', '.join(str(i) for i in shape_a)} }}>()
                 reshape_x = Reshape (input_x, shape_a)
-                shape_b = Constant<value: tensor = int64[3] {shape_b}>()
+                shape_b = Constant<value: tensor = int64[{len(shape_b)}] {{ {', '.join(str(i) for i in shape_b)} }}>()
                 reshape_y = Reshape (input_y, shape_b)
                 matmul = MatMul (reshape_x, reshape_y)
-                shape_c = Constant<value: tensor = int64[4] {shape_c}>()
+                shape_c = Constant<value: tensor = int64[{len(shape_c)}] {{ {', '.join(str(i) for i in shape_c)} }}>()
                 output = Reshape (matmul, shape_c)
             }}
             """
         )
         model = ir.serde.deserialize_model(model_proto)
         count = broadcast_to_matmul.rules.apply_to_model(model)
-        self.assertEqual(count, 1)
-        self.assertEqual(len(model.graph), 4)
-        self.assertEqual(model.graph.outputs[0].shape, ir.Shape(output_shape))
+        self.assertEqual(count, 0)
+        self.assertEqual(len(model.graph), 7)
+        model = _infer_shapes(model)
+        self.assertEqual(model.graph.outputs[0].shape, output_shape)
 
     def test_reshape_matmul_reshape_replace_when_nd_inputs_are_broadcastable_in_nested_function(
         self,

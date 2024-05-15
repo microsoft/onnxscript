@@ -29,11 +29,17 @@ def propagate_const_value(ir_value: ir.Value) -> ir.Value:
                 continue
 
             if attr_name in {"value_float", "value_floats"}:
-                const_value = ir.Tensor(np.array(attr_value.value, dtype=np.float32), name=ir_value.name)
+                const_value = ir.Tensor(
+                    np.array(attr_value.value, dtype=np.float32), name=ir_value.name
+                )
             elif attr_name in {"value_int", "value_ints"}:
-                const_value = ir.Tensor(np.array(attr_value.value, dtype=np.int64), name=ir_value.name)
+                const_value = ir.Tensor(
+                    np.array(attr_value.value, dtype=np.int64), name=ir_value.name
+                )
             elif attr_name in {"value_string", "value_strings"}:
-                const_value = ir.StringTensor(np.array(attr_value.value, dtype=np.bytes_), name=ir_value.name)
+                const_value = ir.StringTensor(
+                    np.array(attr_value.value, dtype=np.bytes_), name=ir_value.name
+                )
             elif attr_name == "value":
                 const_value = typing.cast(ir.TensorProtocol, attr_value.value)
 

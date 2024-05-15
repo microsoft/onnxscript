@@ -58,6 +58,9 @@ def check_if_not_need_reshape(
     # the dim matches the last second dim of the second input.
     mimic_matmul_broadcast_behavior = False
     if a_rank < 2:
+        if b_rank < 2:
+            logger.info("Optimization of dot product is not supported yet.")
+            return False
         if input_a_shape[-1] != input_b_shape[-2]:
             logger.info("Original shape is not MatMul compatible.")
             return False
