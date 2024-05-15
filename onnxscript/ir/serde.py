@@ -705,9 +705,9 @@ def deserialize_tensor(
             offset=external_info.offset,
             length=external_info.length,
             dtype=_enums.DataType(proto.data_type),
-            name=proto.name,
+            name=_get_field(proto, "name"),
             shape=_core.Shape(proto.dims),
-            doc_string=proto.doc_string,
+            doc_string=_get_field(proto, "doc_string"),
             metadata_props=deserialize_metadata_props(proto.metadata_props),
         )
     if proto.data_type == _enums.DataType.STRING:
