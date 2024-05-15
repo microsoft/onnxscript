@@ -113,13 +113,15 @@ class NodeTransformer(PassBase):
     Attributes:
         model: ir.Model: The model being interpreted.
         scope (list[ir.Graph]): The current graph the NodeTransformer is running on.
+        reversed (bool): Whether to traverse the graph in reverse order.
+        modified (bool): Whether the model was modified.
     """
 
     def __init__(self, reversed: bool = False):
         self._model: ir.Model | None = None
         self.scope: list[ir.Graph] = []
         self.reversed = reversed
-        self.modified = False
+        self.modified: bool | None = None
 
     @property
     def model(self) -> ir.Model:
@@ -133,6 +135,8 @@ class NodeTransformer(PassBase):
         self.enter_pass()
         self._call_graph(self._model.graph)
         self.exit_pass()
+        if self.modified is None:
+            raise PassError("The modified attribute was not set. Please set it in the pass.")
         return PassResult(self._model, self.modified)
 
     def _call_graph(self, graph: ir.Graph):
