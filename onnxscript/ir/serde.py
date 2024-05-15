@@ -1071,6 +1071,8 @@ def serialize_graph_into(
             raise ValueError(
                 f"Initializer '{initializer.name}' does not have a constant value set."
             )
+        # Make sure the tensor's name is the same as the value's name
+        initializer.const_value.name = initializer.name
         serialize_tensor_into(graph_proto.initializer.add(), from_=initializer.const_value)
     for node in from_:
         serialize_node_into(graph_proto.node.add(), from_=node)
