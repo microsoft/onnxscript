@@ -35,7 +35,7 @@ class ConvenienceFunctionsTest(unittest.TestCase):
             (
                 "node",
                 ir.Node(
-                    "", "Op", inputs=[], outputs=[ir.Value(None, index=None, name="value")]
+                    "", "Op", inputs=[], outputs=[ir.Value(name="value")]
                 ),
             ),
             (
@@ -44,7 +44,7 @@ class ConvenienceFunctionsTest(unittest.TestCase):
                     onnx.helper.make_tensor("test_tensor", onnx.TensorProto.FLOAT, [1], [1.0])
                 ),
             ),
-            ("value", ir.Value(None, index=None, name="value")),
+            ("value", ir.Value(name="value")),
             ("type", ir.SequenceType(ir.OptionalType(ir.TensorType(ir.DataType.COMPLEX128)))),
             ("attribute", ir.Attr("attribute", ir.AttributeType.FLOAT, 1)),
             ("ref_attribute", ir.RefAttr("ref_attr", "attr", ir.AttributeType.FLOAT)),
