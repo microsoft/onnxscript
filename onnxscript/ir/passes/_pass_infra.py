@@ -76,7 +76,6 @@ class PassBase(abc.ABC):
     """
 
     in_place: bool = True
-    modified: bool
 
     def __call__(self, model: ir.Model) -> PassResult:
         return self.call(model)
