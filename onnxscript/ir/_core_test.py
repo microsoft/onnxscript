@@ -554,10 +554,10 @@ class ShapeTest(unittest.TestCase):
 
 class ValueTest(unittest.TestCase):
     def test_initialize(self):
-        _ = _core.Value(None, index=0)
+        _ = _core.Value()
 
     def test_meta(self):
-        value = _core.Value(None, index=0)
+        value = _core.Value()
         value.meta["test"] = 1
         self.assertEqual(value.meta["test"], 1)
         value.metadata_props["test"] = "any string"
@@ -581,15 +581,11 @@ class NodeTest(unittest.TestCase):
 
     def test_init_with_preinitialized_outputs(self):
         out_1 = _core.Value(
-            None,
-            index=None,
             name="out_1",
             shape=_core.Shape([1]),
             type=_core.TensorType(ir.DataType.BFLOAT16),
         )
         out_2 = _core.Value(
-            None,
-            index=None,
             name="out_2",
             shape=_core.Shape([2]),
             type=_core.TensorType(ir.DataType.INT4),

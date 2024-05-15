@@ -34,9 +34,7 @@ class ConvenienceFunctionsTest(unittest.TestCase):
             ("graph", ir.Graph([], [], nodes=[])),
             (
                 "node",
-                ir.Node(
-                    "", "Op", inputs=[], outputs=[ir.Value(name="value")]
-                ),
+                ir.Node("", "Op", inputs=[], outputs=[ir.Value(name="value")]),
             ),
             (
                 "tensor",

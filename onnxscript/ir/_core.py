@@ -1565,9 +1565,7 @@ class Input(Value):
         type: _protocols.TypeProtocol | None = None,
         doc_string: str | None = None,
     ) -> None:
-        super().__init__(
-            None, index=None, name=name, shape=shape, type=type, doc_string=doc_string
-        )
+        super().__init__(name=name, shape=shape, type=type, doc_string=doc_string)
 
 
 def _check_node_safe_to_remove(

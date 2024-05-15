@@ -590,7 +590,7 @@ def deserialize_value_info_proto(
     proto: onnx.ValueInfoProto, value: _core.Value | None
 ) -> _core.Value:
     if value is None:
-        value = _core.Value(None, index=None, name=proto.name)
+        value = _core.Value(name=proto.name)
     value.shape = deserialize_type_proto_for_shape(proto.type)
     value.type = deserialize_type_proto_for_type(proto.type)
     metadata_props = deserialize_metadata_props(proto.metadata_props)
@@ -847,7 +847,7 @@ def _deserialize_node(
                     "the node is referencing a value that is not in the current graph, "
                     "it is impossible to create it in the correct scope.",
                 )
-            value = _core.Value(None, index=None, name=input_name)
+            value = _core.Value(name=input_name)
             # Fill in shape/type information if they exist
             if input_name in value_info:
                 deserialize_value_info_proto(value_info[input_name], value)
@@ -862,7 +862,7 @@ def _deserialize_node(
     for output_name in proto.output:
         if output_name == "":
             # Empty output
-            node_outputs.append(_core.Value(None, index=None, name=""))
+            node_outputs.append(_core.Value(name=""))
             continue
 
         # 1. When the graph is unsorted, we may be able to find the output already created
@@ -880,7 +880,7 @@ def _deserialize_node(
         else:
             # 2. Common scenario: the graph is sorted and this is the first time we see the output.
             # Create the value and add it to the current scope.
-            value = _core.Value(None, index=None, name=output_name)
+            value = _core.Value(name=output_name)
             current_scope[output_name] = value
         # Fill in shape/type information if they exist
         if output_name in value_info:
