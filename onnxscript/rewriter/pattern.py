@@ -284,8 +284,8 @@ class MatchResult:
     contain the values that are bound to the variables `x`, `shape1`, and `shape2`.
     """
 
-    def __init__(self, success: bool) -> None:
-        self._success: bool = success
+    def __init__(self) -> None:
+        self._success: bool = True
         # For a successful match, _matched_nodes is a list of values that matched the pattern.
         # These include the internal nodes of the pattern that were matched, but not
         # the leaves (sub-trees) that match against the variables in the pattern.
@@ -300,10 +300,6 @@ class MatchResult:
 
     def __bool__(self):
         return self._success
-
-    # @classmethod
-    # def FAIL(cls):
-    #     return cls(False)
 
     def fail(self, reason: str = "") -> MatchResult:
         self._success = False
@@ -621,16 +617,6 @@ class Constant(ValuePattern):
     def value(self) -> int | float:
         return self._value
 
-    def match_scalar(self, scalar_value):
-        status = math.isclose(
-            scalar_value, self._value, rel_tol=self._rel_tol, abs_tol=self._abs_tol
-        )
-        # Note: If the value is produced by a Constant node, we could include
-        # the Constant node in the return_value list. However, we don't do that.
-        # Instead, we will rely on DCE to remove the constant node if it is not
-        # used elsewhere.
-        return MatchResult(success=status)
-
     def matches(self, value: ir.Value, match: MatchResult) -> MatchResult:
         value = _ir_utils.propagate_const_value(value)
         constant_value = _ir_utils.get_numpy_from_ir_value(value)
@@ -732,16 +718,6 @@ class GraphPattern:
     @property
     def num_outputs(self) -> int:
         return len(self._outputs)
-
-    def matches_subgraph(self, node: ir.Node) -> MatchResult:
-        match = MatchResult(success=True)
-        if len(node.outputs) != self.num_outputs:
-            return match.fail(
-                f"Number of node outputs mismatch: expected {self.num_outputs}, got {len(node.outputs)}."
-            )
-        if self._output_node is None:
-            return match.fail("Internal Error: GraphPattern has multiple output nodes.")
-        return self._output_node.matches_subgraph(node, match)
 
     def commute(self) -> Sequence[GraphPattern]:
         if self._output_node is None:
@@ -954,8 +930,17 @@ class SimplePatternMatcher(PatternMatcher):
         del model
         del graph_or_function
 
-        match = self.pattern.matches_subgraph(node)
-        if match:
+        match = MatchResult()
+        if len(node.outputs) != self.pattern.num_outputs:
+            return match.fail(
+                f"Number of node outputs mismatch: expected {self.num_outputs}, got {len(node.outputs)}."
+            )
+        if self.pattern._output_node is None:
+            return match.fail(
+                "Internal Error: SimplePatternMatcher should not be used for patterns with multiple output nodes."
+            )
+
+        if self.pattern._output_node.matches_subgraph(node, match):
             if _valid_to_replace(match.nodes):
                 match.outputs.extend(node.outputs)
             else:
