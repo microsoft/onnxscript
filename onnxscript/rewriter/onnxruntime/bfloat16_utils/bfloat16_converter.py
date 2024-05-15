@@ -3,7 +3,6 @@ import logging
 from onnxscript import ir
 
 logger = logging.getLogger(__name__)
-CREATED_CAST_BFLOAT16_NAME_SUFFIX = "_cast_bfloat16"
 
 
 def _convert_inputs_from_bfloat16_to_float16(value: ir.Input) -> None:
@@ -61,9 +60,6 @@ def _insert_cast_nodes_for_bfloat16_to_float16_to_outputs(value: ir.Value) -> No
     )
     cast.outputs[0].dtype = ir.DataType.FLOAT16
     cast.outputs[0].shape = node.outputs[index].shape
-    # To prevent naming conflicts, we need to append suffix to the output name of the cast node
-    # TODO: Remove this after naming authority covers this case
-    cast.outputs[0].name = node.outputs[index].name + CREATED_CAST_BFLOAT16_NAME_SUFFIX  # type: ignore[operator]
     node.append(cast)
 
     assert node.graph is not None, "Node graph should not be None"
