@@ -119,7 +119,7 @@ class NodeTransformer(PassBase):
         self._model: ir.Model | None = None
         self.scope: list[ir.Graph] = []
         self.reversed = reversed
-        self.modified = True
+        self.modified = False
 
     @property
     def model(self) -> ir.Model:
