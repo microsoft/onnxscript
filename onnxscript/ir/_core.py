@@ -1456,6 +1456,8 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     @name.setter
     def name(self, value: str | None) -> None:
+        if self._const_value is not None:
+            self._const_value.name = value
         self._name = value
 
     @property

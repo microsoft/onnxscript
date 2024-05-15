@@ -174,6 +174,13 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
     def name(self) -> str:
         return self._proto.name
 
+    @name.setter
+    def name(self, value: str | None) -> None:
+        if value is None:
+            self._proto.ClearField("name")
+        else:
+            self._proto.name = value
+
     @property
     def shape(self) -> _core.Shape:
         return _core.Shape(self._proto.dims, frozen=True)
