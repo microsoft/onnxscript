@@ -58,6 +58,7 @@ __all__ = [
     "opset_ai_onnx_ml2",
     "opset_ai_onnx_ml3",
     "opset_ai_onnx_ml4",
+    "DEBUG",
 ]
 
 import importlib.metadata
@@ -121,6 +122,9 @@ from .onnx_types import (
 from . import ir, optimizer, rewriter
 from ._internal.utils import external_tensor
 from .values import OnnxFunction, TracedOnnxFunction
+
+# Set DEBUG to True to enable additional debug checks
+DEBUG = False
 
 try:  # noqa: SIM105
     __version__ = importlib.metadata.version("onnxscript")
