@@ -28,9 +28,10 @@ class UnusedFunctionRemover(ir.passes.NodeTransformer):
 
     def call_node(self, node: ir.Node) -> None:
         op_identifier = node.op_identifier()
-        self.used.add(op_identifier)
         if op_identifier in self.model.functions:
             self._call_function(self.model.functions[op_identifier])
+        else:
+            self.used.add(op_identifier)
 
     def exit_pass(self) -> None:
         # Update the model to remove unused functions
