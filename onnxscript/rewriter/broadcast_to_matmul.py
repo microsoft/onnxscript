@@ -23,8 +23,7 @@ def check_if_not_need_reshape(
     If the above are true, then we don't need the reshapes.
 
     Returns:
-        bool: True if we need to replace the pattern, False otherwise.
-
+        True if we need to replace the pattern, False otherwise.
     """
     input_a_shape = input_a.shape
     input_b_shape = input_b.shape
@@ -106,7 +105,8 @@ def check_if_not_need_reshape(
         longer_shape = input_b_shape
         shorter_shape = input_a_shape
     broadcast_matmul_output_shape = [
-        *longer_shape[: -len(shorter_shape)], *broadcast_matmul_output_shape
+        *longer_shape[: -len(shorter_shape)],
+        *broadcast_matmul_output_shape,
     ]
     if mimic_matmul_broadcast_behavior and dim_b == 2 and input_b_shape[-1] == 1:
         # If input_b is expanded to 2-D, then we need to remove the last dimension
