@@ -568,8 +568,8 @@ class ValueTest(unittest.TestCase):
 
 class NodeTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.v0 = _core.Value(None, index=None)
-        self.v1 = _core.Value(None, index=None)
+        self.v0 = _core.Value()
+        self.v1 = _core.Value()
         self.node = _core.Node("test", "TestOp", inputs=(self.v0, self.v1), num_outputs=3)
 
     def test_init_with_values(self):

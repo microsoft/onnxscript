@@ -1357,9 +1357,9 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def __init__(
         self,
-        producer: Node | None,
+        producer: Node | None = None,
         *,
-        index: int | None,
+        index: int | None = None,
         name: str | None = None,
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
@@ -1368,7 +1368,18 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         | Sequence[_protocols.TensorProtocol]
         | None = None,
     ) -> None:
-        # producer is None when the value is an input or an initializer
+        """Initialize a value.
+
+        Args:
+            producer: The node that produces the value.
+                It can be ``None`` when the value is initialized first than its producer.
+            index: The index of the output of the defining node.
+            name: The name of the value.
+            shape: The shape of the value.
+            type: The type of the value.
+            doc_string: The documentation string.
+            const_value: The constant tensor is the value constant.
+        """
         self._producer: Node | None = producer
         self._index: int | None = index
         self._metadata: _metadata.MetadataStore | None = None
@@ -1406,7 +1417,11 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         return f"%{_quoted(value_name)}<{type_text},{shape_text}>"
 
     def producer(self) -> Node | None:
-        """The node that produces this value."""
+        """The node that produces this value.
+
+        When producer is ``None``, the value does not belong to a node, and is
+        typically a graph input or an initializer.
+        """
         return self._producer
 
     def index(self) -> int | None:
