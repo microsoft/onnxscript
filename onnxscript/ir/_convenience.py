@@ -16,11 +16,16 @@ __all__ = [
     "replace_all_uses_with",
 ]
 
+import typing
 from typing import Mapping, Sequence, Union
 
+import numpy as np
 import onnx
 
 from onnxscript.ir import _core, _enums, _protocols, serde
+
+if typing.TYPE_CHECKING:
+    import numpy.typing as npt
 
 SupportedAttrTypes = Union[
     str,
@@ -285,3 +290,53 @@ def replace_all_uses_with(
     for value, replacement in zip(values, replacements):
         for user_node, index in tuple(value.uses()):
             user_node.replace_input_with(index, replacement)
+
+
+def tensor(
+    value: npt.ArrayLike
+    | onnx.TensorProto
+    | _protocols.DLPackCompatible
+    | _protocols.ArrayCompatible,
+    dtype: _enums.DataType | None = None,
+    name: str | None = None,
+    doc_string: str | None = None,
+) -> _protocols.TensorProtocol:
+    """Create a tensor value from an ArrayLike object or a TensorProto.
+
+    The dtype must match the value. Reinterpretation of the value is
+    not supported, unless if the value is a plain Python object, in which case
+    it is converted to a numpy array with the given dtype.
+
+    Args:
+        value: The numpy array to create the tensor from.
+        dtype: The data type of the tensor.
+        name: The name of the tensor.
+        doc_string: The documentation string of the tensor.
+
+    Returns:
+        A tensor value.
+    """
+    if isinstance(value, _protocols.TensorProtocol):
+        return value
+    if isinstance(value, onnx.TensorProto):
+        tensor_ = serde.deserialize_tensor(value)
+        if name is not None:
+            tensor_.name = name
+        if doc_string is not None:
+            tensor_.doc_string = doc_string
+    elif isinstance(value, (_protocols.DLPackCompatible, _protocols.ArrayCompatible)):
+        tensor_ = _core.Tensor(value, dtype=dtype, name=name, doc_string=name)
+    else:
+        if dtype is not None:
+            numpy_dtype = dtype.numpy()
+        else:
+            numpy_dtype = None
+        array = np.array(value, dtype=numpy_dtype)
+        tensor_ = _core.Tensor(
+            array,
+            dtype=dtype,
+            shape=_core.Shape(array.shape),
+            name=name,
+            doc_string=name,
+        )
+    return tensor_

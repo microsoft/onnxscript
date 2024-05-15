@@ -68,9 +68,12 @@ __all__ = [
     # Conversion functions
     "from_proto",
     "to_proto",
+    # IR Tensor initializer
+    "tensor",
 ]
 
 from onnxscript.ir import serde
+from onnxscript.ir._convenience import tensor
 from onnxscript.ir._core import (
     Attr,
     AttrFloat32,
