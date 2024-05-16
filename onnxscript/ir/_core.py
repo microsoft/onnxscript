@@ -37,6 +37,7 @@ from typing import (
 
 import numpy as np
 
+import onnxscript
 from onnxscript.ir import (
     _display,
     _enums,
@@ -274,7 +275,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         dtype: _enums.DataType | None = None,
         *,
         shape: Shape | None = None,
-        name: str = "",
+        name: str | None = None,
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
     ) -> None:
@@ -618,7 +619,7 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
         value: Sequence[bytes] | npt.NDArray[np.bytes_],
         *,
         shape: Shape | None = None,
-        name: str = "",
+        name: str | None = None,
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
     ) -> None:
@@ -1364,9 +1365,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         shape: Shape | None = None,
         type: _protocols.TypeProtocol | None = None,
         doc_string: str | None = None,
-        const_value: _protocols.TensorProtocol
-        | Sequence[_protocols.TensorProtocol]
-        | None = None,
+        const_value: _protocols.TensorProtocol | None = None,
     ) -> None:
         """Initialize a value.
 
@@ -1378,7 +1377,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
             shape: The shape of the value.
             type: The type of the value.
             doc_string: The documentation string.
-            const_value: The constant tensor is the value constant.
+            const_value: The constant tensor if the value is constant.
         """
         self._producer: Node | None = producer
         self._index: int | None = index
@@ -1456,6 +1455,8 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     @name.setter
     def name(self, value: str | None) -> None:
+        if self._const_value is not None:
+            self._const_value.name = value
         self._name = value
 
     @property
@@ -1509,7 +1510,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     @property
     def const_value(
         self,
-    ) -> _protocols.TensorProtocol | Sequence[_protocols.TensorProtocol] | None:
+    ) -> _protocols.TensorProtocol | None:
         """A concrete value.
 
         The value can be backed by different raw data types, such as numpy arrays.
@@ -1520,8 +1521,13 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     @const_value.setter
     def const_value(
         self,
-        value: _protocols.TensorProtocol | Sequence[_protocols.TensorProtocol] | None,
+        value: _protocols.TensorProtocol | None,
     ) -> None:
+        if onnxscript.DEBUG:
+            if value is not None and not isinstance(value, _protocols.TensorProtocol):
+                raise TypeError(
+                    f"Expected value to be a TensorProtocol or None, got '{type(value)}'"
+                )
         self._const_value = value
 
     @property
@@ -1650,7 +1656,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         outputs: Sequence[Value],
         *,
         nodes: Iterable[Node],
-        initializers: Sequence[_protocols.TensorProtocol] = (),
+        initializers: Sequence[Value] = (),
         doc_string: str | None = None,
         opset_imports: dict[str, int] | None = None,
         name: str | None = None,
@@ -1661,16 +1667,17 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         # Private fields that are not to be accessed by any other classes
         self._inputs = list(inputs)
         self._outputs = list(outputs)
+        self._initializers = {}
         for initializer in initializers:
             if isinstance(initializer, str):
                 raise TypeError(
-                    "Initializer must be a TensorProtocol, not a string. "
+                    "Initializer must be a Value, not a string. "
                     "If you are copying the initializers from another graph, "
                     "make sure you call graph.initializers.values() because it is a dictionary."
                 )
             if initializer.name is None:
                 raise ValueError(f"Initializer must have a name: {initializer}")
-        self._initializers = {tensor.name: tensor for tensor in initializers}
+            self._initializers[initializer.name] = initializer
         self._doc_string = doc_string
         self._opset_imports = opset_imports or {}
         self._metadata: _metadata.MetadataStore | None = None
@@ -1691,7 +1698,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         return self._outputs
 
     @property
-    def initializers(self) -> dict[str, _protocols.TensorProtocol]:
+    def initializers(self) -> dict[str, Value]:
         return self._initializers
 
     @property
