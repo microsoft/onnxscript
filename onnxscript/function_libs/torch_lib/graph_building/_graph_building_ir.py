@@ -177,42 +177,6 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
         raise NotImplementedError("value_info is not supported for TorchScriptTensor.")
 
 
-class _Node(ir.Node):
-    """A node that will produce TorchScriptTensor as outputs for compatibility."""
-
-    def __init__(
-        self,
-        domain: str,
-        op_type: str,
-        inputs: Sequence[ir.Value | None],
-        attributes: Sequence[ir.Attr | ir.RefAttr] = (),
-        *,
-        overload: str = "",
-        num_outputs: int = 1,
-        version: int | None = None,
-        name: str | None = None,
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            domain=domain,
-            op_type=op_type,
-            inputs=inputs,
-            attributes=attributes,
-            overload=overload,
-            num_outputs=num_outputs,
-            version=version,
-            name=name,
-            doc_string=doc_string,
-        )
-        self._outputs: tuple[TorchScriptTensor, ...] = tuple(
-            TorchScriptTensor(producer=self, index=i) for i in range(num_outputs)
-        )
-
-    @property  # type: ignore[misc]
-    def outputs(self) -> Sequence[TorchScriptTensor]:
-        return self._outputs
-
-
 class TorchScriptTracingEvaluator(evaluator.Evaluator):
     """An onnxscript Evaluator that captures the graph."""
 
@@ -368,12 +332,12 @@ def _create_op_call_in_graph(
     # now they can pass through None attributes, and have them not show up
     attributes = {k: v for k, v in attributes.items() if v is not None}
 
-    node = _Node(
+    node = ir.Node(
         domain,
         op_type,
         inputs=inputs,
         attributes=[_build_attribute(key, value) for key, value in attributes.items()],
-        num_outputs=num_outputs,
+        outputs=[TorchScriptTensor() for _ in range(num_outputs)],
     )
     graph.append(node)
 
@@ -497,6 +461,7 @@ class TorchScriptGraph:
             )
         else:
             input = TorchScriptTensor(name=name)
+            input.const_value = _TorchTensor(value)
             self._initializers_inputs[name] = input
             self._initializers[name] = value
         return input
@@ -732,10 +697,10 @@ class TorchScriptGraph:
             unique_custom_domains[function.domain] = 1
 
         if include_initializers:
-            self._graph.initializers.update(
-                {name: _TorchTensor(value) for name, value in self._initializers.items()}
-            )
+            self._graph.initializers.update(self._initializers_inputs)
         else:
+            # TODO(justinchuby): Potentially set to const_value to None instead so we
+            # don't lose handle on the values.
             self._graph.initializers.clear()
 
         onnx_model = ir.Model(
