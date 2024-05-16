@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes
+import typing
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -341,7 +342,7 @@ def _create_op_call_in_graph(
     )
     graph.append(node)
 
-    return node.outputs
+    return typing.cast(Sequence[TorchScriptTensor], node.outputs)
 
 
 def _shared_functions() -> list[ir.Function]:
