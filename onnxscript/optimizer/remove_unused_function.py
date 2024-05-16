@@ -1,56 +1,59 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 from __future__ import annotations
 
 import logging
 
 import onnx
-from google.protobuf.internal.containers import (  # type: ignore
-    RepeatedCompositeFieldContainer,
-)
+
+from onnxscript import ir
 
 logger = logging.getLogger(__name__)
 
 
-class UnusedFunctionRemover:
-    def compute_used_in_node(self, n: onnx.NodeProto) -> set[tuple[str, str]]:
-        used = {(n.domain, n.op_type)}
-        for attr in n.attribute:
-            if attr.HasField("g"):
-                used |= self.process_graph(attr.g)
-            elif len(attr.graphs) > 0:
-                for graph in attr.graphs:
-                    used |= self.process_graph(graph)
-        if (n.domain, n.op_type) in self._functions:
-            function = self._functions[(n.domain, n.op_type)]
-            used |= self.process_function(function)
-        return used
+class UnusedFunctionRemover(ir.passes.NodeTransformer):
+    def __init__(self):
+        super().__init__()
+        self.used: set[ir.OperatorIdentifier] = set()
 
-    def process_nodes(
-        self, nodes: RepeatedCompositeFieldContainer[onnx.NodeProto]
-    ) -> set[tuple[str, str]]:
-        used = set()
-        for node in nodes:
-            used |= self.compute_used_in_node(node)
-        return used
+    def _call_function(self, function: ir.Function) -> None:
+        if function.identifier() in self.used:
+            # The function and its nodes are already recorded as used
+            return
+        self.used.add(function.identifier())
+        for node in function:
+            self.call_node_recursive(node)
 
-    def process_graph(self, graph: onnx.GraphProto) -> set[tuple[str, str]]:
-        return self.process_nodes(graph.node)
+    def call_node(self, node: ir.Node) -> None:
+        op_identifier = node.op_identifier()
+        if op_identifier in self.model.functions:
+            self._call_function(self.model.functions[op_identifier])
+        else:
+            self.used.add(op_identifier)
 
-    def process_function(self, function: onnx.FunctionProto) -> set[tuple[str, str]]:
-        return self.process_nodes(function.node)
-
-    def process_model(self, model: onnx.ModelProto) -> None:
-        self._functions = {(f.domain, f.name): f for f in model.functions}
-        used = self.process_graph(model.graph)
-        count = 0
-        logger.debug("Used function protos: %s", used)
-        for i in range(len(model.functions) - 1, -1, -1):
-            if (model.functions[i].domain, model.functions[i].name) not in used:
-                del model.functions[i]
-                count += 1
-        logger.info("Removed %s unused function protos", count)
-        logger.debug("Function protos left: %s", [f.name for f in model.functions])
+    def exit_pass(self) -> None:
+        # Update the model to remove unused functions
+        unused = set(self.model.functions) - self.used
+        if not unused:
+            logger.info("No unused functions to remove")
+            self.modified = False
+            return
+        for op_identifier in unused:
+            if op_identifier not in self.used:
+                del self.model.functions[op_identifier]
+        self.modified = True
+        logger.info("Removed %s unused functions", len(unused))
+        logger.debug("Functions left: %s", list(self.model.functions))
+        logger.debug("Functions removed: %s", unused)
 
 
-def remove_unused_functions(model: onnx.ModelProto) -> None:
+def remove_unused_functions(model_proto: onnx.ModelProto) -> onnx.ModelProto:
     """Removes unused function protos from the model."""
-    UnusedFunctionRemover().process_model(model)
+    # TODO(justinchuby): Update this to accept an ir.Model
+    model = ir.serde.deserialize_model(model_proto)
+    UnusedFunctionRemover()(model)
+    model_proto = ir.serde.serialize_model(model)
+
+    return model_proto
