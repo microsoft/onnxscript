@@ -376,11 +376,6 @@ class ValuePattern:
     def __repr__(self) -> str:
         return f"ValuePattern({self._name!r})"
 
-    def matches(self, value: ir.Value, match: MatchResult) -> MatchResult:
-        if self._name is not None:
-            match.bind(self._name, value)
-        return match
-
     def commute(self) -> Sequence[ValuePattern]:
         """Return a list of commuted patterns.
 
@@ -507,31 +502,6 @@ class NodePattern:
 
         return match
 
-    def matches_subgraph(self, node: ir.Node, match: MatchResult) -> MatchResult:
-        """Matches the pattern subgraph represented by self against subgraph rooted at node."""
-        if not self.matches(node, match):
-            return match
-
-        # TODO: We should add filtered logging starting from here to emit why
-        # matching failed. This should cut a lot of noises compared to logging everything,
-        # because at least the starting node op_type is already matched.
-        for arg_value, previous_node_output_pattern in zip(node.inputs, self.inputs):
-            # previous_node_output_pattern could be a Var, if it's the original arg.
-            if arg_value is None and previous_node_output_pattern is None:
-                continue
-            if arg_value is None or previous_node_output_pattern is None:
-                msg = (
-                    "Input not expected to be None"
-                    if arg_value is None
-                    else "Input expected to be None"
-                )
-                return match.fail(msg)
-            if not previous_node_output_pattern.matches(arg_value, match):
-                return match
-
-        match.nodes.append(node)
-        return match
-
     def commute(self) -> Sequence[NodePattern]:
         list_of_lists = [
             [None] if pattern is None else pattern.commute() for pattern in self.inputs
@@ -574,19 +544,6 @@ class NodeOutputPattern(ValuePattern):
     @property
     def output_index(self) -> int:
         return self._output_index
-
-    def matches(self, value: ir.Value, match: MatchResult):
-        """Match the StaticValueInfo from IR with the `matches_subgraph()` in node pattern."""
-        node = value.producer()
-        if node is None:
-            return match.fail(
-                "Internal Error: NodeOutputPattern does not have a producer node."
-            )
-        if value.index() != self._output_index:
-            return match.fail(
-                f"Node output index mismatch: expected {self._output_index}, got {value.index()}."
-            )
-        return self._producer.matches_subgraph(node, match)
 
     def commute(self) -> Sequence[ValuePattern]:
         # TODO
@@ -919,6 +876,88 @@ class SimplePatternMatcher(PatternMatcher):
         ), "SimplePatternMatcher only supports patterns with a single output node."
         super().__init__(pattern)
 
+    def match_constant(
+        self, pattern_constant: Constant, value: ir.Value, match: MatchResult
+    ) -> MatchResult:
+        value = _ir_utils.propagate_const_value(value)
+        constant_value = _ir_utils.get_numpy_from_ir_value(value)
+        if constant_value is None:
+            return match.fail(f"Value is not a constant, expecting {pattern_constant.value}.")
+
+        # TODO (rama): allow users to specify shape requirement, if desired.
+        if constant_value.size != 1:
+            return match.fail(f"Value is not a scalar, expecting {pattern_constant.value}.")
+
+        if not math.isclose(
+            constant_value.item(),
+            pattern_constant._value,
+            rel_tol=pattern_constant._rel_tol,
+            abs_tol=pattern_constant._abs_tol,
+        ):
+            match.fail(
+                f"Value mismatch: expected {pattern_constant._value}, got {constant_value.item()}."
+            )
+
+        # Note: If the value is produced by a Constant node, we could include
+        # the Constant node in the return_value list. However, we don't do that.
+        # Instead, we will rely on DCE to remove the constant node if it is not
+        # used elsewhere.
+        return match
+
+    def match_node(
+        self, pattern_node: NodePattern, node: ir.Node, match: MatchResult
+    ) -> MatchResult:
+        """Matches a pattern subgraph against subgraph rooted at node."""
+        if not pattern_node.matches(node, match):
+            return match
+
+        # TODO: We should add filtered logging starting from here to emit why
+        # matching failed. This should cut a lot of noises compared to logging everything,
+        # because at least the starting node op_type is already matched.
+        for arg_value, previous_node_output_pattern in zip(node.inputs, pattern_node.inputs):
+            # previous_node_output_pattern could be a Var, if it's the original arg.
+            if arg_value is None and previous_node_output_pattern is None:
+                continue
+            if arg_value is None or previous_node_output_pattern is None:
+                msg = (
+                    "Input not expected to be None"
+                    if arg_value is None
+                    else "Input expected to be None"
+                )
+                return match.fail(msg)
+            if not self.match_value(previous_node_output_pattern, arg_value, match):
+                return match
+
+        match.nodes.append(node)
+        return match
+
+    def match_value(
+        self, pattern_value: ValuePattern, value: ir.Value, match: MatchResult
+    ) -> MatchResult:
+        """Match an IR value against a ValuePattern instance."""
+        if pattern_value.name is not None:
+            match.bind(pattern_value.name, value)
+        if isinstance(pattern_value, NodeOutputPattern):
+            return self.matches_node_output(pattern_value, value, match)
+        if isinstance(pattern_value, Constant):
+            return self.match_constant(pattern_value, value, match)
+        return match
+
+    def matches_node_output(
+        self, pattern_value: NodeOutputPattern, value: ir.Value, match: MatchResult
+    ) -> MatchResult:
+        """Match an IR value against a NodeOutputPattern instance."""
+        node = value.producer()
+        if node is None:
+            return match.fail(
+                "Mismatch: Computed node pattern does not match uncomputed IR value."
+            )
+        if value.index() != pattern_value.output_index:
+            return match.fail(
+                f"Node output index mismatch: expected {self._output_index}, got {value.index()}."
+            )
+        return self.match_node(pattern_value.producer(), node, match)
+
     def match(
         self,
         model: ir.Model,
@@ -929,18 +968,20 @@ class SimplePatternMatcher(PatternMatcher):
         # TODO(rama): support verbose
         del model
         del graph_or_function
+        self._verbose = verbose
 
         match = MatchResult()
-        if len(node.outputs) != self.pattern.num_outputs:
+        pattern = self.pattern
+        if len(node.outputs) != pattern.num_outputs:
             return match.fail(
-                f"Number of node outputs mismatch: expected {self.num_outputs}, got {len(node.outputs)}."
+                f"Number of node outputs mismatch: expected {pattern.num_outputs}, got {len(node.outputs)}."
             )
-        if self.pattern._output_node is None:
+        if pattern._output_node is None:
             return match.fail(
                 "Internal Error: SimplePatternMatcher should not be used for patterns with multiple output nodes."
             )
 
-        if self.pattern._output_node.matches_subgraph(node, match):
+        if self.match_node(pattern._output_node, node, match):
             if _valid_to_replace(match.nodes):
                 match.outputs.extend(node.outputs)
             else:
