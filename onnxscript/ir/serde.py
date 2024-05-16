@@ -1093,17 +1093,20 @@ def serialize_graph_into(
         graph_proto.doc_string = from_.doc_string
     for input_ in from_.inputs:
         serialize_value_into(graph_proto.input.add(), input_)
+    input_names = {input_.name for input_ in from_.inputs}
     # TODO(justinchuby): Support sparse_initializer
-    for initializer in from_.initializers.values():
-        if initializer.const_value is None:
+    for value in from_.initializers.values():
+        if _should_create_value_info_for_value(value) and value.name not in input_names:
+            # Serialize information about all initializers into value_info,
+            # except for those that are also graph inputs
+            serialize_value_into(graph_proto.value_info.add(), value)
+        if value.const_value is None:
             # Skip initializers without constant values
-            logger.warning(
-                "Initializer '%s' does not have a constant value set.", initializer.name
-            )
+            logger.warning("Initializer '%s' does not have a constant value set.", value.name)
             continue
         # Make sure the tensor's name is the same as the value's name
-        initializer.const_value.name = initializer.name
-        serialize_tensor_into(graph_proto.initializer.add(), from_=initializer.const_value)
+        value.const_value.name = value.name
+        serialize_tensor_into(graph_proto.initializer.add(), from_=value.const_value)
     for node in from_:
         serialize_node_into(graph_proto.node.add(), from_=node)
         for node_output in node.outputs:
