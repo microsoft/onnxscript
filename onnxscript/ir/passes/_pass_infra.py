@@ -3,7 +3,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 #
-# This module implements NodeTransformer API described in
+# This module implements some APIs described in
 # https://pytorch.org/executorch/stable/compiler-custom-compiler-passes.html
 # for the ONNX IR.
 # The classes {PassResult and PassManager} are derived from
