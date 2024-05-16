@@ -536,7 +536,7 @@ def _deserialize_graph(
                 type=_core.TensorType(tensor.dtype),
                 const_value=tensor,
             )
-            values[tensor.name] = initializer_value
+            values[tensor.name] = initializer_value  # type: ignore[index]
         initializer_values.append(initializer_value)
 
     # Add ValueInfos for this graph scope
