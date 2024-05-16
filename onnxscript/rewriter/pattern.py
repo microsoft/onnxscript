@@ -876,7 +876,7 @@ class SimplePatternMatcher(PatternMatcher):
         ), "SimplePatternMatcher only supports patterns with a single output node."
         super().__init__(pattern)
 
-    def match_constant(
+    def _match_constant(
         self, pattern_constant: Constant, value: ir.Value, match: MatchResult
     ) -> MatchResult:
         value = _ir_utils.propagate_const_value(value)
@@ -904,12 +904,24 @@ class SimplePatternMatcher(PatternMatcher):
         # used elsewhere.
         return match
 
-    def match_node(
+    def _match_node(
         self, pattern_node: NodePattern, node: ir.Node, match: MatchResult
     ) -> MatchResult:
         """Matches a pattern subgraph against subgraph rooted at node."""
+
+        # Graph-matching: we do not allow the same pattern node to be matched against
+        # different graph nodes.
+        if pattern_node in self._matched:
+            if self._matched[pattern_node] is not node:
+                return match.fail(
+                    "Same pattern node is matched against different graph nodes."
+                )
+            return match
+
         if not pattern_node.matches(node, match):
             return match
+
+        self._matched[pattern_node] = node
 
         # TODO: We should add filtered logging starting from here to emit why
         # matching failed. This should cut a lot of noises compared to logging everything,
@@ -925,25 +937,26 @@ class SimplePatternMatcher(PatternMatcher):
                     else "Input expected to be None"
                 )
                 return match.fail(msg)
-            if not self.match_value(previous_node_output_pattern, arg_value, match):
+            if not self._match_value(previous_node_output_pattern, arg_value, match):
                 return match
 
         match.nodes.append(node)
         return match
 
-    def match_value(
+    def _match_value(
         self, pattern_value: ValuePattern, value: ir.Value, match: MatchResult
     ) -> MatchResult:
         """Match an IR value against a ValuePattern instance."""
         if pattern_value.name is not None:
-            match.bind(pattern_value.name, value)
+            if not match.bind(pattern_value.name, value):
+                return match
         if isinstance(pattern_value, NodeOutputPattern):
-            return self.matches_node_output(pattern_value, value, match)
+            return self._match_node_output(pattern_value, value, match)
         if isinstance(pattern_value, Constant):
-            return self.match_constant(pattern_value, value, match)
+            return self._match_constant(pattern_value, value, match)
         return match
 
-    def matches_node_output(
+    def _match_node_output(
         self, pattern_value: NodeOutputPattern, value: ir.Value, match: MatchResult
     ) -> MatchResult:
         """Match an IR value against a NodeOutputPattern instance."""
@@ -956,7 +969,7 @@ class SimplePatternMatcher(PatternMatcher):
             return match.fail(
                 f"Node output index mismatch: expected {self._output_index}, got {value.index()}."
             )
-        return self.match_node(pattern_value.producer(), node, match)
+        return self._match_node(pattern_value.producer(), node, match)
 
     def match(
         self,
@@ -969,6 +982,7 @@ class SimplePatternMatcher(PatternMatcher):
         del model
         del graph_or_function
         self._verbose = verbose
+        self._matched: dict[NodePattern, ir.Node] = {}
 
         match = MatchResult()
         pattern = self.pattern
@@ -981,7 +995,7 @@ class SimplePatternMatcher(PatternMatcher):
                 "Internal Error: SimplePatternMatcher should not be used for patterns with multiple output nodes."
             )
 
-        if self.match_node(pattern._output_node, node, match):
+        if self._match_node(pattern._output_node, node, match):
             if _valid_to_replace(match.nodes):
                 match.outputs.extend(node.outputs)
             else:
