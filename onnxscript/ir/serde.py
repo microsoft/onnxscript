@@ -495,6 +495,14 @@ def _deserialized_experimental_value_info_for_function_ir9(
 
 
 def deserialize_graph(proto: onnx.GraphProto) -> _core.Graph:
+    """Deserialize a graph proto, recursively if needed.
+
+    Args:
+        proto: The graph proto to deserialize.
+
+    Returns:
+        IR Graph.
+    """
     return _deserialize_graph(proto, [])
 
 
@@ -509,6 +517,9 @@ def _deserialize_graph(
             Every time we enter a new graph, a new scope is created and appended to this list to include
             all values defined in the scope.
         scoped_value_info: A list of dictionaries mapping value names to their corresponding ValueInfoProto.
+
+    Returns:
+        IR Graph.
     """
     # Create values for initializers and inputs
     initializer_tensors = [deserialize_tensor(tensor) for tensor in proto.initializer]
@@ -1057,6 +1068,16 @@ def _serialize_metadata_props_into(
 def serialize_graph(
     graph: _protocols.GraphProtocol | _protocols.GraphViewProtocol,
 ) -> onnx.GraphProto:
+    """Serializes the given graph into an :class:`onnx.GraphProto`.
+
+    When the graph initializers do not have `const_value` set, they will be skipped.
+
+    Args:
+        graph: The graph to be serialized.
+
+    Returns:
+        The serialized ONNX GraphProto object.
+    """
     graph_proto = onnx.GraphProto()
     serialize_graph_into(graph_proto, from_=graph)
     return graph_proto
@@ -1075,9 +1096,11 @@ def serialize_graph_into(
     # TODO(justinchuby): Support sparse_initializer
     for initializer in from_.initializers.values():
         if initializer.const_value is None:
-            raise ValueError(
-                f"Initializer '{initializer.name}' does not have a constant value set."
+            # Skip initializers without constant values
+            logger.warning(
+                "Initializer '%s' does not have a constant value set.", initializer.name
             )
+            continue
         # Make sure the tensor's name is the same as the value's name
         initializer.const_value.name = initializer.name
         serialize_tensor_into(graph_proto.initializer.add(), from_=initializer.const_value)
