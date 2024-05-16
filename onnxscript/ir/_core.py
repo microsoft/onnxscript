@@ -1523,17 +1523,11 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         self,
         value: _protocols.TensorProtocol | None,
     ) -> None:
-<<<<<<< justinchu/broadcast-fix -- Incoming Change
-        # if DEBUG:
-        #     if value is not None and not isinstance(value, _protocols.TensorProtocol):
-        #         raise TypeError(f"Expected value to be a TensorProtocol or None, got '{type(value)}'")
-=======
         if onnxscript.DEBUG:
             if value is not None and not isinstance(value, _protocols.TensorProtocol):
                 raise TypeError(
                     f"Expected value to be a TensorProtocol or None, got '{type(value)}'"
                 )
->>>>>>> main -- Current Change
         self._const_value = value
 
     @property
