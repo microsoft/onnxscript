@@ -109,7 +109,7 @@ class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
                     constant_node.op_type == "Constant"
                 ), "Expected the second input to Reshape to be a Constant node."
                 value = _ir_utils.propagate_const_value(reshape_node.inputs[1])
-                constant_numpy_value = _ir_utils.get_numpy_from_ir_value(value)
+                constant_numpy_value = value.const_value
                 if constant_numpy_value.shape[0] == 4:
                     num_attention_heads = constant_numpy_value[2]
                     head_size = constant_numpy_value[3]

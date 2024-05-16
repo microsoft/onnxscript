@@ -41,10 +41,10 @@ def check_if_simulated_instance_norm_is_used(
         bool: True if the simulated instance normalization is used, False otherwise.
     """
     weight_for_norm = _ir_utils.propagate_const_value(weight_for_norm)
-    weight_for_norm = _ir_utils.get_numpy_from_ir_value(weight_for_norm)
+    weight_for_norm = weight_for_norm.const_value
 
     bias_for_norm = _ir_utils.propagate_const_value(bias_for_norm)
-    bias_for_norm = _ir_utils.get_numpy_from_ir_value(bias_for_norm)
+    bias_for_norm = bias_for_norm.const_value
 
     if not np.all(weight_for_norm == 1):
         return False
@@ -69,7 +69,7 @@ def check_if_simulated_instance_norm_is_used(
         return False
 
     adjusted_input_shape = _ir_utils.propagate_const_value(adjusted_input_shape)
-    adjusted_input_shape = _ir_utils.get_numpy_from_ir_value(adjusted_input_shape)
+    adjusted_input_shape = adjusted_input_shape.const_value
 
     g = weight_for_norm.shape[0]
     if adjusted_input_shape is None or adjusted_input_shape.tolist() != [0, g, -1]:
@@ -77,7 +77,7 @@ def check_if_simulated_instance_norm_is_used(
 
     # NOTE: Restrict the rule to only support constant shape
     original_input_shape = _ir_utils.propagate_const_value(original_input_shape)
-    original_input_shape = _ir_utils.get_numpy_from_ir_value(original_input_shape)
+    original_input_shape = original_input_shape.const_value
     if original_input_shape is None or original_input_shape.tolist() != input_x.shape:
         return False
 

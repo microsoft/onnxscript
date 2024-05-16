@@ -616,7 +616,7 @@ class Constant(ValuePattern):
 
     def matches(self, value: ir.Value):
         value = _ir_utils.propagate_const_value(value)
-        constant_value = _ir_utils.get_numpy_from_ir_value(value)
+        constant_value = value.const_value
         if constant_value is None:
             return MatchResult.FAIL()
 

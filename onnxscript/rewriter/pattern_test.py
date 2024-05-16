@@ -246,7 +246,7 @@ class RewriteRuleTest(unittest.TestCase):
         def check_for_redundant_reshape(context, x, newshape):
             oldshape = x.shape
             newshape = _ir_utils.propagate_const_value(newshape)
-            newshape = _ir_utils.get_numpy_from_ir_value(newshape)
+            newshape = newshape.const_value
             if not isinstance(newshape, np.ndarray):
                 return False
             newshape = newshape.tolist()
