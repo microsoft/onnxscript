@@ -879,7 +879,8 @@ class SimplePatternMatcher(PatternMatcher):
     def fail(self, reason: str) -> bool:
         if self._verbose:
             if self._matched:  # Print only if at least one node successfully matched.
-                print(f"Match failed: {reason}")
+                count = len(self._matched)
+                print(f"Match failed after {count} nodes: {reason}")
         self._match.fail(reason)
         return False
 

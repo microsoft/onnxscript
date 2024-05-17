@@ -1,3 +1,5 @@
+import contextlib
+import io
 import logging
 import unittest
 
@@ -56,7 +58,16 @@ class ReciprocalMulTest(unittest.TestCase):
         count = self.rule().apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 4)
-        self.rule().apply_to_model(model, verbose=5)
+
+        # Test verbose output produces something:
+        # TODO(rama): Need a better way to test this.
+        # Well-defined error-codes and messages would be helpful.
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            self.rule().apply_to_model(model, verbose=5)
+        out = buffer.getvalue()
+        self.assertIn("Match failed", out)
 
     def test_multiple_matches(self):
         model_proto = onnx.parser.parse_model(
