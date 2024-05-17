@@ -56,6 +56,7 @@ class ReciprocalMulTest(unittest.TestCase):
         count = self.rule().apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 4)
+        self.rule().apply_to_model(model, verbose=5)
 
     def test_multiple_matches(self):
         model_proto = onnx.parser.parse_model(

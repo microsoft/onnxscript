@@ -876,17 +876,29 @@ class SimplePatternMatcher(PatternMatcher):
         ), "SimplePatternMatcher only supports patterns with a single output node."
         super().__init__(pattern)
 
+    def fail(self, reason: str, match) -> MatchResult:
+        if self._verbose:
+            if self._matched:  # Print only if at least one node successfully matched.
+                print(f"Match failed: {reason}")
+        return match.fail(reason)
+
     def _match_constant(
         self, pattern_constant: Constant, value: ir.Value, match: MatchResult
     ) -> MatchResult:
         value = _ir_utils.propagate_const_value(value)
         constant_value = _ir_utils.get_numpy_from_ir_value(value)
         if constant_value is None:
-            return match.fail(f"Value is not a constant, expecting {pattern_constant.value}.")
+            return self.fail(
+                f"Value {value.name} is not a constant, expecting {pattern_constant.value}.",
+                match,
+            )
 
         # TODO (rama): allow users to specify shape requirement, if desired.
         if constant_value.size != 1:
-            return match.fail(f"Value is not a scalar, expecting {pattern_constant.value}.")
+            return self.fail(
+                f"Value {value.name} is not a scalar, expecting {pattern_constant.value}.",
+                match,
+            )
 
         if not math.isclose(
             constant_value.item(),
@@ -894,8 +906,9 @@ class SimplePatternMatcher(PatternMatcher):
             rel_tol=pattern_constant._rel_tol,
             abs_tol=pattern_constant._abs_tol,
         ):
-            match.fail(
-                f"Value mismatch: expected {pattern_constant._value}, got {constant_value.item()}."
+            self.fail(
+                f"Constant value mismatch: expected {pattern_constant._value}, got {constant_value.item()}.",
+                match,
             )
 
         # Note: If the value is produced by a Constant node, we could include
@@ -919,7 +932,13 @@ class SimplePatternMatcher(PatternMatcher):
             return match
 
         if not pattern_node.matches(node, match):
+            # Log the reason for the failure if verbose and at least one node successfully matched.
+            if self._verbose and self._matched:
+                print(f"Match failed: {match.reason}")
             return match
+
+        if self._verbose:
+            print(f"Matched: {node.op_type}")
 
         self._matched[pattern_node] = node
 
@@ -948,8 +967,15 @@ class SimplePatternMatcher(PatternMatcher):
     ) -> MatchResult:
         """Match an IR value against a ValuePattern instance."""
         if pattern_value.name is not None:
-            if not match.bind(pattern_value.name, value):
-                return match
+            if pattern_value.name in match.bindings:
+                # TODO(rama): Use appropriate equality-check here: future extension possibility.
+                if match.bindings[pattern_value.name] == value:
+                    return match
+                return match.fail(
+                    f"Variable {pattern_value.name} is bound to multiple values."
+                )
+            match.bindings[pattern_value.name] = value
+
         if isinstance(pattern_value, NodeOutputPattern):
             return self._match_node_output(pattern_value, value, match)
         if isinstance(pattern_value, Constant):
@@ -978,7 +1004,6 @@ class SimplePatternMatcher(PatternMatcher):
         node: ir.Node,
         verbose: int = 0,
     ) -> MatchResult:
-        # TODO(rama): support verbose
         del model
         del graph_or_function
         self._verbose = verbose
@@ -1046,10 +1071,15 @@ class RewriteRule:
         self._verbose = verbose
 
     def try_rewrite(
-        self, model: ir.Model, graph_or_function: ir.Graph | ir.Function, node: ir.Node
+        self,
+        model: ir.Model,
+        graph_or_function: ir.Graph | ir.Function,
+        node: ir.Node,
+        verbose: int | None = None,
     ) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
-        match = self._matcher.match(model, graph_or_function, node, verbose=self._verbose)
+        verbose = verbose if verbose is not None else self._verbose
+        match = self._matcher.match(model, graph_or_function, node, verbose=verbose)
         if match:
             context = None  # TODO(rama)
             if not self._condition_function(context, **match.bindings):
@@ -1068,9 +1098,12 @@ class RewriteRule:
             return replacement_subgraph
         return None
 
-    def apply_to_model(self, model: ir.Model, *, commute: bool = False):
-        # TODO(titaiwang): Why do we need RewriteRuleSet?
-        return RewriteRuleSet([self], commute=commute).apply_to_model(model)
+    def apply_to_model(
+        self, model: ir.Model, *, commute: bool = False, verbose: int | None = None
+    ):
+        # A convenience method to apply the rule to a model. We use a RewriteRuleSet to
+        # handle commutative rules.
+        return RewriteRuleSet([self], commute=commute).apply_to_model(model, verbose=verbose)
 
     def commute(self) -> Sequence[RewriteRule]:
         def replace_pattern(new_pattern):
@@ -1150,6 +1183,7 @@ class RewriteRuleSet:
         self,
         model: ir.Model,
         graph_or_function: ir.Graph | ir.Function,
+        verbose: int | None,
     ) -> int:
         count = 0
 
@@ -1157,7 +1191,7 @@ class RewriteRuleSet:
         # And the graph is applied in order.
         for rule in self.rules:
             for node in graph_or_function:
-                delta = rule.try_rewrite(model, graph_or_function, node)
+                delta = rule.try_rewrite(model, graph_or_function, node, verbose=verbose)
                 if delta is None:
                     continue
                 _apply_delta(graph_or_function, node, delta)
@@ -1165,9 +1199,9 @@ class RewriteRuleSet:
 
         return count
 
-    def apply_to_model(self, model: ir.Model) -> int:
+    def apply_to_model(self, model: ir.Model, verbose: int | None = None) -> int:
         assert isinstance(model, ir.Model)
-        count = self._apply_to_graph_or_function(model, model.graph)
+        count = self._apply_to_graph_or_function(model, model.graph, verbose=verbose)
         for function in model.functions.values():
-            count += self._apply_to_graph_or_function(model, function)
+            count += self._apply_to_graph_or_function(model, function, verbose=verbose)
         return count
