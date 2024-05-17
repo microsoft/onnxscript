@@ -527,38 +527,55 @@ def _deserialize_graph(
     for info, value in zip(proto.input, inputs):
         deserialize_value_info_proto(info, value)
 
+    # Build the value info dictionary to allow for quick lookup for this graph scope
+    value_info = {info.name: info for info in proto.value_info}
+
     # Initialize the values dictionary for this graph scope with the inputs and initializers
     values: dict[str, _core.Value] = {v.name: v for v in inputs}  # type: ignore[misc]
+
+    # Enter the graph scope by pushing the values for this scope to the stack
     scoped_values.append(values)
+
     initializer_values = []
-    for tensor in initializer_tensors:
-        if tensor.name in values:
+    for i, tensor in enumerate(initializer_tensors):
+        initializer_name = tensor.name
+        if not initializer_name:
+            logger.warning(
+                "Initializer tensor must have a name but the %s-th initializer does not. Skipping this initializer.",
+                i,
+            )
+            continue
+        if initializer_name in values:
             # The initializer is for an input
-            initializer_value = values[tensor.name]
+            initializer_value = values[initializer_name]
             initializer_value.const_value = tensor
         else:
             # The initializer is for some other value. Create this value first
             initializer_value = _core.Value(
                 None,
                 index=None,
-                name=tensor.name,
-                # TODO(justinchuby): Fix type hinting for shape and dtype
-                shape=tensor.shape,  # type: ignore
-                type=_core.TensorType(tensor.dtype),
+                name=initializer_name,
+                # Do not include shape or type as we need to respect the ONNX file
+                # if the shape or type is not provided as ValueInfoProto
+                # The shape/type information will be filled in in the subsequent ValueInfoProto
+                # deserialization step
                 const_value=tensor,
             )
-            values[tensor.name] = initializer_value  # type: ignore[index]
+            if initializer_name in value_info:
+                # This is where we fill in the shape and type information for the initializer
+                deserialize_value_info_proto(value_info[initializer_name], initializer_value)
+            values[initializer_name] = initializer_value  # type: ignore[index]
         initializer_values.append(initializer_value)
-
-    # Add ValueInfos for this graph scope
-    value_info = {info.name: info for info in proto.value_info}
 
     # Deserialize nodes with all known values
     nodes = [_deserialize_node(node, scoped_values, value_info) for node in proto.node]
 
     # Fill in values for graph outputs
     outputs = [deserialize_value_info_proto(info, values[info.name]) for info in proto.output]
+
+    # Exit the graph scope by popping the values for this scope from the stack
     scoped_values.pop()
+
     return _core.Graph(
         inputs,
         outputs,
