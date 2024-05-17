@@ -8398,7 +8398,7 @@ def aten_unique(
     return result
 
 
-@torch_op("aten::_unique2", traceable=True)
+@torch_op("aten::_unique2")
 def aten_unique2(
     self: TensorType,
     sorted: bool = True,
@@ -8417,7 +8417,7 @@ def aten_unique2(
     return unique_values, inverse_indices, counts
 
 
-@torch_op("aten::unique_dim", traceable=True)
+@torch_op("aten::unique_dim")
 def aten_unique_dim(
     self: TensorType,
     dim: int,
