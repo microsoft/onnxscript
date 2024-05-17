@@ -969,9 +969,7 @@ class SimplePatternMatcher(PatternMatcher):
             return self._match_constant(pattern_value, value)
         return True
 
-    def _match_node_output(
-        self, pattern_value: NodeOutputPattern, value: ir.Value
-    ) -> MatchResult:
+    def _match_node_output(self, pattern_value: NodeOutputPattern, value: ir.Value) -> bool:
         """Match an IR value against a NodeOutputPattern instance."""
         node = value.producer()
         if node is None:
