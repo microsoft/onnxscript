@@ -876,15 +876,23 @@ class SimplePatternMatcher(PatternMatcher):
         ), "SimplePatternMatcher only supports patterns with a single output node."
         super().__init__(pattern)
 
-    def fail(self, reason: str, match) -> MatchResult:
+    def fail(self, reason: str, match) -> bool:
         if self._verbose:
             if self._matched:  # Print only if at least one node successfully matched.
                 print(f"Match failed: {reason}")
-        return match.fail(reason)
+        match.fail(reason)
+        return False
 
     def _match_constant(
         self, pattern_constant: Constant, value: ir.Value, match: MatchResult
-    ) -> MatchResult:
+    ) -> bool:
+        """Match a Constant pattern against a value.
+
+        If the constant value is produced by a Constant node, we do not include
+        the constant node as part of the matched graph. Thus, it will not be deleted,
+        if subgraph replacement happens. But subsequent DCE will remove the constant
+        node if it is not used elsewhere.
+        """
         value = _ir_utils.propagate_const_value(value)
         constant_value = _ir_utils.get_numpy_from_ir_value(value)
         if constant_value is None:
@@ -906,36 +914,29 @@ class SimplePatternMatcher(PatternMatcher):
             rel_tol=pattern_constant._rel_tol,
             abs_tol=pattern_constant._abs_tol,
         ):
-            self.fail(
+            return self.fail(
                 f"Constant value mismatch: expected {pattern_constant._value}, got {constant_value.item()}.",
                 match,
             )
 
-        # Note: If the value is produced by a Constant node, we could include
-        # the Constant node in the return_value list. However, we don't do that.
-        # Instead, we will rely on DCE to remove the constant node if it is not
-        # used elsewhere.
-        return match
+        return True
 
     def _match_node(
         self, pattern_node: NodePattern, node: ir.Node, match: MatchResult
-    ) -> MatchResult:
+    ) -> bool:
         """Matches a pattern subgraph against subgraph rooted at node."""
 
         # Graph-matching: we do not allow the same pattern node to be matched against
         # different graph nodes.
         if pattern_node in self._matched:
             if self._matched[pattern_node] is not node:
-                return match.fail(
-                    "Same pattern node is matched against different graph nodes."
+                return self.fail(
+                    "Same pattern node is matched against different graph nodes.", match
                 )
-            return match
+            return True
 
         if not pattern_node.matches(node, match):
-            # Log the reason for the failure if verbose and at least one node successfully matched.
-            if self._verbose and self._matched:
-                print(f"Match failed: {match.reason}")
-            return match
+            return self.fail(match.reason, match)
 
         if self._verbose:
             print(f"Matched: {node.op_type}")
@@ -955,24 +956,24 @@ class SimplePatternMatcher(PatternMatcher):
                     if arg_value is None
                     else "Input expected to be None"
                 )
-                return match.fail(msg)
+                return self.fail(msg, match)
             if not self._match_value(previous_node_output_pattern, arg_value, match):
-                return match
+                return False
 
         match.nodes.append(node)
-        return match
+        return True
 
     def _match_value(
         self, pattern_value: ValuePattern, value: ir.Value, match: MatchResult
-    ) -> MatchResult:
+    ) -> bool:
         """Match an IR value against a ValuePattern instance."""
         if pattern_value.name is not None:
             if pattern_value.name in match.bindings:
                 # TODO(rama): Use appropriate equality-check here: future extension possibility.
                 if match.bindings[pattern_value.name] == value:
-                    return match
-                return match.fail(
-                    f"Variable {pattern_value.name} is bound to multiple values."
+                    return True
+                return self.fail(
+                    f"Variable {pattern_value.name} is bound to multiple values.", match
                 )
             match.bindings[pattern_value.name] = value
 
@@ -980,7 +981,7 @@ class SimplePatternMatcher(PatternMatcher):
             return self._match_node_output(pattern_value, value, match)
         if isinstance(pattern_value, Constant):
             return self._match_constant(pattern_value, value, match)
-        return match
+        return True
 
     def _match_node_output(
         self, pattern_value: NodeOutputPattern, value: ir.Value, match: MatchResult
@@ -988,12 +989,13 @@ class SimplePatternMatcher(PatternMatcher):
         """Match an IR value against a NodeOutputPattern instance."""
         node = value.producer()
         if node is None:
-            return match.fail(
-                "Mismatch: Computed node pattern does not match uncomputed IR value."
+            return self.fail(
+                "Mismatch: Computed node pattern does not match uncomputed IR value.", match
             )
         if value.index() != pattern_value.output_index:
-            return match.fail(
-                f"Node output index mismatch: expected {self._output_index}, got {value.index()}."
+            return self.fail(
+                f"Node output index mismatch: expected {self._output_index}, got {value.index()}.",
+                match,
             )
         return self._match_node(pattern_value.producer(), node, match)
 
