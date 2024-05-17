@@ -978,7 +978,7 @@ class SimplePatternMatcher(PatternMatcher):
             )
         if value.index() != pattern_value.output_index:
             return self.fail(
-                f"Node output index mismatch: expected {self._output_index}, got {value.index()}."
+                f"Node output index mismatch: expected {pattern_value._output_index}, got {value.index()}."
             )
         return self._match_node(pattern_value.producer(), node)
 
