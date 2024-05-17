@@ -935,9 +935,6 @@ class SimplePatternMatcher(PatternMatcher):
 
         self._matched[pattern_node] = node
 
-        # TODO: We should add filtered logging starting from here to emit why
-        # matching failed. This should cut a lot of noises compared to logging everything,
-        # because at least the starting node op_type is already matched.
         for arg_value, previous_node_output_pattern in zip(node.inputs, pattern_node.inputs):
             # previous_node_output_pattern could be a Var, if it's the original arg.
             if arg_value is None and previous_node_output_pattern is None:
