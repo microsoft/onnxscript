@@ -4,6 +4,7 @@
 disable = [
   "attribute-defined-outside-init", # TODO: mostly in onnxscript/converter.py
   "cell-var-from-loop",             # Bugbear B023
+  "consider-using-from-import",
   "cyclic-import",
   "duplicate-code",
   "fixme",
@@ -25,5 +26,6 @@ disable = [
   "too-many-public-methods",
   "too-many-return-statements",
   "too-many-statements",            # TODO: we should work on these: too-many-xxx series
+  "unnecessary-ellipsis",
   "use-dict-literal",               # Sometime it is preferable when we construct kwargs
 ]

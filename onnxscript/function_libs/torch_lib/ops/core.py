@@ -2457,7 +2457,7 @@ def aten_diagflat(self: TensorType, offset: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::diagonal", trace_only=True)
+@torch_op(("aten::diagonal", "aten::diagonal_copy"), trace_only=True)
 def aten_diagonal(self: TReal, offset: int = 0, dim1: int = 0, dim2: int = 1) -> TReal:
     """diagonal(Tensor(a) self, int offset=0, int dim1=0, int dim2=1) -> Tensor(a)"""
 
@@ -3937,36 +3937,20 @@ def _shape_of_broadcast_tensors(*args: TensorType) -> INT64:
     return op.Shape(broadcasted)
 
 
-@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
-def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
-    """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
-
-    NOTE: Understanding `aten::index`
-    For `arg0` with shape `[7, 3, 4, 5, 6]`
-    The indexing operation `arg0[0, :, 1:2, tensor([[4,5]])]` will be translated to
-
-    ```
-    +>  select: i64[3, 4, 5, 6] = torch.ops.aten.select.int(arg0, 0, 0);
-    +>  slice_1: i64[3, 4, 5, 6] = torch.ops.aten.slice.Tensor(select, 0, 0, 9223372036854775807);
-    +>  slice_2: i64[3, 1, 5, 6] = torch.ops.aten.slice.Tensor(slice_1, 1, 1, 2);
-    +>  index: i64[3, 1, 1, 2, 6] = torch.ops.aten.index.Tensor(slice_2, [None, None, arg1]);
-    ```
-
-    Here,
-    - `indices = [None, None, arg1]` is equivalent to `indices = [None, None, arg1, None]`
-    - The operation `arg0[0, :, 1:2, tensor([[4,5]])]` is equivalent to `arg0[0, :, 1:2, tensor([[4,5]]), :]`
-
-    None in `indices` are like fillers for dimensions that cannot be removed in the process.
-    """
-
+@torch_op("aten::index.Tensor", private=True, trace_only=True)
+def _aten_index_onnx(
+    self: TensorType,
+    indices: Sequence[Optional[INT64]],
+    index_ranks: Sequence[int],
+) -> TensorType:
     self_rank = len(self.shape)
-    index_ranks = [len(index.shape) for index in indices if index is not None]
     advanced_indexing_rank = max(index_ranks)
 
     # reordered_positions is the permutation of the index positions where
     # positions with None are move to the end of the list
     # For example, if indices = [None, 1, None, 2], then reordered_positions = [1, 3, 0, 2]
     reordered_positions = sorted(range(len(indices)), key=lambda i: (indices[i] is None, i))
+
     # Fill the list with the remaining indices up to the rank of the tensor self.
     # For example, if indices = [None, 1, None, 2], and the rank of self is 6,
     # then reordered_positions = [1, 3, 0, 2, 4, 5]
@@ -4025,7 +4009,7 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
         *range(
             advanced_indexing_rank, starting_position_of_none_in_back
         ),  # None_front_1...x_None_back_1
-        *range(0, advanced_indexing_rank),  # 0...len(broadcasted_shape)
+        *range(advanced_indexing_rank),  # 0...len(broadcasted_shape)
         *range(
             starting_position_of_none_in_back,
             result_rank,
@@ -4036,10 +4020,71 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
 
 
 @torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
-def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> TensorType:
-    new_indices = op.Transpose(op.NonZero(indices[0]), perm=[1, 0])
-    new_indices = op.Squeeze(new_indices, axes=[1])
-    return op.Gather(self, new_indices, axis=0)
+def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
+    """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
+
+    NOTE: Understanding `aten::index`
+    For `arg0` with shape `[7, 3, 4, 5, 6]`
+    The indexing operation `arg0[0, :, 1:2, tensor([[4,5]])]` will be translated to
+
+    ```
+    +>  select: i64[3, 4, 5, 6] = torch.ops.aten.select.int(arg0, 0, 0);
+    +>  slice_1: i64[3, 4, 5, 6] = torch.ops.aten.slice.Tensor(select, 0, 0, 9223372036854775807);
+    +>  slice_2: i64[3, 1, 5, 6] = torch.ops.aten.slice.Tensor(slice_1, 1, 1, 2);
+    +>  index: i64[3, 1, 1, 2, 6] = torch.ops.aten.index.Tensor(slice_2, [None, None, arg1]);
+    ```
+
+    Here,
+    - `indices = [None, None, arg1]` is equivalent to `indices = [None, None, arg1, None]`
+    - The operation `arg0[0, :, 1:2, tensor([[4,5]])]` is equivalent to `arg0[0, :, 1:2, tensor([[4,5]]), :]`
+
+    None in `indices` are like fillers for dimensions that cannot be removed in the process.
+    """
+
+    index_ranks = [len(index.shape) for index in indices if index is not None]
+
+    return _aten_index_onnx(self, indices, index_ranks)
+
+
+@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
+def aten_index_bool(self: TensorType, indices: Sequence[Optional[BOOL]]) -> TensorType:  # pylint: disable=inconsistent-return-statements
+    index_ranks = [len(index.shape) for index in indices if index is not None]
+
+    if index_ranks[0] == 1:
+        # indices contains scalar only.
+        new_indices = [
+            op.Transpose(op.NonZero(index), perm=[1, 0]) if index is not None else None
+            for index in indices
+        ]
+        new_indices = [
+            op.Squeeze(index, axes=[1]) if index is not None else None for index in new_indices
+        ]
+        return _aten_index_onnx(self, new_indices, index_ranks)
+    else:
+        input_rank = len(self.shape)
+        # Prepare perm for transposing self tensor.
+        # In indices, None meaning skip the corresponding dimension,
+        # so we need to move this dimension to the end of the list.
+        # After we gathered the final results, we transpose it back.
+        # For example,
+        # self's shape is [5, 5, 5, 5], indices is [None, (5, 5)]
+        # the final result's shape should be [5, 16, 5].
+        trans_perm = list(range(input_rank))
+        trans_perm.append(trans_perm.pop(0))
+        count_of_none = 0
+        for index in indices:
+            if index is None:
+                self = op.Transpose(self, perm=trans_perm)
+                count_of_none += 1
+            else:
+                new_indices = op.Transpose(op.NonZero(index), perm=[1, 0])
+                result = op.GatherND(self, new_indices, batch_dims=0)
+                finla_rank = input_rank - (len(index.shape) - 1)
+                trans_perm = list(range(finla_rank))
+                trans_perm = trans_perm[-1:] + trans_perm[:-1]
+                for _ in range(count_of_none):
+                    result = op.Transpose(result, perm=trans_perm)
+                return result
 
 
 def aten_index_add(
@@ -4058,34 +4103,28 @@ def aten_index_copy(
     raise NotImplementedError()
 
 
-@torch_op("aten::index_put")
+@torch_op(("aten::index_put", "aten::_unsafe_index_put"))
 def aten_index_put(
     self: TReal,
     indices: Sequence[INT64],
     values: TReal,
     accumulate: bool = False,
 ) -> TReal:
-    """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
+    """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor
 
-    index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
-    # change array([1,3]) to array([[1,1,1,1,1],[3,3,3,3,3]])
-    self_dim_1 = op.Gather(op.Shape(self), 1)
-    index_dim_0 = op.Gather(op.Shape(index), 0)
-    neg_1 = op.Constant(value_ints=[-1])
-    shape = op.Concat(op.Reshape(self_dim_1, neg_1), op.Reshape(index_dim_0, neg_1), axis=0)
-    new_ind = op.Expand(index, shape)
-    new_ind_t = op.Transpose(new_ind)
+    See implementation of `torch.onnx.symbolic_opset11.index_put
+    <https://github.com/pytorch/pytorch/blob/main/torch/onnx/symbolic_opset11.py#L212>`_.
+    """
+
+    # TODO(justinchuby): Handle when indicies has more than one element
+    index = op.SequenceAt(indices, 0)
+    new_index = op.Unsqueeze(index, [-1])
 
     if op.Cast(accumulate, to=BOOL.dtype):
-        # put values into zeros array first, then add to input
-        zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
-        zeros = op.CastLike(zeros, values)
-        result = op.ScatterElements(zeros, new_ind_t, values)
-        # FIXME: type promotion
-        result = op.CastLike(result, self)
-        result = op.Add(result, self)
+        result = op.ScatterND(self, new_index, values, reduction="add")
     else:
-        result = op.ScatterElements(self, new_ind_t, values)
+        result = op.ScatterND(self, new_index, values)
+
     return result
 
 
@@ -5801,29 +5840,37 @@ def aten__native_batch_norm_legit_functional(
     # We have to split to two private functions, because BatchNormalization returns
     # three outputs when training_mode=True and one when it is False.
     if training:
-        norm, input_mean, input_rstd, running_mean, running_var = (
-            _aten_native_batch_norm_training_onnx(
-                input,
-                weight,
-                bias,
-                running_mean,
-                running_var,
-                axes,
-                momentum=1.0 - momentum,
-                eps=eps,
-            )
+        (
+            norm,
+            input_mean,
+            input_rstd,
+            running_mean,
+            running_var,
+        ) = _aten_native_batch_norm_training_onnx(
+            input,
+            weight,
+            bias,
+            running_mean,
+            running_var,
+            axes,
+            momentum=1.0 - momentum,
+            eps=eps,
         )
     else:
-        norm, input_mean, input_rstd, running_mean, running_var = (
-            _aten_native_batch_norm_inference_onnx(
-                input,
-                weight,
-                bias,
-                running_mean,
-                running_var,
-                momentum=1.0 - momentum,
-                eps=eps,
-            )
+        (
+            norm,
+            input_mean,
+            input_rstd,
+            running_mean,
+            running_var,
+        ) = _aten_native_batch_norm_inference_onnx(
+            input,
+            weight,
+            bias,
+            running_mean,
+            running_var,
+            momentum=1.0 - momentum,
+            eps=eps,
         )
 
     return norm, input_mean, input_rstd, running_mean, running_var
@@ -6356,10 +6403,23 @@ def aten_pinverse(self: TensorType, rcond: float = 1e-15) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_pixel_shuffle(self: TensorType, upscale_factor: int) -> TensorType:
+@torch_op("aten::pixel_shuffle")
+def aten_pixel_shuffle(self: TReal, upscale_factor: int) -> TReal:
     """pixel_shuffle(Tensor self, int upscale_factor) -> Tensor"""
-
-    raise NotImplementedError()
+    self_shape = op.Shape(self)
+    batch = self_shape[:-3]
+    C_out = op.Unsqueeze(self_shape[-3], [0])
+    H_out = op.Unsqueeze(self_shape[-2], [0])
+    W_out = op.Unsqueeze(self_shape[-1], [0])
+    # Reshaping input by collapsing all leading dimensions to match ONNX op requirement (4D)
+    reshaped_self = op.Reshape(
+        self, op.Concat(op.Unsqueeze(-1, [0]), C_out, H_out, W_out, axis=0)
+    )
+    depth_to_space_output = op.DepthToSpace(
+        reshaped_self, blocksize=upscale_factor, mode="CRD"
+    )
+    output_shape = op.Concat(batch, op.Shape(depth_to_space_output)[1:], axis=0)
+    return op.Reshape(depth_to_space_output, output_shape)
 
 
 def aten_pixel_unshuffle(self: TensorType, downscale_factor: int) -> TensorType:
@@ -7407,7 +7467,7 @@ def aten_slice_copy(
     raise NotImplementedError()
 
 
-@torch_op("aten::slice_scatter")
+@torch_op("aten::slice_scatter", trace_only=True)
 def aten_slice_scatter(
     self: TTensor,
     src: TTensor,
@@ -7428,8 +7488,9 @@ def aten_slice_scatter(
     # Step 1: get 1D tensor from 0 to dim_size-1, then Slice it using start, end and step.
     # We cannot use Range(start, end, step) directly as start or end may out of range.
     # For the example, the output of this step is Slice([0, ..., 7], 6, 64, 1) = [6, 7]
+
+    # Scatter ND
     zero = op.Constant(value_ints=[0])
-    one = op.Constant(value_ints=[1])
     self_shape = op.Shape(self)
     dim_shape = op.Gather(self_shape, dim, axis=0)
     index_base = op.Range(0, dim_shape, 1)
@@ -7440,20 +7501,26 @@ def aten_slice_scatter(
         zero,
         op.Unsqueeze(step, zero),
     )
-    # Step 2: Unsqueeze to add 1s preparing for Expand.
-    # Need to handle negative dim here.
-    # For the example above, the result of this step is [[6],[7]].
-    index_base = op.Unsqueeze(
-        index_base, op.Range(1, op.Where(dim < 0, 0, op.Size(self_shape)) - dim, 1)
-    )
-    # Step 3: Expand the indices.
-    # For the example above, it's Expand([[6],[7]], (1, 8)) = [[6,...,6],[7,...,7]].
-    shape_expand = op.ScatterElements(
-        self_shape, op.Unsqueeze(op.Constant(value_int=dim), zero), one, axis=0
-    )
-    indices = op.Expand(index_base, shape_expand)
-    # Step 4: final ScatterElements.
-    return op.ScatterElements(self, indices, src, axis=dim)
+    index_base = op.Unsqueeze(index_base, -1)
+
+    # Use trace only to construct the perm attribute in Transpose
+    dims = None
+    if dim != 0:
+        src_rank = len(src.shape)  # type: ignore[attr-defined]
+
+        if src_rank != 0:
+            # Python code, change when onnxscript supports this
+            dims = list(range(src_rank))
+            dims[0], dims[dim] = dims[dim], dims[0]
+            # Python code ends
+
+            src = op.Transpose(src, perm=dims)
+            self = op.Transpose(self, perm=dims)
+
+    output = op.ScatterND(self, index_base, src)
+    if dims is not None:
+        output = op.Transpose(output, perm=dims)
+    return output
 
 
 def aten_slogdet(self: TensorType) -> tuple[TensorType, TensorType]:
@@ -7866,14 +7933,6 @@ def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     """sym_size(Tensor self, int dim) -> Tensor"""
     # NOTE: onnxscript doesn't support attribute process,
     # so op.Shape(self, start=dim, end=dim + 1) is not supported.
-
-    # TODO(titaiwang): ORT==1.15 fixes SegFault
-    # https://github.com/microsoft/onnxscript/pull/484#discussion_r1136105039
-    # Change the op to:
-    # shape = op.Shape(self)
-    # idx= op.Reshape(dim, [1])
-    # return op.Gather(shape, idx)
-
     shape = op.Shape(self)
     # Reshape helps dim from int to tensor, and
     # input arguments support attribute processing.

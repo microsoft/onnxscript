@@ -49,3 +49,7 @@ EXPERIMENTAL_PREFER_TRACING: bool = _load_boolean_flag(
     this_will="trace all traceable functions to fold if branches and collapse constant expressions",
     default=True,
 )
+EXPERIMENTAL_USE_IR: bool = _load_boolean_flag(
+    "TORCHLIB_EXPERIMENTAL_USE_IR",
+    this_will="use the ONNX IR instead of the PyTorch Graph for graph building",
+)
