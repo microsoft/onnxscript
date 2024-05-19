@@ -74,7 +74,7 @@ def optimize(
 
         remove_unused_nodes(model)
         inline_simple_functions(model)
-        remove_unused_functions(model)
+        model = remove_unused_functions(model)
         inline_functions_with_unused_outputs(model)
         # NOTE: This is general rewrite rules
         model = rewriter.rewrite(

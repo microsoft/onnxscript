@@ -113,7 +113,7 @@ class TensorProtocol(ArrayCompatible, DLPackCompatible, Protocol):
         meta: Metadata store for graph transform passes.
     """
 
-    name: str
+    name: str | None
     shape: ShapeProtocol
     dtype: _enums.DataType
     doc_string: str | None
@@ -176,6 +176,7 @@ class ValueProtocol(Protocol):
         metadata_props: Metadata that will be serialized to the ONNX file.
         meta: Metadata store for graph transform passes.
         doc_string: Documentation string.
+        const_value: The constant tensor is the value constant.
     """
 
     name: str
@@ -184,6 +185,7 @@ class ValueProtocol(Protocol):
     metadata_props: MutableMapping[str, str]
     meta: MutableMapping[str, Any]
     doc_string: str | None
+    const_value: TensorProtocol | None
 
     def producer(self) -> NodeProtocol | None:
         """The node that produces this value."""
@@ -292,7 +294,7 @@ class GraphProtocol(Protocol):
     name: str | None
     inputs: MutableSequence[ValueProtocol]
     outputs: MutableSequence[ValueProtocol]
-    initializers: MutableMapping[str, TensorProtocol]
+    initializers: MutableMapping[str, ValueProtocol]
     doc_string: str
     opset_imports: MutableMapping[str, int]
     metadata_props: MutableMapping[str, str]
@@ -352,7 +354,7 @@ class GraphViewProtocol(Protocol):
     name: str | None
     inputs: Sequence[ValueProtocol]
     outputs: Sequence[ValueProtocol]
-    initializers: Mapping[str, TensorProtocol]
+    initializers: Mapping[str, ValueProtocol]
     doc_string: str
     opset_imports: Mapping[str, int]
     metadata_props: MutableMapping[str, str]
