@@ -493,7 +493,7 @@ class NodePattern:
                 )
             if attr_pattern.name is not None:
                 if not match.bind(attr_pattern.name, attr_value):
-                    return False
+                    return match
 
         for name in node.attributes:
             # TODO: Support matching default nodes for attributes.
