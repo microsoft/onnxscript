@@ -443,7 +443,6 @@ def _unique_unsorted_xfail_matcher(
 ) -> bool:
     # torch.unique always sorts, so the results are not guaranteed to be
     # equivalent to the output of the ONNX op
-    expect_fail = False
     if sample.kwargs.get("sorted", None) is False and sample.input.numel() > 1:
         # sorted == None is equivalent to True
         # the result will be mismatched if the input is not sorted
@@ -458,12 +457,11 @@ def _unique_unsorted_xfail_matcher(
         for inv_idx in inverse.flatten().tolist():
             if inv_idx not in observed:
                 if max_observed is not None and inv_idx < max_observed:
-                    expect_fail = True
-                    break
+                    return True
                 observed.add(inv_idx)
                 if max_observed is None or inv_idx > max_observed:
                     max_observed = inv_idx
-    return expect_fail
+    return False
 
 
 # Ops to be tested for numerical consistency between onnx and pytorch
