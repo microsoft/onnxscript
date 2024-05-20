@@ -637,6 +637,7 @@ def make_pattern_rule(
     warnings.warn(
         "make_pattern_rule(...) is deprecated, use pattern.RewriteRule(...) instead",
         DeprecationWarning,
+        stacklevel=2,
     )
     pattern = orp._to_graph_pattern(match_pattern_function)
     matcher = GenericPatternMatcher(pattern)
