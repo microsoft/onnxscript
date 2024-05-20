@@ -28,6 +28,7 @@ def propagate_const_value(ir_value: ir.Value) -> ir.Value:
             if attr_value is None or not isinstance(attr_value, ir.Attr):
                 continue
 
+            const_value: ir.TensorProtocol
             if attr_name in {"value_float", "value_floats"}:
                 const_value = ir.Tensor(
                     np.array(attr_value.value, dtype=np.float32), name=ir_value.name

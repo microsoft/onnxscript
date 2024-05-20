@@ -1515,8 +1515,6 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
         The value can be backed by different raw data types, such as numpy arrays.
         The only guarantee is that it conforms TensorProtocol.
-
-        When the constant is set, the shape and dtype of the constant tensor will be set to the value.
         """
         return self._const_value
 
@@ -1530,9 +1528,6 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
                 raise TypeError(
                     f"Expected value to be a TensorProtocol or None, got '{type(value)}'"
                 )
-        if value is not None:
-            self.shape = value.shape
-            self.dtype = value.dtype
         self._const_value = value
 
     @property

@@ -47,14 +47,18 @@ def check_if_not_need_reshape(
     if input_a_shape is None or input_b_shape is None:
         logger.info("Shape information is not available for the inputs and outputs.")
         return False
-    input_a_shape = input_a_shape.numpy()
-    input_b_shape = input_b_shape.numpy()
+    if any(isinstance(dim, ir.SymbolicDim) for dim in input_a_shape):
+        logger.info("Symbolic dimensions are not yet supported.")
+        return False
+    if any(isinstance(dim, ir.SymbolicDim) for dim in input_b_shape):
+        logger.info("Symbolic dimensions are not yet supported.")
+        return False
+    input_a_shape = input_a_shape.numpy()  # type: ignore[assignment]
+    input_b_shape = input_b_shape.numpy()  # type: ignore[assignment]
     shape_c = shape_c_tensor.numpy().tolist()
 
     a_rank = len(input_a_shape)
     b_rank = len(input_b_shape)
-
-    # TODO(justinchuby): Check shape size
 
     # 1. Check if input shapes are broadcastable
     # 1.a. If the first input is 1-D, check whether
@@ -68,7 +72,7 @@ def check_if_not_need_reshape(
             logger.info("Original shape is not MatMul compatible.")
             return False
         else:
-            input_a_shape = [1, *input_a_shape]
+            input_a_shape = [1, *input_a_shape]  # type: ignore[assignment]
             a_rank = len(input_a_shape)
             mimic_matmul_broadcast_behavior = True
     # 1.b. If the second input is 1-D, check whether
@@ -78,7 +82,7 @@ def check_if_not_need_reshape(
             logger.info("Original shape is not MatMul compatible.")
             return False
         else:
-            input_b_shape = [*input_b_shape, 1]
+            input_b_shape = [*input_b_shape, 1]  # type: ignore[assignment]
             b_rank = len(input_b_shape)
             mimic_matmul_broadcast_behavior = True
     # 1.c. If both inputs are at least 2-D, check whether
@@ -99,7 +103,7 @@ def check_if_not_need_reshape(
             return False
         elif idx > 0:
             broadcast_matmul_output_shape = [
-                max(dim_from_a, dim_from_b),
+                max(dim_from_a, dim_from_b),  # type: ignore[type-var]
                 *broadcast_matmul_output_shape,
             ]
 
