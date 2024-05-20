@@ -4,6 +4,7 @@ import collections
 import inspect
 import os
 import textwrap
+import warnings
 from typing import Any, Callable, Iterator, Sequence
 
 import onnxscript.rewriter.pattern as orp
@@ -633,6 +634,10 @@ def make_pattern_rule(
         the rewriting rule
     """
 
+    warnings.warn(
+        "make_pattern_rule(...) is deprecated, use pattern.RewriteRule(...) instead",
+        DeprecationWarning,
+    )
     pattern = orp._to_graph_pattern(match_pattern_function)
     matcher = GenericPatternMatcher(pattern)
     return orp.RewriteRule(
