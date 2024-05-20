@@ -68,9 +68,11 @@ __all__ = [
     # Conversion functions
     "from_proto",
     "to_proto",
+    # Pass infrastructure
+    "passes",
 ]
 
-from onnxscript.ir import serde
+from onnxscript.ir import passes, serde
 from onnxscript.ir._core import (
     Attr,
     AttrFloat32,
