@@ -1020,19 +1020,19 @@ class RewriteRule:
         target_pattern: GraphPattern | Callable,
         replacement_pattern: ReplacementPatternFunction | Callable,
         condition_function: Callable | None = None,
-        matcher: PatternMatcher | None = None,
+        matcher: PatternMatcher | Callable | None = None,
         verbose: int = 0,
     ) -> None:
         """Create a rewrite rule.
 
         Args:
-            target_pattern: The pattern function that will be
-                matched against the IR.
-            replacement_pattern: The replacement function that
-                will be used to replace the matched pattern.
-            condition_function: The condition function that
-                will be used to check if the pattern matches the IR with ir.Values
-                constraints in consideration.
+            target_pattern: The GraphPattern that will be matched against the IR.
+                If a callable is provided, it will be converted to a GraphPattern.
+            replacement_pattern: The ReplacementPatternFunction that will be used to
+                replace the matched pattern. If a callable is provided, it will be
+                converted to a ReplacementPatternFunction.
+            condition_function: The condition function that will be used to check if
+                the pattern match found should be rewritten.
             matcher: The pattern matcher that will be used to match the pattern.
                 If not provided, a default matcher will be used.
             verbose: The verbosity level of the rule.
@@ -1053,6 +1053,8 @@ class RewriteRule:
                 import onnxscript.rewriter.generic_pattern as generic_pattern
 
                 matcher = generic_pattern.GenericPatternMatcher(self._target_pattern)
+        elif not isinstance(matcher, PatternMatcher):
+            matcher = matcher(self._target_pattern)
         self._matcher = matcher
         self._verbose = verbose
 
