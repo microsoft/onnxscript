@@ -4,6 +4,7 @@ import collections
 import inspect
 import os
 import textwrap
+import warnings
 from typing import Any, Callable, Iterator, Sequence
 
 import onnxscript.rewriter.pattern as orp
@@ -79,7 +80,7 @@ def _to_match_result(pmr: PatternMatchResult) -> orp.MatchResult:
 
     TODO: This is a temporary hack until MatchResult and PatternMatchResult are unified.
     """
-    result = orp.MatchResult(success=True)
+    result = orp.MatchResult()
     result.nodes.extend(pmr.model_nodes)
     for var, val in pmr.matched_pattern_to_model_value.items():
         if var.name is not None:
@@ -633,6 +634,11 @@ def make_pattern_rule(
         the rewriting rule
     """
 
+    warnings.warn(
+        "make_pattern_rule(...) is deprecated, use pattern.RewriteRule(...) instead",
+        FutureWarning,
+        stacklevel=2,
+    )
     pattern = orp._to_graph_pattern(match_pattern_function)
     matcher = GenericPatternMatcher(pattern)
     return orp.RewriteRule(
