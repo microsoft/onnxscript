@@ -8404,8 +8404,8 @@ def aten_unique(
 def aten__unique2(
     self: TensorType,
     sorted: bool = True,
-    return_inverse: bool = False,
-    return_counts: bool = False
+    return_inverse: bool = False,  # pylint: disable=unused-argument
+    return_counts: bool = False  # pylint: disable=unused-argument
 ) -> tuple[TensorType, TensorType, TensorType]:
     """_unique2(Tensor self, bool sorted=True, bool return_inverse=False, bool return_counts=False) -> (Tensor, Tensor, Tensor)"""
 
@@ -8424,8 +8424,8 @@ def aten_unique_dim(
     self: TensorType,
     dim: int,
     sorted: bool = True,
-    return_inverse: bool = False,
-    return_counts: bool = False,
+    return_inverse: bool = False,  # pylint: disable=unused-argument
+    return_counts: bool = False,  # pylint: disable=unused-argument
 ) -> tuple[TensorType, TensorType, TensorType]:
     """unique_dim(Tensor self, int dim, bool sorted=True, bool return_inverse=False, bool return_counts=False) -> (Tensor, Tensor, Tensor)"""
 
