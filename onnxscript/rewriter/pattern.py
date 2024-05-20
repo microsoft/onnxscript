@@ -1020,7 +1020,7 @@ class RewriteRule:
         target_pattern: GraphPattern | Callable,
         replacement_pattern: ReplacementPatternFunction | Callable,
         condition_function: Callable | None = None,
-        matcher: PatternMatcher | Callable | None = None,
+        matcher: PatternMatcher | Callable[[GraphPattern], PatternMatcher] | None = None,
         verbose: int = 0,
     ) -> None:
         """Create a rewrite rule.
@@ -1046,16 +1046,17 @@ class RewriteRule:
             replacement_pattern = ReplacementPatternFunction(replacement_pattern)
         self._replacement_pattern = replacement_pattern
         self._condition_function = condition_function or always_true
-        if matcher is None:
+        if isinstance(matcher, PatternMatcher):
+            self._matcher = matcher
+        elif matcher is None:
             if target_pattern.has_single_output_node:
-                matcher = SimplePatternMatcher(self._target_pattern)
+                self._matcher = SimplePatternMatcher(self._target_pattern)
             else:
                 import onnxscript.rewriter.generic_pattern as generic_pattern
 
-                matcher = generic_pattern.GenericPatternMatcher(self._target_pattern)
-        elif not isinstance(matcher, PatternMatcher):
-            matcher = matcher(self._target_pattern)
-        self._matcher = matcher
+                self._matcher = generic_pattern.GenericPatternMatcher(self._target_pattern)
+        else:
+            self._matcher = matcher(self._target_pattern)
         self._verbose = verbose
 
     def try_rewrite(
