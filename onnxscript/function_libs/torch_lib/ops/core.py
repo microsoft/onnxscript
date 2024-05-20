@@ -8383,9 +8383,11 @@ def aten_unique(
     """unique(Tensor self, bool sorted=True, bool return_inverse=False, bool return_counts=False, int? dim=None) -> (Tensor, Tensor?, Tensor?)"""
 
     if dim is None:
-        unique_values, inverse_indices, counts = aten_unique2(self, sorted, return_inverse, return_counts)
+        unique_values, inverse_indices, counts = aten__unique2(
+            self, sorted, return_inverse, return_counts)
     else:
-        unique_values, inverse_indices, counts = aten_unique_dim(self, dim, sorted, return_inverse, return_counts)
+        unique_values, inverse_indices, counts = aten_unique_dim(
+            self, dim, sorted, return_inverse, return_counts)
     if return_inverse:
         if return_counts:
             result = unique_values, inverse_indices, counts
@@ -8405,7 +8407,7 @@ def aten__unique2(
     return_inverse: bool = False,
     return_counts: bool = False
 ) -> tuple[TensorType, TensorType, TensorType]:
-    """unique(Tensor self, bool sorted=True, bool return_inverse=False, bool return_counts=False) -> (Tensor, Tensor, Tensor)"""
+    """_unique2(Tensor self, bool sorted=True, bool return_inverse=False, bool return_counts=False) -> (Tensor, Tensor, Tensor)"""
 
     unique_values, indices, inverse_indices, counts = op.Unique(self, axis=None, sorted=sorted)
     # HACK: force indices to be in the graph so that it gets a name during optimization
