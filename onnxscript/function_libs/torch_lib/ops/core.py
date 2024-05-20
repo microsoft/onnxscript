@@ -8399,7 +8399,7 @@ def aten_unique(
 
 
 @torch_op("aten::_unique2")
-def aten_unique2(
+def aten__unique2(
     self: TensorType,
     sorted: bool = True,
     return_inverse: bool = False,
