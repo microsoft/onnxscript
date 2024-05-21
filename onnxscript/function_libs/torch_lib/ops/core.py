@@ -8386,8 +8386,6 @@ def aten__unique(
     # We don't need to worry about unique_values since it is a required output.
     indices_size = op.Shape(indices)
     indices_numel = op.ReduceProd(indices_size, keepdims=False)
-    inverse_indices_size = op.Shape(inverse_indices)
-    inverse_indices_numel = op.ReduceProd(inverse_indices_size, keepdims=False)
     input_size = op.Shape(self)
     # force inverse_indices to depend on indices through input_size
     if indices_numel != 0:
@@ -8466,7 +8464,6 @@ def aten_unique_dim(
     sorted: bool = True,  # pylint: disable=unused-argument
     return_inverse: bool = False,
     return_counts: bool = False,
-    is_cuda: bool = False
 ) -> tuple[TensorType, TensorType, TensorType]:
     """unique_dim(Tensor self, int dim, bool sorted=True, bool return_inverse=False, bool return_counts=False) -> (Tensor, Tensor, Tensor)"""
 
