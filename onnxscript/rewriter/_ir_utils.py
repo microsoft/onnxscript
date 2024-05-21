@@ -42,10 +42,3 @@ def propagate_const_value(ir_value: ir.Value) -> ir.Value:
     ir_value.shape = const_value.shape  # type: ignore
     ir_value.dtype = const_value.dtype
     return ir_value
-
-
-def get_numpy_from_ir_value(value: ir.Value) -> np.ndarray | None:
-    constant_value = value.const_value
-    if constant_value is not None:
-        return constant_value.numpy()
-    return constant_value

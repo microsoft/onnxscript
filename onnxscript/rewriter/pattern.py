@@ -576,18 +576,24 @@ class Constant(ValuePattern):
 
     def matches(self, value: ir.Value, match: MatchResult) -> MatchResult:
         value = _ir_utils.propagate_const_value(value)
-        constant_value = _ir_utils.get_numpy_from_ir_value(value)
+        constant_value = value.const_value
         if constant_value is None:
             return match.fail(f"Value is not a constant, expecting {self.value}.")
 
+        constant_value_numpy = constant_value.numpy()
         # TODO (rama): allow users to specify shape requirement, if desired.
-        if constant_value.size != 1:
+        if constant_value_numpy.size != 1:
             return match.fail(f"Value is not a scalar, expecting {self.value}.")
 
         if not math.isclose(
-            constant_value.item(), self._value, rel_tol=self._rel_tol, abs_tol=self._abs_tol
+            constant_value_numpy.item(),
+            self._value,
+            rel_tol=self._rel_tol,
+            abs_tol=self._abs_tol,
         ):
-            match.fail(f"Value mismatch: expected {self._value}, got {constant_value.item()}.")
+            match.fail(
+                f"Value mismatch: expected {self._value}, got {constant_value_numpy.item()}."
+            )
 
         # Note: If the value is produced by a Constant node, we could include
         # the Constant node in the return_value list. However, we don't do that.
@@ -893,26 +899,27 @@ class SimplePatternMatcher(PatternMatcher):
         node if it is not used elsewhere.
         """
         value = _ir_utils.propagate_const_value(value)
-        constant_value = _ir_utils.get_numpy_from_ir_value(value)
+        constant_value = value.const_value
         if constant_value is None:
             return self.fail(
                 f"Value {value.name} is not a constant, expecting {pattern_constant.value}.",
             )
 
+        constant_value_numpy = constant_value.numpy()
         # TODO (rama): allow users to specify shape requirement, if desired.
-        if constant_value.size != 1:
+        if constant_value_numpy.size != 1:
             return self.fail(
                 f"Value {value.name} is not a scalar, expecting {pattern_constant.value}.",
             )
 
         if not math.isclose(
-            constant_value.item(),
+            constant_value_numpy.item(),
             pattern_constant._value,
             rel_tol=pattern_constant._rel_tol,
             abs_tol=pattern_constant._abs_tol,
         ):
             return self.fail(
-                f"Constant value mismatch: expected {pattern_constant._value}, got {constant_value.item()}.",
+                f"Constant value mismatch: expected {pattern_constant._value}, got {constant_value_numpy.item()}.",
             )
 
         return True
