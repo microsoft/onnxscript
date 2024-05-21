@@ -8380,8 +8380,21 @@ def aten__unique(
 ) -> tuple[TensorType, TensorType]:
     """_unique(Tensor self, bool sorted=True, bool return_inverse=False) -> (Tensor, Tensor)"""
 
-    unique_values, _, inverse_indices, _ = op.Unique(self, axis=None, sorted=True)
+    unique_values, indices, inverse_indices, _ = op.Unique(self, axis=None, sorted=True)
+    # HACK: force indices to be in the graph so that it gets a name during optimization
+    # Otherwise an error will be raised in `onnxscript.Scope.lookup_or_create`
+    # We don't need to worry about unique_values since it is a required output.
+    indices_size = op.Shape(indices)
+    indices_numel = op.ReduceProd(indices_size, keepdims=False)
+    inverse_indices_size = op.Shape(inverse_indices)
+    inverse_indices_numel = op.ReduceProd(inverse_indices_size, keepdims=False)
     input_size = op.Shape(self)
+    # force inverse_indices to depend on indices through input_size
+    if indices_numel != 0:
+        input_size = input_size * indices_numel
+        input_size = input_size / indices_numel
+    else:
+        input_size = input_size + indices_numel
     if return_inverse:
         inverse_indices = op.Reshape(inverse_indices, input_size)
     else:
@@ -8403,7 +8416,23 @@ def aten__unique2(
     """_unique2(Tensor self, bool sorted=True, bool return_inverse=False, bool return_counts=False) -> (Tensor, Tensor, Tensor)"""
 
     unique_values, indices, inverse_indices, counts = op.Unique(self, axis=None, sorted=True)
+    # HACK: force indices and inverse_indices to be in the graph so
+    # that they get names during optimization.
+    # counts must depend on indices and inverse_indices,
+    # and inverse_indices must depend on indices
+    # Otherwise an error will be raised in `onnxscript.Scope.lookup_or_create`
+    # We don't have to worry about unique_values because it is a required output.
+    indices_size = op.Shape(indices)
+    indices_numel = op.ReduceProd(indices_size, keepdims=False)
+    inverse_indices_size = op.Shape(inverse_indices)
+    inverse_indices_numel = op.ReduceProd(inverse_indices_size, keepdims=False)
     input_size = op.Shape(self)
+    # force inverse_indices to depend on indices through input_size
+    if indices_numel != 0:
+        input_size = input_size * indices_numel
+        input_size = input_size / indices_numel
+    else:
+        input_size = input_size + indices_numel
     if return_inverse:
         inverse_indices = op.Reshape(inverse_indices, input_size)
     else:
@@ -8413,12 +8442,20 @@ def aten__unique2(
         else:
             inverse_indices = op.ConstantOfShape([0], value=[0])
     if return_counts:
-        # HACK: force indices to be in the graph so that it gets a name during optimization
-        # Otherwise an error will be raised in `onnxscript.Scope.lookup_or_create`
-        indices_size = op.Shape(indices)
+        # force counts to depend on inverse_indices through indices_size
+        if inverse_indices_numel != 0:
+            indices_size = indices_size * inverse_indices_numel
+            indices_size = indices_size / inverse_indices_numel
+        else:
+            indices_size = indices_size + inverse_indices_numel
+        # force counts to depend on indices
         counts = op.Reshape(counts, indices_size)
     else:
         counts = op.ConstantOfShape([0], value=[0])
+        # force counts to depend on indices
+        counts = counts * indices_numel
+        # force counts to depend on inverse_indices
+        counts = counts * inverse_indices_numel
     return unique_values, inverse_indices, counts
 
 
@@ -8434,20 +8471,46 @@ def aten_unique_dim(
     """unique_dim(Tensor self, int dim, bool sorted=True, bool return_inverse=False, bool return_counts=False) -> (Tensor, Tensor, Tensor)"""
 
     unique_values, indices, inverse_indices, counts = op.Unique(self, axis=dim, sorted=True)
+    # HACK: force indices and inverse_indices to be in the graph so
+    # that they get names during optimization.
+    # counts must depend on indices and inverse_indices,
+    # and inverse_indices must depend on indices
+    # Otherwise an error will be raised in `onnxscript.Scope.lookup_or_create`
+    # We don't have to worry about unique_values because it is a required output.
+    indices_size = op.Shape(indices)
+    indices_numel = op.ReduceProd(indices_size, keepdims=False)
+    inverse_indices_size = op.Shape(inverse_indices)
+    inverse_indices_numel = op.ReduceProd(inverse_indices_size, keepdims=False)
     if return_inverse:
         input_size = op.Shape(self)
+        # force inverse_indices to depend on indices through input_size
+        if indices_numel != 0:
+            input_size = input_size * indices_numel
+            input_size = input_size / indices_numel
+        else:
+            input_size = input_size + indices_numel
         inverse_indices = op.Reshape(inverse_indices, op.Reshape(input_size[dim], [-1]))
     else:
         inverse_indices = op.ConstantOfShape([0], value=[0])
+        # force inverse_indices to depend on indices
+        inverse_indices = inverse_indices * indices_numel
     if return_counts:
-        # HACK: force indices to be in the graph so that it gets a name during optimization
-        # Otherwise an error will be raised in `onnxscript.Scope.lookup_or_create`
-        indices_size = op.Shape(indices)
+        # force dependence on inverse_indices through indices_size
+        if inverse_indices_numel != 0:
+            indices_size = indices_size * inverse_indices_numel
+            indices_size = indices_size / inverse_indices_numel
+        else:
+            indices_size = indices_size + inverse_indices_numel
+        # force dependence on indices
         counts = op.Reshape(counts, indices_size)
         output_size = op.Shape(unique_values)
         counts = op.Reshape(counts, op.Reshape(output_size[dim], [-1]))
     else:
         counts = op.ConstantOfShape([0], value=[0])
+        # force dependence on indices
+        counts = counts * indices_numel
+        # force dependence on inverse_indices
+        counts = counts * inverse_indices_numel
     return unique_values, inverse_indices, counts
 
 
