@@ -257,11 +257,11 @@ class RewriteRuleTest(unittest.TestCase):
         def check_for_redundant_reshape(context, x, newshape):
             oldshape = x.shape
             newshape = _ir_utils.propagate_const_value(newshape)
-            newshape_cont_value = newshape.const_value
-            if newshape_cont_value is None:
+            newshape_const_value = newshape.const_value
+            if newshape_const_value is None:
                 return False
 
-            newshape = newshape_cont_value.numpy()
+            newshape = newshape_const_value.numpy()
             newshape = newshape.tolist()
 
             if len(oldshape) != len(newshape):
