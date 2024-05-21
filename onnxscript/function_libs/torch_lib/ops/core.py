@@ -8372,50 +8372,53 @@ def aten_unique_consecutive(
     raise NotImplementedError()
 
 
-@torch_op("aten::unique", trace_only=True)
-def aten_unique(
+@torch_op("aten::_unique")
+def aten__unique(
     self: TensorType,
-    sorted: bool = True,
+    sorted: bool = True,  # pylint: disable=unused-argument
     return_inverse: bool = False,
-    return_counts: bool = False,
-    dim: Optional[int] = None,
-) -> tuple[TensorType, TensorType, TensorType]:
-    """unique(Tensor self, bool sorted=True, bool return_inverse=False, bool return_counts=False, int? dim=None) -> (Tensor, Tensor?, Tensor?)"""
+) -> tuple[TensorType, TensorType]:
+    """_unique(Tensor self, bool sorted=True, bool return_inverse=False) -> (Tensor, Tensor)"""
 
-    if dim is None:
-        unique_values, inverse_indices, counts = aten__unique2(
-            self, sorted, return_inverse, return_counts)
-    else:
-        unique_values, inverse_indices, counts = aten_unique_dim(
-            self, dim, sorted, return_inverse, return_counts)
+    unique_values, _, inverse_indices, _ = op.Unique(self, axis=None, sorted=True)
+    input_size = op.Shape(self)
     if return_inverse:
-        if return_counts:
-            result = unique_values, inverse_indices, counts
-        else:
-            result = unique_values, inverse_indices
-    elif return_counts:
-        result = unique_values, counts
+        inverse_indices = op.Reshape(inverse_indices, input_size)
     else:
-        result = unique_values
-    return result
+        input_numel = op.ReduceProd(input_size, keepdims=False)
+        if input_numel == 0:
+            inverse_indices = op.Reshape(inverse_indices, input_size)
+        else:
+            inverse_indices = op.ConstantOfShape([0], value=[0])
+    return unique_values, inverse_indices
 
 
 @torch_op("aten::_unique2")
 def aten__unique2(
     self: TensorType,
-    sorted: bool = True,
-    return_inverse: bool = False,  # pylint: disable=unused-argument
-    return_counts: bool = False  # pylint: disable=unused-argument
+    sorted: bool = True,  # pylint: disable=unused-argument
+    return_inverse: bool = False,
+    return_counts: bool = False,
 ) -> tuple[TensorType, TensorType, TensorType]:
     """_unique2(Tensor self, bool sorted=True, bool return_inverse=False, bool return_counts=False) -> (Tensor, Tensor, Tensor)"""
 
-    unique_values, indices, inverse_indices, counts = op.Unique(self, axis=None, sorted=sorted)
-    # HACK: force indices to be in the graph so that it gets a name during optimization
-    # Otherwise an error will be raised in `onnxscript.Scope.lookup_or_create`
-    indices_size = op.Shape(indices)
-    counts = op.Reshape(counts, indices_size)
+    unique_values, indices, inverse_indices, counts = op.Unique(self, axis=None, sorted=True)
     input_size = op.Shape(self)
-    inverse_indices = op.Reshape(inverse_indices, input_size)
+    if return_inverse:
+        inverse_indices = op.Reshape(inverse_indices, input_size)
+    else:
+        input_numel = op.ReduceProd(input_size, keepdims=False)
+        if input_numel == 0:
+            inverse_indices = op.Reshape(inverse_indices, input_size)
+        else:
+            inverse_indices = op.ConstantOfShape([0], value=[0])
+    if return_counts:
+        # HACK: force indices to be in the graph so that it gets a name during optimization
+        # Otherwise an error will be raised in `onnxscript.Scope.lookup_or_create`
+        indices_size = op.Shape(indices)
+        counts = op.Reshape(counts, indices_size)
+    else:
+        counts = op.ConstantOfShape([0], value=[0])
     return unique_values, inverse_indices, counts
 
 
@@ -8423,21 +8426,28 @@ def aten__unique2(
 def aten_unique_dim(
     self: TensorType,
     dim: int,
-    sorted: bool = True,
-    return_inverse: bool = False,  # pylint: disable=unused-argument
-    return_counts: bool = False,  # pylint: disable=unused-argument
+    sorted: bool = True,  # pylint: disable=unused-argument
+    return_inverse: bool = False,
+    return_counts: bool = False,
+    is_cuda: bool = False
 ) -> tuple[TensorType, TensorType, TensorType]:
     """unique_dim(Tensor self, int dim, bool sorted=True, bool return_inverse=False, bool return_counts=False) -> (Tensor, Tensor, Tensor)"""
 
-    unique_values, indices, inverse_indices, counts = op.Unique(self, axis=dim, sorted=sorted)
-    # HACK: force indices to be in the graph so that it gets a name during optimization
-    # Otherwise an error will be raised in `onnxscript.Scope.lookup_or_create`
-    indices_size = op.Shape(indices)
-    counts = op.Reshape(counts, indices_size)
-    input_size = op.Shape(self)
-    inverse_indices = op.Reshape(inverse_indices, op.Reshape(input_size[dim], [-1]))
-    output_size = op.Shape(unique_values)
-    counts = op.Reshape(counts, op.Reshape(output_size[dim], [-1]))
+    unique_values, indices, inverse_indices, counts = op.Unique(self, axis=dim, sorted=True)
+    if return_inverse:
+        input_size = op.Shape(self)
+        inverse_indices = op.Reshape(inverse_indices, op.Reshape(input_size[dim], [-1]))
+    else:
+        inverse_indices = op.ConstantOfShape([0], value=[0])
+    if return_counts:
+        # HACK: force indices to be in the graph so that it gets a name during optimization
+        # Otherwise an error will be raised in `onnxscript.Scope.lookup_or_create`
+        indices_size = op.Shape(indices)
+        counts = op.Reshape(counts, indices_size)
+        output_size = op.Shape(unique_values)
+        counts = op.Reshape(counts, op.Reshape(output_size[dim], [-1]))
+    else:
+        counts = op.ConstantOfShape([0], value=[0])
     return unique_values, inverse_indices, counts
 
 
