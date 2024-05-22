@@ -70,9 +70,10 @@ __all__ = [
     "to_proto",
     # Pass infrastructure
     "passes",
+    "traversal",
 ]
 
-from onnxscript.ir import passes, serde
+from onnxscript.ir import passes, serde, traversal
 from onnxscript.ir._core import (
     Attr,
     AttrFloat32,

@@ -13,7 +13,7 @@ from onnxscript import ir
 logger = logging.getLogger(__name__)
 
 
-class UnusedFunctionRemover(ir.passes.NodeTransformer):
+class UnusedFunctionRemover(ir.passes.PassBase):
     def __init__(self):
         super().__init__()
         self.used: set[ir.OperatorIdentifier] = set()
@@ -23,7 +23,7 @@ class UnusedFunctionRemover(ir.passes.NodeTransformer):
             # The function and its nodes are already recorded as used
             return
         self.used.add(function.identifier())
-        for node in function:
+        for node in ir.traversal.RecursiveGraphIterator(function):
             self.call_node_recursive(node)
 
     def call_node(self, node: ir.Node) -> None:

@@ -2,24 +2,24 @@
 
 from __future__ import annotations
 
-from typing_extensions import Self
-
-from onnxscript.ir import _core, _enums
-
 __all__ = [
-    "RecursiveNodeIterator",
+    "RecursiveGraphIterator",
 ]
 
 from typing import Callable, Iterator
 
+from typing_extensions import Self
 
-class RecursiveNodeIterator(Iterator[_core.Node]):
+from onnxscript.ir import _core, _enums
+
+
+class RecursiveGraphIterator(Iterator[_core.Node]):
     def __init__(
         self,
         graph: _core.Graph,
-        enter_graph_handler: Callable[[_core.Graph], None],
-        exit_graph_handler: Callable[[_core.Graph], None],
-        recursive: Callable[[_core.Node], bool],
+        enter_graph_handler: Callable[[_core.Graph], None] | None = None,
+        exit_graph_handler: Callable[[_core.Graph], None] | None = None,
+        recursive: Callable[[_core.Node], bool] | None = None,
         reversed: bool = False,
     ):
         """Iterate over the nodes in the graph, recursively visiting subgraphs.
@@ -47,21 +47,23 @@ class RecursiveNodeIterator(Iterator[_core.Node]):
         return next(self._iterator)
 
     def _recursive_node_iter(self, graph: _core.Graph) -> Iterator[_core.Node]:
-        self._enter_graph_handler(graph)
+        if self._enter_graph_handler is not None:
+            self._enter_graph_handler(graph)
         iterable = reversed(graph) if self._reversed else graph
         for node in iterable:
             yield node
-            if not self._recursive(node):
+            if self._recursive is not None and not self._recursive(node):
                 continue
             yield from self._iterate_subgraphs(node)
-        self._exit_graph_handler(graph)
+        if self._exit_graph_handler is not None:
+            self._exit_graph_handler(graph)
 
     def _iterate_subgraphs(self, node: _core.Node):
         for attr in node.attributes.values():
             if not isinstance(attr, _core.Attr):
                 continue
             if attr.type == _enums.AttributeType.GRAPH:
-                yield from RecursiveNodeIterator(
+                yield from RecursiveGraphIterator(
                     attr.value,
                     self._enter_graph_handler,
                     self._exit_graph_handler,
@@ -70,7 +72,7 @@ class RecursiveNodeIterator(Iterator[_core.Node]):
                 )
             elif attr.type == _enums.AttributeType.GRAPHS:
                 for graph in attr.value:
-                    yield from RecursiveNodeIterator(
+                    yield from RecursiveGraphIterator(
                         graph,
                         self._enter_graph_handler,
                         self._exit_graph_handler,
@@ -79,7 +81,7 @@ class RecursiveNodeIterator(Iterator[_core.Node]):
                     )
 
     def __reversed__(self) -> Iterator[_core.Node]:
-        return RecursiveNodeIterator(
+        return RecursiveGraphIterator(
             self._graph,
             self._enter_graph_handler,
             self._exit_graph_handler,
