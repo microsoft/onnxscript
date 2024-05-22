@@ -70,9 +70,11 @@ __all__ = [
     "to_proto",
     # IR Tensor initializer
     "tensor",
+    # Pass infrastructure
+    "passes",
 ]
 
-from onnxscript.ir import serde
+from onnxscript.ir import passes, serde
 from onnxscript.ir._convenience import tensor
 from onnxscript.ir._core import (
     Attr,

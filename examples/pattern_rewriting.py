@@ -14,7 +14,7 @@ import onnx.helper as oh
 import onnx.numpy_helper as onh
 
 from onnxscript import ir
-from onnxscript.rewriter import generic_pattern
+from onnxscript.rewriter import pattern
 
 
 def get_rotary_model(bad_model=False):
@@ -99,9 +99,7 @@ def rotary_apply_pattern(op, x, pos_ids, axis):
 #
 # The rule is easy to create.
 
-rule = generic_pattern.make_pattern_rule(
-    rotary_match_pattern, rotary_apply_pattern, verbose=10
-)
+rule = pattern.RewriteRule(rotary_match_pattern, rotary_apply_pattern, verbose=10)
 
 ##########################
 # Let's apply it.
@@ -136,9 +134,7 @@ print([n.op_type for n in rewritten_model.graph.node])
 # The match did not happen.
 # Let's increase the verbosity.
 
-rule = generic_pattern.make_pattern_rule(
-    rotary_match_pattern, rotary_apply_pattern, verbose=10
-)
+rule = pattern.RewriteRule(rotary_match_pattern, rotary_apply_pattern, verbose=10)
 
 rule.apply_to_model(ir_model)
 

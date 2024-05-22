@@ -39,5 +39,5 @@ def rewrite(
         print(f"Applied {count} of general pattern rewrite rules.")
     model = ir.serde.serialize_model(model_ir)
     remove_unused.remove_unused_nodes(model)
-    remove_unused_function.remove_unused_functions(model)
+    model = remove_unused_function.remove_unused_functions(model)
     return model
