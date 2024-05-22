@@ -374,6 +374,10 @@ class IRFunction:
         for proto in functions:
             if proto.domain not in opsets:
                 opsets[proto.domain] = 1
+            # TODO(rama): Handle conflicts with appropriate error/warning message.
+            for opset in proto.opset_import:
+                if opset.domain not in opsets:
+                    opsets[opset.domain] = opset.version
 
         if "" not in opsets:
             # No operator is using the standard opset.
