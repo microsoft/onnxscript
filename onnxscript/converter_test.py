@@ -675,6 +675,24 @@ class TestConverter(testutils.TestBase):
         self.check_run(sum, [np.array(5, dtype=np.int64)], np.array(10, dtype=np.int64))
         self.check_run(sum, [np.array(-5, dtype=np.int64)], np.array(0, dtype=np.int64))
 
+    def test_function_opset_import(self):
+        """Test that model inherits opset version from the function."""
+        from onnxscript import opset19
+
+        @script()
+        def double(x):
+            return opset19.Add(x, x)
+
+        @script()
+        def model(x):
+            return double(x)
+
+        model_proto = model.to_model_proto()
+        onnx_opset_import = [opset for opset in model_proto.opset_import if opset.domain == ""]
+
+        self.assertEqual(len(onnx_opset_import), 1)
+        self.assertEqual(onnx_opset_import[0].version, 19)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

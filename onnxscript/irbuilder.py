@@ -370,13 +370,19 @@ class IRFunction:
         for n in self.stmts:
             if n.callee.opset.domain not in opsets:
                 opsets[n.callee.opset.domain] = n.callee.opset.version
+
+        for proto in functions:
+            if proto.domain not in opsets:
+                opsets[proto.domain] = 1
+            # TODO(rama): Handle conflicts with appropriate error/warning message.
+            for opset in proto.opset_import:
+                if opset.domain not in opsets:
+                    opsets[opset.domain] = opset.version
+
         if "" not in opsets:
             # No operator is using the standard opset.
             # A default value is given.
             opsets[""] = onnx_opset_version()
-        for proto in functions:
-            if proto.domain not in opsets:
-                opsets[proto.domain] = 1
 
         if "ir_version" not in kwargs:
             kwargs["ir_version"] = select_ir_version(opsets[""])
