@@ -54,7 +54,7 @@ class RecursiveGraphIterator(Iterator[_core.Node]):
         if self._enter_graph_handler is not None:
             self._enter_graph_handler(graph)
         iterable = reversed(graph) if self._reversed else graph
-        for node in iterable:
+        for node in iterable:  # type: ignore[union-attr]
             yield node
             if self._recursive is not None and not self._recursive(node):
                 continue
