@@ -6,23 +6,24 @@ __all__ = [
     "RecursiveGraphIterator",
 ]
 
-from typing import Callable, Iterator
+from typing import Callable, Iterator, Reversible
 
 from typing_extensions import Self
 
 from onnxscript.ir import _core, _enums
 
 
-class RecursiveGraphIterator(Iterator[_core.Node]):
+class RecursiveGraphIterator(Iterator[_core.Node], Reversible[_core.Node]):
     def __init__(
         self,
         graph: _core.Graph | _core.Function | _core.GraphView,
+        *,
         enter_graph_handler: Callable[[_core.Graph | _core.Function | _core.GraphView], None]
         | None = None,
         exit_graph_handler: Callable[[_core.Graph | _core.Function | _core.GraphView], None]
         | None = None,
         recursive: Callable[[_core.Node], bool] | None = None,
-        reversed: bool = False,
+        reverse: bool = False,
     ):
         """Iterate over the nodes in the graph, recursively visiting subgraphs.
 
@@ -32,13 +33,13 @@ class RecursiveGraphIterator(Iterator[_core.Node]):
             exit_graph_handler: A callback that is called when a subgraph is exited.
             recursive: A callback that determines whether to recursively visit a node. If
                 not provided, all nodes are visited.
-            reversed: Whether to iterate in reverse order.
+            reverse: Whether to iterate in reverse order.
         """
         self._graph = graph
         self._enter_graph_handler = enter_graph_handler
         self._exit_graph_handler = exit_graph_handler
         self._recursive = recursive
-        self._reversed = reversed
+        self._reverse = reverse
         self._iterator = self._recursive_node_iter(graph)
 
     def __iter__(self) -> Self:
@@ -53,7 +54,7 @@ class RecursiveGraphIterator(Iterator[_core.Node]):
     ) -> Iterator[_core.Node]:
         if self._enter_graph_handler is not None:
             self._enter_graph_handler(graph)
-        iterable = reversed(graph) if self._reversed else graph
+        iterable = reversed(graph) if self._reverse else graph
         for node in iterable:  # type: ignore[union-attr]
             yield node
             if self._recursive is not None and not self._recursive(node):
@@ -63,32 +64,36 @@ class RecursiveGraphIterator(Iterator[_core.Node]):
             self._exit_graph_handler(graph)
 
     def _iterate_subgraphs(self, node: _core.Node):
-        for attr in node.attributes.values():
+        iterator = (
+            reversed(node.attributes.values()) if self._reverse else node.attributes.values()
+        )
+        for attr in iterator:
             if not isinstance(attr, _core.Attr):
                 continue
             if attr.type == _enums.AttributeType.GRAPH:
                 yield from RecursiveGraphIterator(
                     attr.value,
-                    self._enter_graph_handler,
-                    self._exit_graph_handler,
-                    self._recursive,
-                    reversed=self._reversed,
+                    enter_graph_handler=self._enter_graph_handler,
+                    exit_graph_handler=self._exit_graph_handler,
+                    recursive=self._recursive,
+                    reverse=self._reverse,
                 )
             elif attr.type == _enums.AttributeType.GRAPHS:
-                for graph in attr.value:
+                graphs = reversed(attr.value) if self._reverse else attr.value
+                for graph in graphs:
                     yield from RecursiveGraphIterator(
                         graph,
-                        self._enter_graph_handler,
-                        self._exit_graph_handler,
-                        self._recursive,
-                        reversed=self._reversed,
+                        enter_graph_handler=self._enter_graph_handler,
+                        exit_graph_handler=self._exit_graph_handler,
+                        recursive=self._recursive,
+                        reverse=self._reverse,
                     )
 
     def __reversed__(self) -> Iterator[_core.Node]:
         return RecursiveGraphIterator(
             self._graph,
-            self._enter_graph_handler,
-            self._exit_graph_handler,
-            self._recursive,
-            reversed=not self._reversed,
+            enter_graph_handler=self._enter_graph_handler,
+            exit_graph_handler=self._exit_graph_handler,
+            recursive=self._recursive,
+            reverse=not self._reverse,
         )
