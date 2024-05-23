@@ -62,7 +62,7 @@ class TensorTest(unittest.TestCase):
         array = np.array([0b1, 0b11], dtype=np_dtype)
         tensor = _core.Tensor(array, dtype=dtype)
         self.assertEqual(tensor.dtype, dtype)
-        np.testing.assert_array_equal(tensor, array)
+        np.testing.assert_array_equal(tensor, array.view(dtype.numpy()))
 
     def test_initialize_with_just_np_array(self):
         array = np.random.rand(1, 2)
