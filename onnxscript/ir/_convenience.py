@@ -315,7 +315,7 @@ def tensor(
         >>> import numpy as np
         >>> import ml_dtypes
         >>> import onnx
-        >>> ir.tensor(np.array([1, 2, 3]))
+        >>> ir.tensor(np.array([1, 2, 3], dtype=np.int64))
         Tensor<INT64,[3]>(array([1, 2, 3]), name=None)
         >>> ir.tensor([1, 2, 3], dtype=ir.DataType.BFLOAT16)
         Tensor<BFLOAT16,[3]>(array([1, 2, 3], dtype=bfloat16), name=None)
