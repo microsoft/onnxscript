@@ -13,6 +13,16 @@ from onnxscript import ir
 logger = logging.getLogger(__name__)
 
 
+def _clean_up_unused_functions(model: ir.Model, unused: set[ir.OperatorIdentifier]) -> None:
+    """Removes unused functions from the model."""
+    for op_identifier in unused:
+        del model.functions[op_identifier]
+
+    logger.info("Removed %s unused functions", len(unused))
+    logger.debug("Functions left: %s", list(model.functions))
+    logger.debug("Functions removed: %s", unused)
+
+
 class UnusedFunctionRemover(ir.passes.PassBase):
     def __init__(self):
         super().__init__()
@@ -20,21 +30,15 @@ class UnusedFunctionRemover(ir.passes.PassBase):
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         for node in ir.traversal.RecursiveGraphIterator(model.graph):
-            self.call_node(model, node)
+            self._call_node(model, node)
 
         # Update the model to remove unused functions
         unused = set(model.functions) - self.used
         if not unused:
             logger.info("No unused functions to remove")
             return ir.passes.PassResult(model, modified=False)
-        for op_identifier in unused:
-            if op_identifier not in self.used:
-                del model.functions[op_identifier]
 
-        logger.info("Removed %s unused functions", len(unused))
-        logger.debug("Functions left: %s", list(model.functions))
-        logger.debug("Functions removed: %s", unused)
-
+        _clean_up_unused_functions(model, unused)
         return ir.passes.PassResult(model, modified=True)
 
     def _call_function(self, model: ir.Model, function: ir.Function) -> None:
@@ -43,9 +47,9 @@ class UnusedFunctionRemover(ir.passes.PassBase):
             return
         self.used.add(function.identifier())
         for node in ir.traversal.RecursiveGraphIterator(function):
-            self.call_node(model, node)
+            self._call_node(model, node)
 
-    def call_node(self, model: ir.Model, node: ir.Node) -> None:
+    def _call_node(self, model: ir.Model, node: ir.Node) -> None:
         op_identifier = node.op_identifier()
         if op_identifier in model.functions:
             self._call_function(model, model.functions[op_identifier])
