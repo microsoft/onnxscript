@@ -63,7 +63,8 @@ def check_if_not_need_reshape(
     # 1. Check if input shapes are broadcastable
     # 1.a. If the first input is 1-D, check whether
     # the dim matches the last second dim of the second input.
-    mimic_matmul_broadcast_behavior = False
+    mimic_matmul_broadcast_behavior_a = False
+    mimic_matmul_broadcast_behavior_b = False
     if a_rank < 2:
         if b_rank < 2:
             logger.info("Optimization of dot product is not supported yet.")
@@ -74,7 +75,7 @@ def check_if_not_need_reshape(
         else:
             input_a_shape = [1, *input_a_shape]  # type: ignore[assignment]
             a_rank = len(input_a_shape)
-            mimic_matmul_broadcast_behavior = True
+            mimic_matmul_broadcast_behavior_a = True
     # 1.b. If the second input is 1-D, check whether
     # the dim matches the last dim of the first input.
     if b_rank < 2:
@@ -84,7 +85,7 @@ def check_if_not_need_reshape(
         else:
             input_b_shape = [*input_b_shape, 1]  # type: ignore[assignment]
             b_rank = len(input_b_shape)
-            mimic_matmul_broadcast_behavior = True
+            mimic_matmul_broadcast_behavior_b = True
     # 1.c. If both inputs are at least 2-D, check whether
     # the last dimension of the first input matches the second
     # last dimension of the second input, and shape[:-2] are
@@ -119,10 +120,10 @@ def check_if_not_need_reshape(
         *longer_shape[: -len(shorter_shape)],
         *broadcast_matmul_output_shape,
     ]
-    if mimic_matmul_broadcast_behavior and b_rank == 2 and input_b_shape[-1] == 1:
+    if mimic_matmul_broadcast_behavior_b and b_rank == 2 and input_b_shape[-1] == 1:
         # If input_b is expanded to 2-D, then we need to remove the last dimension
         broadcast_matmul_output_shape = broadcast_matmul_output_shape[:-1]
-    if mimic_matmul_broadcast_behavior and a_rank == 2 and input_a_shape[0] == 1:
+    if mimic_matmul_broadcast_behavior_a and a_rank == 2 and input_a_shape[0] == 1:
         # If input_a is expanded to 2-D, then we need to remove the first dimension
         # of input_a, which would be the -2nd dimension of the output shape.
         broadcast_matmul_output_shape.pop(-2)
