@@ -367,7 +367,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
 
         # View the bfloat16, float8 and int4 types using ml_dtypes
         if isinstance(value, np.ndarray):
-            value = _maybe_view_np_array_with_ml_dtypes(value, self._dtype)
+            value = _maybe_view_np_array_with_ml_dtypes(value, self._dtype)  # type: ignore[assignment]
 
         self._raw = value
         self.name = name
