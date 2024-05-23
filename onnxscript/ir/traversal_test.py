@@ -1,8 +1,9 @@
 import unittest
 
+import parameterized
+
 from onnxscript import ir
 from onnxscript.ir import traversal
-import parameterized
 
 
 class RecursiveGraphIteratorTest(unittest.TestCase):
