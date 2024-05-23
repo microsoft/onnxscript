@@ -16,9 +16,11 @@ from onnxscript.ir import _core, _enums
 class RecursiveGraphIterator(Iterator[_core.Node]):
     def __init__(
         self,
-        graph: _core.Graph | _core.Function,
-        enter_graph_handler: Callable[[_core.Graph | _core.Function], None] | None = None,
-        exit_graph_handler: Callable[[_core.Graph | _core.Function], None] | None = None,
+        graph: _core.Graph | _core.Function | _core.GraphView,
+        enter_graph_handler: Callable[[_core.Graph | _core.Function | _core.GraphView], None]
+        | None = None,
+        exit_graph_handler: Callable[[_core.Graph | _core.Function | _core.GraphView], None]
+        | None = None,
         recursive: Callable[[_core.Node], bool] | None = None,
         reversed: bool = False,
     ):
@@ -36,7 +38,6 @@ class RecursiveGraphIterator(Iterator[_core.Node]):
         self._enter_graph_handler = enter_graph_handler
         self._exit_graph_handler = exit_graph_handler
         self._recursive = recursive
-        self._subgraph_stack = []
         self._reversed = reversed
         self._iterator = self._recursive_node_iter(graph)
 
@@ -47,7 +48,9 @@ class RecursiveGraphIterator(Iterator[_core.Node]):
     def __next__(self) -> _core.Node:
         return next(self._iterator)
 
-    def _recursive_node_iter(self, graph: _core.Graph | _core.Function) -> Iterator[_core.Node]:
+    def _recursive_node_iter(
+        self, graph: _core.Graph | _core.Function | _core.GraphView
+    ) -> Iterator[_core.Node]:
         if self._enter_graph_handler is not None:
             self._enter_graph_handler(graph)
         iterable = reversed(graph) if self._reversed else graph
