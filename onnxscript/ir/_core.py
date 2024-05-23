@@ -230,6 +230,35 @@ def _check_numpy_representation_type(array: np.ndarray, dtype: _enums.DataType) 
         )
 
 
+def _maybe_view_np_array_with_ml_dtypes(
+    array: np.ndarray, dtype: _enums.DataType
+) -> np.ndarray:
+    """Reinterpret the array when it is a bit representation of a dtype not supported by numpy.
+
+    Args:
+        array: The numpy array to reinterpret.
+        dtype: The data type to reinterpret the array as.
+
+    Returns:
+        The array reinterpreted as the dtype.
+    """
+    if dtype == _enums.DataType.BFLOAT16:
+        return array.view(ml_dtypes.bfloat16)
+    if dtype == _enums.DataType.FLOAT8E4M3FN:
+        return array.view(ml_dtypes.float8_e4m3fn)
+    if dtype == _enums.DataType.FLOAT8E4M3FNUZ:
+        return array.view(ml_dtypes.float8_e4m3fnuz)
+    if dtype == _enums.DataType.FLOAT8E5M2:
+        return array.view(ml_dtypes.float8_e5m2)
+    if dtype == _enums.DataType.FLOAT8E5M2FNUZ:
+        return array.view(ml_dtypes.float8_e5m2fnuz)
+    if dtype == _enums.DataType.INT4:
+        return array.view(ml_dtypes.int4)
+    if dtype == _enums.DataType.UINT4:
+        return array.view(ml_dtypes.uint4)
+    return array
+
+
 class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):  # pylint: disable=too-many-ancestors
     """An immutable concrete tensor.
 
@@ -335,6 +364,11 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             # Users are responsible for making sure the dtype matches the value
             # when value is not a numpy array
             self._dtype = dtype
+
+        # View the bfloat16, float8 and int4 types using ml_dtypes
+        if isinstance(value, np.ndarray):
+            value = _maybe_view_np_array_with_ml_dtypes(value, self._dtype)
+
         self._raw = value
         self.name = name
         self.doc_string = doc_string
