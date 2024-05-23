@@ -567,7 +567,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         dt = np.dtype(self.dtype.numpy()).newbyteorder("<")
         if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
             # Use uint8 to read in the full byte. Otherwise ml_dtypes.int4 will clip the values
-            dt = np.uint8
+            dt = np.dtype(np.uint8).newbyteorder("<")
             count = self.size // 2 + self.size % 2
         else:
             count = self.size
