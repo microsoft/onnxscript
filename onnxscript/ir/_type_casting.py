@@ -87,18 +87,3 @@ def unpack_int4(
     """
     unpacked = _unpack_uint4_as_uint8(data, dims)
     return _extend_int4_sign_bits(unpacked).view(ml_dtypes.int4)
-
-
-def float32_to_bfloat16(array: npt.NDArray[np.float32]) -> npt.NDArray[np.uint16]:
-    """Convert a numpy array to uint16 representation of bfloat16."""
-    bfloat16_array = array.astype(np.float32).view(np.uint32)
-    # Drop bottom 16-bits
-    # Round remaining bits using round-to-nearest-even
-    rounded = bfloat16_array >> 16
-    rounded &= 1
-    rounded += 0x7FFF
-    bfloat16_array += rounded  # type: ignore[arg-type]
-    bfloat16_array >>= 16
-    # NaN requires at least 1 significant bit set
-    bfloat16_array[np.isnan(array)] = 0x7FC0  # sign=0, exp=all-ones, sig=0b1000000
-    return bfloat16_array.astype(np.uint16)
