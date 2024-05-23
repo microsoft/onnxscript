@@ -50,7 +50,10 @@ class RecursiveGraphIteratorTest(unittest.TestCase):
         ]
     )
     def test_recursive_graph_iterator(self, _: str, reverse: bool, expected: tuple[str, ...]):
-        nodes = list(traversal.RecursiveGraphIterator(self.graph, reverse=reverse))
+        iterator = traversal.RecursiveGraphIterator(self.graph)
+        if reverse:
+            iterator = reversed(iterator)
+        nodes = list(iterator)
         self.assertEqual(tuple(node.op_type for node in nodes), expected)
 
     @parameterized.parameterized.expand(
