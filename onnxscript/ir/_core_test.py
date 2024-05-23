@@ -74,6 +74,11 @@ class TensorTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             _core.Tensor(array, dtype=ir.DataType.INT64)
 
+    def test_initialize_supports_custom_dtype(self):
+        custom_dtype = np.dtype((np.uint8, {"e4m3fn": (np.uint8, 0)}))
+        array = np.random.rand(1, 2).astype(custom_dtype)
+        _core.Tensor(array, dtype=ir.DataType.FLOAT8E4M3FN)
+
     def test_initialize_raises_when_numpy_dtype_doesnt_match_custom_dtype(self):
         custom_dtype = np.dtype((np.uint8, {"e4m3fn": (np.uint8, 0)}))
         array = np.random.rand(1, 2).astype(custom_dtype)
@@ -134,8 +139,22 @@ class TensorTest(unittest.TestCase):
         tensor = _core.Tensor(array, dtype=ir.DataType.INT4)
         self.assertEqual(tensor.tobytes(), b"\xf8\x10r\x01")
 
+    def test_tobtyes_returns_packed_data_for_int4_ml_dtypes(self):
+        array = np.array([-8, -1, 0, 1, 2, 7, 1], dtype=ml_dtypes.int4)
+        # Test odd sized array
+        assert len(array) % 2 == 1
+        tensor = _core.Tensor(array, dtype=ir.DataType.INT4)
+        self.assertEqual(tensor.tobytes(), b"\xf8\x10r\x01")
+
     def test_tobtyes_returns_packed_data_for_uint4(self):
         array = np.array([0, 1, 2, 7, 15], dtype=np.uint8)
+        # Test odd sized array
+        assert len(array) % 2 == 1
+        tensor = _core.Tensor(array, dtype=ir.DataType.UINT4)
+        self.assertEqual(tensor.tobytes(), b"\x10r\x0f")
+
+    def test_tobtyes_returns_packed_data_for_uint4_ml_dtypes(self):
+        array = np.array([0, 1, 2, 7, 15], dtype=ml_dtypes.uint4)
         # Test odd sized array
         assert len(array) % 2 == 1
         tensor = _core.Tensor(array, dtype=ir.DataType.UINT4)
@@ -339,7 +358,7 @@ class ExternalTensorTest(unittest.TestCase):
         ]
     )
     def test_external_tensor_int(self, _: str, dtype: ir.DataType):
-        expected_array = np.array([[-1, 0, 1, 7]]).astype(dtype.numpy())
+        expected_array = np.array([[-8, 0, 1, 7]]).astype(dtype.numpy())
         tensor_proto = ir.serde.serialize_tensor(ir.Tensor(expected_array, dtype=dtype))
         with tempfile.TemporaryDirectory() as temp_dir:
             _to_external_tensor(tensor_proto, temp_dir, "tensor.bin")
@@ -359,7 +378,7 @@ class ExternalTensorTest(unittest.TestCase):
         ]
     )
     def test_external_tensor_uint(self, _: str, dtype: ir.DataType):
-        expected_array = np.array([[0, 1, 8]]).astype(dtype.numpy())
+        expected_array = np.array([[0, 1, 15]]).astype(dtype.numpy())
         tensor_proto = ir.serde.serialize_tensor(ir.Tensor(expected_array, dtype=dtype))
         with tempfile.TemporaryDirectory() as temp_dir:
             _to_external_tensor(tensor_proto, temp_dir, "tensor.bin")
