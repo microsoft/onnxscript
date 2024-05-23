@@ -18,35 +18,39 @@ class UnusedFunctionRemover(ir.passes.PassBase):
         super().__init__()
         self.used: set[ir.OperatorIdentifier] = set()
 
-    def _call_function(self, function: ir.Function) -> None:
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        for node in ir.traversal.RecursiveGraphIterator(model.graph):
+            self.call_node(model, node)
+
+        # Update the model to remove unused functions
+        unused = set(model.functions) - self.used
+        if not unused:
+            logger.info("No unused functions to remove")
+            return ir.passes.PassResult(model, modified=False)
+        for op_identifier in unused:
+            if op_identifier not in self.used:
+                del model.functions[op_identifier]
+
+        logger.info("Removed %s unused functions", len(unused))
+        logger.debug("Functions left: %s", list(model.functions))
+        logger.debug("Functions removed: %s", unused)
+
+        return ir.passes.PassResult(model, modified=True)
+
+    def _call_function(self, model: ir.Model, function: ir.Function) -> None:
         if function.identifier() in self.used:
             # The function and its nodes are already recorded as used
             return
         self.used.add(function.identifier())
         for node in ir.traversal.RecursiveGraphIterator(function):
-            self.call_node_recursive(node)
+            self.call_node(model, node)
 
-    def call_node(self, node: ir.Node) -> None:
+    def call_node(self, model: ir.Model, node: ir.Node) -> None:
         op_identifier = node.op_identifier()
-        if op_identifier in self.model.functions:
-            self._call_function(self.model.functions[op_identifier])
+        if op_identifier in model.functions:
+            self._call_function(model, model.functions[op_identifier])
         else:
             self.used.add(op_identifier)
-
-    def exit_pass(self) -> None:
-        # Update the model to remove unused functions
-        unused = set(self.model.functions) - self.used
-        if not unused:
-            logger.info("No unused functions to remove")
-            self.modified = False
-            return
-        for op_identifier in unused:
-            if op_identifier not in self.used:
-                del self.model.functions[op_identifier]
-        self.modified = True
-        logger.info("Removed %s unused functions", len(unused))
-        logger.debug("Functions left: %s", list(self.model.functions))
-        logger.debug("Functions removed: %s", unused)
 
 
 def remove_unused_functions(model_proto: onnx.ModelProto) -> onnx.ModelProto:

@@ -16,9 +16,9 @@ from onnxscript.ir import _core, _enums
 class RecursiveGraphIterator(Iterator[_core.Node]):
     def __init__(
         self,
-        graph: _core.Graph,
-        enter_graph_handler: Callable[[_core.Graph], None] | None = None,
-        exit_graph_handler: Callable[[_core.Graph], None] | None = None,
+        graph: _core.Graph | _core.Function,
+        enter_graph_handler: Callable[[_core.Graph | _core.Function], None] | None = None,
+        exit_graph_handler: Callable[[_core.Graph | _core.Function], None] | None = None,
         recursive: Callable[[_core.Node], bool] | None = None,
         reversed: bool = False,
     ):
@@ -28,7 +28,8 @@ class RecursiveGraphIterator(Iterator[_core.Node]):
             graph: The graph to traverse.
             enter_graph_handler: A callback that is called when a subgraph is entered.
             exit_graph_handler: A callback that is called when a subgraph is exited.
-            recursive: A callback that determines whether to recursively visit a node.
+            recursive: A callback that determines whether to recursively visit a node. If
+                not provided, all nodes are visited.
             reversed: Whether to iterate in reverse order.
         """
         self._graph = graph
@@ -46,7 +47,7 @@ class RecursiveGraphIterator(Iterator[_core.Node]):
     def __next__(self) -> _core.Node:
         return next(self._iterator)
 
-    def _recursive_node_iter(self, graph: _core.Graph) -> Iterator[_core.Node]:
+    def _recursive_node_iter(self, graph: _core.Graph | _core.Function) -> Iterator[_core.Node]:
         if self._enter_graph_handler is not None:
             self._enter_graph_handler(graph)
         iterable = reversed(graph) if self._reversed else graph
