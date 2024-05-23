@@ -58,54 +58,6 @@ class RecursiveGraphIteratorTest(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         [
-            ("forward", False, ["main_graph", "then_graph", "else_graph"]),
-            ("reversed", True, ["main_graph", "else_graph", "then_graph"]),
-        ]
-    )
-    def test_recursive_graph_iterator_enter_graph_handler(
-        self, _: str, reverse: bool, expected: list[str]
-    ):
-        scopes = []
-
-        def enter_graph_handler(graph):
-            scopes.append(graph.name)
-
-        for __ in traversal.RecursiveGraphIterator(
-            self.graph, enter_graph_handler=enter_graph_handler, reverse=reverse
-        ):
-            pass
-        self.assertEqual(scopes, expected)
-
-    @parameterized.parameterized.expand(
-        [
-            (
-                "forward",
-                False,
-                [
-                    "then_graph",
-                    "else_graph",
-                    "main_graph",
-                ],
-            ),
-            ("reversed", True, ["else_graph", "then_graph", "main_graph"]),
-        ]
-    )
-    def test_recursive_graph_iterator_exit_graph_handler(
-        self, _: str, reverse: bool, expected: list[str]
-    ):
-        scopes = []
-
-        def exit_graph_handler(graph):
-            scopes.append(graph.name)
-
-        for __ in traversal.RecursiveGraphIterator(
-            self.graph, exit_graph_handler=exit_graph_handler, reverse=reverse
-        ):
-            pass
-        self.assertEqual(scopes, expected)
-
-    @parameterized.parameterized.expand(
-        [
             ("forward", False, ("Node1", "Node2", "If")),
             ("reversed", True, ("If", "Node2", "Node1")),
         ]

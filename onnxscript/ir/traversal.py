@@ -18,10 +18,6 @@ class RecursiveGraphIterator(Iterator[_core.Node], Reversible[_core.Node]):
         self,
         graph: _core.Graph | _core.Function | _core.GraphView,
         *,
-        enter_graph_handler: Callable[[_core.Graph | _core.Function | _core.GraphView], None]
-        | None = None,
-        exit_graph_handler: Callable[[_core.Graph | _core.Function | _core.GraphView], None]
-        | None = None,
         recursive: Callable[[_core.Node], bool] | None = None,
         reverse: bool = False,
     ):
@@ -31,13 +27,11 @@ class RecursiveGraphIterator(Iterator[_core.Node], Reversible[_core.Node]):
             graph: The graph to traverse.
             enter_graph_handler: A callback that is called when a subgraph is entered.
             exit_graph_handler: A callback that is called when a subgraph is exited.
-            recursive: A callback that determines whether to recursively visit a node. If
-                not provided, all nodes are visited.
+            recursive: A callback that determines whether to recursively visit the subgraphs
+                contained in a node. If not provided, all nodes in subgraphs are visited.
             reverse: Whether to iterate in reverse order.
         """
         self._graph = graph
-        self._enter_graph_handler = enter_graph_handler
-        self._exit_graph_handler = exit_graph_handler
         self._recursive = recursive
         self._reverse = reverse
         self._iterator = self._recursive_node_iter(graph)
@@ -52,16 +46,12 @@ class RecursiveGraphIterator(Iterator[_core.Node], Reversible[_core.Node]):
     def _recursive_node_iter(
         self, graph: _core.Graph | _core.Function | _core.GraphView
     ) -> Iterator[_core.Node]:
-        if self._enter_graph_handler is not None:
-            self._enter_graph_handler(graph)
         iterable = reversed(graph) if self._reverse else graph
         for node in iterable:  # type: ignore[union-attr]
             yield node
             if self._recursive is not None and not self._recursive(node):
                 continue
             yield from self._iterate_subgraphs(node)
-        if self._exit_graph_handler is not None:
-            self._exit_graph_handler(graph)
 
     def _iterate_subgraphs(self, node: _core.Node):
         iterator = (
@@ -73,8 +63,6 @@ class RecursiveGraphIterator(Iterator[_core.Node], Reversible[_core.Node]):
             if attr.type == _enums.AttributeType.GRAPH:
                 yield from RecursiveGraphIterator(
                     attr.value,
-                    enter_graph_handler=self._enter_graph_handler,
-                    exit_graph_handler=self._exit_graph_handler,
                     recursive=self._recursive,
                     reverse=self._reverse,
                 )
@@ -83,8 +71,6 @@ class RecursiveGraphIterator(Iterator[_core.Node], Reversible[_core.Node]):
                 for graph in graphs:
                     yield from RecursiveGraphIterator(
                         graph,
-                        enter_graph_handler=self._enter_graph_handler,
-                        exit_graph_handler=self._exit_graph_handler,
                         recursive=self._recursive,
                         reverse=self._reverse,
                     )
@@ -92,8 +78,6 @@ class RecursiveGraphIterator(Iterator[_core.Node], Reversible[_core.Node]):
     def __reversed__(self) -> Iterator[_core.Node]:
         return RecursiveGraphIterator(
             self._graph,
-            enter_graph_handler=self._enter_graph_handler,
-            exit_graph_handler=self._exit_graph_handler,
             recursive=self._recursive,
             reverse=not self._reverse,
         )
