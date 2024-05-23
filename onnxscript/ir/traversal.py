@@ -25,8 +25,6 @@ class RecursiveGraphIterator(Iterator[_core.Node], Reversible[_core.Node]):
 
         Args:
             graph: The graph to traverse.
-            enter_graph_handler: A callback that is called when a subgraph is entered.
-            exit_graph_handler: A callback that is called when a subgraph is exited.
             recursive: A callback that determines whether to recursively visit the subgraphs
                 contained in a node. If not provided, all nodes in subgraphs are visited.
             reverse: Whether to iterate in reverse order.
