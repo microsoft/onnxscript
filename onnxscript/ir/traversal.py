@@ -56,10 +56,7 @@ class RecursiveGraphIterator(Iterator[_core.Node], Reversible[_core.Node]):
             yield from self._iterate_subgraphs(node)
 
     def _iterate_subgraphs(self, node: _core.Node):
-        iterator = (
-            reversed(node.attributes.values()) if self._reverse else node.attributes.values()
-        )
-        for attr in iterator:
+        for attr in node.attributes.values():
             if not isinstance(attr, _core.Attr):
                 continue
             if attr.type == _enums.AttributeType.GRAPH:

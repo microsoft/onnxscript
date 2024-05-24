@@ -52,7 +52,7 @@ class RecursiveGraphIteratorTest(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
             ("forward", False, ("Node1", "Node2", "If", "Node3", "Node4", "Node5", "Node6")),
-            ("reversed", True, ("If", "Node6", "Node5", "Node4", "Node3", "Node2", "Node1")),
+            ("reversed", True, ("If", "Node4", "Node3", "Node6", "Node5", "Node2", "Node1")),
         ]
     )
     def test_recursive_graph_iterator(self, _: str, reverse: bool, expected: tuple[str, ...]):
