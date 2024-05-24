@@ -21,7 +21,6 @@ import logging
 from typing import Sequence
 
 __all__ = [
-    "NodeTransformer",
     "PassBase",
     "PassManager",
     "PassResult",
@@ -98,87 +97,6 @@ class PassBase(abc.ABC):
         This is optional to implement, will be called after call() if run by a pass manager.
         """
         del model  # Unused
-
-
-class NodeTransformer(PassBase):
-    """NodeTransformer for the ONNX IR.
-
-    An NodeTransformer is a pass that traverses the IR and performs some
-    operation on the nodes. The operation can be anything, such as
-    checking invariants, transforming the IR, or generating code.
-
-    By default, the NodeTransformer updates the model in place.
-
-    .. warning::
-        Users should not depend on this class before the warning is removed, because it is not stable.
-
-    Attributes:
-        model: ir.Model: The model being interpreted.
-        scope (list[ir.Graph]): The current graph the NodeTransformer is running on.
-        reversed (bool): Whether to traverse the graph in reverse order.
-        modified (bool): Whether the model was modified.
-    """
-
-    def __init__(self, reversed: bool = False):
-        self._model: ir.Model | None = None
-        self.scope: list[ir.Graph] = []
-        self.reversed = reversed
-        self.modified: bool | None = None
-
-    @property
-    def model(self) -> ir.Model:
-        """Return the model being interpreted."""
-        if self._model is None:
-            raise ValueError("Model is not set. The model is set during the pass execution.")
-        return self._model
-
-    def call(self, model: ir.Model) -> PassResult:
-        self._model = model
-        self.enter_pass()
-        self._call_graph(self._model.graph)
-        self.exit_pass()
-        if self.modified is None:
-            raise PassError("The modified attribute was not set. Please set it in the pass.")
-        return PassResult(self._model, self.modified)
-
-    def _call_graph(self, graph: ir.Graph):
-        self.enter_graph(graph)
-        self.scope.append(graph)
-        iterable = reversed(graph) if self.reversed else graph
-        for node in iterable:
-            self.call_node_recursive(node)
-        self.exit_graph(graph)
-        self.scope.pop()
-
-    def call_node_recursive(self, node: ir.Node):
-        self.call_node(node)
-        for attr in node.attributes.values():
-            if not isinstance(attr, ir.Attr):
-                continue
-            if attr.type == ir.AttributeType.GRAPH:
-                self._call_graph(attr.value)
-            elif attr.type == ir.AttributeType.GRAPHS:
-                for graph in attr.value:
-                    self._call_graph(graph)
-
-    def enter_pass(self):
-        """Called when entering the pass. Optional to implement."""
-
-    def exit_pass(self):
-        """Called when exiting the pass. Optional to implement."""
-
-    def enter_graph(self, graph: ir.Graph):
-        """Called when entering a graph. Optional to implement."""
-        del graph  # Unused
-
-    def exit_graph(self, graph: ir.Graph):
-        """Called when exiting a graph. Optional to implement."""
-        del graph  # Unused
-
-    @abc.abstractmethod
-    def call_node(self, node: ir.Node):
-        """Called when visiting a node."""
-        ...
 
 
 class PassManager:
