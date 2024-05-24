@@ -23,7 +23,6 @@ beartype!=0.16.0
 # Testing
 expecttest==0.1.6
 hypothesis
-ml_dtypes
 parameterized
 pyinstrument
 pytest-cov
