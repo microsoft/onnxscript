@@ -15,6 +15,7 @@ def _load_boolean_flag(
     *,
     this_will: str,
     deprecated: bool = False,
+    default: bool = False,
 ) -> bool:
     """Load a boolean flag from environment variable.
 
@@ -22,7 +23,9 @@ def _load_boolean_flag(
         name: The name of the environment variable.
         this_will: A string that describes what this flag will do.
         deprecated: Whether this flag is deprecated.
+        default: The default value if envvar not defined.
     """
+    undefined = os.getenv(name) is None
     state = os.getenv(name) == "1"
     if state:
         if deprecated:
@@ -32,6 +35,8 @@ def _load_boolean_flag(
             )
         else:
             logger.warning("Experimental flag %s is enabled. This will %s.", name, this_will)
+    if undefined:
+        state = default
     return state
 
 
@@ -42,6 +47,7 @@ EXPERIMENTAL_INITIALIZERS_AS_INPUTS: bool = _load_boolean_flag(
 EXPERIMENTAL_PREFER_TRACING: bool = _load_boolean_flag(
     "TORCHLIB_EXPERIMENTAL_PREFER_TRACING",
     this_will="trace all traceable functions to fold if branches and collapse constant expressions",
+    default=True,
 )
 EXPERIMENTAL_USE_IR: bool = _load_boolean_flag(
     "TORCHLIB_EXPERIMENTAL_USE_IR",
