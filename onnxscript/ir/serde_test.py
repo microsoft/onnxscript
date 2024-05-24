@@ -103,7 +103,9 @@ class TensorProtoTensorTest(unittest.TestCase):
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
         # Test dlpack
-        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
+        with self.assertRaises(BufferError):
+            # NumPy does not support bfloat16 in from_dlpack
+            np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(
         [
@@ -150,7 +152,9 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
         # Test dlpack
-        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
+        with self.assertRaises(BufferError):
+            # DL Pack does not support float8
+            np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(
         [
@@ -177,6 +181,8 @@ class TensorProtoTensorTest(unittest.TestCase):
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
         # Test dlpack
+        if dtype == onnx.TensorProto.INT4:
+            return  # DL Pack does not support int4
         np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(
@@ -202,6 +208,8 @@ class TensorProtoTensorTest(unittest.TestCase):
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
         # Test dlpack
+        if dtype == onnx.TensorProto.UINT4:
+            return  # DL Pack does not support uint4
         np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(

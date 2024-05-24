@@ -11,7 +11,7 @@ import onnx.reference
 import onnxruntime as ort
 
 from onnxscript import ir
-from onnxscript.rewriter import generic_pattern
+from onnxscript.rewriter import generic_pattern, pattern
 
 FLOAT = onnx.TensorProto.FLOAT
 
@@ -41,8 +41,11 @@ class GenericPatternTest(unittest.TestCase):
             del context
             return True
 
-        rule = generic_pattern.make_pattern_rule(
-            match_pattern, apply_pattern, validate_mapping
+        rule = pattern.RewriteRule(
+            match_pattern,
+            apply_pattern,
+            validate_mapping,
+            generic_pattern.GenericPatternMatcher,
         )
 
         class AddAdd(onnx.reference.op_run.OpRun):
@@ -118,8 +121,12 @@ class GenericPatternTest(unittest.TestCase):
         def validate_mapping(context, **_) -> bool:
             return True
 
-        rule = generic_pattern.make_pattern_rule(
-            match_pattern, apply_pattern, validate_mapping, verbose=10
+        rule = pattern.RewriteRule(
+            match_pattern,
+            apply_pattern,
+            validate_mapping,
+            generic_pattern.GenericPatternMatcher,
+            verbose=10,
         )
 
         class AddAddAddAdd(onnx.reference.op_run.OpRun):
@@ -284,8 +291,12 @@ class GenericPatternTest(unittest.TestCase):
                 outputs=2,
             )
 
-        rule = generic_pattern.make_pattern_rule(
-            match_pattern, apply_pattern, validate_mapping, verbose=10
+        rule = pattern.RewriteRule(
+            match_pattern,
+            apply_pattern,
+            validate_mapping,
+            generic_pattern.GenericPatternMatcher,
+            verbose=10,
         )
 
         model = self.get_rotary_model()
@@ -345,10 +356,11 @@ class GenericPatternTest(unittest.TestCase):
             )
             return part1, part2
 
-        rule = generic_pattern.make_pattern_rule(
+        rule = pattern.RewriteRule(
             rotary_match_pattern,
             rotary_apply_pattern,
             validate_rotary_mapping,
+            generic_pattern.GenericPatternMatcher,
             verbose=10,
         )
 
@@ -416,10 +428,11 @@ class GenericPatternTest(unittest.TestCase):
         model = onnx.shape_inference.infer_shapes(model)
         ir_model = ir.serde.deserialize_model(model)
 
-        rule = generic_pattern.make_pattern_rule(
+        rule = pattern.RewriteRule(
             rotary_match_pattern,
             rotary_apply_pattern,
             validate_rotary_mapping,
+            generic_pattern.GenericPatternMatcher,
             verbose=10,
         )
 
@@ -472,10 +485,11 @@ class GenericPatternTest(unittest.TestCase):
             composed_perm = transpose_transpose_mapping(perm0, perm1)
             return op.Transpose(X, perm=composed_perm)
 
-        rule = generic_pattern.make_pattern_rule(
+        rule = pattern.RewriteRule(
             transpose_transpose_pattern,
             transpose_transpose_apply_pattern,
             transpose_transpose_check,
+            generic_pattern.GenericPatternMatcher,
             verbose=0,
         )
 
