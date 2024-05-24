@@ -5,12 +5,16 @@
 from __future__ import annotations
 
 import logging
+from typing import TypeVar
 
 import onnx
 
 from onnxscript import ir
 
 logger = logging.getLogger(__name__)
+
+
+TModel = TypeVar("TModel", ir.Model, onnx.ModelProto)
 
 
 def _clean_up_unused_functions(model: ir.Model, unused: set[ir.OperatorIdentifier]) -> None:
@@ -59,11 +63,12 @@ class RemoveUnusedFunctionPass(ir.passes.PassBase):
         self._call_function(model, model.functions[op_identifier])
 
 
-def remove_unused_functions(model_proto: onnx.ModelProto) -> onnx.ModelProto:
+def remove_unused_functions(model: TModel) -> TModel:
     """Removes unused function protos from the model."""
 
-    model = ir.serde.deserialize_model(model_proto)
-    result = RemoveUnusedFunctionPass()(model)
-    model_proto = ir.serde.serialize_model(result.model)
+    if isinstance(model, ir.Model):
+        return RemoveUnusedFunctionPass()(model).model
 
-    return model_proto
+    model_ = ir.serde.deserialize_model(model)
+    result = RemoveUnusedFunctionPass()(model_)
+    return ir.serde.serialize_model(result.model)
