@@ -67,7 +67,7 @@ def remove_unused_functions(model: TModel) -> TModel:
     """Removes unused function protos from the model."""
 
     if isinstance(model, ir.Model):
-        return RemoveUnusedFunctionPass()(model).model
+        return RemoveUnusedFunctionPass()(model).model  # type: ignore[return-value]
 
     model_ = ir.serde.deserialize_model(model)
     result = RemoveUnusedFunctionPass()(model_)
