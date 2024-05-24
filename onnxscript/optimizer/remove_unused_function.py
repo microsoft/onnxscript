@@ -26,9 +26,10 @@ def _clean_up_unused_functions(model: ir.Model, unused: set[ir.OperatorIdentifie
 class UnusedFunctionRemover(ir.passes.PassBase):
     def __init__(self):
         super().__init__()
-        self.used: set[ir.OperatorIdentifier] = set()
+        self.used: set[ir.OperatorIdentifier] | None = None
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
+        self.used = set()
         for node in ir.traversal.RecursiveGraphIterator(model.graph):
             self._call_node(model, node)
 
@@ -39,9 +40,11 @@ class UnusedFunctionRemover(ir.passes.PassBase):
             return ir.passes.PassResult(model, modified=False)
 
         _clean_up_unused_functions(model, unused)
+        self.used = None
         return ir.passes.PassResult(model, modified=True)
 
     def _call_function(self, model: ir.Model, function: ir.Function) -> None:
+        assert self.used is not None
         if function.identifier() in self.used:
             # The function and its nodes are already recorded as used
             return
@@ -51,10 +54,9 @@ class UnusedFunctionRemover(ir.passes.PassBase):
 
     def _call_node(self, model: ir.Model, node: ir.Node) -> None:
         op_identifier = node.op_identifier()
-        if op_identifier in model.functions:
-            self._call_function(model, model.functions[op_identifier])
-        else:
-            self.used.add(op_identifier)
+        if op_identifier not in model.functions:
+            return
+        self._call_function(model, model.functions[op_identifier])
 
 
 def remove_unused_functions(model_proto: onnx.ModelProto) -> onnx.ModelProto:
