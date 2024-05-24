@@ -741,7 +741,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
-    TorchLibOpInfo("concatenate", core_ops.aten_concatenate).skip(
+    TorchLibOpInfo("concatenate", core_ops.aten_concat).skip(
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
