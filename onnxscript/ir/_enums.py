@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import enum
 
+import ml_dtypes
 import numpy as np
 
 
@@ -125,6 +126,7 @@ _ITEMSIZE_MAP = {
 }
 
 
+# We use ml_dtypes to support dtypes that are not in numpy.
 _NP_TYPE_TO_DATA_TYPE = {
     np.dtype("bool"): DataType.BOOL,
     np.dtype("complex128"): DataType.COMPLEX128,
@@ -141,19 +143,14 @@ _NP_TYPE_TO_DATA_TYPE = {
     np.dtype("uint32"): DataType.UINT32,
     np.dtype("uint64"): DataType.UINT64,
     np.dtype("uint8"): DataType.UINT8,
+    np.dtype(ml_dtypes.bfloat16): DataType.BFLOAT16,
+    np.dtype(ml_dtypes.float8_e4m3fn): DataType.FLOAT8E4M3FN,
+    np.dtype(ml_dtypes.float8_e4m3fnuz): DataType.FLOAT8E4M3FNUZ,
+    np.dtype(ml_dtypes.float8_e5m2): DataType.FLOAT8E5M2,
+    np.dtype(ml_dtypes.float8_e5m2fnuz): DataType.FLOAT8E5M2FNUZ,
+    np.dtype(ml_dtypes.int4): DataType.INT4,
+    np.dtype(ml_dtypes.uint4): DataType.UINT4,
 }
 
-# ONNX DataType to Numpy dtype. This mapping does not capture ONNX data
-# types that are not supported by numpy.
+# ONNX DataType to Numpy dtype.
 _DATA_TYPE_TO_NP_TYPE = {v: k for k, v in _NP_TYPE_TO_DATA_TYPE.items()}
-_DATA_TYPE_TO_NP_TYPE.update(
-    {
-        DataType.FLOAT8E4M3FN: np.dtype("uint8"),
-        DataType.FLOAT8E4M3FNUZ: np.dtype("uint8"),
-        DataType.FLOAT8E5M2: np.dtype("uint8"),
-        DataType.FLOAT8E5M2FNUZ: np.dtype("uint8"),
-        DataType.UINT4: np.dtype("uint8"),
-        DataType.INT4: np.dtype("int8"),
-        DataType.BFLOAT16: np.dtype("uint16"),
-    }
-)

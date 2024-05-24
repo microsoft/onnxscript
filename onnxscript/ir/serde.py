@@ -222,13 +222,9 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
         Special cases are bfloat16, complex and int4 where we need to
         reinterpret the data. Other types can simply be casted.
 
-        When the data type is not supported by numpy, the value is the bit representation
-        of the dtype:
-
-        - ``int8`` for int4, with the sign bit extended to 8 bits.
-        - ``uint8`` for uint4.
-        - ``uint8`` for 8-bit data types like float8.
-        - ``uint16`` for bfloat16.
+        When the data type is not supported by numpy, the dtypes from the ``ml_dtype``
+        package are used. The values can be reinterpreted as bit representations
+        using the ``.view()`` method.
 
         When the data type is a string, this method returns a numpy array
         of bytes instead of a numpy array of strings, to follow the ONNX
@@ -256,9 +252,16 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
             return np.array(self._proto.string_data).reshape(self._proto.dims)
         elif self._proto.int32_data:
             array = np.array(self._proto.int32_data, dtype=_little_endian_dtype(np.int32))
-            if dtype == _enums.DataType.FLOAT16:
-                # Reinterpret the int32 as float16; bfloat16 is handled on the last line
-                array = array.astype(np.uint16).view(np.float16)
+            if dtype in {_enums.DataType.FLOAT16, _enums.DataType.BFLOAT16}:
+                # Reinterpret the int32 as float16 or bfloat16
+                array = array.astype(np.uint16).view(dtype.numpy())
+            elif dtype in {
+                _enums.DataType.FLOAT8E4M3FN,
+                _enums.DataType.FLOAT8E4M3FNUZ,
+                _enums.DataType.FLOAT8E5M2,
+                _enums.DataType.FLOAT8E5M2FNUZ,
+            }:
+                array = array.astype(np.uint8).view(dtype.numpy())
         elif self._proto.int64_data:
             array = np.array(self._proto.int64_data, dtype=_little_endian_dtype(np.int64))
         elif self._proto.uint64_data:

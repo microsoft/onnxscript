@@ -1,7 +1,8 @@
+import contextlib
+import io
 import logging
 import unittest
 
-import numpy as np
 import onnx.checker
 import onnx.parser
 
@@ -56,6 +57,16 @@ class ReciprocalMulTest(unittest.TestCase):
         count = self.rule().apply_to_model(model)
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 4)
+
+        # Test verbose output produces something:
+        # TODO(rama): Need a better way to test this.
+        # Well-defined error-codes and messages would be helpful.
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            self.rule().apply_to_model(model, verbose=5)
+        out = buffer.getvalue()
+        self.assertIn("Match failed", out)
 
     def test_multiple_matches(self):
         model_proto = onnx.parser.parse_model(
@@ -246,9 +257,11 @@ class RewriteRuleTest(unittest.TestCase):
         def check_for_redundant_reshape(context, x, newshape):
             oldshape = x.shape
             newshape = _ir_utils.propagate_const_value(newshape)
-            newshape = _ir_utils.get_numpy_from_ir_value(newshape)
-            if not isinstance(newshape, np.ndarray):
+            newshape_const_value = newshape.const_value
+            if newshape_const_value is None:
                 return False
+
+            newshape = newshape_const_value.numpy()
             newshape = newshape.tolist()
 
             if len(oldshape) != len(newshape):

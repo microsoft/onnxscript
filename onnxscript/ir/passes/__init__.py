@@ -7,7 +7,6 @@ __all__ = [
     "PassBase",
     "PassResult",
     "PassManager",
-    "NodeTransformer",
     # Errors
     "InvariantError",
     "PreconditionError",
@@ -17,7 +16,6 @@ __all__ = [
 
 from onnxscript.ir.passes._pass_infra import (
     InvariantError,
-    NodeTransformer,
     PassBase,
     PassError,
     PassManager,
