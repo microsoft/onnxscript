@@ -61,9 +61,9 @@ class UnusedFunctionRemover(ir.passes.PassBase):
 
 def remove_unused_functions(model_proto: onnx.ModelProto) -> onnx.ModelProto:
     """Removes unused function protos from the model."""
-    # TODO(justinchuby): Update this to accept an ir.Model
+
     model = ir.serde.deserialize_model(model_proto)
-    UnusedFunctionRemover()(model)
-    model_proto = ir.serde.serialize_model(model)
+    result = UnusedFunctionRemover()(model)
+    model_proto = ir.serde.serialize_model(result.model)
 
     return model_proto
