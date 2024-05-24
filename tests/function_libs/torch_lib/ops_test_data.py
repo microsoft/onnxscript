@@ -2328,14 +2328,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "ops.aten._unique.default",
         core_ops.aten__unique,
+        trace_only=True,
     ),
     TorchLibOpInfo(
         "ops.aten._unique2.default",
         core_ops.aten__unique2,
+        trace_only=True,
     ),
     TorchLibOpInfo(
         "ops.aten.unique_dim.default",
         core_ops.aten_unique_dim,
+        trace_only=True,
     ).skip(
         device_type="cpu",
         reason="ops.aten.unique_dim.default returns different shapes for optional outputs on CPU/CUDA."
