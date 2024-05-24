@@ -23,7 +23,7 @@ def _clean_up_unused_functions(model: ir.Model, unused: set[ir.OperatorIdentifie
     logger.debug("Functions removed: %s", unused)
 
 
-class UnusedFunctionRemover(ir.passes.PassBase):
+class RemoveUnusedFunctionPass(ir.passes.PassBase):
     def __init__(self):
         super().__init__()
         self.used: set[ir.OperatorIdentifier] | None = None
@@ -63,7 +63,7 @@ def remove_unused_functions(model_proto: onnx.ModelProto) -> onnx.ModelProto:
     """Removes unused function protos from the model."""
 
     model = ir.serde.deserialize_model(model_proto)
-    result = UnusedFunctionRemover()(model)
+    result = RemoveUnusedFunctionPass()(model)
     model_proto = ir.serde.serialize_model(result.model)
 
     return model_proto
