@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import onnx
 
+from onnxscript import ir
 from onnxscript.rewriter import _ir_utils, pattern
 
 torch_module_op = pattern.torch_module_op
@@ -12,15 +13,15 @@ torch_module_op = pattern.torch_module_op
 logger = logging.getLogger(__name__)
 
 
-def check_if_simulated_instance_norm_is_used(
+def _simulated_instance_norm(
     context,
-    input_x,
-    adjusted_input_shape,
-    original_input_shape,
-    weight_for_norm,
-    bias_for_norm,
-    weight_full,
-    bias_full,
+    input_x: ir.Value,
+    adjusted_input_shape: ir.Value,
+    original_input_shape: ir.Value,
+    weight_for_norm: ir.Value,
+    bias_for_norm: ir.Value,
+    weight_full: ir.Value,
+    bias_full: ir.Value,
     **_,
 ) -> bool:
     """Check if the simulated instance normalization is used.
@@ -38,16 +39,16 @@ def check_if_simulated_instance_norm_is_used(
     6. original_input_shape is the same as input_x shape.
 
     Returns:
-        bool: True if the simulated instance normalization is used, False otherwise.
+        True if the simulated instance normalization is used, False otherwise.
     """
-    weight_for_norm_prop = _ir_utils.propagate_const_value(weight_for_norm)
-    weight_for_norm_const_value = weight_for_norm_prop.const_value
+    _ir_utils.propagate_const_value(weight_for_norm)
+    weight_for_norm_const_value = weight_for_norm.const_value
     if weight_for_norm_const_value is None:
         return False
     weight_for_norm = weight_for_norm_const_value.numpy()
 
-    bias_for_norm_prop = _ir_utils.propagate_const_value(bias_for_norm)
-    bias_for_norm_const_value = bias_for_norm_prop.const_value
+    _ir_utils.propagate_const_value(bias_for_norm)
+    bias_for_norm_const_value = bias_for_norm.const_value
     if bias_for_norm_const_value is None:
         return False
     bias_for_norm = bias_for_norm_const_value.numpy()
@@ -57,7 +58,7 @@ def check_if_simulated_instance_norm_is_used(
     if not np.all(bias_for_norm == 0):
         return False
 
-    input_rank_minus_one = len(input_x.shape) - 1
+    input_rank_minus_one = input_x.shape.rank() - 1
     weight_full_rank = len(weight_full.shape)
     bias_full_rank = len(bias_full.shape)
     if weight_full_rank != input_rank_minus_one or bias_full_rank != input_rank_minus_one:
@@ -74,7 +75,7 @@ def check_if_simulated_instance_norm_is_used(
     if not all(dim == 1 for dim in bias_full_shape[1:]):
         return False
 
-    adjusted_input_shape = _ir_utils.propagate_const_value(adjusted_input_shape)
+    _ir_utils.propagate_const_value(adjusted_input_shape)
     adjusted_input_shape_const_value = adjusted_input_shape.const_value
 
     g = weight_for_norm.shape[0]
@@ -85,7 +86,7 @@ def check_if_simulated_instance_norm_is_used(
         return False
 
     # NOTE: Restrict the rule to only support constant shape
-    original_input_shape = _ir_utils.propagate_const_value(original_input_shape)
+    _ir_utils.propagate_const_value(original_input_shape)
     original_input_shape_const_value = original_input_shape.const_value
     if (
         original_input_shape_const_value is None
@@ -149,7 +150,7 @@ def group_normalization(op, input_x, weight_for_norm, weight_full, bias_full, ep
 instance_norm_to_group_norm_rule = pattern.RewriteRule(
     instance_simulates_group_normalization_pattern,
     group_normalization,
-    check_if_simulated_instance_norm_is_used,
+    _simulated_instance_norm,
 )
 
 # NOTE: instance_norm_to_group_norm_rule is subset of instance_norm_to_group_norm_with_silu_rule,
