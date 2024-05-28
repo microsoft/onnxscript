@@ -590,6 +590,17 @@ class ProtoVisitor(ProtoVisitorCore):
         for output in node.output:
             info = self.lookup_or_create(output)
             if output in output_types:
+                if info.type is not None:
+                    if (
+                        info.type.tensor_type.elem_type
+                        != output_types[output].tensor_type.elem_type
+                    ):
+                        logger.warning(
+                            "Overriding existing type %s with inferred type %s for %s",
+                            info.type,
+                            output_types[output],
+                            output,
+                        )
                 # TODO: merge types
                 info.type = output_types[output]
 

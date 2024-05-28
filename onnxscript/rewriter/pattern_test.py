@@ -1,7 +1,8 @@
+import contextlib
+import io
 import logging
 import unittest
 
-import numpy as np
 import onnx.checker
 import onnx.parser
 
@@ -9,13 +10,11 @@ from onnxscript import ir
 from onnxscript.rewriter import _ir_utils, cast_constant_of_shape, pattern
 
 logger = logging.getLogger(__name__)
-op = pattern.onnxop
-msft_op = pattern.msft_op
 
 
 class ReciprocalMulTest(unittest.TestCase):
     def rule(self) -> pattern.RewriteRule:
-        def reciprocal_mul_pattern(x, y):
+        def reciprocal_mul_pattern(op, x, y):
             return (1 / x) * y
 
         def div(op, x, y):
@@ -59,6 +58,16 @@ class ReciprocalMulTest(unittest.TestCase):
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 4)
 
+        # Test verbose output produces something:
+        # TODO(rama): Need a better way to test this.
+        # Well-defined error-codes and messages would be helpful.
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            self.rule().apply_to_model(model, verbose=5)
+        out = buffer.getvalue()
+        self.assertIn("Match failed", out)
+
     def test_multiple_matches(self):
         model_proto = onnx.parser.parse_model(
             """
@@ -91,7 +100,7 @@ class ReciprocalMulTest(unittest.TestCase):
 
 class FastGeluTest(unittest.TestCase):
     def rule(self) -> pattern.RewriteRule:
-        def fast_gelu_pattern1(x):
+        def fast_gelu_pattern1(op, x):
             b = 0.044715
             c = 0.79788
             tanh = op.Tanh(c * (x + (x**3) * b))
@@ -103,7 +112,7 @@ class FastGeluTest(unittest.TestCase):
         return pattern.RewriteRule(fast_gelu_pattern1, fast_gelu)
 
     def long_form_rule(self) -> pattern.RewriteRule:
-        def fast_gelu_pattern1_long(x):
+        def fast_gelu_pattern1_long(op, x):
             three = pattern.Constant(3)
             x_cube = op.Pow(x, three)
             b = pattern.Constant(0.044715)
@@ -160,7 +169,7 @@ class FastGeluTest(unittest.TestCase):
 
 class ConcatTest(unittest.TestCase):
     def rule(self) -> pattern.RewriteRule:
-        def concat_pattern(x, y, axis):
+        def concat_pattern(op, x, y, axis):
             seq = op.SequenceConstruct(x, y)
             return op.ConcatFromSequence(seq, axis=axis)
 
@@ -211,7 +220,7 @@ class ConcatTest(unittest.TestCase):
 
 class RewriteRuleTest(unittest.TestCase):
     def test_commute(self):
-        def add_0(x):
+        def add_0(op, x):
             return x + 0
 
         def identity(op, x):
@@ -238,19 +247,21 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(nodes[1].op_type, "Identity")
 
     def test_const_value(self):
-        def reshape(x, newshape):
+        def reshape(op, x, newshape):
             return op.Reshape(x, newshape)
 
         def identity(op, x, newshape):
             del newshape  # Unused
             return op.Identity(x)
 
-        def check_for_redundant_reshape(x, newshape):
+        def check_for_redundant_reshape(context, x, newshape):
             oldshape = x.shape
             newshape = _ir_utils.propagate_const_value(newshape)
-            newshape = _ir_utils.get_numpy_from_ir_value(newshape)
-            if not isinstance(newshape, np.ndarray):
+            newshape_const_value = newshape.const_value
+            if newshape_const_value is None:
                 return False
+
+            newshape = newshape_const_value.numpy()
             newshape = newshape.tolist()
 
             if len(oldshape) != len(newshape):
@@ -298,7 +309,7 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(model.graph[1].attributes["value"].value.dtype, 1)
 
     def test_opset_import(self):
-        def add_same(x):
+        def add_same(op, x):
             return x + x
 
         def double(op, x):
@@ -322,7 +333,7 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(model.graph.opset_imports["custom.domain"], 10)
 
     def test_opset_import_in_function(self):
-        def add_same(x):
+        def add_same(op, x):
             return x + x
 
         def double(op, x):

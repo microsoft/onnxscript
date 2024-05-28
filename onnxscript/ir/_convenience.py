@@ -16,11 +16,16 @@ __all__ = [
     "replace_all_uses_with",
 ]
 
+import typing
 from typing import Mapping, Sequence, Union
 
+import numpy as np
 import onnx
 
 from onnxscript.ir import _core, _enums, _protocols, serde
+
+if typing.TYPE_CHECKING:
+    import numpy.typing as npt
 
 SupportedAttrTypes = Union[
     str,
@@ -33,6 +38,10 @@ SupportedAttrTypes = Union[
     onnx.TensorProto,
     _core.Attr,
     _core.RefAttr,
+    _protocols.GraphProtocol,
+    Sequence[_protocols.GraphProtocol],
+    _protocols.TypeProtocol,
+    Sequence[_protocols.TypeProtocol],
     None,
 ]
 
@@ -56,6 +65,30 @@ def _infer_attribute_type(attr: SupportedAttrTypes) -> _enums.AttributeType:
     if isinstance(attr, (_core.TensorBase, onnx.TensorProto, _protocols.TensorProtocol)):
         # Be sure to check TensorProtocol last because isinstance checking on Protocols can be slower
         return _enums.AttributeType.TENSOR
+    if isinstance(attr, (_core.Graph, _protocols.GraphProtocol)):
+        return _enums.AttributeType.GRAPH
+    if isinstance(attr, Sequence) and all(
+        isinstance(x, (_core.Graph, _protocols.GraphProtocol)) for x in attr
+    ):
+        return _enums.AttributeType.GRAPHS
+    if isinstance(
+        attr,
+        (_core.TensorType, _core.SequenceType, _core.OptionalType, _protocols.TypeProtocol),
+    ):
+        return _enums.AttributeType.TYPE_PROTO
+    if isinstance(attr, Sequence) and all(
+        isinstance(
+            x,
+            (
+                _core.TensorType,
+                _core.SequenceType,
+                _core.OptionalType,
+                _protocols.TypeProtocol,
+            ),
+        )
+        for x in attr
+    ):
+        return _enums.AttributeType.TYPE_PROTOS
     raise TypeError(f"Unsupported attribute type: '{type(attr)}'")
 
 
@@ -118,6 +151,14 @@ def convert_attribute(
             return _core.AttrTensor(name, attr)
         if isinstance(attr, onnx.TensorProto):
             return _core.AttrTensor(name, serde.TensorProtoTensor(attr))
+    if attr_type == _enums.AttributeType.GRAPH:
+        return _core.AttrGraph(name, attr)  # type: ignore[arg-type]
+    if attr_type == _enums.AttributeType.GRAPHS:
+        return _core.AttrGraphs(name, attr)  # type: ignore[arg-type]
+    if attr_type == _enums.AttributeType.TYPE_PROTO:
+        return _core.AttrTypeProto(name, attr)  # type: ignore[arg-type]
+    if attr_type == _enums.AttributeType.TYPE_PROTOS:
+        return _core.AttrTypeProtos(name, attr)  # type: ignore[arg-type]
     raise TypeError(f"Unsupported attribute type: '{type(attr)}'")
 
 
@@ -148,9 +189,40 @@ def convert_attributes(
         ...             float_data=[1.0, 2.0, 3.0],
         ...             name="proto",
         ...         ),
+        ...     "graph": ir.Graph([], [], nodes=[], name="graph0"),
+        ...     "graphs": [ir.Graph([], [], nodes=[], name="graph1"), ir.Graph([], [], nodes=[], name="graph2")],
+        ...     "type_proto": ir.TensorType(ir.DataType.FLOAT),
+        ...     "type_protos": [ir.TensorType(ir.DataType.FLOAT), ir.TensorType(ir.DataType.FLOAT)],
         ... }
         >>> convert_attributes(attrs)
-        [AttrInt64('int', 1), AttrFloat32('float', 1.0), AttrString('str', 'hello'), AttrInt64s('ints', [1, 2, 3]), AttrFloat32s('floats', [1.0, 2.0, 3.0]), AttrStrings('strings', ['hello', 'world']), AttrTensor('tensor', Tensor<DOUBLE,[3]>(array([1., 2., 3.]), name='')), AttrTensor('tensor_proto', TensorProtoTensor<FLOAT,[3]>(name='proto'))]
+        [AttrInt64('int', 1), AttrFloat32('float', 1.0), AttrString('str', 'hello'), AttrInt64s('ints', [1, 2, 3]), AttrFloat32s('floats', [1.0, 2.0, 3.0]), AttrStrings('strings', ['hello', 'world']), AttrTensor('tensor', Tensor<DOUBLE,[3]>(array([1., 2., 3.]), name=None)), AttrTensor('tensor_proto', TensorProtoTensor<FLOAT,[3]>(name='proto')), AttrInt64s('graph', Graph(
+            name='graph0',
+            inputs=(
+        <BLANKLINE>
+            ),
+            outputs=(
+        <BLANKLINE>
+            ),
+            len()=0
+        )), AttrGraphs('graphs', [Graph(
+            name='graph1',
+            inputs=(
+        <BLANKLINE>
+            ),
+            outputs=(
+        <BLANKLINE>
+            ),
+            len()=0
+        ), Graph(
+            name='graph2',
+            inputs=(
+        <BLANKLINE>
+            ),
+            outputs=(
+        <BLANKLINE>
+            ),
+            len()=0
+        )]), AttrTypeProto('type_proto', Tensor(FLOAT)), AttrTypeProtos('type_protos', [Tensor(FLOAT), Tensor(FLOAT)])]
 
     Args:
         attrs: A dictionary of {<attribute name>: <python objects>} to convert.
@@ -218,3 +290,83 @@ def replace_all_uses_with(
     for value, replacement in zip(values, replacements):
         for user_node, index in tuple(value.uses()):
             user_node.replace_input_with(index, replacement)
+
+
+def tensor(
+    value: npt.ArrayLike
+    | onnx.TensorProto
+    | _protocols.DLPackCompatible
+    | _protocols.ArrayCompatible,
+    dtype: _enums.DataType | None = None,
+    name: str | None = None,
+    doc_string: str | None = None,
+) -> _protocols.TensorProtocol:
+    """Create a tensor value from an ArrayLike object or a TensorProto.
+
+    The dtype must match the value. Reinterpretation of the value is
+    not supported, unless if the value is a plain Python object, in which case
+    it is converted to a numpy array with the given dtype.
+
+    :param:`value` can be a numpy array, a plain Python object, or a TensorProto.
+
+    Example::
+
+        >>> from onnxscript import ir
+        >>> import numpy as np
+        >>> import ml_dtypes
+        >>> import onnx
+        >>> ir.tensor(np.array([1, 2, 3], dtype=np.int16))
+        Tensor<INT16,[3]>(array([1, 2, 3], dtype=int16), name=None)
+        >>> ir.tensor([1, 2, 3], dtype=ir.DataType.BFLOAT16)
+        Tensor<BFLOAT16,[3]>(array([1, 2, 3], dtype=bfloat16), name=None)
+        >>> tp_tensor = ir.tensor(onnx.helper.make_tensor("tensor", onnx.TensorProto.FLOAT, dims=[], vals=[0.5]))
+        >>> tp_tensor.numpy()
+        array(0.5, dtype=float32)
+
+    Args:
+        value: The numpy array to create the tensor from.
+        dtype: The data type of the tensor.
+        name: The name of the tensor.
+        doc_string: The documentation string of the tensor.
+
+    Returns:
+        A tensor value.
+
+    Raises:
+        ValueError: If the dtype does not match the value when value is not a plain Python
+            object like ``list[int]``.
+    """
+    if isinstance(value, _protocols.TensorProtocol):
+        if dtype is not None and dtype != value.dtype:
+            raise ValueError(
+                f"The dtype must match the value when value is a Tensor. dtype={dtype}, value.dtype={value.dtype}. "
+                "You do not have to specify the dtype when value is a Tensor."
+            )
+        return value
+    if isinstance(value, onnx.TensorProto):
+        tensor_ = serde.deserialize_tensor(value)
+        if name is not None:
+            tensor_.name = name
+        if doc_string is not None:
+            tensor_.doc_string = doc_string
+        if dtype is not None and dtype != tensor_.dtype:
+            raise ValueError(
+                f"The dtype must match the value when value is a TensorProto. dtype={dtype}, value.data_type={tensor_.dtype}"
+                "You do not have to specify the dtype when value is a TensorProto."
+            )
+    elif isinstance(value, (_protocols.DLPackCompatible, _protocols.ArrayCompatible)):
+        tensor_ = _core.Tensor(value, dtype=dtype, name=name, doc_string=name)
+    else:
+        if dtype is not None:
+            numpy_dtype = dtype.numpy()
+        else:
+            numpy_dtype = None
+        array = np.array(value, dtype=numpy_dtype)
+        tensor_ = _core.Tensor(
+            array,
+            dtype=dtype,
+            shape=_core.Shape(array.shape),
+            name=name,
+            doc_string=name,
+        )
+    return tensor_

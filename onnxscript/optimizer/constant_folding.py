@@ -207,6 +207,24 @@ class ConstantFolder(visitor.FunctionCallsiteProtoTransformer):
         if any(x is ir.NotConstant for x in input_values):
             return None
 
+        input_types = [x.type for x in inputs if x is not None]
+
+        def is_excluded_type(type_proto: onnx.TypeProto | None) -> bool:
+            if type_proto is None:
+                return True
+            if type_proto.HasField("tensor_type"):
+                return type_proto.tensor_type.elem_type in {
+                    onnx.TensorProto.BFLOAT16,
+                    onnx.TensorProto.FLOAT8E4M3FN,
+                    onnx.TensorProto.FLOAT8E4M3FNUZ,
+                    onnx.TensorProto.FLOAT8E5M2,
+                    onnx.TensorProto.FLOAT8E5M2FNUZ,
+                }
+            return False
+
+        if any(is_excluded_type(x) for x in input_types):
+            return None
+
         outputs = self.evaluate(domain, op, version, *input_values, **attrs)
         # TODO: what if evaluated value is None?
         if outputs is None:

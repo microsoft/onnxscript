@@ -163,7 +163,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         self.assertEqual(model.graph[2].op_type, "MatMul")
         self.assertEqual(model.graph[3].op_type, "Add")
 
-    def test_reshape_gemm_reshape_replace_when_first_input_is_one_dimension_and_not_broadcastable(
+    def test_reshape_gemm_reshape_remain_when_first_input_is_one_dimension_and_not_broadcastable(
         self,
     ):
         model_proto = onnx.parser.parse_model(
@@ -207,7 +207,7 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
         self.assertEqual(model.graph[2].op_type, "MatMul")
         self.assertEqual(model.graph[3].op_type, "Add")
 
-    def test_reshape_gemm_reshape_replace_when_second_input_is_one_dimension_and_not_broadcastable(
+    def test_reshape_gemm_reshape_remain_when_second_input_is_one_dimension_and_not_broadcastable(
         self,
     ):
         model_proto = onnx.parser.parse_model(
@@ -219,6 +219,48 @@ class ReshapeGemmReshapeTest(unittest.TestCase):
                 reshape_x = Reshape (input_x, shape_a)
                 gemm = Gemm<alpha=1.0, beta=1.0> (reshape_x, input_y, input_z)
                 shape_d = Constant<value: tensor = int64[3] {2, 3, 5}>()
+                output = Reshape (gemm, shape_d)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = gemm_to_matmul_add.rule.apply_to_model(model)
+        self.assertEqual(count, 0)
+        self.assertEqual(len(model.graph), 5)
+
+    def test_reshape_gemm_reshape_replaces_when_inputs_are_two_dimensional_and_broadcastable(
+        self,
+    ):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[3, 5] input_x, float[5, 10] input_y, float[3, 10] input_z) => (float[3, 10] output)
+            {
+                shape_a = Constant<value: tensor = int64[2] {3, 5}>()
+                reshape_x = Reshape (input_x, shape_a)
+                gemm = Gemm<alpha=1.0, beta=1.0> (reshape_x, input_y, input_z)
+                shape_d = Constant<value: tensor = int64[2] {3, 10}>()
+                output = Reshape (gemm, shape_d)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        replacement_count = gemm_to_matmul_add.rule.apply_to_model(model)
+        self.assertEqual(replacement_count, 1)
+        self.assertEqual(len(model.graph), 4)
+
+    def test_reshape_gemm_reshape_remain_when_inputs_are_two_dimension_and_not_broadcastable(
+        self,
+    ):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[5, 3] input_x, float[5, 10] input_y, float[3, 10] input_z) => (float[3, 10] output)
+            {
+                shape_a = Constant<value: tensor = int64[2] {3, 5}>()
+                reshape_x = Reshape (input_x, shape_a)
+                gemm = Gemm<alpha=1.0, beta=1.0> (reshape_x, input_y, input_z)
+                shape_d = Constant<value: tensor = int64[2] {3, 10}>()
                 output = Reshape (gemm, shape_d)
             }
         """

@@ -21,9 +21,12 @@ __all__ = [
     "AttrStrings",
     "AttrTensor",
     "AttrTensors",
+    "TypeAndShape",
     "AttrTypeProto",
+    "AttrTypeProtos",
     "SymbolicDim",
     "ExternalTensor",
+    "StringTensor",
     "Function",
     "Graph",
     "GraphView",
@@ -60,9 +63,20 @@ __all__ = [
     "DataType",
     # Types
     "OperatorIdentifier",
+    # Protobuf compatible types
+    "TensorProtoTensor",
+    # Conversion functions
+    "from_proto",
+    "to_proto",
+    # IR Tensor initializer
+    "tensor",
+    # Pass infrastructure
+    "passes",
+    "traversal",
 ]
 
-from onnxscript.ir import serde
+from onnxscript.ir import passes, serde, traversal
+from onnxscript.ir._convenience import tensor
 from onnxscript.ir._core import (
     Attr,
     AttrFloat32,
@@ -78,6 +92,7 @@ from onnxscript.ir._core import (
     AttrTensor,
     AttrTensors,
     AttrTypeProto,
+    AttrTypeProtos,
     ExternalTensor,
     Function,
     Graph,
@@ -90,9 +105,11 @@ from onnxscript.ir._core import (
     SequenceType,
     Shape,
     SparseTensorType,
+    StringTensor,
     SymbolicDim,
     Tensor,
     TensorType,
+    TypeAndShape,
     Value,
 )
 from onnxscript.ir._enums import (
@@ -118,3 +135,4 @@ from onnxscript.ir._protocols import (
     TypeProtocol,
     ValueProtocol,
 )
+from onnxscript.ir.serde import TensorProtoTensor, from_proto, to_proto

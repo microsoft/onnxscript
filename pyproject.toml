@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "onnxscript"
-dynamic = ["version"]
+dynamic = ["version", "urls"]
 description = "Naturally author ONNX functions and models using a subset of Python"
 authors = [{ name = "Microsoft Corporation", email = "onnx@microsoft.com" }]
 readme = "README.md"
@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "License :: OSI Approved :: MIT License",
 ]
-dependencies = ["numpy", "onnx>=1.16", "typing_extensions"]
+dependencies = ["numpy", "onnx>=1.16", "typing_extensions", "ml_dtypes"]
 
 [tool.setuptools.packages.find]
 include = ["onnxscript*"]

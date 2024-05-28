@@ -10,6 +10,26 @@ implementation. This allows for the implementation to evolve independently of th
 tools.
 """
 
+# 👀
+# NOTE: Why are we using protocols, instead of abstract base classes?
+#
+# Protocols are more flexible than abstract base classes. Users can define their
+# own classes that implement the protocols without having to inherit from a
+# specific base class. For example, a user can define a custom tensor class that
+# implements the TensorProtocol without explicitly inheriting, and the IR can
+# work with that class without any changes.
+#
+# `isinstance` checks can be slower with protocols. Avoid using `isinstance`
+# checks when you can. Always check for concrete classes first.
+#
+# NOTE: Why are we using protocols, instead of using concrete classes directly?
+#
+# Protocols define the interface that is typically more stable. If you find yourself
+# updating the protocols, pause 🛑, and carefully make sure it is absolutely needed
+# and will improve the design. If you are adding new methods, consider if the method
+# should be part of the protocol or if it should be a higher level convenience function
+# defined outside the protocol.
+
 from __future__ import annotations
 
 import typing
@@ -41,7 +61,7 @@ OperatorIdentifier: TypeAlias = Tuple[str, str, str]
 class ArrayCompatible(Protocol):
     """Protocol for array-like objects.
 
-    An example of an array-like object is a numpy array or a PyTorch array.
+    An example of an array-like object is a numpy ndarray or a PyTorch Tensor.
     Read more at https://numpy.org/devdocs/user/basics.interoperability.html
     """
 
@@ -67,7 +87,7 @@ class DLPackCompatible(Protocol):
 
 
 @typing.runtime_checkable
-class TensorProtocol(ArrayCompatible, Protocol):
+class TensorProtocol(ArrayCompatible, DLPackCompatible, Protocol):
     """Concrete tensor backed by data.
 
     The protocol does not specify how the data is stored. That data is exposed
@@ -93,7 +113,7 @@ class TensorProtocol(ArrayCompatible, Protocol):
         meta: Metadata store for graph transform passes.
     """
 
-    name: str
+    name: str | None
     shape: ShapeProtocol
     dtype: _enums.DataType
     doc_string: str | None
@@ -113,6 +133,14 @@ class TensorProtocol(ArrayCompatible, Protocol):
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         """Return the tensor as a numpy array, compatible with np.array."""
+        ...
+
+    def __dlpack__(self, *, stream: Any = ...) -> Any:
+        """Return PyCapsule."""
+        ...
+
+    def __dlpack_device__(self) -> Any:
+        """Return the device."""
         ...
 
     def tobytes(self) -> bytes:
@@ -147,6 +175,8 @@ class ValueProtocol(Protocol):
         type: The type of the value.
         metadata_props: Metadata that will be serialized to the ONNX file.
         meta: Metadata store for graph transform passes.
+        doc_string: Documentation string.
+        const_value: The constant tensor is the value constant.
     """
 
     name: str
@@ -154,6 +184,8 @@ class ValueProtocol(Protocol):
     type: TypeProtocol | None
     metadata_props: MutableMapping[str, str]
     meta: MutableMapping[str, Any]
+    doc_string: str | None
+    const_value: TensorProtocol | None
 
     def producer(self) -> NodeProtocol | None:
         """The node that produces this value."""
@@ -262,7 +294,7 @@ class GraphProtocol(Protocol):
     name: str | None
     inputs: MutableSequence[ValueProtocol]
     outputs: MutableSequence[ValueProtocol]
-    initializers: MutableMapping[str, TensorProtocol]
+    initializers: MutableMapping[str, ValueProtocol]
     doc_string: str
     opset_imports: MutableMapping[str, int]
     metadata_props: MutableMapping[str, str]
@@ -322,7 +354,7 @@ class GraphViewProtocol(Protocol):
     name: str | None
     inputs: Sequence[ValueProtocol]
     outputs: Sequence[ValueProtocol]
-    initializers: Mapping[str, TensorProtocol]
+    initializers: Mapping[str, ValueProtocol]
     doc_string: str
     opset_imports: Mapping[str, int]
     metadata_props: MutableMapping[str, str]

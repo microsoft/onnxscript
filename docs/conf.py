@@ -20,20 +20,20 @@ release = version
 # -- General configuration ---------------------------------------------------
 
 extensions = [
-    "myst_parser",
-    "sphinx.ext.intersphinx",
-    "sphinx.ext.imgmath",
-    "sphinx.ext.ifconfig",
-    "sphinx.ext.viewcode",
-    "sphinx.ext.autodoc",
-    "sphinx.ext.autosummary",
-    "sphinx.ext.githubpages",
+    "myst_nb",
+    "sphinx_copybutton",
+    "sphinx_exec_code",
     "sphinx_gallery.gen_gallery",
     "sphinx.ext.autodoc",
-    "sphinx.ext.graphviz",
+    "sphinx.ext.autosummary",
     "sphinx.ext.doctest",
+    "sphinx.ext.githubpages",
+    "sphinx.ext.graphviz",
+    "sphinx.ext.ifconfig",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
-    "sphinx_copybutton",
+    "sphinx.ext.viewcode",
 ]
 
 myst_enable_extensions = [
