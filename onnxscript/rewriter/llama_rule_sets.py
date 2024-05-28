@@ -4,14 +4,14 @@ import onnxscript.ir as ir
 import onnxscript.rewriter.no_op as no_op
 import onnxscript.rewriter.pattern as orp
 
-_op = orp.onnxop
+op = orp.onnxop
 
 
-def transpose_identity(x, perm):
-    return _op.Transpose(x, perm=perm)
+def transpose_identity_pattern(op, x, perm):
+    return op.Transpose(x, perm=perm)
 
 
-def transpose_identity_check(x: ir.Value, perm: ir.Attr | ir.RefAttr) -> bool:
+def transpose_identity_check(context, x: ir.Value, perm: ir.Attr | ir.RefAttr) -> bool:
     if isinstance(perm, ir.RefAttr):
         return False
     if perm.type == ir.AttributeType.INTS:
@@ -24,12 +24,12 @@ def transpose_identity_rewrite(op, x: ir.Value, perm: ir.Attr | None = None):
     return op.Identity(x)
 
 
-def transpose_transpose(x, perm1, perm2):
-    return _op.Transpose(_op.Transpose(x, perm=perm1), perm=perm2)
+def transpose_transpose_pattern(op, x, perm1, perm2):
+    return op.Transpose(op.Transpose(x, perm=perm1), perm=perm2)
 
 
 def transpose_transpose_check(
-    x: ir.Value, perm1: ir.Attr | ir.RefAttr, perm2: ir.Attr | ir.RefAttr
+    context, x: ir.Value, perm1: ir.Attr | ir.RefAttr, perm2: ir.Attr | ir.RefAttr
 ) -> bool:
     if isinstance(perm1, ir.RefAttr) or isinstance(perm2, ir.RefAttr):
         return False
@@ -44,9 +44,7 @@ def _apply_transpose(perm: tuple[int, ...], on: list[int]) -> list[int]:
     return res
 
 
-def _apply_transposes(
-    perms: list[tuple[int, ...]], on: list[int] | None = None
-) -> list[int]:
+def _apply_transposes(perms: list[tuple[int, ...]], on: list[int] | None = None) -> list[int]:
     if on is None:
         on = list(range(len(perms[0])))
     for p in perms:
@@ -63,10 +61,10 @@ def transpose_transpose_rewrite(op, x: ir.Value, perm1: ir.Attr, perm2: ir.Attr)
 
 
 transpose_identity_rule = orp.RewriteRule(
-    transpose_identity, transpose_identity_rewrite, transpose_identity_check
+    transpose_identity_pattern, transpose_identity_rewrite, transpose_identity_check
 )
 transpose_transpose_rule = orp.RewriteRule(
-    transpose_transpose, transpose_transpose_rewrite, transpose_transpose_check
+    transpose_transpose_pattern, transpose_transpose_rewrite, transpose_transpose_check
 )
 
 
