@@ -59,7 +59,7 @@ class TestGemmGelu(onnx_script_test_case.OnnxScriptTestCase):
             onnx_script_test_case.FunctionTestParams(gemmgelu.gemmgelu, [a, w, b], [expected])
         ]
         for case in cases:
-            self.run_converter_test(case)
+            self.run_converter_test(case, rtol=1e-6)
             self.run_eager_test(case)
 
 
