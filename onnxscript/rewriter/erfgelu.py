@@ -2,11 +2,9 @@ import math
 
 from onnxscript.rewriter import pattern
 
-op = pattern.onnxop
-
 
 # Pattern to match against
-def erf_gelu_pattern(x):
+def erf_gelu_pattern(op, x):
     # erf_gelu(x) = 0.5 * x * (1 + erf(x / sqrt(2)))
     # half = pattern.Constant(0.5)
     # sqrt2 = pattern.Constant(1.4142)
@@ -17,9 +15,6 @@ def erf_gelu_pattern(x):
     # x_mul_one_plus_erf = op.Mul(x, one_plus_erf)
     # return op.Mul(half, x_mul_one_plus_erf)
     return 0.5 * (x * (op.Erf(x / math.sqrt(2)) + 1.0))
-
-
-msft_op = pattern.msft_op
 
 
 # Replacement

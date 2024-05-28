@@ -7,11 +7,15 @@ rich>=13.7.1
 
 # Docs site
 furo
+jax[cpu]
 matplotlib
 myst-parser[linkify]
 sphinx-copybutton
+sphinx-exec-code
 sphinx-gallery
 sphinx>=6
+myst_nb
+chardet
 
 # Torch lib
 beartype!=0.16.0
@@ -20,6 +24,7 @@ beartype!=0.16.0
 expecttest==0.1.6
 hypothesis
 parameterized
+pyinstrument
 pytest-cov
 pytest-randomly
 pytest-subtests

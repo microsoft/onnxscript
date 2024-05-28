@@ -1,22 +1,19 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import numpy as np
 import onnx
 
-from onnxscript import ir
 from onnxscript.rewriter import _ir_utils, pattern
 
-op = pattern.onnxop
-msft_op = pattern.msft_op
 torch_module_op = pattern.torch_module_op
 
 logger = logging.getLogger(__name__)
 
 
-def _check_if_simulated_instance_norm_is_used_impl(
+def check_if_simulated_instance_norm_is_used(
+    context,
     input_x,
     adjusted_input_shape,
     original_input_shape,
@@ -24,13 +21,36 @@ def _check_if_simulated_instance_norm_is_used_impl(
     bias_for_norm,
     weight_full,
     bias_full,
-    **kwargs,
+    **_,
 ) -> bool:
-    weight_for_norm = _ir_utils.propagate_const_value(weight_for_norm)
-    weight_for_norm = _ir_utils.get_numpy_from_ir_value(weight_for_norm)
+    """Check if the simulated instance normalization is used.
 
-    bias_for_norm = _ir_utils.propagate_const_value(bias_for_norm)
-    bias_for_norm = _ir_utils.get_numpy_from_ir_value(bias_for_norm)
+    In torchlib with opset18, onnx.GroupNorm is using wrong definition, so
+    we use InstanceNormalization to simulate GroupNormalization. We need to check if there are arguments created to simulation.
+    If there are, then we need to replace the pattern. If they are not used, then we don't need to replace the pattern.
+
+    To validate this, we need to check the following:
+    1. weight_for_norm are all 1 and bias_for_norm are all 0, as they are created for the simulation.
+    2. weight_full and bias_full are unsqueezed to be easily broadcastable.
+    3. input rank should be 4
+    4. weight_full and bias_full should have ones except first dim.
+    5. adjusted_input_shape is a constant tensor of form [0, g, -1]
+    6. original_input_shape is the same as input_x shape.
+
+    Returns:
+        bool: True if the simulated instance normalization is used, False otherwise.
+    """
+    weight_for_norm_prop = _ir_utils.propagate_const_value(weight_for_norm)
+    weight_for_norm_const_value = weight_for_norm_prop.const_value
+    if weight_for_norm_const_value is None:
+        return False
+    weight_for_norm = weight_for_norm_const_value.numpy()
+
+    bias_for_norm_prop = _ir_utils.propagate_const_value(bias_for_norm)
+    bias_for_norm_const_value = bias_for_norm_prop.const_value
+    if bias_for_norm_const_value is None:
+        return False
+    bias_for_norm = bias_for_norm_const_value.numpy()
 
     if not np.all(weight_for_norm == 1):
         return False
@@ -55,48 +75,29 @@ def _check_if_simulated_instance_norm_is_used_impl(
         return False
 
     adjusted_input_shape = _ir_utils.propagate_const_value(adjusted_input_shape)
-    adjusted_input_shape = _ir_utils.get_numpy_from_ir_value(adjusted_input_shape)
+    adjusted_input_shape_const_value = adjusted_input_shape.const_value
 
     g = weight_for_norm.shape[0]
-    if adjusted_input_shape is None or adjusted_input_shape.tolist() != [0, g, -1]:
+    if (
+        adjusted_input_shape_const_value is None
+        or adjusted_input_shape_const_value.numpy().tolist() != [0, g, -1]
+    ):
         return False
 
     # NOTE: Restrict the rule to only support constant shape
     original_input_shape = _ir_utils.propagate_const_value(original_input_shape)
-    original_input_shape = _ir_utils.get_numpy_from_ir_value(original_input_shape)
-    if original_input_shape is None or original_input_shape.tolist() != input_x.shape:
+    original_input_shape_const_value = original_input_shape.const_value
+    if (
+        original_input_shape_const_value is None
+        or original_input_shape_const_value.numpy().tolist() != input_x.shape
+    ):
         return False
 
     return True
 
 
-def check_if_simulated_instance_norm_is_used(
-    match_bindings: dict[str, ir.Value | Any],
-) -> bool:
-    """Check if the simulated instance normalization is used.
-
-    In torchlib with opset18, onnx.GroupNorm is using wrong definition, so
-    we use InstanceNormalization to simulate GroupNormalization. We need to check if there are arguments created to simulation.
-    If there are, then we need to replace the pattern. If they are not used, then we don't need to replace the pattern.
-
-    To validate this, we need to check the following:
-    1. weight_for_norm are all 1 and bias_for_norm are all 0, as they are created for the simulation.
-    2. weight_full and bias_full are unsqueezed to be easily broadcastable.
-    3. input rank should be 4
-    4. weight_full and bias_full should have ones except first dim.
-    5. adjusted_input_shape is a constant tensor of form [0, g, -1]
-    6. original_input_shape is the same as input_x shape.
-
-    Args:
-        match_bindings: The match binding dictionary from a MatchResult.
-
-    Returns:
-        bool: True if the simulated instance normalization is used, False otherwise.
-    """
-    return _check_if_simulated_instance_norm_is_used_impl(**match_bindings)
-
-
 def instance_simulates_group_normalization_pattern(
+    op,
     input_x,
     adjusted_input_shape,
     original_input_shape,

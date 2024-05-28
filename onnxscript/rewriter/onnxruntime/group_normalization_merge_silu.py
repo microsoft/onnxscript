@@ -4,21 +4,20 @@ import logging
 
 from onnxscript.rewriter import pattern
 
-op = pattern.onnxop
-msft_op = pattern.msft_op
 torch_module_op = pattern.torch_module_op
 
 logger = logging.getLogger(__name__)
 
 
 def group_normalization_and_silu_submodule(
+    op,
     input,
     weight,
     bias,
     epsilon,
     groups,
 ):
-    group_norm = msft_op.GroupNorm(
+    group_norm = op.GroupNorm(
         input,
         weight,
         bias,
@@ -26,9 +25,12 @@ def group_normalization_and_silu_submodule(
         channels_last=1,
         epsilon=epsilon,
         groups=groups,
+        domain="com.microsoft",
     )
     transposed = op.Transpose(group_norm, perm=[0, 3, 1, 2])
-    return torch_module_op.submodule("torch_nn_modules_activation_SiLU")(transposed)
+    return torch_module_op.submodule("torch_nn_modules_activation_SiLU")(
+        transposed
+    )  # TODO(rama)
 
 
 def group_normalization_with_silu(

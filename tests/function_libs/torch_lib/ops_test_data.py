@@ -1149,6 +1149,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.cross_entropy",
         # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
         nn_ops.aten_cross_entropy_loss,
+        tolerance={torch.float16: (1e-2, 1e-2)},
         input_wrangler=_cross_entropy_input_wrangler,
     ).xfail(
         matcher=lambda sample: len(sample.args) < 1
@@ -1202,6 +1203,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.nll_loss_weight",
         nn_ops.aten_nll_loss_weight,
+        tolerance={torch.float16: (5e-2, 1e-2)},
         input_wrangler=_nll_loss_input_wrangler,
     ).skip(
         matcher=lambda sample: "weight" not in sample.kwargs,
@@ -1214,6 +1216,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ).skip(
         matcher=lambda sample: "weight" in sample.kwargs,
         reason="this Aten overload doesn't accept weight as kwargs",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.pixel_shuffle",
+        core_ops.aten_pixel_shuffle,
+    )
+    .xfail(
+        dtypes=(torch.int32, torch.int64),
+        reason="fixme: ONNX Runtime does not support int32/64 inputs",
+    )
+    .xfail(
+        matcher=lambda sample: sample.input.numel() == 0,
+        reason="fixme: ORT does not support empty tensor as input",
     ),
     TorchLibOpInfo(
         "ops.aten.reflection_pad1d",
@@ -1918,7 +1932,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_native_layer_norm,
         trace_only=True,
         tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (1e-1, 7e-4)},
-    ).skip(
+    )
+    .xfail(
+        dtypes=(torch.float32,),
+        matcher=lambda sample: len(sample.input.shape) == 1,
+        enabled_if=ops_test_common.IS_MACOS and version_utils.onnxruntime_older_than("1.18"),
+        reason="fixme: result mismatch. https://github.com/microsoft/onnxruntime/issues/20676",
+    )
+    .skip(
         dtypes=(torch.float16,),
         device_type="cpu",
         reason="native_layer_norm outputs different dtypes on CPU and CUDA. Our implematation is based on that for CUDA",

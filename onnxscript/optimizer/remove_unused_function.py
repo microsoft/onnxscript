@@ -1,56 +1,74 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 from __future__ import annotations
 
 import logging
+from typing import TypeVar
 
 import onnx
-from google.protobuf.internal.containers import (  # type: ignore
-    RepeatedCompositeFieldContainer,
-)
+
+from onnxscript import ir
 
 logger = logging.getLogger(__name__)
 
 
-class UnusedFunctionRemover:
-    def compute_used_in_node(self, n: onnx.NodeProto) -> set[tuple[str, str]]:
-        used = {(n.domain, n.op_type)}
-        for attr in n.attribute:
-            if attr.HasField("g"):
-                used |= self.process_graph(attr.g)
-            elif len(attr.graphs) > 0:
-                for graph in attr.graphs:
-                    used |= self.process_graph(graph)
-        if (n.domain, n.op_type) in self._functions:
-            function = self._functions[(n.domain, n.op_type)]
-            used |= self.process_function(function)
-        return used
-
-    def process_nodes(
-        self, nodes: RepeatedCompositeFieldContainer[onnx.NodeProto]
-    ) -> set[tuple[str, str]]:
-        used = set()
-        for node in nodes:
-            used |= self.compute_used_in_node(node)
-        return used
-
-    def process_graph(self, graph: onnx.GraphProto) -> set[tuple[str, str]]:
-        return self.process_nodes(graph.node)
-
-    def process_function(self, function: onnx.FunctionProto) -> set[tuple[str, str]]:
-        return self.process_nodes(function.node)
-
-    def process_model(self, model: onnx.ModelProto) -> None:
-        self._functions = {(f.domain, f.name): f for f in model.functions}
-        used = self.process_graph(model.graph)
-        count = 0
-        logger.debug("Used function protos: %s", used)
-        for i in range(len(model.functions) - 1, -1, -1):
-            if (model.functions[i].domain, model.functions[i].name) not in used:
-                del model.functions[i]
-                count += 1
-        logger.info("Removed %s unused function protos", count)
-        logger.debug("Function protos left: %s", [f.name for f in model.functions])
+TModel = TypeVar("TModel", ir.Model, onnx.ModelProto)
 
 
-def remove_unused_functions(model: onnx.ModelProto) -> None:
+def _clean_up_unused_functions(model: ir.Model, unused: set[ir.OperatorIdentifier]) -> None:
+    """Removes unused functions from the model."""
+    for op_identifier in unused:
+        del model.functions[op_identifier]
+
+    logger.info("Removed %s unused functions", len(unused))
+    logger.debug("Functions left: %s", list(model.functions))
+    logger.debug("Functions removed: %s", unused)
+
+
+class RemoveUnusedFunctionPass(ir.passes.PassBase):
+    def __init__(self):
+        super().__init__()
+        self.used: set[ir.OperatorIdentifier] | None = None
+
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        self.used = set()
+        for node in ir.traversal.RecursiveGraphIterator(model.graph):
+            self._call_node(model, node)
+
+        # Update the model to remove unused functions
+        unused = set(model.functions) - self.used
+        if not unused:
+            logger.info("No unused functions to remove")
+            return ir.passes.PassResult(model, modified=False)
+
+        _clean_up_unused_functions(model, unused)
+        self.used = None
+        return ir.passes.PassResult(model, modified=True)
+
+    def _call_function(self, model: ir.Model, function: ir.Function) -> None:
+        assert self.used is not None
+        if function.identifier() in self.used:
+            # The function and its nodes are already recorded as used
+            return
+        self.used.add(function.identifier())
+        for node in ir.traversal.RecursiveGraphIterator(function):
+            self._call_node(model, node)
+
+    def _call_node(self, model: ir.Model, node: ir.Node) -> None:
+        op_identifier = node.op_identifier()
+        if op_identifier not in model.functions:
+            return
+        self._call_function(model, model.functions[op_identifier])
+
+
+def remove_unused_functions(model: TModel) -> TModel:
     """Removes unused function protos from the model."""
-    UnusedFunctionRemover().process_model(model)
+
+    if isinstance(model, ir.Model):
+        return RemoveUnusedFunctionPass()(model).model  # type: ignore[return-value]
+
+    model_ = ir.serde.deserialize_model(model)
+    result = RemoveUnusedFunctionPass()(model_)
+    return ir.serde.serialize_model(result.model)

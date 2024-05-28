@@ -10,9 +10,8 @@ import onnx
 import onnx.reference
 import onnxruntime as ort
 
-import onnxscript
 from onnxscript import ir
-from onnxscript.rewriter import generic_pattern
+from onnxscript.rewriter import generic_pattern, pattern
 
 FLOAT = onnx.TensorProto.FLOAT
 
@@ -26,28 +25,28 @@ class GenericPatternTest(unittest.TestCase):
         return x.reshape(tuple(shape)).astype(np.float32)
 
     def test_graph_pattern_builder(self):
-        class AddAddPattern(generic_pattern.GenericPattern):
-            """Replaces Add + Add by AddAdd."""
+        """Test replacing Add + Add by AddAdd."""
 
-            @classmethod
-            def match_pattern(cls, op, x, y, z):
-                """Builds the pattern to match."""
-                tmp = op.Add(x, y)
-                return op.Add(tmp, z)
+        def match_pattern(op, x, y, z):
+            """Builds the pattern to match."""
+            tmp = op.Add(x, y)
+            return op.Add(tmp, z)
 
-            @classmethod
-            def apply_pattern(cls, op, x, y, z):
-                """Builds the pattern to match."""
-                return op.AddAdd(x, y, z, domain="ZZZ")
+        def apply_pattern(op, x, y, z, **_):
+            """Builds the replacement graph."""
+            return op.AddAdd(x, y, z, domain="ZZZ")
 
-            def validate_mapping(
-                self,
-                g: ir.Model,
-                match_result: generic_pattern.PatternMatchResult,
-            ) -> bool:
-                assert g
-                assert len(match_result.model_nodes) == 2
-                return True
+        def validate_mapping(context, x, y, z, **_) -> bool:
+            """Validates the mapping."""
+            del context
+            return True
+
+        rule = pattern.RewriteRule(
+            match_pattern,
+            apply_pattern,
+            validate_mapping,
+            generic_pattern.GenericPatternMatcher,
+        )
 
         class AddAdd(onnx.reference.op_run.OpRun):
             op_domain = "ZZZ"
@@ -77,8 +76,6 @@ class GenericPatternTest(unittest.TestCase):
         model = onnx.shape_inference.infer_shapes(model)
         ir_model = ir.serde.deserialize_model(model)
 
-        pattern = AddAddPattern(verbose=0)
-        rule = pattern.make_rule()
         rule.apply_to_model(ir_model)
         self.assertEqual(
             ["AddAdd"],
@@ -110,30 +107,27 @@ class GenericPatternTest(unittest.TestCase):
         np.testing.assert_almost_equal(expected[0], got[0])
 
     def test_graph_pattern_builder_multi_outputs(self):
-        class AddAddAddAddPattern(generic_pattern.GenericPattern):
-            """Replaces ConstantOfShape + ScatterND with ScatterNDOfShape (com.domain)."""
+        def match_pattern(op, x, y, w, z):
+            """Builds the pattern to match."""
+            tmp = op.Add(x, y)
+            tmp2 = op.Add(tmp, w)
+            r1 = op.Add(tmp, z)
+            return tmp2, r1
 
-            @classmethod
-            def match_pattern(cls, op, x, y, w, z):
-                """Builds the pattern to match."""
-                tmp = op.Add(x, y)
-                tmp2 = op.Add(tmp, w)
-                r1 = op.Add(tmp, z)
-                return tmp2, r1
+        def apply_pattern(op, x, y, w, z, **_):
+            """Builds the pattern to match."""
+            return op.AddAddAddAdd(x, y, w, z, domain="ZZZ", outputs=2)
 
-            @classmethod
-            def apply_pattern(cls, op, x, y, w, z):
-                """Builds the pattern to match."""
-                return op.AddAddAddAdd(x, y, w, z, domain="ZZZ", outputs=2)
+        def validate_mapping(context, **_) -> bool:
+            return True
 
-            def validate_mapping(
-                self,
-                g: ir.Model,
-                match_result: generic_pattern.PatternMatchResult,
-            ) -> bool:
-                assert g
-                assert len(match_result.model_nodes) == 3
-                return True
+        rule = pattern.RewriteRule(
+            match_pattern,
+            apply_pattern,
+            validate_mapping,
+            generic_pattern.GenericPatternMatcher,
+            verbose=10,
+        )
 
         class AddAddAddAdd(onnx.reference.op_run.OpRun):
             op_domain = "ZZZ"
@@ -168,8 +162,6 @@ class GenericPatternTest(unittest.TestCase):
         model = onnx.shape_inference.infer_shapes(model)
         ir_model = ir.serde.deserialize_model(model)
 
-        pattern = AddAddAddAddPattern(verbose=10)
-        rule = pattern.make_rule()
         rule.apply_to_model(ir_model)
         self.assertEqual(
             ["AddAddAddAdd"],
@@ -256,59 +248,56 @@ class GenericPatternTest(unittest.TestCase):
         # The test work on a model if it has the expected name.
         # A dummy model is used if not present (not implemented yet).
 
-        class RotaryEmbeddingPattern(generic_pattern.GenericPattern):
-            """Fusion for Rotary."""
+        def match_pattern(op, x, pos_ids, axis):
+            # original code: the code does verifies the constant yet
+            # unsqueeze = op.Unsqueeze(x, [1])
 
-            @classmethod
-            def match_pattern(cls, op, x, pos_ids, axis):
-                # original code: the code does verifies the constant yet
-                # unsqueeze = op.Unsqueeze(x, [1])
+            unsqueeze = op.Unsqueeze(x, axis)
+            cast = op.Cast(unsqueeze, to=FLOAT)
 
-                unsqueeze = op.Unsqueeze(x, axis)
-                cast = op.Cast(unsqueeze, to=FLOAT)
+            matmul = op.MatMul(pos_ids, cast)
+            transpose = op.Transpose(matmul)
+            output, length = op.ConcatTraining(
+                transpose,
+                transpose,
+                domain="com.microsoft",
+                outputs=2,
+            )
 
-                matmul = op.MatMul(pos_ids, cast)
-                transpose = op.Transpose(matmul)
-                output, length = op.ConcatTraining(
-                    transpose,
-                    transpose,
-                    domain="com.microsoft",
-                    outputs=2,
-                )
+            sin = op.Sin(output)
+            cast1 = op.Cast(sin, to=FLOAT)
+            cos = op.Cos(output)
+            cast2 = op.Cast(cos, to=FLOAT)
+            return cast1, cast2
 
-                sin = op.Sin(output)
-                cast1 = op.Cast(sin, to=FLOAT)
-                cos = op.Cos(output)
-                cast2 = op.Cast(cos, to=FLOAT)
-                return cast1, cast2
+        def validate_mapping(match_result, **_) -> bool:
+            del match_result
+            return True
 
-            def validate_mapping(self, g, match_result) -> bool:
-                # If some pattern needs to be rejected.
-                del g
-                del match_result
-                return True
+        def apply_pattern(op, x, pos_ids, axis, **_):
+            del axis
+            cos_cache = op.Constant(
+                value=onnx.numpy_helper.from_array(np.random.rand(256, 256).astype(np.float16))
+            )
+            sin_cache = op.Constant(
+                value=onnx.numpy_helper.from_array(np.random.rand(256, 256).astype(np.float16))
+            )
+            return op.RotaryEmbedding(
+                x,
+                pos_ids,
+                cos_cache,
+                sin_cache,
+                domain="com.microsoft",
+                outputs=2,
+            )
 
-            @classmethod
-            def apply_pattern(cls, op, x, pos_ids, axis):
-                del axis
-                cos_cache = op.Constant(
-                    value=onnx.numpy_helper.from_array(
-                        np.random.rand(256, 256).astype(np.float16)
-                    )
-                )
-                sin_cache = op.Constant(
-                    value=onnx.numpy_helper.from_array(
-                        np.random.rand(256, 256).astype(np.float16)
-                    )
-                )
-                return op.RotaryEmbedding(
-                    x,
-                    pos_ids,
-                    cos_cache,
-                    sin_cache,
-                    domain="com.microsoft",
-                    outputs=2,
-                )
+        rule = pattern.RewriteRule(
+            match_pattern,
+            apply_pattern,
+            validate_mapping,
+            generic_pattern.GenericPatternMatcher,
+            verbose=10,
+        )
 
         model = self.get_rotary_model()
 
@@ -319,8 +308,6 @@ class GenericPatternTest(unittest.TestCase):
             ir_model = ir.serde.deserialize_model(model)
 
             # starts matching
-            pattern = RotaryEmbeddingPattern(verbose=10)
-            rule = pattern.make_rule()
             rule.apply_to_model(ir_model)
             ir_model.opset_imports["com.microsoft"] = 1
 
@@ -329,21 +316,22 @@ class GenericPatternTest(unittest.TestCase):
         expected = ["Constant", "Constant", "RotaryEmbedding"]
         self.assertEqual(expected, [n.op_type for n in rewriten_model.graph.node])
         out = buffer.getvalue()
-        self.assertIn("[GenericPattern.match", out)
+        # TODO(Rama): What is this assertion testing? Is it to check that `verbose` is working?
+        self.assertIn("[GenericPatternMatcher.match", out)
 
     def test_rotary_embedding_onnxscript(self):
         # The test work on a model if it has the expected name.
         # A dummy model is used if not present (not implemented yet).
-        op = onnxscript.opset18
-        msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
-        def rotary_match_pattern(x, pos_ids, axis):
+        def rotary_match_pattern(op, x, pos_ids, axis):
             unsqueeze = op.Unsqueeze(x, axis)
             cast = op.Cast(unsqueeze, to=FLOAT)
 
             matmul = op.MatMul(pos_ids, cast)
             transpose = op.Transpose(matmul)
-            output, length = msft_op.ConcatTraining(transpose, transpose)
+            output, length = op.ConcatTraining(
+                transpose, transpose, domain="com.microsoft", outputs=2
+            )
 
             sin = op.Sin(output)
             cast1 = op.Cast(sin, to=FLOAT)
@@ -351,21 +339,30 @@ class GenericPatternTest(unittest.TestCase):
             cast2 = op.Cast(cos, to=FLOAT)
             return cast1, cast2
 
-        def validate_rotary_mapping(g, match_result) -> bool:
+        def validate_rotary_mapping(match_result, **_) -> bool:
             # If some pattern needs to be rejected.
-            del g
             del match_result
             return True
 
-        def rotary_apply_pattern(x, pos_ids, axis):
+        def rotary_apply_pattern(op, x, pos_ids, axis, **_):
             cos_cache = op.Constant(
                 value=onnx.numpy_helper.from_array(np.random.rand(256, 256).astype(np.float16))
             )
             sin_cache = op.Constant(
                 value=onnx.numpy_helper.from_array(np.random.rand(256, 256).astype(np.float16))
             )
-            part1, part2 = msft_op.RotaryEmbedding(x, pos_ids, cos_cache, sin_cache)
+            part1, part2 = op.RotaryEmbedding(
+                x, pos_ids, cos_cache, sin_cache, domain="com.microsoft", outputs=2
+            )
             return part1, part2
+
+        rule = pattern.RewriteRule(
+            rotary_match_pattern,
+            rotary_apply_pattern,
+            validate_rotary_mapping,
+            generic_pattern.GenericPatternMatcher,
+            verbose=10,
+        )
 
         model = self.get_rotary_model()
 
@@ -376,13 +373,6 @@ class GenericPatternTest(unittest.TestCase):
             ir_model = ir.serde.deserialize_model(model)
 
             # starts matching
-            rule = generic_pattern.make_pattern_rule(
-                rotary_match_pattern,
-                rotary_apply_pattern,
-                validate_rotary_mapping,
-                verbose=10,
-            )
-
             rule.apply_to_model(ir_model)
             ir_model.opset_imports["com.microsoft"] = 1
 
@@ -392,21 +382,21 @@ class GenericPatternTest(unittest.TestCase):
         self.assertEqual(expected, [n.op_type for n in rewriten_model.graph.node])
         out = buffer.getvalue()
         # TODO(justinchuby): Remove this assert - capturing stdout is not robust
-        self.assertIn("[GenericPattern.match", out)
+        self.assertIn("[GenericPatternMatcher.match", out)
 
     def test_rotary_emb_file_onnxscript(self):
         # The test work on a model if it has the expected name.
         # A dummy model is used if not present (not implemented yet).
-        op = onnxscript.opset18
-        msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
-        def rotary_match_pattern(x, pos_ids, axis):
+        def rotary_match_pattern(op, x, pos_ids, axis):
             unsqueeze = op.Unsqueeze(x, axis)
             cast = op.Cast(unsqueeze, to=FLOAT)
 
             matmul = op.MatMul(pos_ids, cast)
             transpose = op.Transpose(matmul)
-            output, length = msft_op.ConcatTraining(transpose, transpose)
+            output, length = op.ConcatTraining(
+                transpose, transpose, domain="com.microsoft", outputs=2
+            )
 
             sin = op.Sin(output)
             cast1 = op.Cast(sin, to=FLOAT)
@@ -414,20 +404,21 @@ class GenericPatternTest(unittest.TestCase):
             cast2 = op.Cast(cos, to=FLOAT)
             return cast1, cast2
 
-        def validate_rotary_mapping(g, match_result) -> bool:
+        def validate_rotary_mapping(match_result, **_) -> bool:
             # If some pattern needs to be rejected.
-            del g
             del match_result
             return True
 
-        def rotary_apply_pattern(x, pos_ids, axis):
+        def rotary_apply_pattern(op, x, pos_ids, axis):
             cos_cache = op.Constant(
                 value=onnx.numpy_helper.from_array(np.random.rand(256, 256).astype(np.float16))
             )
             sin_cache = op.Constant(
                 value=onnx.numpy_helper.from_array(np.random.rand(256, 256).astype(np.float16))
             )
-            part1, part2 = msft_op.RotaryEmbedding(x, pos_ids, cos_cache, sin_cache)
+            part1, part2 = op.RotaryEmbedding(
+                x, pos_ids, cos_cache, sin_cache, domain="com.microsoft", outputs=2
+            )
             return part1, part2
 
         model_path = "gemma_optimized_pre_grad_training_2.onnx"
@@ -437,10 +428,11 @@ class GenericPatternTest(unittest.TestCase):
         model = onnx.shape_inference.infer_shapes(model)
         ir_model = ir.serde.deserialize_model(model)
 
-        rule = generic_pattern.make_pattern_rule(
+        rule = pattern.RewriteRule(
             rotary_match_pattern,
             rotary_apply_pattern,
             validate_rotary_mapping,
+            generic_pattern.GenericPatternMatcher,
             verbose=10,
         )
 
@@ -456,56 +448,50 @@ class GenericPatternTest(unittest.TestCase):
         self.check_with_ort(rewriten_model)
 
     def test_transpose_transpose_onnxscript(self):
-        # The test work on a model if it has the expected name.
-        # A dummy model is used if not present (not implemented yet).
-        transpose_transpose_pattern = onnx.helper.make_function(
-            "any",
-            "transpose_transpose_pattern",
-            ["X"],
-            ["Y"],
-            [
-                onnx.helper.make_node("Transpose", ["X"], ["xt"]),
-                onnx.helper.make_node("Transpose", ["xt"], ["Y"]),
-            ],
-            [onnx.helper.make_opsetid("", 18)],
-        )
+        # TODO(rama): Attribute-parameters not yet supported in multi-output matching.
+        # def transpose_transpose_pattern(op, X, perm0, perm1):
+        #     xt = op.Transpose(X, perm=perm0)
+        #     Y = op.Transpose(xt, perm=perm1)
+        #     return Y
 
-        def transpose_transpose_mapping(g, match_result) -> bool:
-            # If some pattern needs to be rejected.
-            del g
-            perms = []
-            for n in match_result.model_nodes:
-                perms.append(list(n.attributes["perm"].value))
-            perm = perms[0]
-            new_perm = [0 for p in perm]
-            for i, p in enumerate(perms[1]):
-                new_perm[i] = perm[p]
-            match_result.add_kwargs("perm", new_perm)
+        def transpose_transpose_pattern(op, X):
+            XT = op.Transpose(X, outputs=["XT"])
+            Y = op.Transpose(XT, outputs=["Y"])
+            return Y
+
+        def transpose_transpose_mapping(perm0, perm1):
+            new_perm = [0 for p in perm0]
+            for i, p in enumerate(perm1):
+                new_perm[i] = perm0[p]
+            # replace by return [perm0[p] for p in perm1] ?
+            return new_perm
+
+        def transpose_transpose_check(op, **_) -> bool:
             return True
 
-        # FIXME(justinchuby): Support matched result binding
-        def transpose_transpose_apply_pattern(perm=None):
-            if perm is None:
-                return onnx.helper.make_function(
-                    "any",
-                    "id",
-                    ["X"],
-                    ["Y"],
-                    [
-                        onnx.helper.make_node("Identity", ["X"], ["Y"]),
-                    ],
-                    [onnx.helper.make_opsetid("", 18)],
-                )
-            return onnx.helper.make_function(
-                "any",
-                "id",
-                ["X"],
-                ["Y"],
-                [
-                    onnx.helper.make_node("Transpose", ["X"], ["Y"], perm=perm),
-                ],
-                [onnx.helper.make_opsetid("", 18)],
-            )
+        def transpose_transpose_apply_pattern(op, X, XT: ir.Value, Y, **_):
+            perm0 = XT.producer().attributes.get("perm")
+            if perm0 is not None:
+                perm0 = perm0.value  # TODO(rama): handle RefAttr
+            perm1 = Y.producer().attributes.get("perm")
+            if perm1 is not None:
+                perm1 = perm1.value  # TODO(rama): handle RefAttr
+            if perm0 is None and perm1 is None:
+                return op.Identity(X)
+            if perm0 is None:
+                perm0 = range(len(perm1) - 1, -1, -1)
+            if perm1 is None:
+                perm1 = range(len(perm0) - 1, -1, -1)
+            composed_perm = transpose_transpose_mapping(perm0, perm1)
+            return op.Transpose(X, perm=composed_perm)
+
+        rule = pattern.RewriteRule(
+            transpose_transpose_pattern,
+            transpose_transpose_apply_pattern,
+            transpose_transpose_check,
+            generic_pattern.GenericPatternMatcher,
+            verbose=0,
+        )
 
         model = onnx.helper.make_model(
             onnx.helper.make_graph(
@@ -524,12 +510,6 @@ class GenericPatternTest(unittest.TestCase):
         ir_model = ir.serde.deserialize_model(model)
 
         # starts matching
-        rule = generic_pattern.make_pattern_rule(
-            transpose_transpose_pattern,
-            transpose_transpose_apply_pattern(perm=[2, 0, 1]),
-            transpose_transpose_mapping,
-            verbose=0,
-        )
 
         rule.apply_to_model(ir_model)
         rewriten_model = ir.serde.serialize_model(ir_model)

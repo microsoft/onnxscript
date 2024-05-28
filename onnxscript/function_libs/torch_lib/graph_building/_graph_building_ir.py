@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes
+import typing
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -106,6 +107,7 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
         ir.Value.__init__(self, producer, index=index, name=name)
         self._is_complex: bool = False
         self._concrete_value: np.ndarray | None = None
+        self._device: torch.device | None = None
 
     @property
     def value(self) -> Optional[np.ndarray]:
@@ -150,6 +152,16 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
         else:
             self._type.dtype = onnx_dtype
 
+    # TODO: Remove this when there is no mismatch output shapes between device:
+    # https://github.com/pytorch/pytorch/blob/a44f8894fa6d973693aab44a3dda079a168b05c1/torch/_decomp/decompositions.py#L1451-L1457
+    @property
+    def device(self) -> torch.device | None:
+        return self._device
+
+    @device.setter
+    def device(self, device: torch.device):
+        self._device = device
+
     @property
     def is_complex(self) -> bool:
         return self._is_complex
@@ -164,42 +176,6 @@ class TorchScriptTensor(ir.Value, onnxscript_tensor.Tensor):
 
     def value_info(self) -> Optional[onnx.ValueInfoProto]:
         raise NotImplementedError("value_info is not supported for TorchScriptTensor.")
-
-
-class _Node(ir.Node):
-    """A node that will produce TorchScriptTensor as outputs for compatibility."""
-
-    def __init__(
-        self,
-        domain: str,
-        op_type: str,
-        inputs: Sequence[ir.Value | None],
-        attributes: Sequence[ir.Attr | ir.RefAttr] = (),
-        *,
-        overload: str = "",
-        num_outputs: int = 1,
-        version: int | None = None,
-        name: str | None = None,
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            domain=domain,
-            op_type=op_type,
-            inputs=inputs,
-            attributes=attributes,
-            overload=overload,
-            num_outputs=num_outputs,
-            version=version,
-            name=name,
-            doc_string=doc_string,
-        )
-        self._outputs: tuple[TorchScriptTensor, ...] = tuple(
-            TorchScriptTensor(producer=self, index=i) for i in range(num_outputs)
-        )
-
-    @property  # type: ignore[misc]
-    def outputs(self) -> Sequence[TorchScriptTensor]:
-        return self._outputs
 
 
 class TorchScriptTracingEvaluator(evaluator.Evaluator):
@@ -357,16 +333,16 @@ def _create_op_call_in_graph(
     # now they can pass through None attributes, and have them not show up
     attributes = {k: v for k, v in attributes.items() if v is not None}
 
-    node = _Node(
+    node = ir.Node(
         domain,
         op_type,
         inputs=inputs,
         attributes=[_build_attribute(key, value) for key, value in attributes.items()],
-        num_outputs=num_outputs,
+        outputs=[TorchScriptTensor() for _ in range(num_outputs)],
     )
     graph.append(node)
 
-    return node.outputs
+    return typing.cast(Sequence[TorchScriptTensor], node.outputs)
 
 
 def _shared_functions() -> list[ir.Function]:
@@ -441,6 +417,7 @@ class TorchScriptGraph:
         input_name: Optional[str],
         shape: Optional[Union[torch.Size, Tuple[Union[int, str, None], ...]]] = None,
         dtype: Optional[torch.dtype] = None,
+        device: Optional[torch.device] = None,
     ) -> TorchScriptTensor | None:
         if input_name is None:
             # This input argument is None, which is mapped
@@ -449,6 +426,7 @@ class TorchScriptGraph:
         else:
             value = TorchScriptTensor(name=input_name)
             value.shape = shape  # type: ignore[arg-type,assignment]
+            value.device = device
             if dtype is not None:
                 value.dtype = dtype  # type: ignore[assignment]
             # TODO(titaiwang): This approach loses the information that "same SymInts
@@ -484,6 +462,7 @@ class TorchScriptGraph:
             )
         else:
             input = TorchScriptTensor(name=name)
+            input.const_value = _TorchTensor(value)
             self._initializers_inputs[name] = input
             self._initializers[name] = value
         return input
@@ -719,10 +698,10 @@ class TorchScriptGraph:
             unique_custom_domains[function.domain] = 1
 
         if include_initializers:
-            self._graph.initializers.update(
-                {name: _TorchTensor(value) for name, value in self._initializers.items()}
-            )
+            self._graph.initializers.update(self._initializers_inputs)
         else:
+            # TODO(justinchuby): Potentially set to const_value to None instead so we
+            # don't lose handle on the values.
             self._graph.initializers.clear()
 
         onnx_model = ir.Model(
