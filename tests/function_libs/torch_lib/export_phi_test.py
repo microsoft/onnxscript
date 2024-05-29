@@ -18,6 +18,16 @@ import onnxscript.rewriter
 # Common functions
 
 
+def has_transformers():
+    try:
+        import transformers
+
+        assert transformers
+        return True
+    except ImportError:
+        return False
+
+
 def export_to_onnx(model, *input_tensors, optimize=True):
     prog = torch.onnx.dynamo_export(model, *input_tensors)
     model_proto = prog.model_proto
@@ -243,6 +253,7 @@ def get_phi_model(
 class TestExportPhi(unittest.TestCase):
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
+    @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     def test_phi_export_cpu(self):
         model, input_tensors = get_phi_model()
         input_tensors = input_tensors[0]
@@ -259,6 +270,7 @@ class TestExportPhi(unittest.TestCase):
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not torch.cuda.is_available(), reason="CUDA not available")
+    @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     def test_phi_export_cuda(self):
         model, input_tensors = get_phi_model()
         input_tensors = input_tensors[0]
@@ -276,6 +288,7 @@ class TestExportPhi(unittest.TestCase):
         np.testing.assert_allclose(expected[0].detach().cpu().numpy(), results[0], atol=1e-5)
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
+    @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     def test_phi_dort_static(self):
         model, input_tensors = get_phi_model()
         input_tensors = input_tensors[0]
@@ -295,7 +308,9 @@ class TestExportPhi(unittest.TestCase):
 
         expected_gradients = train_loop(model, *input_tensors)
         gradients = train_loop(compiled_model, *input_tensors)
-        torch.testing.assert_allclose(expected_gradients[0], gradients[0], atol=1e-5, rtol=1e-5)
+        torch.testing.assert_allclose(
+            expected_gradients[0], gradients[0], atol=1e-5, rtol=1e-5
+        )
 
 
 if __name__ == "__main__":
