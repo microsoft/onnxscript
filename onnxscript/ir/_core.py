@@ -1315,7 +1315,7 @@ class SparseTensorType(_TensorTypeBase):
     """A type that represents a sparse tensor."""
 
 
-class _RecursiveTypeBase(_protocols.TypeProtocol, _display.PrettyPrintable):
+class _RecursiveTypeBase(_protocols.TypeProtocol, _display.PrettyPrintable, Hashable):
     """Base for recursive types like Optional and Sequence."""
 
     __slots__ = ("_elem_type", "denotation")
