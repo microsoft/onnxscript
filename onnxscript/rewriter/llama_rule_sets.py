@@ -68,13 +68,10 @@ transpose_transpose_rule = orp.RewriteRule(
 )
 
 
-def llama_p0_rule_set(verbose: int = 0) -> orp.RewriteRuleSet:
+def llama_p0_rule_set() -> orp.RewriteRuleSet:
     """Returns a set of rules which should be applied
     before any other one as they usually remove unnecessary computation
     such as the multiplication by 1 or two consecutive transpose.
-
-    Args:
-        verbose: verbosity
 
     Returns:
         RewriteRuleSet
