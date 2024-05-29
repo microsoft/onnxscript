@@ -576,6 +576,11 @@ class ValueTest(unittest.TestCase):
     def test_initialize(self):
         _ = _core.Value()
 
+    def test_it_is_hashable(self):
+        value = _core.Value()
+        self.assertIsInstance(hash(value), int)
+        self.assertIn(value, {value})
+
     def test_meta(self):
         value = _core.Value()
         value.meta["test"] = 1
@@ -591,6 +596,10 @@ class NodeTest(unittest.TestCase):
         self.v0 = _core.Value()
         self.v1 = _core.Value()
         self.node = _core.Node("test", "TestOp", inputs=(self.v0, self.v1), num_outputs=3)
+
+    def test_it_is_hashable(self):
+        self.assertIsInstance(hash(self.node), int)
+        self.assertIn(self.node, {self.node})
 
     def test_init_with_values(self):
         self.assertEqual(self.node.domain, "test")
@@ -678,6 +687,10 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(self.graph.opset_imports, {"": 1})
         self.assertEqual(self.graph.initializers, {})
         self.assertIsNone(self.graph.doc_string)
+
+    def test_it_is_hashable(self):
+        self.assertIsInstance(hash(self.graph), int)
+        self.assertIn(self.graph, {self.graph})
 
     def test_it_is_iterable_of_nodes(self):
         self.assertEqual(list(self.graph), [self.node])
