@@ -28,6 +28,7 @@ from typing import (
     Any,
     Collection,
     Generic,
+    Hashable,
     Iterable,
     Iterator,
     OrderedDict,
@@ -1267,7 +1268,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         super().display(page=page)
 
 
-class _TensorTypeBase(_protocols.TypeProtocol, _display.PrettyPrintable):
+class _TensorTypeBase(_protocols.TypeProtocol, _display.PrettyPrintable, Hashable):
     """Tensor types that are non recursive types."""
 
     __slots__ = ("_dtype", "denotation")
@@ -1288,6 +1289,9 @@ class _TensorTypeBase(_protocols.TypeProtocol, _display.PrettyPrintable):
     def elem_type(self) -> _enums.DataType:
         """Return the element type of the tensor type"""
         return self.dtype
+
+    def __hash__(self) -> int:
+        return hash(repr(self))
 
     def __eq__(self, other: object) -> bool:
         if self.__class__ is not other.__class__:
@@ -1333,6 +1337,9 @@ class _RecursiveTypeBase(_protocols.TypeProtocol, _display.PrettyPrintable):
     @property
     def elem_type(self) -> _protocols.TypeProtocol:
         return self._elem_type
+
+    def __hash__(self) -> int:
+        return hash(repr(self))
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, _RecursiveTypeBase):

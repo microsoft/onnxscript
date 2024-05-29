@@ -767,5 +767,26 @@ class GraphTest(unittest.TestCase):
     # TODO(justinchuby): Test graph mutation methods
 
 
+class TypeTest(unittest.TestCase):
+    @parameterized.parameterized.expand(
+        [
+            ("tensor", _core.TensorType(ir.DataType.FLOAT)),
+            ("sequence", _core.SequenceType(_core.TensorType(ir.DataType.BOOL))),
+            ("optional", _core.OptionalType(_core.TensorType(ir.DataType.FLOAT16))),
+            (
+                "sequence_optional",
+                _core.SequenceType(_core.OptionalType(_core.TensorType(ir.DataType.INT8))),
+            ),
+            (
+                "optional_sequence",
+                _core.OptionalType(_core.SequenceType(_core.TensorType(ir.DataType.INT16))),
+            ),
+        ]
+    )
+    def test_type_is_hashable(self, _: str, type_: ir.TypeProtocol):
+        self.assertIsInstance(hash(type_), int)
+        self.assertIn(type_, {type_})  # type: ignore
+
+
 if __name__ == "__main__":
     unittest.main()
