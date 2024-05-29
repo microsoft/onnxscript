@@ -3,6 +3,7 @@ import copy
 import inspect
 import io
 import itertools
+import logging
 import operator
 import os
 import sys
@@ -14,7 +15,6 @@ import onnxruntime  # noqa: F401
 import torch
 import torch.nn as nn
 import torch.onnx
-from onnx.onnx_cpp2py_export.shape_inference import InferenceError
 from torch.autograd import Function
 from torch.nn import Module, Parameter, functional
 from torch.onnx import ExportOptions
@@ -39,12 +39,7 @@ def hide_stdout(f=None):
             st = io.StringIO()
             with contextlib.redirect_stdout(st), warnings.catch_warnings():
                 warnings.simplefilter("ignore", (UserWarning, DeprecationWarning))
-                try:
-                    return fct(self)
-                except AssertionError as e:
-                    if "torch is not recent enough, file" in str(e):
-                        raise unittest.SkipTest(str(e))
-                    raise
+                return fct(self)
             if f is not None:
                 f(st.getvalue())
 
@@ -77,10 +72,6 @@ def ignore_warnings(warns):
         return call_f
 
     return wrapper
-
-
-class FunctionNotFoundError(RuntimeError):
-    pass
 
 
 def make_aot_ort(dynamic: bool = False):
@@ -142,9 +133,22 @@ class FuncModuleModule(Module):
 
 
 class TestOperatorsOnnxrt(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.dump_folder = f"dump_{cls.__name__}"
+        if not os.path.exists(cls.dump_folder):
+            os.mkdir(cls.dump_folder)
+        for name in os.listdir(cls.dump_folder):
+            os.remove(os.path.join(cls.dump_folder, name))
+
     def setUp(self):
         super().setUp()
         torch._dynamo.reset()
+
+    def tearDown(self):
+        super().tearDown()
+        os.environ["ONNXRT_DUMP_PATH"] = ""
 
     def assertEqualArray(
         self,
@@ -177,6 +181,50 @@ class TestOperatorsOnnxrt(unittest.TestCase):
             if msg:
                 raise AssertionError(msg) from e
             raise
+
+    def _get_logs(
+        self, fct, logger_name="torch.onnx._internal.onnxruntime", level=logging.INFO
+    ):
+
+        class MyStream:
+            def __init__(self):
+                self.rows = []
+
+            def write(self, text):
+                self.rows.append(text)
+
+            def getvalue(self):
+                return "\n".join(self.rows)
+
+            def __len__(self):
+                return len(self.rows)
+
+        logger = logging.getLogger(logger_name)
+
+        hs = list(logger.handlers)
+        for h in hs:
+            logger.removeHandler(h)  # pragma: no cover
+
+        log_capture_string = MyStream()
+        ch = logging.StreamHandler(log_capture_string)
+        ch.setLevel(level)
+        logger.addHandler(ch)
+        logger.setLevel(level)
+
+        if not logger.hasHandlers():
+            raise AssertionError(f"Logger {logger_name!r} has no handlers.")
+
+        prop = logger.propagate
+        logger.propagate = False
+        res = fct()
+        logger.propagate = prop
+
+        logs = log_capture_string.getvalue()
+        logger.removeHandler(ch)
+
+        for h in hs:
+            logger.addHandler(h)
+        return res, logs
 
     def assertONNX(
         self,
@@ -212,14 +260,19 @@ class TestOperatorsOnnxrt(unittest.TestCase):
             model = FuncModule(f, params)
         model.eval()
 
+        os.environ["ONNXRT_DUMP_PATH"] = f"{self.dump_folder}/{onnx_export}_"
+
+        # DORT automatically handles graph break even if fullgraph is set to True.
+        # Therefore, the function catches the warning sent to the logger 'torch.onnx._internal.onnxruntime'
+        # to detect any message:
+        # support_dict and extra_support_dict don't support node.target ...
+        # then raises an exception because this function is missing from torchlib.
+        # If that's the case, the function dumps more onnx model than it should do.
+        # 1 for forward, 1 for backward. Having more means graph break.
+
         if test_backward:
             # forward/backward
-            try:
-                local_aot_ort = make_aot_ort(dynamic=False)
-            except AssertionError as e:
-                if "This requires torch>=2.3" in str(e):
-                    raise unittest.SkipTest(str(e))
-                raise
+            local_aot_ort = make_aot_ort(dynamic=False)
 
             compiled_model = torch.compile(
                 copy.deepcopy(model),
@@ -229,14 +282,12 @@ class TestOperatorsOnnxrt(unittest.TestCase):
             )
 
             baseline_result = model(*args)
-            try:
-                result = compiled_model(*args)
-            except torch._dynamo.exc.BackendCompilerFailed as e:
-                if "FunctionNotFoundError" in str(e):
-                    raise unittest.SkipTest(f"MISSING FOR FORWARD {e}")
-                raise
-            except InferenceError as e:
-                raise unittest.SkipTest(f"Failing due to {e}")
+            result, logs = self._get_logs(lambda: compiled_model(*args))
+            if "support_dict and extra_support_dict don't support node.target" in logs:
+                logs = logs.replace("\n\n", "\n")
+                raise AssertionError(
+                    f"A function is missing in torchlib for FORWARD...\n{logs}"
+                )
 
             if isinstance(baseline_result, tuple):
                 baseline_result = baseline_result[0]
@@ -251,12 +302,13 @@ class TestOperatorsOnnxrt(unittest.TestCase):
                 )
 
                 baseline_result = model(*args)
-                try:
-                    result = compiled_model(*args)
-                except torch._dynamo.exc.BackendCompilerFailed as e:
-                    if "FunctionNotFoundError" in str(e):
-                        raise unittest.SkipTest(f"MISSING FOR FORWARD {e}")
-                    raise
+
+                result, logs = self._get_logs(lambda: compiled_model(*args))
+                if "support_dict and extra_support_dict don't support node.target" in logs:
+                    logs = logs.replace("\n\n", "\n")
+                    raise AssertionError(
+                        f"A function is missing in torchlib for FORWARD...\n{logs}"
+                    )
 
                 if isinstance(baseline_result, tuple):
                     baseline_result = baseline_result[0]
@@ -269,23 +321,21 @@ class TestOperatorsOnnxrt(unittest.TestCase):
                         rtol=rtol,
                         msg=f"expected\n{baseline_result}\n--got--\n{result}",
                     )
-                    try:
-                        torch.testing.assert_close(
-                            baseline_result,
-                            result,
-                            atol=atol,
-                            rtol=rtol,
-                            equal_nan=True,
-                        )
-                    except AssertionError as e:
-                        if "nan" not in str(e):
-                            raise
+                    torch.testing.assert_close(
+                        baseline_result,
+                        result,
+                        atol=atol,
+                        rtol=rtol,
+                        equal_nan=True,
+                    )
 
                     baseline_result.sum().backward()
-                    try:
-                        result.sum().backward()
-                    except FunctionNotFoundError as e:
-                        raise unittest.SkipTest(f"MISSING FOR BACKWARD {e}")
+                    _, logs = self._get_logs(lambda: result.sum().backward())
+                    if "support_dict and extra_support_dict don't support node.target" in logs:
+                        logs = logs.replace("\n\n", "\n")
+                        raise AssertionError(
+                            f"A function is missing in torchlib for BACKWARD...\n{logs}"
+                        )
 
                     l1 = list(model.parameters())
                     l2 = list(compiled_model.parameters())
@@ -320,7 +370,12 @@ class TestOperatorsOnnxrt(unittest.TestCase):
                 )
 
                 baseline_result = model(*args)
-                result = compiled_model(*args)
+                result, logs = self._get_logs(lambda: compiled_model(*args))
+                if "support_dict and extra_support_dict don't support node.target" in logs:
+                    logs = logs.replace("\n\n", "\n")
+                    raise AssertionError(
+                        f"A function is missing in torchlib for FORWARD...\n{logs}"
+                    )
 
                 if isinstance(baseline_result, torch.Tensor):
                     self.assertEqualArray(
@@ -334,12 +389,12 @@ class TestOperatorsOnnxrt(unittest.TestCase):
                     )
 
                 baseline_result.sum().backward()
-                try:
-                    result.sum().backward()
-                except FunctionNotFoundError as e:
-                    if not os.environ.get("EXPDORAISE", False):
-                        raise unittest.SkipTest(f"MISSING FOR BACKWARD {e}")
-                    raise
+                _, logs = self._get_logs(lambda: result.sum().backward())
+                if "support_dict and extra_support_dict don't support node.target" in logs:
+                    logs = logs.replace("\n\n", "\n")
+                    raise AssertionError(
+                        f"A function is missing in torchlib for BACKWARD...\n{logs}"
+                    )
 
                 l1 = list(model.parameters())
                 l2 = list(compiled_model.parameters())
@@ -372,10 +427,12 @@ class TestOperatorsOnnxrt(unittest.TestCase):
             )
 
             baseline_result = model(*args)
-            try:
-                result = compiled_model(*args)
-            except InferenceError as e:
-                raise unittest.SkipTest(f"Compilation failed due to {e}")
+            result, logs = self._get_logs(lambda: compiled_model(*args))
+            if "support_dict and extra_support_dict don't support node.target" in logs:
+                logs = logs.replace("\n\n", "\n")
+                raise AssertionError(
+                    f"A function is missing in torchlib for FORWARD...\n{logs}"
+                )
 
             if isinstance(baseline_result, torch.Tensor):
                 self.assertEqualArray(
@@ -387,6 +444,8 @@ class TestOperatorsOnnxrt(unittest.TestCase):
                 torch.testing.assert_close(
                     baseline_result, result, atol=atol, rtol=rtol, equal_nan=True
                 )
+
+        os.environ["ONNXRT_DUMP_PATH"] = ""
 
     @ignore_warnings(UserWarning)
     @hide_stdout()
@@ -686,7 +745,6 @@ class TestOperatorsOnnxrt(unittest.TestCase):
             onnx_export=inspect.currentframe().f_code.co_name,
         )
 
-    @unittest.skip(reason="AssertionError: Cannot detect fake_mode")
     @hide_stdout()
     def test_xt_conv(self):
         x = torch.ones(20, 16, 50, 40, requires_grad=True)
@@ -697,7 +755,6 @@ class TestOperatorsOnnxrt(unittest.TestCase):
             onnx_export=inspect.currentframe().f_code.co_name,
         )
 
-    @unittest.skip(reason="AssertionError: Cannot detect fake_mode")
     @hide_stdout()
     def test_xt_conv_onnx_irv4(self):
         x = torch.ones(20, 16, 50, 40, requires_grad=True)
@@ -707,7 +764,6 @@ class TestOperatorsOnnxrt(unittest.TestCase):
             onnx_export=inspect.currentframe().f_code.co_name,
         )
 
-    @unittest.skip(reason="AssertionError: Cannot detect fake_mode")
     @hide_stdout()
     def test_xt_conv_onnx_irv4_opset8(self):
         # This test point checks that for opset 8 (or lower), even if
@@ -725,7 +781,6 @@ class TestOperatorsOnnxrt(unittest.TestCase):
             onnx_export=inspect.currentframe().f_code.co_name,
         )
 
-    @unittest.skip(reason="AssertionError: Cannot detect fake_mode")
     @hide_stdout()
     def test_xt_convtranspose(self):
         x = torch.ones(2, 3, 4, 5, requires_grad=True)
@@ -1935,7 +1990,7 @@ class TestOperatorsOnnxrt(unittest.TestCase):
             atol=1e-2,
         )
 
-    @hide_stdout()
+    # @hide_stdout()
     def test_xt_softmaxcrossentropy_3d(self):
         x = torch.randn(3, 5, 2)
         y = torch.empty(3, 2, dtype=torch.long).random_(5)
