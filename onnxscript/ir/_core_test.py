@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
+import copy
 import pathlib
 import tempfile
 import unittest
@@ -786,6 +787,36 @@ class TypeTest(unittest.TestCase):
     def test_type_is_hashable(self, _: str, type_: ir.TypeProtocol):
         self.assertIsInstance(hash(type_), int)
         self.assertIn(type_, {type_})  # type: ignore
+        # Assert that a different type object can still be matched
+        self.assertIn(copy.deepcopy(type_), {type_})  # type: ignore
+
+    def test_type_is_comparable(self):
+        self.assertEqual(
+            _core.TensorType(ir.DataType.FLOAT), _core.TensorType(ir.DataType.FLOAT)
+        )
+        self.assertNotEqual(
+            _core.TensorType(ir.DataType.FLOAT), _core.TensorType(ir.DataType.FLOAT16)
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            ("tensor", _core.TensorType(ir.DataType.FLOAT)),
+            ("sequence", _core.SequenceType(_core.TensorType(ir.DataType.BOOL))),
+            ("optional", _core.OptionalType(_core.TensorType(ir.DataType.FLOAT16))),
+            (
+                "sequence_optional",
+                _core.SequenceType(_core.OptionalType(_core.TensorType(ir.DataType.INT8))),
+            ),
+            (
+                "optional_sequence",
+                _core.OptionalType(_core.SequenceType(_core.TensorType(ir.DataType.INT16))),
+            ),
+        ]
+    )
+    def test_composite_type_is_comparable(self, _: str, type_: ir.TypeProtocol):
+        self.assertEqual(type_, type_)
+        # Equal even if deep-copied
+        self.assertEqual(type_, copy.deepcopy(type_))
 
 
 if __name__ == "__main__":
