@@ -22,7 +22,9 @@ def _prepare_config_and_inputs(
     use_token_type_ids: bool = False,
     use_labels: bool = False,
 ) -> Tuple[Any]:
-    input_ids = onnxscript.testing.transformers_models.ids_tensor([batch_size, seq_length], vocab_size)
+    input_ids = onnxscript.testing.transformers_models.ids_tensor(
+        [batch_size, seq_length], vocab_size
+    )
 
     input_mask = None
     if use_input_mask:
@@ -45,8 +47,12 @@ def _prepare_config_and_inputs(
         sequence_labels = onnxscript.testing.transformers_models.ids_tensor(
             [batch_size], type_sequence_label_size
         )
-        token_labels = onnxscript.testing.transformers_models.ids_tensor([batch_size, seq_length], num_labels)
-        choice_labels = onnxscript.testing.transformers_models.ids_tensor([batch_size], num_choices)
+        token_labels = onnxscript.testing.transformers_models.ids_tensor(
+            [batch_size, seq_length], num_labels
+        )
+        choice_labels = onnxscript.testing.transformers_models.ids_tensor(
+            [batch_size], num_choices
+        )
 
     return (
         input_ids,
