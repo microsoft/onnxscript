@@ -71,7 +71,7 @@ def get_model_and_inputs(
         implementation: eager or sdpa
         warmup: number of inputs to generate
         repeat: number of inputs to generate for repeat
-        dtype: if specifed, cast the model and the inputs into this type
+        dtype: if specified, cast the model and the inputs into this type
 
     Returns:
         model and list of inputs

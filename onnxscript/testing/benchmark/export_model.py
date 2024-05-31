@@ -6,9 +6,10 @@ import hashlib
 import pprint
 import textwrap
 import time
+from typing import Any
 
 
-def main():
+def main(args=None):
     import onnxscript.testing.benchmark
 
     kwargs = onnxscript.testing.benchmark.get_parsed_args(
@@ -20,7 +21,7 @@ def main():
 
             Example::
 
-                python -m onnxscript.testing.benchmark.export_model --model phi --device cuda --config large --num_hidden_layers=10 --dtype=float32 --dynamic=0 --exporter=dynamo
+                python -m onnxscript.testing.benchmark.export_model --model phi --device cuda --config large --num_hidden_layers=6 --dtype=float32 --dynamic=0 --verbose=1 --exporter=dynamo
             """
         ),
         repeat=(10, "number of inferences to measure"),
@@ -45,6 +46,7 @@ def main():
             "inline, set of patterns (default, onnxruntime, customops)",
         ),
         implementation=("eager", "eager or sdpa"),
+        new_args=args,
     )
 
     print("-------------------")
@@ -80,6 +82,7 @@ def main():
         print(f"[export_model] dynamic_shapes={dynamic_shapes}")
     msg = [tuple(i.shape for i in inp) for inp in example_inputs]
     print(f"[export_model] input_shapes={msg}")
+    conversion: dict[str, Any] = {}
 
     if kwargs["exporter"] == "eager":
         print("[export_model] start benchmark")
@@ -128,16 +131,24 @@ def main():
             dynamic_shapes=dynamic_shapes if kwargs["dynamic"] else None,
             optimization=kwargs["optimization"],
             verbose=kwargs["verbose"],
+            stats=conversion,
         )
         print(f"[export_model] export to onnx done in {time.perf_counter() - begin}")
 
-        result = run_onnx_inference(
-            proto, example_inputs, warmup=kwargs["warmup"], repeat=kwargs["repeat"]
+        result = onnxscript.testing.benchmark.run_onnx_inference(
+            proto,
+            example_inputs,
+            warmup=kwargs["warmup"],
+            repeat=kwargs["repeat"],
+            verbose=kwargs["verbose"],
+            ort_optimize=["ort_optimize"],
         )
 
     print("[export_model] end")
     print("------------------------------")
     for k, v in sorted(kwargs.items()):
+        print(f":{k},{v};")
+    for k, v in sorted(conversion.items()):
         print(f":{k},{v};")
     for k, v in sorted(result.items()):
         print(f":{k},{v};")
