@@ -5,7 +5,12 @@
 from __future__ import annotations
 
 import argparse
+import multiprocessing
 import os
+import platform
+import re
+import subprocess
+import sys
 import time
 from typing import Any, Sequence
 
@@ -23,21 +28,24 @@ def get_parsed_args(
     """
     Returns parsed arguments for examples in this package.
 
-    :param name: script name
-    :param scenarios: list of available scenarios
-    :param description: parser description
-    :param epilog: text at the end of the parser
-    :param number: default value for number parameter
-    :param repeat: default value for repeat parameter
-    :param warmup: default value for warmup parameter
-    :param sleep: default value for sleep parameter
-    :param expose: if empty, keeps all the parameters,
-        if not None, only publish kwargs contains, otherwise the list
-        of parameters to publish separated by a comma
-    :param new_args: args to consider or None to take `sys.args`
-    :param kwargs: additional parameters,
-        example: `n_trees=(10, "number of trees to train")`
-    :return: parser
+    Args:
+        name: script name
+        scenarios: list of available scenarios
+        description: parser description
+        epilog: text at the end of the parser
+        number: default value for number parameter
+        repeat: default value for repeat parameter
+        warmup: default value for warmup parameter
+        sleep: default value for sleep parameter
+        expose: if empty, keeps all the parameters,
+            if not None, only publish kwargs contains, otherwise the list
+            of parameters to publish separated by a comma
+        new_args: args to consider or None to take `sys.args`
+        kwargs: additional parameters,
+            example: `n_trees=(10, "number of trees to train")`
+
+    Returns:
+        interpreted parameters in a dictionary
     """
     parser = argparse.ArgumentParser(
         prog=name,
@@ -54,6 +62,128 @@ def get_parsed_args(
 
     parsed = parser.parse_args(args=new_args)
     return {k: getattr(parsed, k) for k in kwargs}
+
+
+class BenchmarkError(RuntimeError):
+    pass
+
+
+def get_machine() -> dict[str, Any]:
+    """Returns the machine specification."""
+    cpu: dict[str, Any] = dict(
+        machine=str(platform.machine()),
+        processor=str(platform.processor()),
+        version=str(sys.version),
+        cpu=int(multiprocessing.cpu_count()),
+        executable=str(sys.executable),
+    )
+    try:
+        import torch.cuda
+    except ImportError:
+        return cpu
+
+    cpu["has_cuda"] = bool(torch.cuda.is_available())
+    if cpu["has_cuda"]:
+        cpu["capability"] = torch.cuda.get_device_capability(0)
+        cpu["device_name"] = str(torch.cuda.get_device_name(0))
+    return cpu
+
+
+def _cmd_line(script_name: str, **kwargs: dict[str, Any]) -> list[str]:
+    args = [sys.executable, "-m", script_name]
+    for k, v in kwargs.items():
+        args.append(f"--{k}")
+        args.append(str(v))
+    return args
+
+
+def _extract_metrics(text: str) -> dict[str, str]:
+    reg = re.compile(":(.*?),(.*.?);")
+    res = reg.findall(text)
+    if len(res) == 0:
+        return {}
+    return dict(res)
+
+
+def _make_prefix(script_name: str, index: int) -> str:
+    name = os.path.splitext(script_name)[0]
+    return f"{name}_dort_c{index}_"
+
+
+def run_benchmark(
+    script_name: str,
+    configs: list[dict[str, Any]],
+    verbose: int = 0,
+    stop_if_exception: bool = True,
+    dump: bool = False,
+) -> list[dict[str, Any]]:
+    """
+    Runs a script multiple times and extract information from the output
+    following the pattern ``:<metric>,<value>;``.
+
+    Args:
+        script_name: python script to run
+        configs: list of execution to do
+        stop_if_exception: stop if one experiment failed, otherwise continue
+        verbose: use tqdm to follow the progress
+        dump: dump onnx file
+
+    Returns:
+        values
+    """
+    if verbose:
+        from tqdm import tqdm
+
+        loop = tqdm(configs)
+    else:
+        loop = configs
+
+    data: list[dict[str, Any]] = []
+    for i, config in enumerate(loop):
+        cmd = _cmd_line(script_name, **config)
+
+        if dump:
+            os.environ["ONNXRT_DUMP_PATH"] = _make_prefix(script_name, i)
+        else:
+            os.environ["ONNXRT_DUMP_PATH"] = ""
+        if verbose > 3:
+            print(f"[run_benchmark] cmd={cmd if isinstance(cmd, str) else ' '.join(cmd)}")
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        res = p.communicate()
+        out, err = res
+        sout = out.decode("utf-8", errors="ignore")
+        serr = err.decode("utf-8", errors="ignore")
+
+        if "ONNXRuntimeError" in serr or "ONNXRuntimeError" in sout:
+            if stop_if_exception:
+                raise RuntimeError(
+                    f"Unable to continue with config {config} due to the "
+                    f"following error\n{serr}"
+                    f"\n----OUTPUT--\n{sout}"
+                )
+
+        metrics = _extract_metrics(sout)
+        if len(metrics) == 0:
+            if stop_if_exception:
+                raise BenchmarkError(
+                    f"Unable (2) to continue with config {config}, no metric was "
+                    f"collected.\n--ERROR--\n{serr}\n--OUTPUT--\n{sout}"
+                )
+            else:
+                metrics = {}
+        metrics.update(config)
+        metrics["ERROR"] = serr
+        metrics["OUTPUT"] = sout
+        metrics["CMD"] = f"[{' '.join(cmd)}]"
+        data.append(metrics)
+        if verbose > 5:
+            print("--------------- ERROR")
+            print(serr)
+        if verbose >= 10:
+            print("--------------- OUTPUT")
+            print(sout)
+
+    return data
 
 
 def common_export(
@@ -433,7 +563,7 @@ def run_onnx_inference(
     wrapped_sess = WrapInferenceSessionForTorch(sess)
 
     end = time.perf_counter() - begin
-    stats["ort_session_create"] = end
+    stats["ort_session_create_time"] = end
     if verbose:
         print(f"[run_inference] created session in {end}")
         print(f"[run_inference] start {warmup} warmup iterations")

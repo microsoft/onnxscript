@@ -30,7 +30,6 @@ class BenchmarkTest(unittest.TestCase):
         out = f.getvalue()
         self.assertIn(":repeat_time,", out)
 
-
     def test_export_model_phi_cpu_dynamo(self):
         args = [
             "--verbose",
@@ -43,6 +42,26 @@ class BenchmarkTest(unittest.TestCase):
             "cpu",
             "--exporter",
             "dynamo",
+        ]
+        f = io.StringIO()
+        with contextlib.redirect_stdout(f):
+            onnxscript.testing.benchmark.export_model.main(args)
+
+        out = f.getvalue()
+        self.assertIn(":repeat_time,", out)
+
+    def test_export_model_phi_cpu_script(self):
+        args = [
+            "--verbose",
+            "1",
+            "--config",
+            "medium",
+            "--dtype",
+            "float32",
+            "--device",
+            "cpu",
+            "--exporter",
+            "script",
         ]
         f = io.StringIO()
         with contextlib.redirect_stdout(f):

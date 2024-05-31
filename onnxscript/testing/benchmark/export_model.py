@@ -34,7 +34,6 @@ def main(args=None):
         verbose=(0, "verbosity"),
         dump_folder=("", "if not empty, dump the model in that folder"),
         dump_ort=(1, "produce the model optimized by onnxruntime"),
-        optimize=(1, "optimize the model"),
         ort_optimize=(1, "enable or disable onnxruntime optimization"),
         dtype=("default", "cast the model and the inputs into this type"),
         dynamic=(0, "use dynamic shapes"),
@@ -103,7 +102,7 @@ def main(args=None):
         begin = time.perf_counter()
         if kwargs["optimization"]:
             m = hashlib.sha256()
-            m.update(kwargs["optimization"])
+            m.update(kwargs["optimization"].encode())
             so = m.hexdigest()[:5]
         else:
             so = ""
@@ -111,7 +110,7 @@ def main(args=None):
             [
                 kwargs["model"],
                 kwargs["exporter"],
-                "static" if kwargs["dynamic"] else "dynamic",
+                "dynamic" if kwargs["dynamic"] else "static",
                 kwargs["dtype"].replace("float", "fp"),
                 kwargs["device"],
                 kwargs["config"],
