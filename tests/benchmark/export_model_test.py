@@ -6,10 +6,12 @@ import io
 import unittest
 
 import onnxscript.testing.benchmark.export_model
+from onnxscript.testing.transformers_models import has_transformers
 
 
 class BenchmarkTest(unittest.TestCase):
 
+    @unittest.skipIf(not has_transformers(), reason="transformers missing")
     def test_export_model_phi_cpu_eager(self):
         args = [
             "--verbose",
@@ -30,6 +32,7 @@ class BenchmarkTest(unittest.TestCase):
         out = f.getvalue()
         self.assertIn(":repeat_time,", out)
 
+    @unittest.skipIf(not has_transformers(), reason="transformers missing")
     def test_export_model_phi_cpu_dynamo(self):
         args = [
             "--verbose",
@@ -50,6 +53,7 @@ class BenchmarkTest(unittest.TestCase):
         out = f.getvalue()
         self.assertIn(":repeat_time,", out)
 
+    @unittest.skipIf(not has_transformers(), reason="transformers missing")
     def test_export_model_phi_cpu_script(self):
         args = [
             "--verbose",
