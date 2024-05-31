@@ -277,6 +277,83 @@ def common_export(
     return onx
 
 
+def apply_rule_sets(
+    model_proto: onnx.ModelProto,
+    rule_sets: list[str],
+    stats: dict[str, Any] | None = None,
+    verbose: int = 0,
+):
+    """
+    Applies set of patterns on a model to optimizes.
+
+    Args:
+        model_proto: model
+        rule_sets: sets ot apply
+        stats: add statistics if not empty
+        verbose: verbosity
+
+    Returns:
+        optimized model
+    """
+    from onnxscript import ir
+
+    if verbose:
+        print("[apply_rule_sets] deserialize model")
+    begin = time.perf_counter()
+    ir_model = ir.serde.deserialize_model(model_proto)
+    end = time.perf_counter() - begin
+    if stats is not None:
+        stats["deserialize_time"] = end
+    if verbose:
+        print(f"[apply_rule_sets] deserialize done in {end}")
+
+    for rule_set_name in rule_sets:
+        if verbose:
+            print(f"[apply_rule_sets] applies {rule_set_name!r}")
+
+        if rule_set_name == "llama0":
+
+            import onnxscript.rewriter.llama_rule_sets as rules
+
+            rule_set = rules.llama_p0_rule_set()
+        else:
+            raise AssertionError(f"Unexpected rule_set name {rule_set_name!r}")
+
+        begin = time.perf_counter()
+        rule_set.apply_to_model(ir_model)
+        end = time.perf_counter() - begin
+        if stats is not None:
+            stats[f"opt_rule_{rule_set_name}_time"] = end
+        if verbose:
+            print(f"[apply_rule_sets] {rule_set_name} done in {end}")
+
+    if verbose:
+        print("[apply_rule_sets] serialize model")
+    begin = time.perf_counter()
+    rewritten_model = ir.serde.serialize_model(ir_model)
+    end = time.perf_counter() - begin
+    if stats is not None:
+        stats["deserialize_time"] = end
+    if verbose:
+        print(f"[apply_rule_sets] serialize done in {end}")
+
+    if verbose:
+        print("[apply_rule_sets] remove unused")
+    begin = time.perf_counter()
+
+    from onnxscript.optimizer.remove_unused import remove_unused_nodes
+
+    remove_unused_nodes(rewritten_model)
+
+    end = time.perf_counter() - begin
+    if stats is not None:
+        stats["opt_remove_unused_time"] = end
+    if verbose:
+        print(f"[apply_rule_sets] remove unused done in {end}")
+
+    return rewritten_model
+
+
 def optimize_model_proto(
     model_proto: onnx.ModelProto,
     optimization: str | None = None,
@@ -323,6 +400,11 @@ def optimize_model_proto(
             import onnx.inliner
 
             model_proto = onnx.inliner.inline_local_functions(model_proto)
+
+        elif value == "llama0":
+            model_proto = apply_rule_sets(
+                model_proto, ["llama0"], stats=stats, verbose=verbose
+            )
 
         else:
             raise AssertionError(

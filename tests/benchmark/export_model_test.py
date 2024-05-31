@@ -74,6 +74,29 @@ class BenchmarkTest(unittest.TestCase):
         out = f.getvalue()
         self.assertIn(":repeat_time,", out)
 
+    @unittest.skipIf(not has_transformers(), reason="transformers missing")
+    def test_export_model_phi_cpu_dynamo_llama0(self):
+        args = [
+            "--verbose",
+            "1",
+            "--config",
+            "medium",
+            "--dtype",
+            "float32",
+            "--device",
+            "cpu",
+            "--exporter",
+            "dynamo",
+            "--optimization",
+            "llama0",
+        ]
+        f = io.StringIO()
+        with contextlib.redirect_stdout(f):
+            onnxscript.testing.benchmark.export_model.main(args)
+
+        out = f.getvalue()
+        self.assertIn(":repeat_time,", out)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
