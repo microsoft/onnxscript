@@ -333,7 +333,7 @@ def apply_rule_sets(
     rewritten_model = ir.serde.serialize_model(ir_model)
     end = time.perf_counter() - begin
     if stats is not None:
-        stats["deserialize_time"] = end
+        stats["serialize_time"] = end
     if verbose:
         print(f"[apply_rule_sets] serialize done in {end}")
 
