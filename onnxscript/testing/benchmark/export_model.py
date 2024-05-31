@@ -2,42 +2,146 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-
+import hashlib
+import pprint
 import textwrap
+import time
 
-import onnxscript.testing.benchmark
 
-args = onnxscript.testing.benchmark.get_parsed_args(
-    "export_model",
-    description=textwrap.dedent(
-        """Measures the inference time for a particular model.
-        This script can be used to quickly evaluate the improvment made by a pattern optimization
-        for a particular model.
+def main():
+    import onnxscript.testing.benchmark
 
-        Example::
+    kwargs = onnxscript.testing.benchmark.get_parsed_args(
+        "export_model",
+        description=textwrap.dedent(
+            """Measures the inference time for a particular model.
+            This script can be used to quickly evaluate the improvment made by a pattern optimization
+            for a particular model.
 
-            python -m onnxscript.testing.benchmark.export_model --model phi --device cuda --config large --num_hidden_layers=10 --mixed=1 --dynamic=0 --exporter=dynamo
-        """
-    ),
-    repeat=("10", "number of inferences to measure"),
-    warmup=("5", "number of inferences to warm"),
-    model=("phi", "model to measure, llama, mistral, phi, ..."),
-    exporter=("dynamo", "script, dynamo"),
-    device=("cpu", "'cpu' or 'cuda'"),
-    target_opset=(18, "opset to convert into, use with backend=custom"),
-    config=("default", "default, medium, or small to test"),
-    verbose=(0, "verbosity"),
-    dump_folder=("", "if not empty, dump the model in that folder"),
-    dump_ort=(1, "produce the model optimized by onnxruntime"),
-    optimize=(1, "optimize the model"),
-    ort_optimize=(1, "enable or disable onnxruntime optimization"),
-    mixed=(0, "mixed precision (based on autocast)"),
-    dynamic=("0", "use dynamic shapes"),
-    num_hidden_layers=(1, "number of hidden layers"),
-    with_mask=(1, "with or without mask, dynamo may fail with a mask"),
-)
+            Example::
 
-print("-------------------")
-print("Evaluate with model {args.model!r}")
-print(args)
-print("-------------------")
+                python -m onnxscript.testing.benchmark.export_model --model phi --device cuda --config large --num_hidden_layers=10 --dtype=float32 --dynamic=0 --exporter=dynamo
+            """
+        ),
+        repeat=(10, "number of inferences to measure"),
+        warmup=(5, "number of inferences to warm"),
+        model=("phi", "model to measure, llama, mistral, phi, ..."),
+        exporter=("dynamo", "script, dynamo"),
+        device=("cpu", "'cpu' or 'cuda'"),
+        target_opset=(18, "opset to convert into, use with backend=custom"),
+        config=("small", "default, medium, or small to test"),
+        verbose=(0, "verbosity"),
+        dump_folder=("", "if not empty, dump the model in that folder"),
+        dump_ort=(1, "produce the model optimized by onnxruntime"),
+        optimize=(1, "optimize the model"),
+        ort_optimize=(1, "enable or disable onnxruntime optimization"),
+        dtype=("default", "cast the model and the inputs into this type"),
+        dynamic=(0, "use dynamic shapes"),
+        num_hidden_layers=(1, "number of hidden layers"),
+        with_mask=(1, "with or without mask, dynamo may fail with a mask"),
+        optimization=(
+            "",
+            "optimization scenario, comma separated value, optimize, rewrite, "
+            "inline, set of patterns (default, onnxruntime, customops)",
+        ),
+        implementation=("eager", "eager or sdpa"),
+    )
+
+    print("-------------------")
+    print("[export_model]")
+    pprint.pprint(kwargs)
+    print("-------------------")
+
+    # Import is delayed so that help is being display faster (without having to import heavy packages).
+    import onnxscript.testing
+    import onnxscript.testing.benchmark
+    import onnxscript.testing.transformers_models
+
+    print(
+        f"[export_model] create the model and inputs for {kwargs['model']!r} and config {kwargs['config']!r}"
+    )
+    begin = time.perf_counter()
+    model, example_inputs, dynamic_shapes = (
+        onnxscript.testing.transformers_models.get_model_and_inputs(
+            warmup=kwargs["warmup"],
+            repeat=kwargs["repeat"],
+            model=kwargs["model"],
+            config=kwargs["config"],
+            dynamic_shapes=kwargs["dynamic"],
+            device=kwargs["device"],
+            num_hidden_layers=kwargs["num_hidden_layers"],
+            with_mask=kwargs["with_mask"],
+            implementation=kwargs["implementation"],
+            dtype=kwargs["dtype"],
+        )
+    )
+    print(f"[export_model] model created in {time.perf_counter() - begin}")
+    if kwargs["dynamic"]:
+        print(f"[export_model] dynamic_shapes={dynamic_shapes}")
+    msg = [tuple(i.shape for i in inp) for inp in example_inputs]
+    print(f"[export_model] input_shapes={msg}")
+
+    if kwargs["exporter"] == "eager":
+        print("[export_model] start benchmark")
+        begin = time.perf_counter()
+        result = onnxscript.testing.benchmark.run_inference(
+            model,
+            example_inputs,
+            warmup=kwargs["warmup"],
+            repeat=kwargs["repeat"],
+            verbose=kwargs["verbose"],
+        )
+        print(f"[export_model] benchmark done in {time.perf_counter() - begin}")
+    else:
+        print(
+            f"[export_model] export to onnx with exporter={kwargs['exporter']!r} "
+            f"and optimization={kwargs['optimization']!r}"
+        )
+        begin = time.perf_counter()
+        if kwargs["optimization"]:
+            m = hashlib.sha256()
+            m.update(kwargs["optimization"])
+            so = m.hexdigest()[:5]
+        else:
+            so = ""
+        name = "_".join(
+            [
+                kwargs["model"],
+                kwargs["exporter"],
+                "static" if kwargs["dynamic"] else "dynamic",
+                kwargs["dtype"].replace("float", "fp"),
+                kwargs["device"],
+                kwargs["config"],
+                f"h{kwargs['num_hidden_layers']}",
+                so,
+            ],
+        )
+        filename = f"em_{name}.onnx"
+
+        proto = onnxscript.testing.benchmark.common_export(
+            model=model,
+            inputs=example_inputs[0],
+            exporter=kwargs["exporter"],
+            target_opset=kwargs["target_opset"],
+            folder=kwargs["dump_folder"],
+            filename=filename,
+            dynamic_shapes=dynamic_shapes if kwargs["dynamic"] else None,
+            optimization=kwargs["optimization"],
+            verbose=kwargs["verbose"],
+        )
+        print(f"[export_model] export to onnx done in {time.perf_counter() - begin}")
+
+        result = run_onnx_inference(
+            proto, example_inputs, warmup=kwargs["warmup"], repeat=kwargs["repeat"]
+        )
+
+    print("[export_model] end")
+    print("------------------------------")
+    for k, v in sorted(kwargs.items()):
+        print(f":{k},{v};")
+    for k, v in sorted(result.items()):
+        print(f":{k},{v};")
+
+
+if __name__ == "__main__":
+    main()
