@@ -134,7 +134,7 @@ def to_proto(
     | _protocols.AttributeProtocol
     | _protocols.ReferenceAttributeProtocol
     | _protocols.TensorProtocol
-    | onnx.TypeProto
+    | _protocols.TypeProtocol
     | _protocols.GraphViewProtocol,
 ) -> Any:
     """Serialize an IR object to a proto."""
