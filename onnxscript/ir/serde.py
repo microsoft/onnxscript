@@ -21,8 +21,10 @@ __all__ = [
     # Deserialization
     "from_proto",
     "deserialize_attribute",
+    "deserialize_dimension",
     "deserialize_function",
     "deserialize_graph",
+    "deserialize_metadata_props",
     "deserialize_model",
     "deserialize_node",
     "deserialize_opset_import",

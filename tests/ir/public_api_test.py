@@ -13,7 +13,9 @@ import pkgutil
 import unittest
 from typing import Iterable
 
-import onnxscript
+import onnxscript.ir
+
+IR_NAMESPACE = "onnxscript.ir"
 
 
 def _find_all_importables(pkg):
@@ -74,13 +76,13 @@ def _validate_module(modname: str, failure_list: list[str]) -> None:
             why_not_looks_public = "because it does not have a `__module__` attribute"
         elem_modname_starts_with_mod = (
             elem_module is not None
-            and elem_module.startswith(modname)
+            and elem_module.startswith(IR_NAMESPACE)
             and "._" not in elem_module
         )
         if not why_not_looks_public and not elem_modname_starts_with_mod:
             why_not_looks_public = (
                 f"because its `__module__` attribute (`{elem_module}`) is not within the "
-                f"onnxscript library or does not start with the submodule where it is defined (`{modname}`)"
+                f"onnxscript.ir library or does not start with the submodule where it is defined (`{modname}`)"
             )
         # elem's name must NOT begin with an `_` and it's module name
         # SHOULD start with it's current module since it's a public API
@@ -149,11 +151,11 @@ def _validate_module(modname: str, failure_list: list[str]) -> None:
 
 
 class TestPublicApiNamespace(unittest.TestCase):
-    tested_modules = ("onnxscript.ir", *(_find_all_importables(onnxscript.ir)))
+    tested_modules = (IR_NAMESPACE, *(_find_all_importables(onnxscript.ir)))
 
     def test_correct_module_names(self):
         """
-        An API is considered public, if  its  `__module__` starts with `onnxscript.`
+        An API is considered public, if  its  `__module__` starts with `onnxscript.ir`
         and there is no name in `__module__` or the object itself that starts with "_".
         Each public package should either:
         - (preferred) Define `__all__` and all callables and classes in there must have their
