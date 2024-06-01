@@ -10,8 +10,8 @@ import itertools
 import os
 import pathlib
 import pkgutil
-from typing import Iterable
 import unittest
+from typing import Iterable
 
 import onnxscript
 
@@ -29,7 +29,7 @@ def _find_all_importables(pkg):
     )
 
 
-def _discover_path_importables(pkg_path: os.PathLike, pkg_name:str) -> Iterable[str]:
+def _discover_path_importables(pkg_path: os.PathLike, pkg_name: str) -> Iterable[str]:
     """Yield all importables under a given path and package.
     This is like pkgutil.walk_packages, but does *not* skip over namespace
     packages. Taken from https://stackoverflow.com/questions/41203765/init-py-required-for-pkgutil-walk-packages-in-python3
@@ -53,9 +53,11 @@ def _discover_path_importables(pkg_path: os.PathLike, pkg_name:str) -> Iterable[
             )
         )
 
+
 def _is_mod_public(modname: str) -> bool:
-    split_strs = modname.split('.')
+    split_strs = modname.split(".")
     return all(not (elem.startswith("_") or "_test" in elem) for elem in split_strs)
+
 
 def _validate_module(modname: str, failure_list: list[str]) -> None:
     mod = importlib.import_module(modname)
@@ -101,9 +103,7 @@ def _validate_module(modname: str, failure_list: list[str]) -> None:
                 )
             else:
                 assert is_all
-                why_is_public = (
-                    f"it is not inside the module's (`{modname}`) `__all__`"
-                )
+                why_is_public = f"it is not inside the module's (`{modname}`) `__all__`"
                 fix_is_public = f"add it from the modules's (`{modname}`) `__all__`"
 
             if looks_public:
@@ -126,16 +126,12 @@ def _validate_module(modname: str, failure_list: list[str]) -> None:
             is_public_str = "" if is_public else " NOT"
             failure_list.append(f"  - Is{is_public_str} public: {why_is_public}")
             looks_public_str = "" if looks_public else " NOT"
-            failure_list.append(
-                f"  - Does{looks_public_str} look public: {why_looks_public}"
-            )
+            failure_list.append(f"  - Does{looks_public_str} look public: {why_looks_public}")
             # Swap the str below to avoid having to create the NOT again
             failure_list.append(
                 "  - You can do either of these two things to fix this problem:"
             )
-            failure_list.append(
-                f"    - To make it{looks_public_str} public: {fix_is_public}"
-            )
+            failure_list.append(f"    - To make it{looks_public_str} public: {fix_is_public}")
             failure_list.append(
                 f"    - To make it{is_public_str} look public: {fix_looks_public}"
             )
@@ -144,9 +140,7 @@ def _validate_module(modname: str, failure_list: list[str]) -> None:
         public_api = mod.__all__
         all_api = dir(mod)
         for elem in all_api:
-            check_one_element(
-                elem, modname, mod, is_public=elem in public_api, is_all=True
-            )
+            check_one_element(elem, modname, mod, is_public=elem in public_api, is_all=True)
     else:
         all_api = dir(mod)
         for elem in all_api:
@@ -155,11 +149,7 @@ def _validate_module(modname: str, failure_list: list[str]) -> None:
 
 
 class TestPublicApiNamespace(unittest.TestCase):
-
-    tested_modules = (
-        "onnxscript.ir",
-        *(_find_all_importables(onnxscript.ir))
-    )
+    tested_modules = ("onnxscript.ir", *(_find_all_importables(onnxscript.ir)))
 
     def test_correct_module_names(self):
         """
