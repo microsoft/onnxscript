@@ -108,15 +108,15 @@ warn_unused_configs = true
 warn_unused_ignores = false
 
 [[tool.mypy.overrides]]
-module = ["onnxscript.testing.benchmark.benchmark_helpers"]
+module = ["onnxscript.tools.benchmark.benchmark_helpers"]
 disable_error_code = 'name-defined'  # raised due to annotation as string
 
 [[tool.mypy.overrides]]
-module = ["onnxscript.testing.benchmark.export_model_batch"]
+module = ["onnxscript.tools.benchmark.export_model_batch"]
 disable_error_code = 'import-untyped'
 
 [[tool.mypy.overrides]]
-module = ["onnxscript.testing.transformers_models"]
+module = ["onnxscript.tools.transformers_models"]
 disable_error_code = 'import-untyped'  # raised due to annotation as string
 
 [tool.black]
@@ -212,8 +212,8 @@ ignore-init-module-imports = true
 "setup.py" = ["TID251"] # pathlib is allowed in supporting code
 "**/{examples,tests,docs,tools,utils,opgen}/*" = ["TID251"]  # pathlib is allowed in supporting code
 "**/*_test.py" = ["TID251"] # pathlib is allowed in tests
-"onnxscript/testing/benchmark/benchmark_helpers.py" = ["UP037"]  # avoid importing onnxruntime just for annotation
-"onnxscript/testing/benchmark/export_model.py" = ["E402"]  # triggers --help before importing heavy modules
+"onnxscript/tools/benchmark/benchmark_helpers.py" = ["UP037"]  # avoid importing onnxruntime just for annotation
+"onnxscript/tools/benchmark/export_model.py" = ["E402"]  # triggers --help before importing heavy modules
 
 [tool.ruff.flake8-tidy-imports]
 # Disallow all relative imports.

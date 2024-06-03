@@ -10,9 +10,9 @@ from typing import Any
 
 
 def main(args=None):
-    import onnxscript.testing.benchmark
+    import onnxscript.tools.benchmark
 
-    kwargs: dict[str, Any] = onnxscript.testing.benchmark.get_parsed_args(
+    kwargs: dict[str, Any] = onnxscript.tools.benchmark.get_parsed_args(
         "export_model",
         description=textwrap.dedent(
             """Measures the inference time for a particular model.
@@ -21,7 +21,7 @@ def main(args=None):
 
             Example::
 
-                python -m onnxscript.testing.benchmark.export_model --model phi --device cuda --config large --num_hidden_layers=6 --dtype=float32 --dynamic=0 --verbose=1 --exporter=dynamo
+                python -m onnxscript.tools.benchmark.export_model --model phi --device cuda --config large --num_hidden_layers=6 --dtype=float32 --dynamic=0 --verbose=1 --exporter=dynamo
             """
         ),
         repeat=(10, "number of inferences to measure"),
@@ -54,16 +54,16 @@ def main(args=None):
     print("-------------------")
 
     # Import is delayed so that help is being display faster (without having to import heavy packages).
-    import onnxscript.testing
-    import onnxscript.testing.benchmark
-    import onnxscript.testing.transformers_models
+    import onnxscript.tools
+    import onnxscript.tools.benchmark
+    import onnxscript.tools.transformers_models
 
     print(
         f"[export_model] create the model and inputs for {kwargs['model']!r} and config {kwargs['config']!r}"
     )
     begin = time.perf_counter()
     model, example_inputs, dynamic_shapes = (
-        onnxscript.testing.transformers_models.get_model_and_inputs(
+        onnxscript.tools.transformers_models.get_model_and_inputs(
             warmup=kwargs["warmup"],
             repeat=kwargs["repeat"],
             model=kwargs["model"],
@@ -86,7 +86,7 @@ def main(args=None):
     if kwargs["exporter"] == "eager":
         print("[export_model] start benchmark")
         begin = time.perf_counter()
-        result = onnxscript.testing.benchmark.run_inference(
+        result = onnxscript.tools.benchmark.run_inference(
             model,
             example_inputs,
             warmup=kwargs["warmup"],
@@ -120,7 +120,7 @@ def main(args=None):
         )
         filename = f"em_{name}.onnx"
 
-        proto = onnxscript.testing.benchmark.common_export(
+        proto = onnxscript.tools.benchmark.common_export(
             model=model,
             inputs=example_inputs[0],
             exporter=kwargs["exporter"],
@@ -134,7 +134,7 @@ def main(args=None):
         )
         print(f"[export_model] export to onnx done in {time.perf_counter() - begin}")
 
-        result = onnxscript.testing.benchmark.run_onnx_inference(
+        result = onnxscript.tools.benchmark.run_onnx_inference(
             proto,
             example_inputs,
             warmup=kwargs["warmup"],

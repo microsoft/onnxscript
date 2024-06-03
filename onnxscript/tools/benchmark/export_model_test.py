@@ -4,8 +4,8 @@ import contextlib
 import io
 import unittest
 
-import onnxscript.testing.benchmark.export_model
-from onnxscript.testing.transformers_models import has_transformers
+import onnxscript.tools.benchmark.export_model
+from onnxscript.tools.transformers_models import has_transformers
 
 
 class BenchmarkTest(unittest.TestCase):
@@ -26,7 +26,7 @@ class BenchmarkTest(unittest.TestCase):
         ]
         f = io.StringIO()
         with contextlib.redirect_stdout(f):
-            onnxscript.testing.benchmark.export_model.main(args)
+            onnxscript.tools.benchmark.export_model.main(args)
 
         out = f.getvalue()
         self.assertIn(":repeat_time,", out)
@@ -47,7 +47,7 @@ class BenchmarkTest(unittest.TestCase):
         ]
         f = io.StringIO()
         with contextlib.redirect_stdout(f):
-            onnxscript.testing.benchmark.export_model.main(args)
+            onnxscript.tools.benchmark.export_model.main(args)
 
         out = f.getvalue()
         self.assertIn(":repeat_time,", out)
@@ -68,7 +68,7 @@ class BenchmarkTest(unittest.TestCase):
         ]
         f = io.StringIO()
         with contextlib.redirect_stdout(f):
-            onnxscript.testing.benchmark.export_model.main(args)
+            onnxscript.tools.benchmark.export_model.main(args)
 
         out = f.getvalue()
         self.assertIn(":repeat_time,", out)
@@ -91,7 +91,7 @@ class BenchmarkTest(unittest.TestCase):
         ]
         f = io.StringIO()
         with contextlib.redirect_stdout(f):
-            onnxscript.testing.benchmark.export_model.main(args)
+            onnxscript.tools.benchmark.export_model.main(args)
 
         out = f.getvalue()
         self.assertIn(":repeat_time,", out)

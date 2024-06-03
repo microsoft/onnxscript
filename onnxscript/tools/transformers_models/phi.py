@@ -8,7 +8,7 @@ from typing import Any, Sequence
 
 import torch
 
-import onnxscript.testing.transformers_models
+import onnxscript.tools.transformers_models
 
 
 def _prepare_config_and_inputs(
@@ -23,7 +23,7 @@ def _prepare_config_and_inputs(
     use_token_type_ids: bool = False,
     use_labels: bool = False,
 ) -> tuple[Any, ...]:
-    input_ids = onnxscript.testing.transformers_models.ids_tensor(
+    input_ids = onnxscript.tools.transformers_models.ids_tensor(
         [batch_size, seq_length], vocab_size
     )
 
@@ -34,7 +34,7 @@ def _prepare_config_and_inputs(
     token_type_ids = None
     if use_token_type_ids:
         assert type_vocab_size > 0, "type_vocab_size is null"
-        token_type_ids = onnxscript.testing.transformers_models.ids_tensor(
+        token_type_ids = onnxscript.tools.transformers_models.ids_tensor(
             [batch_size, seq_length], type_vocab_size
         )
 
@@ -45,13 +45,13 @@ def _prepare_config_and_inputs(
         assert type_sequence_label_size > 0, "type_sequence_label_size is null"
         assert num_labels > 0, "num_labels is null"
         assert num_choices > 0, "num_choices is null"
-        sequence_labels = onnxscript.testing.transformers_models.ids_tensor(
+        sequence_labels = onnxscript.tools.transformers_models.ids_tensor(
             [batch_size], type_sequence_label_size
         )
-        token_labels = onnxscript.testing.transformers_models.ids_tensor(
+        token_labels = onnxscript.tools.transformers_models.ids_tensor(
             [batch_size, seq_length], num_labels
         )
-        choice_labels = onnxscript.testing.transformers_models.ids_tensor(
+        choice_labels = onnxscript.tools.transformers_models.ids_tensor(
             [batch_size], num_choices
         )
 
@@ -196,7 +196,7 @@ def get_phi_model_config(
     """
     if config == "small":
         conf_dict = dict(
-            input_dims=onnxscript.testing.transformers_models._get_input_dims(
+            input_dims=onnxscript.tools.transformers_models._get_input_dims(
                 dynamic_shapes, warmup, repeat
             ),
             hidden_size=32,
@@ -211,7 +211,7 @@ def get_phi_model_config(
         )
     elif config == "medium":
         conf_dict = dict(
-            input_dims=onnxscript.testing.transformers_models._get_input_dims(
+            input_dims=onnxscript.tools.transformers_models._get_input_dims(
                 dynamic_shapes, warmup, repeat
             ),
             hidden_size=1024,
@@ -226,7 +226,7 @@ def get_phi_model_config(
         )
     elif config in ("large", "default"):
         conf_dict = dict(
-            input_dims=onnxscript.testing.transformers_models._get_input_dims(
+            input_dims=onnxscript.tools.transformers_models._get_input_dims(
                 dynamic_shapes, warmup, repeat
             ),
             hidden_size=2048,

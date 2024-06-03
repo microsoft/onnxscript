@@ -6,11 +6,11 @@ import pprint
 import textwrap
 from typing import Any
 
-import onnxscript.testing.benchmark
+import onnxscript.tools.benchmark
 
 
 def main(args=None):
-    kwargs: dict[str, Any] = onnxscript.testing.benchmark.get_parsed_args(
+    kwargs: dict[str, Any] = onnxscript.tools.benchmark.get_parsed_args(
         "export_model",
         description=textwrap.dedent(
             """Measures the inference time for a particular model.
@@ -18,7 +18,7 @@ def main(args=None):
 
             Example::
 
-                python -m onnxscript.testing.benchmark.export_model_batch --model phi --device cuda --config medium --num_hidden_layers=1 --dtype=float32 --dynamic=0 --verbose=1
+                python -m onnxscript.tools.benchmark.export_model_batch --model phi --device cuda --config medium --num_hidden_layers=1 --dtype=float32 --dynamic=0 --verbose=1
             """
         ),
         repeat=(10, "number of inferences to measure"),
@@ -45,12 +45,12 @@ def main(args=None):
     import pandas
 
     assert openpyxl
-    from onnxscript.testing.benchmark.benchmark_helpers import (
+    from onnxscript.tools.benchmark.benchmark_helpers import (
         BenchmarkError,
         run_benchmark,
     )
 
-    script_name = "onnxscript.testing.benchmark.export_model"
+    script_name = "onnxscript.tools.benchmark.export_model"
 
     configs: list[dict[str, Any]] = [
         dict(exporter="eager"),

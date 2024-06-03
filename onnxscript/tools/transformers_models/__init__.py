@@ -80,7 +80,7 @@ def get_model_and_inputs(
         model and list of inputs
     """
     if model == "phi":
-        import onnxscript.testing.transformers_models.phi as m
+        import onnxscript.tools.transformers_models.phi as m
 
         tmodel, inputs, dynamic_shapes_def = m.get_phi_model_config(
             warmup=warmup,

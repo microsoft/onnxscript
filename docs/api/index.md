@@ -9,8 +9,9 @@ converter
 values
 ```
 
-## Testing
+## Tests and Tools
 
 ```{toctree}
 testing
+tools
 ```

@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-from onnxscript.testing.benchmark.benchmark_helpers import (
+from onnxscript.tools.benchmark.benchmark_helpers import (
     common_export,
     get_parsed_args,
     run_inference,
