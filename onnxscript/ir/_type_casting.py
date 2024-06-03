@@ -1,3 +1,7 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 """Numpy utilities for non-native type operation."""
 # TODO(justinchuby): Upstream the logic to onnx
 
