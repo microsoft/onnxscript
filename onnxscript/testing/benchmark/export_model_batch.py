@@ -4,11 +4,10 @@
 # --------------------------------------------------------------------------
 import pprint
 import textwrap
+import onnxscript.testing.benchmark
 
 
 def main(args=None):
-    import onnxscript.testing.benchmark
-
     kwargs = onnxscript.testing.benchmark.get_parsed_args(
         "export_model",
         description=textwrap.dedent(

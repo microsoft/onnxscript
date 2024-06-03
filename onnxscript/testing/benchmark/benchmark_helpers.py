@@ -16,6 +16,13 @@ from typing import Any, Sequence
 
 import numpy as np
 import onnx
+import onnx.inliner
+
+import onnxscript.optimizer
+import onnxscript.rewriter
+import onnxscript.rewriter.llama_rule_sets as rules
+from onnxscript import ir
+from onnxscript.optimizer.remove_unused import remove_unused_nodes
 
 
 def get_parsed_args(
@@ -23,7 +30,7 @@ def get_parsed_args(
     description: str | None = None,
     epilog: str | None = None,
     new_args: list[str] | None = None,
-    **kwargs: dict[str, tuple[int | str | float, str]],
+    **kwargs: dict[str, tuple[Any, str]],
 ) -> dict[str, Any]:
     """
     Returns parsed arguments for examples in this package.
@@ -236,15 +243,17 @@ def common_export(
             do_constant_folding=False,
             input_names=[f"input{i}" for i in range(len(inputs))],
             opset_version=target_opset,
+            dynamic_axes=dynamic_shapes,
         )
     elif exporter == "dynamo":
+        assert (
+            dynamic_shapes is None
+        ), f"dynamic_shapes={dynamic_shapes} is not implemented yet"
         with torch.no_grad():
             prog = torch.onnx.dynamo_export(model, *inputs)
-        onx = prog.model_proto
-        with open(filename, "wb") as f:
-            f.write(onx.SerializeToString())
+        onnx.save(prog.model_proto, filename)
     else:
-        raise AssertionError(f"Unknown exporter {exporter!r}")
+        raise ValueError(f"Unknown exporter {exporter!r}")
 
     if stats is not None:
         stats["export_time"] = time.perf_counter() - begin
@@ -260,7 +269,7 @@ def common_export(
         if verbose:
             print(f"[common_export] start optimization with {optimization!r}")
         begin = time.perf_counter()
-        onx = optimize_model_proto(onx, optimization, verbose=verbose, stats=stats)
+        optimized_model = optimize_model_proto(onx, optimization, verbose=verbose, stats=stats)
         end = time.perf_counter() - begin
         if stats is not None:
             stats["optimization_time"] = end
@@ -269,8 +278,7 @@ def common_export(
             print(f"[common_export] saves the model in {filename!r}")
             begin = time.perf_counter()
 
-        with open(filename, "wb") as f:
-            f.write(onx.SerializeToString())
+        onnx.save(optimized_model, filename)
         if verbose:
             print(f"[common_export] done saving in {time.perf_counter() - begin}")
 
@@ -295,8 +303,6 @@ def apply_rule_sets(
     Returns:
         optimized model
     """
-    from onnxscript import ir
-
     if verbose:
         print("[apply_rule_sets] deserialize model")
     begin = time.perf_counter()
@@ -312,8 +318,6 @@ def apply_rule_sets(
             print(f"[apply_rule_sets] applies {rule_set_name!r}")
 
         if rule_set_name == "llama0":
-            import onnxscript.rewriter.llama_rule_sets as rules
-
             rule_set = rules.llama_p0_rule_set()
         else:
             raise AssertionError(f"Unexpected rule_set name {rule_set_name!r}")
@@ -339,8 +343,6 @@ def apply_rule_sets(
     if verbose:
         print("[apply_rule_sets] remove unused")
     begin = time.perf_counter()
-
-    from onnxscript.optimizer.remove_unused import remove_unused_nodes
 
     remove_unused_nodes(rewritten_model)
 
@@ -380,8 +382,6 @@ def optimize_model_proto(
 
         begin = time.perf_counter()
         if value == "optimize":
-            import onnxscript.optimizer
-
             model_proto = onnxscript.optimizer.optimize(
                 model_proto,
                 num_iterations=2,
@@ -389,13 +389,9 @@ def optimize_model_proto(
             )
 
         elif value == "rewrite":
-            import onnxscript.rewriter
-
             model_proto = onnxscript.rewriter.rewrite(model_proto)
 
         elif value == "inline":
-            import onnx.inliner
-
             model_proto = onnx.inliner.inline_local_functions(model_proto)
 
         elif value == "llama0":
@@ -440,8 +436,8 @@ def run_inference(
     if verbose:
         print(f"[run_inference] start {warmup} warmup iterations")
 
-    stats = {}
-    iterations = []
+    stats: dict[str, Any] = {}
+    iterations: list[int] = []
     begin = time.perf_counter()
     for i in range(warmup):
         t0 = time.perf_counter()
@@ -614,7 +610,7 @@ def run_onnx_inference(
     Returns:
         statistcs
     """
-    stats = {}
+    stats: dict[str, Any] = {}
     device = example_inputs[0][0].get_device()
     providers = (
         ["CUDAExecutionProvider", "CPUExecutionProvider"]
@@ -637,7 +633,7 @@ def run_onnx_inference(
         so.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
 
     sess = onnxruntime.InferenceSession(model.SerializeToString(), so, providers)
-    wrapped_sess = WrapInferenceSessionForTorch(sess)
+    wrapped_session = WrapInferenceSessionForTorch(sess)
 
     end = time.perf_counter() - begin
     stats["ort_session_create_time"] = end
@@ -649,7 +645,7 @@ def run_onnx_inference(
     begin = time.perf_counter()
     for i in range(warmup):
         t0 = time.perf_counter()
-        wrapped_sess.run_dlpack(*example_inputs[i % len(example_inputs)])
+        wrapped_session.run_dlpack(*example_inputs[i % len(example_inputs)])
         iterations.append(time.perf_counter() - t0)
     end = time.perf_counter() - begin
     stats["warmup"] = warmup
@@ -664,7 +660,7 @@ def run_onnx_inference(
     begin = time.perf_counter()
     for i in range(repeat):
         t0 = time.perf_counter()
-        wrapped_sess.run_dlpack(*example_inputs[i % len(example_inputs)])
+        wrapped_session.run_dlpack(*example_inputs[i % len(example_inputs)])
         iterations.append(time.perf_counter() - t0)
     end = time.perf_counter() - begin
     stats["repeat"] = repeat

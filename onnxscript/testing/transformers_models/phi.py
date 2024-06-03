@@ -137,7 +137,7 @@ def get_phi_model(
 
     # no mask
 
-    class PhiModelWrapper(torch.nn.Module):
+    class PhiModelWrapperNoMask(torch.nn.Module):
         def __init__(self, config):
             super().__init__()
             self.model = PhiModel(config)
@@ -166,7 +166,7 @@ def get_phi_model(
     for b, s in input_dims:
         example_args_collection.append(generate_example_inputs(b, s, vocab_size))
 
-    return PhiModelWrapper(config), example_args_collection, dynamic_shapes
+    return PhiModelWrapperNoMask(config), example_args_collection, dynamic_shapes
 
 
 def get_phi_model_config(

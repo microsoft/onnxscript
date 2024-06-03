@@ -13,7 +13,7 @@ import onnxscript.testing.training_helper
 import onnxscript.testing.transformers_models
 import onnxscript.testing.transformers_models.phi
 
-has_transformers = onnxscript.testing.transformers_models.has_transformers()
+HAS_TRANSFORMERS = onnxscript.testing.transformers_models.has_transformers()
 
 
 def export_to_onnx(model, *input_tensors, optimize=True):
@@ -33,15 +33,15 @@ def export_to_onnx(model, *input_tensors, optimize=True):
 class TestExportPhi(unittest.TestCase):
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
-    @unittest.skipIf(not has_transformers, reason="transformers is missing")
+    @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
     def test_phi_export_cpu(self):
         model, input_tensors = onnxscript.testing.transformers_models.phi.get_phi_model()
         input_tensors = input_tensors[0]
         expected = model(*input_tensors)
         proto = export_to_onnx(model, *input_tensors)
         names = [i.name for i in proto.graph.input]
-        xp = [x.numpy() for x in input_tensors]
-        feeds = dict(zip(names, xp))
+        np_input_tensors = [x.numpy() for x in input_tensors]
+        feeds = dict(zip(names, np_input_tensors))
         sess = onnxruntime.InferenceSession(
             proto.SerializeToString(), providers=["CPUExecutionProvider"]
         )
@@ -50,7 +50,7 @@ class TestExportPhi(unittest.TestCase):
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not torch.cuda.is_available(), reason="CUDA not available")
-    @unittest.skipIf(not has_transformers, reason="transformers is missing")
+    @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
     def test_phi_export_cuda(self):
         model, input_tensors = onnxscript.testing.transformers_models.phi.get_phi_model()
         input_tensors = input_tensors[0]
@@ -59,8 +59,8 @@ class TestExportPhi(unittest.TestCase):
         expected = model(*input_tensors)
         proto = export_to_onnx(model, *input_tensors)
         names = [i.name for i in proto.graph.input]
-        xp = [x.detach().cpu().numpy() for x in input_tensors]
-        feeds = dict(zip(names, xp))
+        np_input_tensors = [x.detach().cpu().numpy() for x in input_tensors]
+        feeds = dict(zip(names, np_input_tensors))
         sess = onnxruntime.InferenceSession(
             proto.SerializeToString(), providers=["CUDAExecutionProvider"]
         )
@@ -68,7 +68,7 @@ class TestExportPhi(unittest.TestCase):
         np.testing.assert_allclose(expected[0].detach().cpu().numpy(), results[0], atol=1e-5)
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
-    @unittest.skipIf(not has_transformers, reason="transformers is missing")
+    @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
     def test_phi_dort_static(self):
         model, input_tensors = onnxscript.testing.transformers_models.phi.get_phi_model()
         input_tensors = input_tensors[0]
