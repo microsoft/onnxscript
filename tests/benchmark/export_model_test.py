@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: Apache-2.0
-# pylint: disable=import-outside-toplevel
 
 import contextlib
 import io

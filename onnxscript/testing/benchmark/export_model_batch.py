@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------
 import pprint
 import textwrap
+
 import onnxscript.testing.benchmark
 
 
