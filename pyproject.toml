@@ -107,6 +107,18 @@ warn_no_return = true
 warn_unused_configs = true
 warn_unused_ignores = false
 
+[[tool.mypy.overrides]]
+module = ["onnxscript.testing.benchmark.benchmark_helpers"]
+disable_error_code = 'name-defined'  # raised due to annotation as string
+
+[[tool.mypy.overrides]]
+module = ["onnxscript.testing.benchmark.export_model_batch"]
+disable_error_code = 'import-untyped'
+
+[[tool.mypy.overrides]]
+module = ["onnxscript.testing.transformers_models"]
+disable_error_code = 'import-untyped'  # raised due to annotation as string
+
 [tool.black]
 target-version = ["py38", "py39", "py310", "py311"]
 # Black's extend-exclude needs to be a regex string

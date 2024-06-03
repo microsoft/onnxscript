@@ -4,7 +4,7 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
-from typing import Any, Sequence, Tuple
+from typing import Any, Sequence
 
 import torch
 
@@ -22,7 +22,7 @@ def _prepare_config_and_inputs(
     use_input_mask: bool = False,
     use_token_type_ids: bool = False,
     use_labels: bool = False,
-) -> Tuple[Any]:
+) -> tuple[Any, ...]:
     input_ids = onnxscript.testing.transformers_models.ids_tensor(
         [batch_size, seq_length], vocab_size
     )
@@ -66,7 +66,7 @@ def _prepare_config_and_inputs(
 
 
 def get_phi_model(
-    input_dims: Sequence[Tuple[int, int]] = ((13, 7), (14, 7), (15, 8)),
+    input_dims: Sequence[tuple[int, int]] = ((13, 7), (14, 7), (15, 8)),
     hidden_size=32,
     num_hidden_layers=2,
     vocab_size=99,
@@ -76,7 +76,7 @@ def get_phi_model(
     num_key_value_heads=2,
     _attn_implementation="eager",  # needed value to remove graph breaks
     with_mask: bool = True,
-) -> tuple[Any, list[tuple["torch.Tensor", ...]], dict]:
+) -> tuple[Any, list[tuple[torch.Tensor, ...]], dict]:
     """
     Returns a model.
     See `PhiConfig
@@ -147,7 +147,7 @@ def get_phi_model(
             model_output = self.model(input_ids)
             return model_output.to_tuple()
 
-    def generate_example_inputs(batch: int, seq: int, vocab_size: int):
+    def generate_example_inputs_no_mask(batch: int, seq: int, vocab_size: int):
         (
             input_ids,
             token_type_ids,
@@ -165,7 +165,7 @@ def get_phi_model(
 
     example_args_collection = []
     for b, s in input_dims:
-        example_args_collection.append(generate_example_inputs(b, s, vocab_size))
+        example_args_collection.append(generate_example_inputs_no_mask(b, s, vocab_size))
 
     return PhiModelWrapperNoMask(config), example_args_collection, dynamic_shapes
 
@@ -178,7 +178,7 @@ def get_phi_model_config(
     implementation: str = "eager",
     dynamic_shapes: bool = False,
     with_mask: bool = True,
-) -> tuple[Any, list[tuple["torch.Tensor", ...]], dict]:
+) -> tuple[Any, list[tuple[torch.Tensor, ...]], dict]:
     """
     Returns a model Phi to test or benchmark.
 

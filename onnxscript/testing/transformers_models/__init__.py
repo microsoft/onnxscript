@@ -2,9 +2,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+from __future__ import annotations
 
 import random
 from typing import Any
+
+import torch
 
 
 def has_transformers():
@@ -57,7 +60,7 @@ def get_model_and_inputs(
     dtype: str | None = None,
     warmup: int = 5,
     repeat: int = 10,
-) -> tuple[Any, list[tuple["torch.Tensor", ...]]]:  # noqa: F821
+) -> tuple[Any, list[tuple[torch.Tensor, ...]], dict | None]:
     """
     Returns a model and a couple of dummy inputs.
 
@@ -79,7 +82,7 @@ def get_model_and_inputs(
     if model == "phi":
         import onnxscript.testing.transformers_models.phi as m
 
-        tmodel, inputs, dynamic_shapes = m.get_phi_model_config(
+        tmodel, inputs, dynamic_shapes_def = m.get_phi_model_config(
             warmup=warmup,
             repeat=repeat,
             implementation=implementation,
@@ -106,4 +109,4 @@ def get_model_and_inputs(
         tmodel = tmodel.to("cuda")
         inputs = [tuple(i.to("cuda") for i in inp) for inp in inputs]
 
-    return tmodel, inputs, dynamic_shapes
+    return tmodel, inputs, dynamic_shapes_def

@@ -30,7 +30,7 @@ def get_parsed_args(
     description: str | None = None,
     epilog: str | None = None,
     new_args: list[str] | None = None,
-    **kwargs: dict[str, tuple[Any, str]],
+    **kwargs: tuple[Any, str],
 ) -> dict[str, Any]:
     """
     Returns parsed arguments for examples in this package.
@@ -263,7 +263,7 @@ def common_export(
         print(f"[common_export] size of the export: {os.stat(filename).st_size / 2**20} Mb")
 
     with open(filename, "rb") as f:
-        onx = onnx.load(filename)
+        onx = onnx.load(f)
 
     if optimization:
         if verbose:
@@ -437,7 +437,7 @@ def run_inference(
         print(f"[run_inference] start {warmup} warmup iterations")
 
     stats: dict[str, Any] = {}
-    iterations: list[int] = []
+    iterations: list[float] = []
     begin = time.perf_counter()
     for i in range(warmup):
         t0 = time.perf_counter()
@@ -510,10 +510,9 @@ class WrapInferenceSessionForTorch:
 
     def _get_ortvalues_from_torch_tensors(
         self,
-        tensors: tuple["torch.Tensor", ...],  # noqa: F821
+        tensors: tuple[Any, ...],  # tuple["torch.Tensor", ...],
         n_outputs: int,
-        log_set: list[Any] | None = None,
-    ) -> tuple[tuple["torch.Tensor", ...], tuple["OrtDevice", ...], Any]:  # noqa: F821
+    ) -> tuple[Any, Any]:  # tuple[tuple["torch.Tensor", ...], tuple["OrtDevice", ...]]:
         ortvalues = self.ORTC.OrtValueVector()
         ortvalues.reserve(len(tensors))
         dtypes = []
@@ -545,8 +544,8 @@ class WrapInferenceSessionForTorch:
 
     def _ortvalues_to_torch_tensor(
         self,
-        ortvalues: "onnxruntime.OrtValueVector",  # noqa: F821
-    ) -> tuple["torch.Tensor", ...]:  # noqa: F821
+        ortvalues: Any,  #  "onnxruntime.OrtValueVector",
+    ) -> tuple[Any, ...]:  # tuple["torch.Tensor", ...]:
         if len(ortvalues) == 0:
             return tuple()
 

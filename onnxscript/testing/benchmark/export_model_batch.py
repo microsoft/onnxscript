@@ -4,12 +4,13 @@
 # --------------------------------------------------------------------------
 import pprint
 import textwrap
+from typing import Any
 
 import onnxscript.testing.benchmark
 
 
 def main(args=None):
-    kwargs = onnxscript.testing.benchmark.get_parsed_args(
+    kwargs: dict[str, Any] = onnxscript.testing.benchmark.get_parsed_args(
         "export_model",
         description=textwrap.dedent(
             """Measures the inference time for a particular model.
@@ -51,7 +52,7 @@ def main(args=None):
 
     script_name = "onnxscript.testing.benchmark.export_model"
 
-    configs = [
+    configs: list[dict[str, Any]] = [
         dict(exporter="eager"),
         dict(ort_optimize=1, exporter="script"),
         dict(ort_optimize=1, optimization="optimize,rewrite,inline", exporter="script"),
@@ -60,7 +61,7 @@ def main(args=None):
         dict(ort_optimize=1, optimization="optimize,rewrite,inline", exporter="dynamo"),
         dict(ort_optimize=0, optimization="optimize,rewrite,inline", exporter="dynamo"),
     ]
-    common_kwargs = kwargs.copy()
+    common_kwargs: dict[str, Any] = kwargs.copy()
     common_kwargs["verbose"] = max(common_kwargs["verbose"] - 1, 0)
     for c in configs:
         c.update(common_kwargs)

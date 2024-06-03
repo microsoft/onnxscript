@@ -12,7 +12,7 @@ from typing import Any
 def main(args=None):
     import onnxscript.testing.benchmark
 
-    kwargs = onnxscript.testing.benchmark.get_parsed_args(
+    kwargs: dict[str, Any] = onnxscript.testing.benchmark.get_parsed_args(
         "export_model",
         description=textwrap.dedent(
             """Measures the inference time for a particular model.
@@ -140,7 +140,7 @@ def main(args=None):
             warmup=kwargs["warmup"],
             repeat=kwargs["repeat"],
             verbose=kwargs["verbose"],
-            ort_optimize=["ort_optimize"],
+            ort_optimize=kwargs["ort_optimize"],
         )
 
     print("[export_model] end")
