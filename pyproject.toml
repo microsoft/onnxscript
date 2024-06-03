@@ -211,7 +211,7 @@ ignore-init-module-imports = true
 "__init__.py" = ["TID252"] # Allow relative imports in init files
 "setup.py" = ["TID251"] # pathlib is allowed in supporting code
 "**/{examples,tests,docs,tools,utils,opgen}/*" = ["TID251"]  # pathlib is allowed in supporting code
-"**/*_test.py" = ["TID251", "TRY300"] # pathlib is allowed in tests
+"**/*_test.py" = ["TID251"] # pathlib is allowed in tests
 "onnxscript/testing/benchmark/benchmark_helpers.py" = ["UP037"]  # avoid importing onnxruntime just for annotation
 "onnxscript/testing/benchmark/export_model.py" = ["E402"]  # triggers --help before importing heavy modules
 
