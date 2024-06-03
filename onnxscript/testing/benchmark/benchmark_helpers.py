@@ -312,7 +312,6 @@ def apply_rule_sets(
             print(f"[apply_rule_sets] applies {rule_set_name!r}")
 
         if rule_set_name == "llama0":
-
             import onnxscript.rewriter.llama_rule_sets as rules
 
             rule_set = rules.llama_p0_rule_set()
@@ -376,13 +375,11 @@ def optimize_model_proto(
         return model_proto
 
     for value in optimization.split(","):
-
         if verbose:
             print(f"[optimize_model_proto] start {value}")
 
         begin = time.perf_counter()
         if value == "optimize":
-
             import onnxscript.optimizer
 
             model_proto = onnxscript.optimizer.optimize(
@@ -477,7 +474,6 @@ def run_inference(
 
 
 class WrapInferenceSessionForTorch:
-
     def __init__(self, sess: "onnxruntime.InferenceSession"):  # noqa: F821
         import onnxruntime
         import torch
@@ -522,7 +518,6 @@ class WrapInferenceSessionForTorch:
         n_outputs: int,
         log_set: list[Any] | None = None,
     ) -> tuple[tuple["torch.Tensor", ...], tuple["OrtDevice", ...], Any]:  # noqa: F821
-
         ortvalues = self.ORTC.OrtValueVector()
         ortvalues.reserve(len(tensors))
         dtypes = []
@@ -553,7 +548,8 @@ class WrapInferenceSessionForTorch:
         return ortvalues, output_devices
 
     def _ortvalues_to_torch_tensor(
-        self, ortvalues: "onnxruntime.OrtValueVector"  # noqa: F821
+        self,
+        ortvalues: "onnxruntime.OrtValueVector",  # noqa: F821
     ) -> tuple["torch.Tensor", ...]:  # noqa: F821
         if len(ortvalues) == 0:
             return tuple()
@@ -577,7 +573,6 @@ class WrapInferenceSessionForTorch:
         return self.run_dlpack(*inputs, output_names=output_names)
 
     def run_dlpack(self, *inputs, output_names=None):
-
         if output_names is None:
             output_names = self.output_names
         ortvalues, output_devices = self._get_ortvalues_from_torch_tensors(

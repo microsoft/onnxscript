@@ -98,7 +98,6 @@ def main(args=None):
     )
 
     if data_collected:
-
         df = pandas.DataFrame(data)
         df = df.drop(["OUTPUT", "ERROR"], axis=1)
         df["repeat_time"] = df["repeat_time"].astype(float)
