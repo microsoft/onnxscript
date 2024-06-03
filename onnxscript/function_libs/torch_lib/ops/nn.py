@@ -1779,7 +1779,7 @@ def aten__scaled_dot_product_flash_attention(
     )
 
 
-@torch_op("aten::_scaled_dot_product_efficient_attention", private=True, traceable=True)
+@torch_op("aten::_scaled_dot_product_efficient_attention", private=True)
 def _aten_scaled_dot_product_efficient_attention_fillin_empty_outputs(
     query: TFloat,
     compute_log_sumexp: bool,
