@@ -2,27 +2,24 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+"""Convenience methods for constructing and manipulating the IR."""
+
+from __future__ import annotations
 
 __all__ = [
-    "PassBase",
-    "PassResult",
-    "PassManager",
-    # Errors
-    "InvariantError",
-    "PreconditionError",
-    "PostconditionError",
-    "PassError",
+    "convert_attribute",
+    "convert_attributes",
+    "replace_all_uses_with",
 ]
 
-from onnxscript.ir.passes._pass_infra import (
-    InvariantError,
-    PassBase,
-    PassError,
-    PassManager,
-    PassResult,
-    PostconditionError,
-    PreconditionError,
+from onnxscript.ir._convenience import (
+    convert_attribute,
+    convert_attributes,
+    replace_all_uses_with,
 )
+
+# NOTE: Do not implement any other functions in this module.
+# implement them in the _convenience module and import them here instead.
 
 
 def __set_module() -> None:

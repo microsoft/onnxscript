@@ -5,7 +5,7 @@
 """Convenience methods for constructing and manipulating the IR.
 
 This is an internal only module. We should choose to expose some of the methods
-after they are proven to be useful.
+in convenience.py after they are proven to be useful.
 """
 
 from __future__ import annotations
