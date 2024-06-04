@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import inspect
 import logging
 import types
@@ -477,8 +478,12 @@ class OnnxFunction(Op):
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
         self._op_schema: Optional[onnx.defs.OpSchema] = None
 
+        # Allow the object to be inspected as a function
+        self.__wrapped__ = pyfun
+        functools.update_wrapper(self, pyfun)
+
         # Experimental fields
-        self.experimental_traceable = False
+        self.traceable = False
 
     @property
     @deprecation.deprecated(
@@ -569,6 +574,10 @@ class TracedOnnxFunction(Op):
     def __init__(self, opset: Opset, func: types.FunctionType):
         super().__init__(opset, func.__name__)
         self.func = func
+
+        # Allow the object to be inspected as a function
+        self.__wrapped__ = func
+        functools.update_wrapper(self, func)
 
     def __call__(self, *args, **kwargs):
         return self.func(*args, **kwargs)
