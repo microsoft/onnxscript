@@ -235,7 +235,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                 else:
                     # Python constants are scalars
                     return 0
-            elif function.experimental_traceable:
+            elif function.traceable:
                 # Trace the function call instead of adding the function as a node
                 return function.function(*args, **kwargs)
 
