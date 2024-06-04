@@ -367,7 +367,7 @@ def _onnxscript_to_numpy_value(v):
     if isinstance(v, list):
         return [_onnxscript_to_numpy_value(x) for x in v]
     if isinstance(v, tuple):
-        if len(v) > 0 and type(v[0]) is int:  # noqa: E721  # pylint: disable=unidiomatic-typecheck
+        if len(v) > 0 and type(v[0]) is int:  # pylint: disable=unidiomatic-typecheck
             return np.array(v, dtype=np.int64)
         return np.array(v)
     if v is None:

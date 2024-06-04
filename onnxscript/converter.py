@@ -427,9 +427,7 @@ class Converter:
 
     def _is_constant_expr(self, node: ast.AST) -> None:
         if isinstance(node, ast.UnaryOp):
-            if self._is_constant_expr(node.operand):
-                return True
-            return False
+            return self._is_constant_expr(node.operand)
         if isinstance(
             node,
             (

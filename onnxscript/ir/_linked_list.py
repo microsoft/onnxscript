@@ -30,7 +30,7 @@ class _LinkBox(Generic[T]):
         value: The actual object in the list.
     """
 
-    __slots__ = ("prev", "next", "value", "owning_list")
+    __slots__ = ("next", "owning_list", "prev", "value")
 
     def __init__(self, owner: DoublyLinkedSet[T], value: T | None) -> None:
         """Create a new link box.
@@ -64,7 +64,7 @@ class _LinkBox(Generic[T]):
         return f"_LinkBox({self.value!r}, erased={self.erased}, prev={self.prev.value!r}, next={self.next.value!r})"
 
 
-class DoublyLinkedSet(Generic[T], Sequence[T]):
+class DoublyLinkedSet(Sequence[T], Generic[T]):
     """A doubly linked ordered set of nodes.
 
     The container can be viewed as a set as it does not allow duplicate values. The order of the
@@ -90,7 +90,7 @@ class DoublyLinkedSet(Generic[T], Sequence[T]):
     Values need to be hashable. ``None`` is not a valid value in the set.
     """
 
-    __slots__ = ("_root", "_length", "_value_ids_to_boxes")
+    __slots__ = ("_length", "_root", "_value_ids_to_boxes")
 
     def __init__(self, values: Iterable[T] | None = None) -> None:
         # Using the root node simplifies the mutation implementation a lot

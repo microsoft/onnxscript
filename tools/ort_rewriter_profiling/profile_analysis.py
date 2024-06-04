@@ -137,7 +137,7 @@ def tabulate_diff(
             comp_compiler_perf_header: comp_perf,
         }
 
-    ## Every op type
+    # Every op type
     tabulate_data = sorted(
         [
             _construct_tabulate_dict(
@@ -232,10 +232,10 @@ def compare_node_reports(
     base_report: ModelProfile,
     comp_report: ModelProfile,
 ):
-    ## Every op type
+    # Every op type
     print(tabulate_diff(base_report, comp_report))
 
-    ## Matmul family + Add
+    # Matmul family + Add
     matmul_core_op_types = {
         "MatMul",
         "Gemm",

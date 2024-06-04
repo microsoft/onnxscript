@@ -15,7 +15,7 @@ try:
             return sum_out, sum_out
 
         g = op.Constant(value=1)
-        all_sum, cumulative_sum = op.Scan(0, X, body=Sum, num_scan_inputs=1)
+        _all_sum, cumulative_sum = op.Scan(0, X, body=Sum, num_scan_inputs=1)
         return cumulative_sum
 
 except Exception as e:

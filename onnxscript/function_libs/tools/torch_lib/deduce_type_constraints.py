@@ -153,11 +153,9 @@ class OnnxFunctionTypeConstraints:
             "  Type Constraints: ",
         ]
         # Trick to get unique type constraints but maintain the order.
-        ordered_unique_type_constraints = {
-            v: None for v in self.input_type_constraints.values()
-        }
+        ordered_unique_type_constraints = dict.fromkeys(self.input_type_constraints.values())
         ordered_unique_type_constraints.update(
-            {v: None for v in self.output_type_constraints.values()}
+            dict.fromkeys(self.output_type_constraints.values())
         )
         repr_strs += [
             f"    {type_constraint.name}: {type_constraint.type_strs}"
@@ -177,9 +175,9 @@ class OnnxFunctionTypeConstraints:
             repr_strs += [
                 "  Intermediate Type Constraints: ",
             ]
-            ordered_unique_type_constraints = {
-                v: None for v in self.intermediate_type_constraints.values()
-            }
+            ordered_unique_type_constraints = dict.fromkeys(
+                self.intermediate_type_constraints.values()
+            )
             repr_strs += [
                 f"    {type_constraint.name}: {type_constraint.type_strs}"
                 for type_constraint in ordered_unique_type_constraints

@@ -309,7 +309,7 @@ class Exporter:
 
     def _rename_domain(self, domain: str) -> str:
         if domain in {"", "ai.onnx"}:
-            return "opset"  #  TODO: Need checks to avoid name conflicts.
+            return "opset"  # TODO: Need checks to avoid name conflicts.
         return _cleanup_variable_name(domain)  # type: ignore[return-value]
 
     def _make_opset_name(self, domain, version):

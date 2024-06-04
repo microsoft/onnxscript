@@ -172,6 +172,7 @@ extend-select = [
     "CPY001",  # Copyright header
 ]
 ignore = [
+    "B9",  # Opinionated bugbear rules
     "C408", # Sometimes it is preferable when we construct kwargs
     "D1", # D1 is for missing docstrings, which is not yet enforced.
     "D202", # D202 Too strict. "No blank lines allowed after function docstring"
@@ -181,6 +182,7 @@ ignore = [
     "D401", # First line of docstring should be in imperative mood
     "D415", # D415 Not yet enforced. "First line should end with a period, question mark, or exclamation point"
     "E501", # Line length. Not enforced because black will handle formatting
+    "SIM103", # "Return the condition directly" obscures logic sometimes
     "N802", # Nxx: ONNX Script function sometimes use upper case for names.
     "N803",
     "N806",

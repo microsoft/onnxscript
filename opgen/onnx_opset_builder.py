@@ -346,7 +346,7 @@ class OpsetsBuilder:
             for existing_constraints in input_constraints, output_constraints:
                 if (existing := existing_constraints.get(constraint_name, None)) is not None:
                     if len(existing) != len(constraint_types):
-                        return False  #  differing number of constraints, can't be compatible
+                        return False  # differing number of constraints, can't be compatible
                     for a, b in zip(existing, constraint_types):
                         if str(a) != str(b):
                             return False  # a constrained type does not match

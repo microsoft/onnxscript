@@ -259,7 +259,7 @@ class GenericPatternTest(unittest.TestCase):
 
             matmul = op.MatMul(pos_ids, cast)
             transpose = op.Transpose(matmul)
-            output, length = op.ConcatTraining(
+            output, _length = op.ConcatTraining(
                 transpose,
                 transpose,
                 domain="com.microsoft",
@@ -331,7 +331,7 @@ class GenericPatternTest(unittest.TestCase):
 
             matmul = op.MatMul(pos_ids, cast)
             transpose = op.Transpose(matmul)
-            output, length = op.ConcatTraining(
+            output, _length = op.ConcatTraining(
                 transpose, transpose, domain="com.microsoft", outputs=2
             )
 
@@ -396,7 +396,7 @@ class GenericPatternTest(unittest.TestCase):
 
             matmul = op.MatMul(pos_ids, cast)
             transpose = op.Transpose(matmul)
-            output, length = op.ConcatTraining(
+            output, _length = op.ConcatTraining(
                 transpose, transpose, domain="com.microsoft", outputs=2
             )
 

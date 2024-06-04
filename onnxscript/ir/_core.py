@@ -296,13 +296,13 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
     """
 
     __slots__ = (
-        "_raw",
         "_dtype",
-        "_shape",
-        "name",
-        "doc_string",
-        "_metadata_props",
         "_metadata",
+        "_metadata_props",
+        "_raw",
+        "_shape",
+        "doc_string",
+        "name",
     )
 
     def __init__(
@@ -485,17 +485,17 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
     """
 
     __slots__ = (
-        "_path",
-        "_offset",
-        "_length",
-        "_dtype",
-        "_shape",
-        "name",
-        "doc_string",
         "_array",
-        "raw",
-        "_metadata_props",
+        "_dtype",
+        "_length",
         "_metadata",
+        "_metadata_props",
+        "_offset",
+        "_path",
+        "_shape",
+        "doc_string",
+        "name",
+        "raw",
     )
 
     def __init__(
@@ -645,12 +645,12 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
     """Multidimensional array of strings (as binary data to match the string_data field in TensorProto)."""
 
     __slots__ = (
+        "_metadata",
+        "_metadata_props",
         "_raw",
         "_shape",
-        "name",
         "doc_string",
-        "_metadata_props",
-        "_metadata",
+        "name",
     )
 
     def __init__(
@@ -945,18 +945,18 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     """
 
     __slots__ = (
-        "_name",
-        "_domain",
-        "_op_type",
-        "_inputs",
-        "_outputs",
         "_attributes",
+        "_domain",
+        "_graph",
+        "_inputs",
+        "_metadata",
+        "_metadata_props",
+        "_name",
+        "_op_type",
+        "_outputs",
         "_overload",
         "_version",
         "doc_string",
-        "_metadata",
-        "_metadata_props",
-        "_graph",
     )
 
     def __init__(
@@ -1055,7 +1055,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         if num_outputs is not None and outputs is not None and num_outputs != len(outputs):
             raise ValueError(
                 "num_outputs must be the same as len(outputs) when num_outputs is specified."
-                "num_outputs: {num_outputs}, outputs: {outputs}"
+                f"num_outputs: {num_outputs}, outputs: {outputs}"
             )
         # 1. If outputs is specified (can be empty []), use the outputs
         if outputs is not None:
@@ -1391,8 +1391,8 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     __slots__ = (
         "_const_value",
         "_index",
-        "_metadata_props",
         "_metadata",
+        "_metadata_props",
         "_name",
         "_producer",
         "_shape",
@@ -1683,16 +1683,16 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     """
 
     __slots__ = (
-        "name",
-        "_inputs",
-        "_outputs",
-        "_initializers",
         "_doc_string",
-        "_opset_imports",
-        "_nodes",
+        "_initializers",
+        "_inputs",
         "_metadata",
         "_metadata_props",
         "_name_authority",
+        "_nodes",
+        "_opset_imports",
+        "_outputs",
+        "name",
     )
 
     def __init__(
@@ -1971,10 +1971,10 @@ def _graph_str(graph: Graph | GraphView) -> str:
     signature = f"""\
 graph(
     name={graph.name or 'anonymous_graph:' + str(id(graph))},
-    inputs=({textwrap.indent(inputs_text, ' '*8)}
+    inputs=({textwrap.indent(inputs_text, ' ' * 8)}
     ),
-    outputs=({textwrap.indent(outputs_text, ' '*8)}
-    ),{textwrap.indent(initializers_text, ' '*4)}
+    outputs=({textwrap.indent(outputs_text, ' ' * 8)}
+    ),{textwrap.indent(initializers_text, ' ' * 4)}
 )"""
     node_count = len(graph)
     number_width = len(str(node_count))
@@ -2009,10 +2009,10 @@ def _graph_repr(graph: Graph | GraphView) -> str:
     return f"""\
 {graph.__class__.__name__}(
     name={graph.name or 'anonymous_graph:' + str(id(graph))!r},
-    inputs=({textwrap.indent(inputs_text, ' '*8)}
+    inputs=({textwrap.indent(inputs_text, ' ' * 8)}
     ),
-    outputs=({textwrap.indent(outputs_text, ' '*8)}
-    ),{textwrap.indent(initializers_text, ' '*4)}
+    outputs=({textwrap.indent(outputs_text, ' ' * 8)}
+    ),{textwrap.indent(initializers_text, ' ' * 4)}
     len()={len(graph)}
 )"""
 
@@ -2051,15 +2051,15 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
     """
 
     __slots__ = (
-        "name",
-        "inputs",
-        "outputs",
-        "initializers",
-        "doc_string",
-        "opset_imports",
-        "nodes",
         "_metadata",
         "_metadata_props",
+        "doc_string",
+        "initializers",
+        "inputs",
+        "name",
+        "nodes",
+        "opset_imports",
+        "outputs",
     )
 
     def __init__(
@@ -2125,16 +2125,16 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
 
 class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
     __slots__ = (
-        "graph",
-        "ir_version",
-        "producer_name",
-        "producer_version",
-        "domain",
-        "model_version",
-        "doc_string",
         "_functions",
         "_metadata",
         "_metadata_props",
+        "doc_string",
+        "domain",
+        "graph",
+        "ir_version",
+        "model_version",
+        "producer_name",
+        "producer_version",
     )
     """IR Model.
 
@@ -2254,13 +2254,13 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
     """
 
     __slots__ = (
-        "_domain",
-        "_name",
-        "_overload",
-        "_graph",
         "_attributes",
+        "_domain",
+        "_graph",
         "_metadata",
         "_metadata_props",
+        "_name",
+        "_overload",
     )
 
     def __init__(
@@ -2426,10 +2426,10 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
 >
 def {full_name}(
     inputs=(
-{textwrap.indent(inputs_text, ' '*8)}
-    ),{textwrap.indent(attributes_text, ' '*4)}
+{textwrap.indent(inputs_text, ' ' * 8)}
+    ),{textwrap.indent(attributes_text, ' ' * 4)}
     outputs=(
-{textwrap.indent(outputs_text, ' '*8)}
+{textwrap.indent(outputs_text, ' ' * 8)}
     ),
 )"""
         node_count = len(self)
@@ -2505,7 +2505,7 @@ class RefAttr(_protocols.ReferenceAttributeProtocol, _display.PrettyPrintable):
 class Attr(_protocols.AttributeProtocol, _display.PrettyPrintable):
     """Base class for ONNX attributes."""
 
-    __slots__ = ("name", "type", "value", "doc_string")
+    __slots__ = ("doc_string", "name", "type", "value")
 
     def __init__(
         self,

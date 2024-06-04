@@ -12,7 +12,7 @@ def timeit(f, message):
         ts = time.time()
         result = f(*args, **kw)
         te = time.time()
-        print(f"{message} time: {te-ts}")
+        print(f"{message} time: {te - ts}")
         return result
 
     return timed
