@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 #
 # This module implements some APIs described in
 # https://pytorch.org/executorch/stable/compiler-custom-compiler-passes.html
