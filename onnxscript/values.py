@@ -479,7 +479,6 @@ class OnnxFunction(Op):
         self._op_schema: Optional[onnx.defs.OpSchema] = None
 
         # Allow the object to be inspected as a function
-        self.__wrapped__ = pyfun
         functools.update_wrapper(self, pyfun)
 
         # Experimental fields
@@ -576,7 +575,6 @@ class TracedOnnxFunction(Op):
         self.func = func
 
         # Allow the object to be inspected as a function
-        self.__wrapped__ = func
         functools.update_wrapper(self, func)
 
     def __call__(self, *args, **kwargs):
