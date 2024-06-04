@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Graph building functions for torchscript graph backend."""
 
 from __future__ import annotations

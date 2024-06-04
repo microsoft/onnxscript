@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """This script is an e2e tool to start a model run and profile the run.
 
 It parses the analysis produced by onnxruntime/nsys profiling and prints out the result.

@@ -1,3 +1,6 @@
+
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Lite benchmark script comparing perf between different onnx model of the same torch model.
 
 Folders are expected to be in the following format:

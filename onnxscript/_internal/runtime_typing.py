@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """An internal wrapper for the beartype library.
 
 Decorate a function with `@runtime_typing.checked` to enable runtime

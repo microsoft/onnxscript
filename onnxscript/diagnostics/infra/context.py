@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """A diagnostic context based on SARIF."""
 
 from __future__ import annotations

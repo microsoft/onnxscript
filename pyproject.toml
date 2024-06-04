@@ -189,6 +189,7 @@ ignore = [
     "PERF203", # try-except in loops sometimes necessary
     "PERF401", # List comprehension is not always readable
     "PYI041", # int | float is more clear
+    "RUF022", # We don't need to sort __all__ for elements to be grouped
     "SIM102", # Collapible if statements are not always more readable
     "SIM108", # We don't always encourage ternary operators
     "SIM114", # Don't always combine if branches for debugability
@@ -216,4 +217,4 @@ ban-relative-imports = "all"
 convention = "google"
 
 [tool.ruff.lint.flake8-copyright]
-notice-rgx = "(?i)Copyright (c) Microsoft Corporation. All rights reserved."
+notice-rgx = "(?i)Copyright \\(c\\) Microsoft Corporation"

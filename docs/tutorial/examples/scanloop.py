@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 from onnxscript import graph, script
 from onnxscript import opset15 as op
 

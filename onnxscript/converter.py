@@ -525,7 +525,7 @@ class Converter:
         # in a NodeProto.
         if val is None:
             if attr_meta and attr_meta.required:
-                self.fail(expr, "Attribute '{attr_name}' is required.")
+                self.fail(expr, f"Attribute '{attr_name}' is required.")
             return None
         attr_type = attr_meta.type if attr_meta else None
         attr = self._make_onnx_attr(attr_name, val, attr_type)

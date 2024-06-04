@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Inlines the function if it only contains very few number of nodes."""
 
 from __future__ import annotations

@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 # Script to update end-to-end example in README.md.
 
 updated_readme = []

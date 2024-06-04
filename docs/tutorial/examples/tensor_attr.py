@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 from onnx import TensorProto, helper
 
 from onnxscript import opset15 as op

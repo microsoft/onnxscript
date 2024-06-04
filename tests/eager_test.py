@@ -1,5 +1,5 @@
-# SPDX-License-Identifier: Apache-2.0
-# pylint: disable=import-outside-toplevel
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 
 import itertools
 import unittest

@@ -1,10 +1,10 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 import time
 
 import onnx
 
 from onnxscript import optimizer
-
-# from onnxscript.rewriter.rules import all_rules
 
 
 def timeit(f, message):

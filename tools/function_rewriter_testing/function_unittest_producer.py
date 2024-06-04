@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Fuction fusion unittest producer.
 
 Takes in a full model, function keyword, and example inputs, produces unit model protos
