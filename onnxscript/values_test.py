@@ -1,3 +1,9 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
+from __future__ import annotations
+
 import inspect
 import unittest
 
@@ -51,7 +57,7 @@ class TracedOnnxFunctionTest(unittest.TestCase):
         self.assertEqual(signature.parameters["input3"].name, "input3")
         self.assertEqual(signature.parameters["attr3"].name, "attr3")
 
-        annotations = inspect.get_annotations(traced_function)
+        annotations = inspect.get_annotations(traced_function, eval_str=True)
         self.assertEqual(annotations["attr1"], int)
         self.assertEqual(annotations["attr2"], float)
         self.assertEqual(annotations["attr3"], str)
@@ -93,7 +99,7 @@ class OnnxFunctionTest(unittest.TestCase):
         self.assertEqual(signature.parameters["input3"].name, "input3")
         self.assertEqual(signature.parameters["attr3"].name, "attr3")
 
-        annotations = inspect.get_annotations(function)
+        annotations = inspect.get_annotations(function, eval_str=True)
         self.assertEqual(annotations["attr1"], int)
         self.assertEqual(annotations["attr2"], float)
         self.assertEqual(annotations["attr3"], str)
