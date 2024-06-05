@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Experimental flags.
 
 NOTE: These flags are experimental only. Any flag here can be removed at any

@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Onnx Pattern Rewriting.
 
 This script shows how to define a rewriting rule based on patterns.
@@ -74,7 +76,9 @@ def rotary_match_pattern(op, x, pos_ids, axis):
 
     matmul = op.MatMul(pos_ids, cast)
     transpose = op.Transpose(matmul)
-    output, length = op.ConcatTraining(transpose, transpose, domain="com.microsoft", outputs=2)
+    output, _length = op.ConcatTraining(
+        transpose, transpose, domain="com.microsoft", outputs=2
+    )
 
     sin = op.Sin(output)
     cast1 = op.Cast(sin, to=onnx.TensorProto.FLOAT)

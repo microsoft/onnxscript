@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 """Internal utilities for displaying the intermediate representation of a model.
 
 NOTE: All third-party imports should be scoped and imported only when used to avoid

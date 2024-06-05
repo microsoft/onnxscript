@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Common utils for testing operators."""
 
 from __future__ import annotations

@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Runs onnxruntime rewriter to optimize on the given onnx model.
 
 Input:

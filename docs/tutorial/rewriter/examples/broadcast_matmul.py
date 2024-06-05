@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Onnx Pattern Rewriting with match condition parameter.
 
 This script shows how to define a rewriting rule based on patterns while

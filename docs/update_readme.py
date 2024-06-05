@@ -1,4 +1,6 @@
-# Script to update end-to-end example in README.md.
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+"""Script to update end-to-end example in README.md."""
 
 updated_readme = []
 with open("README.md", encoding="utf-8") as f:
@@ -12,7 +14,7 @@ with open("README.md", encoding="utf-8") as f:
             with open(
                 "docs/tutorial/examples/hardmax_end_to_end.py", encoding="utf-8"
             ) as example_f:
-                example_code = example_f.readlines()
+                example_code = example_f.readlines()[2:]  # Skip the copyright header
                 updated_readme += example_code
         if line == "```\n" and in_stub:
             updated_readme.append(line)

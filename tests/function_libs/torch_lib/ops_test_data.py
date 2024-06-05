@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Test op correctness by comparing with PyTorch results.
 
 ## Usage

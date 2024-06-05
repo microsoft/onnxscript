@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Common operators shared in the torchlib library."""
 
 import onnxscript

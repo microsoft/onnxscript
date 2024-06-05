@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Graph building functions for torchscript graph backend."""
 
 from __future__ import annotations
@@ -363,7 +365,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                     else:
                         # Fall to call add_function_call
                         pass
-                elif isinstance(args[0], Sequence):  # noqa: SIM103
+                elif isinstance(args[0], Sequence):
                     return False
                 else:
                     # Python constants are scalars
