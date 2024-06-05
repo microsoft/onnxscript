@@ -39,8 +39,8 @@ class TestExportPhi(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
     def test_phi_export_cpu(self):
-        model, input_tensors, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
-        input_tensors = input_tensors[0]
+        model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
+        input_tensors = input_tensors_many[0]
         expected = model(*input_tensors)
         proto = export_to_onnx(model, *input_tensors)
         names = [i.name for i in proto.graph.input]
@@ -56,10 +56,10 @@ class TestExportPhi(unittest.TestCase):
     @unittest.skipIf(not torch.cuda.is_available(), reason="CUDA not available")
     @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
     def test_phi_export_cuda(self):
-        model, input_tensors, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
-        input_tensors = input_tensors[0]
+        model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
+        input_tensors_cpu = input_tensors_many[0]
         model = model.to("cuda")
-        input_tensors = [i.to("cuda") for i in input_tensors]
+        input_tensors = [i.to("cuda") for i in input_tensors_cpu]
         expected = model(*input_tensors)
         proto = export_to_onnx(model, *input_tensors)
         names = [i.name for i in proto.graph.input]
@@ -74,8 +74,8 @@ class TestExportPhi(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
     def test_phi_dort_static(self):
-        model, input_tensors, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
-        input_tensors = input_tensors[0]
+        model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
+        input_tensors = input_tensors_many[0]
         expected = model(*input_tensors)
 
         local_aot_ort = onnxscript.tools.training_helper.make_aot_ort(dynamic=False)
