@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """A diagnostic context based on SARIF."""
 
 from __future__ import annotations
@@ -324,7 +326,7 @@ class DiagnosticContext:
 
         formatter.pretty_print_title(f"Diagnostic Run {self.name} version {self.version}")
         print(f"verbose: {verbose}, log level: {log_level}")
-        diagnostic_stats = {level: 0 for level in infra.Level}
+        diagnostic_stats = dict.fromkeys(infra.Level, 0)
         for diagnostic in self.diagnostics:
             diagnostic_stats[diagnostic.level] += 1
         formatter.pretty_print_title(

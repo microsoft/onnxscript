@@ -67,14 +67,14 @@ def _prepare_config_and_inputs(
 
 def get_phi_model(
     input_dims: Sequence[tuple[int, int]] = ((13, 7), (14, 7), (15, 8)),
-    hidden_size:int=32,
-    num_hidden_layers:int=2,
-    vocab_size:int=99,
-    intermediate_size:int=16,
-    max_position_embeddings:int=512,
-    num_attention_heads:int=4,
-    num_key_value_heads:int=2,
-    _attn_implementation:str="eager",  # needed value to remove graph breaks
+    hidden_size: int = 32,
+    num_hidden_layers: int = 2,
+    vocab_size: int = 99,
+    intermediate_size: int = 16,
+    max_position_embeddings: int = 512,
+    num_attention_heads: int = 4,
+    num_key_value_heads: int = 2,
+    _attn_implementation: str = "eager",  # needed value to remove graph breaks
     with_mask: bool = True,
 ) -> tuple[Any, list[tuple[torch.Tensor, ...]], dict]:
     """
@@ -117,11 +117,11 @@ def get_phi_model(
         def generate_example_inputs(batch: int, seq: int, vocab_size: int):
             (
                 input_ids,
-                token_type_ids,
+                _,  # token_type_ids,
                 input_mask,
-                sequence_labels,
-                token_labels,
-                choice_labels,
+                _,  # sequence_labels,
+                _,  # token_labels,
+                _,  # choice_labels,
             ) = _prepare_config_and_inputs(
                 batch_size=batch,
                 seq_length=seq,
@@ -150,11 +150,11 @@ def get_phi_model(
     def generate_example_inputs_no_mask(batch: int, seq: int, vocab_size: int):
         (
             input_ids,
-            token_type_ids,
-            input_mask,
-            sequence_labels,
-            token_labels,
-            choice_labels,
+            _,  # token_type_ids,
+            _,  # input_mask,
+            _,  # sequence_labels,
+            _,  # token_labels,
+            _,  # choice_labels,
         ) = _prepare_config_and_inputs(
             batch_size=batch,
             seq_length=seq,

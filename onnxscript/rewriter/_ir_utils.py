@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """This is a temporary utility to assist new IR while it's still under development."""
 
 from __future__ import annotations

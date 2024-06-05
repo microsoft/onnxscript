@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Test cases for graph building functionality."""
 
 # mypy: disable-error-code="arg-type,type-arg,valid-type"

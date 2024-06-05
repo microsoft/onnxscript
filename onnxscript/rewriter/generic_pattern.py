@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 from __future__ import annotations
 
 import collections
@@ -592,7 +594,7 @@ class GenericPatternMatcher(orp.PatternMatcher):
                 self._debug["iteration"] = iteration
 
         if iteration >= max_iter and stack:
-            self._hint("reached {iteration}>={max_iter} iterations")
+            self._hint(f"reached {iteration}>={max_iter} iterations")
             return self.none(node, inspect.currentframe().f_lineno)
 
         if self.verbose > 5:

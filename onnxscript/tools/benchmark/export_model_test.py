@@ -12,7 +12,6 @@ from onnxscript.tools.transformers_models import has_transformers
 
 
 class BenchmarkTest(unittest.TestCase):
-
     @unittest.skipIf(not has_transformers(), reason="transformers missing")
     def test_export_model_phi_cpu_eager(self):
         args = [

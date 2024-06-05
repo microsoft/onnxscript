@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """This file defines an additional layer of abstraction on top of the SARIF OM."""
 
 from __future__ import annotations

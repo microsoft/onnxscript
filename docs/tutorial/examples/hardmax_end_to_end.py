@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 import onnx
 
 # We use ONNX opset 15 to define the function below.

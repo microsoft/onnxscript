@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 from __future__ import annotations
 
 from typing import Any, Optional, Sequence
@@ -311,7 +309,7 @@ class Exporter:
 
     def _rename_domain(self, domain: str) -> str:
         if domain in {"", "ai.onnx"}:
-            return "opset"  #  TODO: Need checks to avoid name conflicts.
+            return "opset"  # TODO: Need checks to avoid name conflicts.
         return _cleanup_variable_name(domain)  # type: ignore[return-value]
 
     def _make_opset_name(self, domain, version):
