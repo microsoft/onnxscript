@@ -196,7 +196,7 @@ def get_phi_model_config(
     """
     if config == "small":
         conf_dict = dict(
-            input_dims=onnxscript.tools.transformers_models._get_input_dims(
+            input_dims=onnxscript.tools.transformers_models.get_input_dims_for_llm(
                 dynamic_shapes, warmup, repeat
             ),
             hidden_size=32,
@@ -211,7 +211,7 @@ def get_phi_model_config(
         )
     elif config == "medium":
         conf_dict = dict(
-            input_dims=onnxscript.tools.transformers_models._get_input_dims(  # pylint: disable=protected-access
+            input_dims=onnxscript.tools.transformers_models.get_input_dims_for_llm(
                 dynamic_shapes, warmup, repeat
             ),
             hidden_size=1024,
@@ -226,7 +226,7 @@ def get_phi_model_config(
         )
     elif config in ("large", "default"):
         conf_dict = dict(
-            input_dims=onnxscript.tools.transformers_models._get_input_dims(
+            input_dims=onnxscript.tools.transformers_models.get_input_dims_for_llm(
                 dynamic_shapes, warmup, repeat
             ),
             hidden_size=2048,
@@ -242,4 +242,4 @@ def get_phi_model_config(
     else:
         raise AssertionError(f"Unexpected configuration {config!r}.")
 
-    return get_phi_model(**conf_dict)
+    return get_phi_model(**conf_dict)  # type: ignore[arg-type]
