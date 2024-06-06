@@ -2,6 +2,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+from __future__ import annotations
+
 import pprint
 import textwrap
 from typing import Any
@@ -9,7 +11,7 @@ from typing import Any
 import onnxscript.tools.benchmark
 
 
-def main(args=None):
+def main(args: list[str] | None = None):
     kwargs: dict[str, Any] = onnxscript.tools.benchmark.get_parsed_args(
         "export_model",
         description=textwrap.dedent(

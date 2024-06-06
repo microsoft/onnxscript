@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import random
-from typing import Any
+from typing import Any, Sequence
 
 import torch
 
@@ -21,7 +21,12 @@ def has_transformers():
         return False
 
 
-def ids_tensor(shape, vocab_size, rng=None, name=None):
+def ids_tensor(
+    shape: Sequence[int],
+    vocab_size: int,
+    rng: random.Random | None = None,
+    name: str | None = None,
+):
     """Creates a random int32 tensor of the shape within the vocab size."""
     del name  # unused
 

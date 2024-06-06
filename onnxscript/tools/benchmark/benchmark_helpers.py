@@ -470,7 +470,7 @@ def run_inference(
 
 
 class WrapInferenceSessionForTorch:
-    def __init__(self, sess: "onnxruntime.InferenceSession"):  # type: ignore[name-defined], # noqa: F821, UP037
+    def __init__(self, sess: Any):
         # onnxruntime is importing when needed as it takes a couple of seconds if it contains CUDA EP.
         import onnxruntime
         import torch
