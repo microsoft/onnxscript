@@ -170,6 +170,40 @@ class RemoveUnusedTest(unittest.TestCase):
         self.assertEqual(model.graph.node[2].op_type, "LayerNormalization")
         self.assertEqual(len(model.graph.node[2].output), 3)
 
+    def test_remove_trailing_unused_optional_outputs_batchnorm(self):
+        model = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[1, 3, 5, 5] x, float[3] scale, float[3] B) => (float[1, 3, 5, 5] z) {
+                z, mean_out, var_out = BatchNormalization <training_mode=1> (x, scale, B, mean, var)
+            }
+        """
+        )
+        self.assertEqual(len(model.graph.node[0].attribute), 1)
+        optimizer.remove_unused_nodes(model)
+        self.assertEqual(len(model.graph.node), 1)
+        self.assertEqual(model.graph.node[0].op_type, "BatchNormalization")
+        # Check that both the mean/var outputs are removed, and training_mode attribute is removed.
+        self.assertEqual(len(model.graph.node[0].output), 1)
+        self.assertEqual(len(model.graph.node[0].attribute), 0)
+
+    def test_avoid_remove_used_optional_outputs_batchnorm(self):
+        model = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[1, 3, 5, 5] x, float[3] scale, float[3] B) => (float[1, 3, 5, 5] z, float[3] mean_out) {
+                z, mean_out, var_out = BatchNormalization <training_mode=1> (x, scale, B, mean, var)
+            }
+        """
+        )
+        self.assertEqual(len(model.graph.node[0].attribute), 1)
+        optimizer.remove_unused_nodes(model)
+        self.assertEqual(len(model.graph.node), 1)
+        self.assertEqual(model.graph.node[0].op_type, "BatchNormalization")
+        # Check that the mean/var outputs are NOT removed, and training_mode attribute is NOT removed.
+        self.assertEqual(len(model.graph.node[0].output), 3)
+        self.assertEqual(len(model.graph.node[0].attribute), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
