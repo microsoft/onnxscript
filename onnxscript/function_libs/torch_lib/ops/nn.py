@@ -2209,6 +2209,7 @@ def _get_upsample_align_corners_mode(align_corners: bool) -> str:
         "aten::upsample_nearest1d",
         "aten::upsample_nearest2d",
         "aten::upsample_nearest3d",
+        "aten::upsample_trilinear3d",
     ),
     private=True,
 )
@@ -2526,6 +2527,33 @@ def aten_upsample_trilinear3d(
         mode="linear",
         coordinate_transformation_mode=coordinate_transformation_mode,
     )
+
+
+@torch_op("aten::upsample_trilinear3d.vec", trace_only=True)
+def aten_upsample_trilinear3d_vec(
+    self: TReal,
+    output_size: INT64,
+    align_corners: bool,
+    scale_factors: Optional[Sequence[float]],
+) -> TReal:
+    """upsample_trilinear3d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor"""
+
+    coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    if scale_factors is not None:
+        result = _aten_upsample_scales(
+            self,
+            op.Constant(value_floats=scale_factors),
+            mode="linear",
+            coordinate_transformation_mode=coordinate_transformation_mode,
+        )
+    else:
+        result = _aten_upsample_output_size(
+            self,
+            output_size,
+            mode="linear",
+            coordinate_transformation_mode=coordinate_transformation_mode,
+        )
+    return result
 
 
 def aten_upsample_trilinear3d_backward(

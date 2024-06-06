@@ -2244,8 +2244,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
     ),
     TorchLibOpInfo(
-        "ops.aten.upsample_trilinear3d",
+        "ops.aten.upsample_trilinear3d.default",
         nn_ops.aten_upsample_trilinear3d,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
+        "ops.aten.upsample_trilinear3d.vec",
+        nn_ops.aten_upsample_trilinear3d_vec,
         trace_only=True,
     ),
     TorchLibOpInfo("ones_like", core_ops.aten_ones_like, trace_only=True),
