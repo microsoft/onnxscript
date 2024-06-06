@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 # pylint: disable=import-outside-toplevel
 
 import hashlib
@@ -57,7 +55,6 @@ def main(args=None):
 
     # Import is delayed so that help is being display faster (without having to import heavy packages).
     import onnxscript.tools
-    import onnxscript.tools.benchmark
     import onnxscript.tools.transformers_models
 
     print(

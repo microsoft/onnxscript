@@ -1,7 +1,7 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
+# pylint: disable=import-outside-toplevel, no-else-raise, consider-using-with
+
 from __future__ import annotations
 
 import argparse

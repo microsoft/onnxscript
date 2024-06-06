@@ -1,7 +1,6 @@
-# -------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
+
 from __future__ import annotations
 
 import pprint
@@ -43,10 +42,13 @@ def main(args: list[str] | None = None):
     pprint.pprint(kwargs)
     print("-------------------")
 
-    import openpyxl
     import pandas
 
-    assert openpyxl
+    try:
+        import openpyxl
+    except ImportError:
+        openpyxl = None
+
     from onnxscript.tools.benchmark.benchmark_helpers import (
         BenchmarkError,
         run_benchmark,
@@ -126,8 +128,9 @@ def main(args: list[str] | None = None):
             if c in df.columns
         ]
         dfs = df[cs]
-        filename = f"{prefix}_summary.xlsx"
-        dfs.to_excel(filename, index=False)
+        if openpyxl:
+            filename = f"{prefix}_summary.xlsx"
+            dfs.to_excel(filename, index=False)
         filename = f"{prefix}_summary.csv"
         dfs.to_csv(filename, index=False)
         print(dfs)

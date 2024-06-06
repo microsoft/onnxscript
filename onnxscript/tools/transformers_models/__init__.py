@@ -2,6 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+# pylint: disable=import-outside-toplevel
 from __future__ import annotations
 
 import random
@@ -101,8 +102,6 @@ def get_model_and_inputs(
         raise AssertionError(f"Model {model!r} is unknown.")
 
     if dtype is not None:
-        import torch
-
         dt = getattr(torch, dtype)
         tmodel = tmodel.to(dt)
         inputs = [
