@@ -24,7 +24,6 @@ def has_transformers():
 def ids_tensor(shape, vocab_size, rng=None, name=None):
     """Creates a random int32 tensor of the shape within the vocab size."""
     del name  # unused
-    import torch
 
     if rng is None:
         rng = random.Random()
