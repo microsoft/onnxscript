@@ -101,7 +101,7 @@ def get_phi_model(
         num_key_value_heads=num_key_value_heads,
     )
     if _attn_implementation:
-        config._attn_implementation = _attn_implementation
+        config._attn_implementation = _attn_implementation  # pylint: disable=protected-access
 
     if with_mask:
 
