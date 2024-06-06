@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+# pylint: disable=not-callable
 
 import copy
 import sys
