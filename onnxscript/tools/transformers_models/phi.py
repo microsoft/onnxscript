@@ -211,7 +211,7 @@ def get_phi_model_config(
         )
     elif config == "medium":
         conf_dict = dict(
-            input_dims=onnxscript.tools.transformers_models._get_input_dims(
+            input_dims=onnxscript.tools.transformers_models._get_input_dims(  # pylint: disable=protected-access
                 dynamic_shapes, warmup, repeat
             ),
             hidden_size=1024,
