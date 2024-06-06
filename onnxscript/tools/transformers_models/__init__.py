@@ -48,9 +48,7 @@ def ids_tensor(
 def get_input_dims_for_llm(
     dynamic_shapes: bool, warmup: int, repeat: int
 ) -> list[tuple[int, int]]:
-    """
-    Returns input dimensions for model such as llama, phi, ...
-    """
+    """Returns input dimensions for model such as llama, phi, ..."""
     if not dynamic_shapes:
         return [(2, 1024)] * (warmup + repeat)
     w = [(2, 1024), (3, 1024), (2, 1096)] * warmup

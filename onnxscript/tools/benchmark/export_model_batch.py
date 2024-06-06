@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
+# pylint: disable=import-outside-toplevel
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# pylint: disable=import-outside-toplevel, no-else-raise, consider-using-with
+# pylint: disable=import-outside-toplevel, no-else-raise, consider-using-with, consider-using-enumerate
 
 from __future__ import annotations
 
