@@ -32,7 +32,7 @@ pytest-xdist
 pytest!=7.1.0
 pyyaml
 torch>=2.1
-transformers==4.37.2
+transformers==4.38.0
 
 # Lint
 lintrunner>=0.10.7
