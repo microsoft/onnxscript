@@ -8,7 +8,12 @@ from __future__ import annotations
 import random
 from typing import Any, Sequence
 
+import onnx
+import onnx.inliner
 import torch
+
+import onnxscript.optimizer
+import onnxscript.rewriter
 
 
 def has_transformers():
@@ -20,6 +25,25 @@ def has_transformers():
         return True  # noqa
     except ImportError:
         return False
+
+
+def export_to_onnx(model: Any, *args: Sequence[Any], optimize: bool = True) -> onnx.ModelProto:
+    """
+    Export a model to ONNX.
+    If optimize is True, it calls *onnxscript.optimizer.optimize*,
+    *onnxscript.rewriter.rewriter*, *onnx.inliner.inline_local_functions*.
+    """
+    prog = torch.onnx.dynamo_export(model, *args)
+    model_proto = prog.model_proto
+    if optimize:
+        model_proto = onnxscript.optimizer.optimize(
+            model_proto,
+            num_iterations=2,
+            onnx_shape_inference=True,
+        )
+        model_proto = onnxscript.rewriter.rewrite(model_proto)
+        model_proto = onnx.inliner.inline_local_functions(model_proto)
+    return model_proto
 
 
 def ids_tensor(
@@ -88,6 +112,19 @@ def get_model_and_inputs(
     Returns:
         model and list of inputs
     """
+    if model == "llama":
+        import onnxscript.tools.transformers_models.phi as m
+
+        tmodel, inputs, dynamic_shapes_def = m.get_llama_model_config(
+            warmup=warmup,
+            repeat=repeat,
+            implementation=implementation,
+            with_mask=with_mask,
+            num_hidden_layers=num_hidden_layers,
+            dynamic_shapes=dynamic_shapes,
+            config=config,
+        )
+
     if model == "phi":
         import onnxscript.tools.transformers_models.phi as m
 
