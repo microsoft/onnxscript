@@ -45,11 +45,11 @@ def get_llama_model(
         num_attention_heads=num_attention_heads,
     )
     if _attn_implementation:
-        config._attn_implementation = _attn_implementation
+        config._attn_implementation = _attn_implementation  # type: ignore[attr-defined]
 
     if with_mask:
 
-        class LlamaModelWrapper(torch.nn.Module):
+        class LlamaModelWrapperMask(torch.nn.Module):
             def __init__(self, config):
                 super().__init__()
                 self.model = LlamaModel(config)
@@ -58,7 +58,7 @@ def get_llama_model(
                 model_output = self.model(input_ids, attention_mask=attention_mask)
                 return model_output.to_tuple()
 
-        def generate_example_inputs(batch: int, seq: int, vocab_size: int):
+        def generate_example_inputs_mask(batch: int, seq: int, vocab_size: int):
             input_ids = onnxscript.tools.transformers_models.ids_tensor(
                 [batch, seq], vocab_size
             )
@@ -68,9 +68,9 @@ def get_llama_model(
 
         example_args_collection = []
         for b, s in input_dims:
-            example_args_collection.append(generate_example_inputs(b, s, vocab_size))
+            example_args_collection.append(generate_example_inputs_mask(b, s, vocab_size))
 
-        return LlamaModelWrapper(config), example_args_collection, dynamic_shapes
+        return LlamaModelWrapperMask(config), example_args_collection, dynamic_shapes
 
     # no mask
 
