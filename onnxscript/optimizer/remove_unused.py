@@ -26,11 +26,23 @@ def remove_unused_optional_outputs(
         op_schema = onnx.defs.get_schema(n.op_type, onnx_opset_version, domain=n.domain)
     except Exception:
         return
-    # TODO: If current node is a BatchNormalization node,
-    # based on training_mode atrribute, number of optional outputs and
-    # how they are handled varies, handle both training_modes
+
     if n.op_type == "BatchNormalization":
-        return
+        # BatchNormalization op has 3 outputs: Y, running_mean, running_var
+        # If running_mean and running_var are not used, remove them, and the training_mode attribute
+        def is_used_output(i: int) -> bool:
+            if i < len(n.output):
+                return n.output[i] in used
+            return False
+
+        if is_used_output(1) or is_used_output(2):
+            return
+        del n.output[1:]
+        for j, attr in enumerate(n.attribute):
+            if attr.name == "training_mode":
+                del n.attribute[j]
+                break
+
     optional_info = []
     for o in op_schema.outputs:
         # Current ops do not have optional outputs if they have variable number of outputs
