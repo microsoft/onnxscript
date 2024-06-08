@@ -693,8 +693,21 @@ def aten_arctanh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::argmax", traceable=True)
-def aten_argmax(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
+@torch_op("aten::argmax", trace_only=True)
+def aten_argmax(
+    self: Union[RealType, UINT8], dim: Optional[int] = None, keepdim: bool = False
+) -> INT64:
+    """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
+
+    if dim is None:
+        result = _aten_argmax(self, keepdim)
+    else:
+        result = _aten_argmax_dim(self, dim, keepdim)
+    return result
+
+
+@torch_op("aten::argmax", private=True, traceable=True)
+def _aten_argmax(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = IsScalar(self)
@@ -706,8 +719,8 @@ def aten_argmax(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     return result
 
 
-@torch_op("aten::argmax", traceable=True)
-def aten_argmax_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = False) -> INT64:
+@torch_op("aten::argmax", private=True, traceable=True)
+def _aten_argmax_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = False) -> INT64:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = IsScalar(self)
@@ -721,8 +734,21 @@ def aten_argmax_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = Fals
     return result
 
 
-@torch_op("aten::argmin", traceable=True)
-def aten_argmin(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
+@torch_op("aten::argmin", trace_only=True)
+def aten_argmin(
+    self: Union[RealType, UINT8], dim: Optional[int] = None, keepdim: bool = False
+) -> INT64:
+    """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
+
+    if dim is None:
+        result = _aten_argmin(self, keepdim)
+    else:
+        result = _aten_argmin_dim(self, dim, keepdim)
+    return result
+
+
+@torch_op("aten::argmin", private=True, traceable=True)
+def _aten_argmin(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = IsScalar(self)
@@ -734,8 +760,8 @@ def aten_argmin(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     return result
 
 
-@torch_op("aten::argmin", traceable=True)
-def aten_argmin_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = False) -> INT64:
+@torch_op("aten::argmin", private=True, traceable=True)
+def _aten_argmin_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = False) -> INT64:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = IsScalar(self)
