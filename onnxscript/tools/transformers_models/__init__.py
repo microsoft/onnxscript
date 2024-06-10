@@ -113,7 +113,7 @@ def get_model_and_inputs(
         model and list of inputs
     """
     if model == "llama":
-        import onnxscript.tools.transformers_models.llama as m
+        import onnxscript.tools.transformers_models.llama as m  # type: ignore[attr-defined]
 
         tmodel, inputs, dynamic_shapes_def = m.get_llama_model_from_config(
             warmup=warmup,
@@ -126,7 +126,7 @@ def get_model_and_inputs(
         )
 
     elif model == "phi":
-        import onnxscript.tools.transformers_models.phi as m
+        import onnxscript.tools.transformers_models.phi as m  # type: ignore[attr-defined]
 
         tmodel, inputs, dynamic_shapes_def = m.get_phi_model_from_config(
             warmup=warmup,
