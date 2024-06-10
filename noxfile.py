@@ -16,7 +16,7 @@ COMMON_TEST_DEPENDENCIES = (
     "expecttest==0.1.6",
     "hypothesis",
     'numpy==1.24.4; python_version<"3.9"',
-    'numpy==1.26.0; python_version>="3.9"',
+    'numpy==1.26.4; python_version>="3.9"',
     "packaging",
     "parameterized",
     "pyinstrument",
@@ -30,10 +30,10 @@ COMMON_TEST_DEPENDENCIES = (
     "typing_extensions",
     "ml_dtypes",
 )
-ONNX = "onnx==1.16"
-ONNX_RUNTIME = "onnxruntime==1.17.1"
-PYTORCH = "torch==2.2.2"
-TORCHVISON = "torchvision==0.17.2"
+ONNX = "onnx==1.16.1"
+ONNX_RUNTIME = "onnxruntime==1.18.0"
+PYTORCH = "torch==2.3.1"
+TORCHVISON = "torchvision==0.18.1"
 ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "flatbuffers",
     "coloredlogs",
