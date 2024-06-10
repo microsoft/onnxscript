@@ -45,7 +45,7 @@ def get_llama_model(
         num_attention_heads=num_attention_heads,
     )
     if _attn_implementation:
-        config._attn_implementation = _attn_implementation  # type: ignore[attr-defined]
+        config._attn_implementation = _attn_implementation  # pylint: disable=protected-access
 
     if with_mask:
 
