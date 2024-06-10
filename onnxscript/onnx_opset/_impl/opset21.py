@@ -20,7 +20,7 @@ from onnx.defs import get_schema
 from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset20 import Opset20
-from onnxscript.onnx_types import (  # type: ignore[attr-defined]
+from onnxscript.onnx_types import (
     BFLOAT16,
     BOOL,
     COMPLEX64,

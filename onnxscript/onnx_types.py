@@ -188,6 +188,14 @@ class FLOAT8E5M2FNUZ(TensorType, dtype=onnx.TensorProto.FLOAT8E5M2FNUZ):
     pass
 
 
+class INT4(TensorType, dtype=onnx.TensorProto.INT4):
+    pass
+
+
+class UINT4(TensorType, dtype=onnx.TensorProto.UINT4):
+    pass
+
+
 def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
     """Converts an onnx type into the string representation of the type in *onnxscript*.
 
