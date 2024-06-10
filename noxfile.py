@@ -34,6 +34,7 @@ ONNX = "onnx==1.16"
 ONNX_RUNTIME = "onnxruntime==1.17.1"
 PYTORCH = "torch==2.2.2"
 TORCHVISON = "torchvision==0.17.2"
+TRANSFORMERS = "transformers==4.37.2"
 ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "flatbuffers",
     "coloredlogs",
@@ -60,6 +61,7 @@ def test(session):
         TORCHVISON,
         ONNX,
         ONNX_RUNTIME,
+        TRANSFORMERS,
     )
     session.install(".", "--no-deps")
     session.run("pip", "list")
@@ -73,6 +75,7 @@ def test_torch_nightly(session):
     session.install(
         *COMMON_TEST_DEPENDENCIES,
         ONNX_RUNTIME,
+        TRANSFORMERS,
     )
     session.install("-r", "requirements/ci/requirements-onnx-weekly.txt")
     session.install("-r", "requirements/ci/requirements-pytorch-nightly.txt")
@@ -85,7 +88,7 @@ def test_torch_nightly(session):
 @nox.session(tags=["test-onnx-weekly"])
 def test_onnx_weekly(session):
     """Test with ONNX weekly (preview) build."""
-    session.install(*COMMON_TEST_DEPENDENCIES, ONNX_RUNTIME, PYTORCH, TORCHVISON)
+    session.install(*COMMON_TEST_DEPENDENCIES, ONNX_RUNTIME, PYTORCH, TORCHVISON, TRANSFORMERS)
     session.install("-r", "requirements/ci/requirements-onnx-weekly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
