@@ -320,7 +320,7 @@ def apply_rule_sets(
         if rule_set_name == "llama0":
             rule_set = rules.llama_p0_rule_set()
         else:
-            raise AssertionError(f"Unexpected rule_set name {rule_set_name!r}")
+            raise ValueError(f"Unexpected rule_set name {rule_set_name!r}")
 
         begin = time.perf_counter()
         rule_set.apply_to_model(ir_model)
@@ -380,6 +380,8 @@ def optimize_model_proto(
         if verbose:
             print(f"[optimize_model_proto] start {value}")
 
+        n_nodes = len(model_proto.graph.node)
+        n_functions = len(model_proto.functions)
         begin = time.perf_counter()
         if value == "optimize":
             model_proto = onnxscript.optimizer.optimize(
@@ -405,10 +407,17 @@ def optimize_model_proto(
             )
 
         end = time.perf_counter() - begin
+        delta = len(model_proto.graph.node) - n_nodes
+        deltaf = len(model_proto.functions) - n_functions
         if stats:
             stats[f"opt_{value}_time"] = end
+            stats[f"opt_{value}_dnodes"] = delta
+            stats[f"opt_{value}_dfunctions"] = deltaf
         if verbose:
-            print(f"[optimize_model_proto] {value} done in {end}")
+            print(
+                f"[optimize_model_proto] {value} done in {end} "
+                f"with +/- {delta} nodes, +/- {deltaf} functions"
+            )
 
     return model_proto
 

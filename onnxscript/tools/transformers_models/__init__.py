@@ -102,12 +102,12 @@ def get_model_and_inputs(
         config: 'small', 'medium', 'large', ...
         dynamic_shapes: dynamic or static shapes
         device: 'cpu' or 'cuda'
-        num_hidden_layers: number of hidden layers
-        with_mask: one input or two inputs
+        num_hidden_layers: Number of hidden layers.
+        with_mask: One input or two inputs.
         implementation: eager or sdpa
-        warmup: number of inputs to generate
-        repeat: number of inputs to generate for repeat
-        dtype: if specified, cast the model and the inputs into this type
+        warmup: Number of inputs to generate.
+        repeat: Number of inputs to generate for repeat.
+        dtype: If specified, cast the model and the inputs into this type.
 
     Returns:
         model and list of inputs
@@ -115,7 +115,7 @@ def get_model_and_inputs(
     if model == "llama":
         import onnxscript.tools.transformers_models.llama as m
 
-        tmodel, inputs, dynamic_shapes_def = m.get_llama_model_config(
+        tmodel, inputs, dynamic_shapes_def = m.get_llama_model_from_config(
             warmup=warmup,
             repeat=repeat,
             implementation=implementation,
@@ -128,7 +128,7 @@ def get_model_and_inputs(
     elif model == "phi":
         import onnxscript.tools.transformers_models.phi as m
 
-        tmodel, inputs, dynamic_shapes_def = m.get_phi_model_config(
+        tmodel, inputs, dynamic_shapes_def = m.get_phi_model_from_config(
             warmup=warmup,
             repeat=repeat,
             implementation=implementation,
@@ -139,7 +139,7 @@ def get_model_and_inputs(
         )
 
     else:
-        raise AssertionError(f"Model {model!r} is unknown.")
+        raise ValueError(f"Model {model!r} is unknown.")
 
     if dtype is not None:
         dt = getattr(torch, dtype)
