@@ -1119,6 +1119,58 @@ class RewriteRule:
         return [replace_pattern(p) for p in self._target_pattern.commute()]
 
 
+class RewriteRuleAsClass:
+    """Defines a class grouping method pattern, rewrite, check.
+    This class is then given to function :func:`make_rewrite_rule_from_class`
+    to define a new rule.
+    """
+
+    @classmethod
+    def pattern(cls, op, *_) -> Any:
+        raise NotImplementedError("Method 'pattern' must be overwritten.")
+
+    @classmethod
+    def rewrite(cls, op, *_) -> Any:
+        raise NotImplementedError("Method 'rewrite' must be overwritten.")
+
+    @classmethod
+    def check(cls, context, *_) -> bool:
+        return True
+
+
+def make_rewrite_rule_from_class(rule_class: RewriteRuleAsClass) -> RewriteRule:
+    """Creates a RewriteRule from a class defining the function
+    pattern, rewrite, check with class method. It makes it is easier
+    to read when a module contains multiple patterns.
+
+    Example::
+
+        class TransposeIdentity(RewriteRuleAsClass):
+            @classmethod
+            def pattern(cls, op, x, perm):
+                return op.Transpose(x, perm=perm)
+
+            @classmethod
+            def check(cls, context, x: ir.Value, perm: ir.Attr | ir.RefAttr) -> bool:
+                if isinstance(perm, ir.RefAttr):
+                    return False
+                if perm.type == ir.AttributeType.INTS:
+                    if perm.value == list(range(len(perm.value))):
+                        return True
+                return False
+
+            @classmethod
+            def rewrite(cls, op, x: ir.Value, perm: ir.Attr | None = None):
+                return op.Identity(x)
+
+        transpose_identity_rule = make_rewrite_rule_from_class(TransposeIdentity)
+    """
+    assert hasattr(rule_class, "pattern"), f"Method 'pattern' is missing from {rule_class!r}."
+    assert hasattr(rule_class, "rewrite"), f"Method 'rewrite' is missing from {rule_class!r}."
+    assert hasattr(rule_class, "check"), f"Method 'check' is missing from {rule_class!r}."
+    return RewriteRule(rule_class.pattern, rule_class.rewrite, rule_class.check)
+
+
 def _apply_delta(
     graph_or_function: ir.Graph | ir.Function,
     node: ir.Node,
