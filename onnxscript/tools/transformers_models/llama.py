@@ -92,3 +92,75 @@ def get_llama_model(
         example_args_collection.append(generate_example_inputs(b, s, vocab_size))
 
     return LlamaModelWrapper(config), example_args_collection, dynamic_shapes
+
+
+def get_llama_model_config(
+    warmup: int = 5,
+    repeat: int = 10,
+    config: str = "small",
+    num_hidden_layers: int = 1,
+    implementation: str = "eager",
+    dynamic_shapes: bool = False,
+    with_mask: bool = True,
+) -> tuple[Any, list[tuple[torch.Tensor, ...]], dict]:
+    """
+    Returns a model Phi to test or benchmark.
+
+    Args:
+        warmup: number of inputs to generate
+        repeat: number of inputs to generate for repeat
+        config: small, medium or large
+        num_hidden_layers: number of hidden layers
+        implementation: eager or sdpa
+        with_mask: one or two inputs
+        dynamic_shapes: dynamic shapes or not
+
+    Returns:
+        model and list of inputs
+    """
+    if config == "small":
+        conf_dict = dict(
+            input_dims=onnxscript.tools.transformers_models.get_input_dims_for_llm(
+                dynamic_shapes, warmup, repeat
+            ),
+            hidden_size=16,
+            num_hidden_layers=num_hidden_layers,
+            vocab_size=1024,
+            intermediate_size=16,
+            max_position_embeddings=1024,
+            num_attention_heads=2,
+            _attn_implementation=implementation,
+            with_mask=with_mask,
+        )
+    elif config == "medium":
+        conf_dict = dict(
+            input_dims=onnxscript.tools.transformers_models.get_input_dims_for_llm(
+                dynamic_shapes, warmup, repeat
+            ),
+            hidden_size=1024,
+            num_hidden_layers=num_hidden_layers,
+            vocab_size=1024,
+            intermediate_size=1024,
+            max_position_embeddings=1024,
+            num_attention_heads=2,
+            _attn_implementation=implementation,
+            with_mask=with_mask,
+        )
+    elif config in ("large", "default"):
+        conf_dict = dict(
+            input_dims=onnxscript.tools.transformers_models.get_input_dims_for_llm(
+                dynamic_shapes, warmup, repeat
+            ),
+            hidden_size=4096,
+            num_hidden_layers=num_hidden_layers,
+            vocab_size=32000,
+            intermediate_size=11008,
+            max_position_embeddings=2048,
+            num_attention_heads=32,
+            _attn_implementation=implementation,
+            with_mask=with_mask,
+        )
+    else:
+        raise AssertionError(f"Unexpected configuration {config!r}.")
+
+    return get_llama_model(**conf_dict)  # type: ignore[arg-type]
