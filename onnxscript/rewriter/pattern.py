@@ -1138,7 +1138,7 @@ class RewriteRuleAsClass:
         return True
 
 
-def make_rewrite_rule_from_class(rule_class: RewriteRuleAsClass) -> RewriteRule:
+def make_rewrite_rule_from_class(rule_class: type | RewriteRuleAsClass) -> RewriteRule:
     """Creates a RewriteRule from a class defining the function
     pattern, rewrite, check with class method. It makes it is easier
     to read when a module contains multiple patterns.
