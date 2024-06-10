@@ -37,7 +37,6 @@ from onnxscript.onnx_opset._impl.opset17 import Opset17
 from onnxscript.onnx_opset._impl.opset18 import Opset18
 from onnxscript.onnx_opset._impl.opset19 import Opset19
 from onnxscript.onnx_opset._impl.opset20 import Opset20
-from onnxscript.onnx_opset._impl.opset21 import Opset21
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml1 import Opset_ai_onnx_ml1
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml2 import Opset_ai_onnx_ml2
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml3 import Opset_ai_onnx_ml3
