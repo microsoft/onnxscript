@@ -163,6 +163,33 @@ class LlamaRuleSetsTest(unittest.TestCase):
             self.assertEqual(["Cast"], [n.op_type for n in rewritten_model.graph.node])
             self._check_model(model_proto, rewritten_model)
 
+    @classmethod
+    def _cast_identity_models(cls):
+        models = [
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Cast", ["X"], ["Y"], to=onnx.TensorProto.FLOAT),
+                    ],
+                    "name",
+                    [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None, None])],
+                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [None, None, None])],
+                ),
+                opset_imports=[onnx.helper.make_opsetid("", 18)],
+            ),
+        ]
+        return models
+
+    def test_llama_p0_rule_set_cast_identity(self):
+        for model_proto in self._cast_identity_models():
+            ir_model = ir.serde.deserialize_model(model_proto)
+            rule_set = llama_rule_sets.llama_p0_rule_set()
+            rule_set.apply_to_model(ir_model)
+            rewritten_model = ir.serde.serialize_model(ir_model)
+
+            self.assertEqual(["Identity"], [n.op_type for n in rewritten_model.graph.node])
+            self._check_model(model_proto, rewritten_model)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
