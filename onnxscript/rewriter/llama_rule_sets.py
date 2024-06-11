@@ -2,6 +2,9 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+import numpy as np
+import onnx.numpy_helper
+
 import onnxscript.ir as ir
 import onnxscript.rewriter.no_op as no_op
 import onnxscript.rewriter.pattern as orp
@@ -121,11 +124,38 @@ class TransposeTranspose(orp.RewriteRuleAsClass):
         return op.Transpose(x, perm=last)
 
 
+class UnsqueezeUnsqueeze(orp.RewriteRuleAsClass):
+    """Replaces ``Unsqueeze(Unsqueeze(., axes1), axes2)``
+    with one Unsqueeze.
+    """
+
+    @classmethod
+    def pattern(cls, op, x, axes1, axes2):
+        return op.Unsqueeze(op.Unsqueeze(x, axes1), axes2)
+
+    @classmethod
+    def _combine1(cls, axes1: np.ndarray, axes2: np.ndarray) -> np.ndarray:
+        if axes1[0] < axes2[0]:
+            return np.hstack([axes1, axes2])
+        return np.hstack([axes2, axes1 + 1]).astype(np.int64)
+
+    @classmethod
+    def rewrite(cls, op, x: ir.Value, axes1: ir.Value, axes2: ir.Value):
+        v1 = axes1.const_value.numpy()
+        v2 = axes2.const_value.numpy()
+        if len(v1) != 1 or len(v2) != 1:
+            # Implemented later if needed.
+            return False
+        axes = cls._combine1(v1, v2)
+        return op.Unsqueeze(x, op.Constant(value=onnx.numpy_helper.from_array(axes)))
+
+
 cast_cast_rule = orp.make_rewrite_rule_from_class(CastCast)
 cast_identity_rule = orp.make_rewrite_rule_from_class(CastIdentity)
 expand_identity_rule = orp.make_rewrite_rule_from_class(ExpandIdentity)
 transpose_identity_rule = orp.make_rewrite_rule_from_class(TransposeIdentity)
 transpose_transpose_rule = orp.make_rewrite_rule_from_class(TransposeTranspose)
+unsqueeze_unsqueeze_rule = orp.make_rewrite_rule_from_class(UnsqueezeUnsqueeze)
 
 
 def llama_p0_rule_set() -> orp.RewriteRuleSet:
@@ -147,5 +177,6 @@ def llama_p0_rule_set() -> orp.RewriteRuleSet:
             expand_identity_rule,
             transpose_identity_rule,
             transpose_transpose_rule,
+            unsqueeze_unsqueeze_rule,
         ]
     )

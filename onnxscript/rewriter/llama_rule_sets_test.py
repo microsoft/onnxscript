@@ -225,6 +225,64 @@ class LlamaRuleSetsTest(unittest.TestCase):
             self.assertEqual(["Identity"], [n.op_type for n in rewritten_model.graph.node])
             self._check_model(model_proto, rewritten_model)
 
+    @classmethod
+    def _unsqueeze_unsqueeze_models(cls):
+        models = [
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Unsqueeze", ["X", "axes1"], ["Xu"]),
+                        onnx.helper.make_node("Unsqueeze", ["Xu", "axes2"], ["Y"]),
+                    ],
+                    "name",
+                    [onnx.helper.make_tensor_value_info("X", FLOAT, [3])],
+                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [1, 3, 1])],
+                    [
+                        onnx.numpy_helper.from_array(
+                            np.array([1], dtype=np.int64), name="axes1"
+                        ),
+                        onnx.numpy_helper.from_array(
+                            np.array([0], dtype=np.int64), name="axes2"
+                        ),
+                    ],
+                ),
+                opset_imports=[onnx.helper.make_opsetid("", 18)],
+            ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Unsqueeze", ["X", "axes1"], ["Xu"]),
+                        onnx.helper.make_node("Unsqueeze", ["Xu", "axes2"], ["Y"]),
+                    ],
+                    "name",
+                    [onnx.helper.make_tensor_value_info("X", FLOAT, [3])],
+                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [1, 3, 1])],
+                    [
+                        onnx.numpy_helper.from_array(
+                            np.array([0], dtype=np.int64), name="axes1"
+                        ),
+                        onnx.numpy_helper.from_array(
+                            np.array([1], dtype=np.int64), name="axes2"
+                        ),
+                    ],
+                ),
+                opset_imports=[onnx.helper.make_opsetid("", 18)],
+            ),
+        ]
+        return models
+
+    def test_llama_p0_rule_set_unsqueeze_unsqueeze(self):
+        for model_proto in self._unsqueeze_unsqueeze_models():
+            ir_model = ir.serde.deserialize_model(model_proto)
+            rule_set = llama_rule_sets.llama_p0_rule_set()
+            rule_set.apply_to_model(ir_model)
+            rewritten_model = ir.serde.serialize_model(ir_model)
+
+            self.assertEqual(
+                ["Constant", "Unsqueeze"], [n.op_type for n in rewritten_model.graph.node]
+            )
+            self._check_model(model_proto, rewritten_model)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
