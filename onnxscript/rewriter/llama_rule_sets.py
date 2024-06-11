@@ -57,6 +57,18 @@ class ExpandIdentity(orp.RewriteRuleAsClass):
         return shape_x.dims == tuple(shape.const_value.numpy().tolist())
 
 
+class ReshapeReshape(orp.RewriteRuleAsClass):
+    """Replaces ``Reshape(Reshape(X, ...), shape)`` by ``Reshape(X, shape)``."""
+
+    @classmethod
+    def pattern(cls, op, x, shape_ignored, shape):
+        return op.Reshape(op.Reshape(x, shape_ignored), shape)
+
+    @classmethod
+    def rewrite(cls, op, x: ir.Value, shape_ignored: ir.Value, shape: ir.Value):
+        return op.Reshape(x, shape)
+
+
 class TransposeIdentity(orp.RewriteRuleAsClass):
     """Replaces ``Transpose(. perm=perm)``
     when the permutation is identity.
@@ -153,6 +165,7 @@ class UnsqueezeUnsqueeze(orp.RewriteRuleAsClass):
 cast_cast_rule = orp.make_rewrite_rule_from_class(CastCast)
 cast_identity_rule = orp.make_rewrite_rule_from_class(CastIdentity)
 expand_identity_rule = orp.make_rewrite_rule_from_class(ExpandIdentity)
+reshape_reshape_rule = orp.make_rewrite_rule_from_class(ReshapeReshape)
 transpose_identity_rule = orp.make_rewrite_rule_from_class(TransposeIdentity)
 transpose_transpose_rule = orp.make_rewrite_rule_from_class(TransposeTranspose)
 unsqueeze_unsqueeze_rule = orp.make_rewrite_rule_from_class(UnsqueezeUnsqueeze)
@@ -175,6 +188,7 @@ def llama_p0_rule_set() -> orp.RewriteRuleSet:
             cast_cast_rule,
             cast_identity_rule,
             expand_identity_rule,
+            reshape_reshape_rule,
             transpose_identity_rule,
             transpose_transpose_rule,
             unsqueeze_unsqueeze_rule,

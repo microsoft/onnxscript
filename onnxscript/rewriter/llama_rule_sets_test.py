@@ -283,6 +283,44 @@ class LlamaRuleSetsTest(unittest.TestCase):
             )
             self._check_model(model_proto, rewritten_model)
 
+    @classmethod
+    def _reshape_reshape_models(cls):
+        models = [
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Reshape", ["X", "shape_"], ["Xu"]),
+                        onnx.helper.make_node("Reshape", ["Xu", "shape"], ["Y"]),
+                    ],
+                    "name",
+                    [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 5])],
+                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [5, 4, 3])],
+                    [
+                        onnx.numpy_helper.from_array(
+                            np.array([4, 5, 3], dtype=np.int64), name="shape_"
+                        ),
+                        onnx.numpy_helper.from_array(
+                            np.array([5, 4, 3], dtype=np.int64), name="shape"
+                        ),
+                    ],
+                ),
+                opset_imports=[onnx.helper.make_opsetid("", 18)],
+            ),
+        ]
+        return models
+
+    def test_llama_p0_rule_set_resshape_reshape(self):
+        for model_proto in self._reshape_reshape_models():
+            ir_model = ir.serde.deserialize_model(model_proto)
+            rule_set = llama_rule_sets.llama_p0_rule_set()
+            rule_set.apply_to_model(ir_model)
+            rewritten_model = ir.serde.serialize_model(ir_model)
+
+            self.assertEqual(
+                ["Reshape"], [n.op_type for n in rewritten_model.graph.node]
+            )
+            self._check_model(model_proto, rewritten_model)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
