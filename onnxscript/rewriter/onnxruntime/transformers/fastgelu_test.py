@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 
-from onnxscript.testing.common import testutils
+from onnxscript.testing import testutils
 
 
 class FastGeluParityTest(unittest.TestCase):
