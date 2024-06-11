@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-from tests.common import onnx_script_test_case
+from onnxscript.testing import onnx_script_test_case
 from tests.functions import gemmgelu
 
 

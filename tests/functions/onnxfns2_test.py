@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 import unittest
 
-from tests.common import onnx_script_test_case
+from onnxscript.testing import onnx_script_test_case
 from tests.models import onnxfns2
 
 

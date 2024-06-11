@@ -9,7 +9,7 @@ import onnx.helper
 
 from onnxscript import script
 from onnxscript.onnx_opset import opset17 as op
-from tests.common.onnx_script_test_case import FunctionTestParams as Test
+from onnxscript.testing.onnx_script_test_case import FunctionTestParams as Test
 
 
 @script()

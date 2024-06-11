@@ -8,7 +8,7 @@ import numpy as np
 import parameterized
 import torch
 
-from tests.common import onnx_script_test_case
+from onnxscript.testing import onnx_script_test_case
 from tests.models import signal_dft
 
 

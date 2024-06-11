@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 
-from tests.common import testutils
+from onnxscript.testing.common import testutils
 
 
 class MHAParityTest(unittest.TestCase):

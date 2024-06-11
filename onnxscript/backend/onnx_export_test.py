@@ -18,7 +18,7 @@ import onnxscript
 import onnxscript.testing
 import onnxscript.values
 from onnxscript.backend import onnx_backend, onnx_export
-from tests.models import type_double
+from onnxscript.testing import type_double
 
 
 @dataclasses.dataclass
@@ -115,7 +115,8 @@ def extract_functions(name: str, content: str, test_folder: pathlib.Path):
         mod = importlib.import_module(import_name)
     except (SyntaxError, ImportError) as e:
         raise AssertionError(
-            f"Unable to import {import_name!r} (file: {file!r})\n----\n{content}"
+            f"Unable to import {import_name!r} (test_folder={test_folder!r} "
+            f"file: {file!r})\n----\n{content}"
         ) from e
     functions = {
         k: v for k, v in mod.__dict__.items() if isinstance(v, onnxscript.OnnxFunction)
@@ -153,10 +154,10 @@ class TestOnnxBackEnd(unittest.TestCase):
         op = onnxscript.opset17
 
         @onnxscript.script()
-        def fun_with_attr_param(X, dtype: int):
+        def fun_with_attr_param_local(X, dtype: int):
             return op.Cast(X, to=dtype)
 
-        self._round_trip_check(fun_with_attr_param)
+        self._round_trip_check(fun_with_attr_param_local)
 
     def test_double_attr_val_promotion(self):
         op = onnxscript.opset17
