@@ -37,6 +37,23 @@ class CastCast(orp.RewriteRuleAsClass):
         return op.Cast(x, to=to)
 
 
+class ExpandIdentity(orp.RewriteRuleAsClass):
+    """Replaces ``Expand(., shape)`` by ``Identity`` if possible."""
+
+    @classmethod
+    def pattern(cls, op, x, shape):
+        return op.Expand(x, shape)
+
+    @classmethod
+    def rewrite(cls, op, x: ir.Value, shape: ir.Value):
+        return op.Identity(x)
+
+    @classmethod
+    def check(cls, context, x, shape) -> bool:
+        shape_x = x.shape
+        return shape_x.dims == tuple(shape.const_value.numpy().tolist())
+
+
 class TransposeIdentity(orp.RewriteRuleAsClass):
     """Replaces ``Transpose(. perm=perm)``
     when the permutation is identity.
@@ -104,8 +121,9 @@ class TransposeTranspose(orp.RewriteRuleAsClass):
         return op.Transpose(x, perm=last)
 
 
-cast_identity_rule = orp.make_rewrite_rule_from_class(CastIdentity)
 cast_cast_rule = orp.make_rewrite_rule_from_class(CastCast)
+cast_identity_rule = orp.make_rewrite_rule_from_class(CastIdentity)
+expand_identity_rule = orp.make_rewrite_rule_from_class(ExpandIdentity)
 transpose_identity_rule = orp.make_rewrite_rule_from_class(TransposeIdentity)
 transpose_transpose_rule = orp.make_rewrite_rule_from_class(TransposeTranspose)
 
@@ -124,8 +142,9 @@ def llama_p0_rule_set() -> orp.RewriteRuleSet:
             no_op.add_0_rule,
             no_op.add_0_rule,
             no_op.div_by_1_rule,
-            cast_identity_rule,
             cast_cast_rule,
+            cast_identity_rule,
+            expand_identity_rule,
             transpose_identity_rule,
             transpose_transpose_rule,
         ]

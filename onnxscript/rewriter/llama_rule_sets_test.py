@@ -19,7 +19,10 @@ class LlamaRuleSetsTest(unittest.TestCase):
     def _get_random_inputs(self, model: onnx.ModelProto) -> dict[str, Any]:
         feeds: dict[str, Any] = {}
         for i in model.graph.input:
-            shape = tuple(d + 2 for d in range(len(i.type.tensor_type.shape.dim)))
+            ish = tuple(i.type.tensor_type.shape.dim)
+            shape = tuple(
+                (d.dim_value if d.dim_value > 0 else i + 2) for i, d in enumerate(ish)
+            )
             if i.type.tensor_type.elem_type == onnx.TensorProto.FLOAT:
                 feeds[i.name] = np.random.randn(*shape).astype(np.float32)
             else:
@@ -182,6 +185,38 @@ class LlamaRuleSetsTest(unittest.TestCase):
 
     def test_llama_p0_rule_set_cast_identity(self):
         for model_proto in self._cast_identity_models():
+            ir_model = ir.serde.deserialize_model(model_proto)
+            rule_set = llama_rule_sets.llama_p0_rule_set()
+            rule_set.apply_to_model(ir_model)
+            rewritten_model = ir.serde.serialize_model(ir_model)
+
+            self.assertEqual(["Identity"], [n.op_type for n in rewritten_model.graph.node])
+            self._check_model(model_proto, rewritten_model)
+
+    @classmethod
+    def _expand_identity_models(cls):
+        models = [
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Expand", ["X", "shape"], ["Y"]),
+                    ],
+                    "name",
+                    [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 5])],
+                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [3, 4, 5])],
+                    [
+                        onnx.numpy_helper.from_array(
+                            np.array([3, 4, 5], dtype=np.int64), name="shape"
+                        )
+                    ],
+                ),
+                opset_imports=[onnx.helper.make_opsetid("", 18)],
+            ),
+        ]
+        return models
+
+    def test_llama_p0_rule_set_expand_identity(self):
+        for model_proto in self._expand_identity_models():
             ir_model = ir.serde.deserialize_model(model_proto)
             rule_set = llama_rule_sets.llama_p0_rule_set()
             rule_set.apply_to_model(ir_model)
