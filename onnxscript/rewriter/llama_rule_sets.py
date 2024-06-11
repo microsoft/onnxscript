@@ -9,6 +9,18 @@ import onnxscript.rewriter.pattern as orp
 op = orp.onnxop
 
 
+class CastCast(orp.RewriteRuleAsClass):
+    """Replaces ``Cast(Cast(X, ...), to=to)`` by ``Cast(X, to=to)``"""
+
+    @classmethod
+    def pattern(cls, op, x, to: int, to0: int):
+        return op.Cast(op.Cast(x, to=to0), to=to)
+
+    @classmethod
+    def rewrite(cls, op, x: ir.Value, to: int, to0: int):
+        return op.Cast(x, to=to)
+
+
 class TransposeIdentity(orp.RewriteRuleAsClass):
     """Replaces ``Transpose(. perm=perm)``
     when the permutation is identity.
@@ -76,6 +88,7 @@ class TransposeTranspose(orp.RewriteRuleAsClass):
         return op.Transpose(x, perm=last)
 
 
+cast_cast_rule = orp.make_rewrite_rule_from_class(CastCast)
 transpose_identity_rule = orp.make_rewrite_rule_from_class(TransposeIdentity)
 transpose_transpose_rule = orp.make_rewrite_rule_from_class(TransposeTranspose)
 
@@ -94,6 +107,7 @@ def llama_p0_rule_set() -> orp.RewriteRuleSet:
             no_op.add_0_rule,
             no_op.add_0_rule,
             no_op.div_by_1_rule,
+            cast_cast_rule,
             transpose_identity_rule,
             transpose_transpose_rule,
         ]

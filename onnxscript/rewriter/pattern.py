@@ -1134,7 +1134,7 @@ class RewriteRuleAsClass:
         raise NotImplementedError("Method 'rewrite' must be overwritten.")
 
     @classmethod
-    def check(cls, context, *_) -> bool:
+    def check(cls, context, *_, **__) -> bool:
         return True
 
 
