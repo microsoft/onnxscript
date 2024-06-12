@@ -2416,14 +2416,7 @@ def aten_cumsum(
         cast = self
     else:
         cast = op.Cast(self, to=dtype)
-    return _aten_cumsum_onnx(cast, dim)
-
-
-@torch_op("aten::cumsum", private=True, traceable=True)
-def _aten_cumsum_onnx(
-    self: TRealUnlessInt16OrInt8, dim: Union[INT32, INT64]
-) -> TRealUnlessInt16OrInt8:
-    if IsScalar(self):
+    if len(self.shape) == 0:
         # A scalar
         result = op.Identity(self)
     else:
