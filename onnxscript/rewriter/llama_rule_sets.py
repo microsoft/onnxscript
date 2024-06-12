@@ -16,15 +16,15 @@ class CastIdentity(orp.RewriteRuleAsClass):
     """Replaces ``Cast(., to=to)`` by ``Identity`` if possible."""
 
     @classmethod
-    def pattern(cls, op, x, to: int):
+    def pattern(cls, op, x, to):
         return op.Cast(x, to=to)
 
     @classmethod
-    def rewrite(cls, op, x: ir.Value, to: int):
+    def rewrite(cls, op, x: ir.Value, to: ir.AttrInt64):
         return op.Identity(x)
 
     @classmethod
-    def check(cls, context, x, to: int) -> bool:
+    def check(cls, context, x, to) -> bool:
         return x.dtype == to.value
 
 
@@ -32,11 +32,11 @@ class CastCast(orp.RewriteRuleAsClass):
     """Replaces ``Cast(Cast(X, ...), to=to)`` by ``Cast(X, to=to)``."""
 
     @classmethod
-    def pattern(cls, op, x, to: int, to0: int):
+    def pattern(cls, op, x, to: int, to0):
         return op.Cast(op.Cast(x, to=to0), to=to)
 
     @classmethod
-    def rewrite(cls, op, x: ir.Value, to: int, to0: int):
+    def rewrite(cls, op, x: ir.Value, to: ir.AttrInt64, to0: ir.AttrInt64):
         return op.Cast(x, to=to)
 
 
@@ -53,6 +53,9 @@ class ExpandIdentity(orp.RewriteRuleAsClass):
 
     @classmethod
     def check(cls, context, x, shape) -> bool:
+        if shape.const_value is None:
+            # Shape is not a constant and cannot be guessed.
+            return False
         shape_x = x.shape
         return shape_x.dims == tuple(shape.const_value.numpy().tolist())
 
@@ -68,6 +71,16 @@ class ReshapeReshape(orp.RewriteRuleAsClass):
     def rewrite(cls, op, x: ir.Value, shape_ignored: ir.Value, shape: ir.Value):
         return op.Reshape(x, shape)
 
+    @classmethod
+    def check(cls, context, x, shape_ignored, shape) -> bool:
+        if shape_ignored.const_value is None or shape.const_value is None:
+            return False
+        if shape_ignored.const_value.numpy().min() <= 0:
+            return False
+        if shape.const_value.numpy().min() <= 0:
+            return False
+        return True
+
 
 class TransposeIdentity(orp.RewriteRuleAsClass):
     """Replaces ``Transpose(. perm=perm)``
@@ -79,7 +92,7 @@ class TransposeIdentity(orp.RewriteRuleAsClass):
         return op.Transpose(x, perm=perm)
 
     @classmethod
-    def check(cls, context, x: ir.Value, perm: ir.Attr | ir.RefAttr) -> bool:
+    def check(cls, context, x: ir.Value, perm: ir.Attr) -> bool:
         if isinstance(perm, ir.RefAttr):
             return False
         if perm.type == ir.AttributeType.INTS:
@@ -88,7 +101,7 @@ class TransposeIdentity(orp.RewriteRuleAsClass):
         return False
 
     @classmethod
-    def rewrite(cls, op, x: ir.Value, perm: ir.Attr | None = None):
+    def rewrite(cls, op, x: ir.Value, perm: ir.Attr):
         return op.Identity(x)
 
 
@@ -102,9 +115,7 @@ class TransposeTranspose(orp.RewriteRuleAsClass):
         return op.Transpose(op.Transpose(x, perm=perm1), perm=perm2)
 
     @classmethod
-    def check(
-        cls, context, x: ir.Value, perm1: ir.Attr | ir.RefAttr, perm2: ir.Attr | ir.RefAttr
-    ) -> bool:
+    def check(cls, context, x: ir.Value, perm1: ir.Attr, perm2: ir.Attr) -> bool:
         if isinstance(perm1, ir.RefAttr) or isinstance(perm2, ir.RefAttr):
             return False
         return True
@@ -160,6 +171,16 @@ class UnsqueezeUnsqueeze(orp.RewriteRuleAsClass):
             return False
         axes = cls._combine1(v1, v2)
         return op.Unsqueeze(x, op.Constant(value=onnx.numpy_helper.from_array(axes)))
+
+    @classmethod
+    def check(cls, context, x, axes1, axes2) -> bool:
+        if axes1.const_value is None or axes2.const_value is None:
+            return False
+        if axes1.const_value.numpy().min() < 0:
+            return False
+        if axes2.const_value.numpy().min() < 0:
+            return False
+        return True
 
 
 cast_cast_rule = orp.make_rewrite_rule_from_class(CastCast)
