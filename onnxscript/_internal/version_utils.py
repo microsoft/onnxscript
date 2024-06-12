@@ -43,3 +43,14 @@ def numpy_older_than(version: str) -> bool:
         packaging.version.parse(numpy.__version__).release
         < packaging.version.parse(version).release
     )
+
+
+def has_transformers():
+    """Tells if transformers is installed."""
+    try:
+        import transformers
+
+        assert transformers
+        return True  # noqa
+    except ImportError:
+        return False

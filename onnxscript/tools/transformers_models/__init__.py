@@ -16,30 +16,6 @@ import onnxscript.optimizer
 import onnxscript.rewriter
 
 
-def has_transformers():
-    """Tells if transformers is installed."""
-    try:
-        import transformers
-
-        assert transformers
-        return True  # noqa
-    except ImportError:
-        return False
-
-
-def has_torch(version: str = ""):
-    """Tells if pytorch is installed and recent enough."""
-    import packaging.version as pv
-
-    try:
-        import torch
-    except ImportError:
-        return False
-    if not version:
-        return True
-    return pv.Version(torch.__version__) >= pv.Version(version)
-
-
 def export_to_onnx(model: Any, *args: Sequence[Any], optimize: bool = True) -> onnx.ModelProto:
     """
     Export a model to ONNX.

@@ -15,13 +15,13 @@ import onnxscript.rewriter
 import onnxscript.tools.training_helper
 import onnxscript.tools.transformers_models
 import onnxscript.tools.transformers_models.phi
-from onnxscript.tools.transformers_models import has_torch, has_transformers
+from onnxscript._internal.version_utils import has_transformers, torch_older_than
 
 
 class TestExportPhi(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
-    @unittest.skipIf(not has_torch("2.4"), reason="fails to export")
+    @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
     def test_phi_export_cpu(self):
         model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
         input_tensors = input_tensors_many[0]

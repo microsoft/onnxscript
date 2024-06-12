@@ -13,13 +13,12 @@ import torch
 import onnxscript.tools.training_helper
 import onnxscript.tools.transformers_models
 import onnxscript.tools.transformers_models.llama
-
-HAS_TRANSFORMERS = onnxscript.tools.transformers_models.has_transformers()
+from onnxscript._internal.version_utils import has_transformers
 
 
 class TestExportLlama(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
-    @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
+    @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     def test_llama_export_cpu(self):
         model, input_tensors_many, _ = (
             onnxscript.tools.transformers_models.llama.get_llama_model()
@@ -38,7 +37,7 @@ class TestExportLlama(unittest.TestCase):
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not torch.cuda.is_available(), reason="CUDA not available")
-    @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
+    @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     def test_llama_export_cuda(self):
         model, input_tensors_many, _ = (
             onnxscript.tools.transformers_models.llama.get_llama_model()
@@ -58,7 +57,7 @@ class TestExportLlama(unittest.TestCase):
         np.testing.assert_allclose(expected[0].detach().cpu().numpy(), results[0], atol=1e-5)
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
-    @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
+    @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     def test_llama_dort_static(self):
         model, input_tensors_many, _ = (
             onnxscript.tools.transformers_models.llama.get_llama_model()
