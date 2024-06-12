@@ -164,8 +164,8 @@ class UnsqueezeUnsqueeze(orp.RewriteRuleAsClass):
 
     @classmethod
     def rewrite(cls, op, x: ir.Value, axes1: ir.Value, axes2: ir.Value):
-        v1 = axes1.const_value.numpy()
-        v2 = axes2.const_value.numpy()
+        v1 = axes1.const_value.numpy()  # type: ignore[union-attr]
+        v2 = axes2.const_value.numpy()  # type: ignore[union-attr]
         if len(v1) != 1 or len(v2) != 1:
             # Implemented later if needed.
             return False
