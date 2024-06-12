@@ -6,7 +6,7 @@ import io
 import unittest
 
 import onnxscript.tools.benchmark.export_model
-from onnxscript.tools.transformers_models import has_torch, has_transformers
+from onnxscript._internal.version_utils import has_transformers, torch_older_than
 
 
 class BenchmarkTest(unittest.TestCase):
@@ -103,7 +103,7 @@ class BenchmarkTest(unittest.TestCase):
         self.assertIn(":repeat_time,", out)
 
     @unittest.skipIf(not has_transformers(), reason="transformers missing")
-    @unittest.skipIf(not has_torch("2.4"), reason="fails to export")
+    @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
     def test_export_model_phi_cpu_dynamo_llama0(self):
         args = [
             "--verbose",
