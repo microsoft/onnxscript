@@ -32,11 +32,11 @@ class CastCast(orp.RewriteRuleAsClass):
     """Replaces ``Cast(Cast(X, ...), to=to)`` by ``Cast(X, to=to)``."""
 
     @classmethod
-    def pattern(cls, op, x, to: int, to0):
-        return op.Cast(op.Cast(x, to=to0), to=to)
+    def pattern(cls, op, x, to: int, to_ignored: int):
+        return op.Cast(op.Cast(x, to=to_ignored), to=to)
 
     @classmethod
-    def rewrite(cls, op, x: ir.Value, to: ir.AttrInt64, to0: ir.AttrInt64):
+    def rewrite(cls, op, x: ir.Value, to: ir.AttrInt64, to_ignored: ir.AttrInt64):
         return op.Cast(x, to=to)
 
 
@@ -74,8 +74,6 @@ class ReshapeReshape(orp.RewriteRuleAsClass):
     @classmethod
     def check(cls, context, x, shape_ignored, shape) -> bool:
         if shape_ignored.const_value is None or shape.const_value is None:
-            return False
-        if shape_ignored.const_value.numpy().min() <= 0:
             return False
         if shape.const_value.numpy().min() <= 0:
             return False
