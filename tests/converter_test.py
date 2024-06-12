@@ -300,7 +300,7 @@ class TestConverter(testutils.TestBase):
         self.validate_save(clipmax)
 
     def test_type_double(self):
-        from onnxscript.testing import type_double
+        from onnxscript.testing import type_double  # pylint: disable=import-outside-toplevel
 
         fcts = self.validate_save(type_double, check_ort=False)
         f = fcts["double_abs"]
