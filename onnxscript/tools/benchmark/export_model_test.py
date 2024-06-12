@@ -6,7 +6,11 @@ import io
 import unittest
 
 import onnxscript.tools.benchmark.export_model
-from onnxscript._internal.version_utils import has_transformers, torch_older_than
+from onnxscript._internal.version_utils import (
+    has_transformers,
+    is_onnxruntime_training,
+    torch_older_than,
+)
 
 
 class BenchmarkTest(unittest.TestCase):
@@ -57,6 +61,7 @@ class BenchmarkTest(unittest.TestCase):
         self.assertIn(":repeat_time,", out)
 
     @unittest.skipIf(not has_transformers(), reason="transformers missing")
+    @unittest.skipIf(not is_onnxruntime_training(), reason="onnxruntime-training is needed")
     def test_export_model_phi_cpu_dynamo(self):
         args = [
             "--verbose",
@@ -80,6 +85,7 @@ class BenchmarkTest(unittest.TestCase):
         self.assertIn(":repeat_time,", out)
 
     @unittest.skipIf(not has_transformers(), reason="transformers missing")
+    @unittest.skipIf(not is_onnxruntime_training(), reason="onnxruntime-training is needed")
     def test_export_model_phi_cpu_script(self):
         args = [
             "--verbose",

@@ -25,6 +25,13 @@ def torch_older_than(version: str) -> bool:
     )
 
 
+def is_onnxruntime_training(version: str) -> bool:
+    """Returns True if the onnxruntime is onnxruntime-training."""
+    import onnxruntime  # pylint: disable=import-outside-toplevel
+
+    return hasattr(onnxruntime.capi.onnxruntime_pybind11_state.OrtVal, "push_back_batch")
+
+
 def onnxruntime_older_than(version: str) -> bool:
     """Returns True if the onnxruntime version is older than the given version."""
     import onnxruntime  # pylint: disable=import-outside-toplevel
@@ -48,7 +55,7 @@ def numpy_older_than(version: str) -> bool:
 def has_transformers():
     """Tells if transformers is installed."""
     try:
-        import transformers
+        import transformers  # pylint: disable=import-outside-toplevel
 
         assert transformers
         return True  # noqa
