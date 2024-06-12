@@ -2418,9 +2418,9 @@ def aten_cumsum(
         cast = op.Cast(self, to=dtype)
     if len(self.shape) == 0:
         # A scalar
-        result = op.Identity(self)
+        result = op.Identity(cast)
     else:
-        result = op.CumSum(self, dim)
+        result = op.CumSum(cast, dim)
     return result
 
 
