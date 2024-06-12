@@ -61,7 +61,10 @@ class ExpandIdentity(orp.RewriteRuleAsClass):
 
 
 class ReshapeReshape(orp.RewriteRuleAsClass):
-    """Replaces ``Reshape(Reshape(X, ...), shape)`` by ``Reshape(X, shape)``."""
+    """Replaces ``Reshape(Reshape(X, ...), shape)`` by ``Reshape(X, shape)``.
+    The pattern matches only if second reshape reshapes into a shape
+    with positive values.
+    """
 
     @classmethod
     def pattern(cls, op, x, shape_ignored, shape):
@@ -155,7 +158,8 @@ class UnsqueezeUnsqueeze(orp.RewriteRuleAsClass):
         return op.Unsqueeze(op.Unsqueeze(x, axes1), axes2)
 
     @classmethod
-    def _combine1(cls, axes1: np.ndarray, axes2: np.ndarray) -> np.ndarray:
+    def _combine_axes(cls, axes1: np.ndarray, axes2: np.ndarray) -> np.ndarray:
+        """Combines two single axes into one tensor of two axes."""
         if axes1[0] < axes2[0]:
             return np.hstack([axes1, axes2])
         return np.hstack([axes2, axes1 + 1]).astype(np.int64)
@@ -167,7 +171,7 @@ class UnsqueezeUnsqueeze(orp.RewriteRuleAsClass):
         if len(v1) != 1 or len(v2) != 1:
             # Implemented later if needed.
             return False
-        axes = cls._combine1(v1, v2)
+        axes = cls._combine_axes(v1, v2)
         return op.Unsqueeze(x, op.Constant(value=onnx.numpy_helper.from_array(axes)))
 
     @classmethod

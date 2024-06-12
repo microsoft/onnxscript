@@ -20,6 +20,9 @@ class LlamaRuleSetsTest(unittest.TestCase):
         feeds: dict[str, Any] = {}
         for i in model.graph.input:
             ish = tuple(i.type.tensor_type.shape.dim)
+            # Creates an input tensor with a dimension defined by the onnx model
+            # or equals to i + 2 with i being the dimension index.
+            # The tensor is kept small to make the test fast.
             shape = tuple(
                 (d.dim_value if d.dim_value > 0 else i + 2) for i, d in enumerate(ish)
             )
