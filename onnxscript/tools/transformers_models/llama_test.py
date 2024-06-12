@@ -17,7 +17,7 @@ import onnxscript.tools.transformers_models.llama
 HAS_TRANSFORMERS = onnxscript.tools.transformers_models.has_transformers()
 
 
-class TestExportPhi(unittest.TestCase):
+class TestExportLlama(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
     def test_llama_export_cpu(self):

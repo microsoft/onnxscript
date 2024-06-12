@@ -15,13 +15,13 @@ import onnxscript.rewriter
 import onnxscript.tools.training_helper
 import onnxscript.tools.transformers_models
 import onnxscript.tools.transformers_models.phi
+from onnxscript.tools.transformers_models import has_torch, has_transformers
 
-HAS_TRANSFORMERS = onnxscript.tools.transformers_models.has_transformers()
 
-
-class TestPhi(unittest.TestCase):
+class TestExportPhi(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
-    @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
+    @unittest.skipIf(not has_transformers(), reason="transformers is missing")
+    @unittest.skipIf(not has_torch("2.4"), reason="fails to export")
     def test_phi_export_cpu(self):
         model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
         input_tensors = input_tensors_many[0]
@@ -38,7 +38,7 @@ class TestPhi(unittest.TestCase):
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not torch.cuda.is_available(), reason="CUDA not available")
-    @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
+    @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     def test_phi_export_cuda(self):
         model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
         input_tensors_cpu = input_tensors_many[0]
@@ -56,7 +56,7 @@ class TestPhi(unittest.TestCase):
         np.testing.assert_allclose(expected[0].detach().cpu().numpy(), results[0], atol=1e-5)
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
-    @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
+    @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     def test_phi_dort_static(self):
         model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
         input_tensors = input_tensors_many[0]
