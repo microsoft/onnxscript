@@ -27,9 +27,16 @@ def torch_older_than(version: str) -> bool:
 
 def is_onnxruntime_training() -> bool:
     """Returns True if the onnxruntime is onnxruntime-training."""
-    import onnxruntime  # pylint: disable=import-outside-toplevel
+    try:
+        from onnxruntime import training  # pylint: disable=import-outside-toplevel
+        assert training
+    except ImportError:
+        # onnxruntime not training
+        return False
 
-    return hasattr(onnxruntime.capi.onnxruntime_pybind11_state.OrtVal, "push_back_batch")
+    from onnxruntime.capi.onnxruntime_pybind11_state import OrtValue  # pylint: disable=import-outside-toplevel
+
+    return hasattr(OrtValue, "push_back_batch"):
 
 
 def onnxruntime_older_than(version: str) -> bool:
