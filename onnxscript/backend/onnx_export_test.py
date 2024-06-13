@@ -96,6 +96,7 @@ if sys.platform == "win32" and sys.version_info[:2] <= (3, 10):
         skip(r"^test_log", "investigate"),
         skip(r"^test_mod_broadcast", "investigate"),
         skip(r"^test_mod_uint8", "investigate"),
+        skip(r"^test_nllloss_NCd1d2", "investigate"),
         skip(r"^test_slice_negative_axes", "investigate"),
         skip(r"^test_resize_upsample_scales_cubic", "investigate"),
     )

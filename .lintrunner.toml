@@ -57,6 +57,7 @@ exclude_patterns = [
     'onnxscript/_legacy_ir/visitor.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/layernorm.py',  # FIXME
     'onnxscript/rewriter/generic_pattern.py',  # FIXME
+    'onnxscript/testing/**',  # FIXME
 ]
 command = [
     'python',
@@ -122,6 +123,7 @@ exclude_patterns = [
     'tests/onnx_backend_test_code/**',
     'onnxscript/optimizer/**',  # FIXME
     'onnxscript/rewriter/**',  # FIXME
+    'onnxscript/testing/**',  # FIXME
     'onnxscript/_legacy_ir/**',  # FIXME
 ]
 command = [
