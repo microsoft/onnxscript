@@ -35,7 +35,9 @@ def is_onnxruntime_training() -> bool:
         return False
 
     try:
-        from onnxruntime.capi.onnxruntime_pybind11_state import OrtValueVector  # pylint: disable=import-outside-toplevel
+        from onnxruntime.capi.onnxruntime_pybind11_state import (
+            OrtValueVector,  # pylint: disable=import-outside-toplevel
+        )
     except ImportError:
         return False
 
