@@ -25,7 +25,7 @@ def torch_older_than(version: str) -> bool:
     )
 
 
-def is_onnxruntime_training(version: str) -> bool:
+def is_onnxruntime_training() -> bool:
     """Returns True if the onnxruntime is onnxruntime-training."""
     import onnxruntime  # pylint: disable=import-outside-toplevel
 
