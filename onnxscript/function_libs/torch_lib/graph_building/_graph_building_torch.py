@@ -440,6 +440,8 @@ def _add_attribute_to_torchscript_node(
         return node.s_(key, value)  # type: ignore[arg-type]
     if isinstance(value, torch.Tensor):
         return node.t_(key, value)
+    if isinstance(value, torch._C._onnx.TensorProtoDataType):
+        return node.i_(key, value)
     if isinstance(value, Sequence):
         if not value:
             # Treat empty sequences as empty list tensors
