@@ -34,9 +34,12 @@ def is_onnxruntime_training() -> bool:
         # onnxruntime not training
         return False
 
-    from onnxruntime.capi.onnxruntime_pybind11_state import OrtValue  # pylint: disable=import-outside-toplevel
+    try:
+        from onnxruntime.capi.onnxruntime_pybind11_state import OrtValueVector  # pylint: disable=import-outside-toplevel
+    except ImportError:
+        return False
 
-    return hasattr(OrtValue, "push_back_batch")
+    return hasattr(OrtValueVector, "push_back_batch")
 
 
 def onnxruntime_older_than(version: str) -> bool:

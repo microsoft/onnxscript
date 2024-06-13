@@ -110,6 +110,7 @@ class BenchmarkTest(unittest.TestCase):
 
     @unittest.skipIf(not has_transformers(), reason="transformers missing")
     @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
+    @unittest.skipIf(not is_onnxruntime_training(), reason="onnxruntime-training is needed")
     def test_export_model_phi_cpu_dynamo_llama0(self):
         args = [
             "--verbose",
