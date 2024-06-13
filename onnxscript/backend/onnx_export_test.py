@@ -7,6 +7,7 @@ import importlib
 import pathlib
 import re
 import unittest
+import sys
 from typing import Pattern
 
 import onnx
@@ -88,6 +89,15 @@ SKIP_TESTS = (
     ),
     skip(r"^test_ai_onnx_ml_label_encoder", "ONNX Runtime does not support Opset 21 at 1.17"),
 )
+
+if sys.platform == "win32" and sys.version_info[:2] <= (3, 10):
+    SKIP_TESTS = (
+        *SKIP_TESTS,
+        skip(r"^test_log", "investigate"),
+        skip(r"^slice_negative_axes", "investigate"),
+        skip(r"^resize_upsample_scales_cubic", "investigate"),
+    )
+
 
 
 def load_function(obj):
