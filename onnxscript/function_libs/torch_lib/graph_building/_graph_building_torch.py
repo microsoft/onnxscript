@@ -440,8 +440,6 @@ def _add_attribute_to_torchscript_node(
         return node.s_(key, value)  # type: ignore[arg-type]
     if isinstance(value, torch.Tensor):
         return node.t_(key, value)
-    if isinstance(value, torch._C._onnx.TensorProtoDataType):  # pylint: disable=protected-access`
-        return node.i_(key, int(value))
     if isinstance(value, Sequence):
         if not value:
             # Treat empty sequences as empty list tensors
@@ -452,6 +450,9 @@ def _add_attribute_to_torchscript_node(
         if isinstance(value[0], int):
             return node.is_(key, list(value))  # type: ignore[attr-defined]
         raise TypeError(f"Unsupported sequence type '{type(value)}' for attribute '{key}'")
+    # TODO: This type was met one time.
+    # if isinstance(value, torch._C._onnx.TensorProtoDataType):
+    #     return node.i_(key, int(value))
     raise TypeError(f"Unsupported attribute type '{type(value)}' for attribute '{key}'")
 
 

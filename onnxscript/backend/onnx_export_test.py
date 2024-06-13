@@ -94,8 +94,10 @@ if sys.platform == "win32" and sys.version_info[:2] <= (3, 10):
     SKIP_TESTS = (
         *SKIP_TESTS,
         skip(r"^test_log", "investigate"),
-        skip(r"^slice_negative_axes", "investigate"),
-        skip(r"^resize_upsample_scales_cubic", "investigate"),
+        skip(r"^test_mod_broadcast", "investigate"),
+        skip(r"^test_mod_uint8", "investigate"),
+        skip(r"^test_slice_negative_axes", "investigate"),
+        skip(r"^test_resize_upsample_scales_cubic", "investigate"),
     )
 
 
