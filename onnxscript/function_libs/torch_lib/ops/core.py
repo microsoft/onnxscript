@@ -3617,6 +3617,8 @@ def aten_gather(
             result = op.CastLike(index, self)
         else:
             index = op.Cast(index, to=INT64.dtype)
+            # If the index is empty, torch supports any shape, ort is not.
+            # But the test op.Size(index) == 0 seems to fail in trace only mode.
             result = op.GatherElements(self, index, axis=dim)
     return result
 

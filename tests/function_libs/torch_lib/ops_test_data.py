@@ -842,7 +842,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: ("dtype" in sample.kwargs),
         reason="this Aten overload only support dtype not in kwargs",
     ),
-    TorchLibOpInfo("gather", core_ops.aten_gather),
+    TorchLibOpInfo(
+        "gather",
+        core_ops.aten_gather,
+    ).skip(
+        enabled_if=not version_utils.onnxruntime_older_than("1.18"),
+        reason="Message: GatherElements op: Rank of input 'data' needs to be equal to rank of input 'indices'",
+    ),
     TorchLibOpInfo("ge", core_ops.aten_ge),
     TorchLibOpInfo("ge_bool", core_ops.aten_ge_bool),
     TorchLibOpInfo("gt", core_ops.aten_gt),
