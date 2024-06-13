@@ -211,7 +211,7 @@ ignore-init-module-imports = true
 "__init__.py" = ["TID252"] # Allow relative imports in init files
 "setup.py" = ["TID251"] # pathlib is allowed in supporting code
 "**/{examples,tests,docs,tools,utils,opgen}/*" = ["TID251"] # pathlib is allowed in supporting code
-"onnxscript/testing/*" = ["TID251"] # pathlib is allowed in supporting code
+"onnxscript/testing/*" = ["TID251", "UP037"] # pathlib is allowed in supporting code
 "**/*_test.py" = ["TID251"] # pathlib is allowed in tests
 
 [tool.ruff.lint.flake8-tidy-imports]

@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+# pylint: disable=import-outside-toplevel,consider-using-dict-items,undefined-variable
 
 import ast
 import inspect
