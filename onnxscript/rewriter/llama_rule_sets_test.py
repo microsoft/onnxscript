@@ -339,9 +339,7 @@ class LlamaRuleSetsTest(unittest.TestCase):
             rule_set.apply_to_model(ir_model)
             rewritten_model = ir.serde.serialize_model(ir_model)
 
-            self.assertEqual(
-                ["Reshape"], [n.op_type for n in rewritten_model.graph.node]
-            )
+            self.assertEqual(["Reshape"], [n.op_type for n in rewritten_model.graph.node])
             self._check_model(model_proto, rewritten_model)
 
 
