@@ -6,6 +6,7 @@ import numpy as np
 import onnx.numpy_helper
 
 import onnxscript.ir as ir
+import onnxscript.rewriter.generic_pattern as orgp
 import onnxscript.rewriter.no_op as no_op
 import onnxscript.rewriter.pattern as orp
 
@@ -81,6 +82,62 @@ class ReshapeReshape(orp.RewriteRuleAsClass):
         if shape.const_value.numpy().min() <= 0:
             return False
         return True
+
+
+class SlicesSplit(orp.RewriteRuleAsClass):
+    """Replaces ``Slice(x, ...), Slice(x, ...)``
+    by ``Split(x, ...)`` if possible.
+    """
+
+    @classmethod
+    def pattern(cls, op, x, begin0, end0, axes0, begin1, end1, axes1):
+        return op.Slice(x, begin0, end0, axes0), op.Slice(x, begin1, end1, axes1)
+
+    @classmethod
+    def check(cls, context, x, begin0, end0, axes0, begin1, end1, axes1) -> bool:
+        if (
+            axes0.const_value is None
+            or axes1.const_value is None
+            or axes0.const_value.numpy().tolist() != axes1.const_value.numpy().tolist()
+        ):
+            return False
+        axes = axes0.const_value.numpy().tolist()
+        if len(axes) != 1:
+            return False
+        rk = x.rank
+        if axes[0] != -1 and axes[0] != rk - 1:
+            return False
+        if (
+            begin0.const_value is None
+            or end0.const_value is None
+            or begin1.const_value is None
+            or end1.const_value is None
+        ):
+            return False
+        if begin0.const_value.numpy().tolist() != [0]:
+            return False
+        e0, b1, e1 = (
+            end0.const_value.numpy().tolist(),
+            begin0.const_value.numpy().tolist(),
+            end1.const_value.numpy().tolist(),
+        )
+        if e0[0] != b1[0]:
+            return False
+        shape = x.shape
+        if shape is None:
+            return False
+        last_dim = shape[-1]
+        if not isinstance(last_dim, int):
+            return False
+        if last_dim != e1[0]:
+            return False
+        if last_dim // 2 != b1[0]:
+            return False
+        return True
+
+    @classmethod
+    def rewrite(cls, op, x, begin0, end0, axes0, begin1, end1, axes1):
+        return op.Split(x, num_outputs=2, axis=-1)
 
 
 class TransposeIdentity(orp.RewriteRuleAsClass):
@@ -185,15 +242,6 @@ class UnsqueezeUnsqueeze(orp.RewriteRuleAsClass):
         return True
 
 
-cast_cast_rule = orp.make_rewrite_rule_from_class(CastCast)
-cast_identity_rule = orp.make_rewrite_rule_from_class(CastIdentity)
-expand_identity_rule = orp.make_rewrite_rule_from_class(ExpandIdentity)
-reshape_reshape_rule = orp.make_rewrite_rule_from_class(ReshapeReshape)
-transpose_identity_rule = orp.make_rewrite_rule_from_class(TransposeIdentity)
-transpose_transpose_rule = orp.make_rewrite_rule_from_class(TransposeTranspose)
-unsqueeze_unsqueeze_rule = orp.make_rewrite_rule_from_class(UnsqueezeUnsqueeze)
-
-
 def llama_p0_rule_set() -> orp.RewriteRuleSet:
     """Returns a set of rules which should be applied
     before any other one as they usually remove unnecessary computation
@@ -202,6 +250,17 @@ def llama_p0_rule_set() -> orp.RewriteRuleSet:
     Returns:
         RewriteRuleSet
     """
+    cast_cast_rule = orp.make_rewrite_rule_from_class(CastCast)
+    cast_identity_rule = orp.make_rewrite_rule_from_class(CastIdentity)
+    expand_identity_rule = orp.make_rewrite_rule_from_class(ExpandIdentity)
+    reshape_reshape_rule = orp.make_rewrite_rule_from_class(ReshapeReshape)
+    slice_split_rule = orp.RewriteRule(
+        SlicesSplit.pattern, SlicesSplit.rewrite, SlicesSplit.check, orgp.GenericPatternMatcher
+    )
+    transpose_identity_rule = orp.make_rewrite_rule_from_class(TransposeIdentity)
+    transpose_transpose_rule = orp.make_rewrite_rule_from_class(TransposeTranspose)
+    unsqueeze_unsqueeze_rule = orp.make_rewrite_rule_from_class(UnsqueezeUnsqueeze)
+
     return orp.RewriteRuleSet(
         [
             no_op.mul_by_1_rule,
@@ -212,6 +271,7 @@ def llama_p0_rule_set() -> orp.RewriteRuleSet:
             cast_identity_rule,
             expand_identity_rule,
             reshape_reshape_rule,
+            slice_split_rule,
             transpose_identity_rule,
             transpose_transpose_rule,
             unsqueeze_unsqueeze_rule,
