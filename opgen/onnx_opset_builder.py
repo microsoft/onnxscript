@@ -146,7 +146,7 @@ class OpsetsBuilder:
             writer.write("All rights reserved.\n")
             writer.write("# Licensed under the MIT License.\n")
             writer.write(dashline)
-            writer.write("# pylint: disable=\"C0415,W0221,W0222,R0901,W0237\n")
+            writer.write('# pylint: disable="C0415,W0221,W0222,R0901,W0237"\n')
             writer.write("# ruff: noqa: N801,E741\n")
             writer.write("# ruff: noqa: D214,D402,D405,D411,D412,D416,D417\n")
             writer.write(dashline)

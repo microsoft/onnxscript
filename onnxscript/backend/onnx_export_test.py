@@ -6,8 +6,8 @@ import dataclasses
 import importlib
 import pathlib
 import re
-import unittest
 import sys
+import unittest
 from typing import Pattern
 
 import onnx

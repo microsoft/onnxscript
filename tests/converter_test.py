@@ -27,8 +27,7 @@ import onnxscript.testing
 from onnxscript import BOOL, FLOAT, INT64, converter, graph, script, tensor
 from onnxscript.onnx_opset import opset11 as op11
 from onnxscript.onnx_opset import opset15 as op
-from onnxscript.testing import testutils
-from onnxscript.testing import onnx_script_test_case
+from onnxscript.testing import onnx_script_test_case, testutils
 
 TEST_INPUT_DIR = pathlib.Path(__file__).parent / "tests" / "models"
 TEST_OUTPUT_DIR = TEST_INPUT_DIR / "testoutputs"
@@ -300,7 +299,9 @@ class TestConverter(testutils.TestBase):
         self.validate_save(clipmax)
 
     def test_type_double(self):
-        from onnxscript.testing import type_double  # pylint: disable=import-outside-toplevel
+        from onnxscript.testing import (
+            type_double,  # pylint: disable=import-outside-toplevel
+        )
 
         fcts = self.validate_save(type_double, check_ort=False)
         f = fcts["double_abs"]

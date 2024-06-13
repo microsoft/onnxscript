@@ -44,22 +44,22 @@ def notype_abs_subgraph(A):
 
 
 @script()
-def double_abs_subgraph(A: DOUBLE["N"]) -> DOUBLE["N"]:
+def double_abs_subgraph(A: DOUBLE["N"]) -> DOUBLE["N"]:  # noqa: F821
     zero = op.Constant(value=make_tensor("zero", TensorProto.DOUBLE, [1], [0]))
     if op.ReduceSum(A) > zero:
-        B: DOUBLE["N"] = op.Identity(A)
+        B: DOUBLE["N"] = op.Identity(A)  # noqa: F821
     else:
-        B: DOUBLE["N"] = op.Neg(A)
+        B: DOUBLE["N"] = op.Neg(A)  # noqa: F821
     return B
 
 
 @script()
-def double_abs(A: DOUBLE["N"]) -> DOUBLE["N"]:
+def double_abs(A: DOUBLE["N"]) -> DOUBLE["N"]:  # noqa: F821
     return op.Abs(A)
 
 
 @script()
-def double_cast(A: INT64["N"]) -> DOUBLE["N"]:
+def double_cast(A: INT64["N"]) -> DOUBLE["N"]:  # noqa: F821
     return op.Cast(A, to=11)
 
 
