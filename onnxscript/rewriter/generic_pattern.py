@@ -570,7 +570,7 @@ class GenericPatternMatcher(orp.PatternMatcher):
             next_graph_node = matched[next_pattern_node]
 
             fallback_candidates = []
-            if any(map(lambda i: i.producer() is not None, next_pattern_node.inputs)):
+            if any((i.producer() is not None) for i in next_pattern_node.inputs):
                 # At least one input has a backward node inside the pattern.
                 result = self._match_backward(
                     node, matched, stack, next_graph_node, next_pattern_node
