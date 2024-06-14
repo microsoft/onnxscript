@@ -7466,7 +7466,7 @@ def aten_sinh(self: TFloat) -> TFloat:
     return op.Sinh(self)
 
 
-@torch_op(("aten::slice", "aten::slice.Tensor"), trace_only=True)
+@torch_op(("aten::slice.Tensor"), trace_only=True)
 def aten_slice(
     self: TTensor,
     dim: int = 0,
@@ -7611,7 +7611,7 @@ def aten_softmax(self: TFloatOrBFloat16, dim: int, dtype: int = -1) -> TFloatOrB
     return result
 
 
-@torch_op(("aten::softmax", "aten::softmax.int", "aten::special_softmax"), traceable=True)
+@torch_op(("aten::softmax.int", "aten::special_softmax"), traceable=True)
 def aten_softmax_no_dtype(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
     """softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
 
@@ -8233,7 +8233,7 @@ def aten_transpose(self: TTensor, dim0: int, dim1: int) -> TTensor:
     return result
 
 
-@torch_op(("aten::transpose", "aten::transpose.int"), trace_only=True, complex=True)
+@torch_op("aten::transpose.int", trace_only=True, complex=True)
 def aten_transpose_complex(self: TTensor, dim0: int, dim1: int) -> TTensor:
     """transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)"""
 
