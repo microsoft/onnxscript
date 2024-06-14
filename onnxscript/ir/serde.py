@@ -544,7 +544,7 @@ def deserialize_graph(proto: onnx.GraphProto) -> _core.Graph:
     return _deserialize_graph(proto, [])
 
 
-@_capture_errors(lambda proto: proto.name)
+@_capture_errors(lambda proto, scoped_values: proto.name)
 def _deserialize_graph(
     proto: onnx.GraphProto, scoped_values: list[dict[str, _core.Value]]
 ) -> _core.Graph:
@@ -646,7 +646,7 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
     )
 
 
-@_capture_errors(lambda proto: proto.name)
+@_capture_errors(lambda proto, value: str(proto))
 def deserialize_value_info_proto(
     proto: onnx.ValueInfoProto, value: _core.Value | None
 ) -> _core.Value:
@@ -758,7 +758,7 @@ def deserialize_dimension(
     return _core.SymbolicDim(None), denotation
 
 
-@_capture_errors(lambda proto: proto.name)
+@_capture_errors(lambda proto, base_path: proto.name)
 def deserialize_tensor(
     proto: onnx.TensorProto, base_path: str | os.PathLike = ""
 ) -> _protocols.TensorProtocol:
@@ -802,7 +802,7 @@ def deserialize_attribute(proto: onnx.AttributeProto) -> _core.Attr | _core.RefA
     return _deserialize_attribute(proto, [])
 
 
-@_capture_errors(str)
+@_capture_errors(lambda proto, scoped_values: str(proto))
 def _deserialize_attribute(
     proto: onnx.AttributeProto, scoped_values: list[dict[str, _core.Value]]
 ) -> _core.Attr | _core.RefAttr:
@@ -875,7 +875,7 @@ def deserialize_node(proto: onnx.NodeProto) -> _core.Node:
     return _deserialize_node(proto, scoped_values=[], value_info={})
 
 
-@_capture_errors(str)
+@_capture_errors(lambda proto, scoped_values, value_info: str(proto))
 def _deserialize_node(
     proto: onnx.NodeProto,
     scoped_values: list[dict[str, _core.Value]],
@@ -985,7 +985,7 @@ def serialize_model(model: _protocols.ModelProtocol) -> onnx.ModelProto:
 
 
 @_capture_errors(
-    lambda _, from_: (
+    lambda model_proto, from_: (
         f"ir_version={from_.ir_version}, producer_name={from_.producer_name}, "
         f"producer_version={from_.producer_version}, domain={from_.domain}, "
     )
@@ -1141,7 +1141,7 @@ def serialize_graph(
 
 
 @_capture_errors(
-    lambda _, from_: (
+    lambda graph_proto, from_: (
         f"name={from_.name}, doc_string={from_.doc_string}, "
         f"len(inputs)={len(from_.inputs)}, len(initializers)={len(from_.initializers)}, "
         f"len(nodes)={len(from_)}, len(outputs)={len(from_.outputs)}, metadata_props={from_.metadata_props}"
@@ -1201,7 +1201,7 @@ def serialize_function(
     return function_proto
 
 
-@_capture_errors(lambda _, from_: repr(from_))
+@_capture_errors(lambda function_proto, from_, create_value_info: repr(from_))
 def serialize_function_into(
     function_proto: onnx.FunctionProto,
     from_: _protocols.FunctionProtocol,
@@ -1267,7 +1267,7 @@ def serialize_node(node: _protocols.NodeProtocol) -> onnx.NodeProto:
     return node_proto
 
 
-@_capture_errors(lambda _, from_: repr(from_))
+@_capture_errors(lambda node_proto, from_: repr(from_))
 def serialize_node_into(node_proto: onnx.NodeProto, from_: _protocols.NodeProtocol) -> None:
     node_proto.op_type = from_.op_type
     if from_.domain:
@@ -1311,7 +1311,7 @@ def serialize_tensor(tensor: _protocols.TensorProtocol) -> onnx.TensorProto:
     return tensor_proto
 
 
-@_capture_errors(lambda _, from_: repr(from_))
+@_capture_errors(lambda tensor_proto, from_: repr(from_))
 def serialize_tensor_into(
     tensor_proto: onnx.TensorProto, from_: _protocols.TensorProtocol
 ) -> None:
@@ -1353,7 +1353,7 @@ def serialize_attribute(attribute: _protocols.AttributeProtocol) -> onnx.Attribu
     return attribute_proto
 
 
-@_capture_errors(lambda _, from_: repr(from_))
+@_capture_errors(lambda attribute_proto, from_: repr(from_))
 def serialize_attribute_into(
     attribute_proto: onnx.AttributeProto, from_: _protocols.AttributeProtocol
 ) -> None:
@@ -1438,7 +1438,7 @@ def _fill_in_value_for_attribute(
         raise TypeError(f"Unsupported attribute type: {type_}")
 
 
-@_capture_errors(lambda _, from_: repr(from_))
+@_capture_errors(lambda attribute_proto, from_: repr(from_))
 def serialize_reference_attribute_into(
     attribute_proto: onnx.AttributeProto, from_: _protocols.ReferenceAttributeProtocol
 ) -> None:
@@ -1462,7 +1462,7 @@ def serialize_value(value: _protocols.ValueProtocol, *, name: str = "") -> onnx.
     return value_info_proto
 
 
-@_capture_errors(lambda _, from_: repr(from_))
+@_capture_errors(lambda value_info_proto, from_: repr(from_))
 def serialize_value_into(
     value_info_proto: onnx.ValueInfoProto,
     from_: _protocols.ValueProtocol,
@@ -1491,7 +1491,7 @@ def serialize_value_into(
         value_info_proto.doc_string = from_.doc_string
 
 
-@_capture_errors(lambda _, from_: repr(from_))
+@_capture_errors(lambda type_proto, from_: repr(from_))
 def serialize_type_into(type_proto: onnx.TypeProto, from_: _protocols.TypeProtocol) -> None:
     if from_.denotation:
         type_proto.denotation = from_.denotation
@@ -1511,7 +1511,7 @@ def serialize_type_into(type_proto: onnx.TypeProto, from_: _protocols.TypeProtoc
         raise TypeError(f"Unsupported type: {from_}")
 
 
-@_capture_errors(lambda _, from_: repr(from_))
+@_capture_errors(lambda type_proto, from_: repr(from_))
 def serialize_shape_into(type_proto: onnx.TypeProto, from_: _protocols.ShapeProtocol) -> None:
     value_field = type_proto.WhichOneof("value")
     tensor_type = getattr(type_proto, value_field)
@@ -1527,7 +1527,7 @@ def serialize_shape_into(type_proto: onnx.TypeProto, from_: _protocols.ShapeProt
         serialize_dimension_into(tensor_type.shape.dim.add(), dim, denotation)
 
 
-@_capture_errors(lambda _, from_: repr(from_))
+@_capture_errors(lambda dim_proto, dim, denotation: repr(dim_proto))
 def serialize_dimension_into(
     dim_proto: onnx.TensorShapeProto.Dimension,
     dim: int | _protocols.SymbolicDimProtocol,
