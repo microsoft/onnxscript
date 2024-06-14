@@ -3796,14 +3796,14 @@ def aten_gru_cell(
     raise NotImplementedError()
 
 
-@torch_op(("aten::gt", "aten::gt.Scalar", "aten::greater", "_operator::gt"))
+@torch_op(("aten::gt.Tensor", "aten::gt.Scalar", "aten::greater", "_operator::gt"))
 def aten_gt(self: TReal, other: TReal) -> BOOL:
     """gt.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.Greater(self, other)
 
 
-@torch_op(("aten::gt", "aten::gt.Scalar", "aten::greater"))
+@torch_op(("aten::gt.Tensor", "aten::gt.Scalar", "aten::greater"))
 def aten_gt_bool(self: BOOL, other: BOOL) -> BOOL:
     """gt.Tensor(Tensor self, Tensor other) -> Tensor"""
     # self, other, self > other
@@ -4883,14 +4883,14 @@ def aten_lstm_mps_backward(
     raise NotImplementedError()
 
 
-@torch_op(("aten::lt", "aten::lt.Scalar", "aten::less", "_operator::lt"))
+@torch_op(("aten::lt.Tensor", "aten::lt.Scalar", "aten::less", "_operator::lt"))
 def aten_lt(self: TReal, other: TReal) -> BOOL:
     """lt.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.Less(self, other)
 
 
-@torch_op(("aten::lt", "aten::lt.Scalar", "aten::less"))
+@torch_op(("aten::lt.Tensor", "aten::lt.Scalar", "aten::less"))
 def aten_lt_bool(self: BOOL, other: BOOL) -> BOOL:
     """lt.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -7230,7 +7230,7 @@ def aten_rsub_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
 
 
 @torch_op("aten::scalar_tensor", trace_only=True)
-def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> RealType:
+def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype, layout: str = "", device: str = "", pin_memory: bool = False) -> RealType:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     # Set trace_only=True because different if branches return different dtypes
