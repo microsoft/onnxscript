@@ -70,6 +70,7 @@ if typing.TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_PLEASE_CONTRIBUTE = "Please contribute by creating a PR at https://github.com/microsoft/onnxscript."
 _FUNCTION_VALUE_INFO_SUPPORTED_VERSION = (
     10  # ONNX IR version where value info in functions was introduced
 )
@@ -98,7 +99,8 @@ def from_proto(
     | onnx.TensorProto
     | onnx.AttributeProto
     | onnx.ValueInfoProto
-    | onnx.TypeProto,
+    | onnx.TypeProto
+    | onnx.FunctionProto,
 ) -> Any:
     """Deserialize an ONNX proto message to an IR object."""
     if isinstance(proto, onnx.ModelProto):
@@ -118,6 +120,8 @@ def from_proto(
             deserialize_type_proto_for_type(proto),
             deserialize_type_proto_for_shape(proto),
         )
+    if isinstance(proto, onnx.FunctionProto):
+        return deserialize_function(proto)
     raise NotImplementedError(
         f"Deserialization of {type(proto)} in from_proto is not implemented. "
         "Use a specific ir.serde.deserialize* function instead."
@@ -133,7 +137,8 @@ def to_proto(
     | _protocols.ReferenceAttributeProtocol
     | _protocols.TensorProtocol
     | _protocols.TypeProtocol
-    | _protocols.GraphViewProtocol,
+    | _protocols.GraphViewProtocol
+    | _protocols.FunctionProtocol,
 ) -> Any:
     """Serialize an IR object to a proto."""
     if isinstance(ir_object, _protocols.ModelProtocol):
@@ -154,6 +159,8 @@ def to_proto(
         return serialize_type_into(onnx.TypeProto(), ir_object)
     if isinstance(ir_object, _protocols.GraphViewProtocol):
         return serialize_graph(ir_object)
+    if isinstance(ir_object, _protocols.FunctionProtocol):
+        return serialize_function(ir_object)
     raise NotImplementedError(
         f"Serialization of {type(ir_object)} in to_proto is not implemented. "
         "Use a specific ir.serde.serialize* function instead."
@@ -655,7 +662,7 @@ def deserialize_type_proto_for_shape(proto: onnx.TypeProto) -> _core.Shape | Non
         return deserialize_type_proto_for_shape(elem_type)
     if proto.HasField("map_type"):
         # TODO(justinchuby): Do we need to support map types?
-        raise NotImplementedError("Map types are not supported yet")
+        raise NotImplementedError(f"Map types are not supported yet. {_PLEASE_CONTRIBUTE}")
 
     return None
 
@@ -690,7 +697,7 @@ def deserialize_type_proto_for_type(
         return _core.OptionalType(nested_type, denotation=denotation)
     if proto.HasField("map_type"):
         # TODO(justinchuby): Do we need to support map types?
-        raise NotImplementedError("Map types are not supported yet")
+        raise NotImplementedError(f"Map types are not supported yet. {_PLEASE_CONTRIBUTE}")
 
     return None
 
@@ -803,9 +810,9 @@ def _deserialize_attribute(
             doc_string=doc_string,
         )
     if type_ == _enums.AttributeType.SPARSE_TENSOR:
-        raise NotImplementedError("Sparse tensors are not supported yet")
+        raise NotImplementedError(f"Sparse tensors are not supported yet. {_PLEASE_CONTRIBUTE}")
     if type_ == _enums.AttributeType.SPARSE_TENSORS:
-        raise NotImplementedError("Sparse tensors are not supported yet")
+        raise NotImplementedError(f"Sparse tensors are not supported yet. {_PLEASE_CONTRIBUTE}")
     if type_ == _enums.AttributeType.TYPE_PROTO:
         ir_type = deserialize_type_proto_for_type(proto.tp)
         shape = deserialize_type_proto_for_shape(proto.tp)
@@ -1344,9 +1351,9 @@ def _fill_in_value_for_attribute(
             serialize_graph_into(attribute_proto.graphs.add(), graph)
         attribute_proto.type = onnx.AttributeProto.GRAPHS
     elif type_ == _enums.AttributeType.SPARSE_TENSOR:
-        raise NotImplementedError("Sparse tensors are not supported yet")
+        raise NotImplementedError(f"Sparse tensors are not supported yet. {_PLEASE_CONTRIBUTE}")
     elif type_ == _enums.AttributeType.SPARSE_TENSORS:
-        raise NotImplementedError("Sparse tensors are not supported yet")
+        raise NotImplementedError(f"Sparse tensors are not supported yet. {_PLEASE_CONTRIBUTE}")
     elif type_ == _enums.AttributeType.TYPE_PROTO:
         # value: _core.TypeAndShape
         if value.type is not None:
