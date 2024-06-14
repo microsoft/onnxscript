@@ -3704,7 +3704,7 @@ def aten_ger(self: TensorType, vec2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("_operator::getitem")
+@torch_op(("_operator::getitem", "aten::getitem"))
 def aten_getitem(self: Sequence[TTensor], i: INT64) -> TTensor:
     return op.SequenceAt(self, i)
 

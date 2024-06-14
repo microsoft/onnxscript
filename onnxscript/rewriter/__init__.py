@@ -32,7 +32,8 @@ def rewrite(
     if function_rewrite_rules:
         for rule_cls in function_rewrite_rules:
             count, model_ir = rule_cls().apply_to_model(model_ir)
-            print(f"Applied {count} of onnxruntime specific function rewrite rules.")
+            if count > 0:
+                print(f"Applied {count} of rewrite rules.")
     if pattern_rewrite_rules:
         if not isinstance(pattern_rewrite_rules, RewriteRuleSet):
             # Create a pattern rule-set using provided rules

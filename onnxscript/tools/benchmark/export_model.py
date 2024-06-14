@@ -19,9 +19,13 @@ def main(args=None):
             This script can be used to quickly evaluate the improvment made by a pattern optimization
             for a particular model.
 
-            Example::
+            Example with a large phi model::
 
                 python -m onnxscript.tools.benchmark.export_model --model phi --device cuda --config large --num_hidden_layers=6 --dtype=float32 --dynamic=0 --verbose=1 --exporter=dynamo
+
+            Example with a medium llama model::
+
+                python -m onnxscript.tools.benchmark.export_model --model llama --device cuda --config large --num_hidden_layers=1 --dtype=float32 --dynamic=0 --verbose=1 --exporter=dynamo
             """
         ),
         repeat=(10, "number of inferences to measure"),
