@@ -113,15 +113,16 @@ jobs:
         os: [ubuntu-latest]
         transformers: ["4.37.2", "4.41.2"]
         torch: ["", "--pre"]
+        python_version: ["3.11"]
         name:
-          - py311
+          - dort
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Python ${{ matrix.python-version }}
+      - name: Setup Python ${{ matrix.python_version }}
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ matrix.python_version }}
       - name: Pull Test Data
         run: git lfs pull
       - run: |
