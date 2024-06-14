@@ -41,21 +41,21 @@ class SerdeTest(unittest.TestCase):
     def test_serialization_deserialization_produces_same_model(
         self, _: str, model_path: pathlib.Path
     ) -> None:
-        if not self.profiler:
-            raise unittest.SkipTest("pyinstrument is not installed.")
         model = onnx.load(model_path)
         # Fix the missing graph name of some test models
         model.graph.name = "main_graph"
         onnx.checker.check_model(model)
 
         # Profile the serialization and deserialization process
-        self.profiler.start()
+        if self.profiler:
+            self.profiler.start()
         ir_model = ir.serde.deserialize_model(model)
         serialized = ir.serde.serialize_model(ir_model)
-        self.profiler.stop()
-        profile_path = pathlib.Path(__file__).parent / "serde_test_profiles"
-        profile_path.mkdir(exist_ok=True)
-        self.profiler.write_html(profile_path / f"{self.id().split('.')[-1]}.html")
+        if self.profiler:
+            self.profiler.stop()
+            profile_path = pathlib.Path(__file__).parent / "serde_test_profiles"
+            profile_path.mkdir(exist_ok=True)
+            self.profiler.write_html(profile_path / f"{self.id().split('.')[-1]}.html")
 
         onnxscript.testing.assert_onnx_proto_equal(serialized, model)
         onnx.checker.check_model(serialized)
