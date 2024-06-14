@@ -171,20 +171,12 @@ class LlamaRuleSetsTest(unittest.TestCase):
 
     @classmethod
     def _cast_identity_models(cls):
-        models = [
-            onnx.helper.make_model(
-                onnx.helper.make_graph(
-                    [
-                        onnx.helper.make_node("Cast", ["X"], ["Y"], to=onnx.TensorProto.FLOAT),
-                    ],
-                    "name",
-                    [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None, None])],
-                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [None, None, None])],
-                ),
-                opset_imports=[onnx.helper.make_opsetid("", 18)],
-            ),
-        ]
-        return models
+        @onnxscript.script
+        def model(x: FLOAT["a", "b", "c"]) -> FLOAT["a", "b", "c"]:
+        y = op.Cast(x, to=onnx.TensorProto.FLOAT)
+        return y
+        
+        proto = model.to_model_proto()
 
     def test_llama_p0_rule_set_cast_identity(self):
         for model_proto in self._cast_identity_models():
