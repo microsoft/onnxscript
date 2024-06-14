@@ -524,6 +524,70 @@ class GenericPatternTest(unittest.TestCase):
         self.assertEqual(att.name, "perm")
         self.assertEqual(list(att.ints), [2, 0, 1])
 
+    @classmethod
+    def _slides_split_models(cls):
+        model = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                [
+                    onnx.helper.make_node("Slice", ["X", "zero", "half", "axis"], ["spl1"]),
+                    onnx.helper.make_node("Slice", ["X", "half", "last", "axis"], ["spl2"]),
+                ],
+                "name",
+                [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 6])],
+                [
+                    onnx.helper.make_tensor_value_info("spl1", FLOAT, [3, 4, 3]),
+                    onnx.helper.make_tensor_value_info("spl2", FLOAT, [3, 4, 3]),
+                ],
+                [
+                    onnx.numpy_helper.from_array(np.array([0], dtype=np.int64), name="zero"),
+                    onnx.numpy_helper.from_array(np.array([3], dtype=np.int64), name="half"),
+                    onnx.numpy_helper.from_array(np.array([6], dtype=np.int64), name="last"),
+                    onnx.numpy_helper.from_array(np.array([2], dtype=np.int64), name="axis"),
+                ],
+            ),
+            opset_imports=[onnx.helper.make_opsetid("", 18)],
+        )
+        return model
+
+    def test_graph_pattern_builder_slice_split(self):
+        def match_pattern(op, x, b0, e0, a0, b1, e1, a1):
+            """Builds the pattern to match."""
+            return op.Split(x, b0, e0, a0), op.Split(x, b1, e1, a1)
+
+        def apply_pattern(op, x, b0, e0, a0, b1, e1, a1):
+            """Builds the pattern to match."""
+            return op.Split(x, axis=-1, num_outputs=2)
+
+        def validate_mapping(context, x, b0, e0, a0, b1, e1, a1) -> bool:
+            # always true for this but really not true in the generic case
+            return True
+
+        rule = pattern.RewriteRule(
+            match_pattern,
+            apply_pattern,
+            validate_mapping,
+            generic_pattern.GenericPatternMatcher,
+            verbose=10,
+        )
+
+        model = self._slides_split_models()
+        onnx.checker.check_model(model)
+
+        model = onnx.shape_inference.infer_shapes(model)
+        ir_model = ir.serde.deserialize_model(model)
+        rule.apply_to_model(ir_model)
+        self.assertEqual(["Slice", "Slice"], [n.op_type for n in ir_model.graph])
+        rewriten_model = ir.serde.serialize_model(ir_model)
+        self.assertEqual(["Split"], [n.op_type for n in rewriten_model.graph.node])
+
+        feeds = {"x": self._range(3, 4, 6)}
+        ref1 = onnx.reference.ReferenceEvaluator(model)
+        expected = ref1.run(None, feeds)
+        self.assertEqual(0, len(rewriten_model.graph.initializer))
+        ref2 = onnx.reference.ReferenceEvaluator(rewriten_model)
+        got = ref2.run(None, feeds)
+        np.testing.assert_almost_equal(expected[0], got[0])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
