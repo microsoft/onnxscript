@@ -1193,7 +1193,6 @@ def aten_binomial(
 
 @torch_op(
     (
-        "aten::bitwise_and",
         "aten::bitwise_and.Tensor",
         "aten::bitwise_and.Scalar",
         "aten::bitwise_and.Scalar_Tensor",
@@ -1207,7 +1206,13 @@ def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
     return op.BitwiseAnd(self, other)
 
 
-@torch_op("aten::bitwise_left_shift")
+@torch_op(
+    (
+        "aten::bitwise_left_shift.Tensor",
+        "aten::bitwise_left_shift.Tensor_Scalar",
+        "aten::bitwise_left_shift.Scalar_Tensor",
+    )
+)
 def aten_bitwise_left_shift_int16(self: INT16, other: INT16) -> INT16:
     """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
     # assert other >= 0
@@ -1219,7 +1224,13 @@ def aten_bitwise_left_shift_int16(self: INT16, other: INT16) -> INT16:
     return op.Cast(result, to=INT16.dtype)
 
 
-@torch_op("aten::bitwise_left_shift")
+@torch_op(
+    (
+        "aten::bitwise_left_shift.Tensor",
+        "aten::bitwise_left_shift.Tensor_Scalar",
+        "aten::bitwise_left_shift.Scalar_Tensor",
+    )
+)
 def aten_bitwise_left_shift_int32(self: INT32, other: INT32) -> INT32:
     """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
     # assert other >= 0
@@ -1231,7 +1242,13 @@ def aten_bitwise_left_shift_int32(self: INT32, other: INT32) -> INT32:
     return op.Cast(result, to=INT32.dtype)
 
 
-@torch_op("aten::bitwise_left_shift")
+@torch_op(
+    (
+        "aten::bitwise_left_shift.Tensor",
+        "aten::bitwise_left_shift.Tensor_Scalar",
+        "aten::bitwise_left_shift.Scalar_Tensor",
+    )
+)
 def aten_bitwise_left_shift_int64(self: INT64, other: INT64) -> INT64:
     """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
     # assert other >= 0
@@ -1243,7 +1260,13 @@ def aten_bitwise_left_shift_int64(self: INT64, other: INT64) -> INT64:
     return op.Cast(result, to=INT64.dtype)
 
 
-@torch_op("aten::bitwise_left_shift")
+@torch_op(
+    (
+        "aten::bitwise_left_shift.Tensor",
+        "aten::bitwise_left_shift.Tensor_Scalar",
+        "aten::bitwise_left_shift.Scalar_Tensor",
+    )
+)
 def aten_bitwise_left_shift_int8(self: INT8, other: INT8) -> INT8:
     """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
     # assert other >= 0
@@ -1265,7 +1288,6 @@ def aten_bitwise_not(self: TInt) -> TInt:
 
 @torch_op(
     (
-        "aten::bitwise_or",
         "aten::bitwise_or.Tensor",
         "aten::bitwise_or.Scalar",
         "aten::bitwise_or.Scalar_Tensor",
@@ -1279,7 +1301,13 @@ def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
     return op.BitwiseOr(self, other)
 
 
-@torch_op("aten::bitwise_right_shift")
+@torch_op(
+    (
+        "aten::bitwise_right_shift.Tensor",
+        "aten::bitwise_right_shift.Tensor_Scalar",
+        "aten::bitwise_right_shift.Scalar_Tensor",
+    )
+)
 def aten_bitwise_right_shift_int16(self: INT16, other: INT16) -> INT16:
     """bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
     negative = op.Less(self, 0)
@@ -1302,7 +1330,13 @@ def aten_bitwise_right_shift_int16(self: INT16, other: INT16) -> INT16:
     )
 
 
-@torch_op("aten::bitwise_right_shift")
+@torch_op(
+    (
+        "aten::bitwise_right_shift.Tensor",
+        "aten::bitwise_right_shift.Tensor_Scalar",
+        "aten::bitwise_right_shift.Scalar_Tensor",
+    )
+)
 def aten_bitwise_right_shift_int32(self: INT32, other: INT32) -> INT32:
     """bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
     negative = op.Less(self, 0)
@@ -1325,7 +1359,13 @@ def aten_bitwise_right_shift_int32(self: INT32, other: INT32) -> INT32:
     )
 
 
-@torch_op("aten::bitwise_right_shift")
+@torch_op(
+    (
+        "aten::bitwise_right_shift.Tensor",
+        "aten::bitwise_right_shift.Tensor_Scalar",
+        "aten::bitwise_right_shift.Scalar_Tensor",
+    )
+)
 def aten_bitwise_right_shift_int64(self: INT64, other: INT64) -> INT64:
     """bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
     negative = op.Less(self, 0)
@@ -1351,7 +1391,13 @@ def aten_bitwise_right_shift_int64(self: INT64, other: INT64) -> INT64:
     )
 
 
-@torch_op("aten::bitwise_right_shift")
+@torch_op(
+    (
+        "aten::bitwise_right_shift.Tensor",
+        "aten::bitwise_right_shift.Tensor_Scalar",
+        "aten::bitwise_right_shift.Scalar_Tensor",
+    )
+)
 def aten_bitwise_right_shift_int8(self: INT8, other: INT8) -> INT8:
     """bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
     negative = op.Less(self, 0)
@@ -7230,7 +7276,13 @@ def aten_rsub_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
 
 
 @torch_op("aten::scalar_tensor", trace_only=True)
-def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype, layout: str = "", device: str = "", pin_memory: bool = False) -> RealType:
+def aten_scalar_tensor(
+    s: float,
+    dtype: int = FLOAT.dtype,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+) -> RealType:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     # Set trace_only=True because different if branches return different dtypes
@@ -8299,7 +8351,7 @@ def aten_unbind(self: TTensor, dim: int = 0) -> Sequence[TTensor]:
     return op.SplitToSequence(self, split_sizes, axis=dim, keepdims=False)
 
 
-@torch_op("aten::unflatten")
+@torch_op("aten::unflatten.int")
 def aten_unflatten(self: TReal, dim: INT64, sizes: INT64):
     """unflatten(Tensor(a) self, int dim, SymInt[] sizes) -> Tensor(a)"""
 
