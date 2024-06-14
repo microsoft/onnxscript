@@ -12,7 +12,7 @@ import onnx
 import onnx.reference
 import onnxruntime as ort
 
-from onnxscript import ir
+from onnxscript import ir, optimizer
 from onnxscript.rewriter import generic_pattern, pattern
 
 FLOAT = onnx.TensorProto.FLOAT
@@ -556,7 +556,7 @@ class GenericPatternTest(unittest.TestCase):
 
         def apply_pattern(op, x, b0, e0, a0, b1, e1, a1):
             """Builds the pattern to match."""
-            return op.Split(x, axis=-1, num_outputs=2)
+            return op.Split(x, axis=-1, num_outputs=2, outputs=2)
 
         def validate_mapping(context, x, b0, e0, a0, b1, e1, a1) -> bool:
             # always true for this but really not true in the generic case
@@ -567,7 +567,7 @@ class GenericPatternTest(unittest.TestCase):
             apply_pattern,
             validate_mapping,
             generic_pattern.GenericPatternMatcher,
-            verbose=10,
+            verbose=0,
         )
 
         model = self._slides_split_models()
@@ -575,12 +575,13 @@ class GenericPatternTest(unittest.TestCase):
 
         model = onnx.shape_inference.infer_shapes(model)
         ir_model = ir.serde.deserialize_model(model)
-        rule.apply_to_model(ir_model, verbose=10)
-        self.assertEqual(["Slice", "Slice"], [n.op_type for n in ir_model.graph])
+        rule.apply_to_model(ir_model, verbose=0)
         rewriten_model = ir.serde.serialize_model(ir_model)
+        # TODO: implement remove_unused_nodes, remove_identity_node with the IR
+        optimizer.remove_unused_nodes(rewriten_model)
         self.assertEqual(["Split"], [n.op_type for n in rewriten_model.graph.node])
 
-        feeds = {"x": self._range(3, 4, 6)}
+        feeds = {"X": self._range(3, 4, 6)}
         ref1 = onnx.reference.ReferenceEvaluator(model)
         expected = ref1.run(None, feeds)
         self.assertEqual(0, len(rewriten_model.graph.initializer))

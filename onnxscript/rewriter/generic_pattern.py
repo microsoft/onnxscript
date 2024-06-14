@@ -333,8 +333,8 @@ class GenericPatternMatcher(orp.PatternMatcher):
         starting_node: ir.Node,
         matched: dict[orp.NodePattern, ir.Node],
         stack: list[orp.NodePattern],
-        graph_node: ir.Node,
-        pattern_node: orp.NodePattern,
+        graph_node: ir.Node | ir.TensorProtocol,
+        pattern_node: orp.NodePattern | ir.TensorProtocol,
     ) -> int | None:
         """
         Matches forward.
@@ -352,18 +352,22 @@ class GenericPatternMatcher(orp.PatternMatcher):
         match_count = 0
 
         # successors
-        if len(graph_node.outputs) != len(pattern_node.outputs):
-            # not the same number of outputs
-            self._hint(
-                "FORWARD: not the same number of output_names",
-                "-- pattern",
-                pattern_node,
-                "-- model",
-                graph_node,
-            )
-            return self.none(starting_node, inspect.currentframe().f_lineno)
+        if isinstance(graph_node, ir.Node) and isinstance(pattern_node, orp.NodePattern):
+            if len(graph_node.outputs) != len(pattern_node.outputs):
+                # not the same number of outputs
+                self._hint(
+                    "FORWARD: not the same number of output_names",
+                    "-- pattern",
+                    pattern_node,
+                    "-- model",
+                    graph_node,
+                )
+                return self.none(starting_node, inspect.currentframe().f_lineno)
+            matched_results = list(zip(graph_node.outputs, pattern_node.outputs))
+        else:
+            matched_results = [(graph_node, pattern_node)]
 
-        for graph_output, pattern_output in zip(graph_node.outputs, pattern_node.outputs):
+        for graph_output, pattern_output in matched_results:
             graph_node_users = [user for user, _ in graph_output.uses()]
             pattern_node_users = [user for user, _ in pattern_output.uses()]
             if not pattern_node_users:
@@ -390,7 +394,8 @@ class GenericPatternMatcher(orp.PatternMatcher):
                 if node not in matched:
                     if self.verbose >= 10:
                         print(
-                            f"[GenericPatternMatcher._match_forward]{self.print_match(graph_node_users[0], pattern_node_users[0])}"
+                            f"[GenericPatternMatcher._match_forward]"
+                            f"{self.print_match(graph_node_users[0], pattern_node_users[0])}"
                         )
                     matched[node] = graph_node_users[0]
                     stack.append(node)
@@ -581,13 +586,16 @@ class GenericPatternMatcher(orp.PatternMatcher):
                     if len(psuccessors) == 1:
                         # It is itself.
                         continue
-                    print(matched)
-                    for pnn in psuccessors:
-                        if id(pnn) not in matched:
-                            # One unmarked node is consuming the input.
+
+                    for pn in psuccessors:
+                        if pn not in matched:
+                            # pn is mutable, python should fail here...
+                            # One unmatched node is consuming the input.
                             # The potential list of candidates.
-                            fall_back_candidates = list(zip(n.input, pn.input))
-                            break                
+                            fallback_candidates = list(
+                                zip(next_graph_node.inputs, next_pattern_node.inputs)
+                            )
+                            break
 
             nodes_not_in_pattern = set(matched.keys()) - all_pattern_nodes
             assert (
@@ -601,6 +609,16 @@ class GenericPatternMatcher(orp.PatternMatcher):
                 if self.verbose > 5:
                     print("[GenericPatternMatcher.match] done. forward failed.")
                 return result
+
+            if result == 0 and fallback_candidates:
+                # No backward possible, no forward either.
+                # We make sure that one of pattern inputs is not linked to another
+                # node in the pattern itself.
+                for candidate in fallback_candidates:
+                    result = self._match_forward(node, matched, stack, *candidate)
+                    if result is None or result == 0:
+                        continue
+                    break
 
             nodes_not_in_pattern = set(matched.keys()) - all_pattern_nodes
             assert (
