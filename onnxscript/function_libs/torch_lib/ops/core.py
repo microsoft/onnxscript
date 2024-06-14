@@ -3202,8 +3202,15 @@ def aten_embedding_sparse_backward(
     raise NotImplementedError()
 
 
-@torch_op(("aten::empty", "aten::empty.memory_format"))
-def aten_empty(size: IntType, dtype: int = FLOAT.dtype) -> TTensor:  # type: ignore[type-var]
+@torch_op(("aten::empty.memory_format"), traceable=True)
+def aten_empty(
+    size: IntType,
+    dtype: int = FLOAT.dtype,
+    layout: str = "",  # pylint: disable=unused-argument
+    device: str = "",  # pylint: disable=unused-argument
+    pin_memory: bool = False,  # pylint: disable=unused-argument
+    memory_format: str = "",  # pylint: disable=unused-argument
+) -> TensorType:  # type: ignore[type-var]
     # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     # using Zeros to simulate np.empty()
@@ -3470,7 +3477,7 @@ def aten_feature_dropout(input: TensorType, p: float, train: bool) -> TensorType
     raise NotImplementedError()
 
 
-@torch_op(("aten::fill", "aten::fill.Tensor"))
+@torch_op("aten::fill.Tensor")
 def aten_fill(self: TTensor, value: TTensor) -> TTensor:
     """fill.Tensor(Tensor self, Tensor value) -> Tensor"""
 
@@ -6270,7 +6277,16 @@ def aten_norm_except_dim(v: TensorType, pow: int = 2, dim: int = 0) -> TensorTyp
     raise NotImplementedError()
 
 
-@torch_op(("aten::normal", "aten::normal_functional"), traceable=True)
+@torch_op(
+    (
+        "aten::normal.Tensor_float",
+        "aten::normal.Tensor_Tensor",
+        "aten::normal.float_Tensor",
+        "aten::normal.float_float",
+        "aten::normal_functional",
+    ),
+    traceable=True,
+)
 def aten_normal(
     self: TTensor,
     mean: float = 0.0,
@@ -7241,14 +7257,14 @@ def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     return op.Reciprocal(op.Sqrt(self))
 
 
-@torch_op(("aten::rsub", "aten::rsub.Scalar"))
+@torch_op(("aten::rsub.Tensor", "aten::rsub.Scalar"))
 def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
     return op.Sub(other, op.Mul(self, alpha))
 
 
-@torch_op(("aten::rsub", "aten::rsub.Scalar"), trace_only=True, complex=True)
+@torch_op(("aten::rsub.Tensor", "aten::rsub.Scalar"), trace_only=True, complex=True)
 def aten_rsub_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
@@ -7330,18 +7346,7 @@ def aten_scatter_reduce(
         "amax": "max",
     }
     onnx_reduce = reduce_mode[reduce]
-    return _aten_scatter_reduce_onnx(self, index, src, dim, onnx_reduce)
-
-
-@torch_op("aten::scatter_reduce", private=True)
-def _aten_scatter_reduce_onnx(
-    self: TReal,
-    index: TInt,
-    src: TReal,
-    dim: int,
-    onnx_reduce: str,
-):
-    self_is_scalar = IsScalar(self)
+    self_is_scalar = len(self.shape) == 0
     if self_is_scalar:  # assert (index_rank == 0 and rank_src == 0)
         neg_1 = op.Constant(value_ints=[-1])
         self = op.Reshape(self, neg_1)
@@ -7381,7 +7386,7 @@ def aten_segment_reduce(
     raise NotImplementedError()
 
 
-@torch_op(("aten::select", "aten::select.int"))
+@torch_op("aten::select.int", traceable=True)
 def aten_select(self: TTensor, dim: int, index: int) -> TTensor:
     """select(Tensor self, int dim, int index) -> Tensor"""
 
@@ -7589,7 +7594,7 @@ def aten_smm(self: TensorType, mat2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::softmax", "aten::softmax.int", "aten::special_softmax"), trace_only=True)
+@torch_op(("aten::softmax.int", "aten::special_softmax"), trace_only=True)
 def aten_softmax(self: TFloatOrBFloat16, dim: int, dtype: int = -1) -> TFloatOrBFloat16:
     """softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
 
@@ -7886,7 +7891,7 @@ def aten_stft(
     return result
 
 
-@torch_op(("aten::sub", "aten::sub.Tensor", "aten::subtract", "_operator::sub"))
+@torch_op(("aten::sub.Tensor", "aten::subtract.Tensor", "_operator::sub"))
 def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
     alpha = op.CastLike(alpha, other)
@@ -7896,7 +7901,7 @@ def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
 
 
 @torch_op(
-    ("aten::sub", "aten::sub.Tensor", "aten::subtract", "_operator::sub"),
+    ("aten::sub.Tensor", "aten::subtract.Tensor", "_operator::sub"),
     trace_only=True,
     complex=True,
 )
@@ -8208,7 +8213,7 @@ def aten_trace_backward(grad: TensorType, sizes: INT64) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::transpose", "aten::transpose.int"), trace_only=True)
+@torch_op(("aten::transpose.int"), trace_only=True)
 def aten_transpose(self: TTensor, dim0: int, dim1: int) -> TTensor:
     """transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)"""
 
@@ -8323,7 +8328,7 @@ def aten_type_as(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::unbind", "aten::unbind.int"))
+@torch_op("aten::unbind.int")
 def aten_unbind(self: TTensor, dim: int = 0) -> Sequence[TTensor]:
     """unbind.int(Tensor(a -> *) self, int dim=0) -> Tensor(a)[]"""
 
@@ -8778,7 +8783,13 @@ def aten_xor(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::zeros", traceable=True)
-def aten_zeros(size: IntType, dtype: int = FLOAT.dtype, layout:str="", device:str="", pin_memory:bool=False) -> TensorType:
+def aten_zeros(
+    size: IntType,
+    dtype: int = FLOAT.dtype,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+) -> TensorType:
     """zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     size = op.Cast(size, to=INT64.dtype)
