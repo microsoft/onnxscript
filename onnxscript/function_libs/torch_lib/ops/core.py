@@ -3560,7 +3560,7 @@ def aten_full(size: INT64, fill_value: FLOAT, dtype: int = FLOAT.dtype):
 
 
 @torch_op("aten::full_like")
-def aten_full_like(self, fill_value: TTensor) -> TTensor:
+def aten_full_like(self: TTensor, fill_value: TTensor) -> TTensor:
     """full_like(Tensor self, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
     fill_value = op.CastLike(fill_value, self)
@@ -3570,7 +3570,7 @@ def aten_full_like(self, fill_value: TTensor) -> TTensor:
 
 
 @torch_op("aten::full_like")
-def aten_full_like_dtype(self, fill_value: TTensor, dtype: int) -> TTensor:
+def aten_full_like_dtype(self: TTensor, fill_value: TTensor, dtype: int) -> TTensor:
     """full_like(Tensor self, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
     fill_value = op.Cast(fill_value, to=dtype)
@@ -3669,8 +3669,7 @@ def aten_ger(self: TensorType, vec2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-# NOTE: The name is made up for `getitem` to be included in the registry
-@torch_op("aten::getitem")
+@torch_op("_operator::getitem")
 def aten_getitem(self: Sequence[TTensor], i: INT64) -> TTensor:
     return op.SequenceAt(self, i)
 
@@ -8174,7 +8173,7 @@ def aten_trace_backward(grad: TensorType, sizes: INT64) -> TensorType:
 
 
 @torch_op(("aten::transpose", "aten::transpose.int"), trace_only=True)
-def aten_transpose(self, dim0: int, dim1: int):
+def aten_transpose(self: TTensor, dim0: int, dim1: int) -> TTensor:
     """transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)"""
 
     # Use trace only to construct the prem attribute in Transpose
@@ -8194,7 +8193,7 @@ def aten_transpose(self, dim0: int, dim1: int):
 
 
 @torch_op(("aten::transpose", "aten::transpose.int"), trace_only=True, complex=True)
-def aten_transpose_complex(self, dim0: int, dim1: int):
+def aten_transpose_complex(self: TTensor, dim0: int, dim1: int) -> TTensor:
     """transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)"""
 
     # Use trace only to construct the prem attribute in Transpose
