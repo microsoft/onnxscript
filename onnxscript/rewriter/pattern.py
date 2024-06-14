@@ -662,6 +662,9 @@ class GraphPattern:
     def num_nodes(self) -> int:
         return len(self._nodes)
 
+    def __len__(self) -> int:
+        return self.num_nodes()
+
     @property
     def inputs(self) -> Sequence[ValuePattern]:
         return self._inputs
