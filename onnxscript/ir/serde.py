@@ -453,7 +453,6 @@ def _parse_experimental_function_value_info_name(
     return function_domain, function_name, value_name
 
 
-@_capture_errors(lambda proto: proto.name)
 def deserialize_model(proto: onnx.ModelProto) -> _core.Model:
     graph = _deserialize_graph(proto.graph, [])
     graph.opset_imports.update(deserialize_opset_import(proto.opset_import))
@@ -984,7 +983,6 @@ def serialize_model(model: _protocols.ModelProtocol) -> onnx.ModelProto:
     return serialize_model_into(onnx.ModelProto(), from_=model)
 
 
-@_capture_errors(lambda _, from_: from_.name)
 def serialize_model_into(
     model_proto: onnx.ModelProto, from_: _protocols.ModelProtocol
 ) -> onnx.ModelProto:
