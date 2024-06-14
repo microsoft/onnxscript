@@ -2414,7 +2414,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         inputs_text = ",\n".join(str(x) for x in self.inputs)
         outputs_text = ",\n".join(str(x) for x in self.outputs)
         attributes_text = ",\n".join(
-            f"{attr.name}: {attr.type}" + f" = {attr.value}" * (attr.value is None)
+            f"{attr.name}: {attr.type}" + f" = {attr.value}" * (attr.value is not None)
             for attr in self.attributes.values()
         )
         if attributes_text:
