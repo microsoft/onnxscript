@@ -1444,11 +1444,12 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
         producer = self.producer()
-        producer_text = (
-            producer.name is not None or "anonymous_node:" + str(id(producer))
-            if producer is not None
-            else None
-        )
+        if producer is None:
+            producer_text = "None"
+        elif producer.name is not None:
+            producer_text = producer.name
+        else:
+            producer_text = f"anonymous_node:{id(producer)}"
         return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, producer={producer_text}, index={self.index()})"
 
     def __str__(self) -> str:
@@ -2413,7 +2414,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         inputs_text = ",\n".join(str(x) for x in self.inputs)
         outputs_text = ",\n".join(str(x) for x in self.outputs)
         attributes_text = ",\n".join(
-            f"{attr.name}: {attr.type}" + f" = {attr.value}" * (attr.value is None)
+            f"{attr.name}: {attr.type}" + f" = {attr.value}" * (attr.value is not None)
             for attr in self.attributes.values()
         )
         if attributes_text:
