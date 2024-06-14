@@ -705,7 +705,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("bitwise_xor", core_ops.aten_bitwise_xor),
     TorchLibOpInfo("bmm", core_ops.aten_bmm),
     TorchLibOpInfo("broadcast_to", core_ops.aten_broadcast_to),
-    TorchLibOpInfo("cat", core_ops.aten_cat).skip(
+    TorchLibOpInfo("cat", core_ops.aten_cat, trace_only=True).skip(
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
@@ -739,11 +739,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("clone", core_ops.aten_clone),
     TorchLibOpInfo("complex", core_ops.aten_complex, trace_only=True),
-    TorchLibOpInfo("concat", core_ops.aten_cat).skip(
+    TorchLibOpInfo("concat", core_ops.aten_cat, trace_only=True).skip(
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
-    TorchLibOpInfo("concatenate", core_ops.aten_cat).skip(
+    TorchLibOpInfo("concatenate", core_ops.aten_cat, trace_only=True).skip(
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
