@@ -2554,7 +2554,7 @@ class AttrFloat32(_SpecializedAttr):
         super().__init__(
             name,
             _enums.AttributeType.FLOAT,
-            value,
+            float(value),
             doc_string=doc_string,
         )
 
@@ -2564,7 +2564,7 @@ class AttrInt64(_SpecializedAttr):
         super().__init__(
             name,
             _enums.AttributeType.INT,
-            value,
+            int(value),
             doc_string=doc_string,
         )
 
@@ -2622,7 +2622,7 @@ class AttrFloat32s(_SpecializedAttr):
         super().__init__(
             name,
             _enums.AttributeType.FLOATS,
-            value,
+            [float(v) for v in value],
             doc_string=doc_string,
         )
 
@@ -2637,7 +2637,7 @@ class AttrInt64s(_SpecializedAttr):
         super().__init__(
             name,
             _enums.AttributeType.INTS,
-            value,
+            [int(v) for v in value],
             doc_string=doc_string,
         )
 
