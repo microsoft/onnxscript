@@ -2823,7 +2823,7 @@ def aten_einsum(
 @torch_op("aten::embedding")
 def aten_embedding(
     weight: TTensor,
-    indices: TTensor,
+    indices: TInt,
     padding_idx: int = -1,
     scale_grad_by_freq: bool = False,
     sparse: bool = False,
