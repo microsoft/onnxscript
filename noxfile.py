@@ -33,7 +33,6 @@ COMMON_TEST_DEPENDENCIES = (
 )
 ONNX = "onnx==1.16"
 ONNX_RUNTIME = "onnxruntime==1.17.1"
-ONNX_RUNTIME_TRAINING = "onnxruntime-training==1.17.1"
 PYTORCH = "torch==2.2.2"
 TORCHVISON = "torchvision==0.17.2"
 TRANSFORMERS = "transformers>=4.37.2"
@@ -73,10 +72,7 @@ def test(session):
 
 @nox.session(tags=["test-torch-nightly"])
 def test_torch_nightly(session):
-    """Test with PyTorch nightly (preview) build.
-
-    onnxruntime-training is installed instead of onnxruntime.
-    This allows to test onnxrt backend."""
+    """Test with PyTorch nightly (preview) build."""
     session.install(
         *COMMON_TEST_DEPENDENCIES,
         ONNX_RUNTIME,
@@ -85,9 +81,6 @@ def test_torch_nightly(session):
     session.install("-r", "requirements/ci/requirements-onnx-weekly.txt")
     session.install("-r", "requirements/ci/requirements-pytorch-nightly.txt")
     session.install(".", "--no-deps")
-    if sys.platform == "linux":
-        session.install("numpy==1.26.4")
-        session.install("onnxruntime-training==1.17.1")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", "--doctest-modules", *session.posargs)
     session.run("pytest", "tests", *session.posargs)
