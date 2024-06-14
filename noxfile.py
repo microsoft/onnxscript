@@ -19,7 +19,6 @@ COMMON_TEST_DEPENDENCIES = (
     'numpy==1.26.4; python_version>="3.9"',
     "packaging",
     "parameterized",
-    "pyinstrument",
     "pytest-cov",
     "pytest-randomly",
     "pytest-subtests",
