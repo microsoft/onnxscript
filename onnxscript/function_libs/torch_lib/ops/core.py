@@ -1501,7 +1501,7 @@ def aten_cat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
 
     # Remove None tensors
     tensors = [tensor for tensor in tensors if tensor is not None]
-    return op.ConcatFromSequence(tensors, axis=dim)
+    return op.Concat(*tensors, axis=dim)
 
 
 def aten_ccol_indices(self: TensorType) -> TensorType:
