@@ -324,6 +324,7 @@ def concat_from_sequence(
             for i in range(len(node.attribute)):
                 if node.attribute[i].name == "new_axis":
                     del node.attribute[i]
+                    # TODO: break?
             return [*unsqueeze_nodes, node]
     return None
 
