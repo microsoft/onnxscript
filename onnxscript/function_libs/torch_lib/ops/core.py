@@ -8213,7 +8213,7 @@ def aten_trace_backward(grad: TensorType, sizes: INT64) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::transpose.int"), trace_only=True)
+@torch_op("aten::transpose.int", trace_only=True)
 def aten_transpose(self: TTensor, dim0: int, dim1: int) -> TTensor:
     """transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)"""
 
