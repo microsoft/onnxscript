@@ -175,7 +175,7 @@ class LlamaRuleSetsTest(unittest.TestCase):
     @classmethod
     def _cast_identity_models(cls):
         @onnxscript.script()
-        def model(x: ot.FLOAT["a", "b", "c"]) -> ot.FLOAT["a", "b", "c"]:
+        def model(x: ot.FLOAT["a", "b", "c"]) -> ot.FLOAT["a", "b", "c"]:  # noqa: F821, UP037
             y = opset18.Cast(x, to=onnx.TensorProto.FLOAT)
             return y
 
