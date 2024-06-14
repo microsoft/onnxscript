@@ -527,6 +527,9 @@ class OnnxFunction(Op):
 
         return evaluator.default().eval_function(self, args, kwargs)
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.function!r})"
+
     def param_schemas(self) -> tuple[ParamSchema, ...]:
         """Returns the parameter schemas of this function."""
         if self._param_schemas is not None:
