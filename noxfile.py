@@ -5,7 +5,6 @@
 Documentation:
     https://nox.thea.codes/
 """
-import sys
 
 import nox
 

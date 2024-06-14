@@ -29,14 +29,15 @@ def is_onnxruntime_training() -> bool:
     """Returns True if the onnxruntime is onnxruntime-training."""
     try:
         from onnxruntime import training  # pylint: disable=import-outside-toplevel
+
         assert training
     except ImportError:
         # onnxruntime not training
         return False
 
     try:
-        from onnxruntime.capi.onnxruntime_pybind11_state import (
-            OrtValueVector,  # pylint: disable=import-outside-toplevel
+        from onnxruntime.capi.onnxruntime_pybind11_state import (  # pylint: disable=import-outside-toplevel
+            OrtValueVector,
         )
     except ImportError:
         return False
