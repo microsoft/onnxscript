@@ -49,7 +49,8 @@ def rewrite(
     if function_rules:
         for rule_cls in function_rules:
             count, model = rule_cls().apply_to_model(model)
-            print(f"Applied {count} of onnxruntime specific function rewrite rules.")
+            if count > 0:
+                print(f"Applied {count} of onnxruntime specific function rewrite rules.")
     if pattern_rules:
         count = pattern.RewriteRuleSet(pattern_rules).apply_to_model(model)
         print(f"Applied {count} of onnxruntime specific pattern rewrite rules.")

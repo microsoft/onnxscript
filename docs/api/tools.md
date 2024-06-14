@@ -9,3 +9,7 @@
 ```{eval-rst}
 .. autofunction:: onnxscript.tools.transformers_models.phi.get_phi_model_config
 ```
+
+```{eval-rst}
+.. autofunction:: onnxscript.tools.transformers_models.llama.get_llama_model_config
+```
