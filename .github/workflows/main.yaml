@@ -126,14 +126,12 @@ jobs:
       - name: Pull Test Data
         run: git lfs pull
       - run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install -r requirements-dev.txt
+          python -m pip install --upgrade pip setuptools wheel pytest onnx
         name: Install requirements.
       - run: |
           python -m pip install ${{ matrix.torch }} torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cpu
           name: Install torch
       - run: |
-          python -m pip uninstall -y onnxruntime
           python -m pip install onnxruntime-training
         name: Install onnxruntime-training
       - run: |
