@@ -72,11 +72,11 @@ class TestExportPhi(unittest.TestCase):
         )
 
         results = compiled_model(*input_tensors)
-        torch.testing.assert_allclose(expected[0], results[0], atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(expected[0], results[0], atol=1e-5, rtol=1e-5)
 
         expected_gradients = onnxscript.tools.training_helper.train_loop(model, *input_tensors)
         gradients = onnxscript.tools.training_helper.train_loop(compiled_model, *input_tensors)
-        torch.testing.assert_allclose(
+        torch.testing.assert_close(
             expected_gradients[0], gradients[0], atol=1e-5, rtol=1e-5
         )
 
