@@ -32,8 +32,8 @@ COMMON_TEST_DEPENDENCIES = (
     "ml_dtypes",
 )
 ONNX = "onnx==1.16"
-ONNX_RUNTIME = "onnxruntime==1.17.1"
-ONNX_RUNTIME_TRAINING = "onnxruntime-training==1.17.1"
+ONNX_RUNTIME = "onnxruntime==1.17.3"
+ONNX_RUNTIME_TRAINING = "onnxruntime-training==1.17.3"
 PYTORCH = "torch==2.2.2"
 TORCHVISON = "torchvision==0.17.2"
 TRANSFORMERS = "transformers>=4.37.2"
@@ -85,7 +85,7 @@ def test_torch_nightly(session):
     session.install("-r", "requirements/ci/requirements-pytorch-nightly.txt")
     session.install(".", "--no-deps")
     if sys.platform == "linux":
-        session.install("onnxruntime-training")
+        session.install("onnxruntime-training==1.17.3")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", "--doctest-modules", *session.posargs)
     session.run("pytest", "tests", *session.posargs)
