@@ -2117,7 +2117,11 @@ def aten_copy(
 def aten__to_copy(
     self: TTensor,
     dtype: int = -1,
+    layout: str = "",  # pylint: disable=unused-argument
+    device: str = "",  # pylint: disable=unused-argument
+    pin_memory: bool = False,  # pylint: disable=unused-argument
     non_blocking: bool = False,  # pylint: disable=unused-argument
+    memory_format: str = "",  # pylint: disable=unused-argument
 ) -> TTensor:
     """_to_copy(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, bool non_blocking=False, MemoryFormat? memory_format=None) -> Tensor"""
 
