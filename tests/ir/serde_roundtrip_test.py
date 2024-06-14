@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+# pylint: disable=import-outside-toplevel
 from __future__ import annotations
 
 import pathlib
