@@ -547,6 +547,7 @@ class GenericPatternMatcher(orp.PatternMatcher):
 
         max_iter = self.pattern.num_nodes() * 2
         while stack and iteration < max_iter:
+            print("++++", stack, iteration, max_iter)
             nodes_not_in_pattern = set(matched.keys()) - all_pattern_nodes
             assert not nodes_not_in_pattern, (
                 f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"

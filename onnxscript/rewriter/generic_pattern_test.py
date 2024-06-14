@@ -552,7 +552,7 @@ class GenericPatternTest(unittest.TestCase):
     def test_graph_pattern_builder_slice_split(self):
         def match_pattern(op, x, b0, e0, a0, b1, e1, a1):
             """Builds the pattern to match."""
-            return op.Split(x, b0, e0, a0), op.Split(x, b1, e1, a1)
+            return op.Slice(x, b0, e0, a0), op.Slice(x, b1, e1, a1)
 
         def apply_pattern(op, x, b0, e0, a0, b1, e1, a1):
             """Builds the pattern to match."""
@@ -575,7 +575,7 @@ class GenericPatternTest(unittest.TestCase):
 
         model = onnx.shape_inference.infer_shapes(model)
         ir_model = ir.serde.deserialize_model(model)
-        rule.apply_to_model(ir_model)
+        rule.apply_to_model(ir_model, verbose=10)
         self.assertEqual(["Slice", "Slice"], [n.op_type for n in ir_model.graph])
         rewriten_model = ir.serde.serialize_model(ir_model)
         self.assertEqual(["Split"], [n.op_type for n in rewriten_model.graph.node])
