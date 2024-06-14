@@ -8,7 +8,6 @@ import unittest
 import onnx
 import onnx.backend.test
 import parameterized
-import pyinstrument
 
 import onnxscript.testing
 from onnxscript import ir
@@ -26,15 +25,23 @@ test_args = [
 
 class SerdeTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.profiler = pyinstrument.Profiler()
+        try:
+            import pyinstrument
+
+            self.profiler = pyinstrument.Profiler()
+        except ImportError:
+            self.profiler = None
 
     def tearDown(self) -> None:
-        self.profiler.reset()
+        if self.profiler:
+            self.profiler.reset()
 
     @parameterized.parameterized.expand(test_args)
     def test_serialization_deserialization_produces_same_model(
         self, _: str, model_path: pathlib.Path
     ) -> None:
+        if not self.profiler:
+            raise unittest.SkipTest("pyinstrument is not installed.")
         model = onnx.load(model_path)
         # Fix the missing graph name of some test models
         model.graph.name = "main_graph"
