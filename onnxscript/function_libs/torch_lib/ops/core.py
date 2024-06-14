@@ -2026,12 +2026,12 @@ def aten_convolution(
     return result
 
 
-@torch_op("aten::convolution", private=True)
+@torch_op("aten::convolution", private=True, trace_only=True)
 def _aten_convolution_onnx(
     input: TFloat,
     weight: TFloat,
     bias: TFloat,
-    transposed: BOOL,
+    transposed: bool,
     strides: Sequence[int],
     pads: Sequence[int],
     dilations: Sequence[int],
@@ -2045,7 +2045,7 @@ def _aten_convolution_onnx(
     # Alternatively we could cast transposed to BOOL.
     # E.g. `if op.Cast(transposed, BOOL.dtype): ...`
 
-    no_batch = Rank(input) != Rank(weight)
+    no_batch = len(input.shape) != len(weight.shape)
 
     if no_batch:
         input = op.Unsqueeze(input, op.Constant(value_ints=[0]))
