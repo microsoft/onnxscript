@@ -140,10 +140,12 @@ jobs:
       - run: |
           python -m pip freeze
         name: pip freeze
-      - name: Run onnxscript tests
-        run: pytest onnxscript
-      - name: Run tests
-        run: pytest tests
+      - run: |
+          pytest onnxscript
+        name: Run onnxscript tests
+      - run: |
+          pytest tests
+        name: Run tests
 
   build_docs:
     strategy:
