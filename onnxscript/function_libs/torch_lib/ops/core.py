@@ -1495,14 +1495,12 @@ def aten_cat_complex(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     return aten_cat(tensors, dim=dim)
 
 
-@torch_op("aten::cat")
+@torch_op(("aten::cat", "aten::concat", "aten::concatenate"), trace_only=True)
 def aten_cat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """cat(Tensor[] tensors, int dim=0) -> Tensor"""
 
-    # NOTE: Having empty tensors when concatenating along non-zero dimension
-    # is not supported.
-    # TODO(justinchuby): Filter these tensors out with Sequence ops before
-    # calling ConcatFromSequence.
+    # Remove None tensors
+    tensors = [tensor for tensor in tensors if tensor is not None]
     return op.ConcatFromSequence(tensors, axis=dim)
 
 
@@ -1730,22 +1728,6 @@ def aten_complex(real: TFloat, imag: TFloat) -> TFloat:
     imag = op.Expand(imag, broadcasted_shape)
 
     return _aten_complex(real, imag)
-
-
-@torch_op("aten::concat")
-def aten_concat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
-    """concat(Tensor[] tensors, int dim=0) -> Tensor"""
-
-    # TODO(justinchuby): Combine the implementation with cat
-    return op.ConcatFromSequence(tensors, axis=dim)
-
-
-@torch_op("aten::concatenate")
-def aten_concatenate(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
-    """concatenate(Tensor[] tensors, int dim=0) -> Tensor"""
-
-    # TODO(justinchuby): Combine the implementation with cat
-    return op.ConcatFromSequence(tensors, axis=dim)
 
 
 @torch_op("aten::conj")
