@@ -8645,7 +8645,7 @@ def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::view")
+@torch_op(("aten::view", "aten::_unsafe_view"))
 def aten_view(self: TTensor, size: IntType) -> TTensor:
     """view(Tensor(a) self, SymInt[] size) -> Tensor(a)"""
 
@@ -8653,7 +8653,7 @@ def aten_view(self: TTensor, size: IntType) -> TTensor:
     return op.Reshape(self, size)
 
 
-@torch_op("aten::view", complex=True)
+@torch_op(("aten::view", "aten::_unsafe_view"), complex=True)
 def aten_view_complex(self: TTensor, size: IntType) -> TTensor:
     """view(Tensor(a) self, SymInt[] size) -> Tensor(a)"""
 
