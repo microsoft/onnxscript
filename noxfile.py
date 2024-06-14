@@ -87,7 +87,7 @@ def test_torch_nightly(session):
     session.install(".", "--no-deps")
     if sys.platform == "linux":
         session.install("numpy==1.26.4")
-        session.install("onnxruntime-training==1.17.0")
+        session.install("onnxruntime-training==1.17.1")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", "--doctest-modules", *session.posargs)
     session.run("pytest", "tests", *session.posargs)
