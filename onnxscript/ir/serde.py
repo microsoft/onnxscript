@@ -52,6 +52,7 @@ __all__ = [
     "serialize_type_into",
     "serialize_value_into",
     "serialize_value",
+    "SerdeError",
 ]
 
 import collections
@@ -660,7 +661,7 @@ def deserialize_value_info_proto(
     return value
 
 
-@_capture_errors(lambda proto: str(proto))
+@_capture_errors(str)
 def deserialize_type_proto_for_shape(proto: onnx.TypeProto) -> _core.Shape | None:
     if proto.HasField("tensor_type"):
         if (shape_proto := _get_field(proto.tensor_type, "shape")) is None:
@@ -698,7 +699,7 @@ def deserialize_type_proto_for_shape(proto: onnx.TypeProto) -> _core.Shape | Non
     return None
 
 
-@_capture_errors(lambda proto: str(proto))
+@_capture_errors(str)
 def deserialize_type_proto_for_type(
     proto: onnx.TypeProto,
 ) -> _protocols.TypeProtocol | None:
@@ -734,7 +735,7 @@ def deserialize_type_proto_for_type(
     return None
 
 
-@_capture_errors(lambda proto: str(proto))
+@_capture_errors(str)
 def deserialize_dimension(
     proto: onnx.TensorShapeProto.Dimension,
 ) -> tuple[int | _core.SymbolicDim, str | None]:
@@ -801,7 +802,7 @@ def deserialize_attribute(proto: onnx.AttributeProto) -> _core.Attr | _core.RefA
     return _deserialize_attribute(proto, [])
 
 
-@_capture_errors(lambda proto: str(proto))
+@_capture_errors(str)
 def _deserialize_attribute(
     proto: onnx.AttributeProto, scoped_values: list[dict[str, _core.Value]]
 ) -> _core.Attr | _core.RefAttr:
@@ -874,7 +875,7 @@ def deserialize_node(proto: onnx.NodeProto) -> _core.Node:
     return _deserialize_node(proto, scoped_values=[], value_info={})
 
 
-@_capture_errors(lambda proto: str(proto))
+@_capture_errors(str)
 def _deserialize_node(
     proto: onnx.NodeProto,
     scoped_values: list[dict[str, _core.Value]],
