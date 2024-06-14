@@ -9,8 +9,11 @@ import numpy as np
 import onnx
 import onnx.reference
 
+import onnxscript
+import onnxscript.onnx_types as ot
 import onnxscript.rewriter.llama_rule_sets as llama_rule_sets
 from onnxscript import ir
+from onnxscript.onnx_opset import opset18
 
 FLOAT = onnx.TensorProto.FLOAT
 
@@ -171,12 +174,12 @@ class LlamaRuleSetsTest(unittest.TestCase):
 
     @classmethod
     def _cast_identity_models(cls):
-        @onnxscript.script
-        def model(x: FLOAT["a", "b", "c"]) -> FLOAT["a", "b", "c"]:
-        y = op.Cast(x, to=onnx.TensorProto.FLOAT)
-        return y
-        
-        proto = model.to_model_proto()
+        @onnxscript.script()
+        def model(x: ot.FLOAT["a", "b", "c"]) -> ot.FLOAT["a", "b", "c"]:
+            y = opset18.Cast(x, to=onnx.TensorProto.FLOAT)
+            return y
+
+        return [model.to_model_proto()]
 
     def test_llama_p0_rule_set_cast_identity(self):
         for model_proto in self._cast_identity_models():
