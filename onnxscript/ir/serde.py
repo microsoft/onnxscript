@@ -983,6 +983,12 @@ def serialize_model(model: _protocols.ModelProtocol) -> onnx.ModelProto:
     return serialize_model_into(onnx.ModelProto(), from_=model)
 
 
+@_capture_errors(
+    lambda _, from_: (
+        f"ir_version={from_.ir_version}, producer_name={from_.producer_name}, "
+        f"producer_version={from_.producer_version}, domain={from_.domain}, "
+    )
+)
 def serialize_model_into(
     model_proto: onnx.ModelProto, from_: _protocols.ModelProtocol
 ) -> onnx.ModelProto:
@@ -1133,7 +1139,13 @@ def serialize_graph(
     return graph_proto
 
 
-@_capture_errors(lambda _, from_: repr(from_))
+@_capture_errors(
+    lambda _, from_: (
+        f"name={from_.name}, doc_string={from_.doc_string}, "
+        f"len(inputs)={len(from_.inputs)}, len(initializers)={len(from_.initializers)}, "
+        f"len(nodes)={len(from_)}, len(outputs)={len(from_.outputs)}, metadata_props={from_.metadata_props}"
+    )
+)
 def serialize_graph_into(
     graph_proto: onnx.GraphProto,
     from_: _protocols.GraphProtocol | _protocols.GraphViewProtocol,
