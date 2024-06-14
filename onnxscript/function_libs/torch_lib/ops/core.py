@@ -7259,9 +7259,9 @@ def aten_rsub_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
 def aten_scalar_tensor(
     s: float,
     dtype: int = FLOAT.dtype,
-    layout: str = "",
-    device: str = "",
-    pin_memory: bool = False,
+    layout: str = "",  # pylint: disable=unused-argument
+    device: str = "",  # pylint: disable=unused-argument
+    pin_memory: bool = False,  # pylint: disable=unused-argument
 ) -> RealType:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
