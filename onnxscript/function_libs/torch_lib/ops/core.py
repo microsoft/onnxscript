@@ -2026,7 +2026,7 @@ def aten_convolution(
     return result
 
 
-@torch_op("aten::convolution", private=True, traceable=True)
+@torch_op("aten::convolution", private=True)
 def _aten_convolution_onnx(
     input: TFloat,
     weight: TFloat,
