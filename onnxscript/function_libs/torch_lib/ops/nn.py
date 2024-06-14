@@ -40,7 +40,7 @@ Rank = common_ops.Rank
 TFloatUnlessFloat32 = TypeVar("TFloatUnlessFloat32", bound=Union[BFLOAT16, FLOAT16, DOUBLE])
 
 
-@torch_op("aten::aten_adaptive_avg_pool1d", traceable=True)
+@torch_op("aten::adaptive_avg_pool1d", traceable=True)
 def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
     """adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor"""
 
@@ -58,7 +58,7 @@ def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
     return result
 
 
-@torch_op("aten::aten_adaptive_avg_pool2d", traceable=True)
+@torch_op("aten::adaptive_avg_pool2d", traceable=True)
 def aten_adaptive_avg_pool2d(self: TFloat, output_size: INT64[2]) -> TFloat:
     """adaptive_avg_pool2d(Tensor self, SymInt[2] output_size) -> Tensor"""
 
@@ -76,7 +76,7 @@ def aten_adaptive_avg_pool2d(self: TFloat, output_size: INT64[2]) -> TFloat:
     return result
 
 
-@torch_op("aten::aten_adaptive_avg_pool3d", traceable=True)
+@torch_op("aten::adaptive_avg_pool3d", traceable=True)
 def aten_adaptive_avg_pool3d(self: TFloat, output_size: INT64[3]) -> TFloat:
     """adaptive_avg_pool3d(Tensor self, SymInt[3] output_size) -> Tensor"""
 
