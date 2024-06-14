@@ -547,7 +547,6 @@ class GenericPatternMatcher(orp.PatternMatcher):
 
         max_iter = self.pattern.num_nodes() * 2
         while stack and iteration < max_iter:
-            print("++++", stack, iteration, max_iter)
             nodes_not_in_pattern = set(matched.keys()) - all_pattern_nodes
             assert not nodes_not_in_pattern, (
                 f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"
@@ -565,13 +564,30 @@ class GenericPatternMatcher(orp.PatternMatcher):
             next_pattern_node = stack.pop()
             next_graph_node = matched[next_pattern_node]
 
-            result = self._match_backward(
-                node, matched, stack, next_graph_node, next_pattern_node
-            )
-            if result is None:
-                if self.verbose > 5:
-                    print("[GenericPatternMatcher.match] done. backward failed.")
-                return result
+            fallback_candidates = []
+            if any(map(lambda i: i.producer() is not None, next_pattern_node.inputs)):
+                # At least one input has a backward node inside the pattern.
+                result = self._match_backward(
+                    node, matched, stack, next_graph_node, next_pattern_node
+                )
+                if result is None:
+                    if self.verbose > 5:
+                        print("[GenericPatternMatcher.match] done. backward failed.")
+                    return result
+            else:
+                # We check then if an input or pn has an unmatched node.
+                for i in next_pattern_node.inputs:
+                    psuccessors = i.uses()
+                    if len(psuccessors) == 1:
+                        # It is itself.
+                        continue
+                    print(matched)
+                    for pnn in psuccessors:
+                        if id(pnn) not in matched:
+                            # One unmarked node is consuming the input.
+                            # The potential list of candidates.
+                            fall_back_candidates = list(zip(n.input, pn.input))
+                            break                
 
             nodes_not_in_pattern = set(matched.keys()) - all_pattern_nodes
             assert (
