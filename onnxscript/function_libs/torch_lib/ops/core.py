@@ -2739,11 +2739,12 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
 
 @torch_op(
     (
-        "aten::div",
         "aten::div.Tensor",
         "aten::div.Scalar",
-        "aten::divide",
-        "aten::true_divide",
+        "aten::divide.Tensor",
+        "aten::divide.Scalar",
+        "aten::true_divide.Tensor",
+        "aten::true_divide.Scalar",
         "_operator::truediv",
     ),
     complex=True,
@@ -4781,7 +4782,6 @@ def aten_logdet(self: TFloat) -> TFloat:
 @torch_op(
     (
         "aten::logical_and",
-        "aten::bitwise_and",
         "aten::bitwise_and.Tensor",
         "aten::bitwise_and.Scalar",
         "aten::bitwise_and.Scalar_Tensor",
@@ -4803,7 +4803,6 @@ def aten_logical_not(self: BOOL) -> BOOL:
 @torch_op(
     (
         "aten::logical_or",
-        "aten::bitwise_or",
         "aten::bitwise_or.Tensor",
         "aten::bitwise_or.Scalar",
         "aten::bitwise_or.Scalar_Tensor",
@@ -4820,7 +4819,6 @@ def aten_logical_or(self: BOOL, other: BOOL) -> BOOL:
 @torch_op(
     (
         "aten::logical_xor",
-        "aten::bitwise_xor",
         "aten::bitwise_xor.Tensor",
         "aten::bitwise_xor.Scalar",
         "aten::bitwise_xor.Scalar_Tensor",
