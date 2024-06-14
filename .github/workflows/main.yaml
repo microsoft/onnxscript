@@ -137,7 +137,7 @@ jobs:
         if: matrix.torch != 'nightly'
         name: Install torch
       - run: |
-          python -m pip install onnxruntime-training==1.17.0
+          python -m pip install onnxruntime-training==1.17.1
         name: Install onnxruntime-training
       - run: |
           python -m pip install transformers==${{ matrix.transformers }}
