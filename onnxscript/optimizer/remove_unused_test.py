@@ -5,20 +5,19 @@ import unittest
 import onnx
 import parameterized
 
-import onnxscript.optimizer.remove_unused
-import onnxscript.optimizer.remove_unused_ir
 from onnxscript import ir
+import onnxscript.optimizer
 
 
 @parameterized.parameterized_class(("using_ir",), [(False,), (True,)])
 class RemoveUnusedTest(unittest.TestCase):
-    def remove_unused_nodes(self, model):
+    def remove_unused_nodes(self, model: onnx.ModelProto):
         if self.using_ir:
             model_ir = ir.serde.deserialize_model(model)
-            onnxscript.optimizer.remove_unused_ir.remove_unused_nodes(model_ir)
+            onnxscript.optimizer.remove_unused_nodes(model_ir)
             model = ir.serde.serialize_model(model_ir)
             return model
-        onnxscript.optimizer.remove_unused.remove_unused_nodes(model)
+        onnxscript.optimizer.remove_unused_nodes(model)
         return model
 
     def test_remove_unused_nodes(self):
