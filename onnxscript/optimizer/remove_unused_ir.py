@@ -84,7 +84,7 @@ def remove_unused_nodes(model: ir.Model) -> None:
     initializers = model.graph.initializers
     for init in list(initializers.values()):
         if not (init in graph_outputs or init.uses()):
-            del initializers[init.name]
+            del initializers[init.name]  # type: ignore[arg-type]
             count += 1
 
     for function in model.functions.values():
