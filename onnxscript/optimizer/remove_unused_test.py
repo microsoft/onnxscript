@@ -5,8 +5,8 @@ import unittest
 import onnx
 import parameterized
 
-from onnxscript import ir
 import onnxscript.optimizer
+from onnxscript import ir
 
 
 @parameterized.parameterized_class(("using_ir",), [(False,), (True,)])
