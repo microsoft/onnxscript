@@ -27,7 +27,7 @@ def remove_unused_optional_outputs(
         def is_used_output(i: int) -> bool:
             if i < len(node.outputs):
                 val = node.outputs[i]
-                return val in graph_outputs or val.uses()
+                return val in graph_outputs or bool(val.uses())
             return False
 
         if is_used_output(1) or is_used_output(2):
