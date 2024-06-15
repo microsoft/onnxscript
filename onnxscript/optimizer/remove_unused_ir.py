@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def remove_unused_optional_outputs(
-    node: ir.Node, graph_outputs: set[ir.Value], onnx_opset_version: int
+    node: ir.Node, graph_outputs: frozenset[ir.Value], onnx_opset_version: int
 ) -> None:
     try:
         if node.domain not in {"", "onnx.ai"}:
