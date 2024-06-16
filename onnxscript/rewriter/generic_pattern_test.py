@@ -252,12 +252,14 @@ class GenericPatternTest(unittest.TestCase):
             t1 = op.Sin(x)
             t2 = op.Cos(x)
             return t1, t2
+
         def apply_pattern(op, x, **_):
             return op.SinCos(x, domain="com.microsoft", outputs=2)
+
         rule = pattern.RewriteRule(
             match_pattern,
             apply_pattern,
-            matcher = generic_pattern.GenericPatternMatcher,
+            matcher=generic_pattern.GenericPatternMatcher,
         )
         model_proto = onnx.parser.parse_model(
             """

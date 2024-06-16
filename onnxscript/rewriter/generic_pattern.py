@@ -532,7 +532,7 @@ class GenericPatternMatcher(orp.PatternMatcher):
             if result is None:
                 return result
             match_count += result
-            
+
         if self.verbose > 5 and match_count > 0:
             print(f"[GenericPatternMatcher._match_forward] add {match_count} nodes")
         return match_count
