@@ -31,7 +31,7 @@ COMMON_TEST_DEPENDENCIES = (
     "ml_dtypes",
 )
 ONNX = "onnx==1.16"
-ONNX_RUNTIME = "onnxruntime==1.17.1"
+ONNX_RUNTIME = "onnxruntime==1.18.0"
 PYTORCH = "torch==2.2.2"
 TORCHVISON = "torchvision==0.17.2"
 TRANSFORMERS = "transformers>=4.37.2"
