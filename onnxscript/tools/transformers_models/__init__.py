@@ -130,7 +130,7 @@ def get_model_and_inputs(
     elif model == "phi3":
         import onnxscript.tools.transformers_models.phi3 as m_phi3
 
-        tmodel, inputs, dynamic_shapes_def = m_phi3.get_phi_model_from_config(
+        tmodel, inputs, dynamic_shapes_def = m_phi3.get_phi3_model_from_config(
             warmup=warmup,
             repeat=repeat,
             implementation=implementation,

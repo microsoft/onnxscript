@@ -184,7 +184,7 @@ def get_phi3_model(
     return Phi3ModelWrapper(config), example_args_collection, dynamic_shapes
 
 
-def get_phi_model_from_config(
+def get_phi3_model_from_config(
     warmup: int = 5,
     repeat: int = 10,
     config: str = "small",
