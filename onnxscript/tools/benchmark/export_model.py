@@ -59,6 +59,7 @@ def main(args=None):
 
     # Import is delayed so that help is being display faster (without having to import heavy packages).
     import onnxscript.tools
+    import onnxscript.tools.memory_peak as mpk
     import onnxscript.tools.transformers_models
 
     print(
@@ -85,6 +86,7 @@ def main(args=None):
     msg = [tuple(i.shape for i in inp) for inp in example_inputs]
     print(f"[export_model] input_shapes={msg}")
     conversion: dict[str, Any] = {}
+    memory_stat: dict[str, float] = {}
 
     if kwargs["exporter"] == "eager":
         print("[export_model] start benchmark")
@@ -123,6 +125,8 @@ def main(args=None):
         )
         filename = f"em_{name}.onnx"
 
+        memory_session = mpk.start_spying_on(cuda=kwargs["device"] == "cuda")
+        print(f"[export_model] start memory peak monitoring {memory_session}")
         proto = onnxscript.tools.benchmark.common_export(
             model=model,
             inputs=example_inputs[0],
@@ -136,6 +140,9 @@ def main(args=None):
             stats=conversion,
         )
         print(f"[export_model] export to onnx done in {time.perf_counter() - begin}")
+        memory_results = memory_session.stop()
+        print(f"[export_model] ends memory monitoring {memory_results}")
+        memory_stat = mpk.flatten(memory_results, prefix="memory_")
 
         result = onnxscript.tools.benchmark.run_onnx_inference(
             proto,
@@ -151,6 +158,8 @@ def main(args=None):
     for k, v in sorted(kwargs.items()):
         print(f":{k},{v};")
     for k, v in sorted(conversion.items()):
+        print(f":{k},{v};")
+    for k, v in memory_stat.items():
         print(f":{k},{v};")
     for k, v in sorted(result.items()):
         print(f":{k},{v};")
