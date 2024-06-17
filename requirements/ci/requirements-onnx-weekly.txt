@@ -1,2 +1,2 @@
 onnx-weekly==1.17.0.dev20240610; sys_platform != 'win32'
-onnx-weekly==1.17.0.dev20240603; sys_platform == 'win32'
+onnx-weekly==1.17.0.dev20240617; sys_platform == 'win32'
