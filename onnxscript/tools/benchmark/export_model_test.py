@@ -6,11 +6,14 @@ import io
 import unittest
 
 import onnxscript.tools.benchmark.export_model
+import onnxscript.tools.transformers_models.phi3
 from onnxscript._internal.version_utils import (
     has_transformers,
     is_onnxruntime_training,
     torch_older_than,
 )
+
+has_phi3 = onnxscript.tools.transformers_models.phi3.has_phi3
 
 
 class BenchmarkTest(unittest.TestCase):
@@ -127,6 +130,34 @@ class BenchmarkTest(unittest.TestCase):
             "rewrite,optimize,inline,llama0",
             "--model",
             "phi",
+        ]
+        f = io.StringIO()
+        with contextlib.redirect_stdout(f):
+            onnxscript.tools.benchmark.export_model.main(args)
+
+        out = f.getvalue()
+        self.assertIn(":repeat_time,", out)
+
+    @unittest.skipIf(not has_transformers(), reason="transformers missing")
+    @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
+    @unittest.skipIf(not is_onnxruntime_training(), reason="onnxruntime-training is needed")
+    @unittest.skipIf(not has_phi3(), reason="transformers is not recent enough")
+    def test_export_model_phi3_cpu_dynamo_llama0(self):
+        args = [
+            "--verbose",
+            "1",
+            "--config",
+            "medium",
+            "--dtype",
+            "float32",
+            "--device",
+            "cpu",
+            "--exporter",
+            "dynamo",
+            "--optimization",
+            "rewrite,optimize,inline,llama0",
+            "--model",
+            "phi3",
         ]
         f = io.StringIO()
         with contextlib.redirect_stdout(f):
