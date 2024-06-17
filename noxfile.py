@@ -160,7 +160,7 @@ def test_dort(session):
     session.install(
         *COMMON_TEST_DEPENDENCIES,
     )
-    torch_version, transformers_version = session.posarg
+    torch_version, transformers_version = session.posargs
 
     if torch_version == "nighly":
         session.install(
