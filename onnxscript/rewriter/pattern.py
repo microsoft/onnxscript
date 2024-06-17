@@ -229,7 +229,9 @@ class OpPatternBuilder:
             raise ValueError("outputs must be an int or a list[str|None].")
         inputs = [_to_value_pattern(x) for x in args]
         attributes = {name: _to_attr_pattern(value) for (name, value) in kwargs.items()}
-        node_pattern = NodePattern(opset_pattern, self.op_name, inputs, attributes, outputs, _allow_other_attributes)
+        node_pattern = NodePattern(
+            opset_pattern, self.op_name, inputs, attributes, outputs, _allow_other_attributes
+        )
         output_values = node_pattern.outputs
         # Unpack outputs if there is only one output, the common case.
         if len(output_values) == 1:
@@ -531,7 +533,14 @@ class NodePattern:
             inputs.extend(swapped)
         outputs = [value.name for value in self.outputs]
         return [
-            NodePattern(self.domain, self.op, input, self.attributes, outputs, self._allow_other_attributes)
+            NodePattern(
+                self.domain,
+                self.op,
+                input,
+                self.attributes,
+                outputs,
+                self._allow_other_attributes,
+            )
             for input in inputs
         ]
 
@@ -971,7 +980,7 @@ class SimplePatternMatcher(PatternMatcher):
         for i, output_value_pattern in enumerate(pattern_node.outputs):
             if not self._bind_value(output_value_pattern, node.outputs[i]):
                 return False
-            
+
         match.nodes.append(node)
         return True
 

@@ -370,6 +370,7 @@ class RewriteRuleTest(unittest.TestCase):
 
     def test_optional_attribute(self):
         """Test rules with optional attributes."""
+
         def concat_pattern(op, x, y):
             seq = op.SequenceConstruct(x, y)
             result = op.ConcatFromSequence(seq, outputs=["result"])
@@ -418,6 +419,7 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(len(model.graph), 1)
         self.assertEqual(model.graph[0].op_type, "Concat")
         self.assertFalse("axis" in model.graph[0].attributes)
+
 
 if __name__ == "__main__":
     unittest.main()
