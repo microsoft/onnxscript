@@ -2,6 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+# pylint: disable=import-outside-toplevel
 from __future__ import annotations
 
 import multiprocessing
@@ -215,7 +216,7 @@ def start_spying_on(
 
     .. code-block:: python
 
-        from experimental_experiment.memory_peak import start_spying_on, flatten
+        from onnxscript.tools.memory_peak import start_spying_on, flatten
 
         p = start_spying_on()
         # ...
