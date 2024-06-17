@@ -93,7 +93,7 @@ def _process_memory_spy(conn):
     process = psutil.Process(pid)
 
     if cuda:
-        from pynvml import (
+        from pynvml import (  # type: ignore[import-not-found]
             nvmlDeviceGetCount,
             nvmlDeviceGetHandleByIndex,
             nvmlDeviceGetMemoryInfo,
