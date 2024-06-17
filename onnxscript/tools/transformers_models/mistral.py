@@ -24,8 +24,6 @@ def _prepare_config_and_inputs(
     use_token_type_ids: bool = False,
     use_labels: bool = False,
 ) -> tuple[Any, ...]:
-    import torch
-
     input_ids = onnxscript.tools.transformers_models.ids_tensor(
         [batch_size, seq_length], vocab_size
     )
@@ -87,7 +85,6 @@ def get_mistral_model(
     <https://huggingface.co/docs/transformers/main/en/model_doc/mistral#transformers.MistralConfig>`_.
     The parameters are chosen for a unit test configuration.
     """
-    import torch
     from transformers import MistralConfig
     from transformers.models.mistral.modeling_mistral import MistralModel
 
