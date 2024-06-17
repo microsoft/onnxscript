@@ -97,7 +97,6 @@ def get_phi3_model(
     The parameters are chosen for a unit test configuration from `test_modeling_phi.py
     <https://github.com/huggingface/transformers/blob/main/tests/models/phi/test_modeling_phi.py>`_.
     """
-    import torch
     from transformers import Phi3Config, Phi3Model
 
     dynamic_shapes = {0: {0: "batch", 1: "length"}}
