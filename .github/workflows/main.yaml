@@ -114,7 +114,7 @@ jobs:
         transformers: ["4.37.2", "4.41.2"]
         torch: ["release", "nightly"]
         python_version: ["3.11"]
-        nox-tag: "test-dort"
+        nox-tag: ["test-dort"]
         name:
           - dort
     runs-on: ${{ matrix.os }}
