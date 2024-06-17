@@ -205,6 +205,7 @@ class OpPatternBuilder:
         domain: str | None = None,
         version: int | None = None,
         outputs: int | list[str | None] = 1,
+        _allow_other_attributes: bool | None = None,
         **kwargs,
     ):
         if version is not None:
@@ -228,7 +229,7 @@ class OpPatternBuilder:
             raise ValueError("outputs must be an int or a list[str|None].")
         inputs = [_to_value_pattern(x) for x in args]
         attributes = {name: _to_attr_pattern(value) for (name, value) in kwargs.items()}
-        node_pattern = NodePattern(opset_pattern, self.op_name, inputs, attributes, outputs)
+        node_pattern = NodePattern(opset_pattern, self.op_name, inputs, attributes, outputs, _allow_other_attributes)
         output_values = node_pattern.outputs
         # Unpack outputs if there is only one output, the common case.
         if len(output_values) == 1:
@@ -433,11 +434,16 @@ class NodePattern:
         inputs: Sequence[int | float | ValuePattern | None],
         attributes: dict[str, AttrPattern],
         outputs: Sequence[str | None],
+        _allow_other_attributes: bool | None,
     ):
+        if _allow_other_attributes is None:
+            # Default behavior: allow other unmatched attributes in the node.
+            _allow_other_attributes = True
         self.domain = domain
         self.op = StringConstantPattern(op) if isinstance(op, str) else op
         self.inputs = [_to_value_pattern(x) for x in inputs]
         self.attributes = attributes
+        self._allow_other_attributes = _allow_other_attributes
         # In the common case, domain and op are constants, which can be used to optimize matching.
         if isinstance(op, str) and domain.domain_name is not None:
             # TODO(rama): support overloaded operators.
@@ -497,10 +503,11 @@ class NodePattern:
                 if not match.bind(attr_pattern.name, attr_value):
                     return match
 
-        for name in node.attributes:
-            # TODO: Support matching default nodes for attributes.
-            if name not in self.attributes:
-                return match.fail(f"Attribute {name} not expected in node.")
+        if self._allow_other_attributes == False:
+            for name in node.attributes:
+                # TODO: Support matching default nodes for attributes.
+                if name not in self.attributes:
+                    return match.fail(f"Attribute {name} not expected in node.")
 
         return match
 
@@ -524,7 +531,7 @@ class NodePattern:
             inputs.extend(swapped)
         outputs = [value.name for value in self.outputs]
         return [
-            NodePattern(self.domain, self.op, input, self.attributes, outputs)
+            NodePattern(self.domain, self.op, input, self.attributes, outputs, self._allow_other_attributes)
             for input in inputs
         ]
 
@@ -961,11 +968,15 @@ class SimplePatternMatcher(PatternMatcher):
             if not self._match_value(previous_node_output_pattern, arg_value):
                 return False
 
+        for i, output_value_pattern in enumerate(pattern_node.outputs):
+            if not self._bind_value(output_value_pattern, node.outputs[i]):
+                return False
+            
         match.nodes.append(node)
         return True
 
-    def _match_value(self, pattern_value: ValuePattern, value: ir.Value) -> bool:
-        """Match an IR value against a ValuePattern instance."""
+    def _bind_value(self, pattern_value: ValuePattern, value: ir.Value) -> bool:
+        """Bind a ValuePattern var to ir Value."""
         if pattern_value.name is not None:
             match = self._match
             if pattern_value.name in match.bindings:
@@ -974,6 +985,12 @@ class SimplePatternMatcher(PatternMatcher):
                     return True
                 return self.fail(f"Variable {pattern_value.name} is bound to multiple values.")
             match.bindings[pattern_value.name] = value
+        return True
+
+    def _match_value(self, pattern_value: ValuePattern, value: ir.Value) -> bool:
+        """Match an IR value against a ValuePattern instance."""
+        if not self._bind_value(pattern_value, value):
+            return False
 
         if isinstance(pattern_value, NodeOutputPattern):
             return self._match_node_output(pattern_value, value)
