@@ -38,6 +38,33 @@ class BenchmarkTest(unittest.TestCase):
         self.assertIn(":repeat_time,", out)
 
     @unittest.skipIf(not has_transformers(), reason="transformers missing")
+    @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
+    @unittest.skipIf(not is_onnxruntime_training(), reason="onnxruntime-training is needed")
+    def test_export_model_mistral_cpu_dynamo_llama0(self):
+        args = [
+            "--verbose",
+            "1",
+            "--config",
+            "medium",
+            "--dtype",
+            "float32",
+            "--device",
+            "cpu",
+            "--exporter",
+            "dynamo",
+            "--optimization",
+            "rewrite,optimize,inline,llama0",
+            "--model",
+            "mistral",
+        ]
+        f = io.StringIO()
+        with contextlib.redirect_stdout(f):
+            onnxscript.tools.benchmark.export_model.main(args)
+
+        out = f.getvalue()
+        self.assertIn(":repeat_time,", out)
+
+    @unittest.skipIf(not has_transformers(), reason="transformers missing")
     def test_export_model_llama_cpu_eager(self):
         args = [
             "--verbose",
