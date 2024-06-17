@@ -152,3 +152,32 @@ def test_experimental_torchlib_onnx_ir(session):
         *session.posargs,
         env={"TORCHLIB_EXPERIMENTAL_USE_IR": "1"},
     )
+
+
+@nox.session(tags=["test-dort"])
+def test_dort(session):
+    """Test the conversion of a couple of models from transformers."""
+    session.install(
+        *COMMON_TEST_DEPENDENCIES,
+    )
+    torch_version, transformers_version = session.posarg
+
+    if torch_version == "nighly":
+        session.install(
+            "--pre",
+            "torch",
+            "torchvision",
+            "torchaudio",
+            "--index-url",
+            "https://download.pytorch.org/whl/nightly/cpu",
+        )
+    else:
+        session.install("torch", "torchvision", "torchaudio")
+
+    session.install("torch", "torchvision", "torchaudio")
+    session.install(f"transformers=={transformers_version}")
+    session.install("onnxruntime-training==1.17.1")
+
+    session.run("pip", "list")
+    session.run("pytest", "onnxscript")
+    session.run("pytest", "tests")
