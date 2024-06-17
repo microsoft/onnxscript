@@ -104,7 +104,7 @@ def get_mistral_model(
         dynamic_shapes.update({1: {0: "batch", 1: "length"}})
 
     if _attn_implementation:
-        config._attn_implementation = _attn_implementation
+        config._attn_implementation = _attn_implementation  # pylint: disable=protected-access
 
     def generate_example_inputs(batch: int, seq: int, vocab_size: int, with_mask: bool):
         (
