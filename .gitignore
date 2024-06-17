@@ -42,6 +42,7 @@ coverage.xml
 cover/
 test-output.xml
 *.sarif
+dump_*/*
 
 # Sphinx documentation
 docs/_build/
