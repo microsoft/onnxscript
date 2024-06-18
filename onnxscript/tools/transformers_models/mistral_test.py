@@ -15,7 +15,11 @@ import onnxscript.rewriter
 import onnxscript.tools.training_helper
 import onnxscript.tools.transformers_models
 import onnxscript.tools.transformers_models.mistral
-from onnxscript._internal.version_utils import has_transformers, onnxruntime_older_than, torch_older_than
+from onnxscript._internal.version_utils import (
+    has_transformers,
+    onnxruntime_older_than,
+    torch_older_than,
+)
 
 
 class TestExportPhi(unittest.TestCase):
