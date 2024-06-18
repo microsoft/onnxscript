@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 import os
 import time
 import unittest
@@ -9,16 +7,16 @@ import unittest
 import numpy as np
 import torch
 
-from onnxscript.tools.memory_peak import get_memory_rss, start_spying_on
+import onnxscript.tools.memory_peak as mpeak
 
 
 class TestMemoryPeak(unittest.TestCase):
     def test_memory(self):
-        mem = get_memory_rss(os.getpid())
+        mem = mpeak.get_memory_rss(os.getpid())
         self.assertIsInstance(mem, int)
 
     def test_spy(self):
-        p = start_spying_on()
+        p = mpeak.start_spying_on()
         res = []
         for i in range(10):
             time.sleep(0.005)
@@ -33,7 +31,7 @@ class TestMemoryPeak(unittest.TestCase):
 
     @unittest.skipIf(not torch.cuda.is_available(), reason="CUDA not here")
     def test_spy_cuda(self):
-        p = start_spying_on(cuda=True)
+        p = mpeak.start_spying_on(cuda=True)
         res = []
         for i in range(10):
             time.sleep(0.005)

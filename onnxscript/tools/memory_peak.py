@@ -1,10 +1,9 @@
-# -------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 # pylint: disable=import-outside-toplevel
 from __future__ import annotations
 
+import dataclasses
 import multiprocessing
 import os
 
@@ -13,8 +12,11 @@ def get_memory_rss(pid: int) -> int:
     """
     Returns the physical memory used by a process.
 
-    :param pid: process id, current one is `os.getpid()`
-    :return: physical memory
+    Args:
+        pid: process id, current one is `os.getpid()`
+
+    Returns:
+        physical memory
 
     It relies on the module :epkg:`psutil`.
     """
@@ -25,13 +27,13 @@ def get_memory_rss(pid: int) -> int:
     return mem
 
 
+@dataclasses.dataclass
 class Monitor:
-    def __init__(self):
-        self.max_peak: float = 0
-        self.average: float = 0
-        self.n_measures: int = 0
-        self.begin: float = 0
-        self.end: float = 0
+    max_peak: float = 0
+    average: float = 0
+    n_measures: int = 0
+    begin: float = 0
+    end: float = 0
 
     def to_dict(self, unit: int = 1) -> dict[str, float]:
         funit = float(unit)
@@ -207,11 +209,6 @@ def start_spying_on(
     """Starts the memory spy. The function starts another
     process spying on the one sent as an argument.
 
-    Args:
-        pid: process id to spy or the the current one.
-        delay: delay between two measures.
-        cuda: True or False to get memory for cuda devices
-
     Example::
 
     .. code-block:: python
@@ -225,6 +222,11 @@ def start_spying_on(
         stat = p.stop()
         print(stat)
         print(flatten(stat))
+
+    Args:
+        pid: process id to spy or the the current one.
+        delay: delay between two measures.
+        cuda: True or False to get memory for cuda devices
     """
     if pid is None:
         pid = os.getpid()
