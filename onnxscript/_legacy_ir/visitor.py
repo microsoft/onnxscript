@@ -590,6 +590,8 @@ class ProtoVisitor(ProtoVisitorCore):
                     )
 
         for output in node.output:
+            if output == "":
+                continue
             info = self.lookup_or_create(output)
             if output in output_types:
                 if info.type is not None:
