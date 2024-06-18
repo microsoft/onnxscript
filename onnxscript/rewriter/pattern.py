@@ -505,7 +505,7 @@ class NodePattern:
                 if not match.bind(attr_pattern.name, attr_value):
                     return match
 
-        if self._allow_other_attributes == False:
+        if not self._allow_other_attributes:
             for name in node.attributes:
                 # TODO: Support matching default nodes for attributes.
                 if name not in self.attributes:
