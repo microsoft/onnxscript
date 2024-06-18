@@ -142,7 +142,7 @@ def main(args=None):
         print(f"[export_model] export to onnx done in {time.perf_counter() - begin}")
         memory_results = memory_session.stop()
         print(f"[export_model] ends memory monitoring {memory_results}")
-        memory_stat = mpk.flatten(memory_results, prefix="memory_")
+        memory_stats = mpk.flatten(memory_results, prefix="memory_")
 
         result = onnxscript.tools.benchmark.run_onnx_inference(
             proto,
@@ -159,7 +159,7 @@ def main(args=None):
         print(f":{k},{v};")
     for k, v in sorted(conversion.items()):
         print(f":{k},{v};")
-    for k, v in memory_stat.items():
+    for k, v in memory_stats.items():
         print(f":{k},{v};")
     for k, v in sorted(result.items()):
         print(f":{k},{v};")
