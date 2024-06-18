@@ -99,12 +99,6 @@ jobs:
         with:
           name: Error reports (${{ matrix.name }}-${{ matrix.os }})
           path: error_reports
-      - name: Upload IR profiling results
-        if: matrix.name == 'py311' || matrix.name == 'py311-onnx-weekly'
-        uses: actions/upload-artifact@v3
-        with:
-          name: IR profiling results
-          path: tests/ir/serde_test_profiles
 
   dort:
     strategy:
