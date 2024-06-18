@@ -15,7 +15,7 @@ import onnxscript.rewriter
 import onnxscript.tools.training_helper
 import onnxscript.tools.transformers_models
 import onnxscript.tools.transformers_models.mistral
-from onnxscript._internal.version_utils import has_transformers, torch_older_than
+from onnxscript._internal.version_utils import has_transformers, onnxruntime_older_than, torch_older_than
 
 
 class TestExportPhi(unittest.TestCase):
@@ -61,6 +61,7 @@ class TestExportPhi(unittest.TestCase):
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
+    @unittest.skipIf(onnxruntime_older_than("1.18.0", reason="Trilu not imeplemnted"))
     def test_phi_dort_static(self):
         model, input_tensors_many, _ = (
             onnxscript.tools.transformers_models.mistral.get_mistral_model()
