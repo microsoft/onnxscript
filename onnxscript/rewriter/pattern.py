@@ -1285,3 +1285,6 @@ class RewriteRuleSet:
         for function in model.functions.values():
             count += self._apply_to_graph_or_function(model, function, verbose=verbose)
         return count
+
+    def __iter__(self):
+        yield from self.rules

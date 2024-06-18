@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-import onnxscript.rewriter.onnxruntime as oort
 import onnxscript.rewriter.pattern as orp
 
 op = orp.onnxop
@@ -121,8 +120,6 @@ class TransposeFusedMatMul2(TransposeMatMul2):
         return op.FusedMatMul(x, op.Transpose(y), domain="com.microsoft")
 
 
-
-
 class MatMulTranspose(orp.RewriteRuleAsClass):
     """Replaces ``MatMul + Transpose`` by FusedMatMul."""
 
@@ -133,7 +130,7 @@ class MatMulTranspose(orp.RewriteRuleAsClass):
     @classmethod
     def check(cls, context, x, y) -> bool:
         matmul = list(x.uses())[0][0]  # noqa: RUF015
-        transpose = list(matmul.outputs[0].uses())[0][0]
+        transpose = list(matmul.outputs[0].uses())[0][0]  # noqa: RUF015
         perm = transpose.attributes["perm"].value
         expected_perm = list(range(len(perm)))
         expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
@@ -170,7 +167,6 @@ def fused_matmul_rule_sets() -> orp.RewriteRuleSet:
     """
     return orp.RewriteRuleSet(
         [
-            *oort.ORT_PATTERN_REWRITE_RULES,
             orp.make_rewrite_rule_from_class(FusedMatMulDiv1, True),
             orp.make_rewrite_rule_from_class(FusedMatMulDiv2, True),
             orp.make_rewrite_rule_from_class(FusedMatMulTranspose, True),

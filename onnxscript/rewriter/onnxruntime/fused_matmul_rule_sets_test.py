@@ -181,7 +181,13 @@ class OrtRuleSetsTest(unittest.TestCase):
             onnx.helper.make_model(
                 onnx.helper.make_graph(
                     [
-                        onnx.helper.make_node("FusedMatMul", ["X", "Y"], ["xy"], domain="com.microsoft", alpha=0.5),
+                        onnx.helper.make_node(
+                            "FusedMatMul",
+                            ["X", "Y"],
+                            ["xy"],
+                            domain="com.microsoft",
+                            alpha=0.5,
+                        ),
                         onnx.helper.make_node("Transpose", ["xy"], ["Z"], perm=[1, 0]),
                     ],
                     "name",
@@ -237,7 +243,11 @@ class OrtRuleSetsTest(unittest.TestCase):
                     [
                         onnx.helper.make_node("Transpose", ["X"], ["Xt"], perm=[1, 0]),
                         onnx.helper.make_node(
-                            "FusedMatMul", ["Xt", "Y"], ["Z"], domain="com.microsoft", alpha=0.5
+                            "FusedMatMul",
+                            ["Xt", "Y"],
+                            ["Z"],
+                            domain="com.microsoft",
+                            alpha=0.5,
                         ),
                     ],
                     "name",
@@ -275,7 +285,11 @@ class OrtRuleSetsTest(unittest.TestCase):
                     [
                         onnx.helper.make_node("Transpose", ["Y"], ["Yt"], perm=[1, 0]),
                         onnx.helper.make_node(
-                            "FusedMatMul", ["X", "Yt"], ["Z"], domain="com.microsoft", alpha=0.5
+                            "FusedMatMul",
+                            ["X", "Yt"],
+                            ["Z"],
+                            domain="com.microsoft",
+                            alpha=0.5,
                         ),
                     ],
                     "name",

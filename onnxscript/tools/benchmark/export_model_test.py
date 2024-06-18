@@ -132,7 +132,7 @@ class BenchmarkTest(unittest.TestCase):
             "--exporter",
             "dynamo",
             "--optimization",
-            "rewrite,optimize,inline,llama0",
+            "rewrite/optimize/inline/llama0/onnxruntime",
             "--model",
             "phi",
         ]
@@ -162,7 +162,7 @@ class BenchmarkTest(unittest.TestCase):
             "--exporter",
             "dynamo",
             "--optimization",
-            "rewrite,optimize,inline,llama0",
+            "rewrite/optimize/inline/llama0",
             "--model",
             "phi3",
         ]

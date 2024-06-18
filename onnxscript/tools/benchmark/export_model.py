@@ -25,7 +25,7 @@ def main(args=None):
 
             Example with a medium llama model::
 
-                python -m onnxscript.tools.benchmark.export_model --model llama --device cuda --config large --num_hidden_layers=1 --dtype=float32 --dynamic=0 --verbose=1 --exporter=dynamo
+                python -m onnxscript.tools.benchmark.export_model --model llama --device cuda --config medium --num_hidden_layers=1 --dtype=float32 --dynamic=0 --verbose=1 --exporter=dynamo --optimization=rewrite/optimize/inline/llama0/onnxruntime
             """
         ),
         repeat=(10, "number of inferences to measure"),
