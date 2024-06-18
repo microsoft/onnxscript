@@ -380,10 +380,10 @@ class LlamaRuleSetsTest(unittest.TestCase):
         for model_proto in self._slides_split_models():
             ir_model = ir.serde.deserialize_model(model_proto)
             rule_set = llama_rule_sets.llama_p0_rule_set()
-            rule_set.apply_to_model(ir_model)
+            rule_set.apply_to_model(ir_model, verbose=10)
             rewritten_model = ir.serde.serialize_model(ir_model)
 
-            self.assertEqual(["Slice"], [n.op_type for n in rewritten_model.graph.node])
+            self.assertEqual(["Split"], [n.op_type for n in rewritten_model.graph.node])
             self._check_model(model_proto, rewritten_model)
 
 

@@ -1034,6 +1034,7 @@ class RewriteRule:
         condition_function: Callable | None = None,
         matcher: PatternMatcher | Callable[[GraphPattern], PatternMatcher] | None = None,
         verbose: int = 0,
+        name: str | None = None,
     ) -> None:
         """Create a rewrite rule.
 
@@ -1048,6 +1049,7 @@ class RewriteRule:
             matcher: The pattern matcher that will be used to match the pattern.
                 If not provided, a default matcher will be used.
             verbose: The verbosity level of the rule.
+            name: for debugging purpose
         """
 
         if not isinstance(target_pattern, GraphPattern):
@@ -1070,6 +1072,14 @@ class RewriteRule:
         else:
             self._matcher = matcher(self._target_pattern)
         self._verbose = verbose
+        self.name = name
+
+    def __str__(self) -> str:
+        if self.name:
+            return f"{self.__class__.__name__}(..., name={self.name!r})"
+        return (
+            f"{self.__class__.__name__}({self._target_pattern}, {self._replacement_pattern})"
+        )
 
     def try_rewrite(
         self,
@@ -1079,6 +1089,8 @@ class RewriteRule:
         verbose: int | None = None,
     ) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
+        if verbose > 2:
+            print(f"[try_rewrite] {self}")
         verbose = verbose if verbose is not None else self._verbose
         match = self._matcher.match(model, graph_or_function, node, verbose=verbose)
         if match:
@@ -1141,7 +1153,9 @@ class RewriteRuleAsClass:
         return True
 
 
-def make_rewrite_rule_from_class(rule_class: type | RewriteRuleAsClass) -> RewriteRule:
+def make_rewrite_rule_from_class(
+    rule_class: type | RewriteRuleAsClass, generic: bool = False
+) -> RewriteRule:
     """Creates a RewriteRule from a class defining the function
     pattern, rewrite, check with class method. It makes it is easier
     to read when a module contains multiple patterns.
@@ -1171,7 +1185,19 @@ def make_rewrite_rule_from_class(rule_class: type | RewriteRuleAsClass) -> Rewri
     assert hasattr(rule_class, "pattern"), f"Method 'pattern' is missing from {rule_class!r}."
     assert hasattr(rule_class, "rewrite"), f"Method 'rewrite' is missing from {rule_class!r}."
     assert hasattr(rule_class, "check"), f"Method 'check' is missing from {rule_class!r}."
-    return RewriteRule(rule_class.pattern, rule_class.rewrite, rule_class.check)
+    if generic:
+        import onnxscript.rewriter.generic_pattern as orpp
+
+        return RewriteRule(
+            rule_class.pattern,
+            rule_class.rewrite,
+            rule_class.check,
+            orpp.GenericPatternMatcher,
+            name=rule_class.__name__,
+        )
+    return RewriteRule(
+        rule_class.pattern, rule_class.rewrite, rule_class.check, name=rule_class.__name__
+    )
 
 
 def _apply_delta(

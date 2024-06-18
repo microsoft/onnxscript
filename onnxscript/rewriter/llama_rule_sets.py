@@ -6,7 +6,6 @@ import numpy as np
 import onnx.numpy_helper
 
 import onnxscript.ir as ir
-import onnxscript.rewriter.generic_pattern as orgp
 import onnxscript.rewriter.no_op as no_op
 import onnxscript.rewriter.pattern as orp
 
@@ -104,7 +103,10 @@ class SlicesSplit(orp.RewriteRuleAsClass):
         axes = axes0.const_value.numpy().tolist()
         if len(axes) != 1:
             return False
-        rk = x.rank
+        if x.shape:
+            rk = len(x.shape)
+        else:
+            rk = x.rank
         if axes[0] != -1 and axes[0] != rk - 1:
             return False
         if (
@@ -254,9 +256,7 @@ def llama_p0_rule_set() -> orp.RewriteRuleSet:
     cast_identity_rule = orp.make_rewrite_rule_from_class(CastIdentity)
     expand_identity_rule = orp.make_rewrite_rule_from_class(ExpandIdentity)
     reshape_reshape_rule = orp.make_rewrite_rule_from_class(ReshapeReshape)
-    slice_split_rule = orp.RewriteRule(
-        SlicesSplit.pattern, SlicesSplit.rewrite, SlicesSplit.check, orgp.GenericPatternMatcher
-    )
+    slice_split_rule = orp.make_rewrite_rule_from_class(SlicesSplit, True)
     transpose_identity_rule = orp.make_rewrite_rule_from_class(TransposeIdentity)
     transpose_transpose_rule = orp.make_rewrite_rule_from_class(TransposeTranspose)
     unsqueeze_unsqueeze_rule = orp.make_rewrite_rule_from_class(UnsqueezeUnsqueeze)
