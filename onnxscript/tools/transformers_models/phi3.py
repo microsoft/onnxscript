@@ -12,7 +12,7 @@ import onnxscript.tools.transformers_models
 
 
 def has_phi3() -> bool:
-    """Tells if package *transformers* is recent enough."""
+    """Tells if package *transformers* contains the phi3 model."""
     try:
         from transformers import Phi3Config
 
