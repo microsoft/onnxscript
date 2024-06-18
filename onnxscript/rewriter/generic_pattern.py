@@ -301,7 +301,9 @@ class GenericPatternMatcher(orp.PatternMatcher):
             pattern_pred = pattern_value.producer()
             if pattern_pred is None:
                 # pattern_pred is None means the pattern backward search ends here.
-                result = self._match_values_forward(starting_node, matched, stack, graph_value, pattern_value)
+                result = self._match_values_forward(
+                    starting_node, matched, stack, graph_value, pattern_value
+                )
                 if result is None:
                     return result
                 match_count += result
@@ -370,10 +372,7 @@ class GenericPatternMatcher(orp.PatternMatcher):
 
         if len(graph_node_users) == len(pattern_node_users) == 1:
             # Let's deal with the simple case
-            if (
-                graph_node_users[0].op_identifier()
-                != pattern_node_users[0].op_identifier()
-            ):
+            if graph_node_users[0].op_identifier() != pattern_node_users[0].op_identifier():
                 return self.none(starting_node, inspect.currentframe().f_lineno)
 
             node = pattern_node_users[0]
@@ -398,9 +397,9 @@ class GenericPatternMatcher(orp.PatternMatcher):
             for matched_node in pattern_node_users
             if matched_node in matched
         ]
-        assert len(pattern_node_users_matched) + len(
-            pattern_node_users_not_matched
-        ) == len(pattern_node_users), (
+        assert len(pattern_node_users_matched) + len(pattern_node_users_not_matched) == len(
+            pattern_node_users
+        ), (
             f"pattern_node_users_not_matched={pattern_node_users_not_matched}, "
             f"pattern_node_users_matched={pattern_node_users_matched}, "
             f"pattern_node_users={pattern_node_users}, "
@@ -416,10 +415,7 @@ class GenericPatternMatcher(orp.PatternMatcher):
         if len(pattern_node_users_not_matched) == len(free) == 1:
             # Only one option again.
             graph_node = free[0]
-            if (
-                pattern_node_users_not_matched[0].op_identifier()
-                != graph_node.op_identifier()
-            ):
+            if pattern_node_users_not_matched[0].op_identifier() != graph_node.op_identifier():
                 return self.none(node, inspect.currentframe().f_lineno)
 
             key = pattern_node_users_not_matched[0]
