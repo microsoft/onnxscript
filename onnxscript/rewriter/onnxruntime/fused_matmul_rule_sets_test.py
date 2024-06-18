@@ -10,7 +10,7 @@ import onnx
 import onnx.reference
 import onnx.reference.op_run
 
-import onnxscript.rewriter.fused_matmul_ort_rule_sets as fused_matmul_rule_sets
+import onnxscript.rewriter.onnxruntime.fused_matmul_rule_sets as fused_matmul_rule_sets
 from onnxscript import ir
 
 FLOAT = onnx.TensorProto.FLOAT
@@ -168,7 +168,7 @@ class OrtRuleSetsTest(unittest.TestCase):
     def test_ort_rule_set_fused_matmul_div(self):
         for model_proto in self._fused_matmul_div_models():
             ir_model = ir.serde.deserialize_model(model_proto)
-            rule_set = ort_rule_sets.ort_rule_set()
+            rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
             rule_set.apply_to_model(ir_model)
             rewritten_model = ir.serde.serialize_model(ir_model)
 
