@@ -1,9 +1,10 @@
-# Copyright (c) Microsoft Corporation.
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
+# --------------------------------------------------------------------------
 # pylint: disable=import-outside-toplevel
 from __future__ import annotations
 
-import dataclasses
 import multiprocessing
 import os
 
@@ -12,11 +13,8 @@ def get_memory_rss(pid: int) -> int:
     """
     Returns the physical memory used by a process.
 
-    Args:
-        pid: process id, current one is `os.getpid()`
-
-    Returns:
-        physical memory
+    :param pid: process id, current one is `os.getpid()`
+    :return: physical memory
 
     It relies on the module :epkg:`psutil`.
     """
@@ -27,13 +25,13 @@ def get_memory_rss(pid: int) -> int:
     return mem
 
 
-@dataclasses.dataclass
 class Monitor:
-    max_peak: float = 0
-    average: float = 0
-    n_measures: int = 0
-    begin: float = 0
-    end: float = 0
+    def __init__(self):
+        self.max_peak: float = 0
+        self.average: float = 0
+        self.n_measures: int = 0
+        self.begin: float = 0
+        self.end: float = 0
 
     def to_dict(self, unit: int = 1) -> dict[str, float]:
         funit = float(unit)
