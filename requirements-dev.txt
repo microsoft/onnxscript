@@ -24,7 +24,6 @@ beartype!=0.16.0
 expecttest==0.1.6
 hypothesis
 parameterized
-pyinstrument
 pytest-cov
 pytest-randomly
 pytest-subtests
