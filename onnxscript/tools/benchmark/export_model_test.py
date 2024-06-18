@@ -139,7 +139,7 @@ class BenchmarkTest(unittest.TestCase):
         self.assertIn(":repeat_time,", out)
 
     @unittest.skipIf(not has_transformers(), reason="transformers missing")
-    @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
+    @unittest.skipIf(torch_older_than("2.4"), reason="Fails to export with torch<2.4")
     @unittest.skipIf(not is_onnxruntime_training(), reason="onnxruntime-training is needed")
     @unittest.skipIf(not has_phi3(), reason="transformers is not recent enough")
     def test_export_model_phi3_cpu_dynamo_llama0(self):
