@@ -1193,10 +1193,13 @@ def make_rewrite_rule_from_class(
             rule_class.rewrite,
             rule_class.check,
             orpp.GenericPatternMatcher,
-            name=rule_class.__name__,
+            name=rule_class.__name__,  # type: ignore[union-attr]
         )
     return RewriteRule(
-        rule_class.pattern, rule_class.rewrite, rule_class.check, name=rule_class.__name__
+        rule_class.pattern,
+        rule_class.rewrite,
+        rule_class.check,
+        name=rule_class.__name__,  # type: ignore[union-attr]
     )
 
 
