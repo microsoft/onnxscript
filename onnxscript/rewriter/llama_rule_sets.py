@@ -120,7 +120,7 @@ class SlicesSplit(orp.RewriteRuleAsClass):
             return False
         e0, b1, e1 = (
             end0.const_value.numpy().tolist(),
-            begin0.const_value.numpy().tolist(),
+            begin1.const_value.numpy().tolist(),
             end1.const_value.numpy().tolist(),
         )
         if e0[0] != b1[0]:
@@ -139,7 +139,7 @@ class SlicesSplit(orp.RewriteRuleAsClass):
 
     @classmethod
     def rewrite(cls, op, x, begin0, end0, axes0, begin1, end1, axes1):
-        return op.Split(x, num_outputs=2, axis=-1)
+        return op.Split(x, num_outputs=2, axis=-1, outputs=2)
 
 
 class TransposeIdentity(orp.RewriteRuleAsClass):

@@ -1089,7 +1089,7 @@ class RewriteRule:
         verbose: int | None = None,
     ) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
-        if verbose > 2:
+        if verbose and verbose > 2:
             print(f"[try_rewrite] {self}")
         verbose = verbose if verbose is not None else self._verbose
         match = self._matcher.match(model, graph_or_function, node, verbose=verbose)
