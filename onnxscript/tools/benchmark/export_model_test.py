@@ -146,7 +146,9 @@ class BenchmarkTest(unittest.TestCase):
     @unittest.skipIf(not has_transformers(), reason="transformers missing")
     @unittest.skipIf(torch_older_than("2.4"), reason="Fails to export with torch<2.4")
     @unittest.skipIf(not is_onnxruntime_training(), reason="onnxruntime-training is needed")
-    @unittest.skipIf(not has_phi3(), reason="transformers is not recent enough to contain the phi3 model")
+    @unittest.skipIf(
+        not has_phi3(), reason="transformers is not recent enough to contain the phi3 model"
+    )
     def test_export_model_phi3_cpu_dynamo_llama0(self):
         args = [
             "--verbose",
