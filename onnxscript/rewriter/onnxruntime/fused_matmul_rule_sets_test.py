@@ -181,13 +181,49 @@ class OrtRuleSetsTest(unittest.TestCase):
             onnx.helper.make_model(
                 onnx.helper.make_graph(
                     [
+                        onnx.helper.make_node("FusedMatMul", ["X", "Y"], ["xy"], domain="com.microsoft", alpha=0.5),
+                        onnx.helper.make_node("Transpose", ["xy"], ["Z"], perm=[1, 0]),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("MatMul", ["X", "Y"], ["xy"]),
+                        onnx.helper.make_node("Transpose", ["xy"], ["Z"], perm=[1, 0]),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
                         onnx.helper.make_node("Transpose", ["X"], ["Xt"], perm=[1, 0]),
                         onnx.helper.make_node("MatMul", ["Xt", "Y"], ["Z"]),
                     ],
                     "name",
                     [
-                        onnx.helper.make_tensor_value_info("X", FLOAT, [6, "a"]),
-                        onnx.helper.make_tensor_value_info("Y", FLOAT, [6, "b"]),
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4]),
                     ],
                     [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
                 ),
@@ -201,13 +237,13 @@ class OrtRuleSetsTest(unittest.TestCase):
                     [
                         onnx.helper.make_node("Transpose", ["X"], ["Xt"], perm=[1, 0]),
                         onnx.helper.make_node(
-                            "FusedMatMul", ["Xt", "Y"], ["Z"], domain="com.microsoft"
+                            "FusedMatMul", ["Xt", "Y"], ["Z"], domain="com.microsoft", alpha=0.5
                         ),
                     ],
                     "name",
                     [
-                        onnx.helper.make_tensor_value_info("X", FLOAT, [6, "a"]),
-                        onnx.helper.make_tensor_value_info("Y", FLOAT, [6, "b"]),
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4]),
                     ],
                     [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
                 ),
@@ -224,8 +260,8 @@ class OrtRuleSetsTest(unittest.TestCase):
                     ],
                     "name",
                     [
-                        onnx.helper.make_tensor_value_info("X", FLOAT, [6, "a"]),
-                        onnx.helper.make_tensor_value_info("Y", FLOAT, [6, "b"]),
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4]),
                     ],
                     [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
                 ),
@@ -239,13 +275,13 @@ class OrtRuleSetsTest(unittest.TestCase):
                     [
                         onnx.helper.make_node("Transpose", ["Y"], ["Yt"], perm=[1, 0]),
                         onnx.helper.make_node(
-                            "FusedMatMul", ["X", "Yt"], ["Z"], domain="com.microsoft"
+                            "FusedMatMul", ["X", "Yt"], ["Z"], domain="com.microsoft", alpha=0.5
                         ),
                     ],
                     "name",
                     [
-                        onnx.helper.make_tensor_value_info("X", FLOAT, [6, "a"]),
-                        onnx.helper.make_tensor_value_info("Y", FLOAT, [6, "b"]),
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4]),
                     ],
                     [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
                 ),

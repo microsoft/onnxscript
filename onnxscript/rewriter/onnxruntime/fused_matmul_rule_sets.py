@@ -56,7 +56,7 @@ class FusedMatMulDiv2(orp.RewriteRuleAsClass):
 
         kwargs = {}
         alpha = node.attributes.get("alpha", None)
-        kwargs["alpha"] = alpha = alpha.value / c if alpha else 1.0 / c
+        kwargs["alpha"] = alpha.value / c if alpha else 1.0 / c
         for name in ["transA", "transB", "transBatchA", "transBatchB"]:
             att = node.attributes.get(name)
             if att:
@@ -64,7 +64,7 @@ class FusedMatMulDiv2(orp.RewriteRuleAsClass):
         return op.FusedMatMul(x, y, **kwargs, domain="com.microsoft")
 
 
-class _TransposeMatMulDivBase(orp.RewriteRuleAsClass):
+class _TransposeMatMulBase(orp.RewriteRuleAsClass):
     _pos: ClassVar = 1
 
     @classmethod
@@ -76,7 +76,7 @@ class _TransposeMatMulDivBase(orp.RewriteRuleAsClass):
 
     @classmethod
     def rewrite(cls, op, x, y):
-        node = list((x if cls._pos == 1 else y).uses())[0][0]  # noqa: RUF015
+        node = list((x if cls._pos == 2 else y).uses())[0][0]  # noqa: RUF015
         kwargs = {}
         for name in ["alpha", "transA", "transB", "transBatchA", "transBatchB"]:
             att = node.attributes.get(name)
@@ -87,7 +87,7 @@ class _TransposeMatMulDivBase(orp.RewriteRuleAsClass):
         return op.FusedMatMul(x, y, **kwargs, domain="com.microsoft")
 
 
-class TransposeMatMulDiv1(_TransposeMatMulDivBase):
+class TransposeMatMul1(_TransposeMatMulBase):
     """Replaces ``Transpose + (Fused)MatMul`` by FusedMatMul."""
 
     @classmethod
@@ -95,7 +95,7 @@ class TransposeMatMulDiv1(_TransposeMatMulDivBase):
         return op.MatMul(op.Transpose(x), y)
 
 
-class TransposeFusedMatMulDiv1(TransposeMatMulDiv1):
+class TransposeFusedMatMul1(TransposeMatMul1):
     """Replaces ``Transpose + (Fused)MatMul`` by FusedMatMul."""
 
     @classmethod
@@ -103,7 +103,7 @@ class TransposeFusedMatMulDiv1(TransposeMatMulDiv1):
         return op.FusedMatMul(op.Transpose(x), y, domain="com.microsoft")
 
 
-class TransposeMatMulDiv2(_TransposeMatMulDivBase):
+class TransposeMatMul2(_TransposeMatMulBase):
     """Replaces ``Transpose + (Fused)MatMul`` by FusedMatMul."""
 
     _pos: ClassVar = 2
@@ -113,12 +113,51 @@ class TransposeMatMulDiv2(_TransposeMatMulDivBase):
         return op.MatMul(x, op.Transpose(y))
 
 
-class TransposeFusedMatMulDiv2(TransposeMatMulDiv2):
+class TransposeFusedMatMul2(TransposeMatMul2):
     """Replaces ``Transpose + (Fused)MatMul`` by FusedMatMul."""
 
     @classmethod
     def pattern(cls, op, x, y):
         return op.FusedMatMul(x, op.Transpose(y), domain="com.microsoft")
+
+
+
+
+class MatMulTranspose(orp.RewriteRuleAsClass):
+    """Replaces ``MatMul + Transpose`` by FusedMatMul."""
+
+    @classmethod
+    def pattern(cls, op, x, y):
+        return op.Transpose(op.MatMul(x, y))
+
+    @classmethod
+    def check(cls, context, x, y) -> bool:
+        matmul = list(x.uses())[0][0]  # noqa: RUF015
+        transpose = list(matmul.outputs[0].uses())[0][0]
+        perm = transpose.attributes["perm"].value
+        expected_perm = list(range(len(perm)))
+        expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
+        return perm == expected_perm
+
+    @classmethod
+    def rewrite(cls, op, x, y):
+        node = list(x.uses())[0][0]  # noqa: RUF015
+        kwargs = {}
+        for name in ["alpha", "transA", "transB", "transBatchA", "transBatchB"]:
+            att = node.attributes.get(name)
+            if att:
+                kwargs[name] = att.value
+        for name in ["transA", "transB"]:
+            kwargs[name] = 1 - kwargs.get(name, 0)
+        return op.FusedMatMul(y, x, **kwargs, domain="com.microsoft")
+
+
+class FusedMatMulTranspose(MatMulTranspose):
+    """Replaces ``MatMul + Transpose`` by FusedMatMul."""
+
+    @classmethod
+    def pattern(cls, op, x, y):
+        return op.Transpose(op.FusedMatMul(x, y, domain="com.microsoft"))
 
 
 def fused_matmul_rule_sets() -> orp.RewriteRuleSet:
@@ -134,9 +173,11 @@ def fused_matmul_rule_sets() -> orp.RewriteRuleSet:
             *oort.ORT_PATTERN_REWRITE_RULES,
             orp.make_rewrite_rule_from_class(FusedMatMulDiv1, True),
             orp.make_rewrite_rule_from_class(FusedMatMulDiv2, True),
-            orp.make_rewrite_rule_from_class(TransposeMatMulDiv1, True),
-            orp.make_rewrite_rule_from_class(TransposeFusedMatMulDiv1, True),
-            orp.make_rewrite_rule_from_class(TransposeMatMulDiv2, True),
-            orp.make_rewrite_rule_from_class(TransposeFusedMatMulDiv2, True),
+            orp.make_rewrite_rule_from_class(FusedMatMulTranspose, True),
+            orp.make_rewrite_rule_from_class(MatMulTranspose, True),
+            orp.make_rewrite_rule_from_class(TransposeMatMul1, True),
+            orp.make_rewrite_rule_from_class(TransposeFusedMatMul1, True),
+            orp.make_rewrite_rule_from_class(TransposeMatMul2, True),
+            orp.make_rewrite_rule_from_class(TransposeFusedMatMul2, True),
         ]
     )
