@@ -87,7 +87,7 @@ def get_model_and_inputs(
     Returns a model and a couple of dummy inputs.
 
     Args:
-        model: model name, 'phi', 'llama', ...
+        model: model name, 'phi', 'llama', 'phi3', ...
         config: 'small', 'medium', 'large', ...
         dynamic_shapes: dynamic or static shapes
         device: 'cpu' or 'cuda'
@@ -131,6 +131,19 @@ def get_model_and_inputs(
         import onnxscript.tools.transformers_models.phi as m_phi
 
         tmodel, inputs, dynamic_shapes_def = m_phi.get_phi_model_from_config(
+            warmup=warmup,
+            repeat=repeat,
+            implementation=implementation,
+            with_mask=with_mask,
+            num_hidden_layers=num_hidden_layers,
+            dynamic_shapes=dynamic_shapes,
+            config=config,
+        )
+
+    elif model == "phi3":
+        import onnxscript.tools.transformers_models.phi3 as m_phi3
+
+        tmodel, inputs, dynamic_shapes_def = m_phi3.get_phi3_model_from_config(
             warmup=warmup,
             repeat=repeat,
             implementation=implementation,
