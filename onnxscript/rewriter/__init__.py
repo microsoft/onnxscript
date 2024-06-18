@@ -40,7 +40,7 @@ def rewrite(
             pattern_rewrite_rules = pattern.RewriteRuleSet(pattern_rewrite_rules)
         count = pattern_rewrite_rules.apply_to_model(model_ir)
         print(f"Applied {count} of general pattern rewrite rules.")
+    remove_unused.remove_unused_nodes(model_ir)
+    model_ir = remove_unused_function.remove_unused_functions(model_ir)
     model = ir.serde.serialize_model(model_ir)
-    remove_unused.remove_unused_nodes(model)
-    model = remove_unused_function.remove_unused_functions(model)
     return model
