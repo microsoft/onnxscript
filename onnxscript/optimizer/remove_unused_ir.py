@@ -32,8 +32,10 @@ def remove_unused_optional_outputs(
 
         if is_used_output(1) or is_used_output(2):
             return
-        node.outputs[1].name = ""
-        node.outputs[2].name = ""
+        if len(node.outputs) > 1:
+            node.outputs[1].name = ""
+        if len(node.outputs) > 2:
+            node.outputs[2].name = ""
         node.attributes.pop("training_mode", None)
         return
 

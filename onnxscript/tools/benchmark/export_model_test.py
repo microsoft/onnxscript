@@ -89,6 +89,11 @@ class BenchmarkTest(unittest.TestCase):
 
     @unittest.skipIf(not has_transformers(), reason="transformers missing")
     @unittest.skipIf(not is_onnxruntime_training(), reason="onnxruntime-training is needed")
+    @unittest.skipIf(
+        torch_older_than("2.4"),
+        reason="TypeError: _functionalize_sync(): "
+        "argument 't' (position 1) must be Tensor, not NoneType",
+    )
     def test_export_model_phi_cpu_dynamo(self):
         args = [
             "--verbose",
