@@ -317,6 +317,47 @@ class OrtRuleSetsTest(unittest.TestCase):
             self.assertEqual(["FusedMatMul"], [n.op_type for n in rewritten_model.graph.node])
             self._check_model(model_proto, rewritten_model, atol=1e-6)
 
+    @classmethod
+    def _should_not_match(cls):
+        models = [
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["X"], ["Xt"], perm=[1, 0]),
+                        onnx.helper.make_node("MatMul", ["Xt", "Y"], ["Z"]),
+                        onnx.helper.make_node("Transpose", ["Xt"], ["W"], perm=[1, 0]),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4]),
+                    ],
+                    [
+                        onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None]),
+                        onnx.helper.make_tensor_value_info("W", FLOAT, [None, None]),
+                    ],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+        ]
+        return models
+
+    def test_should_not_match(self):
+        for model_proto in self._should_not_match():
+            ir_model = ir.serde.deserialize_model(model_proto)
+            rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
+            rule_set.apply_to_model(ir_model)
+            rewritten_model = ir.serde.serialize_model(ir_model)
+
+            self.assertEqual(
+                ["Transpose", "MatMul", "Transpose"],
+                [n.op_type for n in rewritten_model.graph.node],
+            )
+            self._check_model(model_proto, rewritten_model, atol=1e-6)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
