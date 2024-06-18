@@ -35,29 +35,11 @@ class FusedMatMulDiv2(orp.RewriteRuleAsClass):
     """Replaces ``FusedMatMul + Div`` by FusedMatMul."""
 
     @classmethod
-    def pattern(
-        cls, op, x, y, cst, alpha=1.0, transA=0, transB=0, transBatchA=0, transBatchB=0
-    ):
-        return op.Div(
-            op.FusedMatMul(
-                x,
-                y,
-                alpha=alpha,
-                transA=transA,
-                transB=transB,
-                transBatchA=transBatchA,
-                transBatchB=transBatchB,
-                domain="com.microsoft",
-            ),
-            cst,
-        )
+    def pattern(cls, op, x, y, cst):
+        return op.Div(op.FusedMatMul(x, y, domain="com.microsoft"), cst)
 
     @classmethod
-    def check(
-        cls, context, x, y, cst, alpha, transA, transB, transBatchA, transBatchB
-    ) -> bool:
-        if transBatchA.value != 0 or transBatchB.value != 0:
-            return False
+    def check(cls, context, x, y, cst) -> bool:
         if cst.const_value is None:
             return False
         if cst.const_value.numpy().size > 1:
@@ -65,19 +47,23 @@ class FusedMatMulDiv2(orp.RewriteRuleAsClass):
         return True
 
     @classmethod
-    def rewrite(cls, op, x, y, cst, alpha, transA, transB, transBatchA, transBatchB):
+    def rewrite(cls, op, x, y, cst):
         value = cst.const_value.numpy()
         c = float(value[0] if value.shape == (1,) else value)
-        return op.FusedMatMul(
-            x,
-            y,
-            alpha=alpha.value / c,
-            transA=transA.value,
-            transB=transB.value,
-            transBatchA=transBatchA.value,
-            transBatchB=transBatchB.value,
-            domain="com.microsoft",
-        )
+        nodes = list(x.uses())
+        assert (
+            len(nodes) == 1
+        ), f"The pattern should not match if x is used {len(nodes)} times."
+        node = nodes[0][0]
+
+        kwargs = {}
+        alpha = node.attributes.get("alpha", None)
+        kwargs["alpha"] = alpha = alpha.value / c if alpha else 1.0 / c
+        for name in ["transA", "transB", "transBatchA", "transBatchB"]:
+            att = node.attributes.get(name)
+            if att:
+                kwargs[name] = att.value
+        return op.FusedMatMul(x, y, **kwargs, domain="com.microsoft")
 
 
 def fused_matmul_rule_sets() -> orp.RewriteRuleSet:
@@ -91,7 +77,7 @@ def fused_matmul_rule_sets() -> orp.RewriteRuleSet:
     return orp.RewriteRuleSet(
         [
             *oort.ORT_PATTERN_REWRITE_RULES,
-            orp.make_rewrite_rule_from_class(FusedMatMulDiv1),
-            orp.make_rewrite_rule_from_class(FusedMatMulDiv2),
+            orp.make_rewrite_rule_from_class(FusedMatMulDiv1, True),
+            orp.make_rewrite_rule_from_class(FusedMatMulDiv2, True),
         ]
     )
