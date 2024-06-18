@@ -80,7 +80,7 @@ class FusedMatMulDiv2(orp.RewriteRuleAsClass):
         )
 
 
-def ort_rule_set() -> orp.RewriteRuleSet:
+def fused_matmul_rule_sets() -> orp.RewriteRuleSet:
     """Returns a set of rules introducting onnxruntime contrib obs.
     This requires onnxruntime to run the model after
     it is rewritten.

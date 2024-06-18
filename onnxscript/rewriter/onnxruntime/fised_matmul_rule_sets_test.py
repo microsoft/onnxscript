@@ -10,7 +10,7 @@ import onnx
 import onnx.reference
 import onnx.reference.op_run
 
-import onnxscript.rewriter.ort_rule_sets as ort_rule_sets
+import onnxscript.rewriter.fused_matmul_ort_rule_sets as fused_matmul_rule_sets
 from onnxscript import ir
 
 FLOAT = onnx.TensorProto.FLOAT
