@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+from typing import ClassVar
+
 import onnxscript.rewriter.onnxruntime as oort
 import onnxscript.rewriter.pattern as orp
 
@@ -50,11 +52,7 @@ class FusedMatMulDiv2(orp.RewriteRuleAsClass):
     def rewrite(cls, op, x, y, cst):
         value = cst.const_value.numpy()
         c = float(value[0] if value.shape == (1,) else value)
-        nodes = list(x.uses())
-        assert (
-            len(nodes) == 1
-        ), f"The pattern should not match if x is used {len(nodes)} times."
-        node = nodes[0][0]
+        node = list(x.uses())[0][0]  # noqa: RUF015
 
         kwargs = {}
         alpha = node.attributes.get("alpha", None)
@@ -64,6 +62,63 @@ class FusedMatMulDiv2(orp.RewriteRuleAsClass):
             if att:
                 kwargs[name] = att.value
         return op.FusedMatMul(x, y, **kwargs, domain="com.microsoft")
+
+
+class _TransposeMatMulDivBase(orp.RewriteRuleAsClass):
+    _pos: ClassVar = 1
+
+    @classmethod
+    def check(cls, context, x, y) -> bool:
+        perm = list((x if cls._pos == 1 else y).uses())[0][0].attributes["perm"].value  # noqa: RUF015
+        expected_perm = list(range(len(perm)))
+        expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
+        return perm == expected_perm
+
+    @classmethod
+    def rewrite(cls, op, x, y):
+        node = list((x if cls._pos == 1 else y).uses())[0][0]  # noqa: RUF015
+        kwargs = {}
+        for name in ["alpha", "transA", "transB", "transBatchA", "transBatchB"]:
+            att = node.attributes.get(name)
+            if att:
+                kwargs[name] = att.value
+        name = "transA" if cls._pos == 1 else "transB"
+        kwargs[name] = 1 - kwargs.get(name, 0)
+        return op.FusedMatMul(x, y, **kwargs, domain="com.microsoft")
+
+
+class TransposeMatMulDiv1(_TransposeMatMulDivBase):
+    """Replaces ``Transpose + (Fused)MatMul`` by FusedMatMul."""
+
+    @classmethod
+    def pattern(cls, op, x, y):
+        return op.MatMul(op.Transpose(x), y)
+
+
+class TransposeFusedMatMulDiv1(TransposeMatMulDiv1):
+    """Replaces ``Transpose + (Fused)MatMul`` by FusedMatMul."""
+
+    @classmethod
+    def pattern(cls, op, x, y):
+        return op.FusedMatMul(op.Transpose(x), y, domain="com.microsoft")
+
+
+class TransposeMatMulDiv2(_TransposeMatMulDivBase):
+    """Replaces ``Transpose + (Fused)MatMul`` by FusedMatMul."""
+
+    _pos: ClassVar = 2
+
+    @classmethod
+    def pattern(cls, op, x, y):
+        return op.MatMul(x, op.Transpose(y))
+
+
+class TransposeFusedMatMulDiv2(TransposeMatMulDiv2):
+    """Replaces ``Transpose + (Fused)MatMul`` by FusedMatMul."""
+
+    @classmethod
+    def pattern(cls, op, x, y):
+        return op.FusedMatMul(x, op.Transpose(y), domain="com.microsoft")
 
 
 def fused_matmul_rule_sets() -> orp.RewriteRuleSet:
@@ -79,5 +134,9 @@ def fused_matmul_rule_sets() -> orp.RewriteRuleSet:
             *oort.ORT_PATTERN_REWRITE_RULES,
             orp.make_rewrite_rule_from_class(FusedMatMulDiv1, True),
             orp.make_rewrite_rule_from_class(FusedMatMulDiv2, True),
+            orp.make_rewrite_rule_from_class(TransposeMatMulDiv1, True),
+            orp.make_rewrite_rule_from_class(TransposeFusedMatMulDiv1, True),
+            orp.make_rewrite_rule_from_class(TransposeMatMulDiv2, True),
+            orp.make_rewrite_rule_from_class(TransposeFusedMatMulDiv2, True),
         ]
     )

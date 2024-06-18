@@ -175,6 +175,98 @@ class OrtRuleSetsTest(unittest.TestCase):
             self.assertEqual(["FusedMatMul"], [n.op_type for n in rewritten_model.graph.node])
             self._check_model(model_proto, rewritten_model, atol=1e-6)
 
+    @classmethod
+    def _transposed_fused_matmul_div_models(cls):
+        models = [
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["X"], ["Xt"], perm=[1, 0]),
+                        onnx.helper.make_node("MatMul", ["Xt", "Y"], ["Z"]),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [6, "a"]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [6, "b"]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["X"], ["Xt"], perm=[1, 0]),
+                        onnx.helper.make_node(
+                            "FusedMatMul", ["Xt", "Y"], ["Z"], domain="com.microsoft"
+                        ),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [6, "a"]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [6, "b"]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["Y"], ["Yt"], perm=[1, 0]),
+                        onnx.helper.make_node("MatMul", ["X", "Yt"], ["Z"]),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [6, "a"]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [6, "b"]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["Y"], ["Yt"], perm=[1, 0]),
+                        onnx.helper.make_node(
+                            "FusedMatMul", ["X", "Yt"], ["Z"], domain="com.microsoft"
+                        ),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [6, "a"]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [6, "b"]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+        ]
+        return models
+
+    def test_ort_rule_set_transpose_fused_matmul_div(self):
+        rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
+        for model_proto in self._transposed_fused_matmul_div_models():
+            ir_model = ir.serde.deserialize_model(model_proto)
+            rule_set.apply_to_model(ir_model)
+            rewritten_model = ir.serde.serialize_model(ir_model)
+
+            self.assertEqual(["FusedMatMul"], [n.op_type for n in rewritten_model.graph.node])
+            self._check_model(model_proto, rewritten_model, atol=1e-6)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
