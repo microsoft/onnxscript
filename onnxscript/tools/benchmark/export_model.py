@@ -86,7 +86,7 @@ def main(args=None):
     msg = [tuple(i.shape for i in inp) for inp in example_inputs]
     print(f"[export_model] input_shapes={msg}")
     conversion: dict[str, Any] = {}
-    memory_stat: dict[str, float] = {}
+    memory_stats: dict[str, float] = {}
 
     if kwargs["exporter"] == "eager":
         print("[export_model] start benchmark")
