@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from typing import Sequence, Union
+from typing import Sequence, Union, TypeVar
 
 __all__ = [
     # Modules
@@ -22,13 +22,19 @@ RewriteRuleSet = pattern.RewriteRuleSet
 PatternRewriteRule = pattern.RewriteRule
 FunctionRewriteRule = function_rule.FunctionRewriteRule
 
+ModelProtoOrIr = TypeVar('ModelProtoOrIr', onnx.ModelProto, ir.Model)
 
 def rewrite(
-    model: onnx.ModelProto,
+    model: ModelProtoOrIr,
     function_rewrite_rules: Sequence[type[FunctionRewriteRule]] = (),
     pattern_rewrite_rules: Union[Sequence[PatternRewriteRule], RewriteRuleSet] = (),
-) -> onnx.ModelProto:
-    model_ir = ir.serde.deserialize_model(model)
+) -> ModelProtoOrIr:
+    if isinstance(model, onnx.ModelProto):
+        model_ir = ir.serde.deserialize_model(model)
+        proto = True
+    else:
+        model_ir = model
+        proto = False
     if function_rewrite_rules:
         for rule_cls in function_rewrite_rules:
             count, model_ir = rule_cls().apply_to_model(model_ir)
@@ -42,5 +48,7 @@ def rewrite(
         print(f"Applied {count} of general pattern rewrite rules.")
     remove_unused.remove_unused_nodes(model_ir)
     model_ir = remove_unused_function.remove_unused_functions(model_ir)
-    model = ir.serde.serialize_model(model_ir)
-    return model
+    if proto:
+        model = ir.serde.serialize_model(model_ir)
+        return model
+    return model_ir
