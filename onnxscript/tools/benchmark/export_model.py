@@ -148,7 +148,7 @@ def main(args=None):
             print(f"[export_model] ends memory monitoring {memory_results}")
             memory_stats = mpk.flatten(memory_results, prefix="memory_")
         else:
-            memory_stats = None
+            memory_stats = {}
 
         result = onnxscript.tools.benchmark.run_onnx_inference(
             proto,
