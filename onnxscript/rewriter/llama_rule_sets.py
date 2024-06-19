@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+from typing import ClassVar
+
 import numpy as np
 import onnx.numpy_helper
 
@@ -31,9 +33,23 @@ class CastIdentity(orp.RewriteRuleAsClass):
 class CastCast(orp.RewriteRuleAsClass):
     """Replaces ``Cast(Cast(X, ...), to=to)`` by ``Cast(X, to=to)``."""
 
+    _allowed_tensor_types: ClassVar = {
+        onnx.TensorProto.FLOAT,
+        onnx.TensorProto.FLOAT16,
+        onnx.TensorProto.BFLOAT16,
+        onnx.TensorProto.DOUBLE,
+    }
+
     @classmethod
-    def pattern(cls, op, x, to: int, to_ignored: int):
+    def pattern(cls, op, x, to, to_ignored):
         return op.Cast(op.Cast(x, to=to_ignored), to=to)
+
+    @classmethod
+    def check(cls, context, x: ir.Value, to: ir.AttrInt64, to_ignored: ir.AttrInt64) -> bool:
+        return (
+            to.value in cls._allowed_tensor_types
+            and to_ignored.value in cls._allowed_tensor_types
+        )
 
     @classmethod
     def rewrite(cls, op, x: ir.Value, to: ir.AttrInt64, to_ignored: ir.AttrInt64):

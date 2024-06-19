@@ -146,14 +146,14 @@ class LlamaRuleSetsTest(unittest.TestCase):
                             "Cast", ["X"], ["Xc"], to=onnx.TensorProto.FLOAT16
                         ),
                         onnx.helper.make_node(
-                            "Cast", ["Xc"], ["Y"], to=onnx.TensorProto.INT32
+                            "Cast", ["Xc"], ["Y"], to=onnx.TensorProto.DOUBLE
                         ),
                     ],
                     "name",
                     [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None, None])],
                     [
                         onnx.helper.make_tensor_value_info(
-                            "Y", onnx.TensorProto.INT32, [None, None, None]
+                            "Y", onnx.TensorProto.DOUBLE, [None, None, None]
                         )
                     ],
                 ),
@@ -170,7 +170,7 @@ class LlamaRuleSetsTest(unittest.TestCase):
             rewritten_model = ir.serde.serialize_model(ir_model)
 
             self.assertEqual(["Cast"], [n.op_type for n in rewritten_model.graph.node])
-            self._check_model(model_proto, rewritten_model)
+            self._check_model(model_proto, rewritten_model, atol=1e-3)
 
     @classmethod
     def _cast_identity_models(cls):
