@@ -175,7 +175,7 @@ The following example shows how to create a `FLOAT8E4M3FN` tensor, transform its
     # You can also directly create the tensor from the float8 array without specifying dtype
     # new_tensor = ir.Tensor(times_100)
     print("new_tensor:", new_tensor)  # Tensor<FLOAT8E4M3FN,[2]>(array([0.1875, 0.5625], dtype='float8_e4m3fn'), name=None)
-    # print("new_tensor == times_100", new_tensor.numpy() == times_100)  # array([ True,  True])
+    print("new_tensor == times_100", new_tensor.numpy() == times_100)  # array([ True,  True])
 ```
 
 ## Advanced Usage
