@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from typing import Sequence, Union, TypeVar
+from typing import Sequence, TypeVar, Union
 
 __all__ = [
     # Modules
@@ -22,7 +22,8 @@ RewriteRuleSet = pattern.RewriteRuleSet
 PatternRewriteRule = pattern.RewriteRule
 FunctionRewriteRule = function_rule.FunctionRewriteRule
 
-ModelProtoOrIr = TypeVar('ModelProtoOrIr', onnx.ModelProto, ir.Model)
+ModelProtoOrIr = TypeVar("ModelProtoOrIr", onnx.ModelProto, ir.Model)
+
 
 def rewrite(
     model: ModelProtoOrIr,
@@ -51,4 +52,4 @@ def rewrite(
     if proto:
         model = ir.serde.serialize_model(model_ir)
         return model
-    return model_ir
+    return model_ir  # type: ignore[return-value]
