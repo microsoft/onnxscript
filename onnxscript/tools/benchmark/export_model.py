@@ -60,7 +60,7 @@ def main(args=None):
 
     # Import is delayed so that help is being display faster (without having to import heavy packages).
     import onnxscript.tools
-    import onnxscript.tools.memory_peak as mpk
+    import onnxscript.tools.memory_peak
     import onnxscript.tools.transformers_models
 
     print(
@@ -127,7 +127,7 @@ def main(args=None):
         filename = f"em_{name}.onnx"
 
         memory_session = (
-            mpk.start_spying_on(cuda=kwargs["device"] == "cuda")
+            onnxscript.tools.memory_peak.start_spying_on(cuda=kwargs["device"] == "cuda")
             if kwargs["memory_peak"]
             else None
         )
@@ -148,7 +148,9 @@ def main(args=None):
         if memory_session is not None:
             memory_results = memory_session.stop()
             print(f"[export_model] ends memory monitoring {memory_results}")
-            memory_stats = mpk.flatten(memory_results, prefix="memory_")
+            memory_stats = onnxscript.tools.memory_peak.flatten(
+                memory_results, prefix="memory_"
+            )
         else:
             memory_stats = {}
 

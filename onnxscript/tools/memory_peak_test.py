@@ -7,16 +7,16 @@ import unittest
 import numpy as np
 import torch
 
-import onnxscript.tools.memory_peak as mpeak
+import onnxscript.tools.memory_peak
 
 
 class TestMemoryPeak(unittest.TestCase):
     def test_memory(self):
-        mem = mpeak.get_memory_rss(os.getpid())
+        mem = onnxscript.tools.memory_peak.get_memory_rss(os.getpid())
         self.assertIsInstance(mem, int)
 
     def test_spy(self):
-        p = mpeak.start_spying_on()
+        p = onnxscript.tools.memory_peak.start_spying_on()
         res = []
         for i in range(10):
             time.sleep(0.005)
@@ -31,7 +31,7 @@ class TestMemoryPeak(unittest.TestCase):
 
     @unittest.skipIf(not torch.cuda.is_available(), reason="CUDA not here")
     def test_spy_cuda(self):
-        p = mpeak.start_spying_on(cuda=True)
+        p = onnxscript.tools.memory_peak.start_spying_on(cuda=True)
         res = []
         for i in range(10):
             time.sleep(0.005)
