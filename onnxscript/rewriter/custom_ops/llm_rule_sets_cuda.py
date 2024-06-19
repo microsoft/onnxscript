@@ -10,6 +10,196 @@ import onnxscript.rewriter.pattern as orp
 op = orp.onnxop
 
 
+class _CombineBinary(orp.RewriteRuleAsClass):
+    @classmethod
+    def _same_shape(
+        cls, sh1: tuple[int, ...], sh2: tuple[int, ...], broadcast: bool = False
+    ) -> bool:
+        if broadcast:
+            if len(sh1) != len(sh2):
+                rk = max(len(sh1), len(sh2))
+                sh1 = (1,) * (rk - len(sh1)) + sh1
+                sh2 = (1,) * (rk - len(sh2)) + sh2
+            allow_one1 = True
+            allow_one2 = True
+            for a, b in zip(sh1, sh2):
+                if a == b:
+                    if a != 1:
+                        allow_one1 = False
+                    if b != 1:
+                        allow_one2 = False
+                    continue
+                if a == 1 and allow_one1:
+                    allow_one2 = False
+                    continue
+                if b == 1 and allow_one2:
+                    allow_one1 = False
+                    continue
+                return False
+            return True
+        return sh1 == sh2
+
+    @classmethod
+    def check(cls, context, x, y, z) -> bool:
+        if x.shape is None or y.shape is None or z.shape is None:
+            return False
+        return cls._same_shape(x.shape, y.shape, broadcast=True) and cls._same_shape(
+            y.shape, z.shape, broadcast=True
+        )
+
+
+class CombinedAddAdd1(_CombineBinary):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Add(x, op.Add(y, z))
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.AddAdd(x, y, z, domain="ai.onnx.contrib")
+
+
+class CombinedAddAdd2(CombinedAddAdd1):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Add(op.Add(x, y), z)
+
+
+class CombinedMulMul1(_CombineBinary):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Mul(x, op.Mul(y, z))
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.MulMul(x, y, z, domain="ai.onnx.contrib")
+
+
+class CombinedMulMul2(CombinedMulMul1):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Mul(op.Mul(x, y), z)
+
+
+class CombinedAddMul1(_CombineBinary):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Mul(op.Add(x, y), z)
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.AddMul(x, y, z, domain="ai.onnx.contrib")
+
+
+class CombinedAddMul2(_CombineBinary):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Mul(x, op.Add(y, z))
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.AddMul(y, z, x, domain="ai.onnx.contrib")
+
+
+class CombinedMulAdd1(_CombineBinary):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Add(op.Mul(x, y), z)
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.MulAdd(x, y, z, domain="ai.onnx.contrib")
+
+
+class CombinedMulAdd2(_CombineBinary):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Add(x, op.Mul(y, z))
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.MulAdd(y, z, x, domain="ai.onnx.contrib")
+
+
+class AddSharedInput1(_CombineBinary):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Add(x, y), op.Add(x, z)
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.AddSharedInput(x, y, z, domain="ai.onnx.contrib")
+
+
+class AddSharedInput2(_CombineBinary):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Add(y, x), op.Add(x, z)
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.AddSharedInput(x, y, z, domain="ai.onnx.contrib")
+
+
+class MulSharedInput1(_CombineBinary):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Mul(x, y), op.Mul(x, z)
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.MulSharedInput(x, y, z, domain="ai.onnx.contrib")
+
+
+class MulSharedInput2(_CombineBinary):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Mul(y, x), op.Mul(x, z)
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.MulSharedInput(x, y, z, domain="ai.onnx.contrib")
+
+
+class CombinedSubMul1(_CombineBinary):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Mul(op.Sub(x, y), z)
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.SubMul(x, y, z, negative=0, domain="ai.onnx.contrib")
+
+
+class CombinedSubMul2(_CombineBinary):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Mul(op.Sub(y, x), z)
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.SubMul(x, y, z, negative=1, domain="ai.onnx.contrib")
+
+
+class CombinedMulSub1(_CombineBinary):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Sub(op.Mul(x, y), z)
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.MulSub(x, y, z, negative=0, domain="ai.onnx.contrib")
+
+
+class CombinedMulSub2(_CombineBinary):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Sub(z, op.Mul(x, y))
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.MulSub(x, y, z, negative=1, domain="ai.onnx.contrib")
+
+
 class MaskedScatterNDOfShape(orp.RewriteRuleAsClass):
     @classmethod
     def pattern(cls, op, shape, indices, updates, tensor, masked, zero, reduction):
@@ -40,6 +230,97 @@ class MaskedScatterNDOfShape(orp.RewriteRuleAsClass):
             reduction=reduction.value,
             domain="ai.onnx.contrib",
         )
+
+
+class MulSigmoid(orp.RewriteRuleAsClass):
+    @classmethod
+    def pattern(cls, op, x):
+        return op.Mul(x, op.Sigmoid(x))
+
+    @classmethod
+    def check(cls, context, x) -> bool:
+        return True
+
+    @classmethod
+    def rewrite(cls, op, x):
+        return op.MulSigmoid(x, domain="ai.onnx.contrib")
+
+
+class NegXPlus1(orp.RewriteRuleAsClass):
+    @classmethod
+    def pattern(cls, op, cst, x):
+        return op.Sub(cst, x)
+
+    @classmethod
+    def check(cls, context, cst, x) -> bool:
+        if cst.const_value is None:
+            return False
+        if cst.shape != (1,):
+            return False
+        value = float(cst.const_value.numpy().reshape((1,))[0])
+        return value == 1
+
+    @classmethod
+    def rewrite(cls, op, cst, x):
+        return op.NegXplus1(x, domain="ai.onnx.contrib")
+
+
+class ReplaceZero1(orp.RewriteRuleAsClass):
+    @classmethod
+    def pattern(cls, op, x, y):
+        return op.Where(op.Cast(x, to=onnx.TensorProto.BOOL), x, y)
+
+    @classmethod
+    def check(cls, context, x, y) -> bool:
+        return True
+
+    @classmethod
+    def rewrite(cls, op, x, y):
+        return op.ReplaceZero(x, y, equal=1, domain="ai.onnx.contrib")
+
+
+class ReplaceZero2(orp.RewriteRuleAsClass):
+    @classmethod
+    def pattern(cls, op, x, y):
+        return op.Where(op.Cast(x, to=onnx.TensorProto.BOOL), y, x)
+
+    @classmethod
+    def check(cls, context, x, y) -> bool:
+        return True
+
+    @classmethod
+    def rewrite(cls, op, x, y):
+        return op.ReplaceZero(x, y, equal=0, domain="ai.onnx.contrib")
+
+
+class Rotary1(orp.RewriteRuleAsClass):
+    @classmethod
+    def pattern(cls, op, x, y):
+        x1, x2 = op.Split(x, num_outputs=2, axis=-1, outputs=2)
+        return op.Concat(op.Neg(x2), x1, axis=-1)
+
+    @classmethod
+    def check(cls, context, x) -> bool:
+        return True
+
+    @classmethod
+    def rewrite(cls, op, x):
+        return op.Rotary(x, side="left", domain="ai.onnx.contrib")
+
+
+class Rotary2(orp.RewriteRuleAsClass):
+    @classmethod
+    def pattern(cls, op, x, y):
+        x1, x2 = op.Split(x, num_outputs=2, axis=-1, outputs=2)
+        return op.Concat(x2, op.Neg(x1), axis=-1)
+
+    @classmethod
+    def check(cls, context, x) -> bool:
+        return True
+
+    @classmethod
+    def rewrite(cls, op, x):
+        return op.Rotary(x, side="right", domain="ai.onnx.contrib")
 
 
 class TransposeCast1(orp.RewriteRuleAsClass):
@@ -90,6 +371,34 @@ class TransposeCast2(orp.RewriteRuleAsClass):
         return op.Transpose2DCastFP16(x, domain="ai.onnx.contrib")
 
 
+class MulAddTranspose(orp.RewriteRuleAsClass):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Transpose(op.MulAdd(x, y, z, domain="ai.onnx.contrib"), perm=[0, 2, 1, 3])
+
+    @classmethod
+    def check(cls, context, x, y, z) -> bool:
+        return True
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.MulAdd(x, y, z, transposeMiddle=1, domain="ai.onnx.contrib")
+
+
+class AddMulTranspose(orp.RewriteRuleAsClass):
+    @classmethod
+    def pattern(cls, op, x, y, z):
+        return op.Transpose(op.AddMul(x, y, z, domain="ai.onnx.contrib"), perm=[0, 2, 1, 3])
+
+    @classmethod
+    def check(cls, context, x, y, z) -> bool:
+        return True
+
+    @classmethod
+    def rewrite(cls, op, x, y, z):
+        return op.AddMul(x, y, z, transposeMiddle=1, domain="ai.onnx.contrib")
+
+
 def llm_rule_set_cuda() -> orp.RewriteRuleSet:
     """Returns a set of rules fusing nodes into custom kernels.
 
@@ -98,7 +407,31 @@ def llm_rule_set_cuda() -> orp.RewriteRuleSet:
     """
     return orp.RewriteRuleSet(
         [
+            # orp.make_rewrite_rule_from_class(AddSharedInput1, True),
+            # orp.make_rewrite_rule_from_class(AddSharedInput2, True),
+            # orp.make_rewrite_rule_from_class(MulSharedInput1, True),
+            # orp.make_rewrite_rule_from_class(MulSharedInput2, True),
+            orp.make_rewrite_rule_from_class(AddMulTranspose),
+            orp.make_rewrite_rule_from_class(CombinedAddAdd1),
+            orp.make_rewrite_rule_from_class(CombinedAddAdd2),
+            orp.make_rewrite_rule_from_class(CombinedAddMul1),
+            orp.make_rewrite_rule_from_class(CombinedAddMul2),
+            orp.make_rewrite_rule_from_class(CombinedMulAdd1),
+            orp.make_rewrite_rule_from_class(CombinedMulAdd2),
+            orp.make_rewrite_rule_from_class(CombinedMulMul1),
+            orp.make_rewrite_rule_from_class(CombinedMulMul2),
+            orp.make_rewrite_rule_from_class(CombinedMulSub1),
+            orp.make_rewrite_rule_from_class(CombinedMulSub2),
+            orp.make_rewrite_rule_from_class(CombinedSubMul1),
+            orp.make_rewrite_rule_from_class(CombinedSubMul2),
             orp.make_rewrite_rule_from_class(MaskedScatterNDOfShape),
+            orp.make_rewrite_rule_from_class(MulAddTranspose),
+            orp.make_rewrite_rule_from_class(MulSigmoid),
+            orp.make_rewrite_rule_from_class(NegXPlus1),
+            orp.make_rewrite_rule_from_class(ReplaceZero1),
+            orp.make_rewrite_rule_from_class(ReplaceZero2),
+            orp.make_rewrite_rule_from_class(Rotary1),
+            orp.make_rewrite_rule_from_class(Rotary2),
             orp.make_rewrite_rule_from_class(TransposeCast1),
             orp.make_rewrite_rule_from_class(TransposeCast2),
         ]
