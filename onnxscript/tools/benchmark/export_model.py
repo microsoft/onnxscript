@@ -127,7 +127,7 @@ def main(args=None):
         filename = f"em_{name}.onnx"
 
         memory_session = (
-            mpk.start_spying_on(cuda=kwargs["device"] == "cuda") if args.memory_peak else None
+            mpk.start_spying_on(cuda=kwargs["device"] == "cuda") if kwargs["memory_peak"] else None
         )
         print(f"[export_model] start memory peak monitoring {memory_session}")
         proto = onnxscript.tools.benchmark.common_export(
