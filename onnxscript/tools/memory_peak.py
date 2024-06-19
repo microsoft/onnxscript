@@ -11,8 +11,11 @@ def get_memory_rss(pid: int) -> int:
     """
     Returns the physical memory used by a process.
 
-    :param pid: process id, current one is `os.getpid()`
-    :return: physical memory
+    Args:
+        pid: Process id, current one is `os.getpid()`.
+
+    Returns:
+         Physical memory.
 
     It relies on the module :epkg:`psutil`.
     """
