@@ -52,4 +52,4 @@ def rewrite(
     if proto:
         model = ir.serde.serialize_model(model_ir)
         return model
-    return model_ir
+    return model_ir  # type: ignore[return-value]
