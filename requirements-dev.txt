@@ -24,7 +24,6 @@ beartype!=0.16.0
 expecttest==0.1.6
 hypothesis
 parameterized
-pyinstrument
 pytest-cov
 pytest-randomly
 pytest-subtests
@@ -32,6 +31,7 @@ pytest-xdist
 pytest!=7.1.0
 pyyaml
 torch>=2.1
+torchvision>=0.16.0
 transformers>=4.37.2
 
 # Lint
