@@ -382,7 +382,6 @@ class LlamaRuleSetsTest(unittest.TestCase):
             rule_set = llama_rule_sets.llama_p0_rule_set()
             rule_set.apply_to_model(ir_model)
             rewritten_model = ir.serde.serialize_model(ir_model)
-
             self.assertEqual(["Split"], [n.op_type for n in rewritten_model.graph.node])
             self._check_model(model_proto, rewritten_model)
 

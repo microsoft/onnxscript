@@ -247,8 +247,8 @@ class GenericPatternMatcher(orp.PatternMatcher):
             if k == "hint":
                 rows.append(f"--hint--: {v[0]}")  # type: ignore[arg-type]
                 for i in v[1:]:
-                    if isinstance(i, str):
-                        rows.append("  " + i)
+                    if isinstance(i, (str, int, float)):
+                        rows.append("  " + str(i))
                     elif isinstance(i, ir.Node):
                         rows.append("  " + _p(i, full=True))
                     elif isinstance(i, orp.NodePattern):
@@ -299,18 +299,12 @@ class GenericPatternMatcher(orp.PatternMatcher):
             )
             return self.none(starting_node, inspect.currentframe().f_lineno)
 
-        for graph_input, pattern_input in zip(graph_node.inputs, pattern_node.inputs):
-            if len(list(graph_input.uses())) != len(list(pattern_input.uses())):
-                self._hint(
-                    "BACKWARD: one input is used outside the pattern",
-                    "-- pattern",
-                    pattern_node,
-                    "-- model",
-                    graph_node,
-                )
-                return self.none(starting_node, inspect.currentframe().f_lineno)
-
         for graph_value, pattern_value in zip(graph_node.inputs, pattern_node.inputs):
+            if len(list(graph_value.uses())) != len(list(pattern_value.uses())):
+                # If not the same number of successors, no match is possible
+                # as one node is missing in the pattern or one node is missing
+                # in the graph.
+                continue
             # TODO(rama): Handle constant-pattern
             pattern_pred = pattern_value.producer()
             if pattern_pred is None:
@@ -570,8 +564,6 @@ class GenericPatternMatcher(orp.PatternMatcher):
             print(
                 f"[GenericPatternMatcher.match] Matching started at node: {_node_to_str(node)}"
             )
-            if self.verbose >= 10:
-                print(f"[GenericPatternMatcher.match] match pattern {self}")
 
         all_pattern_nodes = set(self.pattern)
         matched: dict[orp.NodePattern, ir.Node] = {last_pattern_node: node}
