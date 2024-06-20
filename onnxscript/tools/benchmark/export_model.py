@@ -49,6 +49,7 @@ def main(args=None):
             "inline, set of patterns (default, onnxruntime, customops)",
         ),
         implementation=("eager", "eager or sdpa"),
+        memory_peak=(0, "measure the memory peak during conversion"),
         new_args=args,
     )
 
@@ -59,6 +60,7 @@ def main(args=None):
 
     # Import is delayed so that help is being display faster (without having to import heavy packages).
     import onnxscript.tools
+    import onnxscript.tools.memory_peak
     import onnxscript.tools.transformers_models
 
     print(
@@ -85,6 +87,7 @@ def main(args=None):
     msg = [tuple(i.shape for i in inp) for inp in example_inputs]
     print(f"[export_model] input_shapes={msg}")
     conversion: dict[str, Any] = {}
+    memory_stats: dict[str, float] = {}
 
     if kwargs["exporter"] == "eager":
         print("[export_model] start benchmark")
@@ -123,6 +126,12 @@ def main(args=None):
         )
         filename = f"em_{name}.onnx"
 
+        memory_session = (
+            onnxscript.tools.memory_peak.start_spying_on(cuda=kwargs["device"] == "cuda")
+            if kwargs["memory_peak"]
+            else None
+        )
+        print(f"[export_model] start memory peak monitoring {memory_session}")
         proto = onnxscript.tools.benchmark.common_export(
             model=model,
             inputs=example_inputs[0],
@@ -136,6 +145,14 @@ def main(args=None):
             stats=conversion,
         )
         print(f"[export_model] export to onnx done in {time.perf_counter() - begin}")
+        if memory_session is not None:
+            memory_results = memory_session.stop()
+            print(f"[export_model] ends memory monitoring {memory_results}")
+            memory_stats = onnxscript.tools.memory_peak.flatten(
+                memory_results, prefix="memory_"
+            )
+        else:
+            memory_stats = {}
 
         result = onnxscript.tools.benchmark.run_onnx_inference(
             proto,
@@ -152,6 +169,9 @@ def main(args=None):
         print(f":{k},{v};")
     for k, v in sorted(conversion.items()):
         print(f":{k},{v};")
+    if memory_stats:
+        for k, v in memory_stats.items():
+            print(f":{k},{v};")
     for k, v in sorted(result.items()):
         print(f":{k},{v};")
 
