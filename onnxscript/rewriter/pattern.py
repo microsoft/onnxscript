@@ -1049,7 +1049,7 @@ class RewriteRule:
             matcher: The pattern matcher that will be used to match the pattern.
                 If not provided, a default matcher will be used.
             verbose: The verbosity level of the rule.
-            name: for debugging purpose
+            name: An optional name for the pattern that will show up in verbose logging.
         """
 
         if not isinstance(target_pattern, GraphPattern):
@@ -1089,6 +1089,8 @@ class RewriteRule:
         verbose: int | None = None,
     ) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
+        if verbose and verbose > 2:
+            print(f"[try_rewrite] {self}")
         verbose = verbose if verbose is not None else self._verbose
         match = self._matcher.match(model, graph_or_function, node, verbose=verbose)
         if match:
@@ -1147,7 +1149,7 @@ class RewriteRuleAsClass:
         raise NotImplementedError("Method 'rewrite' must be overwritten.")
 
     @classmethod
-    def check(cls, context, *_) -> bool:
+    def check(cls, context, *_, **__) -> bool:
         return True
 
 
