@@ -538,7 +538,13 @@ def _integral_to_be_adjusted(dtype: int) -> bool:
 
 
 @torch_op("aten::arange", trace_only=True)
-def aten_arange(end: Union[DOUBLE, FLOAT, INT16, INT32, INT64], dtype: int = -1) -> TensorType:
+def aten_arange(
+    end: Union[DOUBLE, FLOAT, INT16, INT32, INT64],
+    dtype: int = -1,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+) -> TensorType:
     """arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     # NOTE: trace_only because both if branches need to be the same type, but we have
