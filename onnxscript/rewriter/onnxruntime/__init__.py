@@ -7,6 +7,7 @@ import onnx
 from onnxscript.rewriter import function_rule, pattern
 from onnxscript.rewriter import rewrite as _rewrite
 from onnxscript.rewriter.onnxruntime import (
+    fused_matmul_rule_sets,
     group_normalization_merge_silu,
     instance_to_group_normalization,
     softmax,
@@ -20,6 +21,7 @@ ORT_PATTERN_REWRITE_RULES = [
     *instance_to_group_normalization.rules.rules,
     # NOTE: group normalization merge silu should be applied after instance to group normalization
     *group_normalization_merge_silu.rules.rules,
+    *fused_matmul_rule_sets.fused_matmul_rule_sets(),
 ]
 
 

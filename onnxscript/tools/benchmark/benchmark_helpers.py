@@ -21,6 +21,8 @@ import onnx.inliner
 import onnxscript.optimizer
 import onnxscript.rewriter
 import onnxscript.rewriter.llama_rule_sets as rules
+import onnxscript.rewriter.onnxruntime as ort_rules
+import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
 from onnxscript.optimizer.remove_unused import remove_unused_nodes
 
@@ -216,7 +218,7 @@ def common_export(
         inputs: inputs
         dynamic_shapes: dynamic shapes
         target_opset: target opset
-        optimization: optimization scenario
+        optimization: optimization scenario, '/' separated values
         verbose: verbosity
         stats: if not None, populates this
             dictionary with statistics about time
@@ -257,6 +259,7 @@ def common_export(
 
     if stats is not None:
         stats["export_time"] = time.perf_counter() - begin
+        stats["filesize"] = os.stat(filename).st_size
 
     if verbose:
         print(f"[common_export] exporter done in {time.perf_counter() - begin}s")
@@ -303,8 +306,9 @@ def apply_rule_sets(
     Returns:
         optimized model
     """
+    assert rule_sets, "No need to call apply_rule_sets for an empty set."
     if verbose:
-        print("[apply_rule_sets] deserialize model")
+        print(f"[apply_rule_sets] deserialize model before {rule_sets}")
     begin = time.perf_counter()
     ir_model = ir.serde.deserialize_model(model_proto)
     end = time.perf_counter() - begin
@@ -319,11 +323,14 @@ def apply_rule_sets(
 
         if rule_set_name == "llama0":
             rule_set = rules.llama_p0_rule_set()
+        elif rule_set_name == "onnxruntime":
+            rule_set = orp.RewriteRuleSet(ort_rules.ORT_PATTERN_REWRITE_RULES)
         else:
             raise ValueError(f"Unexpected rule_set name {rule_set_name!r}")
 
         begin = time.perf_counter()
         rule_set.apply_to_model(ir_model)
+        remove_unused_nodes(ir_model)
         end = time.perf_counter() - begin
         if stats is not None:
             stats[f"opt_rule_{rule_set_name}_time"] = end
@@ -366,7 +373,7 @@ def optimize_model_proto(
 
     Args:
         model_proto: ModelProto
-        optimization: comma separated value
+        optimization: '/' separated value
         verbose: verbosity
         stats: if not None, populates this dictionary with statistics
 
@@ -376,13 +383,25 @@ def optimize_model_proto(
     if not optimization:
         return model_proto
 
-    for value in optimization.split(","):
+    known_rule_sets = {"llama0", "onnxruntime"}
+
+    rule_sets: list[str] = []
+    for value in optimization.split("/"):
+        if value in known_rule_sets:
+            rule_sets.append(value)
+            continue
+        if value not in known_rule_sets and rule_sets:
+            model_proto = apply_rule_sets(model_proto, rule_sets, stats=stats, verbose=verbose)
+            del rule_sets[:]
+            continue
+
         if verbose:
             print(f"[optimize_model_proto] start {value}")
 
         n_nodes = len(model_proto.graph.node)
         n_functions = len(model_proto.functions)
         begin = time.perf_counter()
+
         if value == "optimize":
             model_proto = onnxscript.optimizer.optimize(
                 model_proto,
@@ -395,11 +414,6 @@ def optimize_model_proto(
 
         elif value == "inline":
             model_proto = onnx.inliner.inline_local_functions(model_proto)
-
-        elif value == "llama0":
-            model_proto = apply_rule_sets(
-                model_proto, ["llama0"], stats=stats, verbose=verbose
-            )
 
         else:
             raise AssertionError(
@@ -418,6 +432,8 @@ def optimize_model_proto(
                 f"[optimize_model_proto] {value} done in {end} "
                 f"with +/- {delta} nodes, +/- {deltaf} functions"
             )
+    if rule_sets:
+        model_proto = apply_rule_sets(model_proto, rule_sets, stats=stats, verbose=verbose)
 
     return model_proto
 
