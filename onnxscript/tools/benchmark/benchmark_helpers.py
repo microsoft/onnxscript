@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import itertools
 import multiprocessing
 import os
 import platform
@@ -697,3 +698,28 @@ def run_onnx_inference(
         print(f"[run_inference] measure done in {time.perf_counter() - begin}")
 
     return stats
+
+
+def multi_run(kwargs: dict[str, Any]) -> bool:
+    """Checks if multiple values were sent for one argument."""
+    return any(isinstance(v, str) and "," in v for v in kwargs.values())
+
+
+def make_configs(kwargs: dict[str, Any]) -> list[dict[str, Any]]:
+    """Creates all the configurations based on the command line arguments."""
+    print(kwargs)
+    args = []
+    for k, v in kwargs.items():
+        if isinstance(v, str):
+            args.append([(k, s) for s in v.split(",")])
+        else:
+            args.append([(k, v)])
+    configs = list(itertools.product(*args))
+    return [dict(c) for c in configs]
+
+
+def make_dataframe_from_benchmark_data(data: dict) -> Any:
+    """Creates a dataframe from the received data."""
+    import pandas
+
+    return pandas.DataFrame(data)
