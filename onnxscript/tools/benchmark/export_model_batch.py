@@ -60,11 +60,11 @@ def main(args: list[str] | None = None):
     configs: list[dict[str, Any]] = [
         dict(exporter="eager"),
         dict(ort_optimize=1, exporter="script"),
-        dict(ort_optimize=1, optimization="optimize,rewrite,inline", exporter="script"),
-        dict(ort_optimize=0, optimization="optimize,rewrite,inline", exporter="script"),
+        dict(ort_optimize=1, optimization="optimize/rewrite/inline", exporter="script"),
+        dict(ort_optimize=0, optimization="optimize/rewrite/inline", exporter="script"),
         dict(ort_optimize=1, optimization="", exporter="dynamo"),
-        dict(ort_optimize=1, optimization="optimize,rewrite,inline", exporter="dynamo"),
-        dict(ort_optimize=0, optimization="optimize,rewrite,inline", exporter="dynamo"),
+        dict(ort_optimize=1, optimization="optimize/rewrite/inline", exporter="dynamo"),
+        dict(ort_optimize=0, optimization="optimize/rewrite/inline", exporter="dynamo"),
     ]
     common_kwargs: dict[str, Any] = kwargs.copy()
     common_kwargs["verbose"] = max(common_kwargs["verbose"] - 1, 0)

@@ -119,7 +119,7 @@ class Opset:
         # TODO: validate the op schema as 'None' values are removed?
         input_list = list(inputs)
         while input_list and input_list[-1] is None:
-            del input_list[-1]
+            input_list.pop()
         return input_list
 
 

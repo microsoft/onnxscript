@@ -116,11 +116,14 @@ def process_graph(
 
     count = process_nodes(graph.node, used, opset_import)
 
-    for i in range(len(graph.initializer) - 1, -1, -1):
-        if graph.initializer[i].name not in used:
-            del graph.initializer[i]
+    new_initializers = []
+    for init in graph.initializer:
+        if init.name not in used:
             count += 1
-
+            continue
+        new_initializers.append(init)
+    del graph.initializer[:]
+    graph.initializer.extend(new_initializers)
     return count
 
 
