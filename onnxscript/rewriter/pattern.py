@@ -1049,7 +1049,7 @@ class RewriteRule:
             matcher: The pattern matcher that will be used to match the pattern.
                 If not provided, a default matcher will be used.
             verbose: The verbosity level of the rule.
-            name: for debugging purpose
+            name: An optional name for the pattern that will show up in verbose logging.
         """
 
         if not isinstance(target_pattern, GraphPattern):
