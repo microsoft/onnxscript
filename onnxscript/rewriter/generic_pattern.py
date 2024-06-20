@@ -296,6 +296,18 @@ class GenericPatternMatcher(orp.PatternMatcher):
                 graph_node,
             )
             return self.none(starting_node, inspect.currentframe().f_lineno)
+
+        for graph_input, pattern_input in zip(graph_node.inputs, pattern_node.inputs):
+            if len(list(graph_input.uses())) != len(list(pattern_input.uses())):
+                self._hint(
+                    "BACKWARD: one input is used outside the pattern",
+                    "-- pattern",
+                    pattern_node,
+                    "-- model",
+                    graph_node,
+                )
+                return self.none(starting_node, inspect.currentframe().f_lineno)
+
         for graph_value, pattern_value in zip(graph_node.inputs, pattern_node.inputs):
             # TODO(rama): Handle constant-pattern
             pattern_pred = pattern_value.producer()
