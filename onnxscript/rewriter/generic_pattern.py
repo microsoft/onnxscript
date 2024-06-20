@@ -249,7 +249,9 @@ class GenericPatternMatcher(orp.PatternMatcher):
                 for i in v[1:]:
                     if isinstance(i, str):
                         rows.append("  " + i)
-                    if isinstance(i, ir.Node):
+                    elif isinstance(i, ir.Node):
+                        rows.append("  " + _p(i, full=True))
+                    elif isinstance(i, orp.NodePattern):
                         rows.append("  " + _p(i, full=True))
                 continue
             if k in {"node", "pattern", "pattern_node", "pattern_nodes"}:
@@ -423,12 +425,12 @@ class GenericPatternMatcher(orp.PatternMatcher):
             return match_count
         if len(free) < len(pattern_node_users_not_matched):
             # Not enough successors to match the remaining patterns.
-            return self.none(node, inspect.currentframe().f_lineno)
+            return self.none(starting_node, inspect.currentframe().f_lineno)
         if len(pattern_node_users_not_matched) == len(free) == 1:
             # Only one option again.
             graph_node = free[0]
             if pattern_node_users_not_matched[0].op_identifier() != graph_node.op_identifier():
-                return self.none(node, inspect.currentframe().f_lineno)
+                return self.none(starting_node, inspect.currentframe().f_lineno)
 
             key = pattern_node_users_not_matched[0]
             if self.verbose >= 10:

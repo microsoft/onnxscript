@@ -141,8 +141,8 @@ class ReplaceZero(op_run.OpRun):
 class Rotary(op_run.OpRun):
     op_domain = "ai.onnx.contrib"
 
-    def _run(self, X, splits, side=None):
-        assert (
+    def _run(self, X, splits=None, side=None):
+        assert splits is None or (
             splits.shape == (2,) and splits[0] == splits[1]
         ), f"Unexpected split value {splits}"
         last_dim = X.shape[-1] // 2
@@ -473,56 +473,82 @@ class LlmRuleSetsTest(unittest.TestCase):
         np.testing.assert_allclose(expected[0], got[0], atol=1e-5)
 
     def _simple_rotary(self, side):
-        model = oh.make_model(
-            oh.make_graph(
-                [
-                    oh.make_node("Split", ["X", "splits"], ["s1", "s2"], axis=-1),
-                    (
-                        oh.make_node("Neg", ["s1"], ["ns1"])
-                        if side == "left"
-                        else oh.make_node("Neg", ["s2"], ["ns2"])
-                    ),
-                    (
-                        oh.make_node("Concat", ["s2", "ns1"], ["Y"], axis=-1)
-                        if side == "left"
-                        else oh.make_node("Concat", ["ns2", "s1"], ["Y"], axis=-1)
-                    ),
+        models = [
+            oh.make_model(
+                oh.make_graph(
+                    [
+                        oh.make_node("Split", ["X"], ["s1", "s2"], axis=-1, num_outputs=2),
+                        (
+                            oh.make_node("Neg", ["s1"], ["ns1"])
+                            if side == "left"
+                            else oh.make_node("Neg", ["s2"], ["ns2"])
+                        ),
+                        (
+                            oh.make_node("Concat", ["s2", "ns1"], ["Y"], axis=-1)
+                            if side == "left"
+                            else oh.make_node("Concat", ["ns2", "s1"], ["Y"], axis=-1)
+                        ),
+                    ],
+                    "dummy",
+                    [oh.make_tensor_value_info("X", TFLOAT, [None, None])],
+                    [oh.make_tensor_value_info("Y", TFLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    oh.make_opsetid("", 18),
                 ],
-                "dummy",
-                [oh.make_tensor_value_info("X", TFLOAT, [None, None])],
-                [oh.make_tensor_value_info("Y", TFLOAT, [None, None])],
-                [onh.from_array(np.array([4, 4], dtype=np.int64), name="splits")],
+                ir_version=9,
             ),
-            opset_imports=[
-                oh.make_opsetid("", 18),
-            ],
-            ir_version=9,
-        )
-        onnx.checker.check_model(model)
-        ir_model = ir.serde.deserialize_model(model)
-        rule_set = llm_rule_sets_cuda.llm_rule_set_cuda()
-        rule_set.apply_to_model(ir_model)
-        opt_onx = ir.serde.serialize_model(ir_model)
-        self.assertEqual(
-            ["Rotary"],
-            [n.op_type for n in opt_onx.graph.node],
-        )
+            oh.make_model(
+                oh.make_graph(
+                    [
+                        oh.make_node("Split", ["X", "splits"], ["s1", "s2"], axis=-1),
+                        (
+                            oh.make_node("Neg", ["s1"], ["ns1"])
+                            if side == "left"
+                            else oh.make_node("Neg", ["s2"], ["ns2"])
+                        ),
+                        (
+                            oh.make_node("Concat", ["s2", "ns1"], ["Y"], axis=-1)
+                            if side == "left"
+                            else oh.make_node("Concat", ["ns2", "s1"], ["Y"], axis=-1)
+                        ),
+                    ],
+                    "dummy",
+                    [oh.make_tensor_value_info("X", TFLOAT, [None, None])],
+                    [oh.make_tensor_value_info("Y", TFLOAT, [None, None])],
+                    [onh.from_array(np.array([4, 4], dtype=np.int64), name="splits")],
+                ),
+                opset_imports=[
+                    oh.make_opsetid("", 18),
+                ],
+                ir_version=9,
+            ),
+        ]
+        for model in models:
+            onnx.checker.check_model(model)
+            ir_model = ir.serde.deserialize_model(model)
+            rule_set = llm_rule_sets_cuda.llm_rule_set_cuda()
+            rule_set.apply_to_model(ir_model)
+            opt_onx = ir.serde.serialize_model(ir_model)
+            self.assertEqual(
+                ["Rotary"],
+                [n.op_type for n in opt_onx.graph.node],
+            )
 
-        feeds = {
-            "X": np.arange(24).reshape((3, 8)).astype(np.float32),
-        }
-        ref1 = ExtendedReferenceEvaluator(model)
-        expected = ref1.run(None, feeds)
+            feeds = {
+                "X": np.arange(24).reshape((3, 8)).astype(np.float32),
+            }
+            ref1 = ExtendedReferenceEvaluator(model)
+            expected = ref1.run(None, feeds)
 
-        self.assertEqual(1, len(opt_onx.graph.initializer))
-        onnx.checker.check_model(opt_onx)
-        opsets = {v.domain: v.version for v in opt_onx.opset_import}
-        self.assertIn("ai.onnx.contrib", opsets)
-        self.assertEqual(opsets["ai.onnx.contrib"], 1)
+            onnx.checker.check_model(opt_onx)
+            opsets = {v.domain: v.version for v in opt_onx.opset_import}
+            self.assertIn("ai.onnx.contrib", opsets)
+            self.assertEqual(opsets["ai.onnx.contrib"], 1)
 
-        ref2 = ExtendedReferenceEvaluator(opt_onx)
-        got = ref2.run(None, feeds)
-        np.testing.assert_allclose(expected[0], got[0], atol=1e-5)
+            ref2 = ExtendedReferenceEvaluator(opt_onx)
+            got = ref2.run(None, feeds)
+            np.testing.assert_allclose(expected[0], got[0], atol=1e-5)
 
     def test_simple_rotary(self):
         self._simple_rotary("right")
@@ -648,42 +674,39 @@ class LlmRuleSetsTest(unittest.TestCase):
         got = ref2.run(None, feeds)
         np.testing.assert_allclose(expected[0], got[0], atol=1e-5)
 
-    def test_sub_mul_pattern(self):
-        for op_type, left, negative in itertools.product(
-            ["Sub", "Mul"], [True, False], [False, True]
-        ):
-            other_type = "Sub" if op_type == "Mul" else "Mul"
-            with self.subTest(op_type=op_type, left=left, negative=negative):
-                model = self._get_aamm_model(
-                    op_type=op_type,
-                    left=left,
-                    other_type=other_type,
-                    negative=negative,
-                )
-                self.assertEqual(len(model.graph.node), 2)
+    @parameterized.parameterized.expand(
+        itertools.product(["Sub", "Mul"], [True, False], [False, True])
+    )
+    def test_sub_mul_pattern(self, op_type, left, negative):
+        other_type = "Sub" if op_type == "Mul" else "Mul"
+        model = self._get_aamm_model(
+            op_type=op_type,
+            left=left,
+            other_type=other_type,
+            negative=negative,
+        )
+        self.assertEqual(len(model.graph.node), 2)
 
-                ir_model = ir.serde.deserialize_model(model)
-                rule_set = llm_rule_sets_cuda.llm_rule_set_cuda()
-                rule_set.apply_to_model(ir_model)
-                opt_onx = ir.serde.serialize_model(ir_model)
+        ir_model = ir.serde.deserialize_model(model)
+        rule_set = llm_rule_sets_cuda.llm_rule_set_cuda()
+        rule_set.apply_to_model(ir_model)
+        opt_onx = ir.serde.serialize_model(ir_model)
 
-                self.assertEqual(
-                    [f"{op_type}{other_type}"], [_.op_type for _ in opt_onx.graph.node]
-                )
-                opsets = {v.domain: v.version for v in opt_onx.opset_import}
-                self.assertIn("ai.onnx.contrib", opsets)
-                self.assertEqual(opsets["ai.onnx.contrib"], 1)
+        self.assertEqual([f"{op_type}{other_type}"], [_.op_type for _ in opt_onx.graph.node])
+        opsets = {v.domain: v.version for v in opt_onx.opset_import}
+        self.assertIn("ai.onnx.contrib", opsets)
+        self.assertEqual(opsets["ai.onnx.contrib"], 1)
 
-                feeds = {
-                    "X": np.array([10, 11], dtype=np.float32),
-                    "Y": np.array([10, 12], dtype=np.float32),
-                    "Z": np.array([10, 13], dtype=np.float32),
-                }
-                ref1 = ExtendedReferenceEvaluator(model)
-                expected = ref1.run(None, feeds)
-                ref2 = ExtendedReferenceEvaluator(opt_onx)
-                got = ref2.run(None, feeds)
-                np.testing.assert_allclose(expected[0], got[0])
+        feeds = {
+            "X": np.array([10, 11], dtype=np.float32),
+            "Y": np.array([10, 12], dtype=np.float32),
+            "Z": np.array([10, 13], dtype=np.float32),
+        }
+        ref1 = ExtendedReferenceEvaluator(model)
+        expected = ref1.run(None, feeds)
+        ref2 = ExtendedReferenceEvaluator(opt_onx)
+        got = ref2.run(None, feeds)
+        np.testing.assert_allclose(expected[0], got[0])
 
     def _get_shared_input_model(self, op_type: str, left: bool) -> onnx.ModelProto:
         model = oh.make_model(
