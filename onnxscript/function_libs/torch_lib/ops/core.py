@@ -9,6 +9,7 @@
 - All functions should not have the script() decorator. This is because
     we want to delay the compilation of the function.
 """
+# pylint: disable=unused-argument
 
 from __future__ import annotations
 
@@ -93,7 +94,7 @@ def aten__log_softmax_half(
 def aten__log_softmax(
     self: TFloatHighPrecision,
     dim: int,
-    half_to_float: bool,  # pylint: disable=unused-argument
+    half_to_float: bool,
 ) -> TFloatHighPrecision:
     """_log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
 
@@ -398,7 +399,7 @@ def aten_allclose(
     other: TReal,
     rtol: float = 1e-05,
     atol: float = 1e-08,
-    equal_nan: bool = False,  # pylint: disable=unused-argument
+    equal_nan: bool = False,
 ) -> BOOL:
     """allclose(Tensor self, Tensor other, float rtol=1e-05, float atol=1e-08, bool equal_nan=False) -> bool"""
 
@@ -1686,7 +1687,7 @@ def aten_clamp_min(self: TReal, min_: TReal) -> TReal:
 @torch_op("aten::clone")
 def aten_clone(
     self: TTensor,
-    memory_format: str = "",  # pylint: disable=unused-argument
+    memory_format: str = "",
 ) -> TTensor:
     """clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor"""
 
@@ -1819,7 +1820,7 @@ def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTens
 @torch_op("aten::contiguous")
 def aten_contiguous(
     self: TTensor,
-    memory_format: str = "contiguous_format",  # pylint: disable=unused-argument
+    memory_format: str = "contiguous_format",
 ) -> TTensor:
     """contiguous(Tensor(a) self, *, MemoryFormat memory_format=contiguous_format) -> Tensor(a)"""
 
@@ -2147,7 +2148,7 @@ def aten_convolution_overrideable(
 def aten_copy(
     self: TTensor,
     src: TTensor2,
-    non_blocking: bool = False,  # pylint: disable=unused-argument
+    non_blocking: bool = False,
 ) -> TTensor:
     """copy(Tensor self, Tensor src, bool non_blocking=False) -> Tensor"""
 
@@ -2158,11 +2159,11 @@ def aten_copy(
 def aten__to_copy(
     self: TTensor,
     dtype: int = -1,
-    layout: str = "",  # pylint: disable=unused-argument
-    device: str = "",  # pylint: disable=unused-argument
-    pin_memory: bool = False,  # pylint: disable=unused-argument
-    non_blocking: bool = False,  # pylint: disable=unused-argument
-    memory_format: str = "",  # pylint: disable=unused-argument
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+    non_blocking: bool = False,
+    memory_format: str = "",
 ) -> TTensor:
     """_to_copy(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, bool non_blocking=False, MemoryFormat? memory_format=None) -> Tensor"""
 
@@ -2855,7 +2856,7 @@ def aten_dstack(tensors: Sequence[TensorType]) -> TensorType:
 def aten_einsum(
     equation: str,
     tensors: Sequence[TReal],
-    path: Optional[int] = None,  # pylint: disable=unused-argument
+    path: Optional[int] = None,
 ) -> TReal:
     """einsum(str equation, Tensor[] tensors, *, int[]? path=None) -> Tensor"""
 
@@ -2870,7 +2871,7 @@ def aten_embedding(
     padding_idx: int = -1,
     scale_grad_by_freq: bool = False,
     sparse: bool = False,
-) -> TTensor:  # pylint: disable=unused-argument
+) -> TTensor:
     # embedding(Tensor weight, Tensor indices, int padding_idx=-1, bool scale_grad_by_freq=False, bool sparse=False) -> Tensor
 
     return op.Gather(weight, indices)
@@ -2894,9 +2895,9 @@ def aten_embedding_bag(
     weight: TFloat,
     indices: INT64,
     offsets: INT64,
-    scale_grad_by_freq: bool = False,  # pylint: disable=unused-argument
+    scale_grad_by_freq: bool = False,
     mode: int = 0,  # [0,1,2] indicate ["sum", "mean", "max"]
-    sparse: bool = False,  # pylint: disable=unused-argument
+    sparse: bool = False,
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
 ) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
@@ -3028,9 +3029,9 @@ def aten_embedding_bag_padding_idx(
     weight: TFloat,
     indices: INT64,
     offsets: INT64,
-    scale_grad_by_freq: bool = False,  # pylint: disable=unused-argument
+    scale_grad_by_freq: bool = False,
     mode: int = 0,  # [0,1,2] indicate ["sum", "mean", "max"]
-    sparse: bool = False,  # pylint: disable=unused-argument
+    sparse: bool = False,
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
     padding_idx: int = -1,
@@ -3220,10 +3221,10 @@ def aten_embedding_sparse_backward(
 def aten_empty(
     size: IntType,
     dtype: int = FLOAT.dtype,
-    layout: str = "",  # pylint: disable=unused-argument
-    device: str = "",  # pylint: disable=unused-argument
-    pin_memory: bool = False,  # pylint: disable=unused-argument
-    memory_format: str = "",  # pylint: disable=unused-argument
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+    memory_format: str = "",
 ) -> TensorType:  # type: ignore[type-var]
     # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
@@ -3267,7 +3268,7 @@ def aten_empty_quantized(
 @torch_op("aten::empty_strided")
 def aten_empty_strided(
     size: INT64,
-    stride: INT64,  # pylint: disable=unused-argument
+    stride: INT64,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
@@ -3681,7 +3682,7 @@ def aten_gather(
     self: TReal,
     dim: int,
     index: TInt,
-    sparse_grad: bool = False,  # pylint: disable=unused-argument
+    sparse_grad: bool = False,
 ) -> TReal:
     """gather(Tensor self, int dim, Tensor index, *, bool sparse_grad=False) -> Tensor"""
 
@@ -4498,7 +4499,7 @@ def aten_isclose(
     other: TReal,
     rtol: float = 1e-05,
     atol: float = 1e-08,
-    equal_nan: bool = False,  # pylint: disable=unused-argument
+    equal_nan: bool = False,
 ) -> BOOL:
     """isclose(Tensor self, Tensor other, float rtol=1e-05, float atol=1e-08, bool equal_nan=False) -> Tensor"""
 
@@ -5604,7 +5605,7 @@ def aten_mul_complex(self: TReal, other: TReal) -> TReal:
 def aten_multinomial(
     self: TFloat,
     num_samples: int,
-    replacement: bool = False,  # pylint: disable=unused-argument
+    replacement: bool = False,
 ) -> TInt:
     """multinomial(Tensor self, int num_samples, bool replacement=False, *, Generator? generator=None) -> Tensor"""
     # ONNX Multinomial doesn't support 1D input
@@ -6020,9 +6021,9 @@ def aten_native_group_norm(
     input: TFloat,
     weight: Optional[TFloat] = None,
     bias: Optional[TFloat] = None,
-    N: Optional[INT64] = None,  # pylint: disable=unused-argument
-    C: Optional[INT64] = None,  # pylint: disable=unused-argument
-    HxW: Optional[INT64] = None,  # pylint: disable=unused-argument
+    N: Optional[INT64] = None,
+    C: Optional[INT64] = None,
+    HxW: Optional[INT64] = None,
     group: int = 1,
     eps: float = 1e-05,
 ) -> Tuple[TFloat, TFloat, TFloat]:
@@ -6193,7 +6194,7 @@ def aten_new_empty(
 
 @torch_op("aten::new_empty")
 def aten_new_empty_dtype(
-    self: TTensor,  # pylint: disable=unused-argument
+    self: TTensor,
     size: INT64,
     dtype: int,
     layout: str = "",
@@ -6211,7 +6212,7 @@ def aten_new_empty_dtype(
 def aten_new_empty_strided(
     self: TTensor,
     size: INT64,
-    stride: INT64,  # pylint: disable=unused-argument
+    stride: INT64,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
@@ -6225,9 +6226,9 @@ def aten_new_empty_strided(
 
 @torch_op("aten::new_empty_strided")
 def aten_new_empty_strided_dtype(
-    self: TTensor,  # pylint: disable=unused-argument
+    self: TTensor,
     size: INT64,
-    stride: INT64,  # pylint: disable=unused-argument
+    stride: INT64,
     dtype: int,
     layout: str = "",
     device: str = "",
@@ -6257,7 +6258,7 @@ def aten_new_full(
 
 @torch_op("aten::new_full")
 def aten_new_full_dtype(
-    self: TTensor,  # pylint: disable=unused-argument
+    self: TTensor,
     size: INT64,
     fill_value: TTensor,
     dtype: int,
@@ -6274,7 +6275,7 @@ def aten_new_full_dtype(
 @torch_op("aten::new_ones")
 def aten_new_ones(
     self: TReal, size: INT64, layout: str = "", device: str = "", pin_memory: bool = False
-) -> TReal:  # pylint: disable=unused-argument
+) -> TReal:
     """new_ones(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     one = op.Constant(value_float=1.0)
@@ -6284,7 +6285,7 @@ def aten_new_ones(
 
 @torch_op("aten::new_ones")
 def aten_new_ones_dtype(
-    self: TReal,  # pylint: disable=unused-argument
+    self: TReal,
     size: INT64,
     dtype: int,
     layout: str = "",
@@ -6308,7 +6309,7 @@ def aten_new_zeros(
 
 @torch_op("aten::new_zeros")
 def aten_new_zeros_dtype(
-    self: TReal,  # pylint: disable=unused-argument
+    self: TReal,
     size: INT64,
     dtype: int,
     layout: str = "",
@@ -7414,9 +7415,9 @@ def aten_rsub_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
 def aten_scalar_tensor(
     s: float,
     dtype: int = FLOAT.dtype,
-    layout: str = "",  # pylint: disable=unused-argument
-    device: str = "",  # pylint: disable=unused-argument
-    pin_memory: bool = False,  # pylint: disable=unused-argument
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
 ) -> RealType:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
@@ -7483,7 +7484,7 @@ def aten_scatter_reduce(
     index: TInt,
     src: TReal,
     reduce: str,
-    include_self: bool = True,  # pylint: disable=unused-argument
+    include_self: bool = True,
 ):
     """scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor"""
 
