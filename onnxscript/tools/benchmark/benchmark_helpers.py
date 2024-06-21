@@ -718,7 +718,7 @@ def make_configs(kwargs: dict[str, Any]) -> list[dict[str, Any]]:
     return [dict(c) for c in configs]
 
 
-def make_dataframe_from_benchmark_data(data: dict) -> Any:
+def make_dataframe_from_benchmark_data(data: list[dict]) -> Any:
     """Creates a dataframe from the received data."""
     import pandas
 

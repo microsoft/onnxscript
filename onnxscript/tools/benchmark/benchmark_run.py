@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+# pylint: disable=consider-using-with,import-outside-toplevel
 from __future__ import annotations
 
 import multiprocessing
@@ -75,9 +76,12 @@ def run_benchmark(
     :return: values
     """
     if verbose:
-        from tqdm import tqdm
+        try:
+            from tqdm import tqdm
 
-        loop = tqdm(configs)
+            loop = tqdm(configs)
+        except ImportError:
+            loop = configs
     else:
         loop = configs
 
@@ -91,14 +95,21 @@ def run_benchmark(
             os.environ["ONNXRT_DUMP_PATH"] = ""
         if verbose > 3:
             print(f"[run_benchmark] cmd={cmd if isinstance(cmd, str) else ' '.join(cmd)}")
+
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        res = p.communicate()
-        out, err = res
+        try:
+            res = p.communicate(timeout=30)
+            out, err = res
+            serr = err.decode("utf-8", errors="ignore")
+        except subprocess.TimeoutExpired as e:
+            p.kill()
+            res = p.communicate()
+            out, err = res
+            serr = f"{e}\n:timeout,1;{err.decode('utf-8', errors='ignore')}"
         sout = out.decode("utf-8", errors="ignore")
-        serr = err.decode("utf-8", errors="ignore")
 
         if "ONNXRuntimeError" in serr or "ONNXRuntimeError" in sout:
-            if stop_if_exception:
+            if stop_if_exception:  # pylint: disable=no-else-raise
                 raise RuntimeError(
                     f"Unable to continue with config {config} due to the "
                     f"following error\n{serr}"
@@ -118,7 +129,7 @@ def run_benchmark(
         metrics["ERROR"] = serr
         metrics["OUTPUT"] = sout
         metrics["CMD"] = f"[{' '.join(cmd)}]"
-        data.append(metrics)
+        data.append(metrics)  # type: ignore[arg-type
         if verbose > 5:
             print("--------------- ERROR")
             print(serr)
