@@ -300,13 +300,16 @@ class GenericPatternMatcher(orp.PatternMatcher):
             return self.none(starting_node, inspect.currentframe().f_lineno)
 
         for graph_value, pattern_value in zip(graph_node.inputs, pattern_node.inputs):
-            if len(list(graph_value.uses())) != len(list(pattern_value.uses())):
-                # If not the same number of successors, no match is possible
+            pattern_pred = pattern_value.producer()
+            if pattern_pred is not None and len(list(graph_value.uses())) != len(
+                list(pattern_value.uses())
+            ):
+                # If not the same number of successors for a node inside the pattern
+                # (pattern_pred is not None), no match is possible
                 # as one node is missing in the pattern or one node is missing
                 # in the graph.
                 continue
             # TODO(rama): Handle constant-pattern
-            pattern_pred = pattern_value.producer()
             if pattern_pred is None:
                 # pattern_pred is None means the pattern backward search ends here.
                 result = self._match_values_forward(
