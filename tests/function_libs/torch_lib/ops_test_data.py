@@ -820,18 +820,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("frac", core_ops.aten_frac),
     TorchLibOpInfo("full", core_ops.aten_full),
     TorchLibOpInfo(
-        "full_like_dtype",
-        core_ops.aten_full_like_dtype,
-    ).skip(
-        matcher=lambda sample: "dtype" not in sample.kwargs,
-        reason="this Aten overload only support dtype in kwargs",
-    ),
-    TorchLibOpInfo(
         "full_like",
         core_ops.aten_full_like,
-    ).skip(
-        matcher=lambda sample: ("dtype" in sample.kwargs),
-        reason="this Aten overload only support dtype not in kwargs",
     ),
     TorchLibOpInfo("gather", core_ops.aten_gather).skip(
         enabled_if=not version_utils.torch_older_than("2.4"),
@@ -1030,78 +1020,26 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("ne", core_ops.aten_ne),
     TorchLibOpInfo("neg", core_ops.aten_neg),
     TorchLibOpInfo(
-        "new_empty_dtype",
-        core_ops.aten_new_empty_dtype,
-        nondeterministic=True,
-    ).skip(
-        matcher=lambda sample: sample.kwargs.get("dtype") is None,
-        reason="this Aten overload must have 3 inputs:(self, size, dtype)",
-    ),
-    TorchLibOpInfo(
         "new_empty",
         core_ops.aten_new_empty,
         nondeterministic=True,
-    ).skip(
-        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
-        reason="this Aten overload only accept 2 inputs:(self, size)",
-    ),
-    TorchLibOpInfo(
-        "new_empty_strided_dtype",
-        core_ops.aten_new_empty_strided_dtype,
-        nondeterministic=True,
-    ).skip(
-        matcher=lambda sample: sample.kwargs.get("dtype") is None,
-        reason="this Aten overload must have 4 inputs:(self, size, stride, dtype)",
     ),
     TorchLibOpInfo(
         "new_empty_strided",
         core_ops.aten_new_empty_strided,
         nondeterministic=True,
-    ).skip(
-        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
-        reason="this Aten overload only accept 3 inputs:(self, size, stride)",
-    ),
-    TorchLibOpInfo(
-        "new_full_dtype",
-        core_ops.aten_new_full_dtype,
-    ).skip(
-        matcher=lambda sample: sample.kwargs.get("dtype") is None,
-        reason="this Aten overload must have 4 inputs:(self, size, fill_value, dtype)",
     ),
     TorchLibOpInfo(
         "new_full",
         core_ops.aten_new_full,
-    ).skip(
-        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
-        reason="this Aten overload only accept 3 inputs:(self, size, fill_value)",
-    ),
-    TorchLibOpInfo(
-        "new_ones_dtype",
-        core_ops.aten_new_ones_dtype,
-    ).skip(
-        matcher=lambda sample: sample.kwargs.get("dtype") is None,
-        reason="",
     ),
     TorchLibOpInfo(
         "new_ones",
         core_ops.aten_new_ones,
-    ).skip(
-        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
-        reason="",
-    ),
-    TorchLibOpInfo(
-        "new_zeros_dtype",
-        core_ops.aten_new_zeros_dtype,
-    ).skip(
-        matcher=lambda sample: sample.kwargs.get("dtype") is None,
-        reason="",
     ),
     TorchLibOpInfo(
         "new_zeros",
         core_ops.aten_new_zeros,
-    ).skip(
-        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
-        reason="",
     ),
     TorchLibOpInfo(
         "nn.functional.adaptive_avg_pool1d",
@@ -1370,23 +1308,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("pow", core_ops.aten_pow),
     TorchLibOpInfo("ops.aten.rand", core_ops.aten_rand, nondeterministic=True),
     TorchLibOpInfo("ops.aten.rand_like", core_ops.aten_rand_like, nondeterministic=True),
-    TorchLibOpInfo(
-        "ops.aten.rand_like__dtype", core_ops.aten_rand_like_dtype, nondeterministic=True
-    ),
     TorchLibOpInfo("ops.aten.randint", core_ops.aten_randint, nondeterministic=True),
     TorchLibOpInfo("ops.aten.randint.low", core_ops.aten_randint_low, nondeterministic=True),
     TorchLibOpInfo("ops.aten.randint_like", core_ops.aten_randint_like, nondeterministic=True),
     TorchLibOpInfo(
-        "ops.aten.randint_like__dtype", core_ops.aten_randint_like_dtype, nondeterministic=True
-    ),
-    TorchLibOpInfo(
         "ops.aten.randint_like.low_dtype",
         core_ops.aten_randint_like_low_dtype,
-        nondeterministic=True,
-    ),
-    TorchLibOpInfo(
-        "ops.aten.randint_like.low_dtype__dtype",
-        core_ops.aten_randint_like_low_dtype_dtype,
         nondeterministic=True,
     ),
     TorchLibOpInfo("ops.aten.randn", core_ops.aten_randn, nondeterministic=True).xfail(
@@ -1394,9 +1321,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: Shape inference error",
     ),
     TorchLibOpInfo("ops.aten.randn_like", core_ops.aten_randn_like, nondeterministic=True),
-    TorchLibOpInfo(
-        "ops.aten.randn_like_dtype", core_ops.aten_randn_like_dtype, nondeterministic=True
-    ),
     TorchLibOpInfo("rad2deg", core_ops.aten_rad2deg),
     TorchLibOpInfo("reciprocal", core_ops.aten_reciprocal),
     TorchLibOpInfo(
@@ -2310,7 +2234,6 @@ ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
 ops_test_common.duplicate_opinfo(OPS_DB, "diagonal", ("diagonal_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "div", ("div_mode", "div_mode_int"))
-ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "ge", ("ge_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "gt", ("gt_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
@@ -2321,11 +2244,6 @@ ops_test_common.duplicate_opinfo(OPS_DB, "maximum", ("maximum_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "min", ("min_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "minimum", ("minimum_bool",))
-ops_test_common.duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
-ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_strided_dtype",))
-ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
-ops_test_common.duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
-ops_test_common.duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
 ops_test_common.duplicate_opinfo(
     OPS_DB, "nn.functional.linear", ("nn.functional.linear_bias",)
 )

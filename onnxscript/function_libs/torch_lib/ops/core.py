@@ -6191,7 +6191,7 @@ def aten_new_empty(
     return op.Cast(result, to=dtype)
 
 
-@torch_op("aten::new_empty_strided")
+@torch_op("aten::new_empty_strided", trace_only=True)
 def aten_new_empty_strided(
     self: TTensor,
     size: INT64,
@@ -6229,7 +6229,7 @@ def aten_new_full(
     return op.Expand(fill_value, size)
 
 
-@torch_op("aten::new_ones")
+@torch_op("aten::new_ones", trace_only=True)
 def aten_new_ones(
     self: TReal,
     size: INT64,
@@ -6247,7 +6247,7 @@ def aten_new_ones(
     return op.Cast(result, to=dtype)
 
 
-@torch_op("aten::new_zeros")
+@torch_op("aten::new_zeros", trace_only=True)
 def aten_new_zeros(
     self: TReal,
     size: INT64,

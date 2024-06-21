@@ -852,18 +852,6 @@ def sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
         ((S, S), {}),
         ((0, S, 0), {}),
         ((S,), {}),
-    ]
-    for shape, kwargs in inputs:
-        t = torch_testing.make_tensor(
-            shape, dtype=dtype, device=device, low=None, high=None, requires_grad=requires_grad
-        )
-        yield opinfo_core.SampleInput(t, **kwargs)
-
-
-def sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
-    del self  # Unused
-
-    inputs = [
         ((S,), {"dtype": dtype}),
         # Hard-code some dtypes/devices. We want to test cases where the
         # (dtype, device) is different from the input's (dtype, device)
@@ -1165,26 +1153,6 @@ def sample_inputs_rand_like(op_info, device, dtype, requires_grad, **kwargs):
         yield opinfo_core.SampleInput(make_arg(shape))
 
 
-def sample_inputs_rand_like_dtype(op_info, device, dtype, requires_grad, **kwargs):
-    del op_info  # Unused
-    del kwargs  # Unused
-
-    make_arg = functools.partial(
-        torch_testing.make_tensor,
-        device=device,
-        dtype=torch.float32,
-        requires_grad=requires_grad,
-    )
-    shapes = (
-        (M,),
-        (S, S),
-        (S, S, S),
-    )
-
-    for shape in shapes:
-        yield opinfo_core.SampleInput(make_arg(shape), kwargs=dict(dtype=dtype))
-
-
 def sample_inputs_randint(self, device, dtype, requires_grad, **kwargs):
     high = 10
 
@@ -1212,28 +1180,11 @@ def sample_inputs_randint_like(self, device, dtype, requires_grad, **kwargs):
         yield opinfo_core.SampleInput(sample.input, high, *sample.args, **sample.kwargs)
 
 
-def sample_inputs_randint_like_dtype(self, device, dtype, requires_grad, **kwargs):
-    high = 10
-
-    for sample in sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
-        # With low and high
-        yield opinfo_core.SampleInput(sample.input, high, *sample.args, **sample.kwargs)
-
-
 def sample_inputs_randint_like_low_dtype(self, device, dtype, requires_grad, **kwargs):
     low = 2
     high = 10
 
     for sample in sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
-        # With low and high
-        yield opinfo_core.SampleInput(sample.input, low, high, *sample.args, **sample.kwargs)
-
-
-def sample_inputs_randint_like_low_dtype_dtype(self, device, dtype, requires_grad, **kwargs):
-    low = 2
-    high = 10
-
-    for sample in sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
         # With low and high
         yield opinfo_core.SampleInput(sample.input, low, high, *sample.args, **sample.kwargs)
 
@@ -2202,14 +2153,6 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.rand_like__dtype",
-        op=torch.ops.aten.rand_like,
-        aten_name="rand_like",
-        dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        sample_inputs_func=sample_inputs_rand_like_dtype,
-        supports_out=False,
-    ),
-    opinfo_core.OpInfo(
         "ops.aten.randint",
         aten_name="randint",
         dtypes=common_dtype.integral_types(),
@@ -2231,26 +2174,10 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.randint_like__dtype",
-        op=torch.ops.aten.randint_like,
-        aten_name="randint_like",
-        dtypes=common_dtype.integral_types(),
-        sample_inputs_func=sample_inputs_randint_like_dtype,
-        supports_out=False,
-    ),
-    opinfo_core.OpInfo(
         "ops.aten.randint_like.low_dtype",
         aten_name="randint_like.low_dtype",
         dtypes=common_dtype.integral_types(),
         sample_inputs_func=sample_inputs_randint_like_low_dtype,
-        supports_out=False,
-    ),
-    opinfo_core.OpInfo(
-        "ops.aten.randint_like.low_dtype__dtype",
-        op=torch.ops.aten.randint_like.low_dtype,
-        aten_name="randint_like.low_dtype",
-        dtypes=common_dtype.integral_types(),
-        sample_inputs_func=sample_inputs_randint_like_low_dtype_dtype,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
@@ -2265,14 +2192,6 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="randn",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_like_fns,
-        supports_out=False,
-    ),
-    opinfo_core.OpInfo(
-        "ops.aten.randn_like_dtype",
-        op=torch.ops.aten.randn_like,
-        aten_name="randn",
-        dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        sample_inputs_func=sample_inputs_like_fns_dtype,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
