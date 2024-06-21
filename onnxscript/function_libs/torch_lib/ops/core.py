@@ -3227,7 +3227,8 @@ def aten_empty(
     memory_format: str = "",
 ) -> TensorType:  # type: ignore[type-var]
     # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
-
+    if dtype == -1:
+        dtype = FLOAT.dtype
     # using Zeros to simulate np.empty()
     size = op.Cast(size, to=INT64.dtype)
     zero = op.Constant(value_float=0.0)
@@ -3608,7 +3609,7 @@ def aten_from_file(
     raise NotImplementedError()
 
 
-@torch_op("aten::full")
+@torch_op("aten::full", trace_only=True)
 def aten_full(
     size: INT64,
     fill_value: FLOAT,
@@ -3620,40 +3621,28 @@ def aten_full(
     """full(SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     size = op.Cast(size, to=INT64.dtype)
-    fill_value = op.Cast(fill_value, to=dtype)
+    if dtype != -1:
+        fill_value = op.Cast(fill_value, to=dtype)
     return op.Expand(fill_value, size)
 
 
-@torch_op("aten::full_like")
+@torch_op("aten::full_like", trace_only=True)
 def aten_full_like(
     self: TTensor,
     fill_value: TTensor,
+    dtype: int = -1,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
 ) -> TTensor:
     """full_like(Tensor self, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
-    fill_value = op.CastLike(fill_value, self)
+    if dtype == -1:
+        fill_value = op.CastLike(fill_value, self)
+    else:
+        fill_value = op.Cast(fill_value, to=dtype)
+
     self_shape = op.Shape(self)
-
-    return op.Expand(fill_value, self_shape)
-
-
-@torch_op("aten::full_like")
-def aten_full_like_dtype(
-    self: TTensor,
-    fill_value: TTensor,
-    dtype: int,
-    layout: str = "",
-    device: str = "",
-    pin_memory: bool = False,
-) -> TTensor:
-    """full_like(Tensor self, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
-
-    fill_value = op.Cast(fill_value, to=dtype)
-    self_shape = op.Shape(self)
-
     return op.Expand(fill_value, self_shape)
 
 
@@ -4727,6 +4716,9 @@ def aten_linspace(
     start: TFloat, end: TFloat, steps: int, dtype: int = FLOAT.dtype
 ) -> TensorType:
     """linspace(Scalar start, Scalar end, int steps, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+
+    if dtype == -1:
+        dtype = FLOAT.dtype
 
     # Reference: https://github.com/pytorch/pytorch/blob/b35ca2cb941b5ba90858322810ca85c31e4541fd/torch/_refs/__init__.py#L4896
     if steps == 0:
@@ -6181,22 +6173,11 @@ def aten_negative(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::new_empty")
+@torch_op("aten::new_empty", trace_only=True)
 def aten_new_empty(
-    self: TTensor, size: INT64, layout: str = "", device: str = "", pin_memory: bool = False
-) -> TTensor:
-    """new_empty(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
-
-    # using zero to simulate empty array
-    result = op.ConstantOfShape(size)
-    return op.CastLike(result, self)
-
-
-@torch_op("aten::new_empty")
-def aten_new_empty_dtype(
     self: TTensor,
     size: INT64,
-    dtype: int,
+    dtype: int = -1,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
@@ -6205,6 +6186,8 @@ def aten_new_empty_dtype(
 
     # using zero to simulate empty array
     result = op.ConstantOfShape(size)
+    if dtype == -1:
+        return op.CastLike(result, self)
     return op.Cast(result, to=dtype)
 
 
@@ -6213,6 +6196,7 @@ def aten_new_empty_strided(
     self: TTensor,
     size: INT64,
     stride: INT64,
+    dtype: int = -1,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
@@ -6221,102 +6205,62 @@ def aten_new_empty_strided(
 
     # using zero to simulate empty array
     zero = op.ConstantOfShape(size)
-    return op.CastLike(zero, self)
+    if dtype == -1:
+        return op.CastLike(result, self)
+    return op.Cast(result, to=dtype)
 
 
-@torch_op("aten::new_empty_strided")
-def aten_new_empty_strided_dtype(
-    self: TTensor,
-    size: INT64,
-    stride: INT64,
-    dtype: int,
-    layout: str = "",
-    device: str = "",
-    pin_memory: bool = False,
-) -> TTensor:
-    """new_empty_strided(Tensor self, SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
-
-    # using zero to simulate empty array
-    zero = op.ConstantOfShape(size)
-    return op.Cast(zero, to=dtype)
-
-
-@torch_op("aten::new_full")
+@torch_op("aten::new_full", trace_only=True)
 def aten_new_full(
     self: TTensor,
     size: INT64,
     fill_value: TTensor,
+    dtype: int = -1,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
 ) -> TTensor:
     # new_full(Tensor self, SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    fill_value = op.CastLike(fill_value, self)
-    return op.Expand(fill_value, size)
-
-
-@torch_op("aten::new_full")
-def aten_new_full_dtype(
-    self: TTensor,
-    size: INT64,
-    fill_value: TTensor,
-    dtype: int,
-    layout: str = "",
-    device: str = "",
-    pin_memory: bool = False,
-) -> TTensor:
-    # new_full(Tensor self, SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
-
-    fill_value = op.Cast(fill_value, to=dtype)
+    if dtype == -1:
+        fill_value = op.CastLike(fill_value, self)
+    else:
+        fill_value = op.Cast(fill_value, to=dtype)
     return op.Expand(fill_value, size)
 
 
 @torch_op("aten::new_ones")
 def aten_new_ones(
-    self: TReal, size: INT64, layout: str = "", device: str = "", pin_memory: bool = False
+    self: TReal,
+    size: INT64,
+    dtype: int = -1,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
 ) -> TReal:
     """new_ones(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     one = op.Constant(value_float=1.0)
     result = op.Expand(one, size)
-    return op.CastLike(result, self)
-
-
-@torch_op("aten::new_ones")
-def aten_new_ones_dtype(
-    self: TReal,
-    size: INT64,
-    dtype: int,
-    layout: str = "",
-    device: str = "",
-    pin_memory: bool = False,
-) -> TReal:
-    one = op.Constant(value_float=1.0)
-    result = op.Expand(one, size)
+    if dtype == -1:
+        return op.CastLike(result, self)
     return op.Cast(result, to=dtype)
 
 
 @torch_op("aten::new_zeros")
 def aten_new_zeros(
-    self: TReal, size: INT64, layout: str = "", device: str = "", pin_memory: bool = False
-) -> TReal:
-    """new_zeros(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
-
-    result = op.ConstantOfShape(size)
-    return op.CastLike(result, self)
-
-
-@torch_op("aten::new_zeros")
-def aten_new_zeros_dtype(
     self: TReal,
     size: INT64,
-    dtype: int,
+    dtype: int = -1,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
 ) -> TReal:
+    """new_zeros(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+
     result = op.ConstantOfShape(size)
+    if dtype == -1:
+        return op.CastLike(result, self)
     return op.Cast(result, to=dtype)
 
 
@@ -6370,12 +6314,14 @@ def aten_normal(
     return result
 
 
-@torch_op("aten::normal.float_float")
+@torch_op("aten::normal.float_float", trace_only=True)
 def aten_normal_float_float(
     mean: float, std: float, size: INT64, dtype: int = FLOAT.dtype
 ) -> TensorType:
     """normal.float_float(float mean, float std, SymInt[] size, *, Generator? generator=None, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
+    if dtype == -1:
+        dtype = FLOAT.dtype
     # Create a dummy tensor for RandomNormalLike to get the shape
     dummy_tensor = op.ConstantOfShape(size)
     result = op.RandomNormalLike(dummy_tensor, mean=mean, scale=std)
@@ -6422,7 +6368,7 @@ def aten_nuclear_norm(self: TensorType, keepdim: bool = False) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::ones")
+@torch_op("aten::ones", trace_only=True)
 def aten_ones(
     size: IntType,
     dtype: int = FLOAT.dtype,
@@ -6431,7 +6377,8 @@ def aten_ones(
     pin_memory: bool = False,
 ):
     """ones(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
-
+    if dtype == -1:
+        dtype = FLOAT.dtype
     size = op.Cast(size, to=INT64.dtype)
     one = op.Constant(value_float=1.0)
     one = op.Cast(one, to=dtype)
@@ -6866,7 +6813,7 @@ def aten_rad2deg(self: TFloat) -> TFloat:
     return op.Mul(self, op.CastLike(180.0 / _MATH_PI, self))
 
 
-@torch_op("aten::rand")
+@torch_op("aten::rand", trace_only=True)
 def aten_rand(
     size: INT64,
     dtype: int = FLOAT.dtype,
@@ -6875,30 +6822,24 @@ def aten_rand(
     pin_memory: bool = False,
 ) -> TReal:
     """rand(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
-
+    if dtype == -1:
+        dtype = FLOAT.dtype
     shaper = op.ConstantOfShape(size)
     return op.RandomUniformLike(shaper, dtype=dtype)
 
 
-@torch_op("aten::rand_like")
+@torch_op("aten::rand_like", trace_only=True)
 def aten_rand_like(
-    self: TFloat, layout: str = "", device: str = "", pin_memory: bool = False
+    self: TFloat, dtype: int = -1, layout: str = "", device: str = "", pin_memory: bool = False
 ) -> TFloat:
     """rand_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
-    return op.RandomUniformLike(self)
-
-
-@torch_op("aten::rand_like")
-def aten_rand_like_dtype(
-    self: TensorType, dtype: int, layout: str = "", device: str = "", pin_memory: bool = False
-) -> TensorType:
-    """rand_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
-
+    if dtype == -1:
+        return op.RandomUniformLike(self)
     return op.RandomUniformLike(self, dtype=dtype)
 
 
-@torch_op("aten::randint")
+@torch_op("aten::randint", trace_only=True)
 def aten_randint(
     high: INT64,
     size: INT64,
@@ -6918,7 +6859,7 @@ def aten_randint(
     return op.Cast(rand_int, to=dtype)
 
 
-@torch_op("aten::randint.low")
+@torch_op("aten::randint.low", trace_only=True)
 def aten_randint_low(
     low: INT64,
     high: INT64,
@@ -6941,9 +6882,14 @@ def aten_randint_low(
     return op.Cast(rand_int, to=dtype)
 
 
-@torch_op("aten::randint_like")
+@torch_op("aten::randint_like", trace_only=True)
 def aten_randint_like(
-    self: TensorType, high: INT64, layout: str = "", device: str = "", pin_memory: bool = False
+    self: TensorType,
+    high: INT64,
+    dtype: int = -1,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
 ) -> IntType:
     """randint_like(Tensor self, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
@@ -6953,34 +6899,17 @@ def aten_randint_like(
     rand_scaled = op.Mul(rand, op.CastLike(high, rand))
     # Round to ints
     rand_int = op.Floor(rand_scaled)
-    return op.CastLike(rand_int, self)
-
-
-@torch_op("aten::randint_like")
-def aten_randint_like_dtype(
-    self: TensorType,
-    high: INT64,
-    dtype: int,
-    layout: str = "",
-    device: str = "",
-    pin_memory: bool = False,
-) -> TensorType:
-    """randint_like(Tensor self, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
-
-    self_float = op.Cast(self, to=FLOAT.dtype)
-    rand = op.RandomUniformLike(self_float)
-    # Scale to [0, high] first
-    rand_scaled = op.Mul(rand, op.CastLike(high, rand))
-    # Round to ints
-    rand_int = op.Floor(rand_scaled)
+    if dtype == -1:
+        return op.CastLike(rand_int, self)
     return op.Cast(rand_int, to=dtype)
 
 
-@torch_op("aten::randint_like.low_dtype")
+@torch_op("aten::randint_like.low_dtype", trace_only=True)
 def aten_randint_like_low_dtype(
     self: TensorType,
     low: INT64,
     high: INT64,
+    dtype: int = -1,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
@@ -6998,33 +6927,12 @@ def aten_randint_like_low_dtype(
     rand_translated = op.Add(op.Mul(rand, op.Sub(high, low)), low)
     # Round to ints
     rand_int = op.Floor(rand_translated)
-    return op.CastLike(rand_int, self)
-
-
-@torch_op("aten::randint_like.low_dtype")
-def aten_randint_like_low_dtype_dtype(
-    self: TensorType,
-    low: INT64,
-    high: INT64,
-    dtype: int,
-    layout: str = "",
-    device: str = "",
-    pin_memory: bool = False,
-) -> TensorType:
-    """randint_like.low_dtype(Tensor self, SymInt low, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
-
-    self_float = op.Cast(self, to=FLOAT.dtype)
-    rand = op.RandomUniformLike(self_float)
-    # Translate to [low, high] first
-    high = op.Cast(high, to=FLOAT.dtype)
-    low = op.Cast(low, to=FLOAT.dtype)
-    rand_translated = op.Add(op.Mul(rand, op.Sub(high, low)), low)
-    # Round to ints
-    rand_int = op.Floor(rand_translated)
+    if dtype == -1:
+        return op.CastLike(rand_int, self)
     return op.Cast(rand_int, to=dtype)
 
 
-@torch_op("aten::randn")
+@torch_op("aten::randn", trace_only=True)
 def aten_randn(
     size: INT64,
     dtype: int = FLOAT.dtype,
@@ -7038,21 +6946,14 @@ def aten_randn(
     return op.RandomNormalLike(shaper, dtype=dtype)
 
 
-@torch_op("aten::randn_like")
+@torch_op("aten::randn_like", trace_only=True)
 def aten_randn_like(
-    self: TFloat, layout: str = "", device: str = "", pin_memory: bool = False
+    self: TFloat, dtype: int = -1, layout: str = "", device: str = "", pin_memory: bool = False
 ) -> TFloat:
     """randn_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
-    return op.RandomNormalLike(self)
-
-
-@torch_op("aten::randn_like")
-def aten_randn_like_dtype(
-    self: TensorType, dtype: int, layout: str = "", device: str = "", pin_memory: bool = False
-) -> TensorType:
-    """randn_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
-
+    if dtype == -1:
+        return op.RandomNormalLike(self)
     return op.RandomNormalLike(self, dtype=dtype)
 
 
@@ -7420,7 +7321,8 @@ def aten_scalar_tensor(
     pin_memory: bool = False,
 ) -> RealType:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
-
+    if dtype == -1:
+        dtype = FLOAT.dtype
     # Set trace_only=True because different if branches return different dtypes
     # which is not supported in an ONNX function
     return common_ops.cast_to(s, dtype=dtype)
@@ -7438,6 +7340,8 @@ def aten_scalar_tensor_complex(
     # NOTE: When the input is originally in complex, this function is invoked.
     # On the other hand, when the input is originally in real, aten_scalar_tensor is used.
     # is invoked.
+    if dtype == -1:
+        dtype = COMPLEX64.dtype
     if dtype == COMPLEX128.dtype:
         result = op.Cast(s, to=DOUBLE.dtype)
     elif dtype == COMPLEX64.dtype:
@@ -7458,7 +7362,8 @@ def aten_scalar_tensor_sym_number(
     pin_memory: bool = False,
 ) -> RealType:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
-
+    if dtype == -1:
+        dtype = FLOAT.dtype
     # Set trace_only=True because different if branches return different dtypes
     # which is not supported in an ONNX function
     return common_ops.cast_to(s, dtype=dtype)
@@ -8932,7 +8837,7 @@ def aten_xor(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::zeros", traceable=True)
+@torch_op("aten::zeros", trace_only=True)
 def aten_zeros(
     size: IntType,
     dtype: int = FLOAT.dtype,
@@ -8941,7 +8846,8 @@ def aten_zeros(
     pin_memory: bool = False,
 ) -> TensorType:
     """zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
-
+    if dtype == -1:
+        dtype = FLOAT.dtype
     size = op.Cast(size, to=INT64.dtype)
     zero = op.Constant(value_float=0.0)
     zero = op.Cast(zero, to=dtype)
@@ -8961,10 +8867,5 @@ def aten_zeros_like(self: TTensor, dtype: int = -1) -> TTensor:
     else:
         zero = op.Cast(0, to=dtype)
 
-    return _aten_zeros_like_onnx(self, zero)
-
-
-@torch_op("aten::zeros_like", private=True)
-def _aten_zeros_like_onnx(self: TTensor, zero) -> TTensor:
     shape = op.Shape(self)
     return op.Expand(zero, shape)
