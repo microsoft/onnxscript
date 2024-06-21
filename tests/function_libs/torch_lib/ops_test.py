@@ -38,6 +38,7 @@ from torch.testing._internal import common_device_type
 from torch.testing._internal.opinfo import core as opinfo_core
 from torch.utils import _pytree as pytree
 
+import onnxscript
 from tests.function_libs.torch_lib import (
     error_reproduction,
     ops_test_common,
@@ -97,15 +98,13 @@ def _should_skip_xfail_test_sample(
 
 class TestFunctionValidity(unittest.TestCase):
     @parameterized.parameterized.expand(
-        [
-            (info.op.name, info)
-            for info in ops_test_data.TESTED_TORCHLIB_OPS
-            if not info.trace_only
-        ]
+        [(info.op.name, info) for info in ops_test_data.TESTED_TORCHLIB_OPS]
     )
     def test_script_function_passes_checker(
         self, _, torchlib_op_info: ops_test_data.TorchLibOpInfo
     ):
+        if not isinstance(torchlib_op_info.op, onnxscript.OnnxFunction):
+            self.skipTest("Traced functions does not have a function proto")
         function_proto = torchlib_op_info.op.to_function_proto()
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
