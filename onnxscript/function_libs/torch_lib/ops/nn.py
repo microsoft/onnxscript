@@ -1841,7 +1841,7 @@ def aten__scaled_dot_product_flash_attention_for_cpu(
         op.Ceil(op.Cast(query_second_dims, to=FLOAT.dtype) / 32.0) * 32.0, to=INT64.dtype
     )
     logsum_exp = op.Expand(0.0, op.Concat(query_first_dims, num_heads, logsumexp_dim, axis=0))
-    return result, logsumexp_dim
+    return result, logsum_exp
 
 
 @torch_op("aten::_scaled_dot_product_efficient_attention", trace_only=True)

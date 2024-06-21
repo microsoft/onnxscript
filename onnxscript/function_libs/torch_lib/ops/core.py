@@ -6206,8 +6206,8 @@ def aten_new_empty_strided(
     # using zero to simulate empty array
     zero = op.ConstantOfShape(size)
     if dtype == -1:
-        return op.CastLike(result, self)
-    return op.Cast(result, to=dtype)
+        return op.CastLike(zero, self)
+    return op.Cast(zero, to=dtype)
 
 
 @torch_op("aten::new_full", trace_only=True)
