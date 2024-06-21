@@ -304,11 +304,11 @@ def aten_affine_grid_generator_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::alias")
+@torch_op("aten::alias", trace_only=True)
 def aten_alias(self: TTensor) -> TTensor:
     """alias(Tensor(a) self) -> Tensor(a)"""
 
-    return op.Identity(self)
+    return self
 
 
 def aten_alias_copy(self: TensorType) -> TensorType:
@@ -1684,14 +1684,14 @@ def aten_clamp_min(self: TReal, min_: TReal) -> TReal:
     return result
 
 
-@torch_op("aten::clone")
+@torch_op("aten::clone", trace_only=True)
 def aten_clone(
     self: TTensor,
     memory_format: str = "",
 ) -> TTensor:
     """clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor"""
 
-    return op.Identity(self)
+    return self
 
 
 def aten_coalesce(self: TensorType) -> TensorType:
@@ -1745,11 +1745,11 @@ def aten_complex(real: TFloat, imag: TFloat) -> TFloat:
     return _aten_complex(real, imag)
 
 
-@torch_op("aten::conj")
+@torch_op("aten::conj", trace_only=True)
 def aten_conj(self: TTensor) -> TTensor:
     """conj(Tensor(a) self) -> Tensor(a)"""
 
-    return op.Identity(self)
+    return self
 
 
 @torch_op("aten::conj", complex=True, private=True)
@@ -1817,7 +1817,7 @@ def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTens
     return op.Pad(self, onnx_padding, value)
 
 
-@torch_op("aten::contiguous")
+@torch_op("aten::contiguous", trace_only=True)
 def aten_contiguous(
     self: TTensor,
     memory_format: str = "contiguous_format",
@@ -1825,7 +1825,7 @@ def aten_contiguous(
     """contiguous(Tensor(a) self, *, MemoryFormat memory_format=contiguous_format) -> Tensor(a)"""
 
     # ONNX does not have the notion of memory_format. It is always treated as a no-op.
-    return op.Identity(self)
+    return self
 
 
 @torch_op("aten::conv1d", trace_only=True)
@@ -2168,7 +2168,7 @@ def aten__to_copy(
     """_to_copy(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, bool non_blocking=False, MemoryFormat? memory_format=None) -> Tensor"""
 
     if dtype == -1:
-        return op.Identity(self)
+        return self
     else:
         return common_ops.cast_to(self, dtype=dtype)
 
@@ -2489,11 +2489,11 @@ def aten_dense_dim(self: TensorType) -> int:
     raise NotImplementedError()
 
 
-@torch_op("aten::detach")
+@torch_op("aten::detach", trace_only=True)
 def aten_detach(self: TensorType) -> TensorType:
     """detach(Tensor(a) self) -> Tensor(a)"""
 
-    return op.Identity(self)
+    return self
 
 
 def aten_detach_copy(self: TensorType) -> TensorType:
@@ -4696,11 +4696,11 @@ def aten_lift_fresh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::lift_fresh_copy")
+@torch_op("aten::lift_fresh_copy", trace_only=True)
 def aten_lift_fresh_copy(self: TensorType) -> TensorType:
     """lift_fresh_copy(Tensor self) -> Tensor"""
 
-    return op.Identity(self)
+    return self
 
 
 def aten_linear_backward(
@@ -7078,18 +7078,18 @@ def aten_reshape_as(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::resolve_conj")
+@torch_op("aten::resolve_conj", trace_only=True)
 def aten_resolve_conj(self: TTensor) -> TTensor:
     """resolve_conj(Tensor(a) self) -> Tensor(a)"""
 
-    return op.Identity(self)
+    return self
 
 
-@torch_op("aten::resolve_neg")
+@torch_op("aten::resolve_neg", trace_only=True)
 def aten_resolve_neg(self: TTensor) -> TTensor:
     """resolve_neg(Tensor(a) self) -> Tensor(a)"""
 
-    return op.Identity(self)
+    return self
 
 
 def aten_result_type(tensor: TensorType, other: TensorType) -> int:
@@ -8762,40 +8762,40 @@ def aten_view_as(self: TTensor, other: TTensor2) -> TTensor:
     return op.Reshape(self, size)
 
 
-@torch_op("aten::view_as_complex")
+@torch_op("aten::view_as_complex", trace_only=True)
 def aten_view_as_complex(self: TTensor) -> TTensor:
     """view_as_complex(Tensor(a) self) -> Tensor(a)"""
 
     # We always operate on the real representation of a complex number in torchlib
     # So this is a no-op
-    return op.Identity(self)
+    return self
 
 
-@torch_op("aten::view_as_complex_copy")
+@torch_op("aten::view_as_complex_copy", trace_only=True)
 def aten_view_as_complex_copy(self: TTensor) -> TTensor:
     """view_as_complex_copy(Tensor self) -> Tensor"""
 
     # We always operate on the real representation of a complex number in torchlib
     # So this is a no-op
-    return op.Identity(self)
+    return self
 
 
-@torch_op("aten::view_as_real", complex=True)
+@torch_op("aten::view_as_real", complex=True, trace_only=True)
 def aten_view_as_real(self: TTensor) -> TTensor:
     """view_as_real(Tensor(a) self) -> Tensor(a)"""
 
     # We always operate on the real representation of a complex number in torchlib
     # So this is a no-op
-    return op.Identity(self)
+    return self
 
 
-@torch_op("aten::view_as_real_copy", complex=True)
+@torch_op("aten::view_as_real_copy", complex=True, trace_only=True)
 def aten_view_as_real_copy(self: TTensor) -> TTensor:
     """view_as_real_copy(Tensor self) -> Tensor"""
 
     # We always operate on the real representation of a complex number in torchlib
     # So this is a no-op
-    return op.Identity(self)
+    return self
 
 
 @torch_op("aten::view_copy")
