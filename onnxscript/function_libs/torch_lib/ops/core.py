@@ -5485,7 +5485,7 @@ def aten_mkldnn_max_pool3d_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::mm")
+@torch_op("aten::mm", traceable=True)
 def aten_mm(
     self: TRealUnlessInt16OrInt8, mat2: TRealUnlessInt16OrInt8
 ) -> TRealUnlessInt16OrInt8:
@@ -5553,7 +5553,7 @@ def aten_msort(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::mul", "aten::mul.Tensor", "_operator::mul"))
+@torch_op(("aten::mul", "aten::mul.Tensor", "_operator::mul"), traceable=True)
 def aten_mul(self: TReal, other: TReal) -> TReal:
     """mul.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -8737,7 +8737,7 @@ def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::view", "aten::_unsafe_view"))
+@torch_op(("aten::view", "aten::_unsafe_view"), trace_only=True)
 def aten_view(self: TTensor, size: IntType) -> TTensor:
     """view(Tensor(a) self, SymInt[] size) -> Tensor(a)"""
 
