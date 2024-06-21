@@ -118,7 +118,7 @@ def run_benchmark(
 
         metrics = _extract_metrics(sout)
         if len(metrics) == 0:
-            if stop_if_exception:
+            if stop_if_exception:  # pylint: disable=no-else-raise
                 raise BenchmarkError(
                     f"Unable (2) to continue with config {config}, no metric was "
                     f"collected.\n--ERROR--\n{serr}\n--OUTPUT--\n{sout}"
@@ -129,7 +129,7 @@ def run_benchmark(
         metrics["ERROR"] = serr
         metrics["OUTPUT"] = sout
         metrics["CMD"] = f"[{' '.join(cmd)}]"
-        data.append(metrics)  # type: ignore[arg-type
+        data.append(metrics)  # type: ignore[arg-type]
         if verbose > 5:
             print("--------------- ERROR")
             print(serr)
