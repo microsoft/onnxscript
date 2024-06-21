@@ -3217,7 +3217,7 @@ def aten_embedding_sparse_backward(
     raise NotImplementedError()
 
 
-@torch_op(("aten::empty.memory_format"), traceable=True)
+@torch_op("aten::empty.memory_format", trace_only=True)
 def aten_empty(
     size: IntType,
     dtype: int = FLOAT.dtype,
