@@ -299,6 +299,22 @@ class GenericPatternMatcher(orp.PatternMatcher):
             )
             return self.none(starting_node, inspect.currentframe().f_lineno)
 
+        has_predecessor_in_pattern = any(
+            pattern_value.producer() is not None for pattern_value in pattern_node.inputs
+        )
+
+        if has_predecessor_in_pattern:
+            for graph_input, pattern_input in zip(graph_node.inputs, pattern_node.inputs):
+                if len(list(graph_input.uses())) != len(list(pattern_input.uses())):
+                    self._hint(
+                        "BACKWARD: one input is used outside the pattern",
+                        "-- pattern",
+                        pattern_node,
+                        "-- model",
+                        graph_node,
+                    )
+                    return self.none(starting_node, inspect.currentframe().f_lineno)
+
         for graph_value, pattern_value in zip(graph_node.inputs, pattern_node.inputs):
             pattern_pred = pattern_value.producer()
             if pattern_pred is not None and len(list(graph_value.uses())) != len(

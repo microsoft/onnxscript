@@ -129,7 +129,7 @@ class GenericPatternTest(unittest.TestCase):
             apply_pattern,
             validate_mapping,
             generic_pattern.GenericPatternMatcher,
-            verbose=10,
+            verbose=0,
         )
 
         class AddAddAddAdd(onnx.reference.op_run.OpRun):
