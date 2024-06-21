@@ -1868,6 +1868,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nn_ops.aten_gelu,
         tolerance={torch.float16: (8e-2, 1e-4)},
     ),
+    TorchLibOpInfo(
+        "nn.functional.glu",
+        nn_ops.aten_glu,
+        trace_only=True,
+    ),
     TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear).skip(
         # input: input, args: weight, bias; so len(args) == 2 means bias is provided
         matcher=lambda sample: len(sample.args) != 1,
