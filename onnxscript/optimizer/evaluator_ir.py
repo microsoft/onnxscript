@@ -15,9 +15,17 @@ import onnx
 import onnx.reference.ops
 
 import onnxscript.ir as ir
+import onnxscript.ir._convenience as _convenience
+import onnxscript.optimizer.constant_folding as constant_folding
+import onnxscript.rewriter.pattern
 from onnxscript.utils.utils import (
     get_node_attr_value,
 )
+
+is_control_flow_op = constant_folding.is_control_flow_op
+is_non_deterministic_op = constant_folding.is_non_deterministic_op
+is_constant_op = constant_folding.is_constant_op
+_DEFAULT_CONSTANT_FOLD_SIZE_LIMIT = constant_folding._DEFAULT_CONSTANT_FOLD_SIZE_LIMIT
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +155,12 @@ def get_numpy_value(val: ir.Value) -> np.ndarray | None:
         return const_value.numpy()
     return None
 
-def get_bool_value(val) -> bool | None:
+def get_bool_value(val: ir.Value | None) -> bool | None:
+    if val is None:
+        return None
+    val = get_numpy_value(val)
+    if val is None:
+        return None
     if isinstance(val, bool):
         return val
     if isinstance(val, np.bool_):
@@ -157,39 +170,27 @@ def get_bool_value(val) -> bool | None:
     return None
 
 
-def get_size_info(type: onnx.TypeProto) -> np.ndarray | None:
-    if type.HasField("tensor_type") and type.tensor_type.HasField("shape"):
-        if all(d.HasField("dim_value") for d in type.tensor_type.shape.dim):
-            size = 1
-            for d in type.tensor_type.shape.dim:
-                size *= d.dim_value
-            return np.array(size, dtype=np.int64)
-    return None
-
-
-def get_dim_info(type: ir.Type, dim: int) -> int | None:
-    if type.HasField("tensor_type") and type.tensor_type.HasField("shape"):
-        rank = len(type.tensor_type.shape.dim)
-        dim = dim if dim >= 0 else dim + rank
-        if dim < 0 or dim >= rank:
-            return None
-        if type.tensor_type.shape.dim[dim].HasField("dim_value"):
-            return type.tensor_type.shape.dim[dim].dim_value
-    return None
-
 def getInput(node:ir.Node, index: int) -> ir.Value | None:
     if index < len(node.inputs):
         return node.inputs[index]
     return None
 
+def getOutput(node:ir.Node, index: int) -> ir.Value | None:
+    if index < len(node.outputs):
+        return node.outputs[index]
+    return None
+
+def updateType(value: ir.Value, type: ir.TypeProtocol) -> None:
+    # TODO: merge types
+    value.type = type
 
 @register("Cast")
 def cast(node: ir.Node) -> Sequence[ir.Node] | None:
-    if context.input_shape(node, 0) is not None:
-        output_value = context.get_output(node, 0)
-        output_value.type = onnx.TypeProto()
-        output_value.type.CopyFrom(context.input_type(node, 0))
-        output_value.type.tensor_type.elem_type = node.attribute[0].i
+    # This should not be necessary. Generic incremental shape-inference should handle this.
+    input = getInput(node, 0)
+    output = getOutput(node, 0)
+    if input is not None and output is not None:
+        updateType(output, input.type)
     return None
 
 
@@ -236,38 +237,36 @@ def size(op, node: ir.Node):
     return np.array(size, dtype=np.int64)
 
 @register("If")
-def if_op(context: IRContext, node: onnx.NodeProto):
-    cond = context.input_const_value(node, 0)
-    if cond is ir.NotConstant:
-        #  Visitor will recursively visit subgraphs to constant-fold them.
-        return None
+def if_op(op, node: ir.Node):
+    cond = getInput(node, 0)
     cond = get_bool_value(cond)
     if cond is not None:
         # cond is a constant-value: inline the branch
         branch = "then_branch" if cond else "else_branch"
-        graph = onnx.helper.get_node_attr_value(node, branch)
-
-        formal_outs = list(graph.output)
-        actual_outs = node.output
+        graph = node.attributes.get(branch, None)
+        if graph is None:
+            return None
+        formal_outs = graph.outputs
+        actual_outs = node.outputs
         renamings = {
-            formal.name: actual
+            formal.name: actual.name
             for formal, actual in zip(formal_outs, actual_outs)
-            if actual != ""
+            if actual is not None
         }
         # TODO: Extend renaming to intermediate values.
 
         def rename(name):
             return renamings.get(name, name)
 
-        for sub_node in graph.node:
+        for sub_node in graph:
             # TODO: handle renaming inside subgraphs in nodes
-            sub_node.input[:] = [rename(name) for name in sub_node.input]
-            sub_node.output[:] = [rename(name) for name in sub_node.output]
+            for v in sub_node.outputs:
+                v.name = rename(v.name)
             # Avoid name collision.
             sub_node.name = f"{node.name}_{sub_node.name}"
 
         # TODO: we should handle initializers as well!
-        return list(graph.node)
+        return list(graph)
     return None
 
 
@@ -414,3 +413,142 @@ def sequence_at(op, node: ir.Node):
             logger.debug("SequenceAt %s => %s", input.name, result.name)
             return op.Identity(result)
     return None
+
+
+class ConstantFolder:
+    opset_imports: dict[str, int]
+
+    def new_constant(self, irvalue: ir.Value, value):
+        # TODO(rama): Why do we need the conversion below?
+        if isinstance(value, (int, float, np.ScalarType)):
+            value = np.array(value)
+
+        irvalue.const_value = value
+
+        if not isinstance(value, np.ndarray):
+            # ONNX does not have a way to represent non-tensor constants, eg. a sequence.
+            # So, a constant-value of type sequence is not folded, but it can be used
+            # to optimize subsequent operations when possible.
+            logger.info(
+                "Skip storing constant folded value %s due to unsupported type %s.",
+                irvalue.name,
+                type(value),
+            )
+            return None
+
+        if value.nbytes > _DEFAULT_CONSTANT_FOLD_SIZE_LIMIT:
+            logger.info(
+                "Skip storing constant folded nvalue %s due to large size %s.",
+                irvalue.name,
+                value.nbytes,
+            )
+            return None
+
+        tensor = onnx.numpy_helper.from_array(value, name)
+
+        logger.debug(
+            "New constant for value %s dtype: %s shape: %s",
+            irvalue.name,
+            value.dtype,
+            value.shape,
+        )
+
+        # TODO(rama)
+        # irvalue.type = onnx.helper.make_tensor_type_proto(
+        #     onnx.helper.np_dtype_to_tensor_dtype(value.dtype), value.shape
+        # )
+        attributes = _convenience.convert_attributes({"value": tensor})
+        node = ir.Node("", "Constant", inputs=[], attributes=attributes, num_outputs=1)
+        return [node]
+    
+    def process_node(self, node: ir.Node, root: ir.Graph | ir.Function):
+        for i, value in enumerate(node.inputs):
+            if value is not None and value.symbolic_value is not None:
+                sym_value = value.symbolic_value
+                if isinstance(sym_value, ir.Value):
+                    node.replace_input_with(i, sym_value)
+                    # TODO(rama): consider merging type/other info from both values
+
+        # Do incremental shape inference
+
+        if node.domain not in self.opset_imports:
+            return None
+        version  = self.opset_imports[node.domain]
+        op_optimizers = registry.lookup_evaluators(node.domain, node.op_type, version)
+        for optimizer in op_optimizers:
+            assert optimizer
+            context = onnxscript.rewriter.pattern.RewriterContext()
+            output = optimizer(context, node)
+            if output is not None:
+                return output
+
+        if is_control_flow_op(node) or is_non_deterministic_op(node):
+            return None
+
+        if any((x is not None and x.const_value is None) for x in node.inputs):
+            return None
+
+        input_values = [x.const_value.numpy() if x is not None else None for x in node.inputs]
+        # Filter out bfloat16 cases?
+        outputs = reference_evaluator.evaluate(node.domain, node.op_type, version, *input_values, **node.attributes)
+        if outputs is None:
+            return None
+        if len(node.output) == 1 and not isinstance(outputs, (tuple, list)):
+            replacement = self.new_constant(node.outputs[0], outputs)
+            if is_constant_op(node):
+                return None
+            # self.add_count(op, outputs.size)
+            return replacement
+        else:
+            logger.warning("Skipping constant folding for op %s with multiple outputs.", node.op_type)
+        return None
+
+    def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function):
+        # TODO: apply delta! what about opset_imports?
+
+        for old_value, new_value in zip(old_values, new_values):
+            # Propagate relevant info from old value to new value
+            # TODO(Rama): Perhaps we should merge old and new types. As of now, new
+            # values don't have type information. Note that this could be a problem
+            # for semantics-altering rewrite-rules: we should allow users to override
+            # this for such rules.
+            new_value.type = old_value.type
+            new_value.shape = old_value.shape
+            new_value.const_value = old_value.const_value
+            new_value.name = old_value.name
+
+        # Reconnect the users of the deleted node to use the new outputs
+        _convenience.replace_all_uses_with(old_values, new_values)
+        # Update graph/function outputs if the node generates output
+        replacement_mapping = dict(zip(old_values, new_values))
+        for idx, graph_or_function_output in enumerate(root.outputs):
+            if graph_or_function_output in replacement_mapping:
+                root.outputs[idx] = replacement_mapping[graph_or_function_output]
+
+        # insert new nodes after the index node
+        root.insert_after(node, delta.new_nodes)
+        root.remove(node, safe=True)
+
+        # if isinstance(output, list):
+        #     return output
+        # else:
+        #     # Currently handles single output only
+        #     self.add_count(node.op_type, output.size)
+        #     return self.new_constant(node.output[0], output)
+
+    def visit_node(self, node: ir.Node):
+        replacement = self.process_node(node)
+        # logger.debug(
+        #     "visit_node: %s::%s %s replacement %s",
+        #     node.domain,
+        #     node.op_type,
+        #     node.name,
+        #     "found" if replacement is not None else "missed",
+        # )
+        if replacement is None:
+            # No change. Process attributes.
+            for attr in node.attribute:
+                self.visit_attribute(attr)
+            return None
+        else:
+            self.replace_node(node, replacement)
