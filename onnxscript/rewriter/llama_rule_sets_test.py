@@ -376,7 +376,7 @@ class LlamaRuleSetsTest(unittest.TestCase):
         ]
         return models
 
-    @unittest.skipIf(True, reason="broken")
+    @unittest.skipIf(True, reason="see https://github.com/microsoft/onnxscript/issues/1642")
     def test_llama_p0_rule_set_slice_split(self):
         for model_proto in self._slides_split_models():
             ir_model = ir.serde.deserialize_model(model_proto)
