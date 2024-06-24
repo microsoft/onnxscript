@@ -305,7 +305,7 @@ class GenericPatternMatcher(orp.PatternMatcher):
 
         if has_predecessor_in_pattern:
             for graph_input, pattern_input in zip(graph_node.inputs, pattern_node.inputs):
-                if len(list(graph_input.uses())) != len(list(pattern_input.uses())):
+                if len(graph_input.uses()) != len(pattern_input.uses()):
                     self._hint(
                         "BACKWARD: one input is used outside the pattern",
                         "-- pattern",
