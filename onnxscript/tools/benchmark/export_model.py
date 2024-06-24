@@ -187,6 +187,7 @@ def main(args=None):
                 repeat=kwargs["repeat"],
                 verbose=kwargs["verbose"],
                 ort_optimize=kwargs["ort_optimize"],
+                torch_model=model,
             )
 
         print("[export_model] end")
