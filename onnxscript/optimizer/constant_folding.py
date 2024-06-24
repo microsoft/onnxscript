@@ -19,7 +19,7 @@ from onnxscript.utils.utils import (
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_CONSTANT_FOLD_SIZE_LIMIT = 1024 * 1024 // 4
+_DEFAULT_CONSTANT_FOLD_SIZE_LIMIT = 1024 * 1024
 
 # Ops excluded from constant-propagation:
 # * Random ops, which are not deterministic (checked below)
