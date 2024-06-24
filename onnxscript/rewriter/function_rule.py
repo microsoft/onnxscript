@@ -149,8 +149,13 @@ class FunctionRewriteRule(pattern.RewriteRule):
         Raises:
             FunctionRewriteError: If the rewrite fails.
         """
+
+
+        print("----> (2) pkg_version", pkg_version, "old_function", old_function.name)
         # self._version_controller is created in the subclass
         func = self._version_controller.dispatch(pkg_version)  # type: ignore[attr-defined]
+        
+        # import pdb; pdb.set_trace()
         if func is not None:
             new_function = func(self, old_function)
             return new_function
