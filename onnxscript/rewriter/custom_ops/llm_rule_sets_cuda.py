@@ -458,10 +458,10 @@ def llm_rule_set_cuda() -> orp.RewriteRuleSet:
     """
     return orp.RewriteRuleSet(
         [
-            orp.make_rewrite_rule_from_class(AddSharedInput1, True),
-            orp.make_rewrite_rule_from_class(AddSharedInput2, True),
-            orp.make_rewrite_rule_from_class(MulSharedInput1, True),
-            orp.make_rewrite_rule_from_class(MulSharedInput2, True),
+            orp.make_rewrite_rule_from_class(AddSharedInput1, generic=True),
+            orp.make_rewrite_rule_from_class(AddSharedInput2, generic=True),
+            orp.make_rewrite_rule_from_class(MulSharedInput1, generic=True),
+            orp.make_rewrite_rule_from_class(MulSharedInput2, generic=True),
             orp.make_rewrite_rule_from_class(AddMulTranspose),
             orp.make_rewrite_rule_from_class(CombinedAddAdd1),
             orp.make_rewrite_rule_from_class(CombinedAddAdd2),

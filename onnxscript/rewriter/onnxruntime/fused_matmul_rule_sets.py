@@ -167,13 +167,13 @@ def fused_matmul_rule_sets() -> orp.RewriteRuleSet:
     """
     return orp.RewriteRuleSet(
         [
-            orp.make_rewrite_rule_from_class(FusedMatMulDiv1, True),
-            orp.make_rewrite_rule_from_class(FusedMatMulDiv2, True),
-            orp.make_rewrite_rule_from_class(FusedMatMulTranspose, True),
-            orp.make_rewrite_rule_from_class(MatMulTranspose, True),
-            orp.make_rewrite_rule_from_class(TransposeMatMul1, True),
-            orp.make_rewrite_rule_from_class(TransposeFusedMatMul1, True),
-            orp.make_rewrite_rule_from_class(TransposeMatMul2, True),
-            orp.make_rewrite_rule_from_class(TransposeFusedMatMul2, True),
+            orp.make_rewrite_rule_from_class(FusedMatMulDiv1, generic=True),
+            orp.make_rewrite_rule_from_class(FusedMatMulDiv2, generic=True),
+            orp.make_rewrite_rule_from_class(FusedMatMulTranspose, generic=True),
+            orp.make_rewrite_rule_from_class(MatMulTranspose, generic=True),
+            orp.make_rewrite_rule_from_class(TransposeMatMul1, generic=True),
+            orp.make_rewrite_rule_from_class(TransposeFusedMatMul1, generic=True),
+            orp.make_rewrite_rule_from_class(TransposeMatMul2, generic=True),
+            orp.make_rewrite_rule_from_class(TransposeFusedMatMul2, generic=True),
         ]
     )
