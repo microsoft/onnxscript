@@ -22,10 +22,11 @@ def export_to_onnx(model: Any, *args: Sequence[Any], optimize: bool = True) -> o
     If optimize is True, it calls *onnxscript.optimizer.optimize*,
     *onnxscript.rewriter.rewriter*, *onnx.inliner.inline_local_functions*.
     """
-    prog = torch.onnx.dynamo_export(model, *args)
+    import onnxruntime
+    proge = torch.export.export(model, args)
+    prog = torch.onnx.dynamo_export(proge, *args)
     model_proto = prog.model_proto
-    with open("phi_debug.onnx", "wb") as f:
-        f.write(model_proto.SerializeToString())
+    onnxruntime.InferenceSession(model_proto.SerializeToString(), providers=["CPUExecutionProvider"])
     if optimize:
         model_proto = onnxscript.optimizer.optimize(
             model_proto,
