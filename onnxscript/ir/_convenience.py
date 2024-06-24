@@ -368,3 +368,22 @@ def tensor(
             doc_string=name,
         )
     return tensor_
+
+
+def create_value_mapping(graph: _core.Graph) -> dict[str, _core.Value]:
+    """Return a dictionary mapping names to values in the graph.
+
+    Args:
+        graph: The graph to extract the mapping from.
+
+    Returns:
+        A dictionary mapping names to values.
+    """
+    values = {}
+    values.update(graph.initializers)
+    for input in graph.inputs:
+        values[input.name] = input
+    for node in graph:
+        for value in node.outputs:
+            values[value.name] = value
+    return values
