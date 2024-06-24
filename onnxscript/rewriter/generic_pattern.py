@@ -317,8 +317,8 @@ class GenericPatternMatcher(orp.PatternMatcher):
 
         for graph_value, pattern_value in zip(graph_node.inputs, pattern_node.inputs):
             pattern_pred = pattern_value.producer()
-            if pattern_pred is not None and len(list(graph_value.uses())) != len(
-                list(pattern_value.uses())
+            if pattern_pred is not None and len((graph_value.uses()) != len(
+                (pattern_value.uses()
             ):
                 # If not the same number of successors for a node inside the pattern
                 # (pattern_pred is not None), no match is possible
