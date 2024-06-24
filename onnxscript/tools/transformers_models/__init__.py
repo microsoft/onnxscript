@@ -24,6 +24,8 @@ def export_to_onnx(model: Any, *args: Sequence[Any], optimize: bool = True) -> o
     """
     prog = torch.onnx.dynamo_export(model, *args)
     model_proto = prog.model_proto
+    with open("phi_debug.onnx", "wb") as f:
+        f.write(model_proto.SerializeToString())
     if optimize:
         model_proto = onnxscript.optimizer.optimize(
             model_proto,
