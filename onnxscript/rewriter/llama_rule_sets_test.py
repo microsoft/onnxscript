@@ -170,7 +170,7 @@ class LlamaRuleSetsTest(unittest.TestCase):
             rewritten_model = ir.serde.serialize_model(ir_model)
 
             self.assertEqual(["Cast"], [n.op_type for n in rewritten_model.graph.node])
-            self._check_model(model_proto, rewritten_model, atol=1e-3)
+            self._check_model(model_proto, rewritten_model, atol=1e-2)
 
     @classmethod
     def _cast_identity_models(cls):

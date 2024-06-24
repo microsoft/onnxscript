@@ -82,6 +82,12 @@ jobs:
         env:
           CATCH_ORT_SEGFAULT: "${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}"
           CREATE_REPRODUCTION_REPORT: "${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}"
+      - name: one test
+        if: matrix.os != 'windows-latest'
+        run: python tests/onnx_backend_test_code/test_top_k_smallest.py
+      - name: one test windows
+        if: matrix.os == 'windows-latest'
+        run: python tests/onnx_backend_test_code/test_top_k_smallest.py
       - name: Upload coverage to Codecov
         if: always()
         uses: codecov/codecov-action@v4
