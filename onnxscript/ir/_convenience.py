@@ -373,6 +373,8 @@ def tensor(
 def create_value_mapping(graph: _core.Graph) -> dict[str, _core.Value]:
     """Return a dictionary mapping names to values in the graph.
 
+    The mapping does not include values from subgraphs.
+
     Args:
         graph: The graph to extract the mapping from.
 
