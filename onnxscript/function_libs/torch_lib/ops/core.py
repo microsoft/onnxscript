@@ -2122,6 +2122,8 @@ def aten_convolution_backward(
     z_height = op.Shape(grad_output, start=2, end=3)  # 48
     z_width = op.Shape(grad_output, start=3, end=4)  # 38
 
+    if stride[0] != 1 or stride[1] != 1:
+        raise NotImplementedError("stride != 1 is not supported yet")
     # if stride[0] != 1:  # dilation
     #     dz_height = z_height * stride[0] - stride[0] + 1
     #     dz_width = z_width * stride[1] - stride[1] + 1
