@@ -3571,7 +3571,7 @@ def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::fmod")
+@torch_op(("aten::fmod", "aten::fmod.Tensor", "aten::fmod.Scalar"))
 def aten_fmod(self: TRealOrUInt8, other: TRealOrUInt8) -> TRealOrUInt8:
     """fmod.Tensor(Tensor self, Tensor other) -> Tensor"""
 
