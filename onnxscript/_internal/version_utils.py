@@ -25,6 +25,16 @@ def torch_older_than(version: str) -> bool:
     )
 
 
+def transformers_older_than(version: str) -> bool:
+    """Returns True if the transformers version is older than the given version."""
+    import transformers  # pylint: disable=import-outside-toplevel
+
+    return (
+        packaging.version.parse(transformers.__version__).release
+        < packaging.version.parse(version).release
+    )
+
+
 def is_onnxruntime_training() -> bool:
     """Returns True if the onnxruntime is onnxruntime-training."""
     try:

@@ -6,8 +6,8 @@ import dataclasses
 import importlib
 import pathlib
 import re
-import unittest
 import sys
+import unittest
 from typing import Pattern
 
 import onnx
@@ -122,6 +122,10 @@ if sys.platform == "win32":
             r"^test_resize_downsample_scales_linear_half_pixel_symmetric", "cannot import..."
         ),
         skip(r"^test_dropout_default_mask_ratio", "cannot import..."),
+        skip(r"^test_resize_upsample_scales_cubic", "cannot import..."),
+        skip(r"^test_relu_expanded_ver18", "cannot import..."),
+        skip(r"^test_reduce_prod_default_axes_keepdims_random", "cannot import..."),
+        skip(r"^test_concat_3d_axis_1", "cannot import..."),
     )
 
 

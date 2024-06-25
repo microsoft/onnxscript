@@ -27,7 +27,7 @@ def export_to_onnx(
     and not ``torch.onnx.dynamo_export``.
     """
     if export_api:
-        prog = torch.onnx.export(model, args, dynamo=True)
+        prog = torch.onnx.export(model, args, dynamo=True)  # pylint: disable=no-value-for-parameter
     else:
         prog = torch.onnx.dynamo_export(model, *args)
     model_proto = prog.model_proto

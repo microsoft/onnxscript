@@ -15,7 +15,11 @@ import onnxscript.rewriter
 import onnxscript.tools.training_helper
 import onnxscript.tools.transformers_models
 import onnxscript.tools.transformers_models.phi3
-from onnxscript._internal.version_utils import has_transformers, torch_older_than
+from onnxscript._internal.version_utils import (
+    has_transformers,
+    torch_older_than,
+    transformers_older_than,
+)
 
 has_phi3 = onnxscript.tools.transformers_models.phi3.has_phi3
 
@@ -45,7 +49,11 @@ class TestExportPhi3(unittest.TestCase):
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     @unittest.skipIf(not has_phi3(), reason="transformers is not recent enough")
     @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
-    def test_phi3_export_cpu_api(self):
+    @unittest.skipIf(
+        not torch_older_than("2.5") and not transformers_older_than("4.38"),
+        reason="cannot mutate tensors with frozen storage",
+    )
+    def test_phi3_export_cpu_export_api(self):
         model, input_tensors_many, _ = (
             onnxscript.tools.transformers_models.phi3.get_phi3_model()
         )
