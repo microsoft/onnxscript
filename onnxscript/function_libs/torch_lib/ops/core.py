@@ -2158,12 +2158,14 @@ def aten_convolution_backward(
     pads = op.Concat(  # [0,0,2,2,0,0,2,2]
         op.Constant(value_ints=[0]),
         op.Constant(value_ints=[0]),
-        pad_height, pad_width,  # begin of dim0, dim1, dim2, dim3
-        op.Constant(value_ints=[0]),
-        op.Constant(value_ints=[0]),
         pad_height,
+        pad_width,  # begin of dim0, dim1, dim2, dim3
+        op.Constant(value_ints=[0]),
+        op.Constant(value_ints=[0]),
+        pad_height,  # end of dim0, dim1, dim2, dim3
         pad_width,
-        axis=0)  # end of dim0, dim1, dim2, dim3
+        axis=0
+    )
     dz_pad = op.Pad(grad_output, pads)  # enlarge the grad_output to (20,13,52,42)
 
     # Transpose from (13,16,3,3) to (16,13,3,3)
