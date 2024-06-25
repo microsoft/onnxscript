@@ -115,7 +115,7 @@ def extract_functions(name: str, content: str, test_folder: pathlib.Path):
         mod = importlib.import_module(import_name)
     except (SyntaxError, ImportError) as e:
         raise AssertionError(
-            f"Unable to import {import_name!r} (file: {file!r})\n----\n{content}"
+            f"Unable to import {import_name!r} (e={e}) (file: {file!r})\n----\n{content}"
         ) from e
     functions = {
         k: v for k, v in mod.__dict__.items() if isinstance(v, onnxscript.OnnxFunction)
@@ -265,16 +265,6 @@ class TestOnnxBackEnd(unittest.TestCase):
             return session
 
         def _run_function(obj, *inputs):
-            print("    run ONNX")
-            for i, inp in enumerate(inputs):
-                if inp is None:
-                    print(f"    input {i}: None")
-                else:
-                    print(
-                        f"    input {i}: "
-                        f"dtype={inp.dtype!r} shape={inp.shape!r}"
-                        f"{inp.ravel().tolist()!r}"
-                    )
             try:
                 return run_function(obj, *inputs)
             except Exception as e:
