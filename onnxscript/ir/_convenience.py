@@ -383,9 +383,14 @@ def create_value_mapping(graph: _core.Graph) -> dict[str, _core.Value]:
     """
     values = {}
     values.update(graph.initializers)
+    # The names of the values can be None or "", which we need to exclude
     for input in graph.inputs:
+        if not input.name:
+            continue
         values[input.name] = input
     for node in graph:
         for value in node.outputs:
+            if not value.name:
+                continue
             values[value.name] = value
     return values
