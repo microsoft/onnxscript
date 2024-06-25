@@ -26,6 +26,8 @@ class TestExportPhi(unittest.TestCase):
         model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
         input_tensors = input_tensors_many[0]
         expected = model(*input_tensors)
+        # from experimental_experiment.torch_interpreter import to_onnx
+        # proto = to_onnx(model, input_tensors)
         proto = onnxscript.tools.transformers_models.export_to_onnx(model, *input_tensors)
         names = [i.name for i in proto.graph.input]
         np_input_tensors = [x.numpy() for x in input_tensors]

@@ -247,9 +247,11 @@ class GenericPatternMatcher(orp.PatternMatcher):
             if k == "hint":
                 rows.append(f"--hint--: {v[0]}")  # type: ignore[arg-type]
                 for i in v[1:]:
-                    if isinstance(i, str):
-                        rows.append("  " + i)
-                    if isinstance(i, ir.Node):
+                    if isinstance(i, (str, int, float)):
+                        rows.append("  " + str(i))
+                    elif isinstance(i, ir.Node):
+                        rows.append("  " + _p(i, full=True))
+                    elif isinstance(i, orp.NodePattern):
                         rows.append("  " + _p(i, full=True))
                 continue
             if k in {"node", "pattern", "pattern_node", "pattern_nodes"}:
@@ -297,20 +299,33 @@ class GenericPatternMatcher(orp.PatternMatcher):
             )
             return self.none(starting_node, inspect.currentframe().f_lineno)
 
-        for graph_input, pattern_input in zip(graph_node.inputs, pattern_node.inputs):
-            if len(list(graph_input.uses())) != len(list(pattern_input.uses())):
-                self._hint(
-                    "BACKWARD: one input is used outside the pattern",
-                    "-- pattern",
-                    pattern_node,
-                    "-- model",
-                    graph_node,
-                )
-                return self.none(starting_node, inspect.currentframe().f_lineno)
+        has_predecessor_in_pattern = any(
+            pattern_value.producer() is not None for pattern_value in pattern_node.inputs
+        )
+
+        if has_predecessor_in_pattern:
+            for graph_input, pattern_input in zip(graph_node.inputs, pattern_node.inputs):
+                if len(graph_input.uses()) != len(pattern_input.uses()):
+                    self._hint(
+                        "BACKWARD: one input is used outside the pattern",
+                        "-- pattern",
+                        pattern_node,
+                        "-- model",
+                        graph_node,
+                    )
+                    return self.none(starting_node, inspect.currentframe().f_lineno)
 
         for graph_value, pattern_value in zip(graph_node.inputs, pattern_node.inputs):
-            # TODO(rama): Handle constant-pattern
             pattern_pred = pattern_value.producer()
+            if pattern_pred is not None and len(graph_value.uses()) != len(
+                pattern_value.uses()
+            ):
+                # If not the same number of successors for a node inside the pattern
+                # (pattern_pred is not None), no match is possible
+                # as one node is missing in the pattern or one node is missing
+                # in the graph.
+                continue
+            # TODO(rama): Handle constant-pattern
             if pattern_pred is None:
                 # pattern_pred is None means the pattern backward search ends here.
                 result = self._match_values_forward(
@@ -423,12 +438,12 @@ class GenericPatternMatcher(orp.PatternMatcher):
             return match_count
         if len(free) < len(pattern_node_users_not_matched):
             # Not enough successors to match the remaining patterns.
-            return self.none(node, inspect.currentframe().f_lineno)
+            return self.none(starting_node, inspect.currentframe().f_lineno)
         if len(pattern_node_users_not_matched) == len(free) == 1:
             # Only one option again.
             graph_node = free[0]
             if pattern_node_users_not_matched[0].op_identifier() != graph_node.op_identifier():
-                return self.none(node, inspect.currentframe().f_lineno)
+                return self.none(starting_node, inspect.currentframe().f_lineno)
 
             key = pattern_node_users_not_matched[0]
             if self.verbose >= 10:
@@ -568,8 +583,6 @@ class GenericPatternMatcher(orp.PatternMatcher):
             print(
                 f"[GenericPatternMatcher.match] Matching started at node: {_node_to_str(node)}"
             )
-            if self.verbose >= 10:
-                print(f"[GenericPatternMatcher.match] match pattern {self}")
 
         all_pattern_nodes = set(self.pattern)
         matched: dict[orp.NodePattern, ir.Node] = {last_pattern_node: node}
