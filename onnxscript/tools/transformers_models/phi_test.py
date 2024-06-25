@@ -26,6 +26,10 @@ class TestExportPhi(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
+    @unittest.skipIf(
+        transformers_older_than("4.43") and not transformers_older_than("4.38"),
+        reason="cannot mutate tensors with frozen storage",
+    )
     def test_phi_export_cpu(self):
         model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
         input_tensors = input_tensors_many[0]
@@ -44,7 +48,7 @@ class TestExportPhi(unittest.TestCase):
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
     @unittest.skipIf(
-        not torch_older_than("2.5") and not transformers_older_than("4.38"),
+        transformers_older_than("4.43") and not transformers_older_than("4.38"),
         reason="cannot mutate tensors with frozen storage",
     )
     def test_phi_export_cpu_export_api(self):

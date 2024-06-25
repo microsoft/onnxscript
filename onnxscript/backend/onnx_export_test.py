@@ -126,6 +126,7 @@ if sys.platform == "win32":
         skip(r"^test_relu_expanded_ver18", "cannot import..."),
         skip(r"^test_reduce_prod_default_axes_keepdims_random", "cannot import..."),
         skip(r"^test_concat_3d_axis_1", "cannot import..."),
+        skip(r"^test_clip_default_inbounds_expanded", "cannot import..."),
     )
 
 
