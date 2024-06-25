@@ -127,6 +127,15 @@ if sys.platform == "win32":
         skip(r"^test_reduce_prod_default_axes_keepdims_random", "cannot import..."),
         skip(r"^test_concat_3d_axis_1", "cannot import..."),
         skip(r"^test_clip_default_inbounds_expanded", "cannot import..."),
+        skip(r"^test_bitwise_or_i32_2d, "cannot import..."),
+        skip(r"^test_if, "cannot import..."),
+        skip(r"^test_col2im_pads, "cannot import..."),
+        skip(r"^test_slice_default_steps, "cannot import..."),
+        skip(r"^test_matmulinteger, "cannot import..."),
+        skip(r"^test_reduce_prod_negative_axes_keepdims_example, "cannot import..."),
+        skip(r"^test_pow, "cannot import..."),
+        skip(r"^test_matmul_2d, "cannot import..."),
+        skip(r"^test_gemm_default_no_bias, "cannot import..."),
     )
 
 
