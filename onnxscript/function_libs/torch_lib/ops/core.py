@@ -3571,7 +3571,7 @@ def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::fmod", "aten::fmod.Tensor", "aten::fmod.Scalar"))
+@torch_op(("aten::fmod.Tensor", "aten::fmod.Scalar"))
 def aten_fmod(self: TRealOrUInt8, other: TRealOrUInt8) -> TRealOrUInt8:
     """fmod.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -4659,7 +4659,7 @@ def aten_le(self: TReal, other: TReal) -> BOOL:
     return op.LessOrEqual(self, other)
 
 
-@torch_op(("aten::le.Tensor", "aten::less_equal.Tensor", "_operator::le"))
+@torch_op(("aten::le.Tensor", "aten::le.Scalar", "aten::less_equal.Tensor", "_operator::le"))
 def aten_le_bool(self: BOOL, other: BOOL) -> BOOL:
     """le.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -4672,10 +4672,16 @@ def aten_le_bool(self: BOOL, other: BOOL) -> BOOL:
     return op.Or(other, op.Not(self))
 
 
-def aten_lerp(self: TensorType, end: TensorType, weight: TensorType) -> TensorType:
+@torch_op(("aten::lerp.Tensor", "aten::lerp.Scalar"))
+def aten_lerp(self: TReal, end: TReal, weight: TReal) -> TReal:
     """lerp.Tensor(Tensor self, Tensor end, Tensor weight) -> Tensor"""
 
-    raise NotImplementedError()
+    diff = op.Sub(end, self)
+    return op.Where(
+        op.Less(weight, 0.5),
+        op.Add(self, op.Mul(weight, diff)),
+        op.Sub(end, op.Mul(diff, op.Sub(1.0, weight)))
+    )
 
 
 def aten_lgamma(self: TensorType) -> TensorType:
@@ -7011,7 +7017,7 @@ def aten_refine_names(self: TensorType, names: Sequence[str]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::remainder")
+@torch_op(("aten::remainder.Tensor", "aten::remainder.Scalar"))
 def aten_remainder(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -7024,7 +7030,7 @@ def aten_remainder(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrB
     return op.Sub(self, op.Mul(rounded_quotient, other))
 
 
-@torch_op("aten::remainder")
+@torch_op(("aten::remainder.Tensor", "aten::remainder.Scalar"))
 def aten_remainder_int(self: TInt, other: TInt) -> TInt:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
