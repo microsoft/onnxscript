@@ -2110,11 +2110,11 @@ def aten_convolution_backward(
     """convolution_backward(Tensor grad_output, Tensor input, Tensor weight, SymInt[]? bias_sizes, int[] stride, SymInt[] padding, int[] dilation, bool transposed, SymInt[] output_padding, int groups, bool[3] output_mask) -> (Tensor, Tensor, Tensor)"""
 
     # Compute weight.grad :  dW_t = X_t * dZ_t
-    input_t = op.Transpose(input, perm=[1,0,2,3])
-    dz_t = op.Transpose(grad_output, perm=[1,0,2,3])
+    input_t = op.Transpose(input, perm=[1, 0, 2, 3])
+    dz_t = op.Transpose(grad_output, perm=[1, 0, 2, 3])
     dw_t = op.Conv(input_t, dz_t)
-    dw = op.Transpose(dw_t, perm=[1,0,2,3])
-    axes = op.Constant(value_ints=[0,2,3])
+    dw = op.Transpose(dw_t, perm=[1, 0, 2, 3])
+    axes = op.Constant(value_ints=[0, 2, 3])
     db = op.ReduceSum(grad_output, axes, keepdims=0)
 
     # Compute x.grad: dx = dZ(+0) * W_rot180
@@ -2147,17 +2147,27 @@ def aten_convolution_backward(
     w_width = op.Shape(weight, start=3, end=4)  # 3
     tmp_int = x_height - z_height + w_height - 1  # 50-48+3-1=4
     tmp_float = op.Cast(tmp_int, to=FLOAT.dtype)
-    pad_height = op.Cast(op.Div(tmp_float, op.Constant(value_floats=[2.0])), to=INT64.dtype)  # 4/2=2
+    pad_height = op.Cast(
+        op.Div(tmp_float, op.Constant(value_floats=[2.0])), to=INT64.dtype
+    )  # 4/2=2
     tmp_int = x_width - z_width + w_width - 1  # 40-38+3-1=4
     tmp_float = op.Cast(tmp_int, to=FLOAT.dtype)
-    pad_width = op.Cast(op.Div(tmp_float, op.Constant(value_floats=[2.0])), to=INT64.dtype)  # 4/2=2
+    pad_width = op.Cast(
+        op.Div(tmp_float, op.Constant(value_floats=[2.0])), to=INT64.dtype
+    )  # 4/2=2
     pads = op.Concat(  # [0,0,2,2,0,0,2,2]
-        op.Constant(value_ints=[0]), op.Constant(value_ints=[0]), pad_height, pad_width,  # begin of dim0, dim1, dim2, dim3
-        op.Constant(value_ints=[0]), op.Constant(value_ints=[0]), pad_height, pad_width, axis=0)  # end of dim0, dim1, dim2, dim3
+        op.Constant(value_ints=[0]),
+        op.Constant(value_ints=[0]),
+        pad_height, pad_width,  # begin of dim0, dim1, dim2, dim3
+        op.Constant(value_ints=[0]),
+        op.Constant(value_ints=[0]),
+        pad_height,
+        pad_width,
+        axis=0)  # end of dim0, dim1, dim2, dim3
     dz_pad = op.Pad(grad_output, pads)  # enlarge the grad_output to (20,13,52,42)
 
     # Transpose from (13,16,3,3) to (16,13,3,3)
-    w_transpose = op.Transpose(weight, perm=[1,0,2,3])
+    w_transpose = op.Transpose(weight, perm=[1, 0, 2, 3])
     # Rotate weight (13,16,3,3) with 180 degree: np.rot90(w, 2) -> (13,6,3,3)
     w_shape_0 = op.Shape(w_transpose, start=0, end=1)  # 13
     w_shape_1 = op.Shape(w_transpose, start=1, end=2)  # 6
