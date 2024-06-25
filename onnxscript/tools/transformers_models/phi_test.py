@@ -37,6 +37,25 @@ class TestExportPhi(unittest.TestCase):
         np.testing.assert_allclose(expected[0].detach().numpy(), results[0], atol=1e-5)
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
+    @unittest.skipIf(not has_transformers(), reason="transformers is missing")
+    @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
+    def test_phi_export_cpu_export_api(self):
+        model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
+        input_tensors = input_tensors_many[0]
+        expected = model(*input_tensors)
+        proto = onnxscript.tools.transformers_models.export_to_onnx(
+            model, *input_tensors, export_api=True
+        )
+        names = [i.name for i in proto.graph.input]
+        np_input_tensors = [x.numpy() for x in input_tensors]
+        feeds = dict(zip(names, np_input_tensors))
+        sess = onnxruntime.InferenceSession(
+            proto.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+        results = sess.run(None, feeds)
+        np.testing.assert_allclose(expected[0].detach().numpy(), results[0], atol=1e-5)
+
+    @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not torch.cuda.is_available(), reason="CUDA not available")
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     def test_phi_export_cuda(self):
