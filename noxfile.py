@@ -163,7 +163,7 @@ def test_dort(session):
     )
     torch_version, transformers_version = session.posargs
 
-    if torch_version == "nighly":
+    if torch_version == "nightly":
         session.install(
             "--pre",
             "torch",

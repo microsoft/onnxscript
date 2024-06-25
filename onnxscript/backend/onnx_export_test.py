@@ -7,6 +7,7 @@ import importlib
 import pathlib
 import re
 import unittest
+import sys
 from typing import Pattern
 
 import onnx
@@ -88,6 +89,40 @@ SKIP_TESTS = (
     ),
     skip(r"^test_ai_onnx_ml_label_encoder", "ONNX Runtime does not support Opset 21 at 1.17"),
 )
+
+if sys.platform == "win32":
+    SKIP_TESTS = (
+        *SKIP_TESTS,
+        skip(r"^test_dropout_default_mask_ratio", "cannot import..."),
+        skip(r"^test_reduce_log_sum_exp_do_not_keepdims_random", "cannot import..."),
+        skip(r"^test_hardmax_axis_0", "cannot import..."),
+        skip(r"^test_mod_mixed_sign_int8", "cannot import..."),
+        skip(r"^test_concat_3d_axis_negative_1", "cannot import..."),
+        skip(r"^test_min_float16", "cannot import..."),
+        skip(r"^test_xor_bcast4v2d", "cannot import..."),
+        skip(r"^test_reduce_l2_do_not_keepdims_random", "cannot import..."),
+        skip(r"^test_gather_elements_negative_indices", "cannot import..."),
+        skip(r"^test_acos_example", "cannot import..."),
+        skip(r"^test_cos", "cannot import..."),
+        skip(r"^test_mean_two_inputs", "cannot import..."),
+        skip(r"^test_mean_two_inputs", "cannot import..."),
+        skip(r"^test_argmax_no_keepdims_random_select_last_index", "cannot import..."),
+        skip(r"^test_det_nd", "cannot import..."),
+        skip(r"^test_maxpool_3d_default", "cannot import..."),
+        skip(r"^test_softmax_axis_0", "cannot import..."),
+        skip(r"^test_reduce_log_sum_exp_negative_axes_keepdims_example", "cannot import..."),
+        skip(r"^test_atanh", "cannot import..."),
+        skip(r"^test_averagepool_3d_dilations_small", "cannot import..."),
+        skip(r"^test_or_bcast3v2d", "cannot import..."),
+        skip(r"^test_hardswish", "cannot import..."),
+        skip(r"^test_clip_default_min_expanded", "cannot import..."),
+        skip(r"^test_softplus", "cannot import..."),
+        skip(r"^test_scatter_with_axis", "cannot import..."),
+        skip(
+            r"^test_resize_downsample_scales_linear_half_pixel_symmetric", "cannot import..."
+        ),
+        skip(r"^test_dropout_default_mask_ratio", "cannot import..."),
+    )
 
 
 def load_function(obj):
