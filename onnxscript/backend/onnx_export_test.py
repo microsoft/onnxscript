@@ -6,6 +6,7 @@ import dataclasses
 import importlib
 import os
 import pathlib
+import pprint
 import re
 import sys
 import unittest
@@ -169,17 +170,13 @@ def extract_functions(name: str, content: str, test_folder: pathlib.Path):
     try:
         mod = importlib.import_module(import_name)
     except (SyntaxError, ImportError) as e:
-        try:
-            import tests  # pylint: disable=import-outside-toplevel
-
-            test_file = tests.__file__
-        except ImportError:
-            test_file = "unable to import tests"
         raise AssertionError(
             f"Unable to import {import_name!r} (e={e}) (file: {filename!r}, "
             f"absolute path: {os.path.abspath(filename)!r}, "
-            f"current folder: {os.getcwd()}, tests.__file__={test_file!r})"
-            f"\n----\n{content}"
+            f"current folder: {os.getcwd()}"
+            f", globals={pprint.pformat(list(globals()))}, "
+            f", locals={pprint.pformat(list(locals()))}"
+            f")\n----\n{content}"
         ) from e
     functions = {
         k: v for k, v in mod.__dict__.items() if isinstance(v, onnxscript.OnnxFunction)
