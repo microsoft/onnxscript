@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import importlib
+import os
 import pathlib
 import re
 import sys
@@ -157,14 +158,19 @@ def extract_functions(name: str, content: str, test_folder: pathlib.Path):
         test_folder.mkdir(exist_ok=True, parents=True)
         init = test_folder / "__init__.py"
         init.touch(exist_ok=True)
-    file = test_folder / f"{name}.py"
-    file.write_text(content, encoding="utf-8")
+    filename = str(test_folder / f"{name}.py")
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(content + "\n")
+    assert os.path.exists(
+        filename
+    ), f"{filename!r} ({os.path.abspath(filename)!r} does not exist."
     import_name = f"tests.{test_folder.parts[-1]}.{name}"
     try:
         mod = importlib.import_module(import_name)
     except (SyntaxError, ImportError) as e:
         raise AssertionError(
-            f"Unable to import {import_name!r} (e={e}) (file: {file!r})\n----\n{content}"
+            f"Unable to import {import_name!r} (e={e}) (file: {filename!r}, "
+            f"absolute path: {os.path.abspath(filename)!r})\n----\n{content}"
         ) from e
     functions = {
         k: v for k, v in mod.__dict__.items() if isinstance(v, onnxscript.OnnxFunction)
