@@ -92,6 +92,16 @@ SKIP_TESTS = (
     skip(r"^test_ai_onnx_ml_label_encoder", "ONNX Runtime does not support Opset 21 at 1.17"),
 )
 
+if sys.platform == "win32":
+    SKIP_TESTS = (
+        *SKIP_TESTS,
+        skip(r"^test_gemm_beta", "cannot import module, import_module does not work"),
+        skip(
+            r"^test_averagepool_2d_default",
+            "cannot import module, import_module does not work",
+        ),
+    )
+
 
 def load_function(obj):
     return ort.InferenceSession(obj.SerializeToString(), providers=("CPUExecutionProvider",))
