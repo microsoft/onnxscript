@@ -116,7 +116,7 @@ def extract_functions(name: str, content: str, test_folder: pathlib.Path):
     if not test_folder.exists():
         test_folder.mkdir(exist_ok=True, parents=True)
         init = str(test_folder / "__init__.py")
-        with open(init, "w") as f:
+        with open(init, "w", encoding="utf-8") as f:
             f.write("\n")
     filename = str(test_folder / f"{name}.py")
     with open(filename, "w", encoding="utf-8") as f:
