@@ -28,7 +28,7 @@ class TestExportPhi(unittest.TestCase):
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
     @unittest.skipIf(
-        transformers_older_than("4.43") and not transformers_older_than("4.38"),
+        transformers_older_than("4.43"),
         reason="cannot mutate tensors with frozen storage",
     )
     def test_mistral_export_cpu(self):
@@ -54,7 +54,7 @@ class TestExportPhi(unittest.TestCase):
         transformers_older_than("4.43") and not torch_older_than("2.5"),
         reason="cannot mutate tensors with frozen storage",
     )
-    def test_phi_export_cpu_export_api(self):
+    def test_mistral_export_cpu_export_api(self):
         model, input_tensors_many, _ = (
             onnxscript.tools.transformers_models.mistral.get_mistral_model()
         )

@@ -25,9 +25,9 @@ from onnxscript._internal.version_utils import (
 class TestExportPhi(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
-    @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
+    @unittest.skipIf(torch_older_than("2.5"), reason="fails to export")
     @unittest.skipIf(
-        transformers_older_than("4.43") and not transformers_older_than("4.38"),
+        transformers_older_than("4.43"),
         reason="cannot mutate tensors with frozen storage",
     )
     def test_phi_export_cpu(self):
