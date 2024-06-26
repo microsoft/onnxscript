@@ -47,7 +47,7 @@ class TestExportLlama(unittest.TestCase):
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
     @unittest.skipIf(
-        transformers_older_than("4.43") and not transformers_older_than("4.38"),
+        transformers_older_than("4.43") and not torch_older_than("2.5"),
         reason="cannot mutate tensors with frozen storage",
     )
     def test_llama_export_cpu_export_api(self):

@@ -53,7 +53,7 @@ class TestExportPhi3(unittest.TestCase):
     @unittest.skipIf(not has_phi3(), reason="transformers is not recent enough")
     @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
     @unittest.skipIf(
-        transformers_older_than("4.43") and not transformers_older_than("4.38"),
+        transformers_older_than("4.43") and not torch_older_than("2.5"),
         reason="cannot mutate tensors with frozen storage",
     )
     def test_phi3_export_cpu_export_api(self):
