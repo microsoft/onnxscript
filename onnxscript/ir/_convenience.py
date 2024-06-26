@@ -230,7 +230,8 @@ def convert_attributes(
     """
     attributes: list[_core.Attr | _core.RefAttr] = []
     for name, attr in attrs.items():
-        attributes.append(convert_attribute(name, attr))
+        if attr is not None:
+            attributes.append(convert_attribute(name, attr))
     return attributes
 
 
