@@ -8,6 +8,7 @@ import os
 import pathlib
 import pprint
 import re
+import subprocess
 import sys
 import unittest
 from typing import Pattern
@@ -170,13 +171,18 @@ def extract_functions(name: str, content: str, test_folder: pathlib.Path):
     try:
         mod = importlib.import_module(import_name)
     except (SyntaxError, ImportError) as e:
+        stdout, stderr = subprocess.Popen(
+            [sys.executable, filename], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        ).communicate()
         raise AssertionError(
             f"Unable to import {import_name!r} (e={e}) (file: {filename!r}, "
             f"absolute path: {os.path.abspath(filename)!r}, "
             f"current folder: {os.getcwd()}"
             f", globals={pprint.pformat(list(globals()))}, "
             f", locals={pprint.pformat(list(locals()))}"
-            f")\n----\n{content}"
+            f")\n---- STDERR --\n{stderr.decode('utf-8', errors='ignore')}"
+            f"\n---- STDOUT --\n{stdout.decode('utf-8', errors='ignore')}"
+            f"\n---- CONTENT --\n{content}"
         ) from e
     functions = {
         k: v for k, v in mod.__dict__.items() if isinstance(v, onnxscript.OnnxFunction)
