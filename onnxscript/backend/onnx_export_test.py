@@ -171,7 +171,7 @@ def extract_functions(name: str, content: str, test_folder: pathlib.Path):
     try:
         mod = importlib.import_module(import_name)
     except (SyntaxError, ImportError) as e:
-        stdout, stderr = subprocess.Popen(
+        stdout, stderr = subprocess.Popen(  # pylint: disable=consider-using-with
             [sys.executable, filename], stdout=subprocess.PIPE, stderr=subprocess.PIPE
         ).communicate()
         raise AssertionError(

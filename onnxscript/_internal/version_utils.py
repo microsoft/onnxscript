@@ -25,9 +25,12 @@ def torch_older_than(version: str) -> bool:
     )
 
 
-def transformers_older_than(version: str) -> bool:
+def transformers_older_than(version: str) -> bool | None:
     """Returns True if the transformers version is older than the given version."""
-    import transformers  # pylint: disable=import-outside-toplevel
+    try:
+        import transformers  # pylint: disable=import-outside-toplevel
+    except ImportError:
+        return None
 
     return (
         packaging.version.parse(transformers.__version__).release
