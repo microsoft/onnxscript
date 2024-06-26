@@ -23,7 +23,7 @@ from onnxscript._internal.version_utils import (
 )
 
 
-class TestExportPhi(unittest.TestCase):
+class TestExportMistral(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
