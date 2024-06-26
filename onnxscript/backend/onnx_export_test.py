@@ -156,8 +156,9 @@ def run_function(obj, *inputs):
 def extract_functions(name: str, content: str, test_folder: pathlib.Path):
     if not test_folder.exists():
         test_folder.mkdir(exist_ok=True, parents=True)
-        init = test_folder / "__init__.py"
-        init.touch(exist_ok=True)
+        init = str(test_folder / "__init__.py")
+        with open(init, "w") as f:
+            f.write("\n")
     filename = str(test_folder / f"{name}.py")
     with open(filename, "w", encoding="utf-8") as f:
         f.write(content + "\n")
@@ -169,7 +170,7 @@ def extract_functions(name: str, content: str, test_folder: pathlib.Path):
         mod = importlib.import_module(import_name)
     except (SyntaxError, ImportError) as e:
         try:
-            import tests
+            import tests  # pylint: disable=import-outside-toplevel
 
             test_file = tests.__file__
         except ImportError:
