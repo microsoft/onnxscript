@@ -114,6 +114,19 @@ def get_model_and_inputs(
             config=config,
         )
 
+    elif model == "mistral":
+        import onnxscript.tools.transformers_models.mistral as m_mistral
+
+        tmodel, inputs, dynamic_shapes_def = m_mistral.get_mistral_model_from_config(
+            warmup=warmup,
+            repeat=repeat,
+            implementation=implementation,
+            with_mask=with_mask,
+            num_hidden_layers=num_hidden_layers,
+            dynamic_shapes=dynamic_shapes,
+            config=config,
+        )
+
     elif model == "phi":
         import onnxscript.tools.transformers_models.phi as m_phi
 
