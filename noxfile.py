@@ -19,7 +19,7 @@ COMMON_TEST_DEPENDENCIES = (
     'numpy==1.26.4; python_version>="3.9"',
     "packaging",
     "parameterized",
-    "psutil",
+    '"psutil; sys_platform != "win32"',
     "pytest-cov",
     "pytest-randomly",
     "pytest-subtests",
