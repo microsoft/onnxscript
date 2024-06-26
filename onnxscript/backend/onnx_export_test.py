@@ -176,7 +176,7 @@ def extract_functions(name: str, content: str, test_folder: pathlib.Path):
         if not stderr:
             # The execution ran fine. So the error is somewhere else.
             sys.path.insert(0, os.path.abspath(str(test_folder)))
-            mod = importlib.import_module(name)
+            mod = importlib.__import__(name)
             del sys.path[0]
         else:
             raise AssertionError(
