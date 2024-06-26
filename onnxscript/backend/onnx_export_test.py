@@ -170,7 +170,8 @@ def extract_functions(name: str, content: str, test_folder: pathlib.Path):
     except (SyntaxError, ImportError) as e:
         raise AssertionError(
             f"Unable to import {import_name!r} (e={e}) (file: {filename!r}, "
-            f"absolute path: {os.path.abspath(filename)!r})\n----\n{content}"
+            f"absolute path: {os.path.abspath(filename)!r}, "
+            f"current folder: {os.getcwd()})\n----\n{content}"
         ) from e
     functions = {
         k: v for k, v in mod.__dict__.items() if isinstance(v, onnxscript.OnnxFunction)
