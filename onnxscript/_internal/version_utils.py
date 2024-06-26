@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 """Version utils for testing."""
 
+from __future__ import annotations
+
 import packaging.version
 
 
