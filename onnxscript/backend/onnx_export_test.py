@@ -173,20 +173,14 @@ def extract_functions(name: str, content: str, test_folder: pathlib.Path):
         stdout, stderr = subprocess.Popen(  # pylint: disable=consider-using-with
             [sys.executable, filename], stdout=subprocess.PIPE, stderr=subprocess.PIPE
         ).communicate()
-        if not stderr:
-            # The execution ran fine. So the error is somewhere else.
-            sys.path.insert(0, os.path.abspath(str(test_folder)))
-            mod = importlib.__import__(name)
-            del sys.path[0]
-        else:
-            raise AssertionError(
-                f"Unable to import {import_name!r} (e={e}) (file: {filename!r}, "
-                f"absolute path: {os.path.abspath(filename)!r}, "
-                f"current folder: {os.getcwd()}"
-                f")\n---- STDERR --\n{stderr.decode('utf-8', errors='ignore')}"
-                f"\n---- STDOUT --\n{stdout.decode('utf-8', errors='ignore')}"
-                f"\n---- CONTENT --\n{content}"
-            ) from e
+        raise AssertionError(
+            f"Unable to import {import_name!r} (e={e}) (file: {filename!r}, "
+            f"absolute path: {os.path.abspath(filename)!r}, "
+            f"current folder: {os.getcwd()}"
+            f")\n---- STDERR --\n{stderr.decode('utf-8', errors='ignore')}"
+            f"\n---- STDOUT --\n{stdout.decode('utf-8', errors='ignore')}"
+            f"\n---- CONTENT --\n{content}"
+        ) from e
     functions = {
         k: v for k, v in mod.__dict__.items() if isinstance(v, onnxscript.OnnxFunction)
     }
