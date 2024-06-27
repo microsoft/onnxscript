@@ -15,9 +15,12 @@ TRANSFORMERS_FUNCTION_REWRITE_RULES: list[type[function_rule.FunctionRewriteRule
     # multihead_attention.GQALlamaSdpa2RewriteRule,
     # multihead_attention.AttnPhi15RewriteRule,
     # multihead_attention.MHAStableDiffusionUnetRewriteRule,
-    # layernorm.LNRewriteRule,
+    layernorm.LNRewriteRule,
     # fastgelu.GeluRewriteRule,
     # biassplitgelu.GegluRewriteRule,
-    multihead_attention.MHALlama3RewriteRule,
+    # multihead_attention.MHALlama2RewriteRule,
+    multihead_attention.GQALlama3RewriteRule,
+    multihead_attention.TorchLinearRewriteRule,
+    # multihead_attention.AttentionRewriteRule,
 
 ]
