@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 
 # Same functions as in onnxfns1.py, using autocast and default-attribute-values
 

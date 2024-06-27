@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 # pylint disable: protected-access
 from __future__ import annotations
 

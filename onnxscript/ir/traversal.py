@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 """Utilities for traversing the IR graph."""
 
 from __future__ import annotations

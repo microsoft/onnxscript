@@ -1,5 +1,5 @@
-# SPDX-License-Identifier: MIT
-# Modifications Copyright (c) Microsoft.
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 #
 # Copyright © 2016 Igor Kroitor
 #

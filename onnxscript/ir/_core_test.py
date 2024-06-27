@@ -1,9 +1,8 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 from __future__ import annotations
 
+import copy
 import pathlib
 import tempfile
 import unittest
@@ -575,6 +574,11 @@ class ValueTest(unittest.TestCase):
     def test_initialize(self):
         _ = _core.Value()
 
+    def test_it_is_hashable(self):
+        value = _core.Value()
+        self.assertIsInstance(hash(value), int)
+        self.assertIn(value, {value})
+
     def test_meta(self):
         value = _core.Value()
         value.meta["test"] = 1
@@ -590,6 +594,10 @@ class NodeTest(unittest.TestCase):
         self.v0 = _core.Value()
         self.v1 = _core.Value()
         self.node = _core.Node("test", "TestOp", inputs=(self.v0, self.v1), num_outputs=3)
+
+    def test_it_is_hashable(self):
+        self.assertIsInstance(hash(self.node), int)
+        self.assertIn(self.node, {self.node})
 
     def test_init_with_values(self):
         self.assertEqual(self.node.domain, "test")
@@ -678,6 +686,10 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(self.graph.initializers, {})
         self.assertIsNone(self.graph.doc_string)
 
+    def test_it_is_hashable(self):
+        self.assertIsInstance(hash(self.graph), int)
+        self.assertIn(self.graph, {self.graph})
+
     def test_it_is_iterable_of_nodes(self):
         self.assertEqual(list(self.graph), [self.node])
 
@@ -765,6 +777,57 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(add_node.inputs, (None, None))
 
     # TODO(justinchuby): Test graph mutation methods
+
+
+class TypeTest(unittest.TestCase):
+    @parameterized.parameterized.expand(
+        [
+            ("tensor", _core.TensorType(ir.DataType.FLOAT)),
+            ("sequence", _core.SequenceType(_core.TensorType(ir.DataType.BOOL))),
+            ("optional", _core.OptionalType(_core.TensorType(ir.DataType.FLOAT16))),
+            (
+                "sequence_optional",
+                _core.SequenceType(_core.OptionalType(_core.TensorType(ir.DataType.INT8))),
+            ),
+            (
+                "optional_sequence",
+                _core.OptionalType(_core.SequenceType(_core.TensorType(ir.DataType.INT16))),
+            ),
+        ]
+    )
+    def test_type_is_hashable(self, _: str, type_: ir.TypeProtocol):
+        self.assertIsInstance(hash(type_), int)
+        self.assertIn(type_, {type_})  # type: ignore
+        # Assert that a different type object can still be matched
+        self.assertIn(copy.deepcopy(type_), {type_})  # type: ignore
+
+    def test_type_is_comparable(self):
+        self.assertEqual(
+            _core.TensorType(ir.DataType.FLOAT), _core.TensorType(ir.DataType.FLOAT)
+        )
+        self.assertNotEqual(
+            _core.TensorType(ir.DataType.FLOAT), _core.TensorType(ir.DataType.FLOAT16)
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            ("tensor", _core.TensorType(ir.DataType.FLOAT)),
+            ("sequence", _core.SequenceType(_core.TensorType(ir.DataType.BOOL))),
+            ("optional", _core.OptionalType(_core.TensorType(ir.DataType.FLOAT16))),
+            (
+                "sequence_optional",
+                _core.SequenceType(_core.OptionalType(_core.TensorType(ir.DataType.INT8))),
+            ),
+            (
+                "optional_sequence",
+                _core.OptionalType(_core.SequenceType(_core.TensorType(ir.DataType.INT16))),
+            ),
+        ]
+    )
+    def test_composite_type_is_comparable(self, _: str, type_: ir.TypeProtocol):
+        self.assertEqual(type_, type_)
+        # Equal even if deep-copied
+        self.assertEqual(type_, copy.deepcopy(type_))
 
 
 if __name__ == "__main__":

@@ -42,6 +42,7 @@ coverage.xml
 cover/
 test-output.xml
 dump_*/*
+*.sarif
 
 # Sphinx documentation
 docs/_build/
@@ -94,6 +95,8 @@ dmypy.json
 
 # Generated files
 *.onnx
+*.csv
+*.xlsx
 !testdata/**/*.onnx
 *.onnxlib
 **/onnx_backend_test_code/**

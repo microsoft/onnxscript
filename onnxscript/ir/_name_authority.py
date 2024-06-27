@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Auxiliary class for managing names in the IR."""
 
 from __future__ import annotations

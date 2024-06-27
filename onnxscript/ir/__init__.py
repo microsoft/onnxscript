@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 """In-memory intermediate representation for ONNX graphs."""
 
 __all__ = [
@@ -136,3 +134,13 @@ from onnxscript.ir._protocols import (
     ValueProtocol,
 )
 from onnxscript.ir.serde import TensorProtoTensor, from_proto, to_proto
+
+
+def __set_module() -> None:
+    """Set the module of all functions in this module to this public module."""
+    global_dict = globals()
+    for name in __all__:
+        global_dict[name].__module__ = __name__
+
+
+__set_module()
