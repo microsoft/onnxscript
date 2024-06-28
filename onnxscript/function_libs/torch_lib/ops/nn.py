@@ -628,13 +628,15 @@ def aten_hardtanh(self: TReal, min_val: float = -1.0, max_val: float = 1.0) -> T
 
     return op.Clip(self, min_val, max_val)
 
-
+@torch_op("aten::hardtanh_backward", trace_only=True)
 def aten_hardtanh_backward(
     grad_output: TensorType, self: TensorType, min_val: float, max_val: float
 ) -> TensorType:
     """hardtanh_backward(Tensor grad_output, Tensor self, Scalar min_val, Scalar max_val) -> Tensor"""
 
-    raise NotImplementedError()
+    max_mask = op.Where(op.Greater(self, max_val), 0.0, 1.0)
+    min_mask = op.Where(op.Less(self, min_val), 0.0, 1.0)
+    return op.Mul(op.Mul(grad_output, max_mask), min_mask)
 
 
 def aten_huber_loss(
@@ -954,7 +956,7 @@ def aten_max_pool2d_with_indices(
         ([2 + i for i in range(expand_size)]),
     )
 
-
+#@torch_op("aten::max_pool2d_with_indices_backward", trace_only=True)
 def aten_max_pool2d_with_indices_backward(
     grad_output: TensorType,
     self: TensorType,
@@ -1461,13 +1463,18 @@ def aten_reflection_pad2d(self: TTensor, padding: INT64) -> TTensor:
 
     return op.Pad(self, onnx_padding, mode="reflect")
 
-
+#@torch_op("aten::reflection_pad2d_backward", trace_only=True)
 def aten_reflection_pad2d_backward(
     grad_output: TensorType, self: TensorType, padding: INT64
 ) -> TensorType:
     """reflection_pad2d_backward(Tensor grad_output, Tensor self, SymInt[4] padding) -> Tensor"""
-
-    raise NotImplementedError()
+    # this cannot work
+    # start = op.Constant(value_ints=[0,2])
+    # end = op.Constant(value_ints=[2,6])
+    # axes = op.Constant(value_ints=[2,3])
+    # result = op.Slice(grad_output, start, end, axes)
+    # return result
+    raise NotImplementedError
 
 
 def aten_reflection_pad3d(self: TensorType, padding: INT64) -> TensorType:

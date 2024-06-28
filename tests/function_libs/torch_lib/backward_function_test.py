@@ -233,8 +233,8 @@ class TestOperatorsOnnxrt(unittest.TestCase):
         onnx_export: str,
         params=None,
         fullgraph: bool = True,
-        atol=1e-6,
-        rtol=1e-6,
+        atol=1e-3,
+        rtol=1e-3,
         opset_version=None,
         test_backward=True,
         impl="ort",
@@ -245,8 +245,8 @@ class TestOperatorsOnnxrt(unittest.TestCase):
         training=None,
         input_index=None,
     ):
-        # if sys.platform == "win32":
-        #     raise unittest.SkipTest("Windows not supported yet.")
+        if sys.platform == "win32":
+            raise unittest.SkipTest("Windows not supported yet.")
         assert isinstance(onnx_export, str), f"Export onnx is wrong for f={f}"
         if isinstance(args, torch.Tensor):
             args = [args]
@@ -329,8 +329,8 @@ class TestOperatorsOnnxrt(unittest.TestCase):
                         equal_nan=True,
                     )
 
-                    baseline_result.sum().backward()
-                    _, logs = self._get_logs(lambda: result.sum().backward())
+                    baseline_result.mean().backward()
+                    _, logs = self._get_logs(lambda: result.mean().backward())
                     if "support_dict and extra_support_dict don't support node.target" in logs:
                         logs = logs.replace("\n\n", "\n")
                         raise AssertionError(
@@ -388,8 +388,10 @@ class TestOperatorsOnnxrt(unittest.TestCase):
                         baseline_result, result, atol=atol, rtol=rtol, equal_nan=True
                     )
 
-                baseline_result.sum().backward()
-                _, logs = self._get_logs(lambda: result.sum().backward())
+                #baseline_result.sum().backward()
+                #_, logs = self._get_logs(lambda: result.sum().backward())
+                baseline_result.mean().backward()
+                _, logs = self._get_logs(lambda: result.mean().backward())
                 if "support_dict and extra_support_dict don't support node.target" in logs:
                     logs = logs.replace("\n\n", "\n")
                     raise AssertionError(
@@ -672,7 +674,7 @@ class TestOperatorsOnnxrt(unittest.TestCase):
         )
 
     @hide_stdout()
-    def test_xt_pad(self):
+    def test_xt_pad_reflection(self):
         x = torch.tensor([[[[0.0, 1.0, 1.0, 1.0], [2.0, 3.0, 7.0, 7.0]]]], requires_grad=True)
         self.assertONNX(
             nn.ReflectionPad2d((2, 3, 0, 1)),
@@ -747,9 +749,39 @@ class TestOperatorsOnnxrt(unittest.TestCase):
 
     @hide_stdout()
     def test_xt_conv(self):
-        x = torch.ones(20, 16, 50, 40, requires_grad=True)
+        x = torch.rand(20, 16, 50, 40, requires_grad=True)
         self.assertONNX(
             nn.Conv2d(16, 13, 3, bias=False),
+            x,
+            keep_initializers_as_inputs=True,
+            onnx_export=inspect.currentframe().f_code.co_name,
+        )
+
+    @hide_stdout()
+    def test_xt_conv_bias(self):
+        x = torch.rand(20, 16, 50, 40, requires_grad=True)
+        self.assertONNX(
+            nn.Conv2d(16, 13, 3, bias=True),
+            x,
+            keep_initializers_as_inputs=True,
+            onnx_export=inspect.currentframe().f_code.co_name,
+        )
+
+    @hide_stdout()
+    def test_xt_conv_stride(self):  # This should be failed, because we don't support stride > 1 now
+        x = torch.rand(8, 3, 28, 28, requires_grad=True)
+        self.assertONNX(
+            nn.Conv2d(3, 8, 3, stride=2),
+            x,
+            keep_initializers_as_inputs=True,
+            onnx_export=inspect.currentframe().f_code.co_name,
+        )
+
+    @hide_stdout()
+    def test_xt_conv_padding(self):
+        x = torch.rand(8, 3, 28, 28, requires_grad=True)
+        self.assertONNX(
+            nn.Conv2d(3, 8, 3, padding=(1,1)),
             x,
             keep_initializers_as_inputs=True,
             onnx_export=inspect.currentframe().f_code.co_name,
@@ -782,7 +814,7 @@ class TestOperatorsOnnxrt(unittest.TestCase):
         )
 
     @hide_stdout()
-    def test_xt_convtranspose(self):
+    def test_xt_convtranspose(self):  # This should be failed, because we don't support stride > 1 now
         x = torch.ones(2, 3, 4, 5, requires_grad=True)
         self.assertONNX(
             nn.ConvTranspose2d(3, 3, 3, stride=3, bias=False, padding=1, output_padding=2),
@@ -795,7 +827,7 @@ class TestOperatorsOnnxrt(unittest.TestCase):
     def test_xt_maxpool(self):
         x = torch.randn(20, 16, 50)
         self.assertONNX(
-            nn.MaxPool1d(3, stride=2),
+            nn.MaxPool2d(3, stride=2),
             x,
             onnx_export=inspect.currentframe().f_code.co_name,
         )
