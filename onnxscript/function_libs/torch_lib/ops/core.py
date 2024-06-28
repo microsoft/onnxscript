@@ -8545,10 +8545,11 @@ def aten_unsafe_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType
     raise NotImplementedError()
 
 
-def aten_unsafe_split(self: TensorType, split_size: INT64, dim: int = 0) -> TensorType:
+@torch_op(("aten::unsafe_split", "aten::unsafe_split.Tensor"))
+def aten_unsafe_split(self: TTensor, split_size: INT64, dim: int = 0) -> TTensor:
     """unsafe_split.Tensor(Tensor self, SymInt split_size, int dim=0) -> Tensor[]"""
 
-    raise NotImplementedError()
+    return op.SplitToSequence(self, split_size, axis=dim)
 
 
 def aten_unsafe_split_with_sizes(
