@@ -34,7 +34,6 @@ jobs:
           - py311-experimental-torchlib-onnx-ir
           - py310
           - py39
-          - py38
         include:
           - name: py311
             python-version: "3.11"

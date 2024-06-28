@@ -93,6 +93,7 @@ class TestExportLlama(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
+    @unittest.skipIf(True, reason="Logger not supported for non-export cases 4.42.2")
     def test_llama_dort_static(self):
         model, input_tensors_many, _ = (
             onnxscript.tools.transformers_models.llama.get_llama_model()
