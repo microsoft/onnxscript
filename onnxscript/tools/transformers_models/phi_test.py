@@ -60,7 +60,6 @@ class TestExportPhi(unittest.TestCase):
     def test_phi_dort_static(self):
         model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
         input_tensors = input_tensors_many[0]
-        expected = model(*input_tensors)
 
         local_aot_ort = onnxscript.tools.training_helper.make_aot_ort(dynamic=False)
 
@@ -71,12 +70,23 @@ class TestExportPhi(unittest.TestCase):
             fullgraph=True,
         )
 
-        results = compiled_model(*input_tensors)
-        torch.testing.assert_close(expected[0], results[0], atol=1e-5, rtol=1e-5)
+        expected_results, expected_gradients = onnxscript.tools.training_helper.train_loop(
+            model, *input_tensors
+        )
+        results, gradients, onnx_models = onnxscript.tools.training_helper.train_loop(
+            compiled_model,
+            *input_tensors,
+            dump_onnx_models=True,
+            dump_prefix="_dump_dort_phi",
+            dump_clean_first=True,
+        )
+        torch.testing.assert_allclose(expected_results[0], results[0], atol=1e-5, rtol=1e-5)
 
-        expected_gradients = onnxscript.tools.training_helper.train_loop(model, *input_tensors)
-        gradients = onnxscript.tools.training_helper.train_loop(compiled_model, *input_tensors)
-        torch.testing.assert_close(expected_gradients[0], gradients[0], atol=1e-5, rtol=1e-5)
+        # Checking there is only two generated graphs otherwise, it means there are graph breaks.
+        self.assertEqual(len(onnx_models), 2)
+        torch.testing.assert_allclose(
+            expected_gradients[0], gradients[0], atol=1e-5, rtol=1e-5
+        )
 
 
 if __name__ == "__main__":
