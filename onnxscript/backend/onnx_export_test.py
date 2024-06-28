@@ -7,7 +7,6 @@ import importlib
 import os
 import pathlib
 import re
-import subprocess
 import sys
 import unittest
 from typing import Pattern
@@ -100,7 +99,7 @@ if sys.platform == "win32":
             r"^test_averagepool_2d_default",
             "cannot import module, import_module does not work",
         ),
-        skip("^test_bitwise_not_3d", "cannot import module, import_module does not work")
+        skip("^test_bitwise_not_3d", "cannot import module, import_module does not work"),
     )
 
 
@@ -133,19 +132,12 @@ def extract_functions(name: str, content: str, test_folder: pathlib.Path):
     try:
         mod = importlib.import_module(import_name)
     except (SyntaxError, ImportError) as e:
-        if sys.platform != "win32":
-            stdout, stderr = subprocess.Popen(  # pylint: disable=consider-using-with
-                [sys.executable, filename], stdout=subprocess.PIPE, stderr=subprocess.PIPE
-            ).communicate()
-            raise AssertionError(
-                f"Unable to import {import_name!r} (e={e}) (file: {filename!r}, "
-                f"absolute path: {os.path.abspath(filename)!r}, "
-                f"current folder: {os.getcwd()}"
-                f")\n---- STDERR --\n{stderr.decode('utf-8', errors='ignore')}"
-                f"\n---- STDOUT --\n{stdout.decode('utf-8', errors='ignore')}"
-                f"\n---- CONTENT --\n{content}"
-            ) from e
-        raise
+        raise AssertionError(
+            f"Unable to import {import_name!r} (e={e}) (file: {filename!r}, "
+            f"absolute path: {os.path.abspath(filename)!r}, "
+            f"current folder: {os.getcwd()}"
+            f"\n---- CONTENT --\n{content}"
+        ) from e
     functions = {
         k: v for k, v in mod.__dict__.items() if isinstance(v, onnxscript.OnnxFunction)
     }
