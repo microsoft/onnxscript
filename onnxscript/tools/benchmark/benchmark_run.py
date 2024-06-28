@@ -17,23 +17,23 @@ class BenchmarkError(RuntimeError):
 
 def get_machine() -> dict[str, str | int | float | tuple[int, int]]:
     """Returns the machine specification."""
-    cpu: dict[str, str | int | float | tuple[int, int]] = dict(
+    config: dict[str, str | int | float | tuple[int, int]] = dict(
         machine=str(platform.machine()),
         processor=str(platform.processor()),
         version=str(sys.version),
-        cpu=int(multiprocessing.cpu_count()),
+        config=int(multiprocessing.cpu_count()),
         executable=str(sys.executable),
     )
     try:
         import torch.cuda
     except ImportError:
-        return cpu
+        return config
 
-    cpu["has_cuda"] = bool(torch.cuda.is_available())
-    if cpu["has_cuda"]:
-        cpu["capability"] = torch.cuda.get_device_capability(0)
-        cpu["device_name"] = str(torch.cuda.get_device_name(0))
-    return cpu
+    config["has_cuda"] = bool(torch.cuda.is_available())
+    if config["has_cuda"]:
+        config["capability"] = torch.cuda.get_device_capability(0)
+        config["device_name"] = str(torch.cuda.get_device_name(0))
+    return config
 
 
 def _cmd_line(script_name: str, **kwargs: dict[str, str | int | float]) -> list[str]:
