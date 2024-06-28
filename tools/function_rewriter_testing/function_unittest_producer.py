@@ -16,7 +16,6 @@ import itertools
 import logging
 import os
 import sys
-from typing import Dict, List, Tuple
 
 import numpy as np
 import onnx
