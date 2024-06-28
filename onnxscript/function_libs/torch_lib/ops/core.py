@@ -5625,10 +5625,11 @@ def aten_multiply(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::mv")
 def aten_mv(self: TensorType, vec: TensorType) -> TensorType:
     """mv(Tensor self, Tensor vec) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.MatMul(self, vec)
 
 
 def aten_mvlgamma(self: TensorType, p: int) -> TensorType:
@@ -6568,7 +6569,14 @@ def aten_positive(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::pow.Tensor_Tensor", "aten::pow.Tensor_Scalar", "_operator::pow"))
+@torch_op(
+    (
+        "aten::pow.Scalar",
+        "aten::pow.Tensor_Tensor",
+        "aten::pow.Tensor_Scalar",
+        "_operator::pow"
+    )
+)
 def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     """pow(Tensor self, Tensor exponent) -> Tensor"""
 
@@ -7291,10 +7299,15 @@ def aten_rrelu(
     raise NotImplementedError()
 
 
+@torch_op(("aten::__rshift__.Tensor", "aten::__rshift__.Scalar"))
 def aten_rshift(self: TensorType, other: TensorType) -> TensorType:
     """__rshift__.Tensor(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    other = op.Cast(other, to=FLOAT.dtype)
+    two_pow = op.Pow(2.0, other)
+    two_pow = op.CastLike(two_pow, self)
+    rshift = op.Div(self, two_pow)
+    return rshift
 
 
 @torch_op("aten::rsqrt")

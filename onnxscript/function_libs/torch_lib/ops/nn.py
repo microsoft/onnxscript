@@ -2043,10 +2043,11 @@ def aten_sigmoid_backward(grad_output: TensorType, output: TensorType) -> Tensor
     raise NotImplementedError()
 
 
+@torch_op("aten::silu")
 def aten_silu(self: TensorType) -> TensorType:
     """silu(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Mul(self, op.Sigmoid(self))
 
 
 def aten_silu_backward(grad_output: TensorType, self: TensorType) -> TensorType:
