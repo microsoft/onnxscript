@@ -45,9 +45,6 @@ jobs:
           - name: py39
             python-version: "3.9"
             nox-tag: test
-          - name: py38
-            python-version: "3.8"
-            nox-tag: test
           - name: py312-torch-nightly
             python-version: "3.12"
             nox-tag: test-torch-nightly

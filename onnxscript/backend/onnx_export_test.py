@@ -100,6 +100,7 @@ if sys.platform == "win32":
             r"^test_averagepool_2d_default",
             "cannot import module, import_module does not work",
         ),
+        skip("^test_bitwise_not_3d", "cannot import module, import_module does not work")
     )
 
 
