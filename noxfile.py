@@ -19,7 +19,7 @@ COMMON_TEST_DEPENDENCIES = (
     'numpy==1.26.4; python_version>="3.9"',
     "packaging",
     "parameterized",
-    "psutil",
+    'psutil; sys_platform != "win32"',
     "pytest-cov",
     "pytest-randomly",
     "pytest-subtests",
@@ -28,13 +28,13 @@ COMMON_TEST_DEPENDENCIES = (
     "pyyaml",
     "types-PyYAML",
     "typing_extensions",
-    "ml_dtypes",
+    "ml-dtypes",
 )
 ONNX = "onnx==1.16"
 ONNX_RUNTIME = "onnxruntime==1.17.1"
 PYTORCH = "torch==2.2.2"
 TORCHVISON = "torchvision==0.17.2"
-TRANSFORMERS = "transformers>=4.37.2"
+TRANSFORMERS = "transformers==4.37.2"
 ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "flatbuffers",
     "coloredlogs",
@@ -163,7 +163,7 @@ def test_dort(session):
     )
     torch_version, transformers_version = session.posargs
 
-    if torch_version == "nighly":
+    if torch_version == "nightly":
         session.install(
             "--pre",
             "torch",

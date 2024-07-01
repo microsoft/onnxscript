@@ -17,7 +17,7 @@ def get_memory_rss(pid: int) -> int:
     Returns:
          Physical memory.
 
-    It relies on the module :epkg:`psutil`.
+    It relies on the module *psutil*.
     """
     import psutil
 

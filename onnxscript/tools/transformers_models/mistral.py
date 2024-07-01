@@ -132,7 +132,9 @@ def get_mistral_model(
                 self.model = MistralModel(config)
 
             def forward(self, input_ids, attention_mask):
-                model_output = self.model(input_ids, attention_mask=attention_mask)
+                model_output = self.model(
+                    input_ids, attention_mask=attention_mask, use_cache=False
+                )
                 return model_output.to_tuple()
 
         example_args_collection = []
@@ -149,7 +151,7 @@ def get_mistral_model(
             self.model = MistralModel(config)
 
         def forward(self, input_ids):
-            model_output = self.model(input_ids)
+            model_output = self.model(input_ids, use_cache=False)
             return model_output.to_tuple()
 
     example_args_collection = []
