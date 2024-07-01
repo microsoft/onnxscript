@@ -110,7 +110,7 @@ def ignore_warnings(warns: Warning | Sequence[Warning]) -> Callable:  # type: ig
 
         def call_f(self):
             with warnings.catch_warnings():
-                warnings.simplefilter("ignore", warns)
+                warnings.simplefilter("ignore", warns)  # type: ignore[arg-type]
                 return fct(self)
 
         return call_f
