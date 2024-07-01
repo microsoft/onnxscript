@@ -17,7 +17,11 @@ import onnxscript.rewriter
 
 
 def export_to_onnx(
-    model: Any, *args: Sequence[Any], optimize: bool = True, export_api: bool = True
+    model: Any,
+    *args: Sequence[Any],
+    optimize: bool = True,
+    export_api: bool = True,
+    no_grad: bool = False,
 ) -> onnx.ModelProto:
     """
     Export a model to ONNX.
@@ -26,10 +30,17 @@ def export_to_onnx(
     If *export_api* is True, the function uses ``torch.onnx.export``
     and not ``torch.onnx.dynamo_export``.
     """
-    if export_api:
-        prog = torch.onnx.export(model, args, dynamo=True)  # pylint: disable=no-value-for-parameter
+    if no_grad:
+        with torch.no_grad():
+            if export_api:
+                prog = torch.onnx.export(model, args, dynamo=True)  # pylint: disable=no-value-for-parameter
+            else:
+                prog = torch.onnx.dynamo_export(model, *args)
     else:
-        prog = torch.onnx.dynamo_export(model, *args)
+        if export_api:
+            prog = torch.onnx.export(model, args, dynamo=True)  # pylint: disable=no-value-for-parameter
+        else:
+            prog = torch.onnx.dynamo_export(model, *args)
     model_proto = prog.model_proto
     if optimize:
         model_proto = onnxscript.optimizer.optimize(

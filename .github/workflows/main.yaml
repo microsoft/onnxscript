@@ -101,7 +101,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        transformers: ["4.37.2", "4.41.2", "4.42.2"]
+        transformers: ["4.37.2", "4.41.2", "4.42.3"]
         torch: ["release", "nightly"]
         python_version: ["3.11"]
         nox-tag: ["test-dort"]
