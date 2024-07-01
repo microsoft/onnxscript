@@ -38,7 +38,7 @@ class TestExportPhi3(unittest.TestCase):
         expected = model(*input_tensors)
         try:
             proto = onnxscript.tools.transformers_models.export_to_onnx(model, *input_tensors)
-        except torch._export.verifier.SpecViolationError as e:
+        except torch._export.verifier.SpecViolationError as e:  # pylint: disable=protected-access
             # see https://github.com/pytorch/pytorch/issues/128394
             if "Node.meta _enter_autocast is missing val field." in str(e):
                 raise unittest.SkipTest(str(e))
@@ -55,7 +55,7 @@ class TestExportPhi3(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     @unittest.skipIf(not has_phi3(), reason="transformers is not recent enough")
-    @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
+    @unittest.skipIf(torch_older_than("2.5"), reason="fails to export")
     @ignore_warnings(UserWarning)
     def test_phi3_export_cpu_export_api(self):
         model, input_tensors_many, _ = (
@@ -67,7 +67,7 @@ class TestExportPhi3(unittest.TestCase):
             proto = onnxscript.tools.transformers_models.export_to_onnx(
                 model, *input_tensors, export_api=True
             )
-        except torch._export.verifier.SpecViolationError as e:
+        except torch._export.verifier.SpecViolationError as e:  # pylint: disable=protected-access
             # see https://github.com/pytorch/pytorch/issues/128394
             if "Node.meta _enter_autocast is missing val field." in str(e):
                 raise unittest.SkipTest(str(e))
@@ -96,7 +96,7 @@ class TestExportPhi3(unittest.TestCase):
         expected = model(*input_tensors)
         try:
             proto = onnxscript.tools.transformers_models.export_to_onnx(model, *input_tensors)
-        except torch._export.verifier.SpecViolationError as e:
+        except torch._export.verifier.SpecViolationError as e:  # pylint: disable=protected-access
             # see https://github.com/pytorch/pytorch/issues/128394
             if "Node.meta _enter_autocast is missing val field." in str(e):
                 raise unittest.SkipTest(str(e))

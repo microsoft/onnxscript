@@ -33,7 +33,7 @@ class TestExportLlama(unittest.TestCase):
         expected = model(*input_tensors)
         try:
             proto = onnxscript.tools.transformers_models.export_to_onnx(model, *input_tensors)
-        except torch._export.verifier.SpecViolationError as e:
+        except torch._export.verifier.SpecViolationError as e:  # pylint: disable=protected-access
             # see https://github.com/pytorch/pytorch/issues/128394
             if "Node.meta _enter_autocast is missing val field." in str(e):
                 raise unittest.SkipTest(str(e))
@@ -45,11 +45,11 @@ class TestExportLlama(unittest.TestCase):
             proto.SerializeToString(), providers=["CPUExecutionProvider"]
         )
         results = sess.run(None, feeds)
-        np.testing.assert_close(expected[0].detach().numpy(), results[0], atol=1e-5)
+        np.testing.assert_allclose(expected[0].detach().numpy(), results[0], atol=1e-5)
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
-    @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
+    @unittest.skipIf(torch_older_than("2.5"), reason="fails to export")
     @ignore_warnings(UserWarning)
     def test_llama_export_cpu_export_api(self):
         model, input_tensors_many, _ = (
@@ -61,7 +61,7 @@ class TestExportLlama(unittest.TestCase):
             proto = onnxscript.tools.transformers_models.export_to_onnx(
                 model, *input_tensors, export_api=True
             )
-        except torch._export.verifier.SpecViolationError as e:
+        except torch._export.verifier.SpecViolationError as e:  # pylint: disable=protected-access
             # see https://github.com/pytorch/pytorch/issues/128394
             if "Node.meta _enter_autocast is missing val field." in str(e):
                 raise unittest.SkipTest(str(e))
@@ -73,7 +73,7 @@ class TestExportLlama(unittest.TestCase):
             proto.SerializeToString(), providers=["CPUExecutionProvider"]
         )
         results = sess.run(None, feeds)
-        np.testing.assert_close(expected[0].detach().numpy(), results[0], atol=1e-5)
+        np.testing.assert_allclose(expected[0].detach().numpy(), results[0], atol=1e-5)
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not torch.cuda.is_available(), reason="CUDA not available")
@@ -90,7 +90,7 @@ class TestExportLlama(unittest.TestCase):
         expected = model(*input_tensors)
         try:
             proto = onnxscript.tools.transformers_models.export_to_onnx(model, *input_tensors)
-        except torch._export.verifier.SpecViolationError as e:
+        except torch._export.verifier.SpecViolationError as e:  # pylint: disable=protected-access
             # see https://github.com/pytorch/pytorch/issues/128394
             if "Node.meta _enter_autocast is missing val field." in str(e):
                 raise unittest.SkipTest(str(e))
@@ -102,7 +102,7 @@ class TestExportLlama(unittest.TestCase):
             proto.SerializeToString(), providers=["CUDAExecutionProvider"]
         )
         results = sess.run(None, feeds)
-        np.testing.assert_close(expected[0].detach().cpu().numpy(), results[0], atol=1e-5)
+        np.testing.assert_allclose(expected[0].detach().cpu().numpy(), results[0], atol=1e-5)
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
