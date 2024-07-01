@@ -25,7 +25,7 @@ from onnxscript._internal.version_utils import (
 class TestExportPhi(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
-    @unittest.skipIf(torch_older_than("2.5"), reason="fails to export")
+    @unittest.skipIf(torch_older_than("2.6"), reason="fails to export")
     @ignore_warnings(UserWarning)
     def test_phi_export_cpu(self):
         model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
@@ -43,7 +43,7 @@ class TestExportPhi(unittest.TestCase):
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
-    @unittest.skipIf(torch_older_than("2.5"), reason="fails to export")
+    @unittest.skipIf(torch_older_than("2.6"), reason="fails to export")
     @ignore_warnings(UserWarning)
     def test_phi_export_cpu_export_api(self):
         model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()

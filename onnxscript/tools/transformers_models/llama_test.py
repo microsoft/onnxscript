@@ -17,13 +17,15 @@ from onnxscript._internal.version_utils import (
     has_transformers,
     ignore_warnings,
     torch_older_than,
+    transformers_older_than,
 )
 
 
 class TestExportLlama(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
-    @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
+    @unittest.skipIf(torch_older_than("2.5"), reason="fails to export")
+    @unittest.skipIf(transformers_older_than("4.41"), reason="cannot mutate tensors with frozen storage")
     @ignore_warnings(UserWarning)
     def test_llama_export_cpu(self):
         model, input_tensors_many, _ = (
@@ -50,6 +52,7 @@ class TestExportLlama(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     @unittest.skipIf(torch_older_than("2.5"), reason="fails to export")
+    @unittest.skipIf(transformers_older_than("4.41"), reason="cannot mutate tensors with frozen storage")
     @ignore_warnings(UserWarning)
     def test_llama_export_cpu_export_api(self):
         model, input_tensors_many, _ = (

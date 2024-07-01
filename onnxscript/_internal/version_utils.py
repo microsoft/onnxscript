@@ -94,7 +94,7 @@ def has_transformers():
         return False
 
 
-def ignore_warnings(warns: Warning | Sequence[Warning]) -> Callable:
+def ignore_warnings(warns: Warning | Sequence[Warning]) -> Callable:  # type: ignore[arg-type]
     """Catches warnings.
 
     Args:
