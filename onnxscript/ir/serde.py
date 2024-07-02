@@ -566,38 +566,55 @@ def _deserialize_graph(
     for info, value in zip(proto.input, inputs):
         deserialize_value_info_proto(info, value)
 
+    # Build the value info dictionary to allow for quick lookup for this graph scope
+    value_info = {info.name: info for info in proto.value_info}
+
     # Initialize the values dictionary for this graph scope with the inputs and initializers
     values: dict[str, _core.Value] = {v.name: v for v in inputs}  # type: ignore[misc]
+
+    # Enter the graph scope by pushing the values for this scope to the stack
     scoped_values.append(values)
+
     initializer_values = []
-    for tensor in initializer_tensors:
-        if tensor.name in values:
+    for i, tensor in enumerate(initializer_tensors):
+        initializer_name = tensor.name
+        if not initializer_name:
+            logger.warning(
+                "Initializer tensor must have a name but the %s-th initializer does not. Skipping this initializer.",
+                i,
+            )
+            continue
+        if initializer_name in values:
             # The initializer is for an input
-            initializer_value = values[tensor.name]
+            initializer_value = values[initializer_name]
             initializer_value.const_value = tensor
         else:
             # The initializer is for some other value. Create this value first
             initializer_value = _core.Value(
                 None,
                 index=None,
-                name=tensor.name,
-                # TODO(justinchuby): Fix type hinting for shape and dtype
-                shape=tensor.shape,  # type: ignore
-                type=_core.TensorType(tensor.dtype),
+                name=initializer_name,
+                # Do not include shape or type as we need to respect the ONNX file
+                # if the shape or type is not provided as ValueInfoProto
+                # The shape/type information will be filled in in the subsequent ValueInfoProto
+                # deserialization step
                 const_value=tensor,
             )
-            values[tensor.name] = initializer_value  # type: ignore[index]
+            if initializer_name in value_info:
+                # This is where we fill in the shape and type information for the initializer
+                deserialize_value_info_proto(value_info[initializer_name], initializer_value)
+            values[initializer_name] = initializer_value  # type: ignore[index]
         initializer_values.append(initializer_value)
-
-    # Add ValueInfos for this graph scope
-    value_info = {info.name: info for info in proto.value_info}
 
     # Deserialize nodes with all known values
     nodes = [_deserialize_node(node, scoped_values, value_info) for node in proto.node]
 
     # Fill in values for graph outputs
     outputs = [deserialize_value_info_proto(info, values[info.name]) for info in proto.output]
+
+    # Exit the graph scope by popping the values for this scope from the stack
     scoped_values.pop()
+
     return _core.Graph(
         inputs,
         outputs,
@@ -1157,17 +1174,21 @@ def serialize_graph_into(
         graph_proto.doc_string = from_.doc_string
     for input_ in from_.inputs:
         serialize_value_into(graph_proto.input.add(), input_)
+    input_names = {input_.name for input_ in from_.inputs}
     # TODO(justinchuby): Support sparse_initializer
-    for initializer in from_.initializers.values():
-        if initializer.const_value is None:
+    for value in from_.initializers.values():
+        if _should_create_value_info_for_value(value) and value.name not in input_names:
+            # Serialize information about all initializers into value_info,
+            # except for those that are also graph inputs
+            serialize_value_into(graph_proto.value_info.add(), value)
+        if value.const_value is None:
             # Skip initializers without constant values
-            logger.warning(
-                "Initializer '%s' does not have a constant value set.", initializer.name
-            )
+            logger.warning("Initializer '%s' does not have a constant value set.", value.name)
             continue
         # Make sure the tensor's name is the same as the value's name
-        initializer.const_value.name = initializer.name
-        serialize_tensor_into(graph_proto.initializer.add(), from_=initializer.const_value)
+        # TODO(#1554): Handle tensor alias better
+        value.const_value.name = value.name
+        serialize_tensor_into(graph_proto.initializer.add(), from_=value.const_value)
     for node in from_:
         serialize_node_into(graph_proto.node.add(), from_=node)
         for node_output in node.outputs:
