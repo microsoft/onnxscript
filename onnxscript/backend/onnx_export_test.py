@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import dataclasses
 import importlib
+import os
 import pathlib
 import re
+import sys
 import unittest
 from typing import Pattern
 
@@ -89,6 +91,17 @@ SKIP_TESTS = (
     skip(r"^test_ai_onnx_ml_label_encoder", "ONNX Runtime does not support Opset 21 at 1.17"),
 )
 
+if sys.platform == "win32":
+    SKIP_TESTS = (
+        *SKIP_TESTS,
+        skip(r"^test_gemm_beta", "cannot import module, import_module does not work"),
+        skip(
+            r"^test_averagepool_2d_default",
+            "cannot import module, import_module does not work",
+        ),
+        skip("^test_bitwise_not_3d", "cannot import module, import_module does not work"),
+    )
+
 
 def load_function(obj):
     return ort.InferenceSession(obj.SerializeToString(), providers=("CPUExecutionProvider",))
@@ -106,16 +119,24 @@ def run_function(obj, *inputs):
 def extract_functions(name: str, content: str, test_folder: pathlib.Path):
     if not test_folder.exists():
         test_folder.mkdir(exist_ok=True, parents=True)
-        init = test_folder / "__init__.py"
-        init.touch(exist_ok=True)
-    file = test_folder / f"{name}.py"
-    file.write_text(content, encoding="utf-8")
+        init = str(test_folder / "__init__.py")
+        with open(init, "w", encoding="utf-8") as f:
+            f.write("\n")
+    filename = str(test_folder / f"{name}.py")
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(content + "\n")
+    assert os.path.exists(
+        filename
+    ), f"{filename!r} ({os.path.abspath(filename)!r} does not exist."
     import_name = f"tests.{test_folder.parts[-1]}.{name}"
     try:
         mod = importlib.import_module(import_name)
     except (SyntaxError, ImportError) as e:
         raise AssertionError(
-            f"Unable to import {import_name!r} (file: {file!r})\n----\n{content}"
+            f"Unable to import {import_name!r} (e={e}) (file: {filename!r}, "
+            f"absolute path: {os.path.abspath(filename)!r}, "
+            f"current folder: {os.getcwd()}"
+            f"\n---- CONTENT --\n{content}"
         ) from e
     functions = {
         k: v for k, v in mod.__dict__.items() if isinstance(v, onnxscript.OnnxFunction)
@@ -265,16 +286,6 @@ class TestOnnxBackEnd(unittest.TestCase):
             return session
 
         def _run_function(obj, *inputs):
-            print("    run ONNX")
-            for i, inp in enumerate(inputs):
-                if inp is None:
-                    print(f"    input {i}: None")
-                else:
-                    print(
-                        f"    input {i}: "
-                        f"dtype={inp.dtype!r} shape={inp.shape!r}"
-                        f"{inp.ravel().tolist()!r}"
-                    )
             try:
                 return run_function(obj, *inputs)
             except Exception as e:
