@@ -2,6 +2,11 @@
 # Licensed under the MIT License.
 """Version utils for testing."""
 
+from __future__ import annotations
+
+import warnings
+from typing import Callable, Sequence
+
 import packaging.version
 
 
@@ -21,6 +26,19 @@ def torch_older_than(version: str) -> bool:
 
     return (
         packaging.version.parse(torch.__version__).release
+        < packaging.version.parse(version).release
+    )
+
+
+def transformers_older_than(version: str) -> bool | None:
+    """Returns True if the transformers version is older than the given version."""
+    try:
+        import transformers  # pylint: disable=import-outside-toplevel
+    except ImportError:
+        return None
+
+    return (
+        packaging.version.parse(transformers.__version__).release
         < packaging.version.parse(version).release
     )
 
@@ -74,3 +92,27 @@ def has_transformers():
         return True  # noqa
     except ImportError:
         return False
+
+
+def ignore_warnings(warns: Warning | Sequence[Warning]) -> Callable:  # type: ignore[arg-type]
+    """Catches warnings.
+
+    Args:
+        warns: warnings to ignore
+
+    Returns:
+        decorated function
+    """
+
+    def wrapper(fct):
+        if warns is None:
+            raise AssertionError(f"warns cannot be None for '{fct}'.")
+
+        def call_f(self):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", warns)  # type: ignore[arg-type]
+                return fct(self)
+
+        return call_f
+
+    return wrapper
