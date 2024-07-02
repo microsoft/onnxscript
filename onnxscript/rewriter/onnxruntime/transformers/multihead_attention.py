@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 r"""POC experimenting function aware pattern re-write.
 
 In this case we don't want to spell-out the entire source pattern.

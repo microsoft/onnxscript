@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Convenience methods for constructing the IR."""
 
 # NOTE: This is a temporary solution for constructing the IR. It should be replaced

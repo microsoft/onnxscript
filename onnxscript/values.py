@@ -1,10 +1,9 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 from __future__ import annotations
 
 import dataclasses
+import functools
 import inspect
 import logging
 import types
@@ -120,7 +119,7 @@ class Opset:
         # TODO: validate the op schema as 'None' values are removed?
         input_list = list(inputs)
         while input_list and input_list[-1] is None:
-            del input_list[-1]
+            input_list.pop()
         return input_list
 
 
@@ -477,8 +476,11 @@ class OnnxFunction(Op):
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
         self._op_schema: Optional[onnx.defs.OpSchema] = None
 
+        # Allow the object to be inspected as a function
+        functools.update_wrapper(self, pyfun)
+
         # Experimental fields
-        self.experimental_traceable = False
+        self.traceable = False
 
     @property
     @deprecation.deprecated(
@@ -525,6 +527,9 @@ class OnnxFunction(Op):
 
         return evaluator.default().eval_function(self, args, kwargs)
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.function!r})"
+
     def param_schemas(self) -> tuple[ParamSchema, ...]:
         """Returns the parameter schemas of this function."""
         if self._param_schemas is not None:
@@ -569,6 +574,9 @@ class TracedOnnxFunction(Op):
     def __init__(self, opset: Opset, func: types.FunctionType):
         super().__init__(opset, func.__name__)
         self.func = func
+
+        # Allow the object to be inspected as a function
+        functools.update_wrapper(self, func)
 
     def __call__(self, *args, **kwargs):
         return self.func(*args, **kwargs)

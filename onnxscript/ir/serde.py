@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 """Serialize and deserialize the intermediate representation to/from ONNX protos."""
 
 # NOTES for developers:
@@ -15,14 +13,18 @@
 
 from __future__ import annotations
 
+import functools
+
 __all__ = [
     # Tensors
     "TensorProtoTensor",
     # Deserialization
     "from_proto",
     "deserialize_attribute",
+    "deserialize_dimension",
     "deserialize_function",
     "deserialize_graph",
+    "deserialize_metadata_props",
     "deserialize_model",
     "deserialize_node",
     "deserialize_opset_import",
@@ -50,13 +52,14 @@ __all__ = [
     "serialize_type_into",
     "serialize_value_into",
     "serialize_value",
+    "SerdeError",
 ]
 
 import collections
 import logging
 import os
 import typing
-from typing import Any, List, Mapping, Sequence
+from typing import Any, Callable, List, Mapping, Sequence
 
 import numpy as np
 import onnx
@@ -70,9 +73,35 @@ if typing.TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_PLEASE_CONTRIBUTE = (
+    "Please contribute by creating a PR at https://github.com/microsoft/onnxscript."
+)
 _FUNCTION_VALUE_INFO_SUPPORTED_VERSION = (
     10  # ONNX IR version where value info in functions was introduced
 )
+_T = typing.TypeVar("_T", bound=Callable[..., Any])
+
+
+class SerdeError(RuntimeError):
+    """Error during serialization or deserialization."""
+
+
+def _capture_errors(arg_capturer: Callable[..., str]) -> Callable[[_T], _T]:
+    """Decorator to capture errors and display the stack."""
+
+    def decorator(func: _T) -> _T:
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                raise SerdeError(
+                    f"Error calling {func.__name__} with: {arg_capturer(*args, **kwargs)}"
+                ) from e
+
+        return wrapper  # type: ignore
+
+    return decorator
 
 
 def _little_endian_dtype(dtype) -> np.dtype:
@@ -98,7 +127,8 @@ def from_proto(
     | onnx.TensorProto
     | onnx.AttributeProto
     | onnx.ValueInfoProto
-    | onnx.TypeProto,
+    | onnx.TypeProto
+    | onnx.FunctionProto,
 ) -> Any:
     """Deserialize an ONNX proto message to an IR object."""
     if isinstance(proto, onnx.ModelProto):
@@ -118,6 +148,8 @@ def from_proto(
             deserialize_type_proto_for_type(proto),
             deserialize_type_proto_for_shape(proto),
         )
+    if isinstance(proto, onnx.FunctionProto):
+        return deserialize_function(proto)
     raise NotImplementedError(
         f"Deserialization of {type(proto)} in from_proto is not implemented. "
         "Use a specific ir.serde.deserialize* function instead."
@@ -132,8 +164,9 @@ def to_proto(
     | _protocols.AttributeProtocol
     | _protocols.ReferenceAttributeProtocol
     | _protocols.TensorProtocol
-    | onnx.TypeProto
-    | _protocols.GraphViewProtocol,
+    | _protocols.TypeProtocol
+    | _protocols.GraphViewProtocol
+    | _protocols.FunctionProtocol,
 ) -> Any:
     """Serialize an IR object to a proto."""
     if isinstance(ir_object, _protocols.ModelProtocol):
@@ -154,6 +187,8 @@ def to_proto(
         return serialize_type_into(onnx.TypeProto(), ir_object)
     if isinstance(ir_object, _protocols.GraphViewProtocol):
         return serialize_graph(ir_object)
+    if isinstance(ir_object, _protocols.FunctionProtocol):
+        return serialize_function(ir_object)
     raise NotImplementedError(
         f"Serialization of {type(ir_object)} in to_proto is not implemented. "
         "Use a specific ir.serde.serialize* function instead."
@@ -509,6 +544,7 @@ def deserialize_graph(proto: onnx.GraphProto) -> _core.Graph:
     return _deserialize_graph(proto, [])
 
 
+@_capture_errors(lambda proto, scoped_values: proto.name)
 def _deserialize_graph(
     proto: onnx.GraphProto, scoped_values: list[dict[str, _core.Value]]
 ) -> _core.Graph:
@@ -590,6 +626,7 @@ def _deserialize_graph(
     )
 
 
+@_capture_errors(lambda proto: proto.name)
 def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
     inputs = [_core.Input(name) for name in proto.input]
     values: dict[str, _core.Value] = {v.name: v for v in inputs}  # type: ignore[misc]
@@ -626,6 +663,7 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
     )
 
 
+@_capture_errors(lambda proto, value: str(proto))
 def deserialize_value_info_proto(
     proto: onnx.ValueInfoProto, value: _core.Value | None
 ) -> _core.Value:
@@ -640,6 +678,7 @@ def deserialize_value_info_proto(
     return value
 
 
+@_capture_errors(str)
 def deserialize_type_proto_for_shape(proto: onnx.TypeProto) -> _core.Shape | None:
     if proto.HasField("tensor_type"):
         if (shape_proto := _get_field(proto.tensor_type, "shape")) is None:
@@ -672,11 +711,12 @@ def deserialize_type_proto_for_shape(proto: onnx.TypeProto) -> _core.Shape | Non
         return deserialize_type_proto_for_shape(elem_type)
     if proto.HasField("map_type"):
         # TODO(justinchuby): Do we need to support map types?
-        raise NotImplementedError("Map types are not supported yet")
+        raise NotImplementedError(f"Map types are not supported yet. {_PLEASE_CONTRIBUTE}")
 
     return None
 
 
+@_capture_errors(str)
 def deserialize_type_proto_for_type(
     proto: onnx.TypeProto,
 ) -> _protocols.TypeProtocol | None:
@@ -707,11 +747,12 @@ def deserialize_type_proto_for_type(
         return _core.OptionalType(nested_type, denotation=denotation)
     if proto.HasField("map_type"):
         # TODO(justinchuby): Do we need to support map types?
-        raise NotImplementedError("Map types are not supported yet")
+        raise NotImplementedError(f"Map types are not supported yet. {_PLEASE_CONTRIBUTE}")
 
     return None
 
 
+@_capture_errors(str)
 def deserialize_dimension(
     proto: onnx.TensorShapeProto.Dimension,
 ) -> tuple[int | _core.SymbolicDim, str | None]:
@@ -734,6 +775,7 @@ def deserialize_dimension(
     return _core.SymbolicDim(None), denotation
 
 
+@_capture_errors(lambda proto, base_path: proto.name)
 def deserialize_tensor(
     proto: onnx.TensorProto, base_path: str | os.PathLike = ""
 ) -> _protocols.TensorProtocol:
@@ -777,6 +819,7 @@ def deserialize_attribute(proto: onnx.AttributeProto) -> _core.Attr | _core.RefA
     return _deserialize_attribute(proto, [])
 
 
+@_capture_errors(lambda proto, scoped_values: str(proto))
 def _deserialize_attribute(
     proto: onnx.AttributeProto, scoped_values: list[dict[str, _core.Value]]
 ) -> _core.Attr | _core.RefAttr:
@@ -820,9 +863,13 @@ def _deserialize_attribute(
             doc_string=doc_string,
         )
     if type_ == _enums.AttributeType.SPARSE_TENSOR:
-        raise NotImplementedError("Sparse tensors are not supported yet")
+        raise NotImplementedError(
+            f"Sparse tensors are not supported yet. {_PLEASE_CONTRIBUTE}"
+        )
     if type_ == _enums.AttributeType.SPARSE_TENSORS:
-        raise NotImplementedError("Sparse tensors are not supported yet")
+        raise NotImplementedError(
+            f"Sparse tensors are not supported yet. {_PLEASE_CONTRIBUTE}"
+        )
     if type_ == _enums.AttributeType.TYPE_PROTO:
         ir_type = deserialize_type_proto_for_type(proto.tp)
         shape = deserialize_type_proto_for_shape(proto.tp)
@@ -845,6 +892,7 @@ def deserialize_node(proto: onnx.NodeProto) -> _core.Node:
     return _deserialize_node(proto, scoped_values=[], value_info={})
 
 
+@_capture_errors(lambda proto, scoped_values, value_info: str(proto))
 def _deserialize_node(
     proto: onnx.NodeProto,
     scoped_values: list[dict[str, _core.Value]],
@@ -953,6 +1001,12 @@ def serialize_model(model: _protocols.ModelProtocol) -> onnx.ModelProto:
     return serialize_model_into(onnx.ModelProto(), from_=model)
 
 
+@_capture_errors(
+    lambda model_proto, from_: (
+        f"ir_version={from_.ir_version}, producer_name={from_.producer_name}, "
+        f"producer_version={from_.producer_version}, domain={from_.domain}, "
+    )
+)
 def serialize_model_into(
     model_proto: onnx.ModelProto, from_: _protocols.ModelProtocol
 ) -> onnx.ModelProto:
@@ -1103,6 +1157,13 @@ def serialize_graph(
     return graph_proto
 
 
+@_capture_errors(
+    lambda graph_proto, from_: (
+        f"name={from_.name}, doc_string={from_.doc_string}, "
+        f"len(inputs)={len(from_.inputs)}, len(initializers)={len(from_.initializers)}, "
+        f"len(nodes)={len(from_)}, len(outputs)={len(from_.outputs)}, metadata_props={from_.metadata_props}"
+    )
+)
 def serialize_graph_into(
     graph_proto: onnx.GraphProto,
     from_: _protocols.GraphProtocol | _protocols.GraphViewProtocol,
@@ -1161,6 +1222,7 @@ def serialize_function(
     return function_proto
 
 
+@_capture_errors(lambda function_proto, from_, create_value_info: repr(from_))
 def serialize_function_into(
     function_proto: onnx.FunctionProto,
     from_: _protocols.FunctionProtocol,
@@ -1226,6 +1288,7 @@ def serialize_node(node: _protocols.NodeProtocol) -> onnx.NodeProto:
     return node_proto
 
 
+@_capture_errors(lambda node_proto, from_: repr(from_))
 def serialize_node_into(node_proto: onnx.NodeProto, from_: _protocols.NodeProtocol) -> None:
     node_proto.op_type = from_.op_type
     if from_.domain:
@@ -1269,6 +1332,7 @@ def serialize_tensor(tensor: _protocols.TensorProtocol) -> onnx.TensorProto:
     return tensor_proto
 
 
+@_capture_errors(lambda tensor_proto, from_: repr(from_))
 def serialize_tensor_into(
     tensor_proto: onnx.TensorProto, from_: _protocols.TensorProtocol
 ) -> None:
@@ -1310,6 +1374,7 @@ def serialize_attribute(attribute: _protocols.AttributeProtocol) -> onnx.Attribu
     return attribute_proto
 
 
+@_capture_errors(lambda attribute_proto, from_: repr(from_))
 def serialize_attribute_into(
     attribute_proto: onnx.AttributeProto, from_: _protocols.AttributeProtocol
 ) -> None:
@@ -1365,9 +1430,13 @@ def _fill_in_value_for_attribute(
             serialize_graph_into(attribute_proto.graphs.add(), graph)
         attribute_proto.type = onnx.AttributeProto.GRAPHS
     elif type_ == _enums.AttributeType.SPARSE_TENSOR:
-        raise NotImplementedError("Sparse tensors are not supported yet")
+        raise NotImplementedError(
+            f"Sparse tensors are not supported yet. {_PLEASE_CONTRIBUTE}"
+        )
     elif type_ == _enums.AttributeType.SPARSE_TENSORS:
-        raise NotImplementedError("Sparse tensors are not supported yet")
+        raise NotImplementedError(
+            f"Sparse tensors are not supported yet. {_PLEASE_CONTRIBUTE}"
+        )
     elif type_ == _enums.AttributeType.TYPE_PROTO:
         # value: _core.TypeAndShape
         if value.type is not None:
@@ -1390,6 +1459,7 @@ def _fill_in_value_for_attribute(
         raise TypeError(f"Unsupported attribute type: {type_}")
 
 
+@_capture_errors(lambda attribute_proto, from_: repr(from_))
 def serialize_reference_attribute_into(
     attribute_proto: onnx.AttributeProto, from_: _protocols.ReferenceAttributeProtocol
 ) -> None:
@@ -1413,6 +1483,7 @@ def serialize_value(value: _protocols.ValueProtocol, *, name: str = "") -> onnx.
     return value_info_proto
 
 
+@_capture_errors(lambda value_info_proto, from_: repr(from_))
 def serialize_value_into(
     value_info_proto: onnx.ValueInfoProto,
     from_: _protocols.ValueProtocol,
@@ -1441,6 +1512,7 @@ def serialize_value_into(
         value_info_proto.doc_string = from_.doc_string
 
 
+@_capture_errors(lambda type_proto, from_: repr(from_))
 def serialize_type_into(type_proto: onnx.TypeProto, from_: _protocols.TypeProtocol) -> None:
     if from_.denotation:
         type_proto.denotation = from_.denotation
@@ -1460,6 +1532,7 @@ def serialize_type_into(type_proto: onnx.TypeProto, from_: _protocols.TypeProtoc
         raise TypeError(f"Unsupported type: {from_}")
 
 
+@_capture_errors(lambda type_proto, from_: repr(from_))
 def serialize_shape_into(type_proto: onnx.TypeProto, from_: _protocols.ShapeProtocol) -> None:
     value_field = type_proto.WhichOneof("value")
     tensor_type = getattr(type_proto, value_field)
@@ -1475,6 +1548,7 @@ def serialize_shape_into(type_proto: onnx.TypeProto, from_: _protocols.ShapeProt
         serialize_dimension_into(tensor_type.shape.dim.add(), dim, denotation)
 
 
+@_capture_errors(lambda dim_proto, dim, denotation: repr(dim_proto))
 def serialize_dimension_into(
     dim_proto: onnx.TensorShapeProto.Dimension,
     dim: int | _protocols.SymbolicDimProtocol,

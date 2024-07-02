@@ -40,7 +40,7 @@ Rank = common_ops.Rank
 TFloatUnlessFloat32 = TypeVar("TFloatUnlessFloat32", bound=Union[BFLOAT16, FLOAT16, DOUBLE])
 
 
-@torch_op("aten::aten_adaptive_avg_pool1d", traceable=True)
+@torch_op("aten::adaptive_avg_pool1d", traceable=True)
 def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
     """adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor"""
 
@@ -58,7 +58,7 @@ def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
     return result
 
 
-@torch_op("aten::aten_adaptive_avg_pool2d", traceable=True)
+@torch_op("aten::adaptive_avg_pool2d", traceable=True)
 def aten_adaptive_avg_pool2d(self: TFloat, output_size: INT64[2]) -> TFloat:
     """adaptive_avg_pool2d(Tensor self, SymInt[2] output_size) -> Tensor"""
 
@@ -76,7 +76,7 @@ def aten_adaptive_avg_pool2d(self: TFloat, output_size: INT64[2]) -> TFloat:
     return result
 
 
-@torch_op("aten::aten_adaptive_avg_pool3d", traceable=True)
+@torch_op("aten::adaptive_avg_pool3d", traceable=True)
 def aten_adaptive_avg_pool3d(self: TFloat, output_size: INT64[3]) -> TFloat:
     """adaptive_avg_pool3d(Tensor self, SymInt[3] output_size) -> Tensor"""
 
@@ -206,7 +206,7 @@ def aten_avg_pool2d(
     padding: Sequence[int] = (0, 0),
     ceil_mode: bool = False,
     count_include_pad: bool = True,
-    divisor_override: Optional[int] = None,  # pylint: disable=unused-argument
+    divisor_override: Optional[int] = None,
 ) -> TFloat:
     """avg_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor"""
 
@@ -267,7 +267,7 @@ def aten_avg_pool3d(
     padding: Sequence[int] = (0, 0, 0),
     ceil_mode: bool = False,
     count_include_pad: bool = True,
-    divisor_override: Optional[int] = None,  # pylint: disable=unused-argument
+    divisor_override: Optional[int] = None,
 ) -> TFloat:
     """avg_pool3d(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor"""
 
@@ -565,10 +565,13 @@ def aten_gelu_backward(
     raise NotImplementedError()
 
 
-def aten_glu(self: TensorType, dim: int = -1) -> TensorType:
+@torch_op("aten::glu", traceable=True)
+def aten_glu(self: TFloat, dim: int = -1) -> TFloat:
     """glu(Tensor self, int dim=-1) -> Tensor"""
 
-    raise NotImplementedError()
+    first, second = op.Split(self, axis=dim, num_outputs=2)
+    result = op.Mul(first, op.Sigmoid(second))
+    return result
 
 
 def aten_glu_backward(grad_output: TensorType, self: TensorType, dim: int) -> TensorType:
@@ -1742,7 +1745,7 @@ def aten__scaled_dot_product_flash_attention(
     value: TFloat,
     dropout_p: float = 0.0,
     is_causal: bool = False,
-    return_debug_mask: bool = False,  # pylint: disable=unused-argument
+    return_debug_mask: bool = False,
     scale: Optional[float] = None,
 ) -> Tuple[TFloat, FLOAT, INT64, INT64, INT64, INT64, INT64, INT64, FLOAT]:
     """_scaled_dot_product_flash_attention(Tensor query, Tensor key, Tensor value, float dropout_p=0.0, bool is_causal=False, bool return_debug_mask=False, *, float? scale=None) -> (Tensor output, Tensor logsumexp, Tensor cum_seq_q, Tensor cum_seq_k, int max_q, int max_k, Tensor philox_seed, Tensor philox_offset, Tensor debug_attn_mask)
@@ -1779,7 +1782,7 @@ def aten__scaled_dot_product_flash_attention(
     )
 
 
-@torch_op("aten::_scaled_dot_product_efficient_attention", private=True, traceable=True)
+@torch_op("aten::_scaled_dot_product_efficient_attention", private=True)
 def _aten_scaled_dot_product_efficient_attention_fillin_empty_outputs(
     query: TFloat,
     compute_log_sumexp: bool,
@@ -1813,12 +1816,43 @@ def _aten_scaled_dot_product_efficient_attention_fillin_empty_outputs(
     return logsum_exp, empty_tensor_int
 
 
+@torch_op("aten::_scaled_dot_product_flash_attention_for_cpu", trace_only=True)
+def aten__scaled_dot_product_flash_attention_for_cpu(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    dropout_p: float = 0.0,
+    is_causal: bool = False,
+    attn_mask: Optional[TFloat] = None,
+    scale: Optional[float] = None,
+) -> Tuple[TFloat, FLOAT]:
+    """_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0.0, bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)"""
+    result = aten_scaled_dot_product_attention(
+        query,
+        key,
+        value,
+        attn_mask=attn_mask,
+        dropout_p=dropout_p,
+        is_causal=is_causal,
+        scale=scale,
+    )
+    query_shape = op.Shape(query)
+    query_first_dims = op.Slice(query_shape, [0], [1])
+    query_second_dims = op.Slice(query_shape, [1], [2])
+    num_heads = op.Slice(query_shape, [-2], [-1])
+    logsumexp_dim = op.Cast(
+        op.Ceil(op.Cast(query_second_dims, to=FLOAT.dtype) / 32.0) * 32.0, to=INT64.dtype
+    )
+    logsum_exp = op.Expand(0.0, op.Concat(query_first_dims, num_heads, logsumexp_dim, axis=0))
+    return result, logsum_exp
+
+
 @torch_op("aten::_scaled_dot_product_efficient_attention", trace_only=True)
 def aten__scaled_dot_product_efficient_attention(
     query: TFloat,
     key: TFloat,
     value: TFloat,
-    attn_bias: Optional[TFloat],  # pylint: disable=unused-argument
+    attn_bias: Optional[TFloat],
     compute_log_sumexp: bool,
     dropout_p: float = 0.0,
     is_causal: bool = False,
@@ -2209,6 +2243,7 @@ def _get_upsample_align_corners_mode(align_corners: bool) -> str:
         "aten::upsample_nearest1d",
         "aten::upsample_nearest2d",
         "aten::upsample_nearest3d",
+        "aten::upsample_trilinear3d",
     ),
     private=True,
 )
@@ -2526,6 +2561,33 @@ def aten_upsample_trilinear3d(
         mode="linear",
         coordinate_transformation_mode=coordinate_transformation_mode,
     )
+
+
+@torch_op("aten::upsample_trilinear3d.vec", trace_only=True)
+def aten_upsample_trilinear3d_vec(
+    self: TReal,
+    output_size: INT64,
+    align_corners: bool,
+    scale_factors: Optional[Sequence[float]],
+) -> TReal:
+    """upsample_trilinear3d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor"""
+
+    coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    if scale_factors is not None:
+        result = _aten_upsample_scales(
+            self,
+            op.Constant(value_floats=scale_factors),
+            mode="linear",
+            coordinate_transformation_mode=coordinate_transformation_mode,
+        )
+    else:
+        result = _aten_upsample_output_size(
+            self,
+            output_size,
+            mode="linear",
+            coordinate_transformation_mode=coordinate_transformation_mode,
+        )
+    return result
 
 
 def aten_upsample_trilinear3d_backward(

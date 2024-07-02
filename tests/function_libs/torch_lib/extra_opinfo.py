@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """
 Test data for aten operators which don't exist in PyTorch file:
 pytorch/torch/testing/_internal/common_methods_invocations.py.
@@ -850,18 +852,6 @@ def sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
         ((S, S), {}),
         ((0, S, 0), {}),
         ((S,), {}),
-    ]
-    for shape, kwargs in inputs:
-        t = torch_testing.make_tensor(
-            shape, dtype=dtype, device=device, low=None, high=None, requires_grad=requires_grad
-        )
-        yield opinfo_core.SampleInput(t, **kwargs)
-
-
-def sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
-    del self  # Unused
-
-    inputs = [
         ((S,), {"dtype": dtype}),
         # Hard-code some dtypes/devices. We want to test cases where the
         # (dtype, device) is different from the input's (dtype, device)
@@ -1163,26 +1153,6 @@ def sample_inputs_rand_like(op_info, device, dtype, requires_grad, **kwargs):
         yield opinfo_core.SampleInput(make_arg(shape))
 
 
-def sample_inputs_rand_like_dtype(op_info, device, dtype, requires_grad, **kwargs):
-    del op_info  # Unused
-    del kwargs  # Unused
-
-    make_arg = functools.partial(
-        torch_testing.make_tensor,
-        device=device,
-        dtype=torch.float32,
-        requires_grad=requires_grad,
-    )
-    shapes = (
-        (M,),
-        (S, S),
-        (S, S, S),
-    )
-
-    for shape in shapes:
-        yield opinfo_core.SampleInput(make_arg(shape), kwargs=dict(dtype=dtype))
-
-
 def sample_inputs_randint(self, device, dtype, requires_grad, **kwargs):
     high = 10
 
@@ -1210,28 +1180,11 @@ def sample_inputs_randint_like(self, device, dtype, requires_grad, **kwargs):
         yield opinfo_core.SampleInput(sample.input, high, *sample.args, **sample.kwargs)
 
 
-def sample_inputs_randint_like_dtype(self, device, dtype, requires_grad, **kwargs):
-    high = 10
-
-    for sample in sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
-        # With low and high
-        yield opinfo_core.SampleInput(sample.input, high, *sample.args, **sample.kwargs)
-
-
 def sample_inputs_randint_like_low_dtype(self, device, dtype, requires_grad, **kwargs):
     low = 2
     high = 10
 
     for sample in sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
-        # With low and high
-        yield opinfo_core.SampleInput(sample.input, low, high, *sample.args, **sample.kwargs)
-
-
-def sample_inputs_randint_like_low_dtype_dtype(self, device, dtype, requires_grad, **kwargs):
-    low = 2
-    high = 10
-
-    for sample in sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
         # With low and high
         yield opinfo_core.SampleInput(sample.input, low, high, *sample.args, **sample.kwargs)
 
@@ -1826,6 +1779,58 @@ def sample_inputs_upsample_trilinear3d(op_info, device, dtype, requires_grad, **
         )
 
 
+def sample_inputs_upsample_trilinear3d_vec(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    N, C = 2, 3
+    D = 4
+    SS = 3
+    L = 5
+
+    align_corners_options = (True, False)
+    rank = 3
+
+    def shape(size, rank, with_batch_channel=True):
+        if with_batch_channel:
+            return tuple([N, C] + ([size] * rank))
+        return tuple([size] * rank)
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor,
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+        low=-1,
+        high=1,
+    )
+
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True, None)
+
+    for align_corners in align_corners_options:
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(S, rank, False), align_corners, None
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(L, rank, False), align_corners, None
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)),
+            args=(None, align_corners),
+            kwargs=dict(scale_factors=(1.7, 1.7, 1.7)),
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)),
+            args=(None, align_corners),
+            kwargs=dict(scale_factors=(0.6, 0.6, 0.6)),
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)),
+            args=(None, align_corners),
+            kwargs=dict(scale_factors=(0.6, 1.7, 4.2)),
+        )
+
+
 class _TestParamsMaxPoolEmptyStrideBase:
     # Adapted from https://github.com/pytorch/pytorch/blob/d6d55f8590eab05d2536756fb4efcfb2d07eb81a/torch/testing/_internal/common_methods_invocations.py#L3203
     def __init__(self):
@@ -2148,14 +2153,6 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.rand_like__dtype",
-        op=torch.ops.aten.rand_like,
-        aten_name="rand_like",
-        dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        sample_inputs_func=sample_inputs_rand_like_dtype,
-        supports_out=False,
-    ),
-    opinfo_core.OpInfo(
         "ops.aten.randint",
         aten_name="randint",
         dtypes=common_dtype.integral_types(),
@@ -2177,26 +2174,10 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.randint_like__dtype",
-        op=torch.ops.aten.randint_like,
-        aten_name="randint_like",
-        dtypes=common_dtype.integral_types(),
-        sample_inputs_func=sample_inputs_randint_like_dtype,
-        supports_out=False,
-    ),
-    opinfo_core.OpInfo(
         "ops.aten.randint_like.low_dtype",
         aten_name="randint_like.low_dtype",
         dtypes=common_dtype.integral_types(),
         sample_inputs_func=sample_inputs_randint_like_low_dtype,
-        supports_out=False,
-    ),
-    opinfo_core.OpInfo(
-        "ops.aten.randint_like.low_dtype__dtype",
-        op=torch.ops.aten.randint_like.low_dtype,
-        aten_name="randint_like.low_dtype",
-        dtypes=common_dtype.integral_types(),
-        sample_inputs_func=sample_inputs_randint_like_low_dtype_dtype,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
@@ -2211,14 +2192,6 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="randn",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_like_fns,
-        supports_out=False,
-    ),
-    opinfo_core.OpInfo(
-        "ops.aten.randn_like_dtype",
-        op=torch.ops.aten.randn_like,
-        aten_name="randn",
-        dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        sample_inputs_func=sample_inputs_like_fns_dtype,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
@@ -2371,10 +2344,17 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.upsample_trilinear3d",
+        "ops.aten.upsample_trilinear3d.default",
         aten_name="upsample_trilinear3d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_upsample_trilinear3d,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.upsample_trilinear3d.vec",
+        aten_name="upsample_trilinear3d.vec",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_upsample_trilinear3d_vec,
         supports_out=False,
     ),
     opinfo_core.OpInfo(

@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 from __future__ import annotations
 
 import contextlib
@@ -7,6 +9,7 @@ import unittest
 
 import numpy as np
 import onnx
+import onnx.parser
 import onnx.reference
 import onnxruntime as ort
 
@@ -244,6 +247,40 @@ class GenericPatternTest(unittest.TestCase):
         )
         return model
 
+    def test_shared_root_value_test(self):
+        def match_pattern(op, x):
+            t1 = op.Sin(x)
+            t2 = op.Cos(x)
+            return t1, t2
+
+        def apply_pattern(op, x, **_):
+            return op.SinCos(x, domain="com.microsoft", outputs=2)
+
+        rule = pattern.RewriteRule(
+            match_pattern,
+            apply_pattern,
+            matcher=generic_pattern.GenericPatternMatcher,
+        )
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] y) => (float[N] z)
+            {
+                temp1 = Sin(y)
+                temp2 = Cos(y)
+                z = Add(temp1, temp2)
+            }
+        """
+        )
+        onnx.checker.check_model(model_proto)
+        model = onnx.shape_inference.infer_shapes(model_proto)
+        ir_model = ir.serde.deserialize_model(model)
+        rule.apply_to_model(ir_model)
+        rewritten_model = ir.serde.serialize_model(ir_model)
+        graph = rewritten_model.graph
+        self.assertEqual(len(graph.node), 2)
+        self.assertEqual(graph.node[0].op_type, "SinCos")
+
     def test_rotary_embedding(self):
         # The test work on a model if it has the expected name.
         # A dummy model is used if not present (not implemented yet).
@@ -257,7 +294,7 @@ class GenericPatternTest(unittest.TestCase):
 
             matmul = op.MatMul(pos_ids, cast)
             transpose = op.Transpose(matmul)
-            output, length = op.ConcatTraining(
+            output, _length = op.ConcatTraining(
                 transpose,
                 transpose,
                 domain="com.microsoft",
@@ -329,7 +366,7 @@ class GenericPatternTest(unittest.TestCase):
 
             matmul = op.MatMul(pos_ids, cast)
             transpose = op.Transpose(matmul)
-            output, length = op.ConcatTraining(
+            output, _length = op.ConcatTraining(
                 transpose, transpose, domain="com.microsoft", outputs=2
             )
 
@@ -394,7 +431,7 @@ class GenericPatternTest(unittest.TestCase):
 
             matmul = op.MatMul(pos_ids, cast)
             transpose = op.Transpose(matmul)
-            output, length = op.ConcatTraining(
+            output, _length = op.ConcatTraining(
                 transpose, transpose, domain="com.microsoft", outputs=2
             )
 

@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 
 __all__ = [
     "PassBase",
@@ -23,3 +21,13 @@ from onnxscript.ir.passes._pass_infra import (
     PostconditionError,
     PreconditionError,
 )
+
+
+def __set_module() -> None:
+    """Set the module of all functions in this module to this public module."""
+    global_dict = globals()
+    for name in __all__:
+        global_dict[name].__module__ = __name__
+
+
+__set_module()

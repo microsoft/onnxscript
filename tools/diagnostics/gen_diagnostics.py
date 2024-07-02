@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 
 """Generates PyTorch ONNX Export Diagnostic rules for C++, Python and documentations.
 The rules are defined in torch/onnx/_internal/diagnostics/rules.yaml.

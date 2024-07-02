@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Inlines the function if it only contains very few number of nodes."""
 
 from __future__ import annotations
@@ -9,7 +11,7 @@ import onnx
 
 import onnxscript._legacy_ir as ir
 from onnxscript._legacy_ir import visitor
-from onnxscript.optimizer import remove_unused
+from onnxscript.optimizer import remove_unused_proto
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +168,7 @@ class FindFunctionWithUnusedOutputsVisitor(visitor.ProtoVisitor):
                 # All unused output means the node is not used at all.
                 # Hence do not update used_values with the node's inputs.
                 continue
-            used_values |= remove_unused.compute_used_in_node(node)
+            used_values |= remove_unused_proto.compute_used_in_node(node)
         return target_nodes
 
     def visit_model(self, model: onnx.ModelProto) -> None:

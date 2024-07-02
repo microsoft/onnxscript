@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 from __future__ import annotations
 
 import logging
@@ -80,7 +82,7 @@ class ConstantFolder(visitor.FunctionCallsiteProtoTransformer):
             # ONNX does not have a way to represent non-tensor constants, eg. a sequence.
             # So, a constant-value of type sequence is not folded, but it can be used
             # to optimize subsequent operations when possible.
-            logger.warning(
+            logger.info(
                 "Skip storing constant folded value %s due to unsupported type %s.",
                 name,
                 type(value),
@@ -88,7 +90,7 @@ class ConstantFolder(visitor.FunctionCallsiteProtoTransformer):
             return None
 
         if value.nbytes > _DEFAULT_CONSTANT_FOLD_SIZE_LIMIT:
-            logger.warning(
+            logger.info(
                 "Skip storing constant folded nvalue %s due to large size %s.",
                 name,
                 value.nbytes,

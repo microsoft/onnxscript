@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Registry for aten functions."""
 
 from __future__ import annotations
@@ -141,7 +143,7 @@ def torch_op(
         else:
             assert isinstance(func, FunctionType)
             processed_func = onnxscript.script(opset=custom_opset)(func)
-            processed_func.experimental_traceable = traceable
+            processed_func.traceable = traceable
 
         assert registry is not None
         for name_ in _check_and_normalize_names(name):
