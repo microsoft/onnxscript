@@ -2156,13 +2156,15 @@ def aten_convolution_backward(
         op.Div(tmp_float, op.Constant(value_floats=[2.0])), to=INT64.dtype
     )  # 4/2=2
     pads = op.Concat(  # [0,0,2,2,0,0,2,2]
+        # begin of dim0, dim1, dim2, dim3
         op.Constant(value_ints=[0]),
         op.Constant(value_ints=[0]),
         pad_height,
-        pad_width,  # begin of dim0, dim1, dim2, dim3
+        pad_width,
+        # end of dim0, dim1, dim2, dim3
         op.Constant(value_ints=[0]),
         op.Constant(value_ints=[0]),
-        pad_height,  # end of dim0, dim1, dim2, dim3
+        pad_height,
         pad_width,
         axis=0,
     )
@@ -4738,7 +4740,7 @@ def aten_le(self: TReal, other: TReal) -> BOOL:
     return op.LessOrEqual(self, other)
 
 
-@torch_op(("aten::le.Tensor", "aten::less_equal.Tensor", "_operator::le"))
+@torch_op(("aten::le.Scalar", "aten::le.Tensor", "aten::less_equal.Tensor", "_operator::le"))
 def aten_le_bool(self: BOOL, other: BOOL) -> BOOL:
     """le.Tensor(Tensor self, Tensor other) -> Tensor"""
 
