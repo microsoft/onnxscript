@@ -3,7 +3,6 @@
 # pylint: disable=not-callable
 
 import copy
-import os
 import sys
 import unittest
 
@@ -17,7 +16,7 @@ from onnxscript._internal.version_utils import has_transformers, torch_older_tha
 
 class TestBackward(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
-    #@unittest.skipIf(not has_transformers(), reason="transformers is missing")
+    @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
     def test_backward_working(self):
         class SimpleCNNN(torch.nn.Module):
@@ -54,21 +53,22 @@ class TestBackward(unittest.TestCase):
 
         # Checking there is only two generated graphs otherwise, it means there are graph breaks.
         self.assertEqual(len(onnx_models), 2)
-        torch.testing.assert_close(
-            expected_gradients[0], gradients[0], atol=1e-5, rtol=1e-5
-        )
+        torch.testing.assert_close(expected_gradients[0], gradients[0], atol=1e-5, rtol=1e-5)
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
-    #@unittest.skipIf(not has_transformers(), reason="transformers is missing")
+    # @unittest.skipIf(not has_transformers(), reason="transformers is missing")
     @unittest.skipIf(torch_older_than("2.4"), reason="fails to export")
-    #@unittest.skipIf(True, reason="aten.conv_backward not implemented yet.")
+    # @unittest.skipIf(True, reason="aten.conv_backward not implemented yet.")
     def test_backward_conv(self):
         class SimpleCNNN(torch.nn.Module):
             def __init__(self):
                 super().__init__()
 
                 self.conv1 = torch.nn.Conv2d(
-                    in_channels=1, out_channels=2, kernel_size=3, padding=(0,0)  # not support padding=1, will do it soon
+                    in_channels=1,
+                    out_channels=2,
+                    kernel_size=3,
+                    padding=(0,0)  # not support padding=1, will do it soon
                 )
                 self.fc1 = torch.nn.Linear(12, 10)
 
@@ -102,9 +102,7 @@ class TestBackward(unittest.TestCase):
 
         # Checking there is only two generated graphs otherwise, it means there are graph breaks.
         self.assertEqual(len(onnx_models), 2)
-        torch.testing.assert_close(
-            expected_gradients[0], gradients[0], atol=1e-5, rtol=1e-5
-        )
+        torch.testing.assert_close(expected_gradients[0], gradients[0], atol=1e-5, rtol=1e-5)
 
 
 if __name__ == "__main__":
