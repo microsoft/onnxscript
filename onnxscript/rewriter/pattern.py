@@ -427,6 +427,15 @@ class NodePattern:
     This differs from a NodeOutputPattern in that it matches against a node (which
     may produce 1 or more outputs), whereas a NodeOutputPattern matches against
     a specific output of a node.
+
+    Args:
+        domain: pattern to match against the domain of the node.
+        op: pattern or string constant to match against the op_type of the node.
+        inputs: sequence of ValuePatterns (or constants) to match against the inputs of the node.
+        attributes: dictionary of attribute patterns to match against the attributes of the node.
+        outputs: specifies pattern-variable-name for outputs (or None)
+        allow_other_attributes: specifies whether other attributes (not mentioned in `attributes`)
+          are allowed in the node.
     """
 
     def __init__(
@@ -436,16 +445,16 @@ class NodePattern:
         inputs: Sequence[int | float | ValuePattern | None],
         attributes: dict[str, AttrPattern],
         outputs: Sequence[str | None],
-        _allow_other_attributes: bool | None,
+        allow_other_attributes: bool | None,
     ):
-        if _allow_other_attributes is None:
+        if allow_other_attributes is None:
             # Default behavior: allow other unmatched attributes in the node.
-            _allow_other_attributes = True
+            allow_other_attributes = True
         self.domain = domain
         self.op = StringConstantPattern(op) if isinstance(op, str) else op
         self.inputs = [_to_value_pattern(x) for x in inputs]
         self.attributes = attributes
-        self._allow_other_attributes = _allow_other_attributes
+        self.allow_other_attributes = allow_other_attributes
         # In the common case, domain and op are constants, which can be used to optimize matching.
         if isinstance(op, str) and domain.domain_name is not None:
             # TODO(rama): support overloaded operators.
@@ -505,7 +514,7 @@ class NodePattern:
                 if not match.bind(attr_pattern.name, attr_value):
                     return match
 
-        if not self._allow_other_attributes:
+        if not self.allow_other_attributes:
             for name in node.attributes:
                 # TODO: Support matching default nodes for attributes.
                 if name not in self.attributes:
@@ -539,7 +548,7 @@ class NodePattern:
                 input,
                 self.attributes,
                 outputs,
-                self._allow_other_attributes,
+                self.allow_other_attributes,
             )
             for input in inputs
         ]

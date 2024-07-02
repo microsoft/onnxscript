@@ -418,7 +418,7 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(count, 1)
         self.assertEqual(len(model.graph), 1)
         self.assertEqual(model.graph[0].op_type, "Concat")
-        self.assertFalse("axis" in model.graph[0].attributes)
+        self.assertNotIn("axis", model.graph[0].attributes)
 
 
 if __name__ == "__main__":
