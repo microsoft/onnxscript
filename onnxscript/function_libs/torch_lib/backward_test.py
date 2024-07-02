@@ -39,10 +39,10 @@ class TestBackward(unittest.TestCase):
             fullgraph=True,
         )
 
-        expected_results, expected_gradients = onnxscript.tools.training_helper.train_loop(
+        expected_results, expected_gradients = onnxscript.tools.training_helper.train_loop(  # pylint: disable=unbalanced-tuple-unpacking
             model, *input_tensors
         )
-        results, gradients, onnx_models = onnxscript.tools.training_helper.train_loop(
+        results, gradients, onnx_models = onnxscript.tools.training_helper.train_loop(  # pylint: disable=unbalanced-tuple-unpacking
             compiled_model,
             *input_tensors,
             dump_onnx_models=True,
@@ -68,7 +68,7 @@ class TestBackward(unittest.TestCase):
                     in_channels=1,
                     out_channels=2,
                     kernel_size=3,
-                    padding=(0,0),  # not support padding=1, will do it soon
+                    padding=(0, 0),  # not support padding=1, will do it soon
                 )
                 self.fc1 = torch.nn.Linear(12, 10)
 
