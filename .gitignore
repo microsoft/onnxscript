@@ -106,3 +106,4 @@ tests/mylib.onnxlib
 **/serde_test_profiles/*
 tools/ort_rewriter_profiling/.logs/*
 tools/ort_rewriter_profiling/onnx_models/*
+/dump_TestOperatorsOnnxrt
