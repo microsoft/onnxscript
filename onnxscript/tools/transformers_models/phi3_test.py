@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# pylint: disable=not-callable
+# pylint: disable=not-callable, unbalanced-tuple-unpacking
 
 import copy
 import sys
