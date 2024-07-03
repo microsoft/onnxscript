@@ -72,14 +72,11 @@ class FunctionToKeepVisitor(visitor.ProtoVisitorCore):
         super().visit_model(model)
 
 
-FunctionMetaDict = Dict[Tuple[str, str], Tuple[List[str], List[str]]]
-
-
 class TargetFunctionMetaVisitor(visitor.ProtoVisitorCore):
     def __init__(self, function_keyword):
         self.function_keyword = function_keyword
         # Map from (domain, name) to (actual_input_names, actual_output_names)
-        self.function_meta: FunctionMetaDict = {}
+        self.function_meta: dict[tuple[str, str], tuple[list[str], list[str]]] = {}
         self._functions = {}
         super().__init__()
 
