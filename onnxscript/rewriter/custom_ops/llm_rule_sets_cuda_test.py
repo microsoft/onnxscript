@@ -524,31 +524,32 @@ class LlmRuleSetsTest(unittest.TestCase):
                 ir_version=9,
             ),
         ]
-        for model in models:
-            onnx.checker.check_model(model)
-            ir_model = ir.serde.deserialize_model(model)
-            rule_set = llm_rule_sets_cuda.llm_rule_set_cuda()
-            rule_set.apply_to_model(ir_model)
-            opt_onx = ir.serde.serialize_model(ir_model)
-            self.assertEqual(
-                ["Rotary"],
-                [n.op_type for n in opt_onx.graph.node],
-            )
+        for i, model in enumerate(models):
+            with self.subTest(i=i):
+                onnx.checker.check_model(model)
+                ir_model = ir.serde.deserialize_model(model)
+                rule_set = llm_rule_sets_cuda.llm_rule_set_cuda()
+                rule_set.apply_to_model(ir_model)
+                opt_onx = ir.serde.serialize_model(ir_model)
+                self.assertEqual(
+                    ["Rotary"],
+                    [n.op_type for n in opt_onx.graph.node],
+                )
 
-            feeds = {
-                "X": np.arange(24).reshape((3, 8)).astype(np.float32),
-            }
-            ref1 = ExtendedReferenceEvaluator(model)
-            expected = ref1.run(None, feeds)
+                feeds = {
+                    "X": np.arange(24).reshape((3, 8)).astype(np.float32),
+                }
+                ref1 = ExtendedReferenceEvaluator(model)
+                expected = ref1.run(None, feeds)
 
-            onnx.checker.check_model(opt_onx)
-            opsets = {v.domain: v.version for v in opt_onx.opset_import}
-            self.assertIn("ai.onnx.contrib", opsets)
-            self.assertEqual(opsets["ai.onnx.contrib"], 1)
+                onnx.checker.check_model(opt_onx)
+                opsets = {v.domain: v.version for v in opt_onx.opset_import}
+                self.assertIn("ai.onnx.contrib", opsets)
+                self.assertEqual(opsets["ai.onnx.contrib"], 1)
 
-            ref2 = ExtendedReferenceEvaluator(opt_onx)
-            got = ref2.run(None, feeds)
-            np.testing.assert_allclose(expected[0], got[0], atol=1e-5)
+                ref2 = ExtendedReferenceEvaluator(opt_onx)
+                got = ref2.run(None, feeds)
+                np.testing.assert_allclose(expected[0], got[0], atol=1e-5)
 
     def test_simple_rotary(self):
         self._simple_rotary("right")

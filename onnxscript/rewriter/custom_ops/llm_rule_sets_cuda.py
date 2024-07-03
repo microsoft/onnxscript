@@ -325,7 +325,16 @@ class Rotary1(orp.RewriteRuleAsClass):
 
     @classmethod
     def check(cls, context, x) -> bool:
-        return True
+        succ = x.uses()
+        if len(succ) != 1:
+            return False
+        spl = list(succ)[0][0]  # noqa: RUF015s
+        axis = spl.attributes["axis"]
+        if axis == -1:
+            return True
+        if x.shape is None:
+            return False
+        return axis == len(x.shape) - 1
 
     @classmethod
     def rewrite(cls, op, x):
@@ -350,7 +359,20 @@ class Rotary3(orp.RewriteRuleAsClass):
         return op.Concat(op.Neg(x2), x1, axis=-1)
 
     @classmethod
-    def check(cls, context, x, splits) -> bool:
+    def check(cls, context, x, splits=None) -> bool:
+        if splits is None:
+            return False
+        succ = x.uses()
+        if len(succ) != 1:
+            return False
+        spl = list(succ)[0][0]  # noqa: RUF015
+        axis = spl.attributes["axis"]
+        if axis != -1:
+            if x.shape is None:
+                return False
+            if axis != len(x.shape) - 1:
+                return False
+
         if splits.const_value is None:
             return False
         value = splits.const_value.numpy()
