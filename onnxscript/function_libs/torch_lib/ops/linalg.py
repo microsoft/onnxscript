@@ -50,7 +50,7 @@ def aten_linalg_cross(self: TensorType, other: TensorType, dim: int = -1) -> Ten
     raise NotImplementedError()
 
 
-@torch_op(("aten::linalg_det", "aten::det"))
+@torch_op(("aten::_linalg_det", "aten::linalg_det", "aten::det"))
 def aten_linalg_det(A: TFloat) -> TFloat:
     """linalg_det(Tensor A) -> Tensor"""
 
