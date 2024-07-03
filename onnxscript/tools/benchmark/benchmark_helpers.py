@@ -207,7 +207,7 @@ def measure_discrepancies(
         outputs: list of outputs coming from an onnx model
 
     Returns:
-        max absole errors, max relative errors
+        max absolute errors, max relative errors
     """
 
     def _flatten(outputs):
