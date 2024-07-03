@@ -368,6 +368,58 @@ class RewriteRuleTest(unittest.TestCase):
         )
         onnx.checker.check_model(ir.serde.serialize_model(model))
 
+    def test_optional_attribute(self):
+        """Test rules with optional attributes."""
+
+        def concat_pattern(op, x, y):
+            seq = op.SequenceConstruct(x, y)
+            result = op.ConcatFromSequence(seq, outputs=["result"])
+            return result
+
+        def concat(op, x, y, result: ir.Value):
+            node = result.producer()
+            assert node is not None
+            axis = node.attributes.get("axis", None)
+            return op.Concat(x, y, axis=axis)
+
+        rule = pattern.RewriteRule(concat_pattern, concat)
+
+        # Case 1: a model with attribute axis present
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x, float[N] y) => (float[M] z)
+            {
+                t = SequenceConstruct (x, y)
+                z = ConcatFromSequence <axis=0> (t)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = rule.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(model.graph), 1)
+        self.assertEqual(model.graph[0].op_type, "Concat")
+        self.assertEqual(model.graph[0].attributes["axis"].value, 0)
+
+        # Case 2: a model with attribute axis absent
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x, float[N] y) => (float[M] z)
+            {
+                t = SequenceConstruct (x, y)
+                z = ConcatFromSequence (t)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = rule.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(model.graph), 1)
+        self.assertEqual(model.graph[0].op_type, "Concat")
+        self.assertNotIn("axis", model.graph[0].attributes)
+
 
 if __name__ == "__main__":
     unittest.main()
