@@ -39,6 +39,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import functools
+import sys
 from typing import Any, Callable, Collection, Optional
 
 import numpy as np
@@ -720,6 +721,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.bool,),
         reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
     ),
+    TorchLibOpInfo("clamp_max", core_ops.aten_clamp).skip(
+        enabled_if=sys.version_info[:2] >= (3, 9) or sys.platform != "win32",
+        reason="fails in this particular case",
+    ),
     TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
         enabled_if=version_utils.onnxruntime_older_than("1.16"),
@@ -1385,6 +1390,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("select_scatter", core_ops.aten_select_scatter),
     TorchLibOpInfo("sigmoid", core_ops.aten_sigmoid),
     TorchLibOpInfo("sign", core_ops.aten_sign),
+    TorchLibOpInfo("nn.functional.silu", nn_ops.aten_silu),
     TorchLibOpInfo("sin", core_ops.aten_sin),
     TorchLibOpInfo(
         "sinc", special_ops.aten_special_sinc, tolerance={torch.float16: (1e-2, 6e-4)}

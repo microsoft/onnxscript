@@ -55,7 +55,9 @@ def get_llama_model(
                 self.model = LlamaModel(config)
 
             def forward(self, input_ids, attention_mask):
-                model_output = self.model(input_ids, attention_mask=attention_mask)
+                model_output = self.model(
+                    input_ids, attention_mask=attention_mask, use_cache=False
+                )
                 return model_output.to_tuple()
 
         def generate_example_inputs_mask(batch: int, seq: int, vocab_size: int):
@@ -80,7 +82,7 @@ def get_llama_model(
             self.model = LlamaModel(config)
 
         def forward(self, input_ids):
-            model_output = self.model(input_ids)
+            model_output = self.model(input_ids, use_cache=False)
             return model_output.to_tuple()
 
     def generate_example_inputs(batch: int, seq: int, vocab_size: int):
