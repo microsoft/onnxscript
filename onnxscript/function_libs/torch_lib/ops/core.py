@@ -6407,11 +6407,6 @@ def aten_ones_like(
         one = op.CastLike(1, self)
     else:
         one = op.Cast(1, to=dtype)
-    return _aten_ones_like_onnx(self, one)
-
-
-@torch_op("aten::ones_like", private=True)
-def _aten_ones_like_onnx(self: TTensor, one) -> TTensor:
     shape = op.Shape(self)
     return op.Expand(one, shape)
 
