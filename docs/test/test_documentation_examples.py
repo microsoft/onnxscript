@@ -34,6 +34,9 @@ class TestDocumentationExample(unittest.TestCase):
         if tested == 0:
             raise RuntimeError(f"No example was tested in folder {folder}.")
 
+    @unittest.skipIf(
+        sys.platform != "linux", reason="No need to run the documentation on every OS."
+    )
     def test_documentation_examples(self):
         this = os.path.abspath(os.path.dirname(__file__))
         onxc = os.path.normpath(os.path.join(this, "..", ".."))
