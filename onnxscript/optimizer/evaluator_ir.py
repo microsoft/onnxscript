@@ -17,7 +17,7 @@ import onnx.reference.ops
 import onnxscript.ir as ir
 import onnxscript.ir._convenience as _convenience
 import onnxscript.optimizer.constant_folding as constant_folding
-import onnxscript.rewriter.pattern
+import onnxscript.rewriter.pattern as orp
 from onnxscript.utils.utils import (
     get_node_attr_value,
 )
@@ -56,40 +56,11 @@ reference_evaluator = ReferenceEvaluator()
 # The "partial evaluators" below are non-standard evaluators. They are used to perform
 # partial evaluation and/or static program analysis (abstract interpretation).
 
+# A partial-evaluator function takes an RewriterContext and a node, and returns the ir.Value
+# or ir.Values to replace the output values of the node or None (if no replacement is needed).
 
-# class IRContext(Protocol):
-#     """A class that represents the context for partial evaluation.
-
-#     This is a placeholder, subject to simplification when a proper IR is defined.
-#     """
-
-#     def get_input(self, node: onnx.NodeProto, index: int) -> ir.Value | None: ...
-
-#     def get_output(self, node: onnx.NodeProto, index: int) -> ir.Value | None: ...
-
-#     def input_const_value(self, node: onnx.NodeProto, index: int) -> ir.ConcreteValue: ...
-
-#     def input_shape(
-#         self, node: onnx.NodeProto, index: int
-#     ) -> onnx.TensorShapeProto | None: ...
-
-#     def input_type(self, node: onnx.NodeProto, index: int) -> onnx.TypeProto | None: ...
-
-#     def input_element_type(self, node: onnx.NodeProto, index: int) -> int | None: ...
-
-#     def lookup_version(self, domain: str) -> int: ...
-
-#     def convert_attributes(self, attributes: Sequence[onnx.AttributeProto]) -> dict: ...
-
-#     def new_constant(self, name: str, value: Any) -> Sequence[onnx.NodeProto] | None: ...
-
-
-# A partial-evaluator function takes an IRContext and a node, and returns a list of
-# replacement nodes or None (if no replacement is needed). We return None instead
-# of [input node] so the caller is aware that the node is not replaced. If the node
-# is replaced, the caller will recursively visit the replacement nodes to process them.
-
-PartialEvaluatorFunction = Callable[[ir.Node], Union[Sequence[ir.Node], None]]
+ReturnValue = Union[Sequence[ir.Value], ir.Value, None]
+PartialEvaluatorFunction = Callable[[orp.RewriterContext, ir.Node], ReturnValue]
 
 @dataclasses.dataclass
 class PartialEvaluator:
@@ -184,9 +155,10 @@ def updateType(value: ir.Value, type: ir.TypeProtocol) -> None:
     # TODO: merge types
     value.type = type
 
+# TODO(rama): The following should not be necessary. Generic incremental shape-inference
+# should handle this. This essentially implements type/shape-inference for Cast op.
 @register("Cast")
-def cast(node: ir.Node) -> Sequence[ir.Node] | None:
-    # This should not be necessary. Generic incremental shape-inference should handle this.
+def cast(node: ir.Node) -> ReturnValue:
     input = getInput(node, 0)
     output = getOutput(node, 0)
     if input is not None and output is not None:
@@ -195,7 +167,7 @@ def cast(node: ir.Node) -> Sequence[ir.Node] | None:
 
 
 @register("CastLike")
-def cast_like(op, node: ir.Node):
+def cast_like(op, node: ir.Node) -> ReturnValue:
     input0 = node.inputs[0]
     input1 = node.inputs[1]
     source_element_type = input0.type.dtype.value
@@ -209,7 +181,7 @@ def cast_like(op, node: ir.Node):
 
 
 @register("Shape")
-def shape(op, node: ir.Node):
+def shape(op, node: ir.Node) -> ReturnValue:
     del op
     input = node.inputs[0]
     shape = input.shape
@@ -219,12 +191,12 @@ def shape(op, node: ir.Node):
     end = node.attributes.get("end", None)
     shape_slice = shape.dim[start:end]
     if all(d.HasField("dim_value") for d in shape_slice):
-        return np.array([d.dim_value for d in shape_slice], dtype=np.int64)
+        return op.Constant(value_ints = [d.dim_value for d in shape_slice])
     return None
 
 
 @register("Size")
-def size(op, node: ir.Node):
+def size(op, node: ir.Node) -> ReturnValue:
     del op
     shape = node.inputs[0].shape
     if shape is None:
@@ -234,10 +206,10 @@ def size(op, node: ir.Node):
         if not isinstance(d, int):
             return None
         size *= d
-    return np.array(size, dtype=np.int64)
+    return op.Constant(value_int = size)
 
 @register("If")
-def if_op(op, node: ir.Node):
+def if_op(op, node: ir.Node) -> ReturnValue:
     cond = getInput(node, 0)
     cond = get_bool_value(cond)
     if cond is not None:
@@ -266,12 +238,12 @@ def if_op(op, node: ir.Node):
             sub_node.name = f"{node.name}_{sub_node.name}"
 
         # TODO: we should handle initializers as well!
-        return list(graph)
+        return formal_outs
     return None
 
 
 @register("Identity")
-def identity(op, node: ir.Node):
+def identity(op, node: ir.Node) -> ReturnValue:
     del op
     input = node.inputs[0]
     output = node.outputs[0]
@@ -281,7 +253,7 @@ def identity(op, node: ir.Node):
 
 
 @register("SequenceConstruct")
-def sequence_construct(op, node: ir.Node):
+def sequence_construct(op, node: ir.Node) -> ReturnValue:
     del op
     output = node.outputs[0]
     if output is not None:
@@ -290,7 +262,7 @@ def sequence_construct(op, node: ir.Node):
 
 
 @register("ConcatFromSequence")
-def concat_from_sequence(op, node: ir.Node):
+def concat_from_sequence(op, node: ir.Node) -> ReturnValue:
     input = node.inputs[0]
     inputs = input.symbolic_value
     if any(x is None for x in inputs):
@@ -318,7 +290,7 @@ def concat_from_sequence(op, node: ir.Node):
 
 
 @register("SplitToSequence")
-def split_to_sequence(op, node: ir.Node):
+def split_to_sequence(op, node: ir.Node) -> ReturnValue:
     """Rewriting pattern.
 
     From
@@ -390,11 +362,10 @@ def split_to_sequence(op, node: ir.Node):
     logger.debug("SplitToSequence => Split + SequenceConstruct")
 
     return op.SequenceConstruct(*split_values)
-    # return [split_node, *squeeze_nodes, node]
 
 
 @register("SequenceAt")
-def sequence_at(op, node: ir.Node):
+def sequence_at(op, node: ir.Node) -> ReturnValue:
     input = node.inputs[0]
     position = node.inputs[1]
     output = node.outputs[0]
@@ -477,9 +448,10 @@ class ConstantFolder:
         op_optimizers = registry.lookup_evaluators(node.domain, node.op_type, version)
         for optimizer in op_optimizers:
             assert optimizer
-            context = onnxscript.rewriter.pattern.RewriterContext()
+            context = orp.RewriterContext()
             output = optimizer(context, node)
             if output is not None:
+                # TODO(rama): return nodes, values
                 return output
 
         if is_control_flow_op(node) or is_non_deterministic_op(node):
