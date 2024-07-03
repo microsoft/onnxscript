@@ -197,8 +197,8 @@ def run_benchmark(
 
 
 def measure_discrepancies(
-    expected: list[tuple(Any, ...)],  # type: ignore[valid-type]
-    outputs: list[tuple(Any, ...)],  # type: ignore[valid-type]
+    expected: list[tuple[Any, ...]],
+    outputs: list[tuple[Any, ...]],
 ) -> tuple[float, float]:
     """
     Computes the discrepancies.
