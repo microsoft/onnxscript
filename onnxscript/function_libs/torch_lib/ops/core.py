@@ -6393,15 +6393,13 @@ def aten_ones_like(
     device: str = "",
     pin_memory: bool = False,
 ) -> TTensor:
-    """ones_like.
+    """ones_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     Note: dtype is an onnx enum. Users should convert torch dtype to onnx dtype
     before calling this function.
     """
-    # ones_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
-
-    # NOTE: trace_only because both if branches need to be the same type, but we have
-    # a cast in the if branch.
+    if dtype is None:
+        dtype = -1
 
     if dtype == -1:
         one = op.CastLike(1, self)
@@ -8856,6 +8854,8 @@ def aten_zeros_like(self: TTensor, dtype: int = -1) -> TTensor:
 
     # NOTE: trace_only because both if branches need to be the same type, but we have
     # a cast in the if branch.
+    if dtype is None:
+        dtype = -1
 
     if dtype == -1:
         zero = op.CastLike(0, self)
