@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import itertools
 import multiprocessing
 import os
 import platform
@@ -193,6 +194,52 @@ def run_benchmark(
             print(sout)
 
     return data
+
+
+def measure_discrepancies(
+    expected: list[tuple[Any, ...]],
+    outputs: list[tuple[Any, ...]],
+) -> tuple[float, float]:
+    """
+    Computes the discrepancies.
+
+    Args:
+        expected: list of outputs coming from a torch model
+        outputs: list of outputs coming from an onnx model
+
+    Returns:
+        max absolute errors, max relative errors
+    """
+
+    def _flatten(outputs):
+        flat = []
+        for tensor in outputs:
+            if isinstance(tensor, tuple):
+                flat.extend(_flatten(tensor))
+            else:
+                flat.append(tensor)
+        return tuple(flat)
+
+    abs_errs = []
+    rel_errs = []
+    for torch_outputs_mixed_types, onnx_outputs in zip(expected, outputs):
+        torch_outputs = _flatten(torch_outputs_mixed_types)
+        assert len(torch_outputs) == len(
+            onnx_outputs
+        ), f"Length mismatch {len(torch_outputs)} != {len(onnx_outputs)}"
+        for torch_tensor, onnx_tensor in zip(torch_outputs, onnx_outputs):
+            assert (
+                torch_tensor.dtype == onnx_tensor.dtype
+            ), f"Type mismatch {torch_tensor.dtype} != {onnx_tensor.dtype}"
+            assert (
+                torch_tensor.shape == onnx_tensor.shape
+            ), f"Type mismatch {torch_tensor.shape} != {onnx_tensor.shape}"
+            diff = torch_tensor - onnx_tensor
+            abs_err = float(diff.abs().max())
+            rel_err = float((diff.abs() / torch_tensor).max())
+            abs_errs.append(abs_err)
+            rel_errs.append(rel_err)
+    return max(abs_errs), max(rel_errs)
 
 
 def common_export(
@@ -620,6 +667,7 @@ def run_onnx_inference(
     repeat: int = 5,
     verbose: int = 0,
     ort_optimize: bool = True,
+    torch_model: Any | None = None,
 ) -> dict[str, Any]:
     """
     Runs multiple times the same inference with onnxruntime.
@@ -631,6 +679,7 @@ def run_onnx_inference(
         repeat: number of iterations to repeat
         verbose: verbosity
         ort_optimize: enable, disable onnxruntime optimizations
+        torch_model: if not empty, measure the discrepancies
 
     Returns:
         statistcs
@@ -667,16 +716,26 @@ def run_onnx_inference(
         print(f"[run_inference] created session in {end}")
         print(f"[run_inference] start {warmup} warmup iterations")
 
+    if torch_model:
+        expected = [
+            torch_model(*example_inputs[i % len(example_inputs)]) for i in range(warmup)
+        ]
+
+    got = []
     iterations = []
     begin = time.perf_counter()
     for i in range(warmup):
         t0 = time.perf_counter()
-        wrapped_session.run_dlpack(*example_inputs[i % len(example_inputs)])
+        got.append(wrapped_session.run_dlpack(*example_inputs[i % len(example_inputs)]))
         iterations.append(time.perf_counter() - t0)
     end = time.perf_counter() - begin
     stats["warmup"] = warmup
     stats["warmup_time"] = end / warmup
     stats["warmup_iter"] = iterations
+    if torch_model:
+        abs_err, rel_err = measure_discrepancies(expected, got)
+        stats["discrepancies_abs"] = abs_err
+        stats["discrepancies_rel"] = rel_err
 
     if verbose:
         print(f"[run_inference] warmup done in {time.perf_counter() - begin}")
@@ -697,3 +756,28 @@ def run_onnx_inference(
         print(f"[run_inference] measure done in {time.perf_counter() - begin}")
 
     return stats
+
+
+def multi_run(kwargs: dict[str, Any]) -> bool:
+    """Checks if multiple values were sent for one argument."""
+    return any(isinstance(v, str) and "," in v for v in kwargs.values())
+
+
+def make_configs(kwargs: dict[str, Any]) -> list[dict[str, Any]]:
+    """Creates all the configurations based on the command line arguments."""
+    print(kwargs)
+    args = []
+    for k, v in kwargs.items():
+        if isinstance(v, str):
+            args.append([(k, s) for s in v.split(",")])
+        else:
+            args.append([(k, v)])
+    configs = list(itertools.product(*args))
+    return [dict(c) for c in configs]
+
+
+def make_dataframe_from_benchmark_data(data: list[dict]) -> Any:
+    """Creates a dataframe from the received data."""
+    import pandas
+
+    return pandas.DataFrame(data)
