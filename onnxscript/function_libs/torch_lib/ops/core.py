@@ -7362,6 +7362,19 @@ def aten_scalar_tensor_sym_number(
     return common_ops.cast_to(s, dtype=dtype)
 
 
+@torch_op("aten::scatter.value", trace_only=True)
+def aten_scatter(
+    self: TReal,
+    dim: int,  # we have to use int here because ScatterElements() will use this attribute
+    index: TInt,
+    src: TReal,
+) -> TReal:
+    """scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
+
+    update = op.Expand(src, op.Shape(index))
+    return op.ScatterElements(self, index, update, axis=dim)
+
+
 @torch_op("aten::scatter_add")
 def aten_scatter_add(
     self: TReal,
