@@ -6555,7 +6555,14 @@ def aten_positive(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::pow.Tensor_Tensor", "aten::pow.Tensor_Scalar", "_operator::pow"))
+@torch_op(
+    (
+        "aten::pow.Scalar",
+        "aten::pow.Tensor_Tensor",
+        "aten::pow.Tensor_Scalar",
+        "_operator::pow",
+    )
+)
 def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     """pow(Tensor self, Tensor exponent) -> Tensor"""
 
@@ -7360,6 +7367,19 @@ def aten_scalar_tensor_sym_number(
     # Set trace_only=True because different if branches return different dtypes
     # which is not supported in an ONNX function
     return common_ops.cast_to(s, dtype=dtype)
+
+
+@torch_op("aten::scatter.value", trace_only=True)
+def aten_scatter(
+    self: TReal,
+    dim: int,  # we have to use int here because ScatterElements() will use this attribute
+    index: TInt,
+    src: TReal,
+) -> TReal:
+    """scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
+
+    update = op.Expand(src, op.Shape(index))
+    return op.ScatterElements(self, index, update, axis=dim)
 
 
 @torch_op("aten::scatter_add")
