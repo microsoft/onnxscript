@@ -555,6 +555,7 @@ class ConstantFolder:
             return av.value
         attr_values = { name: convert(attr) for name, attr in node.attributes.items() }
         outputs = reference_evaluator.evaluate(node.domain, node.op_type, version, *input_values, **attr_values)
+        
         if outputs is None:
             return None
         if len(node.outputs) == 1 and not isinstance(outputs, (tuple, list)):
