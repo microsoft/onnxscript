@@ -23,9 +23,15 @@ from onnxscript.utils.utils import (
     get_node_attr_value,
 )
 
-is_control_flow_op = constant_folding.is_control_flow_op
-is_non_deterministic_op = constant_folding.is_non_deterministic_op
-is_constant_op = constant_folding.is_constant_op
+def is_control_flow_op(node: ir.Node) -> bool:
+    return any(isinstance(attr, (ir.AttrGraph, ir.AttrGraphs)) for attr in node.attributes.values())
+
+def is_non_deterministic_op(node: ir.Node) -> bool:
+    return node.op_type in constant_folding.non_deterministic_ops and constant_folding.is_onnx_domain(node.domain)
+
+def is_constant_op(node: ir.Node) -> bool:
+    return node.op_type in {"Constant", "ConstantOfShape"} and constant_folding.is_onnx_domain(node.domain)
+
 _DEFAULT_CONSTANT_FOLD_SIZE_LIMIT = constant_folding._DEFAULT_CONSTANT_FOLD_SIZE_LIMIT
 
 logger = logging.getLogger(__name__)
@@ -120,6 +126,13 @@ class PartialEvaluatorRegistry:
 registry: PartialEvaluatorRegistry = PartialEvaluatorRegistry()
 
 register = registry.register
+
+def get_sym_value(val: ir.Value | None) -> ir.Value | None:
+    if val is None:
+        return None
+    if hasattr(val, "symbolic_value"):
+        return val.symbolic_value
+    return None
 
 def get_numpy_value(val: ir.Value) -> np.ndarray | None:
     const_value = val.const_value
@@ -398,7 +411,6 @@ class ConstantFolder:
     def __init__(
         self,
         external_data_folder: str,
-        *,
         do_shape_inference: bool,
     ) -> None:
         self._external_data_folder = external_data_folder
@@ -446,6 +458,12 @@ class ConstantFolder:
                 output_types = onnx.shape_inference.infer_node_outputs(
                     schema, node, input_types, input_data
                 )
+                for output in node.outputs:
+                    if output.name in output_types:
+                        inferred_type = output_types[output.name]
+                            # TODO: merge types, check for conflicts
+                        output.shape = serde.deserialize_type_proto_for_shape(inferred_type)
+                        output.type = serde.deserialize_type_proto_for_type(inferred_type)
             except Exception as e:
                 logger.debug(
                     "Skipping shape inference for node %s due to exception: %s",
@@ -453,19 +471,12 @@ class ConstantFolder:
                     e,
                 )
 
-    for output in node.outputs:
-        if output.name in output_types:
-            inferred_type = output_types[output.name]
-                # TODO: merge types, check for conflicts
-            output.shape = serde.deserialize_type_proto_for_shape(inferred_type)
-            output.type = serde.deserialize_type_proto_for_type(inferred_type)
+
 
     def new_constant(self, irvalue: ir.Value, value):
         # TODO(rama): Why do we need the conversion below?
         if isinstance(value, (int, float, np.ScalarType)):
             value = np.array(value)
-
-        irvalue.const_value = value
 
         if not isinstance(value, np.ndarray):
             # ONNX does not have a way to represent non-tensor constants, eg. a sequence.
@@ -478,6 +489,8 @@ class ConstantFolder:
             )
             return None
 
+        irvalue.const_value = _convenience.tensor(value)
+
         if value.nbytes > _DEFAULT_CONSTANT_FOLD_SIZE_LIMIT:
             logger.info(
                 "Skip storing constant folded nvalue %s due to large size %s.",
@@ -486,7 +499,7 @@ class ConstantFolder:
             )
             return None
 
-        tensor = onnx.numpy_helper.from_array(value, name)
+        tensor = onnx.numpy_helper.from_array(value, irvalue.name)
 
         logger.debug(
             "New constant for value %s dtype: %s shape: %s",
@@ -503,16 +516,15 @@ class ConstantFolder:
         node = ir.Node("", "Constant", inputs=[], attributes=attributes, num_outputs=1)
         return node
     
-    def process_node(self, node: ir.Node, root: ir.Graph | ir.Function):
+    def process_node(self, node: ir.Node):
         for i, value in enumerate(node.inputs):
-            if value is not None and value.symbolic_value is not None:
-                sym_value = value.symbolic_value
-                if isinstance(sym_value, ir.Value):
-                    node.replace_input_with(i, sym_value)
-                    # TODO(rama): consider merging type/other info from both values
+            sym_value = get_sym_value(value)
+            if isinstance(sym_value, ir.Value):
+                node.replace_input_with(i, sym_value)
+                # TODO(rama): consider merging type/other info from both values
 
         # Do incremental shape inference
-        if self.do_shape_inference and not is_control_flow_op(node):
+        if self._do_shape_inference and not is_control_flow_op(node):
             self._do_inference(node)
 
         if node.domain not in self.opset_imports:
@@ -537,10 +549,15 @@ class ConstantFolder:
 
         input_values = [x.const_value.numpy() if x is not None else None for x in node.inputs]
         # Filter out bfloat16 cases?
-        outputs = reference_evaluator.evaluate(node.domain, node.op_type, version, *input_values, **node.attributes)
+        def convert(av):
+            if isinstance(av, ir.AttrTensor):
+                return serde.serialize_tensor(av.value)
+            return av.value
+        attr_values = { name: convert(attr) for name, attr in node.attributes.items() }
+        outputs = reference_evaluator.evaluate(node.domain, node.op_type, version, *input_values, **attr_values)
         if outputs is None:
             return None
-        if len(node.output) == 1 and not isinstance(outputs, (tuple, list)):
+        if len(node.outputs) == 1 and not isinstance(outputs, (tuple, list)):
             replacement = self.new_constant(node.outputs[0], outputs)
             if is_constant_op(node) or replacement is None:
                 return None
@@ -584,7 +601,14 @@ class ConstantFolder:
         #     self.add_count(node.op_type, output.size)
         #     return self.new_constant(node.output[0], output)
 
-    def visit_node(self, node: ir.Node):
+    def visit_attribute(self, attr: ir.Attr) -> None:
+        if isinstance(attr, ir.AttrGraph):
+            self.visit_graph(attr.value)
+        elif isinstance(attr, ir.AttrGraphs):
+            for graph in attr.value:
+                self.visit_graph(graph)
+
+    def visit_node(self, node: ir.Node, root: ir.Graph | ir.Function):
         replacement = self.process_node(node)
         # logger.debug(
         #     "visit_node: %s::%s %s replacement %s",
@@ -595,15 +619,16 @@ class ConstantFolder:
         # )
         if replacement is None:
             # No change. Process attributes.
-            for attr in node.attribute:
+            for attr in node.attributes.values():
                 self.visit_attribute(attr)
             return None
+        
         else:
-            self.replace_node(node, replacement)
+            self.replace_node(node, replacement, root)
 
     def visit_graph(self, graph: ir.Graph) -> None:
         for node in graph:
-            self.visit_node(node)
+            self.visit_node(node, graph)
 
     def visit_model(self, model: ir.Model) -> None:
         self._init()
