@@ -16,6 +16,7 @@ import onnx.reference.ops
 
 import onnxscript.ir as ir
 import onnxscript.ir._convenience as _convenience
+import onnxscript.ir.serde as serde
 import onnxscript.optimizer.constant_folding as constant_folding
 import onnxscript.rewriter.pattern as orp
 from onnxscript.utils.utils import (
@@ -385,9 +386,79 @@ def sequence_at(op, node: ir.Node) -> ReturnValue:
             return op.Identity(result)
     return None
 
+@dataclasses.dataclass
+class Replacement:
+    """A replacement for a node in the graph."""
+    new_outputs: Sequence[ir.Value]
+    new_nodes: Sequence[ir.Node]
 
 class ConstantFolder:
     opset_imports: dict[str, int]
+
+    def __init__(
+        self,
+        external_data_folder: str,
+        *,
+        do_shape_inference: bool,
+    ) -> None:
+        self._external_data_folder = external_data_folder
+        self._do_shape_inference = do_shape_inference
+        self._init()
+
+    def _init(self) -> None:
+        self.counts = {}
+        self.sizes = {}
+        self.modified = False
+
+    def _do_inference(self, node: ir.Node) -> None:
+        output_types = {}
+
+        # TODO: handle optional inputs
+        def get_constant_value(x: ir.Value) -> onnx.TensorProto | None:
+            value = get_numpy_value(x)
+            if isinstance(value, np.ndarray) and value.size < 20:
+                return onnx.numpy_helper.from_array(value, node.inputs[i].name)
+            return None
+        
+        def get_type(value: ir.Value) -> onnx.TypeProto | None:
+            if value.type is not None:
+                type_proto = onnx.TypeProto()
+                serde.serialize_type_into(type_proto, value.type)
+                if value.shape is not None:
+                    serde.serialize_shape_into(type_proto, value.shape)
+                return type_proto
+            return None
+
+        input_types = {x.name: get_type(x) for x in node.inputs if x is not None}
+        input_data = {x.name: get_constant_value(x) for x in node.inputs if x is not None}
+        input_data = {k: v for k, v in input_data.items() if v is not None}
+        if any(t is None for t in input_types.values()):
+            logger.debug(
+                "Skipping shape inference for node %s due to missing input type.",
+                node.name,
+            )
+        else:
+            # TODO: pass in constant values, ir_version
+            try:
+                schema = onnx.defs.get_schema(
+                    node.op_type, self.opset_imports[node.domain], node.domain
+                )
+                output_types = onnx.shape_inference.infer_node_outputs(
+                    schema, node, input_types, input_data
+                )
+            except Exception as e:
+                logger.debug(
+                    "Skipping shape inference for node %s due to exception: %s",
+                    node.name,
+                    e,
+                )
+
+    for output in node.outputs:
+        if output.name in output_types:
+            inferred_type = output_types[output.name]
+                # TODO: merge types, check for conflicts
+            output.shape = serde.deserialize_type_proto_for_shape(inferred_type)
+            output.type = serde.deserialize_type_proto_for_type(inferred_type)
 
     def new_constant(self, irvalue: ir.Value, value):
         # TODO(rama): Why do we need the conversion below?
@@ -430,7 +501,7 @@ class ConstantFolder:
         # )
         attributes = _convenience.convert_attributes({"value": tensor})
         node = ir.Node("", "Constant", inputs=[], attributes=attributes, num_outputs=1)
-        return [node]
+        return node
     
     def process_node(self, node: ir.Node, root: ir.Graph | ir.Function):
         for i, value in enumerate(node.inputs):
@@ -441,6 +512,8 @@ class ConstantFolder:
                     # TODO(rama): consider merging type/other info from both values
 
         # Do incremental shape inference
+        if self.do_shape_inference and not is_control_flow_op(node):
+            self._do_inference(node)
 
         if node.domain not in self.opset_imports:
             return None
@@ -452,7 +525,9 @@ class ConstantFolder:
             output = optimizer(context, node)
             if output is not None:
                 # TODO(rama): return nodes, values
-                return output
+                if isinstance(output, ir.Value):
+                    output = [output]
+                return Replacement(output, context.nodes)
 
         if is_control_flow_op(node) or is_non_deterministic_op(node):
             return None
@@ -467,17 +542,18 @@ class ConstantFolder:
             return None
         if len(node.output) == 1 and not isinstance(outputs, (tuple, list)):
             replacement = self.new_constant(node.outputs[0], outputs)
-            if is_constant_op(node):
+            if is_constant_op(node) or replacement is None:
                 return None
             # self.add_count(op, outputs.size)
-            return replacement
+            return Replacement(replacement.outputs, [replacement])
         else:
             logger.warning("Skipping constant folding for op %s with multiple outputs.", node.op_type)
         return None
 
     def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function):
         # TODO: apply delta! what about opset_imports?
-
+        old_values = node.outputs
+        new_values = replacement.new_outputs
         for old_value, new_value in zip(old_values, new_values):
             # Propagate relevant info from old value to new value
             # TODO(Rama): Perhaps we should merge old and new types. As of now, new
@@ -498,7 +574,7 @@ class ConstantFolder:
                 root.outputs[idx] = replacement_mapping[graph_or_function_output]
 
         # insert new nodes after the index node
-        root.insert_after(node, delta.new_nodes)
+        root.insert_after(node, replacement.new_nodes)
         root.remove(node, safe=True)
 
         # if isinstance(output, list):
@@ -524,3 +600,37 @@ class ConstantFolder:
             return None
         else:
             self.replace_node(node, replacement)
+
+    def visit_graph(self, graph: ir.Graph) -> None:
+        for node in graph:
+            self.visit_node(node)
+
+    def visit_model(self, model: ir.Model) -> None:
+        self._init()
+        self.opset_imports = model.opset_imports
+        self.visit_graph(model.graph)
+        # TODO(rama): handle functions
+
+def fold_constants(
+    model: ir.Model,
+    external_data_folder: str = "",
+    *,
+    onnx_shape_inference: bool = False,
+) -> bool:
+    """
+    Applies constant folding optimization to the model.
+    Returns true iff the model was modified.
+    """
+    folder = ConstantFolder(
+        external_data_folder,
+        onnx_shape_inference,
+    )
+    folder.visit_model(model)
+    for op in folder.counts:
+        logger.info(
+            "Constant-folded '%s' %s times, with %s size.",
+            op,
+            folder.counts[op],
+            folder.sizes[op],
+        )
+    return folder.modified
