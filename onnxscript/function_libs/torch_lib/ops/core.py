@@ -6555,7 +6555,14 @@ def aten_positive(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::pow.Tensor_Tensor", "aten::pow.Tensor_Scalar", "_operator::pow"))
+@torch_op(
+    (
+        "aten::pow.Scalar",
+        "aten::pow.Tensor_Tensor",
+        "aten::pow.Tensor_Scalar",
+        "_operator::pow",
+    )
+)
 def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     """pow(Tensor self, Tensor exponent) -> Tensor"""
 
