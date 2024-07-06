@@ -61,13 +61,21 @@ class ReferenceEvaluator:
 
 reference_evaluator = ReferenceEvaluator()
 
+@dataclasses.dataclass
+class Replacement:
+    """A replacement for a node in the graph."""
+    new_outputs: Sequence[ir.Value]
+    new_nodes: Sequence[ir.Node]
+
 # The "partial evaluators" below are non-standard evaluators. They are used to perform
 # partial evaluation and/or static program analysis (abstract interpretation).
 
-# A partial-evaluator function takes an RewriterContext and a node, and returns the ir.Value
-# or ir.Values to replace the output values of the node or None (if no replacement is needed).
+# A partial-evaluator function takes an RewriterContext and a node, and returns a Replacement
+# for the node or None (if no replacement is needed). It may also return just the ir.Value
+# or ir.Values to replace the output values of the node, when the new nodes can be inferred
+# from the RewriterContext used to build the new nodes.
 
-ReturnValue = Union[Sequence[ir.Value], ir.Value, None]
+ReturnValue = Union[Replacement, Sequence[ir.Value], ir.Value, None]
 PartialEvaluatorFunction = Callable[[orp.RewriterContext, ir.Node], ReturnValue]
 
 @dataclasses.dataclass
@@ -207,7 +215,11 @@ def shape(op, node: ir.Node) -> ReturnValue:
     if shape is None:
         return None
     start = node.attributes.get("start", 0)
+    if start != 0:
+        start = start.value
     end = node.attributes.get("end", None)
+    if end is not None:
+        end = end.value
     shape_slice = shape[start:end]
     if all(isinstance(d,int) for d in shape_slice):
         return op.Constant(value_ints = [d for d in shape_slice])
@@ -233,9 +245,10 @@ def if_op(op, node: ir.Node) -> ReturnValue:
     if cond is not None:
         # cond is a constant-value: inline the branch
         branch = "then_branch" if cond else "else_branch"
-        graph = node.attributes.get(branch, None)
-        if graph is None:
+        graph_attr = node.attributes.get(branch, None)
+        if not isinstance(graph_attr, ir.AttrGraph):
             return None
+        graph : ir.Graph = graph_attr.value
         formal_outs = graph.outputs
         actual_outs = node.outputs
         renamings = {
@@ -247,8 +260,9 @@ def if_op(op, node: ir.Node) -> ReturnValue:
 
         def rename(name):
             return renamings.get(name, name)
-
-        for sub_node in graph:
+        graph_nodes = list(graph)
+        graph.remove(graph_nodes)
+        for sub_node in graph_nodes:
             # TODO: handle renaming inside subgraphs in nodes
             for v in sub_node.outputs:
                 v.name = rename(v.name)
@@ -256,7 +270,7 @@ def if_op(op, node: ir.Node) -> ReturnValue:
             sub_node.name = f"{node.name}_{sub_node.name}"
 
         # TODO: we should handle initializers as well!
-        return formal_outs
+        return Replacement(formal_outs, graph_nodes)
     return None
 
 
@@ -337,6 +351,8 @@ def split_to_sequence(op, node: ir.Node) -> ReturnValue:
         return None
 
     axis = node.attributes.get("axis", 0)
+    if axis != 0:
+        axis = axis.value
     shape = input.shape
     if shape is None:
         return None
@@ -403,11 +419,6 @@ def sequence_at(op, node: ir.Node) -> ReturnValue:
             return op.Identity(result)
     return None
 
-@dataclasses.dataclass
-class Replacement:
-    """A replacement for a node in the graph."""
-    new_outputs: Sequence[ir.Value]
-    new_nodes: Sequence[ir.Node]
 
 class ConstantFolder:
     opset_imports: dict[str, int]
@@ -433,7 +444,7 @@ class ConstantFolder:
         def get_constant_value(x: ir.Value) -> onnx.TensorProto | None:
             value = get_numpy_value(x)
             if isinstance(value, np.ndarray) and value.size < 20:
-                return onnx.numpy_helper.from_array(value, node.inputs[i].name)
+                return onnx.numpy_helper.from_array(value, x.name)
             return None
         
         def get_type(value: ir.Value) -> onnx.TypeProto | None:
@@ -460,7 +471,7 @@ class ConstantFolder:
                     node.op_type, self.opset_imports[node.domain], node.domain
                 )
                 output_types = onnx.shape_inference.infer_node_outputs(
-                    schema, node, input_types, input_data
+                    schema, serde.serialize_node(node), input_types, input_data
                 )
                 for output in node.outputs:
                     if output.name in output_types:
@@ -540,7 +551,8 @@ class ConstantFolder:
             context = orp.RewriterContext()
             output = optimizer(context, node)
             if output is not None:
-                # TODO(rama): return nodes, values
+                if isinstance(output, Replacement):
+                    return output
                 if isinstance(output, ir.Value):
                     output = [output]
                 return Replacement(output, context.nodes)
