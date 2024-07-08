@@ -566,10 +566,13 @@ def aten_gelu_backward(
     raise NotImplementedError()
 
 
-def aten_glu(self: TensorType, dim: int = -1) -> TensorType:
+@torch_op("aten::glu", traceable=True)
+def aten_glu(self: TFloat, dim: int = -1) -> TFloat:
     """glu(Tensor self, int dim=-1) -> Tensor"""
 
-    raise NotImplementedError()
+    first, second = op.Split(self, axis=dim, num_outputs=2)
+    result = op.Mul(first, op.Sigmoid(second))
+    return result
 
 
 def aten_glu_backward(grad_output: TensorType, self: TensorType, dim: int) -> TensorType:
