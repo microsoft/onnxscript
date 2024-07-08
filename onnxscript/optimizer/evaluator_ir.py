@@ -8,7 +8,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import math
-from typing import Any, Callable, Protocol, Sequence, Union
+from typing import Any, Callable, Sequence, Union
 
 import numpy as np
 import onnx
@@ -16,22 +16,30 @@ import onnx.reference.ops
 
 import onnxscript.ir as ir
 import onnxscript.ir._convenience as _convenience
-import onnxscript.ir.serde as serde
 import onnxscript.ir._enums as _enums
+import onnxscript.ir.serde as serde
 import onnxscript.optimizer.constant_folding as constant_folding
 import onnxscript.rewriter.pattern as orp
-from onnxscript.utils.utils import (
-    get_node_attr_value,
-)
+
 
 def is_control_flow_op(node: ir.Node) -> bool:
-    return any(isinstance(attr, (ir.AttrGraph, ir.AttrGraphs)) for attr in node.attributes.values())
+    return any(
+        isinstance(attr, (ir.AttrGraph, ir.AttrGraphs)) for attr in node.attributes.values()
+    )
+
 
 def is_non_deterministic_op(node: ir.Node) -> bool:
-    return node.op_type in constant_folding.non_deterministic_ops and constant_folding.is_onnx_domain(node.domain)
+    return (
+        node.op_type in constant_folding.non_deterministic_ops
+        and constant_folding.is_onnx_domain(node.domain)
+    )
+
 
 def is_constant_op(node: ir.Node) -> bool:
-    return node.op_type in {"Constant", "ConstantOfShape"} and constant_folding.is_onnx_domain(node.domain)
+    return node.op_type in {"Constant", "ConstantOfShape"} and constant_folding.is_onnx_domain(
+        node.domain
+    )
+
 
 _DEFAULT_CONSTANT_FOLD_SIZE_LIMIT = constant_folding._DEFAULT_CONSTANT_FOLD_SIZE_LIMIT
 
@@ -61,11 +69,14 @@ class ReferenceEvaluator:
 
 reference_evaluator = ReferenceEvaluator()
 
+
 @dataclasses.dataclass
 class Replacement:
     """A replacement for a node in the graph."""
+
     new_outputs: Sequence[ir.Value]
     new_nodes: Sequence[ir.Node]
+
 
 # The "partial evaluators" below are non-standard evaluators. They are used to perform
 # partial evaluation and/or static program analysis (abstract interpretation).
@@ -77,6 +88,7 @@ class Replacement:
 
 ReturnValue = Union[Replacement, Sequence[ir.Value], ir.Value, None]
 PartialEvaluatorFunction = Callable[[orp.RewriterContext, ir.Node], ReturnValue]
+
 
 @dataclasses.dataclass
 class PartialEvaluator:
@@ -136,23 +148,26 @@ registry: PartialEvaluatorRegistry = PartialEvaluatorRegistry()
 
 register = registry.register
 
-def get_sym_value(val: ir.Value | None) -> ir.Value | None:
+
+def _get_sym_value(val: ir.Value | None) -> ir.Value | None:
     if val is None:
         return None
     if hasattr(val, "symbolic_value"):
         return val.symbolic_value
     return None
 
-def get_numpy_value(val: ir.Value) -> np.ndarray | None:
+
+def _get_numpy_value(val: ir.Value) -> np.ndarray | None:
     const_value = val.const_value
     if hasattr(const_value, "numpy"):
         return const_value.numpy()
     return None
 
-def get_bool_value(val: ir.Value | None) -> bool | None:
+
+def _get_bool_value(val: ir.Value | None) -> bool | None:
     if val is None:
         return None
-    val = get_numpy_value(val)
+    val = _get_numpy_value(val)
     if val is None:
         return None
     if isinstance(val, bool):
@@ -164,50 +179,55 @@ def get_bool_value(val: ir.Value | None) -> bool | None:
     return None
 
 
-def getInput(node:ir.Node, index: int) -> ir.Value | None:
+def _get_input(node: ir.Node, index: int) -> ir.Value | None:
     if index < len(node.inputs):
         return node.inputs[index]
     return None
 
-def getOutput(node:ir.Node, index: int) -> ir.Value | None:
+
+def _get_output(node: ir.Node, index: int) -> ir.Value | None:
     if index < len(node.outputs):
         return node.outputs[index]
     return None
 
-def updateType(value: ir.Value, type: ir.TypeProtocol) -> None:
+
+def _update_type(value: ir.Value, type: ir.TypeProtocol) -> None:
     # TODO: merge types
     value.type = type
 
-def getInputElementType(node: ir.Node, index: int) -> int:
-    input = getInput(node, index)
+
+def _get_input_element_type(node: ir.Node, index: int) -> int:
+    input = _get_input(node, index)
     if input is not None and input.type is not None:
         return input.type.dtype.value
     return _enums.DataType.UNDEFINED.value
 
-def getIntAttribute(node: ir.Node, name: str, default: int | None = None) -> int | None:
+
+def _get_int_attribute(node: ir.Node, name: str, default: int | None = None) -> int | None:
     if name in node.attributes:
         attr = node.attributes[name]
         if isinstance(attr, ir.AttrInt64):
             return attr.value
         return None
     return default
-    
+
+
 # TODO(rama): The following should not be necessary. Generic incremental shape-inference
 # should handle this. This essentially implements type/shape-inference for Cast op.
 @register("Cast")
 def cast(op, node: ir.Node) -> ReturnValue:
-    input = getInput(node, 0)
-    output = getOutput(node, 0)
+    input = _get_input(node, 0)
+    output = _get_output(node, 0)
     if input is not None and output is not None:
-        updateType(output, input.type)
+        _update_type(output, input.type)
     return None
 
 
 @register("CastLike")
 def cast_like(op, node: ir.Node) -> ReturnValue:
     input0 = node.inputs[0]
-    source_element_type = getInputElementType(node, 0)
-    target_element_type = getInputElementType(node, 1)
+    source_element_type = _get_input_element_type(node, 0)
+    target_element_type = _get_input_element_type(node, 1)
 
     if target_element_type is _enums.DataType.UNDEFINED.value:
         return None
@@ -222,15 +242,11 @@ def shape(op, node: ir.Node) -> ReturnValue:
     shape = input.shape
     if shape is None:
         return None
-    start = node.attributes.get("start", 0)
-    if start != 0:
-        start = start.value
-    end = node.attributes.get("end", None)
-    if end is not None:
-        end = end.value
+    start = _get_int_attribute(node, "start", 0)
+    end = _get_int_attribute(node, "end", None)
     shape_slice = shape[start:end]
-    if all(isinstance(d,int) for d in shape_slice):
-        return op.Constant(value_ints = [d for d in shape_slice])
+    if all(isinstance(d, int) for d in shape_slice):
+        return op.Constant(value_ints=[d for d in shape_slice])
     return None
 
 
@@ -244,19 +260,20 @@ def size(op, node: ir.Node) -> ReturnValue:
         if not isinstance(d, int):
             return None
         size *= d
-    return op.Constant(value_int = size)
+    return op.Constant(value_int=size)
+
 
 @register("If")
 def if_op(op, node: ir.Node) -> ReturnValue:
-    cond = getInput(node, 0)
-    cond = get_bool_value(cond)
+    cond = _get_input(node, 0)
+    cond = _get_bool_value(cond)
     if cond is not None:
         # cond is a constant-value: inline the branch
         branch = "then_branch" if cond else "else_branch"
         graph_attr = node.attributes.get(branch, None)
         if not isinstance(graph_attr, ir.AttrGraph):
             return None
-        graph : ir.Graph = graph_attr.value
+        graph: ir.Graph = graph_attr.value
         formal_outs = graph.outputs
         actual_outs = node.outputs
         renamings = {
@@ -268,6 +285,7 @@ def if_op(op, node: ir.Node) -> ReturnValue:
 
         def rename(name):
             return renamings.get(name, name)
+
         graph_nodes = list(graph)
         graph.remove(graph_nodes)
         for sub_node in graph_nodes:
@@ -307,9 +325,7 @@ def concat_from_sequence(op, node: ir.Node) -> ReturnValue:
     inputs = input.symbolic_value
     if any(x is None for x in inputs):
         return None
-    new_axis = node.attributes.get("new_axis", 0)
-    if new_axis != 0:
-        new_axis = new_axis.value
+    new_axis = _get_int_attribute(node, "new_axis", 0)
     if "axis" not in node.attributes:
         return None
     axis = node.attributes["axis"].value
@@ -322,12 +338,13 @@ def concat_from_sequence(op, node: ir.Node) -> ReturnValue:
             axis_value = op.Constant(value_int=axis)
             unsqueezed_inputs = []
             for node_input in inputs:
-                unsqueezed_input = op.Unsqueeze(node_input, axis_value, outputs=[f"{node_input.name}_unsqueeze"])
+                unsqueezed_input = op.Unsqueeze(
+                    node_input, axis_value, outputs=[f"{node_input.name}_unsqueeze"]
+                )
                 unsqueezed_inputs.append(unsqueezed_input)
             # Send unsqueezed outputs to Concat
             logger.debug(
-                "ConcatFromSequence => Concat %s",
-                [x.name for x in unsqueezed_inputs]
+                "ConcatFromSequence => Concat %s", [x.name for x in unsqueezed_inputs]
             )
             return op.Concat(*unsqueezed_inputs, axis=axis)
     return None
@@ -362,9 +379,7 @@ def split_to_sequence(op, node: ir.Node) -> ReturnValue:
     if input is None or split is None or output is None:
         return None
 
-    axis = node.attributes.get("axis", 0)
-    if axis != 0:
-        axis = axis.value
+    axis = _get_int_attribute(node, "axis", 0)
     shape = input.shape
     if shape is None:
         return None
@@ -377,7 +392,7 @@ def split_to_sequence(op, node: ir.Node) -> ReturnValue:
     if not isinstance(split_dimension_size, int):
         return None
 
-    split_value = get_numpy_value(split)
+    split_value = _get_numpy_value(split)
     if split_value is None:
         return None
     assert isinstance(split_value, np.ndarray)
@@ -386,7 +401,9 @@ def split_to_sequence(op, node: ir.Node) -> ReturnValue:
         # split into chunks all of size 'split' if possible.
         num_outputs = math.ceil(split_dimension_size / split_value.item())
         split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
-        split_values = op.Split(input, axis=axis, num_outputs=num_outputs, outputs=split_outputs)
+        split_values = op.Split(
+            input, axis=axis, num_outputs=num_outputs, outputs=split_outputs
+        )
     elif split_value.ndim == 1:
         # split into 'size(split)' chunks
         num_outputs = split_value.size
@@ -395,7 +412,7 @@ def split_to_sequence(op, node: ir.Node) -> ReturnValue:
     else:
         return None
 
-    keepdims = getIntAttribute(node, "keepdims", 1)
+    keepdims = _get_int_attribute(node, "keepdims", 1)
     if keepdims is None:
         return None
     if keepdims == 0:
@@ -403,7 +420,9 @@ def split_to_sequence(op, node: ir.Node) -> ReturnValue:
         axis_val = op.Constant(value_int=axis, outputs=[f"{output.name}_axis"])
         squeezed_values = []
         for i in range(num_outputs):
-            squeezed = op.Squeeze(split_values[i], axis_val, outputs=[f"{split_outputs[i]}_squeeze"])
+            squeezed = op.Squeeze(
+                split_values[i], axis_val, outputs=[f"{split_outputs[i]}_squeeze"]
+            )
             squeezed_values.append(squeezed)
         split_values = squeezed_values
 
@@ -421,7 +440,7 @@ def sequence_at(op, node: ir.Node) -> ReturnValue:
     output = node.outputs[0]
     if input is not None and position is not None:
         input_vals = input.symbolic_value
-        position_val = get_numpy_value(position)
+        position_val = _get_numpy_value(position)
         if isinstance(input_vals, list) and position_val is not None:
             if position_val.size != 1:
                 return None
@@ -430,7 +449,7 @@ def sequence_at(op, node: ir.Node) -> ReturnValue:
                 result = input_vals[position_val]
             except IndexError:
                 return None
-            output.symbolic_value = result 
+            output.symbolic_value = result
             logger.debug("SequenceAt %s => %s", input.name, result.name)
             return op.Identity(result)
     return None
@@ -458,11 +477,11 @@ class ConstantFolder:
 
         # TODO: handle optional inputs
         def get_constant_value(x: ir.Value) -> onnx.TensorProto | None:
-            value = get_numpy_value(x)
+            value = _get_numpy_value(x)
             if isinstance(value, np.ndarray) and value.size < 20:
                 return onnx.numpy_helper.from_array(value, x.name)
             return None
-        
+
         def get_type(value: ir.Value) -> onnx.TypeProto | None:
             if value.type is not None:
                 type_proto = onnx.TypeProto()
@@ -492,7 +511,7 @@ class ConstantFolder:
                 for output in node.outputs:
                     if output.name in output_types:
                         inferred_type = output_types[output.name]
-                            # TODO: merge types, check for conflicts
+                        # TODO: merge types, check for conflicts
                         output.shape = serde.deserialize_type_proto_for_shape(inferred_type)
                         output.type = serde.deserialize_type_proto_for_type(inferred_type)
             except Exception as e:
@@ -501,8 +520,6 @@ class ConstantFolder:
                     node.name,
                     e,
                 )
-
-
 
     def new_constant(self, irvalue: ir.Value, value):
         # TODO(rama): Why do we need the conversion below?
@@ -546,10 +563,10 @@ class ConstantFolder:
         attributes = _convenience.convert_attributes({"value": tensor})
         node = ir.Node("", "Constant", inputs=[], attributes=attributes, num_outputs=1)
         return node
-    
+
     def process_node(self, node: ir.Node):
         for i, value in enumerate(node.inputs):
-            sym_value = get_sym_value(value)
+            sym_value = _get_sym_value(value)
             if isinstance(sym_value, ir.Value):
                 node.replace_input_with(i, sym_value)
                 # TODO(rama): consider merging type/other info from both values
@@ -560,7 +577,7 @@ class ConstantFolder:
 
         if node.domain not in self.opset_imports:
             return None
-        version  = self.opset_imports[node.domain]
+        version = self.opset_imports[node.domain]
         op_optimizers = registry.lookup_evaluators(node.domain, node.op_type, version)
         for optimizer in op_optimizers:
             assert optimizer
@@ -580,13 +597,17 @@ class ConstantFolder:
             return None
 
         input_values = [x.const_value.numpy() if x is not None else None for x in node.inputs]
+
         # Filter out bfloat16 cases?
         def convert(av):
             if isinstance(av, ir.AttrTensor):
                 return serde.serialize_tensor(av.value)
             return av.value
-        attr_values = { name: convert(attr) for name, attr in node.attributes.items() }
-        outputs = reference_evaluator.evaluate(node.domain, node.op_type, version, *input_values, **attr_values)
+
+        attr_values = {name: convert(attr) for name, attr in node.attributes.items()}
+        outputs = reference_evaluator.evaluate(
+            node.domain, node.op_type, version, *input_values, **attr_values
+        )
 
         if outputs is None:
             return None
@@ -597,7 +618,9 @@ class ConstantFolder:
             # self.add_count(op, outputs.size)
             return Replacement(replacement.outputs, [replacement])
         else:
-            logger.warning("Skipping constant folding for op %s with multiple outputs.", node.op_type)
+            logger.warning(
+                "Skipping constant folding for op %s with multiple outputs.", node.op_type
+            )
         return None
 
     def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function):
@@ -655,7 +678,7 @@ class ConstantFolder:
             for attr in node.attributes.values():
                 self.visit_attribute(attr)
             return None
-        
+
         else:
             self.replace_node(node, replacement, root)
 
@@ -668,6 +691,7 @@ class ConstantFolder:
         self.opset_imports = model.opset_imports
         self.visit_graph(model.graph)
         # TODO(rama): handle functions
+
 
 def fold_constants(
     model: ir.Model,
