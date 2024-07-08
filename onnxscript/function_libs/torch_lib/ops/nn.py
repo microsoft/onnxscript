@@ -244,6 +244,7 @@ def aten_avg_pool2d(
     return result
 
 
+@torch_op("aten::avg_pool2d_backward", trace_only=True)
 def aten_avg_pool2d_backward(
     grad_output: TensorType,
     self: TensorType,
@@ -256,7 +257,7 @@ def aten_avg_pool2d_backward(
 ) -> TensorType:
     """avg_pool2d_backward(Tensor grad_output, Tensor self, int[2] kernel_size, int[2] stride, int[2] padding, bool ceil_mode, bool count_include_pad, int? divisor_override) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Identity(self)
 
 
 @torch_op("aten::avg_pool3d", trace_only=True)

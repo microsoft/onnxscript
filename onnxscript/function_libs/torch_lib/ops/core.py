@@ -6671,11 +6671,11 @@ def aten_prelu_backward(
     raise NotImplementedError()
 
 
-#@torch_op("aten::prod")
-def aten_prod(self: TensorType, dtype: Optional[int] = None) -> TensorType:
+@torch_op(("aten::prod", "aten::prod.dim_int"), trace_only=True)
+def aten_prod(self: TReal, dim: int, keepdim: bool = False) -> TReal:
     """prod(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
 
-    return op.ReduceProd(self)
+    return op.ReduceProd(self, axes=[dim], keepdims=keepdim)
 
 
 def aten_promote_types(type1: int, type2: int) -> int:
@@ -7456,6 +7456,19 @@ def aten_scalar_tensor_sym_number(
     # Set trace_only=True because different if branches return different dtypes
     # which is not supported in an ONNX function
     return common_ops.cast_to(s, dtype=dtype)
+
+
+@torch_op("aten::scatter.value")
+def aten_scatter(
+    self: TReal,
+    dim: int,  # we have to use int here because ScatterElements() will use this attribute
+    index: TInt,
+    src: TReal,
+) -> TReal:
+    """scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
+
+    update = op.Expand(src, op.Shape(index))
+    return op.ScatterElements(self, index, update, axis=dim)
 
 
 @torch_op("aten::scatter_add")
