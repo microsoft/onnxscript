@@ -184,6 +184,14 @@ def getInputElementType(node: ir.Node, index: int) -> int:
         return input.type.dtype.value
     return _enums.DataType.UNDEFINED.value
 
+def getIntAttribute(node: ir.Node, name: str, default: int | None = None) -> int | None:
+    if name in node.attributes:
+        attr = node.attributes[name]
+        if isinstance(attr, ir.AttrInt64):
+            return attr.value
+        return None
+    return default
+    
 # TODO(rama): The following should not be necessary. Generic incremental shape-inference
 # should handle this. This essentially implements type/shape-inference for Cast op.
 @register("Cast")
@@ -300,7 +308,11 @@ def concat_from_sequence(op, node: ir.Node) -> ReturnValue:
     if any(x is None for x in inputs):
         return None
     new_axis = node.attributes.get("new_axis", 0)
-    axis = node.attributes["axis"]
+    if new_axis != 0:
+        new_axis = new_axis.value
+    if "axis" not in node.attributes:
+        return None
+    axis = node.attributes["axis"].value
     if input is not None and isinstance(input.symbolic_value, list):
         if new_axis == 0:
             logger.debug("ConcatFromSequence => Concat: %s", [x.name for x in inputs])
@@ -310,7 +322,7 @@ def concat_from_sequence(op, node: ir.Node) -> ReturnValue:
             axis_value = op.Constant(value_int=axis)
             unsqueezed_inputs = []
             for node_input in inputs:
-                unsqueezed_input = op.Unsqueeze(node_input, axis_value, output=[f"{node_input.name}_unsqueeze"])
+                unsqueezed_input = op.Unsqueeze(node_input, axis_value, outputs=[f"{node_input.name}_unsqueeze"])
                 unsqueezed_inputs.append(unsqueezed_input)
             # Send unsqueezed outputs to Concat
             logger.debug(
@@ -374,27 +386,31 @@ def split_to_sequence(op, node: ir.Node) -> ReturnValue:
         # split into chunks all of size 'split' if possible.
         num_outputs = math.ceil(split_dimension_size / split_value.item())
         split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
-        split_values = op.Split(input, axis=axis, num_outputs=num_outputs, output=split_outputs)
+        split_values = op.Split(input, axis=axis, num_outputs=num_outputs, outputs=split_outputs)
     elif split_value.ndim == 1:
         # split into 'size(split)' chunks
         num_outputs = split_value.size
         split_outputs = [f"{output.name}_split_{i}" for i in range(num_outputs)]
-        split_values = op.Split(input, split, axis=axis, output=split_outputs)
+        split_values = op.Split(input, split, axis=axis, outputs=split_outputs)
     else:
         return None
 
-    keepdims = node.attributes.get("keepdims", 1)
+    keepdims = getIntAttribute(node, "keepdims", 1)
+    if keepdims is None:
+        return None
     if keepdims == 0:
         # squeeze the split dimension if keepdims is 0
         axis_val = op.Constant(value_int=axis, outputs=[f"{output.name}_axis"])
         squeezed_values = []
         for i in range(num_outputs):
-            squeezed = op.Squeeze(split_values[i], axis_val, output=[f"{split_outputs[i]}_squeeze"])
+            squeezed = op.Squeeze(split_values[i], axis_val, outputs=[f"{split_outputs[i]}_squeeze"])
             squeezed_values.append(squeezed)
         split_values = squeezed_values
 
     logger.debug("SplitToSequence => Split + SequenceConstruct")
 
+    if isinstance(split_values, ir.Value):
+        split_values = [split_values]
     return op.SequenceConstruct(*split_values)
 
 
