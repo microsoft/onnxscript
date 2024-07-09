@@ -6583,10 +6583,11 @@ def aten_prelu_backward(
     raise NotImplementedError()
 
 
-@torch_op(("aten::prod", "aten::prod.dim_int"), trace_only=True)
+@torch_op(("aten::prod.dim_int"), trace_only=True)
 def aten_prod(self: TReal, dim: int, keepdim: bool = False) -> TReal:
     """prod(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
 
+    # Todo: add test for this function later
     return op.ReduceProd(self, axes=[dim], keepdims=keepdim)
 
 
