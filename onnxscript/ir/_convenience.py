@@ -230,7 +230,8 @@ def convert_attributes(
     """
     attributes: list[_core.Attr | _core.RefAttr] = []
     for name, attr in attrs.items():
-        attributes.append(convert_attribute(name, attr))
+        if attr is not None:
+            attributes.append(convert_attribute(name, attr))
     return attributes
 
 
@@ -368,3 +369,29 @@ def tensor(
             doc_string=name,
         )
     return tensor_
+
+
+def create_value_mapping(graph: _core.Graph) -> dict[str, _core.Value]:
+    """Return a dictionary mapping names to values in the graph.
+
+    The mapping does not include values from subgraphs.
+
+    Args:
+        graph: The graph to extract the mapping from.
+
+    Returns:
+        A dictionary mapping names to values.
+    """
+    values = {}
+    values.update(graph.initializers)
+    # The names of the values can be None or "", which we need to exclude
+    for input in graph.inputs:
+        if not input.name:
+            continue
+        values[input.name] = input
+    for node in graph:
+        for value in node.outputs:
+            if not value.name:
+                continue
+            values[value.name] = value
+    return values
