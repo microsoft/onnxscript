@@ -4652,7 +4652,7 @@ def aten_ldexp(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::le.Tensor", "aten::less_equal.Tensor", "_operator::le"))
+@torch_op(("aten::le.Tensor", "aten::le.Scalar", "aten::less_equal.Tensor", "_operator::le"))
 def aten_le(self: TReal, other: TReal) -> BOOL:
     """le.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -6393,25 +6393,18 @@ def aten_ones_like(
     device: str = "",
     pin_memory: bool = False,
 ) -> TTensor:
-    """ones_like.
+    """ones_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     Note: dtype is an onnx enum. Users should convert torch dtype to onnx dtype
     before calling this function.
     """
-    # ones_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
-
-    # NOTE: trace_only because both if branches need to be the same type, but we have
-    # a cast in the if branch.
+    if dtype is None:
+        dtype = -1
 
     if dtype == -1:
         one = op.CastLike(1, self)
     else:
         one = op.Cast(1, to=dtype)
-    return _aten_ones_like_onnx(self, one)
-
-
-@torch_op("aten::ones_like", private=True)
-def _aten_ones_like_onnx(self: TTensor, one) -> TTensor:
     shape = op.Shape(self)
     return op.Expand(one, shape)
 
@@ -6562,7 +6555,14 @@ def aten_positive(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::pow.Tensor_Tensor", "aten::pow.Tensor_Scalar", "_operator::pow"))
+@torch_op(
+    (
+        "aten::pow.Scalar",
+        "aten::pow.Tensor_Tensor",
+        "aten::pow.Tensor_Scalar",
+        "_operator::pow",
+    )
+)
 def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     """pow(Tensor self, Tensor exponent) -> Tensor"""
 
@@ -6583,10 +6583,12 @@ def aten_prelu_backward(
     raise NotImplementedError()
 
 
-def aten_prod(self: TensorType, dtype: Optional[int] = None) -> TensorType:
+@torch_op(("aten::prod.dim_int"), trace_only=True)
+def aten_prod(self: TReal, dim: int, keepdim: bool = False) -> TReal:
     """prod(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
 
-    raise NotImplementedError()
+    # Todo: add test for this function later
+    return op.ReduceProd(self, axes=[dim], keepdims=keepdim)
 
 
 def aten_promote_types(type1: int, type2: int) -> int:
@@ -7367,6 +7369,19 @@ def aten_scalar_tensor_sym_number(
     # Set trace_only=True because different if branches return different dtypes
     # which is not supported in an ONNX function
     return common_ops.cast_to(s, dtype=dtype)
+
+
+@torch_op("aten::scatter.value", trace_only=True)
+def aten_scatter(
+    self: TReal,
+    dim: int,  # we have to use int here because ScatterElements() will use this attribute
+    index: TInt,
+    src: TReal,
+) -> TReal:
+    """scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
+
+    update = op.Expand(src, op.Shape(index))
+    return op.ScatterElements(self, index, update, axis=dim)
 
 
 @torch_op("aten::scatter_add")
@@ -8861,6 +8876,8 @@ def aten_zeros_like(self: TTensor, dtype: int = -1) -> TTensor:
 
     # NOTE: trace_only because both if branches need to be the same type, but we have
     # a cast in the if branch.
+    if dtype is None:
+        dtype = -1
 
     if dtype == -1:
         zero = op.CastLike(0, self)

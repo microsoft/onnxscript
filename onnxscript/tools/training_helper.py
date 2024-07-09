@@ -51,7 +51,7 @@ def train_loop(
     Returns:
         - the forward outputs
         - the backwards gradients
-        - the dumped onnw models, 2 at least unless the forward, backward
+        - the dumped onnx models, 2 at least unless the forward, backward
           were called before this function is executed or if the model
           is not a compiled model
     """

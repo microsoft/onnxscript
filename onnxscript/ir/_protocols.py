@@ -504,7 +504,7 @@ class TypeProtocol(Protocol):
     elem_type: TypeProtocol | _enums.DataType
     dtype: _enums.DataType
 
-    def __eq__(self, __value: object) -> bool: ...
+    def __eq__(self, value: object, /) -> bool: ...
 
 
 @typing.runtime_checkable

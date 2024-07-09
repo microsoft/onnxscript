@@ -97,7 +97,7 @@ class TestExportPhi(unittest.TestCase):
             fullgraph=True,
         )
 
-        expected_results, expected_gradients = onnxscript.tools.training_helper.train_loop(
+        expected_results, expected_gradients = onnxscript.tools.training_helper.train_loop(  # pylint: disable=unbalanced-tuple-unpacking
             model, *input_tensors
         )
         results, gradients, onnx_models = onnxscript.tools.training_helper.train_loop(

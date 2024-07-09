@@ -3,7 +3,6 @@
 # pylint: disable=not-callable, unbalanced-tuple-unpacking
 
 import copy
-import os
 import sys
 import unittest
 
