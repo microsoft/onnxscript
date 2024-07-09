@@ -8392,10 +8392,11 @@ def aten_trunc(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     return op.Where(is_negative, op.Neg(integer_parts), integer_parts)
 
 
+@torch_op("aten::type_as", traceable=True)
 def aten_type_as(self: TensorType, other: TensorType) -> TensorType:
     """type_as(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.CastLike(self, other)
 
 
 @torch_op("aten::unbind.int")
