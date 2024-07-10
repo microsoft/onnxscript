@@ -5986,16 +5986,12 @@ def aten_native_channel_shuffle(self: TensorType, groups: int) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::native_dropout")
+@torch_op("aten::native_dropout", trace_only=True)
 def aten_native_dropout(
     input: TFloatOrBFloat16, p: float, train: bool = True
 ) -> Tuple[TFloatOrBFloat16, BOOL]:
     """native_dropout(Tensor input, float p, bool? train) -> (Tensor, Tensor)"""
 
-    # Python bool attributes need to be explicitly converted to BOOL
-    # because the underlying attribute type is int
-    # TODO(#872): Allow ONNX Script to handle this conversion
-    train = op.Cast(train, to=BOOL.dtype)
     result, mask = op.Dropout(input, p, train)
     return result, mask
 
@@ -8392,10 +8388,11 @@ def aten_trunc(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     return op.Where(is_negative, op.Neg(integer_parts), integer_parts)
 
 
-def aten_type_as(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::type_as", traceable=True)
+def aten_type_as(self: TTensor, other: TTensor2) -> TTensor2:
     """type_as(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.CastLike(self, other)
 
 
 @torch_op("aten::unbind.int")
