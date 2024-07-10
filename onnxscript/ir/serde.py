@@ -50,7 +50,8 @@ __all__ = [
     "serialize_tensor_into",
     "serialize_tensor",
     "serialize_type_into",
-    "serialize_typeserialize_value_into",
+    "serialize_type",
+    "serialize_value_into",
     "serialize_value",
     "SerdeError",
 ]
