@@ -50,7 +50,7 @@ __all__ = [
     "serialize_tensor_into",
     "serialize_tensor",
     "serialize_type_into",
-    "serialize_value_into",
+    "serialize_typeserialize_value_into",
     "serialize_value",
     "SerdeError",
 ]
@@ -1509,6 +1509,12 @@ def serialize_type_into(type_proto: onnx.TypeProto, from_: _protocols.TypeProtoc
         serialize_type_into(optional_type_proto.elem_type, from_.elem_type)
     else:
         raise TypeError(f"Unsupported type: {from_}")
+
+
+def serialize_type(type_protocol: _protocols.TypeProtocol) -> onnx.TypeProto:
+    type_proto = onnx.TypeProto()
+    serialize_type_into(type_proto, from_=type_protocol)
+    return type_proto
 
 
 @_capture_errors(lambda type_proto, from_: repr(from_))

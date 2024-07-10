@@ -4,14 +4,14 @@
 import unittest
 
 import onnx
+
 import onnxscript.optimizer as optimizer
 
 
-
 class OptimizerTest(unittest.TestCase):
-        def test_static_split_to_sequence_with_uneven_split(self):
-            model = onnx.parser.parse_model(
-                """
+    def test_static_split_to_sequence_with_uneven_split(self):
+        model = onnx.parser.parse_model(
+            """
                 <
                     ir_version: 8,
                     opset_import: ["pkg.onnxscript.torch_lib" : 1, "" : 18, "pkg.onnxscript.torch_lib.common" : 1],
@@ -58,11 +58,12 @@ class OptimizerTest(unittest.TestCase):
                     return_val = Equal (tmp_0, tmp_1)
                 }
                 """
-            )
-            optimized = optimizer.optimize(model, num_iterations=1, onnx_shape_inference=False)
-            self.assertEqual(len(optimized.graph.node), 2)
-            self.assertEqual(len(optimized.graph.node[0].output), 2)
-            self.assertEqual(optimized.graph.node[0].op_type, "Split")
+        )
+        optimized = optimizer.optimize(model, num_iterations=1, onnx_shape_inference=False)
+        self.assertEqual(len(optimized.graph.node), 2)
+        self.assertEqual(len(optimized.graph.node[0].output), 2)
+        self.assertEqual(optimized.graph.node[0].op_type, "Split")
+
 
 if __name__ == "__main__":
     unittest.main()
