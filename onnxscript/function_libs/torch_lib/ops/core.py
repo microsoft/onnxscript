@@ -6565,13 +6565,20 @@ def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     return op.Pow(self, exponent)
 
 
-@torch_op(("aten::prelu", "aten::_prelu_kernel"), traceable=True)
+@torch_op(("aten::prelu", "aten::_prelu_kernel"), trace_only=True)
 def aten_prelu(self: TReal, weight: TReal) -> TReal:
     """prelu(Tensor self, Tensor weight) -> Tensor"""
 
-    # FIXME(justinchuby): [5,10,5] * [10]; [] * [1]
     zero = op.CastLike(0, self)
-    return op.Max(self, zero) + weight * op.Min(self, zero)
+    rank = len(self.shape)
+    if rank == 0:
+        if len(weight.shape) == 1:
+            # e.g. [] * [1]
+            weight = op.Squeeze(weight, [-1])
+    elif rank >= 2:
+        # e.g. [5,10,5] * [10]
+        weight = op.Reshape(weight, [1, -1] + [1] * (rank - 2))
+    return op.Add(op.Max(self, zero), op.Mul(weight, op.Min(self, zero)))
 
 
 def aten_prelu_backward(
