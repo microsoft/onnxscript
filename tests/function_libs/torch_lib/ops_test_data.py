@@ -1311,6 +1311,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("polar", core_ops.aten_polar),
     TorchLibOpInfo("pow", core_ops.aten_pow),
+    TorchLibOpInfo("nn.functional.prelu", core_ops.aten_prelu),
     TorchLibOpInfo("ops.aten.rand", core_ops.aten_rand, nondeterministic=True),
     TorchLibOpInfo("ops.aten.rand_like", core_ops.aten_rand_like, nondeterministic=True),
     TorchLibOpInfo("ops.aten.randint", core_ops.aten_randint, nondeterministic=True),
