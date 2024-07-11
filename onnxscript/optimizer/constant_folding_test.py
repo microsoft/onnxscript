@@ -8,7 +8,7 @@ import pytest
 
 import onnxscript.optimizer as optimizer
 from onnxscript.ir import serde
-from onnxscript.optimizer import constant_folding, constant_folding_ir
+from onnxscript.optimizer import _constant_folding, constant_folding
 
 
 @parameterized.parameterized_class(("using_ir",), [(False,), (True,)])
@@ -16,7 +16,7 @@ class FoldConstantsTest(unittest.TestCase):
     def _fold(self, model: onnx.ModelProto, onnx_shape_inference=False):
         if self.using_ir:
             ir_model = serde.deserialize_model(model)
-            constant_folding_ir.fold_constants(
+            _constant_folding.fold_constants(
                 ir_model, onnx_shape_inference=onnx_shape_inference
             )
             optimizer.remove_unused_nodes(ir_model)

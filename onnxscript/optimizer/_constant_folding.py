@@ -3,6 +3,8 @@
 # Licensed under the MIT License.
 # -------------------------------------------------------------------------
 
+# NOTE: This will eventually replace the existing constant_folding.py and evaluator.py files.
+
 from __future__ import annotations
 
 import dataclasses
@@ -210,9 +212,11 @@ def _get_input_element_type(node: ir.Node, index: int) -> int:
 
 def _get_int_attribute(node: ir.Node, name: str, default: int | None = None) -> int | None:
     if name in node.attributes:
-        attr = node.attributes[name]
-        if isinstance(attr, ir.AttrInt64):
-            return attr.value
+        attr = node.attributes[name].value
+        if isinstance(attr, int):
+            return attr
+        # This is an invalid model. For now, we just return None.
+        # We could raise an error too.
         return None
     return default
 
@@ -234,7 +238,7 @@ def cast_like(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     source_element_type = _get_input_element_type(node, 0)
     target_element_type = _get_input_element_type(node, 1)
 
-    if target_element_type == ir.DataType.UNDEFINED.value:
+    if target_element_type == ir.DataType.UNDEFINED:
         return None
     if source_element_type == target_element_type:
         return op.Identity(input0)
