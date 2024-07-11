@@ -6572,9 +6572,8 @@ def aten_prelu(self: TReal, weight: TReal) -> TReal:
     zero = op.CastLike(0, self)
     rank = len(self.shape)
     if rank == 0:
-        if len(weight.shape) == 1:
-            # e.g. self: [], weight: [1]
-            weight = op.Squeeze(weight, [-1])
+        # e.g. self: [], weight: [1]
+        weight = op.Squeeze(weight, [-1])
     elif rank >= 2:
         # e.g. self: [5,10,5], weight: [10]
         weight = op.Reshape(weight, [1, -1] + [1] * (rank - 2))
