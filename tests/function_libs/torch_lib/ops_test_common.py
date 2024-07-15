@@ -34,6 +34,7 @@ from torch.testing._internal.opinfo import core as opinfo_core
 
 import onnxscript
 import onnxscript.evaluator
+from onnxscript import ir
 from onnxscript.function_libs.torch_lib import graph_building
 from tests.function_libs.torch_lib import error_reproduction
 
@@ -538,7 +539,7 @@ def graph_executor(
             onnx.checker.check_model(onnx_model, full_check=True)
         except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
             raise AssertionError(
-                f"ONNX model is invalid. Model:\n{onnx.printer.to_text(onnx_model)}"
+                f"ONNX model is invalid. Model:\n{ir.serde.deserialize_model(onnx_model)}"
             ) from e
 
         try:
