@@ -47,19 +47,9 @@ def aten_linalg_cond(self: TensorType, p: Optional[float] = None) -> TensorType:
 @torch_op("aten::linalg_cross")
 def aten_linalg_cross(self: TTensor, other: TTensor, dim: int = -1) -> TTensor:
 
-    zero = op.Constant(value_ints=[0])
-    one = op.Constant(value_ints=[1])
-    two = op.Constant(value_ints=[2])
-    three = op.Constant(value_ints=[3])
-    axes = op.Expand(dim, op.Constant(value_ints=[1]))
-
     # Reference https://en.wikipedia.org/w/index.php?title=Cross_product&oldid=1143125073
-    a1 = op.Slice(self, zero, one, axes)
-    a2 = op.Slice(self, one, two, axes)
-    a3 = op.Slice(self, two, three, axes)
-    b1 = op.Slice(other, zero, one, axes)
-    b2 = op.Slice(other, one, two, axes)
-    b3 = op.Slice(other, two, three, axes)
+    a1, a2, a3 = op.Split(self, axis=dim, num_outputs=3)
+    b1, b2, b3 = op.Split(other, axis=dim, num_outputs=3)
     # Broadcasting is implicitly supported by Mul
     c1 = op.Sub(op.Mul(a2, b3), op.Mul(a3, b2))
     c2 = op.Sub(op.Mul(a3, b1), op.Mul(a1, b3))
