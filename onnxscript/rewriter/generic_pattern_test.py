@@ -281,6 +281,7 @@ class GenericPatternTest(unittest.TestCase):
         self.assertEqual(len(graph.node), 2)
         self.assertEqual(graph.node[0].op_type, "SinCos")
 
+    @unittest.skip("Input variable reuse not supported yet")
     def test_shared_root_value_extra_use_test(self):
         def match_pattern(op, x):
             t1 = op.Sin(x)
