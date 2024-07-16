@@ -4663,14 +4663,15 @@ def aten_le_bool(self: BOOL, other: BOOL) -> BOOL:
 
 
 @torch_op(("aten::lerp.Tensor", "aten::lerp.Scalar"))
-def aten_lerp(self: TReal, end: TReal, weight: TReal) -> TReal:
+def aten_lerp(self: TTensor, end: TTensor, weight: TTensor) -> TTensor:
     """lerp.Tensor(Tensor self, Tensor end, Tensor weight) -> Tensor"""
 
-    diff = op.CastLike(op.Sub(end, self), weight)
+    weight = op.CastLike(weight, self)
+    diff = op.Sub(end, self)
     return op.Where(
         op.Less(weight, 0.5),
-        op.Add(self, op.CastLike(op.Mul(weight, diff), self)),
-        op.Sub(end, op.CastLike(op.Mul(diff, op.Sub(1.0, weight)), end))
+        op.Add(self, op.Mul(weight, diff)),
+        op.Sub(end, op.Mul(diff, op.Sub(1.0, weight)))
     )
 
 
