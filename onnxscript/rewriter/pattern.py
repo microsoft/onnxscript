@@ -665,21 +665,23 @@ class GraphPattern:
         self._nodes = _nodes_in_pattern(outputs)
 
         # Check if all outputs are produced by the same node.
-        output_node = None
-        for i, value_pattern in enumerate(outputs):
+        output_nodes : set[NodePattern] = set()
+        for value_pattern in outputs:
             if not isinstance(value_pattern, ValuePattern):
                 raise TypeError(
                     f"Invalid type {type(value_pattern)} for graph pattern output."
                 )
-            if not isinstance(value_pattern, NodeOutputPattern) or (
-                value_pattern.output_index != i
-            ):
-                output_node = None
-            elif i == 0:
-                output_node = value_pattern.producer()
-            elif value_pattern.producer() is not output_node:
-                output_node = None
-        self._output_node = output_node
+            if isinstance(value_pattern, Constant):
+                raise ValueError("Constant values are not allowed as graph pattern outputs.")
+            if isinstance(value_pattern, NodeOutputPattern):
+                output_nodes.add(value_pattern.producer())
+        self.output_nodes : list[NodePattern] = list(output_nodes)
+
+    @property
+    def output_node(self) -> NodePattern:
+        if len(self.output_nodes) != 1:
+            raise ValueError("GraphPattern does not have unique output node.")
+        return self.output_nodes[0]
 
     def node(self, index: int) -> NodePattern:
         return self._nodes[index]
@@ -706,18 +708,18 @@ class GraphPattern:
 
     @property
     def has_single_output_node(self) -> bool:
-        return self._output_node is not None
+        return len(self.output_nodes) == 1
 
     @property
     def num_outputs(self) -> int:
         return len(self._outputs)
 
     def commute(self) -> Sequence[GraphPattern]:
-        if self._output_node is None:
+        if not self.has_single_output_node:
             raise NotImplementedError(
                 "Cannot commute a graph pattern with multiple output nodes."
             )
-        nodes = self._output_node.commute()
+        nodes = self.output_node.commute()
         return [
             GraphPattern(
                 self._inputs, [NodeOutputPattern(n, i) for i in range(self.num_outputs)]
@@ -907,9 +909,6 @@ class PatternMatcher(abc.ABC):
 
 class SimplePatternMatcher(PatternMatcher):
     def __init__(self, pattern: GraphPattern) -> None:
-        assert (
-            pattern.has_single_output_node
-        ), "SimplePatternMatcher only supports patterns with a single output node."
         super().__init__(pattern)
 
     def fail(self, reason: str) -> bool:
@@ -1029,6 +1028,62 @@ class SimplePatternMatcher(PatternMatcher):
             )
         return self._match_node(pattern_value.producer(), node)
 
+    def _init_match(self, verbose: int) -> None:
+        self._verbose = verbose
+        self._matched: dict[NodePattern, ir.Node] = {}
+        self._match: MatchResult = MatchResult()
+
+    def _get_value_binding(self, value_pattern: ValuePattern) -> ir.Value | None:
+        if value_pattern.name is not None:
+            return self._match.bindings.get(value_pattern.name)
+        if isinstance(value_pattern, NodeOutputPattern):
+            i = value_pattern.output_index
+            node = value_pattern.producer()
+            if node in self._matched:
+                return self._matched[node].outputs[i]
+        if isinstance(value_pattern, Constant):
+            raise NotImplementedError("Constant values as return-values not supported.")
+        return None
+
+    def match_single_output_node(
+        self,
+        model: ir.Model,
+        graph_or_function: ir.Graph | ir.Function,
+        node: ir.Node,
+    ) -> MatchResult:
+        del model
+        del graph_or_function
+
+        pattern = self.pattern
+        match = self._match
+
+        if not pattern.has_single_output_node:
+            return match.fail(
+                "Internal Error: SimplePatternMatcher should not be used for patterns with multiple output nodes."
+            )
+
+        if self._match_node(pattern.output_node, node):
+            if not _valid_to_replace(match.nodes):
+                return match.fail("Matched nodes have other uses preventing replacement.")
+
+        if len(node.outputs) != pattern.num_outputs:
+            return match.fail(
+                f"Number of node outputs mismatch: expected {pattern.num_outputs}, got {len(node.outputs)}."
+            )
+        output_values = [self._get_value_binding(v) for v in pattern.outputs]
+        match.outputs.extend(output_values)
+        return match
+
+    def match_multiple_output_nodes(
+        self,
+        model: ir.Model,
+        graph_or_function: ir.Graph | ir.Function,
+        node: ir.Node,
+    ) -> MatchResult:
+            raise NotImplementedError(
+                "SimplePatternMatcher does not support patterns with multiple output nodes."
+            )
+            
     def match(
         self,
         model: ir.Model,
@@ -1036,29 +1091,16 @@ class SimplePatternMatcher(PatternMatcher):
         node: ir.Node,
         verbose: int = 0,
     ) -> MatchResult:
-        del model
-        del graph_or_function
-        self._verbose = verbose
-        self._matched: dict[NodePattern, ir.Node] = {}
-        self._match: MatchResult = MatchResult()
-
-        pattern = self.pattern
-        match = self._match
-        if len(node.outputs) != pattern.num_outputs:
-            return match.fail(
-                f"Number of node outputs mismatch: expected {pattern.num_outputs}, got {len(node.outputs)}."
+        self._init_match(verbose)
+        if self.pattern.has_single_output_node:
+            return self.match_single_output_node(
+                model, graph_or_function, node
             )
-        if pattern._output_node is None:
-            return match.fail(
-                "Internal Error: SimplePatternMatcher should not be used for patterns with multiple output nodes."
+        else:
+            return self.match_multiple_output_nodes(
+                model, graph_or_function, node
             )
 
-        if self._match_node(pattern._output_node, node):
-            if not _valid_to_replace(match.nodes):
-                return match.fail("Matched nodes have other uses preventing replacement.")
-
-        match.outputs.extend(node.outputs)
-        return match
 
 
 class RewriteRule:
