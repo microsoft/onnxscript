@@ -312,9 +312,8 @@ class GenericPatternTest(unittest.TestCase):
         model = onnx.shape_inference.infer_shapes(model_proto)
         ir_model = ir.serde.deserialize_model(model)
         rule.apply_to_model(ir_model)
-        rewritten_model = ir.serde.serialize_model(ir_model)
-        graph = rewritten_model.graph
-        self.assertEqual(len(graph.node), 3)
+        graph = ir_model.graph
+        self.assertEqual(len(graph), 3)
         self.assertEqual(graph.node[0].op_type, "SinCos")
 
     def test_rotary_embedding(self):
