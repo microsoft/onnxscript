@@ -2236,7 +2236,7 @@ def aten_cov(
     raise NotImplementedError()
 
 
-@torch_op("aten::cross")
+@torch_op(("aten::cross", "aten::linalg_cross"))
 def aten_cross(self: TTensor, other: TTensor, dim: int = -1) -> TTensor:
     """cross(Tensor self, Tensor other, int? dim=None) -> Tensor"""
 
