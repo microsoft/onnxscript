@@ -54,4 +54,5 @@ EXPERIMENTAL_PREFER_TRACING: bool = _load_boolean_flag(
 EXPERIMENTAL_USE_IR: bool = _load_boolean_flag(
     "TORCHLIB_EXPERIMENTAL_USE_IR",
     this_will="use the ONNX IR instead of the PyTorch Graph for graph building",
+    deprecated=True,
 )

@@ -1311,6 +1311,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("polar", core_ops.aten_polar),
     TorchLibOpInfo("pow", core_ops.aten_pow),
+    TorchLibOpInfo("nn.functional.prelu", core_ops.aten_prelu),
     TorchLibOpInfo("ops.aten.rand", core_ops.aten_rand, nondeterministic=True),
     TorchLibOpInfo("ops.aten.rand_like", core_ops.aten_rand_like, nondeterministic=True),
     TorchLibOpInfo("ops.aten.randint", core_ops.aten_randint, nondeterministic=True),
@@ -1390,6 +1391,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("select_scatter", core_ops.aten_select_scatter),
     TorchLibOpInfo("sigmoid", core_ops.aten_sigmoid),
     TorchLibOpInfo("sign", core_ops.aten_sign),
+    TorchLibOpInfo("nn.functional.silu", nn_ops.aten_silu),
     TorchLibOpInfo("sin", core_ops.aten_sin),
     TorchLibOpInfo(
         "sinc", special_ops.aten_special_sinc, tolerance={torch.float16: (1e-2, 6e-4)}
