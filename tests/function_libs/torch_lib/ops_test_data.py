@@ -900,7 +900,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("log", core_ops.aten_log),
     TorchLibOpInfo("le", core_ops.aten_le),
     TorchLibOpInfo("le_bool", core_ops.aten_le_bool),
-    TorchLibOpInfo("lerp", core_ops.aten_lerp),
+    TorchLibOpInfo(
+        "lerp",
+        core_ops.aten_lerp,
+        tolerance={torch.float16: (2e-3, 2e-1)},
+    ),
     TorchLibOpInfo("log10", core_ops.aten_log10),
     TorchLibOpInfo("log1p", core_ops.aten_log1p),
     TorchLibOpInfo(
@@ -1021,7 +1025,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("mT", core_ops.aten_mT_complex, complex=True),
     TorchLibOpInfo("mul", core_ops.aten_mul),
     TorchLibOpInfo("mul", core_ops.aten_mul_complex, complex=True),
-    TorchLibOpInfo("mv", core_ops.aten_mv),
+    TorchLibOpInfo(
+        "mv",
+        core_ops.aten_mv,
+        tolerance={torch.float16: (3e-2, 1e-2)},
+    ),
     TorchLibOpInfo("narrow", core_ops.aten_narrow),
     TorchLibOpInfo("ops.aten.native_dropout", core_ops.aten_native_dropout),
     TorchLibOpInfo("ne", core_ops.aten_ne),

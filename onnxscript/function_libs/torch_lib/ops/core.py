@@ -4666,11 +4666,11 @@ def aten_le_bool(self: BOOL, other: BOOL) -> BOOL:
 def aten_lerp(self: TReal, end: TReal, weight: TReal) -> TReal:
     """lerp.Tensor(Tensor self, Tensor end, Tensor weight) -> Tensor"""
 
-    diff = op.Sub(end, self)
+    diff = op.CastLike(op.Sub(end, self), weight)
     return op.Where(
         op.Less(weight, 0.5),
-        op.Add(self, op.Mul(weight, diff)),
-        op.Sub(end, op.Mul(diff, op.Sub(1.0, weight)))
+        op.Add(self, op.CastLike(op.Mul(weight, diff), self)),
+        op.Sub(end, op.CastLike(op.Mul(diff, op.Sub(1.0, weight)), end))
     )
 
 
