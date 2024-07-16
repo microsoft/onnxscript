@@ -871,7 +871,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("isneginf", core_ops.aten_isneginf),
     TorchLibOpInfo("isposinf", core_ops.aten_isposinf),
     TorchLibOpInfo("lift_fresh_copy", core_ops.aten_lift_fresh_copy),
-    TorchLibOpInfo("linalg.cross", linalg_ops.aten_linalg_cross),
     TorchLibOpInfo("linalg.det", linalg_ops.aten_linalg_det),
     TorchLibOpInfo(
         "linalg.vector_norm",
@@ -2393,7 +2392,6 @@ PRIMS_OPS_WITH_OP_INFO = (
     "imag",
     "isfinite",
     "le",
-    "lerp",
     "lgamma",
     "log",
     "log10",
@@ -2403,7 +2401,6 @@ PRIMS_OPS_WITH_OP_INFO = (
     "maximum",
     "minimum",
     "mul",
-    "mv",
     "ne",
     "neg",
     "nextafter",
