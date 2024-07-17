@@ -45,6 +45,7 @@ def aten_linalg_cond(self: TensorType, p: Optional[float] = None) -> TensorType:
 
 
 def aten_linalg_cross(self: TTensor, other: TTensor, dim: int = -1) -> TTensor:
+    """linalg_cross(Tensor self, Tensor other, *, int dim=-1) -> Tensor"""
 
     # Same implementation as aten_cross
     raise NotImplementedError()
