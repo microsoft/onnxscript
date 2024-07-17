@@ -2236,23 +2236,13 @@ def aten_cov(
     raise NotImplementedError()
 
 
-@torch_op("aten::cross")
+@torch_op(("aten::cross", "aten::linalg_cross"))
 def aten_cross(self: TTensor, other: TTensor, dim: int = -1) -> TTensor:
     """cross(Tensor self, Tensor other, int? dim=None) -> Tensor"""
 
-    zero = op.Constant(value_ints=[0])
-    one = op.Constant(value_ints=[1])
-    two = op.Constant(value_ints=[2])
-    three = op.Constant(value_ints=[3])
-    axes = op.Expand(dim, op.Constant(value_ints=[1]))
-
     # Reference https://en.wikipedia.org/w/index.php?title=Cross_product&oldid=1143125073
-    a1 = op.Slice(self, zero, one, axes)
-    a2 = op.Slice(self, one, two, axes)
-    a3 = op.Slice(self, two, three, axes)
-    b1 = op.Slice(other, zero, one, axes)
-    b2 = op.Slice(other, one, two, axes)
-    b3 = op.Slice(other, two, three, axes)
+    a1, a2, a3 = op.Split(self, axis=dim, num_outputs=3)
+    b1, b2, b3 = op.Split(other, axis=dim, num_outputs=3)
     # Broadcasting is implicitly supported by Mul
     c1 = op.Sub(op.Mul(a2, b3), op.Mul(a3, b2))
     c2 = op.Sub(op.Mul(a3, b1), op.Mul(a1, b3))
@@ -3571,7 +3561,7 @@ def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::fmod")
+@torch_op(("aten::fmod.Tensor", "aten::fmod.Scalar"))
 def aten_fmod(self: TRealOrUInt8, other: TRealOrUInt8) -> TRealOrUInt8:
     """fmod.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -4659,7 +4649,7 @@ def aten_le(self: TReal, other: TReal) -> BOOL:
     return op.LessOrEqual(self, other)
 
 
-@torch_op(("aten::le.Tensor", "aten::less_equal.Tensor", "_operator::le"))
+@torch_op(("aten::le.Tensor", "aten::le.Scalar", "aten::less_equal.Tensor", "_operator::le"))
 def aten_le_bool(self: BOOL, other: BOOL) -> BOOL:
     """le.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -4672,10 +4662,17 @@ def aten_le_bool(self: BOOL, other: BOOL) -> BOOL:
     return op.Or(other, op.Not(self))
 
 
-def aten_lerp(self: TensorType, end: TensorType, weight: TensorType) -> TensorType:
+@torch_op(("aten::lerp.Tensor", "aten::lerp.Scalar"))
+def aten_lerp(self: TTensor, end: TTensor, weight: TTensor) -> TTensor:
     """lerp.Tensor(Tensor self, Tensor end, Tensor weight) -> Tensor"""
 
-    raise NotImplementedError()
+    weight = op.CastLike(weight, self)
+    diff = op.Sub(end, self)
+    return op.Where(
+        op.Less(weight, 0.5),
+        op.Add(self, op.Mul(weight, diff)),
+        op.Sub(end, op.Mul(diff, op.Sub(1.0, weight))),
+    )
 
 
 def aten_lgamma(self: TensorType) -> TensorType:
@@ -5619,10 +5616,11 @@ def aten_multiply(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::mv")
 def aten_mv(self: TensorType, vec: TensorType) -> TensorType:
     """mv(Tensor self, Tensor vec) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.MatMul(self, vec)
 
 
 def aten_mvlgamma(self: TensorType, p: int) -> TensorType:
@@ -6565,10 +6563,19 @@ def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     return op.Pow(self, exponent)
 
 
-def aten_prelu(self: TensorType, weight: TensorType) -> TensorType:
+@torch_op(("aten::prelu", "aten::_prelu_kernel"), trace_only=True)
+def aten_prelu(self: TReal, weight: TReal) -> TReal:
     """prelu(Tensor self, Tensor weight) -> Tensor"""
 
-    raise NotImplementedError()
+    zero = op.CastLike(0, self)
+    rank = len(self.shape)
+    if rank == 0:
+        # e.g. self: [], weight: [1]
+        weight = op.Squeeze(weight)
+    elif rank >= 2:
+        # e.g. self: [5,10,5], weight: [10]
+        weight = op.Reshape(weight, [1, -1] + [1] * (rank - 2))
+    return op.Add(op.Max(self, zero), op.Mul(weight, op.Min(self, zero)))
 
 
 def aten_prelu_backward(
@@ -7002,7 +7009,7 @@ def aten_refine_names(self: TensorType, names: Sequence[str]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::remainder")
+@torch_op(("aten::remainder.Tensor", "aten::remainder.Scalar"))
 def aten_remainder(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -7015,7 +7022,7 @@ def aten_remainder(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrB
     return op.Sub(self, op.Mul(rounded_quotient, other))
 
 
-@torch_op("aten::remainder")
+@torch_op(("aten::remainder.Tensor", "aten::remainder.Scalar"))
 def aten_remainder_int(self: TInt, other: TInt) -> TInt:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -8524,10 +8531,11 @@ def aten_unsafe_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType
     raise NotImplementedError()
 
 
-def aten_unsafe_split(self: TensorType, split_size: INT64, dim: int = 0) -> TensorType:
+@torch_op(("aten::unsafe_split", "aten::unsafe_split.Tensor"))
+def aten_unsafe_split(self: TTensor, split_size: INT64, dim: int = 0) -> Sequence[TTensor]:
     """unsafe_split.Tensor(Tensor self, SymInt split_size, int dim=0) -> Tensor[]"""
 
-    raise NotImplementedError()
+    return op.SplitToSequence(self, split_size, axis=dim)
 
 
 def aten_unsafe_split_with_sizes(

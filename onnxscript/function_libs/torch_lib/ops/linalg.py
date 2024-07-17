@@ -17,7 +17,7 @@ from typing import Optional, Sequence
 from onnxscript import BOOL, FLOAT, INT64
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
-from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
+from onnxscript.function_libs.torch_lib.tensor_typing import TFloat, TTensor
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -44,9 +44,10 @@ def aten_linalg_cond(self: TensorType, p: Optional[float] = None) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_linalg_cross(self: TensorType, other: TensorType, dim: int = -1) -> TensorType:
+def aten_linalg_cross(self: TTensor, other: TTensor, dim: int = -1) -> TTensor:
     """linalg_cross(Tensor self, Tensor other, *, int dim=-1) -> Tensor"""
 
+    # Same implementation as aten_cross
     raise NotImplementedError()
 
 
