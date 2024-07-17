@@ -1104,14 +1104,27 @@ class SimplePatternMatcher(PatternMatcher):
             return self._match_single_output_node(model, graph_or_function, node)
         else:
             pattern_output_nodes = self.pattern.output_nodes
+            op_to_nodes: dict[tuple[str, str, str], list[ir.Node]] = {}
+            for n in graph_or_function:
+                op_to_nodes.setdefault(n.op_identifier(), []).append(n)
             all_nodes = iter(graph_or_function)
-            candidates = [iter([node])] + [all_nodes for _ in pattern_output_nodes[1:]]
+
+            def get_nodes(pattern_node):
+                id = pattern_node.op_identifier()
+                if id is None:
+                    return all_nodes
+                return op_to_nodes.get(id, [])
+
+            candidates = [iter([node])] + [get_nodes(pn) for pn in pattern_output_nodes[1:]]
+            match = None
             for combination in itertools.product(*candidates):
                 candidate = dict(zip(pattern_output_nodes, combination))
                 self._init_match(verbose)
                 match = self._multi_match(candidate)
                 if match:
                     return match
+            if match is None:
+                return self.fail("No match found.")
             return match
 
 
