@@ -138,11 +138,11 @@ class PartialEvaluatorRegistry:
     def register(
         self, opname: str, domain: str = "", version=None
     ) -> Callable[[PartialEvaluatorFunction], PartialEvaluatorFunction]:
-        if (domain, opname) not in self.op_evaluators:
+        if (domain, opname) in self.op_evaluators:
+            evaluator_list = self.op_evaluators[(domain, opname)]
+        else:
             evaluator_list = []
             self.op_evaluators[(domain, opname)] = evaluator_list
-        else:
-            evaluator_list = self.op_evaluators[(domain, opname)]
         if version is None:
             min_version = None
             max_version = None
@@ -174,15 +174,18 @@ def _get_numpy_value(val: ir.Value) -> np.ndarray | None:
 def _get_bool_value(val: ir.Value | None) -> bool | None:
     if val is None:
         return None
-    val = _get_numpy_value(val)
-    if val is None:
+    value = _get_numpy_value(val)
+    if value is None:
         return None
-    if isinstance(val, bool):
-        return val
-    if isinstance(val, np.bool_):
-        return bool(val)
-    if isinstance(val, np.ndarray) and val.size == 1 and val.dtype == bool:
-        return val.item(0)
+    # TODO: cleanup following checks, which seem redundant. But need to also ensure
+    # the invariant when setting the value (and also use clearly defined representation
+    # types in evaluators, such a reference-evaluator).
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, np.bool_):
+        return bool(value)
+    if isinstance(value, np.ndarray) and value.size == 1 and value.dtype == bool:
+        return value.item(0)
     return None
 
 
@@ -212,11 +215,14 @@ def _get_input_element_type(node: ir.Node, index: int) -> int:
 
 def _get_int_attribute(node: ir.Node, name: str, default: int | None = None) -> int | None:
     if name in node.attributes:
-        attr = node.attributes[name].value
-        if isinstance(attr, int):
-            return attr
-        # This is an invalid model. For now, we just return None.
-        # We could raise an error too.
+        attr = node.attributes[name]
+        if not isinstance(attr, ir.Attr):
+            return None
+        attr_val = attr.value
+        if isinstance(attr_val, int):
+            return attr_val
+        # This is an invalid model: attribute has invalid/unexpected type.
+        # For now, we just return None. We could raise an error too.
         return None
     return default
 
