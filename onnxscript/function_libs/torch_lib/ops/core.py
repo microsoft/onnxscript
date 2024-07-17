@@ -7710,7 +7710,7 @@ def aten_sort(
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
     shape = op.Shape(self)
     dim_size = op.Gather(shape, dim, axis=0)
-    dim_size = op.Reshape(op.Cast(dim_size, to=INT64.dtype), op.Constant(value_ints=[1]))
+    dim_size = op.Reshape(dim_size, op.Constant(value_ints=[1]))
     values, indices = op.TopK(self, dim_size, axis=dim, largest=descending, sorted=True)
     if self_is_scalar:
         values = op.Squeeze(values, op.Constant(value_ints=[0]))
