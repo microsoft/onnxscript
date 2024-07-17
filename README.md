@@ -15,6 +15,16 @@ models using a subset of Python. ONNX Script is:
 * **Debuggable:** allows for eager-mode evaluation that provides for a
   more delightful ONNX model debugging experience.
 
+This repo also covers:
+
+* **ONNX IR:** an in-memory IR that supports the full ONNX spec, designed
+  for graph construction, analysis and transformation.
+* **ONNX Script Optimizer:** provides functionality to optimize an ONNX
+  model by performing optimizations and clean-ups such as constant folding,
+  dead code elimination, etc.
+* **ONNX Rewriter:** provides functionality to replace certain patterns in
+  an ONNX graph with replacement patterns based on user-defined rewrite rules.
+
 Note however that ONNX Script does **not** intend to support the entirety
 of the Python language.
 
@@ -142,6 +152,26 @@ result = Hardmax(v)
 
 More examples can be found in the [docs/examples](docs/examples) directory.
 
+## ONNX IR
+
+An in-memory IR that supports the full ONNX spec, designed for graph construction, analysis and transformation.
+
+### Features
+
+* **Full ONNX spec support:** all valid models representable by ONNX protobuf,
+  and a subset of invalid models (so you can load and fix them).
+* **Low memory footprint:** mmap'ed external tensors; unified interface for
+  ONNX TensorProto, Numpy arrays and PyTorch Tensors etc. No tensor size
+  limitation. Zero copies.
+* **Straightforward access patterns:** Access value information and traverse the
+  graph topology at ease.
+* **Robust mutation:** Create as many iterators as you like on the graph while mutating it.
+* **Speed:** Performant graph manipulation, serialization/deserialization to Protobuf.
+* **Pythonic and familiar APIs:** Classes define Pythonic apis and still map to
+  ONNX protobuf concepts in an intuitive way.
+* **No protobuf dependency:** The IR does not require protobuf once the model is
+  converted to the IR representation, decoupling from the serialization format.
+
 ## ONNX Script Tools
 
 ### ONNX Optimizer
@@ -166,6 +196,17 @@ For this style of rewriting, the user provides a `target_pattern` that is to be 
 
 ```python
 from onnxscript.rewriter import pattern
+
+# The target pattern
+def erf_gelu_pattern(op, x):
+    return 0.5 * (x * (op.Erf(x / math.sqrt(2)) + 1.0))
+
+def erf_gelu_pattern_2(op, x):
+    return (x * (op.Erf(x / math.sqrt(2)) + 1.0)) * 0.5
+
+# The replacement pattern
+def gelu(op, x: ir.Value):
+    return op.Gelu(x, domain="com.microsoft")
 
 # Create multiple rules
 rule1 = pattern.RewriteRule(
