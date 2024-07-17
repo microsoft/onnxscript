@@ -665,7 +665,7 @@ class GraphPattern:
         self._nodes = _nodes_in_pattern(outputs)
 
         # Check if all outputs are produced by the same node.
-        output_nodes : set[NodePattern] = set()
+        output_nodes: set[NodePattern] = set()
         for value_pattern in outputs:
             if not isinstance(value_pattern, ValuePattern):
                 raise TypeError(
@@ -675,7 +675,7 @@ class GraphPattern:
                 raise ValueError("Constant values are not allowed as graph pattern outputs.")
             if isinstance(value_pattern, NodeOutputPattern):
                 output_nodes.add(value_pattern.producer())
-        self.output_nodes : list[NodePattern] = list(output_nodes)
+        self.output_nodes: list[NodePattern] = list(output_nodes)
 
     @property
     def output_node(self) -> NodePattern:
@@ -764,15 +764,18 @@ def _to_graph_pattern(pattern_constructor: Callable) -> GraphPattern:
     return GraphPattern(pattern_inputs, pattern_outputs)
 
 
-def _valid_to_replace(matched_nodes: Sequence[ir.Node]) -> bool:
-    """Check that values computed by the matched_nodes, except for the last one, are used only by the matched_nodes."""
+def _valid_to_replace(
+    matched_nodes: Sequence[ir.Node], output_values: Sequence[ir.Value]
+) -> bool:
+    """Check that values computed by the matched_nodes, except for output_values, are used only by the matched_nodes."""
     # * Must check that all values matched by pattern are used only by pattern,
     # except for the value that is replaced.
     # * Must ensure that replacement subgraph does not use any of the deleted
     # (intermediate) values. (Not necessary for now. Guaranteed.)
-    deleted_nodes = matched_nodes[:-1]
-    for n in deleted_nodes:
+    for n in matched_nodes:
         for v in n.outputs:
+            if v in output_values:
+                continue
             if v.is_graph_output():
                 # value is an output-value of the graph/function.
                 return False
@@ -1045,7 +1048,7 @@ class SimplePatternMatcher(PatternMatcher):
             raise NotImplementedError("Constant values as return-values not supported.")
         return None
 
-    def match_single_output_node(
+    def _match_single_output_node(
         self,
         model: ir.Model,
         graph_or_function: ir.Graph | ir.Function,
@@ -1062,28 +1065,33 @@ class SimplePatternMatcher(PatternMatcher):
                 "Internal Error: SimplePatternMatcher should not be used for patterns with multiple output nodes."
             )
 
-        if self._match_node(pattern.output_node, node):
-            if not _valid_to_replace(match.nodes):
-                return match.fail("Matched nodes have other uses preventing replacement.")
+        if not self._match_node(pattern.output_node, node):
+            return match
+
+        output_values = [self._get_value_binding(v) for v in pattern.outputs]
+        if not _valid_to_replace(match.nodes, output_values):
+            return match.fail("Matched nodes have other uses preventing replacement.")
 
         if len(node.outputs) != pattern.num_outputs:
             return match.fail(
                 f"Number of node outputs mismatch: expected {pattern.num_outputs}, got {len(node.outputs)}."
             )
-        output_values = [self._get_value_binding(v) for v in pattern.outputs]
+
         match.outputs.extend(output_values)
         return match
 
-    def match_multiple_output_nodes(
-        self,
-        model: ir.Model,
-        graph_or_function: ir.Graph | ir.Function,
-        node: ir.Node,
-    ) -> MatchResult:
-            raise NotImplementedError(
-                "SimplePatternMatcher does not support patterns with multiple output nodes."
-            )
-            
+    def _multi_match(self, candidate: dict[NodePattern, ir.Node]) -> MatchResult:
+        match = self._match
+        for pattern_node, node in candidate.items():
+            if not self._match_node(pattern_node, node):
+                return match
+        output_values = [self._get_value_binding(v) for v in self.pattern.outputs]
+        if not _valid_to_replace(match.nodes, output_values):
+            return match.fail("Matched nodes have other uses preventing replacement.")
+
+        match.outputs.extend(output_values)
+        return match
+
     def match(
         self,
         model: ir.Model,
@@ -1091,16 +1099,20 @@ class SimplePatternMatcher(PatternMatcher):
         node: ir.Node,
         verbose: int = 0,
     ) -> MatchResult:
-        self._init_match(verbose)
         if self.pattern.has_single_output_node:
-            return self.match_single_output_node(
-                model, graph_or_function, node
-            )
+            self._init_match(verbose)
+            return self._match_single_output_node(model, graph_or_function, node)
         else:
-            return self.match_multiple_output_nodes(
-                model, graph_or_function, node
-            )
-
+            pattern_output_nodes = self.pattern.output_nodes
+            all_nodes = iter(graph_or_function)
+            candidates = [iter([node])] + [all_nodes for _ in pattern_output_nodes[1:]]
+            for combination in itertools.product(*candidates):
+                candidate = dict(zip(pattern_output_nodes, combination))
+                self._init_match(verbose)
+                match = self._multi_match(candidate)
+                if match:
+                    return match
+            return match
 
 
 class RewriteRule:
