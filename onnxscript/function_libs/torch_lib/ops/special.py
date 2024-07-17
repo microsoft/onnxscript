@@ -130,10 +130,11 @@ def aten_special_expit(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_special_expm1(self: TensorType) -> TensorType:
+@torch_op(("aten::expm1", "aten::special_expm"))
+def aten_special_expm1(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """special_expm1(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Sub(op.Exp(self), 1)
 
 
 def aten_special_gammainc(self: TensorType, other: TensorType) -> TensorType:
