@@ -164,7 +164,9 @@ registry: PartialEvaluatorRegistry = PartialEvaluatorRegistry()
 register = registry.register
 
 
-def _get_numpy_value(val: ir.Value) -> np.ndarray | None:
+def _get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
+    if val is None:
+        return None
     const_value = val.const_value
     if const_value is not None:
         return const_value.numpy()
@@ -201,9 +203,10 @@ def _get_output(node: ir.Node, index: int) -> ir.Value | None:
     return None
 
 
-def _update_type(value: ir.Value, type: ir.TypeProtocol) -> None:
-    # TODO: merge types
-    value.type = type
+def _update_type(value: ir.Value, type: ir.TypeProtocol | None) -> None:
+    if type is not None:
+        # TODO: merge types
+        value.type = type
 
 
 def _get_input_element_type(node: ir.Node, index: int) -> int:
@@ -254,6 +257,8 @@ def cast_like(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
 @register("Shape")
 def shape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input = node.inputs[0]
+    if input is None:
+        return None
     shape = input.shape
     if shape is None:
         return None
@@ -483,8 +488,8 @@ class ConstantFolder:
         self._init()
 
     def _init(self) -> None:
-        self.counts = {}
-        self.sizes = {}
+        self.counts: dict[str, int] = {}
+        self.sizes: dict[str, int] = {}
         self.modified = False
         self._state = OptimizerState()
 
@@ -522,7 +527,7 @@ class ConstantFolder:
                 )
                 output_types = onnx.shape_inference.infer_node_outputs(
                     schema, ir.serde.serialize_node(node), input_types, input_data
-                )
+                )  # type: ignore[arg-type]
                 for output in node.outputs:
                     if output.name in output_types:
                         inferred_type = output_types[output.name]
@@ -604,10 +609,9 @@ class ConstantFolder:
         if is_control_flow_op(node) or is_non_deterministic_op(node):
             return None
 
-        if any((x is not None and x.const_value is None) for x in node.inputs):
+        input_values = [_get_numpy_value(x) for x in node.inputs]
+        if any(x is None for x in input_values):
             return None
-
-        input_values = [x.const_value.numpy() if x is not None else None for x in node.inputs]
 
         # Filter out bfloat16 cases?
         def convert(av):
@@ -664,7 +668,7 @@ class ConstantFolder:
 
         # TODO: track statistics about replaced nodes and sizes of new constants
 
-    def visit_attribute(self, attr: ir.Attr) -> None:
+    def visit_attribute(self, attr: ir.Attr | ir.RefAttr) -> None:
         if isinstance(attr, ir.AttrGraph):
             self.visit_graph(attr.value)
         elif isinstance(attr, ir.AttrGraphs):
