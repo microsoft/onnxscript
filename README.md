@@ -169,8 +169,6 @@ An in-memory IR that supports the full ONNX spec, designed for graph constructio
 * **Speed:** Performant graph manipulation, serialization/deserialization to Protobuf.
 * **Pythonic and familiar APIs:** Classes define Pythonic apis and still map to
   ONNX protobuf concepts in an intuitive way.
-* **No protobuf dependency:** The IR does not require protobuf once the model is
-  converted to the IR representation, decoupling from the serialization format.
 
 ## ONNX Script Tools
 
