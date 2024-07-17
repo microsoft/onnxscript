@@ -7,9 +7,21 @@ __all__ = [
     "nested",
     "nn",
     "prims",
+    "quantized_decomposed",
     "sparse",
     "special",
     "vision",
 ]
 
-from . import core, fft, linalg, nested, nn, prims, sparse, special, vision
+from . import (
+    core,
+    fft,
+    linalg,
+    nested,
+    nn,
+    prims,
+    quantized_decomposed,
+    sparse,
+    special,
+    vision,
+)
