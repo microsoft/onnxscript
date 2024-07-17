@@ -52,7 +52,6 @@ def quantized_decomposed_dequantize_per_tensor(
     quant_min: int,
     quant_max: int,
     dtype: int,
-    *,
     out_dtype: int | None = None,
 ) -> TensorType:
     # TODO(justinchuby): Use quant_min and quant_max
