@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import re
-from types import FunctionType
 from typing import Any, Callable, Generator, Optional
 
 import onnxscript
@@ -141,7 +140,6 @@ def torch_op(
         if trace_only:
             processed_func = onnxscript.values.TracedOnnxFunction(custom_opset, func)
         else:
-            assert isinstance(func, FunctionType)
             processed_func = onnxscript.script(opset=custom_opset)(func)
             processed_func.traceable = traceable
 
