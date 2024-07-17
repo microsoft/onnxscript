@@ -4671,7 +4671,7 @@ def aten_lerp(self: TTensor, end: TTensor, weight: TTensor) -> TTensor:
     return op.Where(
         op.Less(weight, 0.5),
         op.Add(self, op.Mul(weight, diff)),
-        op.Sub(end, op.Mul(diff, op.Sub(1.0, weight)))
+        op.Sub(end, op.Mul(diff, op.Sub(1.0, weight))),
     )
 
 
