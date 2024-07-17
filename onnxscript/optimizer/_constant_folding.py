@@ -272,7 +272,10 @@ def shape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
 
 @register("Size")
 def size(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
-    shape = node.inputs[0].shape
+    input = _get_input(node, 0)
+    if input is None:
+        return None
+    shape = input.shape
     if shape is None:
         return None
     size = 1
@@ -285,8 +288,8 @@ def size(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
 
 @register("If")
 def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
-    cond = _get_input(node, 0)
-    cond = _get_bool_value(cond)
+    cond_input = _get_input(node, 0)
+    cond = _get_bool_value(cond_input)
     if cond is not None:
         # cond is a constant-value: inline the branch
         branch = "then_branch" if cond else "else_branch"
@@ -346,9 +349,9 @@ def concat_from_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValu
     if any(x is None for x in inputs):
         return None
     new_axis = _get_int_attribute(node, "new_axis", 0)
-    if "axis" not in node.attributes:
+    axis = _get_int_attribute(node, "axis", None)
+    if axis is None:
         return None
-    axis = node.attributes["axis"].value
     if input is not None and isinstance(inputs, list):
         if new_axis == 0:
             logger.debug("ConcatFromSequence => Concat: %s", [x.name for x in inputs])
@@ -400,6 +403,8 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         return None
 
     axis = _get_int_attribute(node, "axis", 0)
+    if axis is None:
+        return None
     shape = input.shape
     if shape is None:
         return None
@@ -466,7 +471,7 @@ def sequence_at(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
                 return None
             position_val = position_val.item()
             try:
-                result = input_vals[position_val]
+                result = input_vals[position_val]  # type: ignore[index]
             except IndexError:
                 return None
             state.set_sym_value(output, result)
@@ -528,7 +533,7 @@ class ConstantFolder:
                 output_types = onnx.shape_inference.infer_node_outputs(
                     schema,
                     ir.serde.serialize_node(node),
-                    input_types,
+                    input_types,  # type: ignore[arg-type]
                     input_data,  # type: ignore[arg-type]
                 )
                 for output in node.outputs:
