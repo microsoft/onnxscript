@@ -7699,7 +7699,7 @@ def aten_softmax_no_dtype(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
     return result
 
 
-@torch_op("aten::sort", traceable=True)
+@torch_op("aten::sort", trace_only=True)
 def aten_sort(
     self: TReal, dim: int = -1, descending: bool = False, stable: bool = False
 ) -> tuple[TReal, INT64]:
@@ -7707,14 +7707,11 @@ def aten_sort(
 
     self_is_scalar = IsScalar(self)
     if self_is_scalar:
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+        return op.Identity(self), op.Squeeze(op.Constant(value_ints=[0]))
     shape = op.Shape(self)
     dim_size = op.Gather(shape, dim, axis=0)
     dim_size = op.Reshape(dim_size, op.Constant(value_ints=[1]))
     values, indices = op.TopK(self, dim_size, axis=dim, largest=descending, sorted=True)
-    if self_is_scalar:
-        values = op.Squeeze(values, op.Constant(value_ints=[0]))
-        indices = op.Squeeze(indices, op.Constant(value_ints=[0]))
     return values, indices
 
 
