@@ -526,8 +526,11 @@ class ConstantFolder:
                     node.op_type, self.opset_imports[node.domain], node.domain
                 )
                 output_types = onnx.shape_inference.infer_node_outputs(
-                    schema, ir.serde.serialize_node(node), input_types, input_data
-                )  # type: ignore[arg-type]
+                    schema,
+                    ir.serde.serialize_node(node),
+                    input_types,
+                    input_data,  # type: ignore[arg-type]
+                )
                 for output in node.outputs:
                     if output.name in output_types:
                         inferred_type = output_types[output.name]
@@ -669,11 +672,12 @@ class ConstantFolder:
         # TODO: track statistics about replaced nodes and sizes of new constants
 
     def visit_attribute(self, attr: ir.Attr | ir.RefAttr) -> None:
-        if isinstance(attr, ir.AttrGraph):
-            self.visit_graph(attr.value)
-        elif isinstance(attr, ir.AttrGraphs):
-            for graph in attr.value:
-                self.visit_graph(graph)
+        if isinstance(attr, ir.Attr):
+            if attr.type == ir.AttributeType.GRAPH:
+                self.visit_graph(attr.value)  # type: ignore[arg-type]
+            elif attr.type == ir.AttributeType.GRAPHS:
+                for graph in attr.value:
+                    self.visit_graph(graph)  # type: ignore[arg-type]
 
     def visit_node(self, node: ir.Node, root: ir.Graph | ir.Function):
         replacement = self.process_node(node)
