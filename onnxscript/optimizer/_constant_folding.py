@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
-# -------------------------------------------------------------------------
 
 # NOTE: This will eventually replace the existing constant_folding.py and evaluator.py files.
 
@@ -85,7 +83,7 @@ class OptimizerState:
     def get_sym_value(self, value: ir.Value | None) -> Any:
         if value is None:
             return None
-        return self._sym_value_map.get(value, None)
+        return self._sym_value_map.get(value)
 
     def set_sym_value(self, value: ir.Value, sym_value: Any) -> None:
         self._sym_value_map[value] = sym_value
@@ -137,7 +135,9 @@ class PartialEvaluatorRegistry:
             evaluator.function for evaluator in evaluator_list if evaluator.valid_for(version)
         ]
 
-    def register(self, opname: str, domain: str = "", version=None):
+    def register(
+        self, opname: str, domain: str = "", version=None
+    ) -> Callable[[PartialEvaluatorFunction], PartialEvaluatorFunction]:
         if (domain, opname) not in self.op_evaluators:
             evaluator_list = []
             self.op_evaluators[(domain, opname)] = evaluator_list
@@ -166,7 +166,7 @@ register = registry.register
 
 def _get_numpy_value(val: ir.Value) -> np.ndarray | None:
     const_value = val.const_value
-    if hasattr(const_value, "numpy"):
+    if const_value is not None:
         return const_value.numpy()
     return None
 
