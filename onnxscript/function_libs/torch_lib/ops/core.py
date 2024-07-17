@@ -7701,9 +7701,9 @@ def aten_softmax_no_dtype(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
 
 @torch_op("aten::sort", traceable=True)
 def aten_sort(
-    self: TReal, dim: INT64 = -1, descending: bool = False
+    self: TReal, dim: int = -1, descending: bool = False, stable: bool = False
 ) -> tuple[TReal, INT64]:
-    """sort(Tensor self, int dim=-1, bool descending=False) -> (Tensor values, Tensor indices)"""
+    """sort(Tensor self, int dim=-1, bool descending=False, bool stable=False) -> (Tensor values, Tensor indices)"""
 
     self_is_scalar = IsScalar(self)
     if self_is_scalar:
@@ -7711,7 +7711,7 @@ def aten_sort(
     shape = op.Shape(self)
     dim_size = op.Gather(shape, dim, axis=0)
     dim_size = op.Reshape(op.Cast(dim_size, to=INT64.dtype), op.Constant(value_ints=[1]))
-    values, indices = op.TopK(self, dim_size, axis=dim, largest=not descending, sorted=sorted)
+    values, indices = op.TopK(self, dim_size, axis=dim, largest=descending, sorted=True)
     if self_is_scalar:
         values = op.Squeeze(values, op.Constant(value_ints=[0]))
         indices = op.Squeeze(indices, op.Constant(value_ints=[0]))
