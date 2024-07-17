@@ -1440,6 +1440,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16449",
         test_class_name="TestOutputConsistencyEager",
     ),
+    TorchLibOpInfo("sort", core_ops.aten_sort),
     TorchLibOpInfo(
         "split_with_sizes",
         core_ops.aten_split_with_sizes,
