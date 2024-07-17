@@ -132,7 +132,7 @@ def torch_op(
         registry = default_registry
 
     def wrapper(
-        func: FunctionType,
+        func: Callable,
     ) -> onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction:
         # Compile the function
         custom_opset = onnxscript.values.Opset(domain=_constants.DOMAIN, version=1)
