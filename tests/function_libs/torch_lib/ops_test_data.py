@@ -1440,12 +1440,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16449",
         test_class_name="TestOutputConsistencyEager",
     ),
-    TorchLibOpInfo(
-        "sort",
-        core_ops.aten_sort
-    ).xfail(
+    TorchLibOpInfo("sort", core_ops.aten_sort).xfail(
         dtypes=(torch.float16,),
-        reason="fixme: Tensor-likes are not close. Tests pass for float32."
+        reason="fixme: Tensor-likes are not close. Tests pass for float32.",
     ),
     TorchLibOpInfo(
         "split_with_sizes",
