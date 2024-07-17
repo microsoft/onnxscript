@@ -285,8 +285,10 @@ class GenericPatternTest(unittest.TestCase):
         self.assertEqual(len(graph.node), 2)
         self.assertEqual(graph.node[0].op_type, "SinCos")
 
-    @unittest.skip("Input variable reuse not supported yet")
     def test_shared_root_value_extra_use(self):
+        if self.matcher_algo is generic_pattern.GenericPatternMatcher:
+            raise unittest.SkipTest("GenericPatternMatcher does not support extra uses yet.")
+
         def match_pattern(op, x):
             t1 = op.Sin(x)
             t2 = op.Cos(x)
@@ -298,7 +300,7 @@ class GenericPatternTest(unittest.TestCase):
         rule = pattern.RewriteRule(
             match_pattern,
             apply_pattern,
-            matcher=generic_pattern.GenericPatternMatcher,
+            matcher=self.matcher_algo,
         )
         model_proto = onnx.parser.parse_model(
             """
@@ -318,7 +320,7 @@ class GenericPatternTest(unittest.TestCase):
         rule.apply_to_model(ir_model)
         graph = ir_model.graph
         self.assertEqual(len(graph), 3)
-        self.assertEqual(graph.node[0].op_type, "SinCos")
+        self.assertEqual(graph.node(0).op_type, "SinCos")
 
     def test_rotary_embedding(self):
         # The test work on a model if it has the expected name.
