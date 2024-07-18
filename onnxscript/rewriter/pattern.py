@@ -1036,17 +1036,28 @@ class SimplePatternMatcher(PatternMatcher):
         self._matched: dict[NodePattern, ir.Node] = {}
         self._match: MatchResult = MatchResult()
 
-    def _get_value_binding(self, value_pattern: ValuePattern) -> ir.Value | None:
-        if value_pattern.name is not None:
-            return self._match.bindings.get(value_pattern.name)
-        if isinstance(value_pattern, NodeOutputPattern):
-            i = value_pattern.output_index
-            node = value_pattern.producer()
-            if node in self._matched:
-                return self._matched[node].outputs[i]
-        if isinstance(value_pattern, Constant):
-            raise NotImplementedError("Constant values as return-values not supported.")
-        return None
+    def _get_output_values(self) -> list[ir.Value] | None:
+        output_values: list[ir.Value] = []
+        unbound_values: list[str] = []
+        for j, value_pattern in enumerate(self.pattern.outputs):
+            if value_pattern.name is not None:
+                if value_pattern.name in self._match.bindings:
+                    output_values.append(self._match.bindings[value_pattern.name])
+                else:
+                    unbound_values.append(value_pattern.name)
+            elif isinstance(value_pattern, NodeOutputPattern):
+                i = value_pattern.output_index
+                node = value_pattern.producer()
+                if node in self._matched:
+                    output_values.append(self._matched[node].outputs[i])
+                else:
+                    unbound_values.append(f"output_{j}")
+            elif isinstance(value_pattern, Constant):
+                raise NotImplementedError("Constant values as return-values not supported.")
+        if unbound_values:
+            self._match.fail(f"Error: Output values not found: {unbound_values}")
+            return None
+        return output_values
 
     def _match_single_output_node(
         self,
@@ -1068,7 +1079,9 @@ class SimplePatternMatcher(PatternMatcher):
         if not self._match_node(pattern.output_node, node):
             return match
 
-        output_values = [self._get_value_binding(v) for v in pattern.outputs]
+        output_values = self._get_output_values()
+        if output_values is None:
+            return match
         if not _valid_to_replace(match.nodes, output_values):
             return match.fail("Matched nodes have other uses preventing replacement.")
 
@@ -1085,7 +1098,10 @@ class SimplePatternMatcher(PatternMatcher):
         for pattern_node, node in candidate.items():
             if not self._match_node(pattern_node, node):
                 return match
-        output_values = [self._get_value_binding(v) for v in self.pattern.outputs]
+        output_values = self._get_output_values()
+        if output_values is None:
+            return match
+
         if not _valid_to_replace(match.nodes, output_values):
             return match.fail("Matched nodes have other uses preventing replacement.")
 
@@ -1124,7 +1140,7 @@ class SimplePatternMatcher(PatternMatcher):
                 if match:
                     return match
             if match is None:
-                return self.fail("No match found.")
+                return MatchResult().fail("No match found.")
             return match
 
 
