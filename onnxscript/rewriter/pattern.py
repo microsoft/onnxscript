@@ -672,7 +672,9 @@ class GraphPattern:
                     f"Invalid type {type(value_pattern)} for graph pattern output."
                 )
             if isinstance(value_pattern, Constant):
-                raise ValueError("Constant values are not allowed as graph pattern outputs.")
+                raise NotImplementedError(
+                    "Constant values are not allowed as graph pattern outputs."
+                )
             if isinstance(value_pattern, NodeOutputPattern):
                 output_nodes.add(value_pattern.producer())
         self.output_nodes: list[NodePattern] = list(output_nodes)

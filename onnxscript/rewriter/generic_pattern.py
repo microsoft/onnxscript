@@ -298,15 +298,7 @@ class GenericPatternMatcher(orp.PatternMatcher):
             return self.none(starting_node, inspect.currentframe().f_lineno)
 
         for graph_input, pattern_input in zip(graph_node.inputs, pattern_node.inputs):
-            # Intermediate values in the pattern must have the same number of uses
-            # in the graph for a valid match. By design, this esnures patterns where
-            # intermediate values have extra uses in the graph do NOT match.
-            # However, pattern-input-values may have extra uses. This is because
-            # pattern-inputs will not be removed by pattern-replacement, but
-            # intermediate values will be removed.
-            if pattern_input.producer() is not None and len(list(graph_input.uses())) != len(
-                list(pattern_input.uses())
-            ):
+            if len(graph_input.uses()) != len(pattern_input.uses()):
                 self._hint(
                     "BACKWARD: one input is used outside the pattern",
                     "-- pattern",
