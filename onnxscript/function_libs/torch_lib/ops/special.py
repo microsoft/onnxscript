@@ -130,7 +130,7 @@ def aten_special_expit(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::expm1", "aten::special_expm"))
+@torch_op(("aten::expm1", "aten::special_expm1"))
 def aten_special_expm1(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """special_expm1(Tensor self) -> Tensor"""
 
