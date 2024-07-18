@@ -7707,7 +7707,7 @@ def aten_sort(
 
     self_is_scalar = IsScalar(self)
     if self_is_scalar:
-        return op.Identity(self), op.Squeeze(op.Constant(value_ints=[0]))
+        return op.Identity(self), op.Constant(value_int=0)
     shape = op.Shape(self)
     dim_size = op.Gather(shape, dim, axis=0)
     dim_size = op.Reshape(dim_size, op.Constant(value_ints=[1]))
