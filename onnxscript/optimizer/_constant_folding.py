@@ -18,6 +18,7 @@ import onnxscript.ir as ir
 import onnxscript.ir._convenience as _convenience
 import onnxscript.optimizer.constant_folding as constant_folding
 import onnxscript.rewriter.pattern as orp
+import onnxscript.utils.utils as utils
 
 
 def is_control_flow_op(node: ir.Node) -> bool:
@@ -27,14 +28,13 @@ def is_control_flow_op(node: ir.Node) -> bool:
 
 
 def is_non_deterministic_op(node: ir.Node) -> bool:
-    return (
-        node.op_type in constant_folding.non_deterministic_ops
-        and constant_folding.is_onnx_domain(node.domain)
+    return node.op_type in constant_folding.non_deterministic_ops and utils.is_onnx_domain(
+        node.domain
     )
 
 
 def is_constant_op(node: ir.Node) -> bool:
-    return node.op_type in {"Constant", "ConstantOfShape"} and constant_folding.is_onnx_domain(
+    return node.op_type in {"Constant", "ConstantOfShape"} and utils.is_onnx_domain(
         node.domain
     )
 
@@ -648,32 +648,11 @@ class ConstantFolder:
     def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function):
         logger.debug("Replacing node: %s::%s %s", node.domain, node.op_type, node.name)
 
+        _convenience.replace_nodes_and_values(
+            root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
+        )
+
         # TODO: what about new opset_imports?
-        old_values = node.outputs
-        new_values = replacement.new_outputs
-        for old_value, new_value in zip(old_values, new_values):
-            # Propagate relevant info from old value to new value
-            # TODO(Rama): Perhaps we should merge old and new types. As of now, new
-            # values don't have type information. Note that this could be a problem
-            # for semantics-altering rewrite-rules: we should allow users to override
-            # this for such rules.
-            new_value.type = old_value.type
-            new_value.shape = old_value.shape
-            new_value.const_value = old_value.const_value
-            new_value.name = old_value.name
-
-        # Reconnect the users of the deleted node to use the new outputs
-        _convenience.replace_all_uses_with(old_values, new_values)
-        # Update graph/function outputs if the node generates output
-        replacement_mapping = dict(zip(old_values, new_values))
-        for idx, graph_or_function_output in enumerate(root.outputs):
-            if graph_or_function_output in replacement_mapping:
-                root.outputs[idx] = replacement_mapping[graph_or_function_output]
-
-        # insert new nodes after the index node
-        root.insert_after(node, replacement.new_nodes)
-        root.remove(node, safe=True)
-
         # TODO: track statistics about replaced nodes and sizes of new constants
 
     def visit_attribute(self, attr: ir.Attr | ir.RefAttr) -> None:
@@ -698,12 +677,17 @@ class ConstantFolder:
         for node in graph:
             self.visit_node(node, graph)
 
+    def visit_function(self, function: ir.Function) -> None:
+        for node in function:
+            self.visit_node(node, function)
+
     def visit_model(self, model: ir.Model) -> None:
         self._init()
         self.opset_imports = model.opset_imports
         self.visit_graph(model.graph)
-        # TODO(rama): handle functions
-        # Pending decision on whether we want to specialize functions or not.
+        for function in model.functions:
+            # TODO(rama): Should we specialize functions?
+            self.visit_function(function)
 
 
 def fold_constants(
