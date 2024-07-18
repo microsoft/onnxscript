@@ -6,7 +6,6 @@ from __future__ import annotations
 import ast
 import inspect
 import sys
-import types
 from typing import Any, Callable, Optional, Sequence
 
 import onnx.helper
@@ -40,7 +39,7 @@ def script(
     opset: Optional[values.Opset] = None,
     default_opset: Optional[values.Opset] = None,
     **kwargs: Any,
-) -> Callable[[types.FunctionType], onnxscript.OnnxFunction]:
+) -> Callable[[Callable], onnxscript.OnnxFunction]:
     """Main decorator. Declares a function as an onnx function.
 
     Args:
@@ -76,7 +75,7 @@ def script(
             "Script parameter must be an opset. Did you use @script instead of @script()?"
         )
 
-    def transform(f: types.FunctionType) -> onnxscript.OnnxFunction:
+    def transform(f: Callable) -> onnxscript.OnnxFunction:
         if not inspect.isfunction(f):
             raise TypeError("The ONNXScript decorator should be applied to functions only.")
 
@@ -96,7 +95,7 @@ def script(
     return transform
 
 
-def graph() -> Callable[[types.FunctionType], values.OnnxClosure]:
+def graph() -> Callable[[Callable], values.OnnxClosure]:
     """A parametric decorator used to annotate nested-functions that are used
     as graph-attributes.
 
@@ -143,7 +142,7 @@ def graph() -> Callable[[types.FunctionType], values.OnnxClosure]:
     onnx_function = wrapper_frame.f_locals["self"]
     nested_functions = onnx_function.function_ir.nested_functions
 
-    def transform(f: types.FunctionType) -> values.OnnxClosure:
+    def transform(f: Callable) -> values.OnnxClosure:
         return values.OnnxClosure(nested_functions[f.__name__], function_frame, f)
 
     return transform

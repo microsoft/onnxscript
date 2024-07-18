@@ -8,18 +8,18 @@ import ast
 import inspect
 import sys
 import textwrap
-import types
+from typing import Callable
 
 PY_VERSION_GE_39 = sys.version_info >= (3, 9)
 
 
-def get_src_and_ast(f: types.FunctionType) -> tuple[str, ast.FunctionDef]:
+def get_src_and_ast(func: Callable, /) -> tuple[str, ast.FunctionDef]:
     try:
-        src = inspect.getsource(f)
+        src = inspect.getsource(func)
     except OSError as e:
         raise RuntimeError(
             f"Decorator script does not work on dynamically "
-            f"compiled function {f.__name__}."
+            f"compiled function {func.__name__}."
         ) from e
     src = textwrap.dedent(src)
     top_level_ast = ast.parse(src)
