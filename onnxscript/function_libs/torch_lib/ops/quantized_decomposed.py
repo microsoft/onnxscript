@@ -11,9 +11,19 @@
 
 from __future__ import annotations
 
+import onnx
+
+from onnxscript import ir
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
+
+
+def constant(array, dtype: int | onnx.TensorProto.DataType):
+    """Utility for creating a constant tensor."""
+    return op.Constant(
+        value=ir.serde.serialize_tensor(ir.tensor(array, dtype=ir.DataType(dtype)))
+    )
 
 
 @torch_op(
@@ -32,9 +42,8 @@ def quantized_decomposed_quantize_per_tensor(
     quant_max: int,
     dtype: int,
 ) -> TensorType:
-    # TODO(justinchuby): Use quant_min and quant_max
     # TODO(justinchuby): Use dtype when we use opset 21
-    return op.QuantizeLinear(input, scale, zero_point)
+    return op.QuantizeLinear(input, scale, constant(zero_point, dtype=dtype))
 
 
 @torch_op(
@@ -54,6 +63,8 @@ def quantized_decomposed_dequantize_per_tensor(
     dtype: int,
     out_dtype: int = -1,
 ) -> TensorType:
-    # TODO(justinchuby): Use quant_min and quant_max
     # TODO(justinchuby): Use dtype when we use opset 21
-    return op.DequantizeLinear(input, scale, zero_point)
+    dequantized = op.DequantizeLinear(input, scale, constant(zero_point, dtype=dtype))
+    if out_dtype == -1:
+        return dequantized
+    return op.Cast(dequantized, to=out_dtype)
