@@ -11,6 +11,7 @@ import typing
 from enum import IntFlag
 from typing import (  # type: ignore[attr-defined]
     Any,
+    Callable,
     ClassVar,
     Optional,
     Protocol,
@@ -452,7 +453,7 @@ class OnnxFunction(Op):
     def __init__(
         self,
         opset: Optional[Opset],
-        pyfun: types.FunctionType,
+        pyfun: Callable,
         irfun: irbuilder.IRFunction,
         source: str,
         kwargs: dict[str, Any],
@@ -571,7 +572,7 @@ class TracedOnnxFunction(Op):
         func: Function.
     """
 
-    def __init__(self, opset: Opset, func: types.FunctionType):
+    def __init__(self, opset: Opset, func: Callable):
         super().__init__(opset, func.__name__)
         self.func = func
 
