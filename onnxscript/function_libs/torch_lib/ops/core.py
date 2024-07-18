@@ -7699,12 +7699,20 @@ def aten_softmax_no_dtype(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
     return result
 
 
+@torch_op("aten::sort", trace_only=True)
 def aten_sort(
-    self: TensorType, dim: int = -1, descending: bool = False
-) -> tuple[TensorType, TensorType]:
-    """sort(Tensor self, int dim=-1, bool descending=False) -> (Tensor values, Tensor indices)"""
+    self: TReal, dim: int = -1, descending: bool = False, stable: bool = False
+) -> tuple[TReal, INT64]:
+    """sort(Tensor self, int dim=-1, bool descending=False, bool stable=False) -> (Tensor values, Tensor indices)"""
 
-    raise NotImplementedError()
+    self_is_scalar = IsScalar(self)
+    if self_is_scalar:
+        return op.Identity(self), op.Constant(value_int=0)
+    shape = op.Shape(self)
+    dim_size = op.Gather(shape, dim, axis=0)
+    dim_size = op.Reshape(dim_size, op.Constant(value_ints=[1]))
+    values, indices = op.TopK(self, dim_size, axis=dim, largest=descending, sorted=True)
+    return values, indices
 
 
 def aten_sparse_dim(self: TensorType) -> int:
