@@ -3340,12 +3340,6 @@ def aten_expand_copy(self: TensorType, size: INT64, implicit: bool = False) -> T
     raise NotImplementedError()
 
 
-def aten_expm1(self: TensorType) -> TensorType:
-    """expm1(Tensor self) -> Tensor"""
-
-    raise NotImplementedError()
-
-
 def aten_eye(n: int) -> TensorType:
     """eye(int n, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
@@ -8539,7 +8533,7 @@ def aten_unsafe_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType
     raise NotImplementedError()
 
 
-@torch_op(("aten::unsafe_split", "aten::unsafe_split.Tensor"))
+@torch_op("aten::unsafe_split.Tensor")
 def aten_unsafe_split(self: TTensor, split_size: INT64, dim: int = 0) -> Sequence[TTensor]:
     """unsafe_split.Tensor(Tensor self, SymInt split_size, int dim=0) -> Tensor[]"""
 
