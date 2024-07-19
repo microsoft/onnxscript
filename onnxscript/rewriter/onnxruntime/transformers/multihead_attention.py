@@ -52,12 +52,14 @@ from __future__ import annotations
 import abc
 import dataclasses
 import logging
-
+import numpy as np
 import onnx
 from onnx import helper as onnx_helper
+from onnx import NodeProto, TensorProto, helper, numpy_helper
 
 import onnxscript
 from onnxscript import ir
+from onnxscript.ir import SymbolicDim
 from onnxscript.rewriter import _ir_utils, function_rule
 
 logger = logging.getLogger(__name__)
@@ -65,7 +67,10 @@ logger = logging.getLogger(__name__)
 import dataclasses
 import abc
 from onnxscript import ir
+from typing import List, Tuple, Union, Optional 
+
 from onnxscript.rewriter import _ir_utils, function_rule
+import onnx.shape_inference
 
 @dataclasses.dataclass
 class AttnSizeConfig:
@@ -76,12 +81,15 @@ class AttnSizeConfig:
 
 class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
     PACKAGE_NAME: str
+    
 
     def infer_attn_size_config(self, function: ir.Function) -> AttnSizeConfig:
         if len(function.outputs) == 3:
             # Usually the Attention related modules have 3 outputs:
             # present_value, present_key, attn_output
             present_value, _, attn_output = function.outputs
+            
+           
             if present_value.shape is None:
                 raise function_rule.FunctionRewriteError(
                     "Failed to find shape for present_value."
@@ -90,16 +98,25 @@ class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
                 raise function_rule.FunctionRewriteError(
                     "Failed to find shape for attn_output."
                 )
+            if len(present_value.shape) <= 3:
+                raise function_rule.FunctionRewriteError(
+                    "Expected present_value to have at least 4 dimensions."
+                )
             head_size = present_value.shape[3]
             num_key_value_heads = present_value.shape[1]
             hidden_size = attn_output.shape[2]
+
             num_attention_heads = hidden_size // head_size
+            
+
+           
             return AttnSizeConfig(
                 num_attention_heads=num_attention_heads,
                 num_key_value_heads=num_key_value_heads,
                 head_size=head_size,
                 hidden_size=hidden_size,
             )
+        
         elif any("scaled_dot_product_attention" in node.op_type for node in function):
             # If the Attention related modules use scaled_dot_product_attention,
             # present_value and present_key are not present in the output.
@@ -140,12 +157,6 @@ class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
             f"Attenion modules should have 3 outputs or scaled_dot_product_attention node, "
             f"got output: {len(function.outputs)} and no scaled_dot_product_attention."
         )
-    def _find_node_by_name(self, function: ir.Function, name: str) -> ir.Node:
-        for node in function:
-            if node.name == name:
-                return node
-        raise function_rule.FunctionRewriteError(f"Node with name {name} not found in the function.")
-    
     
     
 
@@ -727,21 +738,116 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
         ).to_function_proto()
         return ir.serde.deserialize_function(function_proto)
 
-# Make a class for GQALlama3RewriteRule and let it inherit from the parent class, copy the same code for GQALlama2RewriteRule and mofify it to perform some function matching and rewriting
-# class GQALlama3RewriteRule(AttentionRewriteRule):
+
+
+
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+# class GQALlama3RewriteRule(AttentionRewriteRule): # make a diff and find out why this doesnt optimize enough, this one has kunals changes 
+
 #     FUNCTION_KEYWORD = "LlamaAttention"
 #     PACKAGE_NAME = "transformers"
 #     _version_controller = function_rule.VersionController()
 
-#     @_version_controller.register_version(min_version="4.36", max_version="4.42")
+#     def __init__(self) -> None:
+#         super().__init__()
+
+#     @_version_controller.register_version(min_version="4.39", max_version="4.42")
 #     def _fusion_with_4d_cache(self, function: ir.Function) -> ir.Function:
 #         print("Applying fusion with 4D cache for function:", function.name)
-#         if len(function.inputs) != 9:
+#         if len(function.inputs) != 13:
 #             raise function_rule.FunctionRewriteError(
-#                 f"Unexpected number of inputs. Expected 9, got {len(function.inputs)}."
+#                 f"Unexpected number of inputs. Expected 13, got {len(function.inputs)}."
 #             )
 
 #         attn_size_config = self.infer_attn_size_config(function)
+
+#         op = onnxscript.opset18
+#         msft_op = onnxscript.values.Opset("com.microsoft", 1)
+
+#         cos_sin_gather_size = [attn_size_config.head_size // 2]
+#         expand_shape = [1, attn_size_config.num_attention_heads, 1, 1] #--
+
+#         def gqa(
+#             hidden_states,
+#             position_id,
+#             attention_mask,
+#             q_proj_weight,
+#             k_proj_weight,
+#             v_proj_weight,
+#             cos_cached,
+#             sin_cached,
+#             o_proj_weight,
+#             # input_0,
+#             # input_1,
+#             # hidden_states,
+#             # input_3,
+#             # position_id,
+#             # past_key,
+#             # past_value,
+#             # input_7,
+#             # q_proj_weight,
+#             # k_proj_weight,
+#             # v_proj_weight,
+#             # inv_freq,
+#             # o_proj_weight,
+
+#         ): #combine into 1, for the qkv weights 
+         
+
+#             q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
+#             k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
+#             v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
+
+#             cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])
+#             sin = op.Slice(op.Squeeze(sin_cached, [0, 1]), [0], cos_sin_gather_size, [1])
+
+#             path = op.Shape(attention_mask)
+#             path2 = op.Gather(path, 1, axis = 0)
+#             total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32) # <-
+
+            
+#             temp = op.ReduceSum(attention_mask, [1])
+#             temp2 = op.Sub(temp, [1])
+#             seqlens_k = op.Cast(temp2, to=onnx.TensorProto.INT32) # <--
+
+#             gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
+#                 q,
+#                 k,
+#                 v,
+#                 None,
+#                 None,
+#                 seqlens_k,
+#                 total_seq_lengths,
+#                 cos,
+#                 sin,
+#                 kv_num_heads=attn_size_config.num_key_value_heads,
+#                 num_heads=attn_size_config.num_attention_heads,
+#                 do_rotary = True,
+#                 rotary_interleaved = False,
+                
+#             )
+#             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
+
+           
+#             return present_value, present_key, attn_output
+
+#         return onnxscript.script(default_opset=onnxscript.opset18)(
+#             gqa
+#         ).to_function_proto(), (onnx.helper.make_operatorsetid("com.microsoft", 1),)
+
+#     @_version_controller.register_version(min_version="4.39", max_version="4.42")
+#     def _fusion_with_2d_cache(self, function: ir.Function) -> ir.Function:
+#         print("Applying fusion with 2D cache for function:", function.name)
+#         attn_size_config = self.infer_attn_size_config(function)
+
+#         if len(function.inputs) != 13:
+#             raise function_rule.FunctionRewriteError(
+#                 f"Unexpected number of inputs. Expected 13, got {len(function.inputs)}."
+#             )
 
 #         op = onnxscript.opset18
 #         msft_op = onnxscript.values.Opset("com.microsoft", 1)
@@ -759,105 +865,63 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
 #             cos_cached,
 #             sin_cached,
 #             o_proj_weight,
-        # ):
-    #         q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
-    #         k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
-    #         v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
+#         ):
+         
 
-    #         cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-    #         sin = op.Slice(op.Squeeze(sin_cached, [0, 1]), [0], cos_sin_gather_size, [1])
+#             q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
+#             k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
+#             v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
 
-    #         q_rope = msft_op.RotaryEmbedding(q, position_id, cos, sin, interleaved=False)
-    #         k_rope = msft_op.RotaryEmbedding(k, position_id, cos, sin, interleaved=False)
+        
+#             cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])
+#             sin = op.Slice(op.Squeeze(sin_cached, [0, 1]), [0], cos_sin_gather_size, [1])
+           
+#             # from attention mask downwards, reversed, path and temp denote both left and right nodes 
+            
+#             path = op.Shape(attention_mask)
+#             path2 = op.Gather(path, 1, axis = 0)
+#             total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32) # <-
 
-    #         expanded_mask = op.Expand(attention_mask, expand_shape)
+            
+#             temp = op.ReduceSum(attention_mask, [1])
+#             temp2 = op.Sub(temp, [1])
+#             seqlens_k = op.Cast(temp2, to=onnx.TensorProto.INT32) # <--
 
-    #         gqa_output, present_key, present_value = msft_op.MultiHeadAttention(
-    #             q_rope,
-    #             k_rope,
-    #             v,
-    #             None,
-    #             None,
-    #             expanded_mask,
-    #             num_heads=attn_size_config.num_attention_heads,
-    #         )
-    #         attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-    #         return present_value, present_key, attn_output
+#             gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
+#                 q,
+#                 k,
+#                 v,
+#                 None,
+#                 None,
+#                 seqlens_k,
+#                 total_seq_lengths,
+#                 cos,
+#                 sin,
+#                 kv_num_heads=attn_size_config.num_key_value_heads,
+#                 num_heads=attn_size_config.num_attention_heads,
+#                 do_rotary = True,
+#                 rotary_interleaved = False,
+                
+#             )
+#             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
 
-    #     function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
-    #     print("Returning new function proto for 4D cache")
-    #     return ir.serde.deserialize_function(function_proto)
+#             return present_value, present_key, attn_output
 
-    # @_version_controller.register_version(min_version="4.36", max_version="4.38")
-    # def _fusion_with_2d_cache(self, function: ir.Function) -> ir.Function:
-    #     print("Applying fusion with 2D cache for function:", function.name)
-    #     attn_size_config = self.infer_attn_size_config(function)
+#         return onnxscript.script(default_opset=onnxscript.opset18)(
+#             gqa
+#         ).to_function_proto(), (onnx.helper.make_operatorsetid("com.microsoft", 1),)
 
-    #     if len(function.inputs) != 9:
-    #         raise function_rule.FunctionRewriteError(
-    #             f"Unexpected number of inputs. Expected 9, got {len(function.inputs)}."
-    #         )
 
-    #     op = onnxscript.opset18
-    #     msft_op = onnxscript.values.Opset("com.microsoft", 1)
-
-    #     cos_sin_gather_size = [attn_size_config.head_size // 2]
-    #     expand_shape = [1, attn_size_config.num_attention_heads, 1, 1]
-
-    #     def gqa(
-    #         hidden_states,
-    #         position_id,
-    #         attention_mask,
-    #         q_proj_weight,
-    #         k_proj_weight,
-    #         v_proj_weight,
-    #         cos_cached,
-    #         sin_cached,
-    #         o_proj_weight,
-    #     ):
-    #         q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
-    #         k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
-    #         v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
-
-    #         cos = op.Slice(cos_cached, [0], cos_sin_gather_size, [1])
-    #         sin = op.Slice(sin_cached, [0], cos_sin_gather_size, [1])
-
-    #         q_rope = msft_op.RotaryEmbedding(q, position_id, cos, sin, interleaved=False)
-    #         k_rope = msft_op.RotaryEmbedding(k, position_id, cos, sin, interleaved=False)
-
-    #         expanded_mask = op.Expand(attention_mask, expand_shape)
-
-    #         gqa_output, present_key, present_value = msft_op.MultiHeadAttention(
-    #             q_rope,
-    #             k_rope,
-    #             v,
-    #             None,
-    #             None,
-    #             expanded_mask,
-    #             num_heads=attn_size_config.num_attention_heads,
-    #         )
-    #         attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-    #         return present_value, present_key, attn_output
-
-    #     function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
-    #     print("Returning new function proto for 2D cache")
-    #     return ir.serde.deserialize_function(function_proto)
-
-import onnxscript
-from onnxscript import ir
-from onnxscript.rewriter import _ir_utils, function_rule
-import logging
-
-# logger = logging.getLogger(__name__)
-# logging.basicConfig(level=logging.INFO)
-# class TorchLinearRewriteRule(AttentionRewriteRule): # perfect code for rewriting torch linear function
-#     FUNCTION_KEYWORD = "torch_nn_modules_linear_Linear"
+# class TorchLinearRewriteRule(function_rule.FunctionRewriteRule):# best one 
+#     FUNCTION_KEYWORD = "layers"
 #     PACKAGE_NAME = "torch"
 #     _version_controller = function_rule.VersionController()
+#     def __init__(self, opset: onnxscript.values.Opset = onnxscript.opset18) -> None:
+#         super().__init__(opset)
 
 #     @_version_controller.register_version(min_version="2.3.1", max_version="2.4.0")
 #     def rewrite_linear_function(self, function: ir.Function) -> ir.Function:
-#         print("Rewriting torch linear function:", function.name)
+#         print("Rewriting torch linear function:", function.name) #This method rewrites the torch.nn.Linear function. It's registered for versions between 2.3.1 and 2.4.0 of the torch package
         
 #         # Print inputs
 #         print("Inputs:")
@@ -873,9 +937,9 @@ import logging
 #         print(f"Module: {self.PACKAGE_NAME}")
 #         print(f"Function Keyword: {self.FUNCTION_KEYWORD}")
         
-#         if len(function.inputs) != 4:
+#         if len(function.inputs) != 6:
 #             raise function_rule.FunctionRewriteError(
-#                 f"Unexpected number of inputs. Expected 4, got {len(function.inputs)}."
+#                 f"Unexpected number of inputs. Expected 6, got {len(function.inputs)}."
 #             )
 
 #         op = onnxscript.opset18
@@ -883,15 +947,21 @@ import logging
 #         def linear(input_tensor, weight, bias=None):
 #             output = op.MatMul(input_tensor, op.Transpose(weight, [1, 0]))
 #             return output
+#         #Defines a simplified linear function using ONNX operators. It handles the case without a bias term.
 
 #         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(linear).to_function_proto()
 #         print("Returning new function proto for torch linear without bias")
-#         return ir.serde.deserialize_function(function_proto)
+#         return ir.serde.deserialize_function(function_proto) #function to an ONNX function prototype and deserializes 
 
 
 
 
 
+
+
+
+
+# # # Make a class for GQALlama3RewriteRule and let it inherit from the parent class, copy the same code for GQALlama2RewriteRule and mofify it to perform some function matching and rewriting
 class GQALlama3RewriteRule(AttentionRewriteRule):
     FUNCTION_KEYWORD = "LlamaAttention"
     PACKAGE_NAME = "transformers"
@@ -913,7 +983,7 @@ class GQALlama3RewriteRule(AttentionRewriteRule):
         cos_sin_gather_size = [attn_size_config.head_size // 2]
         expand_shape = [1, attn_size_config.num_attention_heads, 1, 1]
 
-        def gqa( # add the other inputs, or maybe its automatically added to accomodate 13 inputs based on the arguments
+        def gqa(
             hidden_states,
             position_id,
             attention_mask,
@@ -924,12 +994,11 @@ class GQALlama3RewriteRule(AttentionRewriteRule):
             sin_cached,
             o_proj_weight,
         ):
-        # where are the weights stored?
             q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
             k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
             v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
 
-            cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])# maybe use seq len and head size due to new transformer version 
+            cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])
             sin = op.Slice(op.Squeeze(sin_cached, [0, 1]), [0], cos_sin_gather_size, [1])
 
             q_rope = msft_op.RotaryEmbedding(q, position_id, cos, sin, interleaved=False)
@@ -969,7 +1038,7 @@ class GQALlama3RewriteRule(AttentionRewriteRule):
         cos_sin_gather_size = [attn_size_config.head_size // 2]
         expand_shape = [1, attn_size_config.num_attention_heads, 1, 1]
 
-        def gqa( # add the other inputs 
+        def gqa(
             hidden_states,
             position_id,
             attention_mask,
@@ -1008,47 +1077,49 @@ class GQALlama3RewriteRule(AttentionRewriteRule):
         print("Returning new function proto for 2D cache")
         return ir.serde.deserialize_function(function_proto)
 
+     
 
-class TorchLinearRewriteRule(function_rule.FunctionRewriteRule):
-    FUNCTION_KEYWORD = "torch_nn_modules_linear_Linear"
-    PACKAGE_NAME = "torch"
-    _version_controller = function_rule.VersionController()
-    def __init__(self, opset: onnxscript.values.Opset = onnxscript.opset18) -> None:
-        super().__init__(opset)
 
-    @_version_controller.register_version(min_version="2.3.1", max_version="2.4.0")
-    def rewrite_linear_function(self, function: ir.Function) -> ir.Function:
-        print("Rewriting torch linear function:", function.name) #This method rewrites the torch.nn.Linear function. It's registered for versions between 2.3.1 and 2.4.0 of the torch package
+
+
+
+# class TorchLinearRewriteRule(AttentionRewriteRule): # perfect code for rewriting torch linear function
+#     FUNCTION_KEYWORD = "torch_nn_modules_linear_Linear"
+#     PACKAGE_NAME = "torch"
+#     _version_controller = function_rule.VersionController()
+
+#     @_version_controller.register_version(min_version="2.3.1", max_version="2.4.0")
+#     def rewrite_linear_function(self, function: ir.Function) -> ir.Function:
+#         print("Rewriting torch linear function:", function.name)
         
-        # Print inputs
-        print("Inputs:")
-        for input in function.inputs:
-            print(f"  - {input.name}: {input.shape}")
+#         # Print inputs
+#         print("Inputs:")
+#         for input in function.inputs:
+#             print(f"  - {input.name}: {input.shape}")
         
-        # Print outputs
-        print("Outputs:")
-        for output in function.outputs:
-            print(f"  - {output.name}: {output.shape}")
+#         # Print outputs
+#         print("Outputs:")
+#         for output in function.outputs:
+#             print(f"  - {output.name}: {output.shape}")
         
-        # Print module and package details
-        print(f"Module: {self.PACKAGE_NAME}")
-        print(f"Function Keyword: {self.FUNCTION_KEYWORD}")
+#         # Print module and package details
+#         print(f"Module: {self.PACKAGE_NAME}")
+#         print(f"Function Keyword: {self.FUNCTION_KEYWORD}")
         
-        if len(function.inputs) != 4:
-            raise function_rule.FunctionRewriteError(
-                f"Unexpected number of inputs. Expected 4, got {len(function.inputs)}."
-            )
+#         if len(function.inputs) != 4:
+#             raise function_rule.FunctionRewriteError(
+#                 f"Unexpected number of inputs. Expected 4, got {len(function.inputs)}."
+#             )
 
-        op = onnxscript.opset18
+#         op = onnxscript.opset18
 
-        def linear(input_tensor, weight, bias=None):
-            output = op.MatMul(input_tensor, op.Transpose(weight, [1, 0]))
-            return output
-        #Defines a simplified linear function using ONNX operators. It handles the case without a bias term.
+#         def linear(input_tensor, weight, bias=None):
+#             output = op.MatMul(input_tensor, op.Transpose(weight, [1, 0]))
+#             return output
 
-        function_proto = onnxscript.script(default_opset=onnxscript.opset18)(linear).to_function_proto()
-        print("Returning new function proto for torch linear without bias")
-        return ir.serde.deserialize_function(function_proto) #function to an ONNX function prototype and deserializes 
+#         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(linear).to_function_proto()
+#         print("Returning new function proto for torch linear without bias")
+#         return ir.serde.deserialize_function(function_proto)
 
 
 # class LlamaAttentionRewriteRule(AttentionRewriteRule):
@@ -1230,3 +1301,46 @@ class TorchLinearRewriteRule(function_rule.FunctionRewriteRule):
 #         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
 #         print("Returning new function proto for 2D cache")
 #         return ir.serde.deserialize_function(function_proto)
+
+
+
+
+class MLPRewriteRule(AttentionRewriteRule):
+    FUNCTION_KEYWORD = "LlamaMLP"
+    PACKAGE_NAME = "transformers"
+    _version_controller = function_rule.VersionController()
+
+    def __init__(self, opset=onnxscript.opset18):
+        super().__init__(opset)
+
+    @_version_controller.register_version(min_version="4.39", max_version="4.42")
+    def _optimize_mlp_layer(self, function: ir.Function) -> ir.Function:
+        print("Optimizing MLP layer for function:", function.name)
+        if len(function.inputs) != 6:
+            raise function_rule.FunctionRewriteError(
+                f"Unexpected number of inputs. Expected 6, got {len(function.inputs)}."
+            )
+
+        op = onnxscript.opset18
+
+        def optimized_mlp(
+            input_tensor,
+            gate_proj_weight,
+            up_proj_weight,
+            down_proj_weight,
+        ):
+            gate_proj_weight_t = op.Transpose(gate_proj_weight, perm=[1, 0])
+            up_proj_weight_t = op.Transpose(up_proj_weight, perm=[1, 0])
+            down_proj_weight_t = op.Transpose(down_proj_weight, perm=[1, 0])
+
+            gate_proj_output = op.MatMul(input_tensor, gate_proj_weight_t)
+            up_proj_output = op.MatMul(input_tensor, up_proj_weight_t)
+            down_proj_output = op.MatMul(input_tensor, down_proj_weight_t)
+
+            return gate_proj_output, up_proj_output, down_proj_output
+
+        function_proto = onnxscript.script(default_opset=onnxscript.opset18)(optimized_mlp).to_function_proto()
+        print("Returning optimized MLP function proto")
+        return ir.serde.deserialize_function(function_proto)
+
+    

@@ -753,7 +753,7 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
 
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
     __slots__ = ("_value",)
-
+    
     def __init__(self, value: str | None) -> None:
         """Initialize a symbolic dimension.
 
