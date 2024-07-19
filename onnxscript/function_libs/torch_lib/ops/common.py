@@ -3,6 +3,8 @@
 """Common operators shared in the torchlib library."""
 
 # mypy: disable-error-code="misc,arg-type,type-arg,valid-type,assignment,return-value"
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 import onnxscript
@@ -66,6 +68,4 @@ def cast_to(a: RealType, dtype: int) -> RealType:
 
 def constant(array, dtype: int | onnx.TensorProto.DataType | ir.DataType) -> TensorType:
     """Utility for creating a constant tensor."""
-    return op.Constant(
-        value=ir.serde.serialize_tensor(ir.tensor(array, dtype=ir.DataType(dtype)))
-    )
+    return op.Constant(value=ir.tensor(array, dtype=ir.DataType(dtype)))
