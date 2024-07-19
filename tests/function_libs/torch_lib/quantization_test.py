@@ -8,7 +8,7 @@ import unittest
 
 import onnx
 import torch
-import torch._export
+import torch._export as torch_export
 from torch.ao.quantization import quantize_pt2e
 from torch.ao.quantization.quantizer import xnnpack_quantizer
 
@@ -27,7 +27,7 @@ class QuantizedModelExportTest(unittest.TestCase):
         model = TestModel().eval()
 
         # Step 1. program capture
-        pt2e_torch_model = torch._export.capture_pre_autograd_graph(model, example_inputs)
+        pt2e_torch_model = torch_export.capture_pre_autograd_graph(model, example_inputs)
 
         # Step 2. quantization
         quantizer = xnnpack_quantizer.XNNPACKQuantizer().set_global(
