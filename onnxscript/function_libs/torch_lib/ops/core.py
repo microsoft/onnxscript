@@ -164,7 +164,7 @@ def aten_acosh(self: TFloat) -> TFloat:
     return op.Acosh(self)
 
 
-@torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"), traceable=True)
+@torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"))
 def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
     # TODO(microsoft/onnxruntime#15977): Improve fp16 precision
