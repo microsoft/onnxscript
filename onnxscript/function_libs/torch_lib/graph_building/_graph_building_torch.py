@@ -425,11 +425,19 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         return self._graph.add_function_call(function, inputs, attributes)
 
 
-@runtime_typing.checked
 def _add_attribute_to_torchscript_node(
     node: torch.Node,
     key: str,
-    value: Union[float, int, str, bytes, Sequence[float], Sequence[int], torch.Tensor],
+    value: Union[
+        float,
+        int,
+        str,
+        bytes,
+        Sequence[float],
+        Sequence[int],
+        torch.Tensor,
+        ir.TensorProtocol,
+    ],
 ):
     """Initializes the right attribute based on type of value."""
     if isinstance(value, float):
