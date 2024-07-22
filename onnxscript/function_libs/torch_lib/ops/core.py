@@ -8101,7 +8101,7 @@ def aten_swapdims(self: TensorType, dim0: int, dim1: int) -> TensorType:
 @torch_op("aten::sym_size.int", trace_only=True)
 def aten_sym_size(self: TensorType, dim: int = 0) -> INT64:
     """sym_size.int(Tensor self, int dim) -> SymInt"""
-    return op.Shape(self, start=dim, end=dim + 1)
+    return op.Shape(self, end=dim + 1, start=dim)
 
 
 def aten_symeig(
