@@ -3490,14 +3490,13 @@ def aten_feature_dropout(input: TensorType, p: float, train: bool) -> TensorType
 
 
 @torch_op(("aten::fill.Tensor", "aten::fill.Sclaar"))
-def aten_fill(self: TTensor, value: TTensor) -> TTensor:
+def aten_fill(self: TTensor, value: TTensor2) -> TTensor:
     """fill.Tensor(Tensor self, Tensor value) -> Tensor"""
 
-    # after fill, the self Tensor should keep origianl type
+    # Cast the value before Expand so it can be constant folded
+    value = op.CastLike(value, self)
     shape = op.Shape(self)
-    expanded = op.Expand(value, shape)
-    result = op.CastLike(expanded, self)
-    return result
+    return op.Expand(value, shape)
 
 
 def aten_fix(self: TensorType) -> TensorType:
