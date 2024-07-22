@@ -389,7 +389,7 @@ def assert_onnx_proto_equal(
         a: The first ONNX proto.
         b: The second ONNX proto.
     """
-    assert type(a) == type(b), f"Type not equal: {type(a)} != {type(b)}"  # pylint: disable=unidiomatic-typecheck
+    assert type(a) is type(b), f"Type not equal: {type(a)} != {type(b)}"
 
     a_fields = {field.name: value for field, value in a.ListFields()}
     b_fields = {field.name: value for field, value in b.ListFields()}
