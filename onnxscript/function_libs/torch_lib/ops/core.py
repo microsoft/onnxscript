@@ -3506,13 +3506,18 @@ def aten_fix(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::flip", trace_only=True)
-def aten_flip(self: TTensor, dims: INT64) -> TTensor:
+def aten_flip(self: TTensor, dims: Sequence[int]) -> TTensor:
     """flip(Tensor self, int[] dims) -> Tensor"""
 
+    if not dims:
+        # Nothing to flip
+        return op.Identity(self)
+
     rank = len(dims)
-    starts = [-1] * rank  # something like [-1, -1, -1]
+    starts = op.Constant(value_ints=[-1] * rank)  # something like [-1, -1, -1]
     steps = starts  # something like [-1, -1, -1]
-    ends = [_INT64_MIN] * rank  # something like [-xxx, -xxx, -xxx]
+    ends = op.Constant(value_ints=[_INT64_MIN] * rank)  # something like [-xxx, -xxx, -xxx]
+    dims = op.Constant(value_ints=dims)
     return op.Slice(self, starts, ends, dims, steps)
 
 
