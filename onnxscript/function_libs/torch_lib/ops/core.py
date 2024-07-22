@@ -4928,12 +4928,6 @@ def aten_logsumexp(self: TFloat, dim: INT64, keepdim: int = False) -> TFloat:
     return result
 
 
-def aten_lshift(self: TensorType, other: TensorType) -> TensorType:
-    """__lshift__.Tensor(Tensor self, Tensor other) -> Tensor"""
-
-    raise NotImplementedError()
-
-
 def aten_lstm_cell(
     input: TensorType,
     hx: Sequence[TensorType],
@@ -7320,12 +7314,6 @@ def aten_rrelu(
     generator: Optional[str] = None,
 ) -> TensorType:
     """rrelu(Tensor self, Scalar lower=0.125, Scalar upper=0.3333333333333333, bool training=False, Generator? generator=None) -> Tensor"""
-
-    raise NotImplementedError()
-
-
-def aten_rshift(self: TensorType, other: TensorType) -> TensorType:
-    """__rshift__.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     raise NotImplementedError()
 
