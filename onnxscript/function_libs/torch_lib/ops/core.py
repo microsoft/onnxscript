@@ -235,7 +235,7 @@ def aten_addcmul(
     return op.Add(self, op.Mul(op.Mul(value, tensor1), tensor2))
 
 
-@torch_op("aten::addmm", traceable=True)
+@torch_op("aten::addmm")
 def aten_addmm(
     self: TReal, mat1: TReal, mat2: TReal, beta: float = 1.0, alpha: float = 1.0
 ) -> TReal:
