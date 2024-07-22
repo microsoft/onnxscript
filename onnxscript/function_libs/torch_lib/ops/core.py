@@ -3489,7 +3489,7 @@ def aten_feature_dropout(input: TensorType, p: float, train: bool) -> TensorType
     raise NotImplementedError()
 
 
-@torch_op(("aten::fill.Tensor", "aten::fill.Sclaar"), traceable=True)
+@torch_op(("aten::fill.Tensor", "aten::fill.Sclaar"))
 def aten_fill(self: TTensor, value: TTensor) -> TTensor:
     """fill.Tensor(Tensor self, Tensor value) -> Tensor"""
 
@@ -3538,7 +3538,7 @@ def aten_floor(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     return op.Floor(self)
 
 
-@torch_op("math::floor")
+@torch_op("math::floor", traceable=True)
 def python_math_floor(self: TFloatOrBFloat16) -> TInt:
     """floor(Tensor self) -> Tensor"""
     floor = op.Floor(self)
