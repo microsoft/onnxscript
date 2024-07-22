@@ -550,9 +550,6 @@ def aten_arange(
 ) -> TensorType:
     """arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    # NOTE: trace_only because both if branches need to be the same type, but we have
-    # a cast in the if branch.
-
     if dtype == -1:
         zero = op.CastLike(0.0, end)
         one = op.CastLike(1.0, end)
