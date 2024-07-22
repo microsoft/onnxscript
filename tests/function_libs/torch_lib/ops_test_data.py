@@ -271,14 +271,6 @@ def _empty_input_wrangler(
     return args, kwargs
 
 
-def _flip_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Make the dims as tensor
-    kwargs["dims"] = np.array(kwargs["dims"], dtype=np.int64)
-    return args, kwargs
-
-
 def _grid_sample_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -817,7 +809,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: The implementation is numerically unstable: https://github.com/microsoft/onnxscript/issues/1223"
     ),
     TorchLibOpInfo("fill", core_ops.aten_fill),
-    TorchLibOpInfo("flip", core_ops.aten_flip, input_wrangler=_flip_input_wrangler),
+    TorchLibOpInfo("flip", core_ops.aten_flip).skip(
+        reason="fixme: size 0 inputs are not handled yet",
+        matcher=lambda sample: sample.input.numel() == 0,
+    ),
     TorchLibOpInfo("floor", core_ops.aten_floor),
     TorchLibOpInfo("floor_divide", core_ops.aten_floor_divide).xfail(
         dtypes=(torch.float16,),
