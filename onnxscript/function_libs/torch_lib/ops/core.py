@@ -8098,17 +8098,11 @@ def aten_swapdims(self: TensorType, dim0: int, dim1: int) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::sym_size.int")
+@torch_op("aten::sym_size.int", trace_only=True)
 def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     """sym_size(Tensor self, int dim) -> Tensor"""
-    # NOTE: onnxscript doesn't support attribute process,
-    # so op.Shape(self, start=dim, end=dim + 1) is not supported.
-    shape = op.Shape(self)
-    # Reshape helps dim from int to tensor, and
-    # input arguments support attribute processing.
-    start = op.Reshape(dim, op.Constant(value_ints=[1]))
-    end = op.Reshape(dim + 1, op.Constant(value_ints=[1]))
-    return op.Slice(shape, start, end)
+    shape = op.Shape(self, start=dim, end=dim + 1)
+    return op.Slice(shape, [dim], [dim + 1])
 
 
 def aten_symeig(
