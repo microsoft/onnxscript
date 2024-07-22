@@ -6602,7 +6602,7 @@ def aten_prelu_backward(
     raise NotImplementedError()
 
 
-@torch_op(("aten::prod.dim_int"), trace_only=True)
+@torch_op("aten::prod.dim_int", trace_only=True)
 def aten_prod(self: TReal, dim: int, keepdim: bool = False) -> TReal:
     """prod(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
 
@@ -8098,7 +8098,7 @@ def aten_swapdims(self: TensorType, dim0: int, dim1: int) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::sym_size")
+@torch_op("aten::sym_size.int")
 def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     """sym_size(Tensor self, int dim) -> Tensor"""
     # NOTE: onnxscript doesn't support attribute process,
