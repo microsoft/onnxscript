@@ -164,7 +164,7 @@ def aten_acosh(self: TFloat) -> TFloat:
     return op.Acosh(self)
 
 
-@torch_op(("aten::add", "aten::add.Tensor", "_operator::add"))
+@torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"))
 def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
     # TODO(microsoft/onnxruntime#15977): Improve fp16 precision
@@ -173,7 +173,9 @@ def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     return op.Add(self, other)
 
 
-@torch_op(("aten::add", "aten::add.Tensor", "_operator::add"), trace_only=True, complex=True)
+@torch_op(
+    ("aten::add.Tensor", "aten::add.Scalar", "_operator::add"), trace_only=True, complex=True
+)
 def aten_add_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
@@ -4834,8 +4836,9 @@ def aten_logical_not(self: BOOL) -> BOOL:
         "aten::bitwise_or.Tensor",
         "aten::bitwise_or.Scalar",
         "aten::bitwise_or.Scalar_Tensor",
-        "aten::add",
         "aten::add.Tensor",
+        "aten::add.Scalar",
+        "_operator::add",
     )
 )
 def aten_logical_or(self: BOOL, other: BOOL) -> BOOL:
@@ -5544,14 +5547,20 @@ def aten_msort(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::mul", "aten::mul.Tensor", "_operator::mul"), traceable=True)
+@torch_op(
+    ("aten::mul", "aten::mul.Tensor", "_operator::mul", "aten::multiply.Tensor"),
+    traceable=True,
+)
 def aten_mul(self: TReal, other: TReal) -> TReal:
     """mul.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.Mul(self, other)
 
 
-@torch_op(("aten::mul", "aten::mul.Tensor"))
+@torch_op(
+    ("aten::mul", "aten::mul.Tensor", "_operator::mul", "aten::multiply.Tensor"),
+    traceable=True,
+)
 def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
     """ONNX Mul doesn't support Boolean, so use And as an equivalent operator."""
 
@@ -5561,10 +5570,15 @@ def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
     return op.And(self, other)
 
 
-@torch_op(("aten::mul", "aten::mul.Tensor", "_operator::mul"), complex=True)
+@torch_op(
+    ("aten::mul", "aten::mul.Tensor", "_operator::mul", "aten::multiply.Tensor"),
+    traceable=True,
+    complex=True,
+)
 def aten_mul_complex(self: TReal, other: TReal) -> TReal:
     """mul.Tensor(Tensor self, Tensor other) -> Tensor"""
 
+    # TODO(justinchuby): Maybe use Split to simplify the logic
     self_real = op.Slice(self, [0], [1], axes=[-1])
     self_imag = op.Slice(self, [1], [2], axes=[-1])
     other_real = op.Slice(other, [0], [1], axes=[-1])
@@ -7966,7 +7980,15 @@ def aten_stft(
     return result
 
 
-@torch_op(("aten::sub.Tensor", "aten::subtract.Tensor", "_operator::sub"))
+@torch_op(
+    (
+        "aten::sub.Tensor",
+        "aten::sub.Scalar",
+        "aten::subtract.Tensor",
+        "aten::subtract.Scalar",
+        "_operator::sub",
+    )
+)
 def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
     alpha = op.CastLike(alpha, other)
@@ -7976,7 +7998,13 @@ def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
 
 
 @torch_op(
-    ("aten::sub.Tensor", "aten::subtract.Tensor", "_operator::sub"),
+    (
+        "aten::sub.Tensor",
+        "aten::sub.Scalar",
+        "aten::subtract.Tensor",
+        "aten::subtract.Scalar",
+        "_operator::sub",
+    ),
     trace_only=True,
     complex=True,
 )
@@ -8846,7 +8874,14 @@ def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
     return op.ConcatFromSequence(tensors_2d, axis=0)
 
 
-@torch_op(("aten::where", "aten::where.self"))
+@torch_op(
+    (
+        "aten::where.Scalar",
+        "aten::where.ScalarSelf",
+        "aten::where.ScalarOther",
+        "aten::where.self",
+    )
+)
 def aten_where(condition: BOOL, self: TTensor, other: TTensor) -> TTensor:
     """where.self(Tensor condition, Tensor self, Tensor other) -> Tensor"""
 
