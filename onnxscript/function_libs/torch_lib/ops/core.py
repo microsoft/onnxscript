@@ -3614,30 +3614,34 @@ def aten_from_file(
 
 @torch_op("aten::full", trace_only=True)
 def aten_full(
-    size: INT64,
+    size: Union[INT64, INT32],
     fill_value: FLOAT,
     dtype: int = FLOAT.dtype,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
-):
+) -> TensorType:
     """full(SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    size = op.Cast(size, to=INT64.dtype)
     if dtype != -1:
         fill_value = op.Cast(fill_value, to=dtype)
+    if size == []:
+        # size can be empty, meaning a scalar
+        return fill_value
+
+    size = op.Cast(size, to=INT64.dtype)
     return op.Expand(fill_value, size)
 
 
 @torch_op("aten::full_like", trace_only=True)
 def aten_full_like(
-    self: TTensor,
-    fill_value: TTensor,
+    self: TensorType,
+    fill_value: TensorType,
     dtype: int = -1,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
-) -> TTensor:
+) -> TensorType:
     """full_like(Tensor self, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
     if dtype == -1:
