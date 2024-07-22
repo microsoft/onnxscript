@@ -8099,8 +8099,8 @@ def aten_swapdims(self: TensorType, dim0: int, dim1: int) -> TensorType:
 
 
 @torch_op("aten::sym_size.int", trace_only=True)
-def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
-    """sym_size(Tensor self, int dim) -> Tensor"""
+def aten_sym_size(self: TensorType, dim: int = 0) -> INT64:
+    """sym_size.int(Tensor self, int dim) -> SymInt"""
     shape = op.Shape(self, start=dim, end=dim + 1)
     return op.Slice(shape, [dim], [dim + 1])
 
