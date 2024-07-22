@@ -4715,11 +4715,17 @@ def aten_linear_backward(
 
 @torch_op("aten::linspace", trace_only=True)
 def aten_linspace(
-    start: TFloat, end: TFloat, steps: int, dtype: int = FLOAT.dtype
+    start: TFloat,
+    end: TFloat,
+    steps: int,
+    dtype: int = FLOAT.dtype,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
 ) -> TensorType:
     """linspace(Scalar start, Scalar end, int steps, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    if dtype == -1:
+    if dtype == -1 or dtype is None:
         dtype = FLOAT.dtype
 
     # Reference: https://github.com/pytorch/pytorch/blob/b35ca2cb941b5ba90858322810ca85c31e4541fd/torch/_refs/__init__.py#L4896
@@ -4743,14 +4749,14 @@ def aten_linspace(
     )
 
 
-@torch_op("aten::log")
+@torch_op("aten::log", traceable=True)
 def aten_log(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """log(Tensor self) -> Tensor"""
 
     return op.Log(self)
 
 
-@torch_op("aten::log10")
+@torch_op("aten::log10", traceable=True)
 def aten_log10(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """log10(Tensor self) -> Tensor"""
 
@@ -4764,21 +4770,21 @@ def aten_log1p(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     return op.Log(op.Add(self, 1.0))
 
 
-@torch_op("aten::log2")
+@torch_op("aten::log2", traceable=True)
 def aten_log2(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """log2(Tensor self) -> Tensor"""
 
     return op.Div(op.Log(self), op.CastLike(op.Log(2.0), self))
 
 
-@torch_op("aten::logaddexp")
+@torch_op("aten::logaddexp", traceable=True)
 def aten_logaddexp(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """logaddexp(Tensor self, Tensor other) -> Tensor"""
 
     return op.Log(op.Add(op.Exp(self), op.Exp(other)))
 
 
-@torch_op("aten::logaddexp2")
+@torch_op("aten::logaddexp2", traceable=True)
 def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """logaddexp2(Tensor self, Tensor other) -> Tensor"""
     two = op.CastLike(2.0, self)
@@ -4811,7 +4817,7 @@ def aten_logcumsumexp(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
     return result
 
 
-@torch_op("aten::logdet")
+@torch_op("aten::logdet", traceable=True)
 def aten_logdet(self: TFloat) -> TFloat:
     """logdet(Tensor self) -> Tensor"""
 
@@ -4824,7 +4830,8 @@ def aten_logdet(self: TFloat) -> TFloat:
         "aten::bitwise_and.Tensor",
         "aten::bitwise_and.Scalar",
         "aten::bitwise_and.Scalar_Tensor",
-    )
+    ),
+    traceable=True,
 )
 def aten_logical_and(self: BOOL, other: BOOL) -> BOOL:
     """logical_and(Tensor self, Tensor other) -> Tensor"""
@@ -4832,7 +4839,7 @@ def aten_logical_and(self: BOOL, other: BOOL) -> BOOL:
     return op.And(self, other)
 
 
-@torch_op(("aten::logical_not", "aten::bitwise_not"))
+@torch_op(("aten::logical_not", "aten::bitwise_not"), traceable=True)
 def aten_logical_not(self: BOOL) -> BOOL:
     """logical_not(Tensor self) -> Tensor"""
 
@@ -4863,7 +4870,8 @@ def aten_logical_or(self: BOOL, other: BOOL) -> BOOL:
         "aten::bitwise_xor.Tensor",
         "aten::bitwise_xor.Scalar",
         "aten::bitwise_xor.Scalar_Tensor",
-    )
+    ),
+    traceable=True,
 )
 def aten_logical_xor(self: BOOL, other: BOOL) -> BOOL:
     """logical_xor(Tensor self, Tensor other) -> Tensor"""
