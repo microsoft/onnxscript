@@ -122,7 +122,9 @@ def get_phi3_model(
                 self.model = Phi3Model(config)
 
             def forward(self, input_ids, attention_mask):
-                model_output = self.model(input_ids, attention_mask=attention_mask)
+                model_output = self.model(
+                    input_ids, attention_mask=attention_mask, use_cache=False
+                )
                 return model_output.to_tuple()
 
         def generate_example_inputs_no_mask(batch: int, seq: int, vocab_size: int):
@@ -155,7 +157,7 @@ def get_phi3_model(
             self.model = Phi3Model(config)
 
         def forward(self, input_ids):
-            model_output = self.model(input_ids)
+            model_output = self.model(input_ids, use_cache=False)
             return model_output.to_tuple()
 
     def generate_example_inputs(batch: int, seq: int, vocab_size: int):

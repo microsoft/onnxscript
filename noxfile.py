@@ -19,7 +19,7 @@ COMMON_TEST_DEPENDENCIES = (
     'numpy==1.26.4; python_version>="3.9"',
     "packaging",
     "parameterized",
-    "psutil",
+    'psutil; sys_platform != "win32"',
     "pytest-cov",
     "pytest-randomly",
     "pytest-subtests",
@@ -28,13 +28,13 @@ COMMON_TEST_DEPENDENCIES = (
     "pyyaml",
     "types-PyYAML",
     "typing_extensions",
-    "ml_dtypes",
+    "ml-dtypes",
 )
 ONNX = "onnx==1.16"
 ONNX_RUNTIME = "onnxruntime==1.17.1"
 PYTORCH = "torch==2.2.2"
 TORCHVISON = "torchvision==0.17.2"
-TRANSFORMERS = "transformers>=4.37.2"
+TRANSFORMERS = "transformers==4.37.2"
 ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "flatbuffers",
     "coloredlogs",
@@ -134,27 +134,6 @@ def test_experimental_torchlib_tracing(session):
     )
 
 
-@nox.session(tags=["test-experimental-torchlib-onnx-ir"])
-def test_experimental_torchlib_onnx_ir(session):
-    """Test TorchLib using the ONNX IR to build graphs."""
-    session.install(
-        *COMMON_TEST_DEPENDENCIES,
-        PYTORCH,
-        TORCHVISON,
-        ONNX,
-        *ONNX_RUNTIME_NIGHTLY_DEPENDENCIES,
-    )
-    session.install("-r", "requirements/ci/requirements-ort-nightly.txt")
-    session.install(".", "--no-deps")
-    session.run("pip", "list")
-    session.run(
-        "pytest",
-        "tests/function_libs/torch_lib/ops_test.py",
-        *session.posargs,
-        env={"TORCHLIB_EXPERIMENTAL_USE_IR": "1"},
-    )
-
-
 @nox.session(tags=["test-dort"])
 def test_dort(session):
     """Test the conversion of a couple of models from transformers."""
@@ -163,7 +142,7 @@ def test_dort(session):
     )
     torch_version, transformers_version = session.posargs
 
-    if torch_version == "nighly":
+    if torch_version == "nightly":
         session.install(
             "--pre",
             "torch",

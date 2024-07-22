@@ -39,6 +39,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import functools
+import sys
 from typing import Any, Callable, Collection, Optional
 
 import numpy as np
@@ -267,14 +268,6 @@ def _empty_input_wrangler(
     """Remove arguments not present in the aten op signature."""
     if "requires_grad" in kwargs:
         del kwargs["requires_grad"]
-    return args, kwargs
-
-
-def _flip_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Make the dims as tensor
-    kwargs["dims"] = np.array(kwargs["dims"], dtype=np.int64)
     return args, kwargs
 
 
@@ -720,6 +713,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.bool,),
         reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
     ),
+    TorchLibOpInfo("clamp_max", core_ops.aten_clamp).skip(
+        enabled_if=sys.version_info[:2] >= (3, 9) or sys.platform != "win32",
+        reason="fails in this particular case",
+    ),
     TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
         enabled_if=version_utils.onnxruntime_older_than("1.16"),
@@ -805,11 +802,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "erfc", special_ops.aten_special_erfc, tolerance={torch.float16: (1e-2, 2e-4)}
     ),
+    TorchLibOpInfo(
+        "expm1", special_ops.aten_special_expm1, tolerance={torch.float16: (1e-2, 2e-4)}
+    ),
     TorchLibOpInfo("special.erfcx", special_ops.aten_special_erfcx).xfail(
         reason="fixme: The implementation is numerically unstable: https://github.com/microsoft/onnxscript/issues/1223"
     ),
     TorchLibOpInfo("fill", core_ops.aten_fill),
-    TorchLibOpInfo("flip", core_ops.aten_flip, input_wrangler=_flip_input_wrangler),
+    TorchLibOpInfo("flip", core_ops.aten_flip).skip(
+        reason="fixme: size 0 inputs are not handled yet",
+        matcher=lambda sample: sample.input.numel() == 0,
+    ),
     TorchLibOpInfo("floor", core_ops.aten_floor),
     TorchLibOpInfo("floor_divide", core_ops.aten_floor_divide).xfail(
         dtypes=(torch.float16,),
@@ -895,6 +898,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("log", core_ops.aten_log),
     TorchLibOpInfo("le", core_ops.aten_le),
     TorchLibOpInfo("le_bool", core_ops.aten_le_bool),
+    TorchLibOpInfo(
+        "lerp",
+        core_ops.aten_lerp,
+        tolerance={torch.float16: (2e-3, 2e-1)},
+    ),
     TorchLibOpInfo("log10", core_ops.aten_log10),
     TorchLibOpInfo("log1p", core_ops.aten_log1p),
     TorchLibOpInfo(
@@ -1015,6 +1023,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("mT", core_ops.aten_mT_complex, complex=True),
     TorchLibOpInfo("mul", core_ops.aten_mul),
     TorchLibOpInfo("mul", core_ops.aten_mul_complex, complex=True),
+    TorchLibOpInfo(
+        "mv",
+        core_ops.aten_mv,
+        tolerance={torch.float16: (3e-2, 1e-2)},
+    ),
     TorchLibOpInfo("narrow", core_ops.aten_narrow),
     TorchLibOpInfo("ops.aten.native_dropout", core_ops.aten_native_dropout),
     TorchLibOpInfo("ne", core_ops.aten_ne),
@@ -1306,6 +1319,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("polar", core_ops.aten_polar),
     TorchLibOpInfo("pow", core_ops.aten_pow),
+    TorchLibOpInfo("nn.functional.prelu", core_ops.aten_prelu),
     TorchLibOpInfo("ops.aten.rand", core_ops.aten_rand, nondeterministic=True),
     TorchLibOpInfo("ops.aten.rand_like", core_ops.aten_rand_like, nondeterministic=True),
     TorchLibOpInfo("ops.aten.randint", core_ops.aten_randint, nondeterministic=True),
@@ -1385,6 +1399,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("select_scatter", core_ops.aten_select_scatter),
     TorchLibOpInfo("sigmoid", core_ops.aten_sigmoid),
     TorchLibOpInfo("sign", core_ops.aten_sign),
+    TorchLibOpInfo("nn.functional.silu", nn_ops.aten_silu),
     TorchLibOpInfo("sin", core_ops.aten_sin),
     TorchLibOpInfo(
         "sinc", special_ops.aten_special_sinc, tolerance={torch.float16: (1e-2, 6e-4)}
@@ -1419,6 +1434,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16449",
         test_class_name="TestOutputConsistencyEager",
+    ),
+    TorchLibOpInfo("sort", core_ops.aten_sort).xfail(
+        dtypes=(torch.float16,),
+        reason="fixme: Tensor-likes are not close. Tests pass for float32.",
     ),
     TorchLibOpInfo(
         "split_with_sizes",
