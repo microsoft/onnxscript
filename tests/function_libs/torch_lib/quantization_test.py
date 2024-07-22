@@ -12,8 +12,14 @@ import torch._export as torch_export
 from torch.ao.quantization import quantize_pt2e
 from torch.ao.quantization.quantizer import xnnpack_quantizer
 
+from onnxscript._internal import version_utils
+
 
 class QuantizedModelExportTest(unittest.TestCase):
+    @unittest.skipIf(
+        version_utils.torch_older_than("2.4"),
+        "Dynamo exporter fails at the modularization step.",
+    )
     def test_simple_quantized_model(self):
         class TestModel(torch.nn.Module):
             def __init__(self):

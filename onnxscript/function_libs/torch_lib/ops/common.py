@@ -5,7 +5,8 @@
 # mypy: disable-error-code="misc,arg-type,type-arg,valid-type,assignment,return-value"
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import numpy.typing as npt
+import onnx
 
 import onnxscript
 import onnxscript.values
@@ -14,9 +15,6 @@ from onnxscript import opset18 as op
 from onnxscript.function_libs.torch_lib import _constants, tensor_typing
 from onnxscript.function_libs.torch_lib.tensor_typing import RealType
 from onnxscript.onnx_types import COMPLEX64, COMPLEX128, DOUBLE, FLOAT, TensorType
-
-if TYPE_CHECKING:
-    import onnx
 
 COMPLEX64_TYPE = COMPLEX64.dtype
 COMPLEX128_TYPE = COMPLEX128.dtype
@@ -66,6 +64,17 @@ def cast_to(a: RealType, dtype: int) -> RealType:
     return result
 
 
-def constant(array, dtype: int | onnx.TensorProto.DataType | ir.DataType) -> TensorType:
-    """Utility for creating a constant tensor."""
+def constant(
+    array: npt.ArrayLike | onnx.TensorProto | ir.DLPackCompatible | ir.ArrayCompatible,
+    dtype: int | onnx.TensorProto.DataType | ir.DataType,
+) -> TensorType:
+    """Utility for creating a constant tensor.
+
+    Args:
+        array: The array to convert to a constant tensor.
+        dtype: The data type of the tensor.
+
+    Returns:
+        A constant node.
+    """
     return op.Constant(value=ir.tensor(array, dtype=ir.DataType(dtype)))
