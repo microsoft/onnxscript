@@ -164,7 +164,7 @@ def aten_acosh(self: TFloat) -> TFloat:
     return op.Acosh(self)
 
 
-@torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"))
+@torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"), traceable=True)
 def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
     # TODO(microsoft/onnxruntime#15977): Improve fp16 precision
@@ -235,7 +235,7 @@ def aten_addcmul(
     return op.Add(self, op.Mul(op.Mul(value, tensor1), tensor2))
 
 
-@torch_op("aten::addmm")
+@torch_op("aten::addmm", traceable=True)
 def aten_addmm(
     self: TReal, mat1: TReal, mat2: TReal, beta: float = 1.0, alpha: float = 1.0
 ) -> TReal:
@@ -1142,7 +1142,7 @@ def aten_batch_norm_update_stats(
     raise NotImplementedError()
 
 
-@torch_op("aten::bernoulli")
+@torch_op("aten::bernoulli", traceable=True)
 def aten_bernoulli(self: TFloat) -> TFloat:
     """Proximal implementation of aten::bernoulli.default
 
@@ -1214,7 +1214,8 @@ def aten_binomial(
         "aten::bitwise_and.Scalar",
         "aten::bitwise_and.Scalar_Tensor",
         "_operator::and_",
-    )
+    ),
+    traceable=True,
 )
 def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
     """bitwise_and.Tensor(Tensor self, Tensor other) -> Tensor"""
@@ -1228,7 +1229,8 @@ def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
         "aten::bitwise_left_shift.Tensor",
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
-    )
+    ),
+    traceable=True,
 )
 def aten_bitwise_left_shift_int16(self: INT16, other: INT16) -> INT16:
     """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
@@ -1246,7 +1248,8 @@ def aten_bitwise_left_shift_int16(self: INT16, other: INT16) -> INT16:
         "aten::bitwise_left_shift.Tensor",
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
-    )
+    ),
+    traceable=True,
 )
 def aten_bitwise_left_shift_int32(self: INT32, other: INT32) -> INT32:
     """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
@@ -1264,7 +1267,8 @@ def aten_bitwise_left_shift_int32(self: INT32, other: INT32) -> INT32:
         "aten::bitwise_left_shift.Tensor",
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
-    )
+    ),
+    traceable=True,
 )
 def aten_bitwise_left_shift_int64(self: INT64, other: INT64) -> INT64:
     """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
@@ -1282,7 +1286,8 @@ def aten_bitwise_left_shift_int64(self: INT64, other: INT64) -> INT64:
         "aten::bitwise_left_shift.Tensor",
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
-    )
+    ),
+    traceable=True,
 )
 def aten_bitwise_left_shift_int8(self: INT8, other: INT8) -> INT8:
     """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
@@ -1295,7 +1300,7 @@ def aten_bitwise_left_shift_int8(self: INT8, other: INT8) -> INT8:
     return op.Cast(result, to=INT8.dtype)
 
 
-@torch_op("aten::bitwise_not")
+@torch_op("aten::bitwise_not", traceable=True)
 def aten_bitwise_not(self: TInt) -> TInt:
     """bitwise_not(Tensor self) -> Tensor"""
     # logical_not implements the BOOL variant
@@ -1309,7 +1314,8 @@ def aten_bitwise_not(self: TInt) -> TInt:
         "aten::bitwise_or.Scalar",
         "aten::bitwise_or.Scalar_Tensor",
         "_operator::or_",
-    )
+    ),
+    traceable=True,
 )
 def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
     """bitwise_or.Tensor(Tensor self, Tensor other) -> Tensor"""
@@ -1442,7 +1448,8 @@ def aten_bitwise_right_shift_int8(self: INT8, other: INT8) -> INT8:
         "aten::bitwise_xor.Tensor",
         "aten::bitwise_xor.Scalar",
         "aten::bitwise_xor.Scalar_Tensor",
-    )
+    ),
+    traceable=True,
 )
 def aten_bitwise_xor(self: TInt, other: TInt) -> TInt:
     """bitwise_xor.Tensor(Tensor self, Tensor other) -> Tensor"""
@@ -3482,7 +3489,7 @@ def aten_feature_dropout(input: TensorType, p: float, train: bool) -> TensorType
     raise NotImplementedError()
 
 
-@torch_op("aten::fill.Tensor")
+@torch_op(("aten::fill.Tensor", "aten::fill.Sclaar"), traceable=True)
 def aten_fill(self: TTensor, value: TTensor) -> TTensor:
     """fill.Tensor(Tensor self, Tensor value) -> Tensor"""
 
@@ -4839,7 +4846,8 @@ def aten_logical_not(self: BOOL) -> BOOL:
         "aten::add.Tensor",
         "aten::add.Scalar",
         "_operator::add",
-    )
+    ),
+    traceable=True,
 )
 def aten_logical_or(self: BOOL, other: BOOL) -> BOOL:
     """logical_or(Tensor self, Tensor other) -> Tensor"""
