@@ -1054,39 +1054,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "new_zeros",
         core_ops.aten_new_zeros,
     ),
-    TorchLibOpInfo(
-        "nn.functional.adaptive_avg_pool1d",
-        nn_ops.aten_adaptive_avg_pool1d,
-    )
-    .xfail(
-        # Shape should be [N, C, D1]
-        matcher=lambda sample: sample.args[0] not in {1, (1,)},
-        reason="only global pooling is supported; only batched inputs are supported",
-    )
-    .xfail(
-        reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
-        dtypes=(torch.float16,),
-        test_class_name="TestOutputConsistencyEager",
-    ),
-    TorchLibOpInfo(
-        "nn.functional.adaptive_avg_pool2d",
-        nn_ops.aten_adaptive_avg_pool2d,
-    ).xfail(
-        matcher=lambda sample: sample.args[0] != (1, 1),
-        reason="only global pooling is supported; only batched inputs are supported",
-    ),
-    TorchLibOpInfo(
-        "nn.functional.adaptive_avg_pool3d",
-        nn_ops.aten_adaptive_avg_pool3d,
-    )
-    .xfail(
-        matcher=lambda sample: sample.args[0] != (1, 1, 1),
-        reason="only global pooling is supported; only batched inputs are supported",
-    )
-    .xfail(
-        dtypes=(torch.float16,),
-        reason="fixme: RuntimeError: ORT inference error GlobalAveragePool. https://github.com/microsoft/onnxruntime/issues/16449",
-    ),
     TorchLibOpInfo("nn.functional.celu", nn_ops.aten_celu),
     TorchLibOpInfo("nn.functional.celu_type_promoted", nn_ops.aten_celu_type_promoted),
     TorchLibOpInfo(
