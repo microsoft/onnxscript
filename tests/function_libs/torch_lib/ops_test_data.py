@@ -1697,9 +1697,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
     ),
     TorchLibOpInfo(
-        "group_norm",
-        core_ops.aten_group_norm,
+        "nn.functional.group_norm",
+        nn_ops.aten_group_norm,
         tolerance={torch.float16: (1e-2, 7e-3)},
+    ).xfail(
+        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
+        reason="Using op.InstanceNormalization to simulate GroupNorm, which does not support 0-dim input",
     ),
     TorchLibOpInfo("heaviside", core_ops.aten_heaviside),
     TorchLibOpInfo(
