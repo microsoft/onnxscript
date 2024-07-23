@@ -1226,7 +1226,7 @@ def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
         "aten::bitwise_left_shift.Tensor",
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
-        "_operator::__lshift__"
+        "_operator::__lshift__",
     ),
     traceable=True,
 )
@@ -1246,7 +1246,7 @@ def aten_bitwise_left_shift_int16(self: INT16, other: INT16) -> INT16:
         "aten::bitwise_left_shift.Tensor",
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
-        "_operator::__lshift__"
+        "_operator::__lshift__",
     ),
     traceable=True,
 )
@@ -1266,7 +1266,7 @@ def aten_bitwise_left_shift_int32(self: INT32, other: INT32) -> INT32:
         "aten::bitwise_left_shift.Tensor",
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
-        "_operator::__lshift__"
+        "_operator::__lshift__",
     ),
     traceable=True,
 )
@@ -1286,7 +1286,7 @@ def aten_bitwise_left_shift_int64(self: INT64, other: INT64) -> INT64:
         "aten::bitwise_left_shift.Tensor",
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
-        "_operator::__lshift__"
+        "_operator::__lshift__",
     ),
     traceable=True,
 )
@@ -1330,7 +1330,7 @@ def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
         "aten::bitwise_right_shift.Tensor",
         "aten::bitwise_right_shift.Tensor_Scalar",
         "aten::bitwise_right_shift.Scalar_Tensor",
-        "_operator::__rshift__"
+        "_operator::__rshift__",
     )
 )
 def aten_bitwise_right_shift_int16(self: INT16, other: INT16) -> INT16:
@@ -1360,7 +1360,7 @@ def aten_bitwise_right_shift_int16(self: INT16, other: INT16) -> INT16:
         "aten::bitwise_right_shift.Tensor",
         "aten::bitwise_right_shift.Tensor_Scalar",
         "aten::bitwise_right_shift.Scalar_Tensor",
-        "_operator::__rshift__"
+        "_operator::__rshift__",
     )
 )
 def aten_bitwise_right_shift_int32(self: INT32, other: INT32) -> INT32:
@@ -1390,7 +1390,7 @@ def aten_bitwise_right_shift_int32(self: INT32, other: INT32) -> INT32:
         "aten::bitwise_right_shift.Tensor",
         "aten::bitwise_right_shift.Tensor_Scalar",
         "aten::bitwise_right_shift.Scalar_Tensor",
-        "_operator::__rshift__"
+        "_operator::__rshift__",
     )
 )
 def aten_bitwise_right_shift_int64(self: INT64, other: INT64) -> INT64:
@@ -1423,7 +1423,7 @@ def aten_bitwise_right_shift_int64(self: INT64, other: INT64) -> INT64:
         "aten::bitwise_right_shift.Tensor",
         "aten::bitwise_right_shift.Tensor_Scalar",
         "aten::bitwise_right_shift.Scalar_Tensor",
-        "_operator::__rshift__"
+        "_operator::__rshift__",
     )
 )
 def aten_bitwise_right_shift_int8(self: INT8, other: INT8) -> INT8:
