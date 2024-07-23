@@ -3612,7 +3612,7 @@ def aten_from_file(
 @torch_op("aten::full", trace_only=True)
 def aten_full(
     size: Union[INT64, INT32],
-    fill_value: FLOAT,
+    fill_value: TensorType,
     dtype: int = FLOAT.dtype,
     layout: str = "",
     device: str = "",
@@ -6238,7 +6238,7 @@ def aten_new_empty_strided(
 def aten_new_full(
     self: TTensor,
     size: INT64,
-    fill_value: TTensor,
+    fill_value: TensorType,
     dtype: int = -1,
     layout: str = "",
     device: str = "",
