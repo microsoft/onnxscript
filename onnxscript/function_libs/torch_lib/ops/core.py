@@ -7891,10 +7891,50 @@ def aten_std_correction(
     return op.Sqrt(var)
 
 
-def aten_std_mean(self: TensorType, unbiased: bool = True) -> tuple[TensorType, TensorType]:
+@torch_op("aten::std_mean", trace_only=True)
+def aten_std_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
     """std_mean(Tensor self, bool unbiased=True) -> (Tensor, Tensor)"""
 
-    raise NotImplementedError()
+    # Assume bool(True) and int(1) are same in ONNX, so pass "unbiased" directly as "correction"
+    # If not this case, should be explicitly set correction value according to unbiased value
+    var, mean = _aten_var_mean_onnx(self, correction=float(unbiased), keepdim=False)
+    return op.Sqrt(var), mean
+
+
+@torch_op("aten::std_mean.dim", trace_only=True)
+def aten_std_mean_dim(
+    self: TReal, dim: Sequence[int], unbiased: bool = True, keepdim: bool = False
+) -> Tuple[TReal, TReal]:
+    """std_mean.dim(Tensor self, int[1]? dim, bool unbiased=True, bool keepdim=False) -> (Tensor, Tensor)"""
+
+    # Although dim is Optional in signature, but we assume it must have value for this overload
+    # Assert(dim is not None)
+    var, mean = _aten_var_mean_dim_onnx(
+        self, dims=dim, correction=float(unbiased), keepdim=keepdim
+    )
+    return op.Sqrt(var), mean
+
+
+@torch_op("aten::std_mean.correction", trace_only=True)
+def aten_std_mean_correction(
+    self: TReal,
+    # FIXME(justinchuby): Make dim Optional[Sequence[int]]
+    dim: Optional[int] = None,
+    correction: Optional[float] = None,
+    keepdim: bool = False,
+) -> Tuple[TReal, TReal]:
+    """std_mean.correction(Tensor self, int[1]? dim=None, *, Scalar? correction=None, bool keepdim=False) -> (Tensor, Tensor)"""
+
+    if correction is None:
+        correction = 1.0
+
+    if dim is None:
+        var, mean = _aten_var_mean_onnx(self, correction=correction, keepdim=keepdim)
+    else:
+        var, mean = _aten_var_mean_dim_onnx(
+            self, dims=dim, correction=correction, keepdim=keepdim
+        )
+    return op.Sqrt(var), mean
 
 
 @torch_op("aten::stft", private=True)
