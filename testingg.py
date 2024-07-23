@@ -15,13 +15,13 @@ def export_to_onnx(input_model_path: str, output_model_path: str) -> onnx.ModelP
     and onnx.inliner.inline_local_functions.
     """
     # Load the ONNX model
-    onnx_model = onnx.load(input_model_path)
+    onnx_model = onnx.load(input_model_path, load_external_data=False)
     # # # Apply the onnx optimizer
     # onnx_model = onnxscript.optimizer.optimize(onnx_model) #-- this one kinda messes up for now, causes that symbolicdim error even without kunal's changes
     
 
     # #apply the onnx rewriter
-    # onnx_model = onnxscript.rewriter.rewrite(onnx_model)
+    onnx_model = onnxscript.rewriter.rewrite(onnx_model)
     
 
     # apply the onnxruntime rewriter
@@ -34,9 +34,9 @@ def export_to_onnx(input_model_path: str, output_model_path: str) -> onnx.ModelP
     # save_onnx_model(onnx_model, output_model_path, "optimize_model_llama3.onnx.data")
     # onnx_model = onnx.load(output_model_path, load_external_data=False)
 
-    # onnx_model = onnx.inliner.inline_local_functions(onnx_model)
+    onnx_model = onnx.inliner.inline_local_functions(onnx_model)
     
-    save_onnx_model(onnx_model, output_model_path, "optimize_model_llama3.onnx.data")
+    save_onnx_model(onnx_model, output_model_path, "myrules.onnx.data")
 
 
 def save_onnx_model(onnx_model: onnx.ModelProto, output_path: str, data_path: str):
@@ -55,8 +55,8 @@ def save_onnx_model(onnx_model: onnx.ModelProto, output_path: str, data_path: st
     print(f"Model saved with external data to {output_path}")
     
 
-input_model_path = "/home/t-assumange/llama2-7b/rank_0_Llama-2-7b-hf_decoder_with_past_model_fp32.onnx"
-output_model_path = "/home/t-assumange/llama2-7b/optimize_model_llama3.onnx"
+input_model_path = "/home/t-assumange/llama2-7b_Dynamo_transformers4.41/rank_0_Llama-2-7b-hf_decoder_with_past_model_fp32.onnx"
+output_model_path = "/home/t-assumange/llama2-7b_Dynamo_transformers4.41/myrules.onnx"
 export_to_onnx(input_model_path, output_model_path)
 
 

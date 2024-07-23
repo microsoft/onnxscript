@@ -970,7 +970,7 @@ class GQALlama3RewriteRule(AttentionRewriteRule):
     @_version_controller.register_version(min_version="4.39", max_version="4.42")
     def _fusion_with_4d_cache(self, function: ir.Function) -> ir.Function:
         print("Applying fusion with 4D cache for function:", function.name)
-        if len(function.inputs) != 13:
+        if len(function.inputs) not in {12, 13}:
             raise function_rule.FunctionRewriteError(
                 f"Unexpected number of inputs. Expected 13, got {len(function.inputs)}."
             )
@@ -984,16 +984,22 @@ class GQALlama3RewriteRule(AttentionRewriteRule):
         expand_shape = [1, attn_size_config.num_attention_heads, 1, 1]
 
         def gqa(
-            hidden_states,
-            position_id,
-            attention_mask,
-            q_proj_weight,
-            k_proj_weight,
-            v_proj_weight,
-            cos_cached,
-            sin_cached,
-            o_proj_weight,
+            sym_size_int_2,
+            sym_size_int,
+            hidden_states,       # %"mul_192"<FLOAT,[s0,s1,4096]>
+            position_id,         #%"l_position_ids_"<INT64,[s0,s1]>
+            key_states_10,
+            value_states_10,
+            attention_mask,      # %"slice_scatter_2"<FLOAT,[s0,1,s1,s1]>
+            q_proj_weight,       # %"model.layers.10.self_attn.q_proj.weight"<FLOAT,[4096,4096]>
+            k_proj_weight,       # %"model.layers.10.self_attn.k_proj.weight"<FLOAT,[4096,4096]>
+            v_proj_weight,       # %"model.layers.10.self_attn.v_proj.weight"<FLOAT,[4096,4096]>
+            cos_cached,          # %"cos_cached"<FLOAT,[64]>
+            sin_cached,          # %"sin_cached"<FLOAT,[64]>
+            o_proj_weight        # %"model.layers.10.self_attn.o_proj.weight"<FLOAT,[4096,4096]>
         ):
+            print("gqa function called with inputs:", len(locals()))
+            print("Inputs:", locals())
             q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
             k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
             v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
@@ -1027,7 +1033,7 @@ class GQALlama3RewriteRule(AttentionRewriteRule):
         print("Applying fusion with 2D cache for function:", function.name)
         attn_size_config = self.infer_attn_size_config(function)
 
-        if len(function.inputs) != 13:
+        if len(function.inputs) not in {12, 13}:
             raise function_rule.FunctionRewriteError(
                 f"Unexpected number of inputs. Expected 13, got {len(function.inputs)}."
             )
@@ -1039,16 +1045,22 @@ class GQALlama3RewriteRule(AttentionRewriteRule):
         expand_shape = [1, attn_size_config.num_attention_heads, 1, 1]
 
         def gqa(
-            hidden_states,
-            position_id,
-            attention_mask,
-            q_proj_weight,
-            k_proj_weight,
-            v_proj_weight,
-            cos_cached,
-            sin_cached,
-            o_proj_weight,
+            sym_size_int_2,
+            sym_size_int,
+            hidden_states,       # %"mul_192"<FLOAT,[s0,s1,4096]>
+            position_id,         #%"l_position_ids_"<INT64,[s0,s1]>
+            key_states_10,
+            value_states_10,
+            attention_mask,      # %"slice_scatter_2"<FLOAT,[s0,1,s1,s1]>
+            q_proj_weight,       # %"model.layers.10.self_attn.q_proj.weight"<FLOAT,[4096,4096]>
+            k_proj_weight,       # %"model.layers.10.self_attn.k_proj.weight"<FLOAT,[4096,4096]>
+            v_proj_weight,       # %"model.layers.10.self_attn.v_proj.weight"<FLOAT,[4096,4096]>
+            cos_cached,          # %"cos_cached"<FLOAT,[64]>
+            sin_cached,          # %"sin_cached"<FLOAT,[64]>
+            o_proj_weight        # %"model.layers.10.self_attn.o_proj.weight"<FLOAT,[4096,4096]>
         ):
+            print("gqa function called with inputs:", len(locals()))
+            print("Inputs:", locals())
             q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
             k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
             v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
@@ -1305,7 +1317,7 @@ class GQALlama3RewriteRule(AttentionRewriteRule):
 
 
 
-class MLPRewriteRule(AttentionRewriteRule):
+class MLPRewriteRule(AttentionRewriteRule): # same logic as attention layer
     FUNCTION_KEYWORD = "LlamaMLP"
     PACKAGE_NAME = "transformers"
     _version_controller = function_rule.VersionController()
@@ -1324,10 +1336,12 @@ class MLPRewriteRule(AttentionRewriteRule):
         op = onnxscript.opset18
 
         def optimized_mlp(
-            input_tensor,
-            gate_proj_weight,
-            up_proj_weight,
-            down_proj_weight,
+            sym_size_int_2,  # %"sym_size_int_2"<INT64,[]>
+            sym_size_int,
+            input_tensor,  # %"sym_size_int"<INT64,[]>
+            gate_proj_weight,  # %"model.layers.10.mlp.gate_proj.weight"<FLOAT,[11008,4096]>
+            up_proj_weight,  # %"model.layers.10.mlp.up_proj.weight"<FLOAT,[11008,4096]>
+            down_proj_weight
         ):
             gate_proj_weight_t = op.Transpose(gate_proj_weight, perm=[1, 0])
             up_proj_weight_t = op.Transpose(up_proj_weight, perm=[1, 0])
@@ -1342,5 +1356,7 @@ class MLPRewriteRule(AttentionRewriteRule):
         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(optimized_mlp).to_function_proto()
         print("Returning optimized MLP function proto")
         return ir.serde.deserialize_function(function_proto)
+
+    
 
     

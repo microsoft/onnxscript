@@ -88,9 +88,9 @@ class LNRewriteRule(function_rule.FunctionRewriteRule): #origial code
         op = self.onnx_opset
         msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
-        def ln(input, weight, bias):
+        def ln(input, weight):
             return msft_op.SimplifiedLayerNormalization(
-                input, weight, axis=-1, epsilon=eps, stash_type=1
+                input, weight, axis=-1, epsilon=eps, stash_type=1, bias=None
             )
 
         function_proto = onnxscript.script(default_opset=op)(ln).to_function_proto()
