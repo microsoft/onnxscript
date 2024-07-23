@@ -1696,6 +1696,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.args[1] == 2,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
     ),
+    TorchLibOpInfo(
+        "group_norm",
+        core_ops.aten_group_norm,
+        tolerance={torch.float16: (1e-2, 7e-3)},
+    ),
     TorchLibOpInfo("heaviside", core_ops.aten_heaviside),
     TorchLibOpInfo(
         "hstack",
