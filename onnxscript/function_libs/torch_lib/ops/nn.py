@@ -40,58 +40,7 @@ Rank = common_ops.Rank
 TFloatUnlessFloat32 = TypeVar("TFloatUnlessFloat32", bound=Union[BFLOAT16, FLOAT16, DOUBLE])
 
 
-@torch_op("aten::adaptive_avg_pool1d", traceable=True)
-def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
-    """adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor"""
-
-    # assert output_size == [1]
-    # TODO(justinchuby): Specify input constraints
-
-    if Rank(self) == 2:
-        # Unbatched case
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-        pooled = op.GlobalAveragePool(self)
-        result = op.Squeeze(pooled, op.Constant(value_ints=[0]))
-    else:
-        result = op.GlobalAveragePool(self)
-
-    return result
-
-
-@torch_op("aten::adaptive_avg_pool2d", traceable=True)
-def aten_adaptive_avg_pool2d(self: TFloat, output_size: INT64[2]) -> TFloat:
-    """adaptive_avg_pool2d(Tensor self, SymInt[2] output_size) -> Tensor"""
-
-    # assert output_size == [1, 1]
-    # TODO(justinchuby): Specify input constraints
-
-    if Rank(self) == 3:
-        # Unbatched case
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-        pooled = op.GlobalAveragePool(self)
-        result = op.Squeeze(pooled, op.Constant(value_ints=[0]))
-    else:
-        result = op.GlobalAveragePool(self)
-
-    return result
-
-
-@torch_op("aten::adaptive_avg_pool3d", traceable=True)
-def aten_adaptive_avg_pool3d(self: TFloat, output_size: INT64[3]) -> TFloat:
-    """adaptive_avg_pool3d(Tensor self, SymInt[3] output_size) -> Tensor"""
-
-    # assert output_size == [1, 1, 1]
-    # TODO(justinchuby): Specify input constraints
-
-    if Rank(self) == 4:
-        # Unbatched case
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-        pooled = op.GlobalAveragePool(self)
-        result = op.Squeeze(pooled, op.Constant(value_ints=[0]))
-    else:
-        result = op.GlobalAveragePool(self)
-
-    return result
+# NOTE: Implementations of adaptive_average_pool are handled by torch decomp
 
 
 def aten_adaptive_max_pool1d(
