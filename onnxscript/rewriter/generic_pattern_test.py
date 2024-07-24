@@ -395,7 +395,7 @@ class GenericPatternTest(unittest.TestCase):
         self.assertEqual(expected, [n.op_type for n in rewriten_model.graph.node])
         out = buffer.getvalue()
         # TODO(Rama): What is this assertion testing? Is it to check that `verbose` is working?
-        if self.matcher_algo == generic_pattern.GenericPatternMatcher:
+        if self.matcher_algo is generic_pattern.GenericPatternMatcher:
             self.assertIn("[GenericPatternMatcher.match", out)
 
     def test_rotary_embedding_onnxscript(self):
