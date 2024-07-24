@@ -271,14 +271,6 @@ def _empty_input_wrangler(
     return args, kwargs
 
 
-def _flip_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Make the dims as tensor
-    kwargs["dims"] = np.array(kwargs["dims"], dtype=np.int64)
-    return args, kwargs
-
-
 def _grid_sample_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -817,7 +809,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: The implementation is numerically unstable: https://github.com/microsoft/onnxscript/issues/1223"
     ),
     TorchLibOpInfo("fill", core_ops.aten_fill),
-    TorchLibOpInfo("flip", core_ops.aten_flip, input_wrangler=_flip_input_wrangler),
+    TorchLibOpInfo("flip", core_ops.aten_flip).skip(
+        reason="fixme: size 0 inputs are not handled yet",
+        matcher=lambda sample: sample.input.numel() == 0,
+    ),
     TorchLibOpInfo("floor", core_ops.aten_floor),
     TorchLibOpInfo("floor_divide", core_ops.aten_floor_divide).xfail(
         dtypes=(torch.float16,),
@@ -1506,6 +1501,33 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("stack", core_ops.aten_stack),
     TorchLibOpInfo("stack", core_ops.aten_stack_complex, complex=True),
+    TorchLibOpInfo(
+        "std_mean",
+        core_ops.aten_std_mean,
+    ).xfail(
+        # kwargs is empty
+        matcher=lambda sample: len(sample.kwargs) > 0,
+        reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
+    ),
+    TorchLibOpInfo(
+        "std_mean_dim",
+        core_ops.aten_std_mean_dim,
+    ).xfail(
+        # kwargs["dim"] must exist, kwargs["correction"] must not exist
+        matcher=lambda sample: not (
+            sample.kwargs.get("dim", None) is not None
+            and sample.kwargs.get("correction", None) is None
+        ),
+        reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
+    ),
+    TorchLibOpInfo(
+        "std_mean_correction",
+        core_ops.aten_std_mean_correction,
+    ).skip(
+        # Don't accept input[1]=bool and 'correction' must be in kwargs
+        matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
+        reason="this Aten overload only support when correction attribute exists",
+    ),
     TorchLibOpInfo("sub", core_ops.aten_sub),
     TorchLibOpInfo("sub", core_ops.aten_sub_complex, complex=True),
     # TorchLibOpInfo("sym_size", core_ops.aten_sym_size),  # no test case in OPS_DB
@@ -1673,6 +1695,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
         matcher=lambda sample: sample.args[1] == 2,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.group_norm",
+        nn_ops.aten_group_norm,
+        tolerance={torch.float16: (1e-2, 7e-3)},
+    ).xfail(
+        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
+        reason="Using op.InstanceNormalization to simulate GroupNorm, which does not support 0-dim input",
     ),
     TorchLibOpInfo("heaviside", core_ops.aten_heaviside),
     TorchLibOpInfo(
@@ -2152,6 +2182,33 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="RuntimeError: MKL FFT doesn't support tensors of type: Half",
     ),
     TorchLibOpInfo(
+        "std",
+        core_ops.aten_std,
+    ).xfail(
+        # kwargs must be empty
+        matcher=lambda sample: len(sample.kwargs) > 0,
+        reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
+    ),
+    TorchLibOpInfo(
+        "std_dim",
+        core_ops.aten_std_dim,
+    ).xfail(
+        # kwargs["dim"] must exist, kwargs["correction"] must not exist
+        matcher=lambda sample: not (
+            sample.kwargs.get("dim", None) is not None
+            and sample.kwargs.get("correction", None) is None
+        ),
+        reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
+    ),
+    TorchLibOpInfo(
+        "std_correction",
+        core_ops.aten_std_correction,
+    ).skip(
+        # Don't accept input[1]=bool and 'correction' must be in kwargs
+        matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
+        reason="this Aten overload only support when correction attribute exists",
+    ),
+    TorchLibOpInfo(
         "sum",
         core_ops.aten_sum_dim_IntList,
         input_wrangler=_sum_input_wrangler,
@@ -2300,6 +2357,8 @@ ops_test_common.duplicate_opinfo(
 ops_test_common.duplicate_opinfo(OPS_DB, "ops.aten._softmax", ("ops.aten._softmax_half",))
 ops_test_common.duplicate_opinfo(OPS_DB, "round", ("round_decimals",))
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "std_mean", ("std_mean_dim", "std_mean_correction"))
+ops_test_common.duplicate_opinfo(OPS_DB, "std", ("std_dim", "std_correction"))
 ops_test_common.duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction"))
 ops_test_common.duplicate_opinfo(OPS_DB, "var", ("var_dim", "var_correction"))
 ops_test_common.duplicate_opinfo(OPS_DB, "view_as_complex", ("view_as_complex_copy",))

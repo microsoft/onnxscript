@@ -110,7 +110,7 @@ def _to_attr_pattern(value: AttrPattern | ValuePattern | SupportedAttrTypes) -> 
     """Represents promotion of values allowed as keyword-arguments in a pattern-builder call to an AttrPattern."""
     if isinstance(value, AttrPattern):
         return value
-    if type(value) == ValuePattern:
+    if type(value) is ValuePattern:
         # This is a hack. Currently, when we create pattern-variables, we create them as ValuePattern,
         # and change them to AttrPattern if/when used in an attribute context. We could use type
         # annotations to distinguish between ValuePattern and AttrPattern, but forces users to

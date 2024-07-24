@@ -17,8 +17,10 @@ __all__ = [
 T = typing.TypeVar("T", bound=typing.Callable[..., typing.Any])
 
 try:
-    from beartype import beartype as checked
+    from beartype import beartype as _beartype_decorator
     from beartype import roar as _roar
+
+    checked = typing.cast(typing.Callable[[T], T], _beartype_decorator)
 
     # Beartype warns when we import from typing because the types are deprecated
     # in Python 3.9. But there will be a long time until we can move to using
