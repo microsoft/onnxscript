@@ -19,7 +19,7 @@ import torch
 from typing_extensions import TypeAlias
 
 import onnxscript
-from onnxscript import evaluator
+from onnxscript import evaluator, ir
 from onnxscript import tensor as onnxscript_tensor
 from onnxscript._internal import param_manipulation, runtime_typing
 from onnxscript.function_libs.torch_lib import _flags
@@ -425,11 +425,19 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         return self._graph.add_function_call(function, inputs, attributes)
 
 
-@runtime_typing.checked
 def _add_attribute_to_torchscript_node(
     node: torch.Node,
     key: str,
-    value: Union[float, int, str, bytes, Sequence[float], Sequence[int], torch.Tensor],
+    value: Union[
+        float,
+        int,
+        str,
+        bytes,
+        Sequence[float],
+        Sequence[int],
+        torch.Tensor,
+        ir.TensorProtocol,
+    ],
 ):
     """Initializes the right attribute based on type of value."""
     if isinstance(value, float):
@@ -440,6 +448,8 @@ def _add_attribute_to_torchscript_node(
         return node.s_(key, value)  # type: ignore[arg-type]
     if isinstance(value, torch.Tensor):
         return node.t_(key, value)
+    if isinstance(value, ir.TensorProtocol):
+        return node.t_(key, torch.from_dlpack(value))
     if isinstance(value, Sequence):
         if not value:
             # Treat empty sequences as empty list tensors

@@ -110,7 +110,7 @@ def _to_attr_pattern(value: AttrPattern | ValuePattern | SupportedAttrTypes) -> 
     """Represents promotion of values allowed as keyword-arguments in a pattern-builder call to an AttrPattern."""
     if isinstance(value, AttrPattern):
         return value
-    if type(value) == ValuePattern:
+    if type(value) is ValuePattern:
         # This is a hack. Currently, when we create pattern-variables, we create them as ValuePattern,
         # and change them to AttrPattern if/when used in an attribute context. We could use type
         # annotations to distinguish between ValuePattern and AttrPattern, but forces users to
@@ -1323,58 +1323,6 @@ def make_rewrite_rule_from_class(
     )
 
 
-def _apply_delta(
-    graph_or_function: ir.Graph | ir.Function,
-    node: ir.Node,
-    delta: ReplacementSubgraph,
-):
-    """Applies delta.
-
-    This code is valid is the considered pattern has only one output.
-    In case of multi output replacements, there is not need to rename
-    the outputs.
-
-    In case of multi-output design, the nodes may not be necessary inserted
-    all at the same position. To be convinced, you can take a pattern
-    producing two outputs, but the second one needs the first one and
-    another input appeared after the first outputs. What could be
-    the right place to inserted all of the node.
-
-    The current implementation insert all the nodes at the same position
-    but checks there is not inconsistency. In that case, it fails.
-    We could reorder (long) or do more clever changes.
-    The reordering would probably happen not very often.
-    """
-
-    assert isinstance(delta, ReplacementSubgraph)
-    # Replace matched nodes with new nodes, matched values with new values
-    old_values = delta.match.outputs
-    new_values = delta.new_outputs
-
-    for old_value, new_value in zip(old_values, new_values):
-        # Propagate relevant info from old value to new value
-        # TODO(Rama): Perhaps we should merge old and new types. As of now, new
-        # values don't have type information. Note that this could be a problem
-        # for semantics-altering rewrite-rules: we should allow users to override
-        # this for such rules.
-        new_value.type = old_value.type
-        new_value.shape = old_value.shape
-        new_value.const_value = old_value.const_value
-        new_value.name = old_value.name
-
-    # Reconnect the users of the deleted node to use the new outputs
-    _convenience.replace_all_uses_with(old_values, new_values)
-    # Update graph/function outputs if the node generates output
-    replacement_mapping = dict(zip(old_values, new_values))
-    for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
-        if graph_or_function_output in replacement_mapping:
-            graph_or_function.outputs[idx] = replacement_mapping[graph_or_function_output]
-
-    # insert new nodes after the index node
-    graph_or_function.insert_after(node, delta.new_nodes)
-    graph_or_function.remove(delta.match.nodes, safe=True)
-
-
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
         if commute:
@@ -1396,7 +1344,19 @@ class RewriteRuleSet:
                 delta = rule.try_rewrite(model, graph_or_function, node, verbose=verbose)
                 if delta is None:
                     continue
-                _apply_delta(graph_or_function, node, delta)
+                assert isinstance(delta, ReplacementSubgraph)
+                # TODO: This does not yet handle the problem of determining the correct insertion point
+                # for inserted nodes in the case of patterns with multiple output-nodes. The following
+                # is sufficient for patterns with a single output-node "node", which can serve as the
+                # insertion-point.
+                _convenience.replace_nodes_and_values(
+                    graph_or_function,
+                    node,
+                    delta.match.nodes,
+                    delta.new_nodes,
+                    delta.match.outputs,
+                    delta.new_outputs,
+                )
                 count += 1
 
         return count
