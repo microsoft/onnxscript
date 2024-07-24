@@ -272,7 +272,7 @@ def llama_p0_rule_set() -> orp.RewriteRuleSet:
     cast_identity_rule = orp.make_rewrite_rule_from_class(CastIdentity)
     expand_identity_rule = orp.make_rewrite_rule_from_class(ExpandIdentity)
     reshape_reshape_rule = orp.make_rewrite_rule_from_class(ReshapeReshape)
-    slice_split_rule = orp.make_rewrite_rule_from_class(SlicesSplit, True)
+    slice_split_rule = orp.make_rewrite_rule_from_class(SlicesSplit, generic=True)
     transpose_identity_rule = orp.make_rewrite_rule_from_class(TransposeIdentity)
     transpose_transpose_rule = orp.make_rewrite_rule_from_class(TransposeTranspose)
     unsqueeze_unsqueeze_rule = orp.make_rewrite_rule_from_class(UnsqueezeUnsqueeze)
