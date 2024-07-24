@@ -3494,7 +3494,7 @@ def aten_feature_dropout(input: TensorType, p: float, train: bool) -> TensorType
     raise NotImplementedError()
 
 
-@torch_op(("aten::fill.Tensor", "aten::fill.Sclaar"))
+@torch_op(("aten::fill.Tensor", "aten::fill.Scalar"))
 def aten_fill(self: TTensor, value: TTensor2) -> TTensor:
     """fill.Tensor(Tensor self, Tensor value) -> Tensor"""
 
