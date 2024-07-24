@@ -399,12 +399,13 @@ def create_value_mapping(graph: _core.Graph) -> dict[str, _core.Value]:
 
 def replace_nodes_and_values(
     graph_or_function: _core.Graph | _core.Function,
+    /,
     insertion_point: _core.Node,
-    old_nodes: list[_core.Node],
-    new_nodes: list[_core.Node],
-    old_values: list[_core.Value],
-    new_values: list[_core.Value],
-):
+    old_nodes: Sequence[_core.Node],
+    new_nodes: Sequence[_core.Node],
+    old_values: Sequence[_core.Value],
+    new_values: Sequence[_core.Value],
+) -> None:
     """Replaces nodes and values in the graph or function.
 
     Args:
