@@ -3840,19 +3840,6 @@ def aten_grid_sampler_3d_backward(
     raise NotImplementedError()
 
 
-def aten_group_norm(
-    input: TensorType,
-    num_groups: int,
-    weight: Optional[TensorType] = None,
-    bias: Optional[TensorType] = None,
-    eps: float = 1e-05,
-    cudnn_enabled: bool = True,
-) -> TensorType:
-    """group_norm(Tensor input, int num_groups, Tensor? weight=None, Tensor? bias=None, float eps=1e-05, bool cudnn_enabled=True) -> Tensor"""
-
-    raise NotImplementedError()
-
-
 def aten_gru_cell(
     input: TensorType,
     hx: TensorType,
@@ -6087,7 +6074,9 @@ def _aten_native_group_norm_onnx(
     axes_unsqueeze = op.Range(1, input_rank - 1, 1)
     weight_full_shape = op.Unsqueeze(weight, axes_unsqueeze)
     bias_full_shape = op.Unsqueeze(bias, axes_unsqueeze)
+    weight_full_shape = op.CastLike(weight_full_shape, norm)
     norm_mul_weight = op.Mul(norm, weight_full_shape)
+    bias_full_shape = op.CastLike(bias_full_shape, norm_mul_weight)
     norm_result = op.Add(norm_mul_weight, bias_full_shape)
     # Compute mean and rstd, but using Torch algorithm
     # The returned shape for mean and vstd should be [N, group, -1]

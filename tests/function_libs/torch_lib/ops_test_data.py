@@ -1663,6 +1663,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.args[1] == 2,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
     ),
+    TorchLibOpInfo(
+        "nn.functional.group_norm",
+        nn_ops.aten_group_norm,
+        tolerance={torch.float16: (1e-2, 7e-3)},
+    ).xfail(
+        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
+        reason="Using op.InstanceNormalization to simulate GroupNorm, which does not support 0-dim input",
+    ),
     TorchLibOpInfo("heaviside", core_ops.aten_heaviside),
     TorchLibOpInfo(
         "hstack",
