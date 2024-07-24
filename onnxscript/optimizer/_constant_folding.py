@@ -685,7 +685,7 @@ class ConstantFolder:
         self._init()
         self.opset_imports = model.opset_imports
         self.visit_graph(model.graph)
-        for function in model.functions:
+        for function in model.functions.values():
             # TODO(rama): Should we specialize functions?
             self.visit_function(function)
 
