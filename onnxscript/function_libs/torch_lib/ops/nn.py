@@ -695,8 +695,12 @@ def _get_im2col_padded_input(input, padding_h, padding_w):
     # Padding tensor has the following format: (padding_h, padding_w)
     # Reshape the padding to follow ONNX format: (dim1_begin, dim2_begin,...,dim1_end, dim2_end,...)
     pad = op.Concat(
-        op.Constant(value_ints=[0, 0]), op.Unsqueeze(padding_h, [0]), op.Unsqueeze(padding_w, [0]),
-        op.Constant(value_ints=[0, 0]), op.Unsqueeze(padding_h, [0]), op.Unsqueeze(padding_w, [0]),
+        op.Constant(value_ints=[0, 0]),
+        op.Unsqueeze(padding_h, [0]),
+        op.Unsqueeze(padding_w, [0]),
+        op.Constant(value_ints=[0, 0]),
+        op.Unsqueeze(padding_h, [0]),
+        op.Unsqueeze(padding_w, [0]),
         axis=0,
     )
     return op.Pad(input, pad)
@@ -1516,6 +1520,7 @@ def aten_one_hot(self: TensorType, num_classes: int = -1) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::pad", trace_only=True)
 def aten_pad(
     self: TensorType, pad: INT64, mode: str = "constant", value: Optional[float] = None
 ) -> TensorType:
