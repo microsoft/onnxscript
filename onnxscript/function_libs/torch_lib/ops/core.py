@@ -3622,10 +3622,6 @@ def aten_full(
 
     if dtype != -1:
         fill_value = op.Cast(fill_value, to=dtype)
-    if isinstance(size, list) and size == []:
-        # TODO(justinchuby): Handle empty list better than using isinstance
-        # size can be empty, meaning a scalar
-        return fill_value
 
     size = op.Cast(size, to=INT64.dtype)
     return op.Expand(fill_value, size)
