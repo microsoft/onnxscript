@@ -1099,6 +1099,14 @@ class SimplePatternMatcher(PatternMatcher):
         return match
 
     def _multi_match(self, candidate: Iterable[ir.Node]) -> MatchResult:
+        """Find a match for a pattern with multiple output nodes.
+
+        For a pattern with K output nodes, the input candidate should specify K nodes
+        in the graph that will be matched against the pattern output nodes.
+
+        Args:
+            candidate: An iterable of nodes that will be matched against the pattern output nodes.
+        """
         match = self._match
         for pattern_node, node in zip(self.pattern.output_nodes, candidate):
             if not self._match_node(pattern_node, node):
@@ -1120,6 +1128,22 @@ class SimplePatternMatcher(PatternMatcher):
         node: ir.Node,
         verbose: int = 0,
     ) -> MatchResult:
+        """Match the pattern against the subgraph ending at the given node.
+
+        For patterns with multiple output nodes, the given node is matched
+        against the first output node in the pattern. For the remaining
+        output nodes in the pattern, we use a brute-force algorithm that
+        enumerates all possible combinations of nodes from the graph (with
+        a filter based on op-type).
+
+        TODO: Consider omitting parameters model and graph_or_function. With
+        the new IR, the graph can be obtained from the node, and the model is
+        not used. But this is a shared abstract method of the Matcher interface,
+        so other matcher implementation also needs to be updated. More importantly,
+        matching in the presence of subgraphs (control-flow) can introduce some
+        complications which require careful consideration.
+        """
+
         if self.pattern.has_single_output_node:
             self._init_match(verbose)
             return self._match_single_output_node(model, graph_or_function, node)
