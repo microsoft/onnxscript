@@ -41,7 +41,8 @@ def export_to_onnx(
             prog = torch.onnx.export(model, args, dynamo=True)  # pylint: disable=no-value-for-parameter
         else:
             prog = torch.onnx.dynamo_export(model, *args)
-    model_proto = prog.model_proto  # type: ignore[union-attr]
+    assert prog is not None
+    model_proto = prog.model_proto
     if optimize:
         model_proto = onnxscript.optimizer.optimize(
             model_proto,
