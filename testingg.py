@@ -31,10 +31,12 @@ def export_to_onnx(input_model_path: str, output_model_path: str) -> onnx.ModelP
     # onnx_model = onnx.inliner.inline_local_functions(onnx_model)
 
     # Save the ONNX model
-    # save_onnx_model(onnx_model, output_model_path, "optimize_model_llama3.onnx.data")
+    # save_onnx_model(onnx_model, output_model_path, "myrules.onnx.data")
     # onnx_model = onnx.load(output_model_path, load_external_data=False)
 
     onnx_model = onnx.inliner.inline_local_functions(onnx_model)
+    # ir should be done after inlining --> ir optimization function
+    
     
     save_onnx_model(onnx_model, output_model_path, "myrules.onnx.data")
 
