@@ -2550,19 +2550,11 @@ def aten_diagonal(self: TReal, offset: int = 0, dim1: int = 0, dim2: int = 1) ->
     # This is because computing diagonal sum is on dim2 after transpose by perm
     axes = [self_rank - 2]
 
-    return _aten_diagonal_onnx(self, offset, dim1, dim2, perm, axes)
-
-
-@torch_op("aten::diagonal", private=True, traceable=True)
-def _aten_diagonal_onnx(
-    self: TTensor, offset: int, dim1: int, dim2: int, perm: Sequence[int], axes: Sequence[int]
-) -> TTensor:
     neg_1 = op.Constant(value_ints=[-1])
-    dim1_size = op.Reshape(op.Gather(op.Shape(self), dim1), neg_1)  # row
-    dim2_size = op.Reshape(op.Gather(op.Shape(self), dim2), neg_1)  # col
+    dim1_size = op.Shape(self, end=dim1, start=dim1 + 1)  # row
+    dim2_size = op.Shape(self, end=dim2, start=dim2 + 1)  # col
     mask_shape = op.Concat(dim1_size, dim2_size, axis=0)
-    tmp_tensor = op.ConstantOfShape(mask_shape)
-    mask = op.EyeLike(tmp_tensor, k=offset)
+    mask = op.EyeLike(op.ConstantOfShape(mask_shape), k=offset)
     mask = op.CastLike(mask, self)
     self_t = op.Transpose(self, perm=perm)
     result = op.Mul(self_t, mask)
@@ -2591,16 +2583,18 @@ def _aten_diagonal_onnx(
     if offset < 0:
         # row + offset
         length = dim1_size + offset
-        start = op.Constant(value_ints=[0])
+        start = 0
     else:  # offset >= 0
         # col - offset
         length = dim2_size - offset
-        start = op.Reshape(op.Constant(value_int=offset), neg_1)
+        start = offset
 
     # max(min(length, min(row, col)), 0)
-    length = op.Max(op.Min(length, min_dim_size), 0)
+    length = op.Max(op.Min(length, min_dim_size), op.Constant(value_ints=[0]))
     end = start + length
-    result = op.Slice(result, start, end, axes=axes)
+    result = op.Slice(
+        result, op.Constant(value_ints=[start]), op.Constant(value_ints=[end]), axes=axes
+    )
 
     return result
 
@@ -2678,7 +2672,7 @@ def _aten_diagonal_bool_onnx(
         start = op.Reshape(op.Constant(value_int=offset), neg_1)
 
     # max(min(length, min(row, col)), 0)
-    length = op.Max(op.Min(length, min_dim_size), 0)
+    length = op.Max(op.Min(length, min_dim_size), op.Constant(value_ints=[0]))
     end = start + length
     result = op.Slice(result, start, end, axes=axes)
     result = op.Cast(result, to=BOOL.dtype)
