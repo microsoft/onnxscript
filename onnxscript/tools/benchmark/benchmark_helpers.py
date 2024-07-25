@@ -287,7 +287,7 @@ def common_export(
     if exporter == "script":
         torch.onnx.export(
             model,
-            inputs,
+            inputs,  # type: ignore[arg-type]
             filename,
             do_constant_folding=False,
             input_names=[f"input{i}" for i in range(len(inputs))],
