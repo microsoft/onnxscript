@@ -690,7 +690,6 @@ def _get_im2col_indices_along_dim(
 
     return block_mask
 
-
 def _get_im2col_padded_input(input, padding_h, padding_w):
     # Input is always 4-D tensor (N, C, H, W)
     # Padding tensor has the following format: (padding_h, padding_w)
@@ -747,7 +746,7 @@ def aten_im2col(
         stride = (stride, stride)
     strides = list(stride)
 
-    stride_h, stride_w = stride[0], stride[1]
+    stride_h, stride_w = strides[0], strides[1]
     padding_h, padding_w = pads[0], pads[1]
     dilation_h, dilation_w = dilations[0], dilations[1]
     kernel_h, kernel_w = kernel_sizes[0], kernel_sizes[1]
