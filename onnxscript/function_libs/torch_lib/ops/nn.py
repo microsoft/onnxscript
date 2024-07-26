@@ -320,6 +320,61 @@ def aten_avg_pool3d_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::batch_norm", trace_only=True)
+def aten_batch_norm(
+    input: TFloat,
+    weight: Optional[TFloat] = None,
+    bias: Optional[TFloat] = None,
+    running_mean: Optional[TFloat] = None,
+    running_var: Optional[TFloat] = None,
+    training: bool = False,
+    momentum: float = 0.9,
+    eps: float = 1e-05,
+    cudnn_enabled: bool = False,
+) -> TFloat:
+    """batch_norm(Tensor input, Tensor? weight, Tensor? bias, Tensor? running_mean, Tensor? running_var, bool training, float momentum, float eps, bool cudnn_enabled) -> Tensor"""
+
+    # if weight is None:  # Set to 1.0 as default
+    #     weight = op.Expand(
+    #         op.CastLike(op.Constant(value_floats=[1.0]), input),
+    #         op.Shape(input, start=1, end=2),
+    #     )
+
+    # if bias is None:  # Set to 0.0 as default
+    #     bias = op.Expand(
+    #         op.CastLike(op.Constant(value_floats=[0.0]), input),
+    #         op.Shape(input, start=1, end=2),
+    #     )
+
+    # axes = list(range(len(input.shape)))
+    # axes.pop(1)
+    # axes = op.Constant(value_ints=axes)
+    # if running_mean is None:  # Using input mean
+    #     running_mean = op.Squeeze(op.ReduceMean(input, axes))
+
+    # if running_var is None:  # Using input var
+    #     mean = op.ReduceMean(input, axes)
+    #     input_sub_mean = op.Sub(input, mean)
+    #     sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
+    #     running_var = op.Squeeze(op.ReduceMean(sqr_input_sub_mean, axes))
+
+    out = op.BatchNormalization(
+        input,
+        weight,
+        bias,
+        running_mean,
+        running_var,
+        epsilon=eps,
+        momentum=1 - momentum,
+        training_mode=training,
+    )
+    if not training:
+        return out
+    else:
+        res, _, _ = out
+        return res
+
+
 def aten_binary_cross_entropy(
     self: TensorType,
     target: TensorType,

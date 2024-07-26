@@ -1033,22 +1033,6 @@ def aten_bartlett_window(window_length: int) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_batch_norm(
-    input: TensorType,
-    weight: Optional[TensorType],
-    bias: Optional[TensorType],
-    running_mean: Optional[TensorType],
-    running_var: Optional[TensorType],
-    training: bool,
-    momentum: float,
-    eps: float,
-    cudnn_enabled: bool,
-) -> TensorType:
-    """batch_norm(Tensor input, Tensor? weight, Tensor? bias, Tensor? running_mean, Tensor? running_var, bool training, float momentum, float eps, bool cudnn_enabled) -> Tensor"""
-
-    raise NotImplementedError()
-
-
 def aten_batch_norm_backward_elemt(
     grad_out: TensorType,
     input: TensorType,
