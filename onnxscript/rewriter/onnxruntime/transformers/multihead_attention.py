@@ -1348,26 +1348,40 @@ class MLPRewriteRule(AttentionRewriteRule): # same logic as attention layer
             up_proj_weight,  # %"model.layers.10.mlp.up_proj.weight"<FLOAT,[11008,4096]>
             down_proj_weight, # %"model.layers.10.mlp.down_proj.weight"<FLOAT,[4096,11008]>
         ):
+            # gate_proj_weight_t = op.Transpose(gate_proj_weight, perm=[1, 0])
+            # up_proj_weight_t = op.Transpose(up_proj_weight, perm=[1, 0])
+            # down_proj_weight_t = op.Transpose(down_proj_weight, perm=[1, 0])
+
+            # # do sigmoid and mul calculation which is down_proj = down_proj(act_fn_output(gate_proj_output * up_proj_output))
+
+            # gate_proj_output = op.MatMul(input_tensor, gate_proj_weight_t)
+            # up_proj_output = op.MatMul(input_tensor, up_proj_weight_t)
+
+            # #this does the mul operation which is element wise multiplication as need of gate and up 
+            
+            # # then we apply the sigmoid activation function
+            # act_fn_output = op.Sigmoid(gate_proj_output)
+            # gate_times_up_output = op.Mul(gate_proj_output, act_fn_output)
+            # Mul_2 = op.Mul(act_fn_output, gate_times_up_output)
+            # # use the down_proj_weight_t after this mul_1
+            # down_proj_output = op.MatMul(Mul_2, down_proj_weight_t)
+
             gate_proj_weight_t = op.Transpose(gate_proj_weight, perm=[1, 0])
             up_proj_weight_t = op.Transpose(up_proj_weight, perm=[1, 0])
             down_proj_weight_t = op.Transpose(down_proj_weight, perm=[1, 0])
 
-            # do sigmoid and mul calculation which is down_proj = down_proj(act_fn_output(gate_proj_output * up_proj_output))
-
             gate_proj_output = op.MatMul(input_tensor, gate_proj_weight_t)
             up_proj_output = op.MatMul(input_tensor, up_proj_weight_t)
 
-            #this does the mul operation which is element wise multiplication as need of gate and up 
-            gate_times_up_output = op.Mul(gate_proj_output, up_proj_output)
-            # then we apply the sigmoid activation function
-            act_fn_output = op.Sigmoid(gate_times_up_output)
+            act_fn_output = op.Sigmoid(gate_proj_output)
 
-            down_proj_output = op.MatMul(act_fn_output, down_proj_weight_t)
-            # do sigmoid and mul calculation which is down_proj = down_proj(act_fn_output(gate_proj_output * up_proj_output))
+            gate_times_act_output = op.Mul(gate_proj_output, act_fn_output)
 
+            mul_output = op.Mul(gate_times_act_output, up_proj_output)
 
+            
+            down_proj_output = op.MatMul(mul_output, down_proj_weight_t)
 
-            #signmoid and mul calc, to fix  the mlp issue 
 
             return down_proj_output # must return just one which is down proj
 

@@ -48,7 +48,7 @@ def export_to_onnx(input_model_path: str, output_model_path: str) -> onnx.ModelP
     onnx_model = ir.serde.serialize_model(testing_model)
     
     
-    save_onnx_model(onnx_model, output_model_path, "myrules.onnx.data")
+    save_onnx_model(onnx_model, output_model_path, "mynewrules.onnx.data")
 
 
 def save_onnx_model(onnx_model: onnx.ModelProto, output_path: str, data_path: str):
@@ -68,7 +68,7 @@ def save_onnx_model(onnx_model: onnx.ModelProto, output_path: str, data_path: st
     
 
 input_model_path = "/home/t-assumange/llama2-7b_Dynamo_transformers4.41/rank_0_Llama-2-7b-hf_decoder_with_past_model_fp32.onnx"
-output_model_path = "/home/t-assumange/llama2-7b_Dynamo_transformers4.41/myrules.onnx"
+output_model_path = "/home/t-assumange/llama2-7b_Dynamo_transformers4.41/mynewrules.onnx"
 
 def transpose_initializer_subgraphs(graph):
     transpose_nodes = []
@@ -99,7 +99,7 @@ def transpose_initializer_subgraphs(graph):
 
         graph.remove(node, safe=True)
 
-    print("done")
+   
         
 
 def transpose_tensor(tensor : np.ndarray, permutation : list[int]) -> np.ndarray:

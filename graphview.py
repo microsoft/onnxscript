@@ -5,7 +5,7 @@ import onnxscript._internal
 
 #load an onnx model
 
-model = onnx.load("/home/t-assumange/llama2-7b_Dynamo_transformers4.41/myrules.onnx", load_external_data=False)
+model = onnx.load("/home/t-assumange/llama3-8-Bdynamo/consultation.onnx", load_external_data=False)
 
 view = ir.from_proto(model)
 # get the result and print it out
