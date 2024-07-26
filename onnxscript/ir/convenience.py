@@ -8,12 +8,14 @@ __all__ = [
     "convert_attribute",
     "convert_attributes",
     "replace_all_uses_with",
+    "replace_nodes_and_values",
 ]
 
 from onnxscript.ir._convenience import (
     convert_attribute,
     convert_attributes,
     replace_all_uses_with,
+    replace_nodes_and_values,
 )
 
 # NOTE: Do not implement any other functions in this module.
