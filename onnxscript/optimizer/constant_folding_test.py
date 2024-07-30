@@ -41,6 +41,27 @@ class FoldConstantsTest(unittest.TestCase):
         self.assertEqual(len(optimized.graph.node), 2)
         self.assertEqual(optimized.graph.node[0].output[0], "four")
 
+    def test_fold_bfloat16_add(self):
+        if not self.using_ir:
+            self.skipTest("Older constant folder does not support bfloat16")
+
+        model = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (bfloat16[N] x) => (bfloat16[N] z) {
+                two = Constant <value = float {2.0}> ()  # Parser doesn't support bfloat16 literals
+                four = Add(two, two)
+                z = Mul(x, four)
+            }
+        """
+        )
+        # Patch the model to use bfloat16 literals
+        bfloat_tensor = onnx.helper.make_tensor("two", onnx.TensorProto.BFLOAT16, [], [2.0])
+        model.graph.node[0].attribute[0].t.CopyFrom(bfloat_tensor)
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph.node), 2)
+        self.assertEqual(optimized.graph.node[0].output[0], "four")
+
     def test_fold_cast_like(self):
         model = onnx.parser.parse_model(
             """
