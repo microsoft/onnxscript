@@ -1680,7 +1680,7 @@ def aten_clamp_min(self: TReal, min_: TReal) -> TReal:
     """clamp_min(Tensor self, Tensor min) -> Tensor"""
 
     # This implementation does not intent to handle when self is an empty tensor
-    min_rank = Rank(min_shape)
+    min_rank = Rank(min_)
     if min_rank == 0:
         min_ = op.CastLike(min_, self)
         result = op.Clip(self, min_, None)
