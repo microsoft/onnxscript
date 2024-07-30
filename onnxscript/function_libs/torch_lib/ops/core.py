@@ -1660,7 +1660,7 @@ def aten_clamp(self: TReal, min: Optional[TReal] = None, max: Optional[TReal] = 
     return clamped
 
 
-@torch_op("aten::clamp_max", traceable=True)
+@torch_op(("aten::clamp_max", "aten::clamp_max.Tensor"), traceable=True)
 def aten_clamp_max(self: TReal, max_: TReal) -> TReal:
     """clamp_max(Tensor self, Tensor max) -> Tensor"""
 
@@ -1679,7 +1679,7 @@ def aten_clamp_max(self: TReal, max_: TReal) -> TReal:
     return result
 
 
-@torch_op("aten::clamp_min", traceable=True)
+@torch_op(("aten::clamp_min", "aten::clamp_min.Tensor"), traceable=True)
 def aten_clamp_min(self: TReal, min_: TReal) -> TReal:
     """clamp_min(Tensor self, Tensor min) -> Tensor"""
 
