@@ -10,6 +10,7 @@ import math
 from typing import (
     Any,
     Callable,
+    Iterable,
     Iterator,
     List,
     MutableSequence,
@@ -665,21 +666,25 @@ class GraphPattern:
         self._nodes = _nodes_in_pattern(outputs)
 
         # Check if all outputs are produced by the same node.
-        output_node = None
-        for i, value_pattern in enumerate(outputs):
+        output_nodes: set[NodePattern] = set()
+        for value_pattern in outputs:
             if not isinstance(value_pattern, ValuePattern):
                 raise TypeError(
                     f"Invalid type {type(value_pattern)} for graph pattern output."
                 )
-            if not isinstance(value_pattern, NodeOutputPattern) or (
-                value_pattern.output_index != i
-            ):
-                output_node = None
-            elif i == 0:
-                output_node = value_pattern.producer()
-            elif value_pattern.producer() is not output_node:
-                output_node = None
-        self._output_node = output_node
+            if isinstance(value_pattern, Constant):
+                raise NotImplementedError(
+                    "Constant values are not allowed as graph pattern outputs."
+                )
+            if isinstance(value_pattern, NodeOutputPattern):
+                output_nodes.add(value_pattern.producer())
+        self.output_nodes: list[NodePattern] = list(output_nodes)
+
+    @property
+    def output_node(self) -> NodePattern:
+        if len(self.output_nodes) != 1:
+            raise ValueError("GraphPattern does not have unique output node.")
+        return self.output_nodes[0]
 
     def node(self, index: int) -> NodePattern:
         return self._nodes[index]
@@ -706,18 +711,18 @@ class GraphPattern:
 
     @property
     def has_single_output_node(self) -> bool:
-        return self._output_node is not None
+        return len(self.output_nodes) == 1
 
     @property
     def num_outputs(self) -> int:
         return len(self._outputs)
 
     def commute(self) -> Sequence[GraphPattern]:
-        if self._output_node is None:
+        if not self.has_single_output_node:
             raise NotImplementedError(
                 "Cannot commute a graph pattern with multiple output nodes."
             )
-        nodes = self._output_node.commute()
+        nodes = self.output_node.commute()
         return [
             GraphPattern(
                 self._inputs, [NodeOutputPattern(n, i) for i in range(self.num_outputs)]
@@ -762,15 +767,18 @@ def _to_graph_pattern(pattern_constructor: Callable) -> GraphPattern:
     return GraphPattern(pattern_inputs, pattern_outputs)
 
 
-def _valid_to_replace(matched_nodes: Sequence[ir.Node]) -> bool:
-    """Check that values computed by the matched_nodes, except for the last one, are used only by the matched_nodes."""
+def _valid_to_replace(
+    matched_nodes: Sequence[ir.Node], output_values: Sequence[ir.Value]
+) -> bool:
+    """Check that values computed by the matched_nodes, except for output_values, are used only by the matched_nodes."""
     # * Must check that all values matched by pattern are used only by pattern,
     # except for the value that is replaced.
     # * Must ensure that replacement subgraph does not use any of the deleted
     # (intermediate) values. (Not necessary for now. Guaranteed.)
-    deleted_nodes = matched_nodes[:-1]
-    for n in deleted_nodes:
+    for n in matched_nodes:
         for v in n.outputs:
+            if v in output_values:
+                continue
             if v.is_graph_output():
                 # value is an output-value of the graph/function.
                 return False
@@ -899,7 +907,7 @@ class PatternMatcher(abc.ABC):
         node: ir.Node,
         verbose: int = 0,
     ) -> MatchResult:
-        pass
+        """Match the pattern against the subgraph ending at the given node."""
 
     def __str__(self) -> str:
         return str(self.pattern)
@@ -907,9 +915,6 @@ class PatternMatcher(abc.ABC):
 
 class SimplePatternMatcher(PatternMatcher):
     def __init__(self, pattern: GraphPattern) -> None:
-        assert (
-            pattern.has_single_output_node
-        ), "SimplePatternMatcher only supports patterns with a single output node."
         super().__init__(pattern)
 
     def fail(self, reason: str) -> bool:
@@ -1029,6 +1034,93 @@ class SimplePatternMatcher(PatternMatcher):
             )
         return self._match_node(pattern_value.producer(), node)
 
+    def _init_match(self, verbose: int) -> None:
+        """Initialize the match state. Invoked before starting a new match."""
+        self._verbose = verbose
+        self._matched: dict[NodePattern, ir.Node] = {}
+        self._match: MatchResult = MatchResult()
+
+    def _get_output_values(self) -> list[ir.Value] | None:
+        """Get values bound to the output variables of the pattern."""
+        output_values: list[ir.Value] = []
+        unbound_values: list[str] = []
+        for j, value_pattern in enumerate(self.pattern.outputs):
+            if value_pattern.name is not None:
+                if value_pattern.name in self._match.bindings:
+                    output_values.append(self._match.bindings[value_pattern.name])
+                else:
+                    unbound_values.append(value_pattern.name)
+            elif isinstance(value_pattern, NodeOutputPattern):
+                i = value_pattern.output_index
+                node = value_pattern.producer()
+                if node in self._matched:
+                    output_values.append(self._matched[node].outputs[i])
+                else:
+                    unbound_values.append(f"output_{j}")
+            elif isinstance(value_pattern, Constant):
+                raise NotImplementedError("Constant values as return-values not supported.")
+        if unbound_values:
+            self._match.fail(f"Error: Output values not found: {unbound_values}")
+            return None
+        return output_values
+
+    def _match_single_output_node(
+        self,
+        model: ir.Model,
+        graph_or_function: ir.Graph | ir.Function,
+        node: ir.Node,
+    ) -> MatchResult:
+        del model
+        del graph_or_function
+
+        pattern = self.pattern
+        match = self._match
+
+        if not pattern.has_single_output_node:
+            return match.fail(
+                "Internal Error: SimplePatternMatcher should not be used for patterns with multiple output nodes."
+            )
+
+        if not self._match_node(pattern.output_node, node):
+            return match
+
+        output_values = self._get_output_values()
+        if output_values is None:
+            return match
+        if not _valid_to_replace(match.nodes, output_values):
+            return match.fail("Matched nodes have other uses preventing replacement.")
+
+        if len(node.outputs) != pattern.num_outputs:
+            return match.fail(
+                f"Number of node outputs mismatch: expected {pattern.num_outputs}, got {len(node.outputs)}."
+            )
+
+        match.outputs.extend(output_values)
+        return match
+
+    def _multi_match(self, candidate: Iterable[ir.Node]) -> MatchResult:
+        """Find a match for a pattern with multiple output nodes.
+
+        For a pattern with K output nodes, the input candidate should specify K nodes
+        in the graph that will be matched against the pattern output nodes.
+
+        Args:
+            candidate: An iterable of nodes that will be matched against the pattern output nodes.
+        """
+        match = self._match
+        for pattern_node, node in zip(self.pattern.output_nodes, candidate):
+            if not self._match_node(pattern_node, node):
+                return match
+        output_values = self._get_output_values()
+        if output_values is None:
+            return match
+
+        if not _valid_to_replace(match.nodes, output_values):
+            return match.fail("Matched nodes have other uses preventing replacement.")
+
+        match.outputs.extend(output_values)
+        return match
+
     def match(
         self,
         model: ir.Model,
@@ -1036,29 +1128,57 @@ class SimplePatternMatcher(PatternMatcher):
         node: ir.Node,
         verbose: int = 0,
     ) -> MatchResult:
-        del model
-        del graph_or_function
-        self._verbose = verbose
-        self._matched: dict[NodePattern, ir.Node] = {}
-        self._match: MatchResult = MatchResult()
+        """Match the pattern against the subgraph ending at the given node.
 
-        pattern = self.pattern
-        match = self._match
-        if len(node.outputs) != pattern.num_outputs:
-            return match.fail(
-                f"Number of node outputs mismatch: expected {pattern.num_outputs}, got {len(node.outputs)}."
-            )
-        if pattern._output_node is None:
-            return match.fail(
-                "Internal Error: SimplePatternMatcher should not be used for patterns with multiple output nodes."
-            )
+        For patterns with multiple output nodes, the given node is matched
+        against the first output node in the pattern. For the remaining
+        output nodes in the pattern, we use a brute-force algorithm that
+        enumerates all possible combinations of nodes from the graph (with
+        a filter based on op-type).
 
-        if self._match_node(pattern._output_node, node):
-            if not _valid_to_replace(match.nodes):
-                return match.fail("Matched nodes have other uses preventing replacement.")
+        TODO: Consider omitting parameters model and graph_or_function. With
+        the new IR, the graph can be obtained from the node, and the model is
+        not used. But this is a shared abstract method of the Matcher interface,
+        so other matcher implementation also needs to be updated. More importantly,
+        matching in the presence of subgraphs (control-flow) can introduce some
+        complications which require careful consideration.
+        """
 
-        match.outputs.extend(node.outputs)
-        return match
+        if self.pattern.has_single_output_node:
+            self._init_match(verbose)
+            return self._match_single_output_node(model, graph_or_function, node)
+        else:
+            # Note: This is a potentially expensive algorithm for matching patterns with
+            # multiple output nodes. For patterns with N output nodes, we try all possible
+            # combinations of N nodes from the graph, and check if they match the pattern.
+            # The first node is fixed to the node argument in this method call. We do
+            # some simple filtering by restricting the candidates for each remaining
+            # output nodes to graph nodes with the same op_type as the corresponding pattern
+            # node. For now, this is intended to be a simple, but robust, implementation
+            # that can be used for debugging and testing. The GenericPatternMatcher is a
+            # more sophisticated implementation, but incomplete.
+            pattern_output_nodes = self.pattern.output_nodes
+            op_to_nodes: dict[tuple[str, str, str], list[ir.Node]] = {}
+            for n in graph_or_function:
+                op_to_nodes.setdefault(n.op_identifier(), []).append(n)
+            all_nodes = iter(graph_or_function)
+
+            def get_nodes(pattern_node):
+                id = pattern_node.op_identifier()
+                if id is None:
+                    return all_nodes
+                return op_to_nodes.get(id, [])
+
+            candidates = [iter([node])] + [get_nodes(pn) for pn in pattern_output_nodes[1:]]
+            match = None
+            for combination in itertools.product(*candidates):
+                self._init_match(verbose)
+                match = self._multi_match(combination)
+                if match:
+                    return match
+            if match is None:
+                return MatchResult().fail("No match found.")
+            return match
 
 
 class RewriteRule:
