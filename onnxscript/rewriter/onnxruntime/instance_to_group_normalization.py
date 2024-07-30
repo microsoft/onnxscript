@@ -142,7 +142,7 @@ def group_normalization(op, input_x, weight_for_norm, weight_full, bias_full, ep
         channels_last=1,
         epsilon=epsilon,
         groups=groups,
-        domain="com.microsoft",
+        _domain="com.microsoft",
     )
     return op.Transpose(output, perm=[0, 3, 1, 2])
 

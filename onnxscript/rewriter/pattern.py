@@ -203,35 +203,35 @@ class OpPatternBuilder:
     def __call__(
         self,
         *args,
-        domain: str | None = None,
-        version: int | None = None,
-        outputs: int | list[str | None] = 1,
+        _domain: str | None = None,
+        _version: int | None = None,
+        _outputs: int | list[str | None] = 1,
         _allow_other_attributes: bool | None = None,
         **kwargs,
     ):
-        if version is not None:
+        if _version is not None:
             raise ValueError(
-                "The pattern builder does not support 'version' keyword argument. "
+                "The pattern builder does not support '_version' keyword argument. "
                 "Version restrictions should be handled by rewrite rules."
             )
-        if domain is None:
+        if _domain is None:
             opset_pattern = self.opset_pattern
-        elif isinstance(domain, str):
-            opset_pattern = OpsetPatternBuilder(domain)
+        elif isinstance(_domain, str):
+            opset_pattern = OpsetPatternBuilder(_domain)
         else:
-            # TODO(rama): allow OpsetPatternBuilder as domain.
-            raise TypeError("domain must be a string.")
+            # TODO(rama): allow OpsetPatternBuilder as _domain.
+            raise TypeError("_domain must be a string.")
 
-        if isinstance(outputs, int):
-            outputs = [None for _ in range(outputs)]
-        elif not isinstance(outputs, Sequence) or not all(
-            isinstance(x, (str, type(None))) for x in outputs
+        if isinstance(_outputs, int):
+            _outputs = [None for _ in range(_outputs)]
+        elif not isinstance(_outputs, Sequence) or not all(
+            isinstance(x, (str, type(None))) for x in _outputs
         ):
-            raise ValueError("outputs must be an int or a list[str|None].")
+            raise ValueError("_outputs must be an int or a list[str|None].")
         inputs = [_to_value_pattern(x) for x in args]
         attributes = {name: _to_attr_pattern(value) for (name, value) in kwargs.items()}
         node_pattern = NodePattern(
-            opset_pattern, self.op_name, inputs, attributes, outputs, _allow_other_attributes
+            opset_pattern, self.op_name, inputs, attributes, _outputs, _allow_other_attributes
         )
         output_values = node_pattern.outputs
         # Unpack outputs if there is only one output, the common case.
@@ -805,9 +805,9 @@ class RewriterContext:
 
     def _make_node(self, op_type: str, inputs: Sequence[ir.Value], kwargs: dict[str, Any]):
         # TODO(rama): some of the following logic should move into the tape.
-        domain = kwargs.pop("domain", "")
-        version = kwargs.pop("version", None)
-        outputs = kwargs.pop("outputs", 1)
+        domain = kwargs.pop("_domain", "")
+        version = kwargs.pop("_version", None)
+        outputs = kwargs.pop("_outputs", 1)
         if isinstance(outputs, Sequence):
             num_outputs = len(outputs)
         else:
