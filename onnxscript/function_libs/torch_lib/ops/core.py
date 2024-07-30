@@ -2550,8 +2550,9 @@ def aten_diagonal(self: TReal, offset: int = 0, dim1: int = 0, dim2: int = 1) ->
     # This is because computing diagonal sum is on dim2 after transpose by perm
     axes = [self_rank - 2]
 
-    dim1_size = op.Shape(self, end=dim1, start=dim1 + 1)  # row
-    dim2_size = op.Shape(self, end=dim2, start=dim2 + 1)  # col
+    neg_1 = op.Constant(value_ints=[-1])
+    dim1_size = op.Reshape(op.Gather(op.Shape(self), dim1), neg_1)  # row
+    dim2_size = op.Reshape(op.Gather(op.Shape(self), dim2), neg_1)  # col
     mask_shape = op.Concat(dim1_size, dim2_size, axis=0)
     mask = op.EyeLike(op.ConstantOfShape(mask_shape), k=offset)
     mask = op.CastLike(mask, self)
@@ -2587,14 +2588,12 @@ def aten_diagonal(self: TReal, offset: int = 0, dim1: int = 0, dim2: int = 1) ->
     else:  # offset >= 0
         # col - offset
         length = op.Sub(dim2_size, offset_val)
-        start = offset
+        start = offset_val
 
     # max(min(length, min(row, col)), 0)
     length = op.Max(op.Min(length, min_dim_size), op.Constant(value_ints=[0]))
     end = op.Add(start, length)
-    result = op.Slice(
-        result, start, end, axes=axes
-    )
+    result = op.Slice(result, start, end, axes=axes)
 
     return result
 
@@ -2623,8 +2622,9 @@ def aten_diagonal_bool(self: BOOL, offset: int = 0, dim1: int = 0, dim2: int = 1
     # This is because computing diagonal sum is on dim2 after transpose by perm
     axes = [self_rank - 2]
 
-    dim1_size = op.Shape(self, end=dim1, start=dim1 + 1)  # row
-    dim2_size = op.Shape(self, end=dim2, start=dim2 + 1)  # col
+    neg_1 = op.Constant(value_ints=[-1])
+    dim1_size = op.Reshape(op.Gather(op.Shape(self), dim1), neg_1)  # row
+    dim2_size = op.Reshape(op.Gather(op.Shape(self), dim2), neg_1)  # col
     mask_shape = op.Concat(dim1_size, dim2_size, axis=0)
     mask = op.EyeLike(op.ConstantOfShape(mask_shape), k=offset)
     self_int = op.Cast(self, to=INT64.dtype)
@@ -2661,7 +2661,7 @@ def aten_diagonal_bool(self: BOOL, offset: int = 0, dim1: int = 0, dim2: int = 1
     else:  # offset >= 0
         # col - offset
         length = op.Sub(dim2_size, offset_val)
-        start = offset
+        start = offset_val
 
     # max(min(length, min(row, col)), 0)
     length = op.Max(op.Min(length, min_dim_size), op.Constant(value_ints=[0]))
