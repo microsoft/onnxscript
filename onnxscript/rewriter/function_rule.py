@@ -16,6 +16,15 @@ from onnxscript.rewriter import pattern
 logger = logging.getLogger(__name__)
 
 
+def _log_rewrite(old_function: ir.Function, new_function: ir.Function) -> None:
+    import onnxscript.ir.serde as serde
+    old = serde.serialize_function(old_function)
+    new = serde.serialize_function(new_function)
+    print("Old function:")
+    print(onnx.printer.to_text(old))
+    print("New function:")
+    print(onnx.printer.to_text(new))
+
 class FunctionRewriteError(RuntimeError): ...
 
 
@@ -153,6 +162,7 @@ class FunctionRewriteRule(pattern.RewriteRule):
         func = self._version_controller.dispatch(pkg_version)  # type: ignore[attr-defined]
         if func is not None:
             new_function = func(self, old_function)
+            _log_rewrite(old_function, new_function)
             return new_function
         raise FunctionRewriteError(
             f"No rewrite implementation for package version {pkg_version}."
