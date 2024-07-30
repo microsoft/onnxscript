@@ -39,7 +39,6 @@ from __future__ import annotations
 import copy
 import dataclasses
 import functools
-import sys
 from typing import Any, Callable, Collection, Optional
 
 import numpy as np
@@ -713,19 +712,23 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.bool,),
         reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
     ),
-    TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max).skip(
+    TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max)
+    .skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
         enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
-    ).skip(
+    )
+    .skip(
         reason="Size 0 inputs are not handled by design",
         matcher=lambda sample: sample.input.numel() == 0,
     ),
-    TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min).skip(
+    TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min)
+    .skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
         enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
-    ).skip(
+    )
+    .skip(
         reason="Size 0 inputs are not handled by design",
         matcher=lambda sample: sample.input.numel() == 0,
     ),
