@@ -29,7 +29,7 @@ class FusedMatMulDiv1(orp.RewriteRuleAsClass):
     def rewrite(cls, op, x, y, cst):
         value = cst.const_value.numpy()
         c = float(value[0] if value.shape == (1,) else value)
-        return op.FusedMatMul(x, y, alpha=1 / c, domain="com.microsoft")
+        return op.FusedMatMul(x, y, alpha=1 / c, _domain="com.microsoft")
 
 
 class FusedMatMulDiv2(orp.RewriteRuleAsClass):
@@ -37,7 +37,7 @@ class FusedMatMulDiv2(orp.RewriteRuleAsClass):
 
     @classmethod
     def pattern(cls, op, x, y, cst):
-        return op.Div(op.FusedMatMul(x, y, domain="com.microsoft"), cst)
+        return op.Div(op.FusedMatMul(x, y, _domain="com.microsoft"), cst)
 
     @classmethod
     def check(cls, context, x, y, cst) -> bool:
@@ -60,7 +60,7 @@ class FusedMatMulDiv2(orp.RewriteRuleAsClass):
             att = node.attributes.get(name)
             if att:
                 kwargs[name] = att.value
-        return op.FusedMatMul(x, y, **kwargs, domain="com.microsoft")
+        return op.FusedMatMul(x, y, **kwargs, _domain="com.microsoft")
 
 
 class _TransposeMatMulBase(orp.RewriteRuleAsClass):
@@ -83,7 +83,7 @@ class _TransposeMatMulBase(orp.RewriteRuleAsClass):
                 kwargs[name] = att.value
         name = "transA" if cls._pos == 1 else "transB"
         kwargs[name] = 1 - kwargs.get(name, 0)
-        return op.FusedMatMul(x, y, **kwargs, domain="com.microsoft")
+        return op.FusedMatMul(x, y, **kwargs, _domain="com.microsoft")
 
 
 class TransposeMatMul1(_TransposeMatMulBase):
@@ -99,7 +99,7 @@ class TransposeFusedMatMul1(TransposeMatMul1):
 
     @classmethod
     def pattern(cls, op, x, y):
-        return op.FusedMatMul(op.Transpose(x), y, domain="com.microsoft")
+        return op.FusedMatMul(op.Transpose(x), y, _domain="com.microsoft")
 
 
 class TransposeMatMul2(_TransposeMatMulBase):
@@ -117,7 +117,7 @@ class TransposeFusedMatMul2(TransposeMatMul2):
 
     @classmethod
     def pattern(cls, op, x, y):
-        return op.FusedMatMul(x, op.Transpose(y), domain="com.microsoft")
+        return op.FusedMatMul(x, op.Transpose(y), _domain="com.microsoft")
 
 
 class MatMulTranspose(orp.RewriteRuleAsClass):
@@ -146,7 +146,7 @@ class MatMulTranspose(orp.RewriteRuleAsClass):
                 kwargs[name] = att.value
         for name in ["transA", "transB"]:
             kwargs[name] = 1 - kwargs.get(name, 0)
-        return op.FusedMatMul(y, x, **kwargs, domain="com.microsoft")
+        return op.FusedMatMul(y, x, **kwargs, _domain="com.microsoft")
 
 
 class FusedMatMulTranspose(MatMulTranspose):
@@ -154,7 +154,7 @@ class FusedMatMulTranspose(MatMulTranspose):
 
     @classmethod
     def pattern(cls, op, x, y):
-        return op.Transpose(op.FusedMatMul(x, y, domain="com.microsoft"))
+        return op.Transpose(op.FusedMatMul(x, y, _domain="com.microsoft"))
 
 
 def fused_matmul_rule_sets() -> orp.RewriteRuleSet:

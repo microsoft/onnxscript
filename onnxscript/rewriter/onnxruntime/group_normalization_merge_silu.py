@@ -27,7 +27,7 @@ def group_normalization_and_silu_submodule(
         channels_last=1,
         epsilon=epsilon,
         groups=groups,
-        domain="com.microsoft",
+        _domain="com.microsoft",
     )
     transposed = op.Transpose(group_norm, perm=[0, 3, 1, 2])
     return torch_module_op.submodule("torch_nn_modules_activation_SiLU")(
@@ -51,7 +51,7 @@ def group_normalization_with_silu(
         channels_last=1,
         epsilon=epsilon,
         groups=groups,
-        domain="com.microsoft",
+        _domain="com.microsoft",
     )
     return op.Transpose(group_norm, perm=[0, 3, 1, 2])
 

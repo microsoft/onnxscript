@@ -45,7 +45,7 @@ class GenericPatternTest(unittest.TestCase):
 
         def apply_pattern(op, x, y, z, **_):
             """Builds the replacement graph."""
-            return op.AddAdd(x, y, z, domain="ZZZ")
+            return op.AddAdd(x, y, z, _domain="ZZZ")
 
         def validate_mapping(context, x, y, z, **_) -> bool:
             """Validates the mapping."""
@@ -127,7 +127,7 @@ class GenericPatternTest(unittest.TestCase):
 
         def apply_pattern(op, x, y, w, z, **_):
             """Builds the pattern to match."""
-            return op.AddAddAddAdd(x, y, w, z, domain="ZZZ", outputs=2)
+            return op.AddAddAddAdd(x, y, w, z, _domain="ZZZ", _outputs=2)
 
         def validate_mapping(context, **_) -> bool:
             return True
@@ -262,7 +262,7 @@ class GenericPatternTest(unittest.TestCase):
             return t1, t2
 
         def apply_pattern(op, x, **_):
-            return op.SinCos(x, domain="com.microsoft", outputs=2)
+            return op.SinCos(x, _domain="com.microsoft", _outputs=2)
 
         rule = pattern.RewriteRule(match_pattern, apply_pattern, matcher=self.matcher_algo)
         model_proto = onnx.parser.parse_model(
@@ -295,7 +295,7 @@ class GenericPatternTest(unittest.TestCase):
             return t1, t2
 
         def apply_pattern(op, x, **_):
-            return op.SinCos(x, domain="com.microsoft", outputs=2)
+            return op.SinCos(x, _domain="com.microsoft", _outputs=2)
 
         rule = pattern.RewriteRule(
             match_pattern,
@@ -338,8 +338,8 @@ class GenericPatternTest(unittest.TestCase):
             output, _length = op.ConcatTraining(
                 transpose,
                 transpose,
-                domain="com.microsoft",
-                outputs=2,
+                _domain="com.microsoft",
+                _outputs=2,
             )
 
             sin = op.Sin(output)
@@ -365,8 +365,8 @@ class GenericPatternTest(unittest.TestCase):
                 pos_ids,
                 cos_cache,
                 sin_cache,
-                domain="com.microsoft",
-                outputs=2,
+                _domain="com.microsoft",
+                _outputs=2,
             )
 
         rule = pattern.RewriteRule(
@@ -409,7 +409,7 @@ class GenericPatternTest(unittest.TestCase):
             matmul = op.MatMul(pos_ids, cast)
             transpose = op.Transpose(matmul)
             output, _length = op.ConcatTraining(
-                transpose, transpose, domain="com.microsoft", outputs=2
+                transpose, transpose, _domain="com.microsoft", _outputs=2
             )
 
             sin = op.Sin(output)
@@ -431,7 +431,7 @@ class GenericPatternTest(unittest.TestCase):
                 value=onnx.numpy_helper.from_array(np.random.rand(256, 256).astype(np.float16))
             )
             part1, part2 = op.RotaryEmbedding(
-                x, pos_ids, cos_cache, sin_cache, domain="com.microsoft", outputs=2
+                x, pos_ids, cos_cache, sin_cache, _domain="com.microsoft", _outputs=2
             )
             return part1, part2
 
@@ -475,7 +475,7 @@ class GenericPatternTest(unittest.TestCase):
             matmul = op.MatMul(pos_ids, cast)
             transpose = op.Transpose(matmul)
             output, _length = op.ConcatTraining(
-                transpose, transpose, domain="com.microsoft", outputs=2
+                transpose, transpose, _domain="com.microsoft", _outputs=2
             )
 
             sin = op.Sin(output)
@@ -497,7 +497,7 @@ class GenericPatternTest(unittest.TestCase):
                 value=onnx.numpy_helper.from_array(np.random.rand(256, 256).astype(np.float16))
             )
             part1, part2 = op.RotaryEmbedding(
-                x, pos_ids, cos_cache, sin_cache, domain="com.microsoft", outputs=2
+                x, pos_ids, cos_cache, sin_cache, _domain="com.microsoft", _outputs=2
             )
             return part1, part2
 
@@ -535,8 +535,8 @@ class GenericPatternTest(unittest.TestCase):
         #     return Y
 
         def transpose_transpose_pattern(op, X):
-            XT = op.Transpose(X, outputs=["XT"])
-            Y = op.Transpose(XT, outputs=["Y"])
+            XT = op.Transpose(X, _outputs=["XT"])
+            Y = op.Transpose(XT, _outputs=["Y"])
             return Y
 
         def transpose_transpose_mapping(perm0, perm1):
