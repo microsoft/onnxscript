@@ -45,7 +45,8 @@ class StringPattern(abc.ABC, Pattern[str]):
 
     @abc.abstractmethod
     def __str__(self) -> str:
-        pass    
+        pass
+
 
 class StringConstantPattern(StringPattern):
     """Matches strings with given value."""
@@ -375,7 +376,9 @@ class MatchResult:
         assert self._matched_nodes is not None, "_matched_nodes should not be None."
         self._matched_nodes.extend(other._matched_nodes)  # type: ignore[attr-defined]
 
-_pattern_builder : OpPatternBuilder = onnxop
+
+_pattern_builder: OpPatternBuilder = onnxop
+
 
 @contextlib.contextmanager
 def pattern_builder(rewriter_context: RewriterContext):
@@ -384,6 +387,7 @@ def pattern_builder(rewriter_context: RewriterContext):
     _pattern_builder = rewriter_context
     yield
     _pattern_builder = prev_builder
+
 
 class ValuePattern:
     """Base class for all patterns that match against IR values.
@@ -396,6 +400,10 @@ class ValuePattern:
         self._name = name
         # Note: uses will be computed only when the full graph-pattern is constructed.
         self._uses: list[tuple[NodePattern, int]] = []
+
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> ValuePattern:
+        del node_map
+        return ValuePattern(self._name)
 
     @property
     def name(self) -> str | None:
@@ -585,36 +593,20 @@ class NodePattern:
             for input in inputs
         ]
 
-    def commute2(self) -> Sequence[NodePattern]:
-        list_of_lists = [
-            [None] if pattern is None else pattern.commute() for pattern in self.inputs
-        ]  # type: ignore[attr-defined]
-
-        def enumerate_inputs(inputs, index):
-            if index >= len(inputs):
-                yield []
-            else:
-                for pattern in inputs[index]:
-                    for rest in enumerate_inputs(inputs, index + 1):
-                        yield [pattern, *rest]
-
-        inputs = list(enumerate_inputs(list_of_lists, 0))
-        if self.domain.matches("") and (self.op.matches("Add") or self.op.matches("Mul")):
-            # TODO: handle cases where number of inputs is not 2.
-            swapped = [[x[1], x[0]] for x in inputs]
-            inputs.extend(swapped)
+    def clone(self, node_map: dict[NodePattern, NodePattern], swap: bool) -> NodePattern:
+        inputs = [v.clone(node_map) for v in self.inputs]
+        if swap:
+            assert (
+                len(inputs) == 2
+            ), "Internal error: commutative swap applies only to binary ops."
+            inputs = [inputs[1], inputs[0]]
         outputs = [value.name for value in self.outputs]
-        return [
-            NodePattern(
-                self.domain,
-                self.op,
-                input,
-                self.attributes,
-                outputs,
-                self.allow_other_attributes,
-            )
-            for input in inputs
-        ]
+        copy = NodePattern(
+            self.domain, self.op, inputs, self.attributes, outputs, self.allow_other_attributes
+        )
+        node_map[self] = copy
+        return copy
+
 
 class NodeOutputPattern(ValuePattern):
     """Represents a pattern that matches against a specific output of a Node.
@@ -629,6 +621,10 @@ class NodeOutputPattern(ValuePattern):
         super().__init__(name)
         self._producer = producer
         self._output_index = output_index
+
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> NodeOutputPattern:
+        return node_map[self._producer].outputs[self._output_index]
+        # return NodeOutputPattern(node_map[self._producer], self._output_index, self._name)
 
     @property
     def output_index(self) -> int:
@@ -658,6 +654,10 @@ class Constant(ValuePattern):
         self._value = value
         self._rel_tol = rel_tol
         self._abs_tol = abs_tol
+
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> Constant:
+        del node_map
+        return Constant(self._value, self._rel_tol, self._abs_tol)
 
     @property
     def value(self) -> int | float:
@@ -718,7 +718,10 @@ class GraphPattern:
     """Represents a pattern that can be matched against a subgraph."""
 
     def __init__(
-        self, inputs: Sequence[ValuePattern], outputs: Sequence[ValuePattern], nodes: Sequence[NodePattern]
+        self,
+        inputs: Sequence[ValuePattern],
+        outputs: Sequence[ValuePattern],
+        nodes: Sequence[NodePattern],
     ) -> None:
         self._inputs = inputs
         self._outputs = outputs
@@ -779,50 +782,33 @@ class GraphPattern:
         return len(self._outputs)
 
     def commute(self) -> Sequence[GraphPattern]:
-        def _commute_node(node: NodePattern) -> Sequence[NodePattern]:
-            return node.commute()
-        
-        list_of_lists = [
-            [None] if pattern is None else pattern.commute() for pattern in self.inputs
-        ]  # type: ignore[attr-defined]
+        def commute_node(node: NodePattern) -> Iterable[bool]:
+            if node.op_identifier() == ("", "Add", "") or node.op_identifier() == (
+                "",
+                "Mul",
+                "",
+            ):
+                # Try with and without swapping inputs.
+                return [False, True]
+            # No swapping of inputs
+            return [False]
 
-        def enumerate_inputs(inputs, index):
-            if index >= len(inputs):
-                yield []
-            else:
-                for pattern in inputs[index]:
-                    for rest in enumerate_inputs(inputs, index + 1):
-                        yield [pattern, *rest]
+        iteration_space = [commute_node(node) for node in self._nodes]
 
-        inputs = list(enumerate_inputs(list_of_lists, 0))
-        if self.domain.matches("") and (self.op.matches("Add") or self.op.matches("Mul")):
-            # TODO: handle cases where number of inputs is not 2.
-            swapped = [[x[1], x[0]] for x in inputs]
-            inputs.extend(swapped)
-        outputs = [value.name for value in self.outputs]
-        return [
-            NodePattern(
-                self.domain,
-                self.op,
-                input,
-                self.attributes,
-                outputs,
-                self.allow_other_attributes,
-            )
-            for input in inputs
-        ]
+        def copy_graph(swap_list: Iterable[bool]) -> GraphPattern:
+            if not any(swap_list):
+                # No need to swap inputs of any node
+                return self
+            # Create a copy of the graph, with swapped inputs for the nodes that need it.
+            node_map: dict[NodePattern, NodePattern] = {}
+            new_inputs = [v.clone(node_map) for v in self._inputs]
+            new_nodes = [
+                node.clone(node_map, swap) for node, swap in zip(self._nodes, swap_list)
+            ]
+            new_outputs = [v.clone(node_map) for v in self._outputs]
+            return GraphPattern(new_inputs, new_outputs, new_nodes)
 
-        if not self.has_single_output_node:
-            raise NotImplementedError(
-                "Cannot commute a graph pattern with multiple output nodes."
-            )
-        nodes = self.output_node.commute()
-        return [
-            GraphPattern(
-                self._inputs, [NodeOutputPattern(n, i) for i in range(self.num_outputs)]
-            )
-            for n in nodes
-        ]
+        return [copy_graph(swap_list) for swap_list in itertools.product(*iteration_space)]
 
     def __str__(self) -> str:
         inputs = ", ".join(str(v) for v in self._inputs)
