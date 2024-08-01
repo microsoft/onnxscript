@@ -420,6 +420,16 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(model.graph[0].op_type, "Concat")
         self.assertNotIn("axis", model.graph[0].attributes)
 
+class PatternBuilderTest(unittest.TestCase):
+    def test_pattern_builder_context(self):
+        builder = pattern.RewriterContext()
+        with pattern.pattern_builder(builder):
+            x = builder.Op1()
+            y = builder.Op2(x)
+            z = x + y
+            w = builder.Op3(z)
+        ops = [x.op_type for x in builder.nodes]
+        self.assertEqual(ops, ["Op1", "Op2", "Add", "Op3"])
 
 if __name__ == "__main__":
     unittest.main()

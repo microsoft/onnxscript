@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 from onnxscript.rewriter import pattern
 
-op = pattern.onnxop
+# op = pattern.onnxop
 
 # TODO: Support 1-D constant tensors
 # https://github.com/microsoft/onnx-rewriter/issues/186

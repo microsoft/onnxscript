@@ -6,7 +6,7 @@ from typing import ClassVar
 
 import onnxscript.rewriter.pattern as orp
 
-op = orp.onnxop
+# op = orp.onnxop
 
 
 class FusedMatMulDiv1(orp.RewriteRuleAsClass):

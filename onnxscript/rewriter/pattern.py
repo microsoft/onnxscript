@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import abc
+import contextlib
 import dataclasses
 import inspect
 import itertools
@@ -35,7 +36,18 @@ class Pattern(Protocol[T]):  # type: ignore[misc]
     def matches(self, item: T) -> bool: ...
 
 
-class StringConstantPattern(Pattern[str]):
+class StringPattern(abc.ABC, Pattern[str]):
+    """Abstract base class for string patterns."""
+
+    @abc.abstractmethod
+    def matches(self, item: str) -> bool:
+        pass
+
+    @abc.abstractmethod
+    def __str__(self) -> str:
+        pass    
+
+class StringConstantPattern(StringPattern):
     """Matches strings with given value."""
 
     def __init__(self, value: str):
@@ -47,8 +59,11 @@ class StringConstantPattern(Pattern[str]):
     def __str__(self) -> str:
         return self._value
 
+    def value(self) -> str:
+        return self._value
 
-class PrefixPattern(Pattern[str]):
+
+class PrefixPattern(StringPattern):
     """Matches strings with a given prefix."""
 
     def __init__(self, value: str) -> None:
@@ -145,20 +160,14 @@ class OpsetPatternBuilder(Pattern[str]):
     input model.
     """
 
-    def __init__(self, domain: Pattern[str] | str) -> None:
+    def __init__(self, domain: StringPattern | str) -> None:
         if isinstance(domain, str):
-            self._domain_name: str | None = domain
             self._domain_pattern: Pattern[str] = StringConstantPattern(domain)
         else:
-            self._domain_name = None
             self._domain_pattern = domain
 
-    @property
-    def domain_name(self) -> str | None:
-        return self._domain_name
-
-    def matches(self, domain):
-        return self._domain_pattern.matches(domain)
+    def domain_pattern(self) -> StringPattern:
+        return self._domain_pattern
 
     def __getattr__(self, op_name: str) -> OpPatternBuilder:
         return OpPatternBuilder(self, op_name)
@@ -173,9 +182,9 @@ class OpsetPatternBuilder(Pattern[str]):
 
 onnxop = OpsetPatternBuilder("")
 
-msft_op = OpsetPatternBuilder("com.microsoft")
+# msft_op = OpsetPatternBuilder("com.microsoft")
 
-torch_module_op = OpsetPatternBuilder(PrefixPattern("pkg.torch"))
+# torch_module_op = OpsetPatternBuilder(PrefixPattern("pkg.torch"))
 
 
 class OpPatternBuilder:
@@ -194,10 +203,10 @@ class OpPatternBuilder:
 
     def __init__(
         self,
-        opset_pattern: OpsetPatternBuilder,
+        pattern_builder: OpsetPatternBuilder,
         op_name: str | Pattern[str],
     ) -> None:
-        self.opset_pattern = opset_pattern
+        self.pattern_builder = pattern_builder
         self.op_name = op_name
 
     def __call__(
@@ -215,9 +224,9 @@ class OpPatternBuilder:
                 "Version restrictions should be handled by rewrite rules."
             )
         if _domain is None:
-            opset_pattern = self.opset_pattern
+            opset_pattern = self.pattern_builder.domain_pattern()
         elif isinstance(_domain, str):
-            opset_pattern = OpsetPatternBuilder(_domain)
+            opset_pattern = StringConstantPattern(_domain)
         else:
             # TODO(rama): allow OpsetPatternBuilder as _domain.
             raise TypeError("_domain must be a string.")
@@ -353,6 +362,15 @@ class MatchResult:
         assert self._matched_nodes is not None, "_matched_nodes should not be None."
         self._matched_nodes.extend(other._matched_nodes)  # type: ignore[attr-defined]
 
+_pattern_builder : OpPatternBuilder | None = None
+
+@contextlib.contextmanager
+def pattern_builder(rewriter_context: RewriterContext):
+    global _pattern_builder
+    prev_builder = _pattern_builder
+    _pattern_builder = rewriter_context
+    yield
+    _pattern_builder = prev_builder
 
 class ValuePattern:
     """Base class for all patterns that match against IR values.
@@ -392,31 +410,31 @@ class ValuePattern:
         return [self]
 
     def __add__(self, other):
-        return onnxop.Add(self, other)
+        return _pattern_builder.Add(self, other)
 
     def __radd__(self, other):
-        return onnxop.Add(other, self)
+        return _pattern_builder.Add(other, self)
 
     def __sub__(self, other):
-        return onnxop.Sub(self, other)
+        return _pattern_builder.Sub(self, other)
 
     def __rsub__(self, other):
-        return onnxop.Sub(other, self)
+        return _pattern_builder.Sub(other, self)
 
     def __mul__(self, other):
-        return onnxop.Mul(self, other)
+        return _pattern_builder.Mul(self, other)
 
     def __rmul__(self, other):
-        return onnxop.Mul(other, self)
+        return _pattern_builder.Mul(other, self)
 
     def __truediv__(self, other):
-        return onnxop.Div(self, other)
+        return _pattern_builder.Div(self, other)
 
     def __rtruediv__(self, other):
-        return onnxop.Div(other, self)
+        return _pattern_builder.Div(other, self)
 
     def __pow__(self, other):
-        return onnxop.Pow(self, other)
+        return _pattern_builder.Pow(self, other)
 
     def __str__(self) -> str:
         return self._name if self._name is not None else "anonymous:" + str(id(self))
@@ -441,7 +459,7 @@ class NodePattern:
 
     def __init__(
         self,
-        domain: OpsetPatternBuilder,
+        domain: StringPattern,
         op: str | Pattern[str],
         inputs: Sequence[int | float | ValuePattern | None],
         attributes: dict[str, AttrPattern],
@@ -457,11 +475,11 @@ class NodePattern:
         self.attributes = attributes
         self.allow_other_attributes = allow_other_attributes
         # In the common case, domain and op are constants, which can be used to optimize matching.
-        if isinstance(op, str) and domain.domain_name is not None:
+        if isinstance(op, str) and isinstance(domain, StringConstantPattern):
             # TODO(rama): support overloaded operators.
             overload = ""
             self._op_identifier: tuple[str, str, str] | None = (
-                domain.domain_name,
+                domain.value,
                 op,
                 overload,
             )
@@ -872,6 +890,7 @@ class ReplacementPatternFunction:
 
     def get_replacement(self, match: MatchResult) -> ReplacementSubgraph | None:
         context = RewriterContext()
+        # with pattern_builder(context):
         new_outputs = self._function(context, **match.bindings)
         if new_outputs is None:
             return None  # Failed to create replacement subgraph

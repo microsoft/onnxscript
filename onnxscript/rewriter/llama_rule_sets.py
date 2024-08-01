@@ -11,7 +11,7 @@ import onnxscript.ir as ir
 import onnxscript.rewriter.no_op as no_op
 import onnxscript.rewriter.pattern as orp
 
-op = orp.onnxop
+# op = orp.onnxop
 
 
 class CastIdentity(orp.RewriteRuleAsClass):
