@@ -195,8 +195,6 @@ class OpsetPatternBuilder:
 
 onnxop = OpsetPatternBuilder("")
 
-# msft_op = OpsetPatternBuilder("com.microsoft")
-
 torch_module_op = OpsetPatternBuilder(PrefixPattern("pkg.torch"))
 
 
@@ -904,7 +902,6 @@ class ReplacementPatternFunction:
 
     def get_replacement(self, match: MatchResult) -> ReplacementSubgraph | None:
         context = RewriterContext()
-        # with pattern_builder(context):
         new_outputs = self._function(context, **match.bindings)
         if new_outputs is None:
             return None  # Failed to create replacement subgraph
