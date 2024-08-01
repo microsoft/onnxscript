@@ -144,8 +144,8 @@ def _to_attr_pattern(value: AttrPattern | ValuePattern | SupportedAttrTypes) -> 
     raise TypeError(f"Cannot convert {type(value)} to AttrPattern")
 
 
-class OpsetPatternBuilder(Pattern[str]):
-    """Represents an opset pattern.
+class OpsetPatternBuilder:
+    """Represents an opset pattern and a pattern builder.
 
     (i) It is used to create a NodePattern (via OpPatternBuilder).
     Example usage:
@@ -156,15 +156,18 @@ class OpsetPatternBuilder(Pattern[str]):
     Here, `op` is an instance of OpsetPatternBuilder and `op.Matmul` is an instance
     of OpPatternBuilder, and  `op.Matmul(x, y)` is an instance of NodePattern.
 
-    (ii) An opset pattern is also matched against the actual opset domain used in the
+    (ii) It contains a domain pattern matched against the actual opset domain used in the
     input model.
     """
 
-    def __init__(self, domain: StringPattern | str) -> None:
+    def __init__(self, domain: StringPattern | str, record: bool = False) -> None:
         if isinstance(domain, str):
-            self._domain_pattern: Pattern[str] = StringConstantPattern(domain)
+            domain = StringConstantPattern(domain)
+        self._domain_pattern = domain
+        if record:
+            self._nodes: list[NodePattern] | None = []
         else:
-            self._domain_pattern = domain
+            self._nodes = None
 
     def domain_pattern(self) -> StringPattern:
         return self._domain_pattern
@@ -178,6 +181,15 @@ class OpsetPatternBuilder(Pattern[str]):
 
     def __str__(self) -> str:
         return str(self._domain_pattern)
+
+    def add_node(self, node: NodePattern) -> None:
+        if self._nodes is not None:
+            self._nodes.append(node)
+
+    def nodes(self) -> Sequence[NodePattern]:
+        if self._nodes is None:
+            raise ValueError("Nodes were not recorded.")
+        return self._nodes
 
 
 onnxop = OpsetPatternBuilder("")
@@ -242,6 +254,7 @@ class OpPatternBuilder:
         node_pattern = NodePattern(
             opset_pattern, self.op_name, inputs, attributes, _outputs, _allow_other_attributes
         )
+        self.pattern_builder.add_node(node_pattern)
         output_values = node_pattern.outputs
         # Unpack outputs if there is only one output, the common case.
         if len(output_values) == 1:
@@ -362,7 +375,7 @@ class MatchResult:
         assert self._matched_nodes is not None, "_matched_nodes should not be None."
         self._matched_nodes.extend(other._matched_nodes)  # type: ignore[attr-defined]
 
-_pattern_builder : OpPatternBuilder | None = None
+_pattern_builder : OpPatternBuilder = onnxop
 
 @contextlib.contextmanager
 def pattern_builder(rewriter_context: RewriterContext):
@@ -572,6 +585,36 @@ class NodePattern:
             for input in inputs
         ]
 
+    def commute2(self) -> Sequence[NodePattern]:
+        list_of_lists = [
+            [None] if pattern is None else pattern.commute() for pattern in self.inputs
+        ]  # type: ignore[attr-defined]
+
+        def enumerate_inputs(inputs, index):
+            if index >= len(inputs):
+                yield []
+            else:
+                for pattern in inputs[index]:
+                    for rest in enumerate_inputs(inputs, index + 1):
+                        yield [pattern, *rest]
+
+        inputs = list(enumerate_inputs(list_of_lists, 0))
+        if self.domain.matches("") and (self.op.matches("Add") or self.op.matches("Mul")):
+            # TODO: handle cases where number of inputs is not 2.
+            swapped = [[x[1], x[0]] for x in inputs]
+            inputs.extend(swapped)
+        outputs = [value.name for value in self.outputs]
+        return [
+            NodePattern(
+                self.domain,
+                self.op,
+                input,
+                self.attributes,
+                outputs,
+                self.allow_other_attributes,
+            )
+            for input in inputs
+        ]
 
 class NodeOutputPattern(ValuePattern):
     """Represents a pattern that matches against a specific output of a Node.
@@ -675,13 +718,13 @@ class GraphPattern:
     """Represents a pattern that can be matched against a subgraph."""
 
     def __init__(
-        self, inputs: Sequence[ValuePattern], outputs: Sequence[ValuePattern]
+        self, inputs: Sequence[ValuePattern], outputs: Sequence[ValuePattern], nodes: Sequence[NodePattern]
     ) -> None:
         self._inputs = inputs
         self._outputs = outputs
         if len(outputs) == 0:
             raise ValueError("GraphPattern must have at least one output")
-        self._nodes = _nodes_in_pattern(outputs)
+        self._nodes = nodes  # _nodes_in_pattern(outputs)
 
         # Check if all outputs are produced by the same node.
         output_nodes: set[NodePattern] = set()
@@ -736,6 +779,39 @@ class GraphPattern:
         return len(self._outputs)
 
     def commute(self) -> Sequence[GraphPattern]:
+        def _commute_node(node: NodePattern) -> Sequence[NodePattern]:
+            return node.commute()
+        
+        list_of_lists = [
+            [None] if pattern is None else pattern.commute() for pattern in self.inputs
+        ]  # type: ignore[attr-defined]
+
+        def enumerate_inputs(inputs, index):
+            if index >= len(inputs):
+                yield []
+            else:
+                for pattern in inputs[index]:
+                    for rest in enumerate_inputs(inputs, index + 1):
+                        yield [pattern, *rest]
+
+        inputs = list(enumerate_inputs(list_of_lists, 0))
+        if self.domain.matches("") and (self.op.matches("Add") or self.op.matches("Mul")):
+            # TODO: handle cases where number of inputs is not 2.
+            swapped = [[x[1], x[0]] for x in inputs]
+            inputs.extend(swapped)
+        outputs = [value.name for value in self.outputs]
+        return [
+            NodePattern(
+                self.domain,
+                self.op,
+                input,
+                self.attributes,
+                outputs,
+                self.allow_other_attributes,
+            )
+            for input in inputs
+        ]
+
         if not self.has_single_output_node:
             raise NotImplementedError(
                 "Cannot commute a graph pattern with multiple output nodes."
@@ -776,13 +852,15 @@ def _to_graph_pattern(pattern_constructor: Callable) -> GraphPattern:
     """
     _pattern_vars = inspect.signature(pattern_constructor).parameters
     pattern_inputs = [Var(v) for v in _pattern_vars][1:]  # Skip the first parameter
-    pattern_outputs = pattern_constructor(onnxop, *pattern_inputs)
+    builder = OpsetPatternBuilder("", record=True)
+    with pattern_builder(builder):
+        pattern_outputs = pattern_constructor(builder, *pattern_inputs)
     # TODO(rama): classify inputs as value/attribute vars
     # Returned value could be a single ValuePattern or a list of ValuePatterns.
     # Normalize representation to a list of ValuePatterns.
     if isinstance(pattern_outputs, ValuePattern):
         pattern_outputs = [pattern_outputs]
-    return GraphPattern(pattern_inputs, pattern_outputs)
+    return GraphPattern(pattern_inputs, pattern_outputs, builder.nodes())
 
 
 def _valid_to_replace(
