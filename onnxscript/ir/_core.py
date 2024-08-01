@@ -1650,8 +1650,9 @@ def _check_node_safe_to_remove(
         uses_not_to_remove = [use for use, _ in output.uses() if use not in to_remove]
         if uses_not_to_remove:
             raise ValueError(
-                f"Node '{output!r}' is still being used by other nodes that are not to be "
-                f"removed. All of its uses that is not being removed: {uses_not_to_remove!r}"
+                f"Output value '{output!r}' is still being used by other nodes that are not to be "
+                f"removed. All of its uses that is not being removed: {uses_not_to_remove!r}. "
+                "Please make sure these nodes are no longer using the output value."
             )
 
 
