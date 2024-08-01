@@ -375,7 +375,7 @@ class MatchResult:
         self._matched_nodes.extend(other._matched_nodes)  # type: ignore[attr-defined]
 
 
-_pattern_builder: OpPatternBuilder = onnxop
+_pattern_builder: OpsetPatternBuilder = onnxop
 
 
 @contextlib.contextmanager
