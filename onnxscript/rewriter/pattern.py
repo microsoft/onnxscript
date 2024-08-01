@@ -197,7 +197,7 @@ onnxop = OpsetPatternBuilder("")
 
 # msft_op = OpsetPatternBuilder("com.microsoft")
 
-# torch_module_op = OpsetPatternBuilder(PrefixPattern("pkg.torch"))
+torch_module_op = OpsetPatternBuilder(PrefixPattern("pkg.torch"))
 
 
 class OpPatternBuilder:
@@ -500,7 +500,7 @@ class NodePattern:
             # TODO(rama): support overloaded operators.
             overload = ""
             self._op_identifier: tuple[str, str, str] | None = (
-                domain.value,
+                domain.value(),
                 op,
                 overload,
             )
