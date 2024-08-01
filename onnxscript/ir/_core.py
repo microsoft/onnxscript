@@ -1647,7 +1647,7 @@ def _check_node_safe_to_remove(
             raise ValueError(
                 f"Node '{node!r}' is still an output of the graph and cannot be removed when safe=True."
             )
-        uses_not_to_remove = [use for use, _ in output.uses() if use not in to_remove]
+        uses_not_to_remove = [user for user, _ in output.uses() if user not in to_remove]
         if uses_not_to_remove:
             raise ValueError(
                 f"Output value '{output!r}' is still being used by other nodes that are not to be "
