@@ -429,7 +429,7 @@ class PatternBuilderTest(unittest.TestCase):
             y = builder.Op2(x)
             z = x + y
             w = builder.Op3(z)
-            t = z * w
+            _ = z * w
         ops = [x.op_type for x in builder.nodes()]
         self.assertEqual(ops, ["Op1", "Op2", "Add", "Op3", "Mul"])
 

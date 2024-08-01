@@ -6,8 +6,6 @@ from typing import ClassVar
 
 import onnxscript.rewriter.pattern as orp
 
-# op = orp.onnxop
-
 
 class FusedMatMulDiv1(orp.RewriteRuleAsClass):
     """Replaces ``MatMul + Div`` by FusedMatMul."""
