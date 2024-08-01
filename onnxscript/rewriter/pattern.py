@@ -421,15 +421,6 @@ class ValuePattern:
     def __repr__(self) -> str:
         return f"ValuePattern({self._name!r})"
 
-    def commute(self) -> Sequence[ValuePattern]:
-        """Return a list of commuted patterns.
-
-        This is used to handle commutative operations like addition and multiplication.
-        A single pattern is converted into a list of equivalent patterns by swapping
-        the parameters of commutative operations.
-        """
-        return [self]
-
     def __add__(self, other):
         return _pattern_builder.Add(self, other)
 
@@ -562,37 +553,6 @@ class NodePattern:
 
         return match
 
-    def commute(self) -> Sequence[NodePattern]:
-        list_of_lists = [
-            [None] if pattern is None else pattern.commute() for pattern in self.inputs
-        ]  # type: ignore[attr-defined]
-
-        def enumerate_inputs(inputs, index):
-            if index >= len(inputs):
-                yield []
-            else:
-                for pattern in inputs[index]:
-                    for rest in enumerate_inputs(inputs, index + 1):
-                        yield [pattern, *rest]
-
-        inputs = list(enumerate_inputs(list_of_lists, 0))
-        if self.domain.matches("") and (self.op.matches("Add") or self.op.matches("Mul")):
-            # TODO: handle cases where number of inputs is not 2.
-            swapped = [[x[1], x[0]] for x in inputs]
-            inputs.extend(swapped)
-        outputs = [value.name for value in self.outputs]
-        return [
-            NodePattern(
-                self.domain,
-                self.op,
-                input,
-                self.attributes,
-                outputs,
-                self.allow_other_attributes,
-            )
-            for input in inputs
-        ]
-
     def clone(self, node_map: dict[NodePattern, NodePattern], swap: bool) -> NodePattern:
         inputs = [v.clone(node_map) for v in self.inputs]
         if swap:
@@ -629,13 +589,6 @@ class NodeOutputPattern(ValuePattern):
     @property
     def output_index(self) -> int:
         return self._output_index
-
-    def commute(self) -> Sequence[ValuePattern]:
-        # TODO
-        return [
-            NodeOutputPattern(pattern, self._output_index, self.name)
-            for pattern in self._producer.commute()
-        ]
 
     def producer(self) -> NodePattern:
         return self._producer
@@ -689,9 +642,6 @@ class Constant(ValuePattern):
         # Instead, we will rely on DCE to remove the constant node if it is not
         # used elsewhere.
         return match
-
-    def commute(self) -> list[ValuePattern]:
-        return [self]
 
     def __str__(self) -> str:
         return str(self._value)
