@@ -379,10 +379,10 @@ _pattern_builder: OpsetPatternBuilder = onnxop
 
 
 @contextlib.contextmanager
-def pattern_builder(rewriter_context: RewriterContext):
+def pattern_builder(builder: OpsetPatternBuilder):
     global _pattern_builder
     prev_builder = _pattern_builder
-    _pattern_builder = rewriter_context
+    _pattern_builder = builder
     yield
     _pattern_builder = prev_builder
 
@@ -552,7 +552,7 @@ class NodePattern:
         return match
 
     def clone(self, node_map: dict[NodePattern, NodePattern], swap: bool) -> NodePattern:
-        inputs = [v.clone(node_map) for v in self.inputs]
+        inputs = [(v.clone(node_map) if v is not None else None) for v in self.inputs]
         if swap:
             assert (
                 len(inputs) == 2
