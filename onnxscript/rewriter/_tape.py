@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Mapping, Optional, Sequence, Tuple
+from typing import Any, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from onnxscript import ir
 from onnxscript.ir import _convenience
@@ -62,7 +62,7 @@ class Tape(Iterable[ir.Node]):
 
 
 # A type representing the domains/versions used in creating nodes in IR.
-UsedOpsets = Sequence[Tuple[str, Optional[int]]]
+UsedOpsets = List[Tuple[str, Optional[int]]]
 
 
 class Builder(Tape):
