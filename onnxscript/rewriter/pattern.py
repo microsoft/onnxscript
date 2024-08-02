@@ -559,11 +559,11 @@ class NodePattern:
             ), "Internal error: commutative swap applies only to binary ops."
             inputs = [inputs[1], inputs[0]]
         outputs = [value.name for value in self.outputs]
-        copy = NodePattern(
+        copied = NodePattern(
             self.domain, self.op, inputs, self.attributes, outputs, self.allow_other_attributes
         )
-        node_map[self] = copy
-        return copy
+        node_map[self] = copied
+        return copied
 
 
 class NodeOutputPattern(ValuePattern):
