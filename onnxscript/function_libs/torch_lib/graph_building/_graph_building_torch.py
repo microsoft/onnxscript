@@ -466,7 +466,7 @@ def _add_attribute_to_torchscript_node(
     if "TensorProtoDataType" in str(type(value)):
         # torch._C._onnx.TensorProtoDataType
         itype = int(value)
-        return node.i_(key, value)
+        return node.i_(key, itype)
 
     raise TypeError(
         f"Unsupported attribute type '{type(value)}' for attribute '{key}' "
