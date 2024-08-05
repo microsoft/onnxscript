@@ -21,14 +21,13 @@ def main(args) -> None:
     path = args.path
     output_path = args.output_path
 
-    pwd = os.getcwd()
-    model_dir = os.path.dirname(path)
-
+    model = onnx.load(path, load_external_data=False)
     # Hack: Change the working directory to the model directory so the optimizer
     # can load external data files with relative paths.
     # TODO: Remove this hack by fixing the optimizer to handle external data files properly.
+    pwd = os.getcwd()
+    model_dir = os.path.dirname(path)
     os.chdir(model_dir)
-    model = onnx.load(path, load_external_data=False)
     model = onnxscript.optimizer.optimize(model)
     model = onnx.inliner.inline_local_functions(model)
     # Optimize again in case inlining created new opportunities.
