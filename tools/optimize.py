@@ -41,5 +41,4 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Optimize an ONNX model.")
     parser.add_argument("path", type=str, help="Path to the ONNX model.")
     parser.add_argument("output_path", type=str, help="Path to save the optimized model.")
-    args = parser.parse_args()
-    main(args)
+    main(parser.parse_args())
