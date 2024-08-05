@@ -609,9 +609,9 @@ def aten_arange_start(
 
 @torch_op("aten::arange.start_step", private=True)
 def _adjust_args_for_arange_int_dtype(
-    start: TRealUnlessFloat16OrInt8,
-    end: TRealUnlessFloat16OrInt8,
-    step: TRealUnlessFloat16OrInt8,
+    start: float,
+    end: float,
+    step: float,
 ) -> Tuple[FLOAT, FLOAT, FLOAT]:
     zero = op.Cast(0.0, to=FLOAT.dtype)
     start = op.Cast(start, to=FLOAT.dtype)
@@ -626,9 +626,9 @@ def _adjust_args_for_arange_int_dtype(
 
 @torch_op("aten::arange.start_step", trace_only=True)
 def aten_arange_start_step(
-    start: TRealUnlessFloat16OrInt8,
-    end: TRealUnlessFloat16OrInt8,
-    step: TRealUnlessFloat16OrInt8,
+    start: float,
+    end: float,
+    step: float = 1.0,
     dtype: int = -1,
     layout: str = "",
     device: str = "",
