@@ -1019,7 +1019,9 @@ class SimplePatternMatcher(PatternMatcher):
                 )
                 return self.fail(msg)
             if not self._match_value(previous_node_output_pattern, arg_value):
-                return False
+                return self.fail(
+                    f"Pattern node {pattern_node} does not match mode node {node}"
+                )
 
         for i, output_value_pattern in enumerate(pattern_node.outputs):
             if not self._bind_value(output_value_pattern, node.outputs[i]):
@@ -1036,7 +1038,10 @@ class SimplePatternMatcher(PatternMatcher):
                 # TODO(rama): Use appropriate equality-check here: future extension possibility.
                 if match.bindings[pattern_value.name] == value:
                     return True
-                return self.fail(f"Variable {pattern_value.name} is bound to multiple values.")
+                return self.fail(
+                    f"Variable {pattern_value.name} is bound to multiple values "
+                    f"value is {value}, bound value is {match.bindings[pattern_value.name]}."
+                )
             match.bindings[pattern_value.name] = value
         return True
 
@@ -1056,7 +1061,7 @@ class SimplePatternMatcher(PatternMatcher):
         node = value.producer()
         if node is None:
             return self.fail(
-                "Mismatch: Computed node pattern does not match uncomputed IR value."
+                f"Mismatch: Computed node pattern does not match uncomputed IR value ({value})"
             )
         if value.index() != pattern_value.output_index:
             return self.fail(
