@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 from onnxscript import ir
 from onnxscript.ir import _convenience
@@ -19,8 +19,8 @@ class Tape(Iterable[ir.Node]):
     def __init__(self) -> None:
         self._nodes: list[ir.Node] = []
 
-    def __iter__(self) -> Sequence[ir.Node]:
-        return self._nodes
+    def __iter__(self) -> Iterator[ir.Node]:
+        return iter(self._nodes)
 
     @property
     def nodes(self) -> Sequence[ir.Node]:
