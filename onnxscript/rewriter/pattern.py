@@ -22,8 +22,8 @@ from typing import (
 )
 
 from onnxscript import ir
-from onnxscript.ir import _convenience
-from onnxscript.rewriter import _ir_utils, _tape
+from onnxscript.ir import _convenience, _tape
+from onnxscript.rewriter import _ir_utils
 
 T = TypeVar("T")
 
