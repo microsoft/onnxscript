@@ -78,6 +78,7 @@ __all__ = [
 ]
 
 from onnxscript.ir import passes, serde, traversal
+from onnxscript.ir import _external_data
 from onnxscript.ir._convenience import tensor
 from onnxscript.ir._core import (
     Attr,

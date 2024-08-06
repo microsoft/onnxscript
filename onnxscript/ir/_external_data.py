@@ -51,3 +51,23 @@ def set_base_dir(graph: _core.Graph | _core.GraphView, base_dir: str | os.PathLi
     for tensor in _all_tensors(graph, include_attributes=True):
         if isinstance(tensor, _core.ExternalTensor):
             tensor.base_dir = base_dir
+"""Pass to save tensor data as external tensors."""
+
+from onnxscript.ir._core import Model, Tensor, ExternalTensor
+
+
+def _convert_initializer_to_external_tensor(initializer):
+    if initializer._raw is not None:
+        print(type(initializer))
+
+
+def _get_all_initializers(model: Model):
+    graph = model.graph
+    return graph.initializers
+
+def convert_model_to_external_data(model: Model, path):
+    initializers = _get_all_initializers(model)
+    print(initializers)
+    for initializer in initializers.values():
+        _convert_initializer_to_external_tensor(initializer)
+
