@@ -82,7 +82,7 @@ class SoftmaxCrossEntropyLossV2(orp.RewriteRuleAsClass):
 
     @classmethod
     def check(cls, context, X, indices) -> bool:
-        if X.dtype != onnx.TensorProto.FLOAT16:
+        if X.dtype != ir.DataType.FLOAT16:
             return False
         if indices.dtype != onnx.TensorProto.INT64:
             return False
