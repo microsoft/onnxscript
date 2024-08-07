@@ -1363,10 +1363,11 @@ def aten_multilabel_margin_loss_forward(
     raise NotImplementedError()
 
 
-@torch_op("aten::nll_loss", traceable=True)
+@torch_op("aten::nll_loss", trace_only=True)
 def aten_nll_loss(
     self: TFloat,
     target: INT64,
+    weight: Optional[TFloat] = None,
     reduction: int = 1,
     ignore_index: int = -100,
 ) -> TFloat:
@@ -1381,55 +1382,15 @@ def aten_nll_loss(
         target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
 
     if reduction == 0:
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, ignore_index=ignore_index, reduction="none"
-        )
+        reduction_str = "none"
     elif reduction == 1:
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, ignore_index=ignore_index, reduction="mean"
-        )
+        reduction_str = "mean"
     else:  # assert reduction == 2
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, ignore_index=ignore_index, reduction="sum"
-        )
+        reduction_str = "sum"
 
-    if self_rank_is_1:
-        result = op.Squeeze(result)
-
-    return result
-
-
-@torch_op("aten::nll_loss", traceable=True)
-def aten_nll_loss_weight(
-    self: TFloat,
-    target: INT64,
-    weight: TFloat,
-    reduction: int = 1,
-    ignore_index: int = -100,
-) -> TFloat:
-    """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
-
-    self_rank_is_1 = Rank(self) == 1
-    if self_rank_is_1:
-        # self rank should be at least 2
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-
-    rank_target = Rank(target)
-    if rank_target == 0:  # target rank should be at least 1
-        target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
-
-    if reduction == 0:
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, weight, ignore_index=ignore_index, reduction="none"
-        )
-    elif reduction == 1:
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, weight, ignore_index=ignore_index, reduction="mean"
-        )
-    else:
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, weight, ignore_index=ignore_index, reduction="sum"
-        )
+    result = op.NegativeLogLikelihoodLoss(
+        self, target, ignore_index=ignore_index, reduction=reduction_str
+    )
 
     if self_rank_is_1:
         result = op.Squeeze(result)
@@ -1489,17 +1450,23 @@ def aten_nll_loss_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::nll_loss_forward", trace_only=True)
 def aten_nll_loss_forward(
     self: TensorType,
     target: TensorType,
     weight: Optional[TensorType],
     reduction: int,
-    ignore_index: INT64,
+    ignore_index: int,
 ) -> tuple[TensorType, TensorType]:
     """nll_loss_forward(Tensor self, Tensor target, Tensor? weight, int reduction, SymInt ignore_index) -> (Tensor output, Tensor total_weight)"""
 
-    raise NotImplementedError()
-
+    output = aten_nll_loss(self, target, weight, reduction, ignore_index)
+    # FIXME: Fake a total_weight tensor for now. It should be different based on weight, reduction and ignore_index
+    if weight is None:
+        total_weight = op.CastLike(op.Size(output), self)
+    else:
+        total_weight = op.CastLike(op.Size(output), weight)
+    return output, total_weight
 
 def aten_nll_loss_nd(
     self: TensorType,
