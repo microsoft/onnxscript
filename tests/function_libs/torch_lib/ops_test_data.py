@@ -283,6 +283,35 @@ def _grid_sample_input_wrangler(
     return args, kwargs
 
 
+def _im2col_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Move kernel_size, dilation, padding and stride from args to kwargs
+    if len(args) == 5:
+        # Handle stride
+        stride = args.pop()
+        if isinstance(stride, np.ndarray):  # convert stride to list[int]
+            stride = stride.tolist()
+        kwargs["stride"] = stride
+        # Handle padding
+        padding = args.pop()
+        if isinstance(padding, np.ndarray):  # convert padding to list[int]
+            padding = padding.tolist()
+        kwargs["padding"] = padding
+        # Handle dilation
+        dilation = args.pop()
+        if isinstance(dilation, np.ndarray):  # convert dilation to list[int]
+            dilation = dilation.tolist()
+        kwargs["dilation"] = dilation
+    # Handle kernel_size
+    kernel_size = args.pop()
+    if isinstance(kernel_size, np.ndarray):  # convert kernel_size to list[int]
+        kernel_size = kernel_size.tolist()
+    kwargs["kernel_size"] = kernel_size
+
+    return args, kwargs
+
+
 def _linalg_vector_norm_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -1895,6 +1924,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float16: (8e-2, 1e-4)},
     ),
     TorchLibOpInfo("nn.functional.glu", nn_ops.aten_glu),
+    TorchLibOpInfo(
+        "nn.functional.unfold",
+        nn_ops.aten_im2col,
+        input_wrangler=_im2col_input_wrangler,
+    ).xfail(
+        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape)
+        or not sample.input.shape,
+        reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
+    ),
     TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear).skip(
         # input: input, args: weight, bias; so len(args) == 2 means bias is provided
         matcher=lambda sample: len(sample.args) != 1,
