@@ -1144,15 +1144,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("nn.functional.mish", nn_ops.aten_mish),
     TorchLibOpInfo(
-        "nn.functional.nll_loss_weight",
-        nn_ops.aten_nll_loss_weight,
-        tolerance={torch.float16: (5e-2, 1e-2)},
-        input_wrangler=_nll_loss_input_wrangler,
-    ).skip(
-        matcher=lambda sample: "weight" not in sample.kwargs,
-        reason="this Aten overload need weight as kwargs",
-    ),
-    TorchLibOpInfo(
         "nn.functional.nll_loss",
         nn_ops.aten_nll_loss,
         input_wrangler=_nll_loss_input_wrangler,
