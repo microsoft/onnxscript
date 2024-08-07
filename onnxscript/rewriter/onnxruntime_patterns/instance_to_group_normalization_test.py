@@ -6,7 +6,7 @@ import numpy as np
 import onnx.parser
 
 from onnxscript import ir
-from onnxscript.rewriter.onnxruntime import instance_to_group_normalization
+from onnxscript.rewriter.onnxruntime_patterns import instance_to_group_normalization
 
 
 class ReplaceInstanceNormWithGroupNormTest(unittest.TestCase):

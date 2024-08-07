@@ -6,7 +6,7 @@ import onnx.parser
 import parameterized
 
 from onnxscript import ir
-from onnxscript.rewriter.onnxruntime import softmax
+from onnxscript.rewriter.onnxruntime_patterns import softmax
 
 
 class SoftmaxUpcastRemovalTest(unittest.TestCase):

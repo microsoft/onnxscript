@@ -6,7 +6,7 @@ import onnx
 
 from onnxscript.rewriter import function_rule, pattern
 from onnxscript.rewriter import rewrite as _rewrite
-from onnxscript.rewriter.onnxruntime import (
+from onnxscript.rewriter.onnxruntime_patterns import (
     fused_matmul_rule_sets,
     group_normalization_merge_silu,
     instance_to_group_normalization,

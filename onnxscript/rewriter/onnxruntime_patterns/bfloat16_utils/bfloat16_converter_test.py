@@ -9,7 +9,7 @@ import onnx.shape_inference
 import onnxruntime
 
 from onnxscript import ir
-from onnxscript.rewriter.onnxruntime.bfloat16_utils import bfloat16_converter
+from onnxscript.rewriter.onnxruntime_patterns.bfloat16_utils import bfloat16_converter
 
 
 class Bfloat16ConversionTest(unittest.TestCase):
