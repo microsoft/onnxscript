@@ -45,7 +45,6 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     TInt,
     TReal,
     TRealOrUInt8,
-    TRealUnlessFloat16OrInt8,
     TRealUnlessInt16OrInt8,
     TTensor,
     TTensor2,
@@ -542,7 +541,7 @@ def _integral_to_be_adjusted(dtype: int) -> bool:
 
 @torch_op("aten::arange", trace_only=True)
 def aten_arange(
-    end: Union[DOUBLE, FLOAT, INT16, INT32, INT64],
+    end: float,
     dtype: int = -1,
     layout: str = "",
     device: str = "",
@@ -550,10 +549,11 @@ def aten_arange(
 ) -> TensorType:
     """arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    if dtype == -1:
-        zero = op.CastLike(0.0, end)
-        one = op.CastLike(1.0, end)
-        result = op.Range(zero, end, one)
+    if dtype == -1 or dtype is None:
+        if isinstance(end, int):
+            result = op.Range(0, end, 1)
+        else:
+            result = op.Range(0.0, end, 1.0)
     elif _range_supported(dtype):
         end = op.Cast(end, to=dtype)
         zero = op.Cast(0, to=dtype)
@@ -564,7 +564,7 @@ def aten_arange(
         # because the input dtype may be e.g. bfloat16 / int8 etc.
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
-        end = op.Cast(end, to=FLOAT.dtype)
+        end = op.Constant(value_float=float(end))
         zero = op.Constant(value_float=0.0)
         one = op.Constant(value_float=1.0)
         result = op.Cast(op.Range(zero, end, one), to=dtype)
@@ -574,8 +574,8 @@ def aten_arange(
 
 @torch_op("aten::arange.start", trace_only=True)
 def aten_arange_start(
-    start: TRealUnlessFloat16OrInt8,
-    end: TRealUnlessFloat16OrInt8,
+    start: float,
+    end: float,
     dtype: int = -1,
     layout: str = "",
     device: str = "",
@@ -583,12 +583,13 @@ def aten_arange_start(
 ) -> TensorType:
     """arange.start(Scalar start, Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    # NOTE: trace_only because both if branches need to be the same type, but we have
-    # a cast in the if branch.
-
-    if dtype == -1:
-        one = op.CastLike(1.0, end)
-        result = op.Range(start, end, one)
+    if dtype == -1 or dtype is None:
+        if isinstance(start, int) and isinstance(end, int):
+            result = op.Range(start, end, 1)
+        else:
+            start = float(start)
+            end = float(end)
+            result = op.Range(start, end, 1.0)
     elif _range_supported(dtype):
         end = op.Cast(end, to=dtype)
         start = op.Cast(start, to=dtype)
@@ -599,36 +600,32 @@ def aten_arange_start(
         # because the input dtype may be e.g. bfloat16 / int8 etc.
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
-        end = op.Cast(end, to=FLOAT.dtype)
-        start = op.Cast(start, to=FLOAT.dtype)
+        end = op.Constant(value_float=float(end))
+        start = op.Constant(value_float=float(start))
         one = op.Constant(value_float=1.0)
         result = op.Cast(op.Range(start, end, one), to=dtype)
 
     return result
 
 
-@torch_op("aten::arange.start_step", private=True)
 def _adjust_args_for_arange_int_dtype(
-    start: TRealUnlessFloat16OrInt8,
-    end: TRealUnlessFloat16OrInt8,
-    step: TRealUnlessFloat16OrInt8,
-) -> Tuple[FLOAT, FLOAT, FLOAT]:
-    zero = op.Cast(0.0, to=FLOAT.dtype)
-    start = op.Cast(start, to=FLOAT.dtype)
-    end = op.Cast(end, to=FLOAT.dtype)
-    step = op.Cast(step, to=FLOAT.dtype)
+    start: float,
+    end: float,
+    step: float,
+) -> Tuple[float, float, float]:
+    if start < 0:
+        start = math.ceil(start)
+    if step < 0:
+        start = math.floor(start)
 
-    start = op.Where(op.Less(start, zero), op.Ceil(start), start)
-    start = op.Where(op.Less(step, zero), op.Floor(start), start)
-
-    return (start, end, step)
+    return float(start), float(end), float(step)
 
 
 @torch_op("aten::arange.start_step", trace_only=True)
 def aten_arange_start_step(
-    start: TRealUnlessFloat16OrInt8,
-    end: TRealUnlessFloat16OrInt8,
-    step: TRealUnlessFloat16OrInt8,
+    start: float,
+    end: float,
+    step: float = 1.0,
     dtype: int = -1,
     layout: str = "",
     device: str = "",
@@ -636,11 +633,14 @@ def aten_arange_start_step(
 ) -> TensorType:
     """arange.start_step(Scalar start, Scalar end, Scalar step=1, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    # NOTE: trace_only because both if branches need to be the same type, but we have
-    # a cast in the if branch.
-
-    if dtype == -1:
-        result = op.Range(start, end, step)
+    if dtype == -1 or dtype is None:
+        if isinstance(start, int) and isinstance(end, int):
+            result = op.Range(start, end, int(step))
+        else:
+            start = float(start)
+            end = float(end)
+            step = float(step)
+            result = op.Range(start, end, step)
     elif _integral_to_be_adjusted(dtype):
         # PyTorch arange op handles these integral types differently from INT64,
         # so we have to adjust these arguments accordingly.
@@ -648,18 +648,18 @@ def aten_arange_start_step(
         start, end, step = _adjust_args_for_arange_int_dtype(start, end, step)
         result = op.Cast(op.Range(start, end, step), to=dtype)
     elif dtype == INT64.dtype:
-        end = op.Cast(end, to=dtype)
-        start = op.Cast(start, to=dtype)
-        step = op.Cast(step, to=dtype)
+        end = int(end)
+        start = int(start)
+        step = int(step)
         result = op.Range(start, end, step)
     else:
         # Cast input to float if dtype is not supported by Range,
         # because the input dtype may be e.g. bfloat16,
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
-        end = op.Cast(end, to=FLOAT.dtype)
-        start = op.Cast(start, to=FLOAT.dtype)
-        step = op.Cast(step, to=FLOAT.dtype)
+        end = float(end)
+        start = float(start)
+        step = float(step)
         result = op.Cast(op.Range(start, end, step), to=dtype)
 
     return result
@@ -4686,8 +4686,8 @@ def aten_linear_backward(
 
 @torch_op("aten::linspace", trace_only=True)
 def aten_linspace(
-    start: TFloat,
-    end: TFloat,
+    start: float,
+    end: float,
     steps: int,
     dtype: int = FLOAT.dtype,
     layout: str = "",
@@ -4705,6 +4705,7 @@ def aten_linspace(
     if steps == 1:
         return aten_full(op.Constant(value_ints=[steps]), start, dtype=dtype)
 
+    # TODO(justinchuby): Simplify the logic knowing start and end are floats
     rg = aten_arange_start(0, steps, dtype=dtype)
     start = op.Cast(start, to=dtype)
     end = op.Cast(end, to=dtype)

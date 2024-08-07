@@ -1601,16 +1601,28 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "arange_start_step",
         core_ops.aten_arange_start_step,
-    ).xfail(
+    )
+    .skip(
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("dtype") is None,
+        reason="dtype needs to be specified for non-float tensors",
+        dtypes=(torch.float16, torch.int64, torch.int32),
     ),
     TorchLibOpInfo(
         "arange_start",
         core_ops.aten_arange_start,
-    ).skip(
+    )
+    .skip(
         matcher=lambda sample: len(sample.args) != 1,
         reason="arange_start overload takes two arguments (input, start)",
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("dtype") is None,
+        reason="dtype needs to be specified for non-float tensors",
+        dtypes=(torch.float16, torch.int64, torch.int32),
     ),
     TorchLibOpInfo(
         "arange",
@@ -1620,13 +1632,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.int32,),
         reason="fixme: output shape mismatch in edge cases. https://github.com/microsoft/onnxscript/issues/974",
     )
-    .xfail(
+    .skip(
         matcher=lambda sample: len(sample.args) != 0,
         reason="arange overload takes single argument",
     )
     .xfail(
         matcher=lambda sample: sample.kwargs.get("end") is not None,
         reason="arange overload does not support positional 'end' argument",
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("dtype") is None,
+        reason="dtype needs to be specified for non-float tensors",
+        dtypes=(torch.float16, torch.int64, torch.int32),
     ),
     TorchLibOpInfo("argmax", core_ops.aten_argmax)
     .skip(
