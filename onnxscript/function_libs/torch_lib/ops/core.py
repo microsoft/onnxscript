@@ -2098,7 +2098,7 @@ def _aten_convolution_onnx(
         )
 
     if no_batch:
-        result = op.Squeeze(result)
+        result = op.Squeeze(result, op.Constant(value_ints=[0]))
 
     return result
 
