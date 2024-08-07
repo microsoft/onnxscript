@@ -89,7 +89,7 @@ def aten__log_softmax_half(
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
     result = op.LogSoftmax(self, axis=dim)
     if self_is_scalar:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
     return result
 
 
@@ -106,7 +106,7 @@ def aten__log_softmax(
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
     result = op.LogSoftmax(self, axis=dim)
     if self_is_scalar:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
     return result
 
 
@@ -732,7 +732,7 @@ def _aten_argmax(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     self = op.Reshape(self, op.Constant(value_ints=[-1]))
     result = op.ArgMax(self, keepdims=keepdim)
     if self_is_scaler:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
 
     return result
 
@@ -747,7 +747,7 @@ def _aten_argmax_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = Fal
 
     result = op.ArgMax(self, axis=dim, keepdims=keepdim)
     if self_is_scaler:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
 
     return result
 
@@ -773,7 +773,7 @@ def _aten_argmin(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     self = op.Reshape(self, op.Constant(value_ints=[-1]))
     result = op.ArgMin(self, keepdims=keepdim)
     if self_is_scaler:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
 
     return result
 
@@ -788,7 +788,7 @@ def _aten_argmin_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = Fal
 
     result = op.ArgMin(self, axis=dim, keepdims=keepdim)
     if self_is_scaler:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
 
     return result
 
@@ -2098,7 +2098,7 @@ def _aten_convolution_onnx(
         )
 
     if no_batch:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
 
     return result
 
@@ -2825,7 +2825,7 @@ def aten_dropout(input: TFloat, p: FLOAT, train: BOOL) -> TFloat:
     if IsScalar(input):
         input = op.Reshape(input, op.Constant(value_ints=[-1]))
         result, _ = op.Dropout(input, p, train)
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
     else:
         result, _ = op.Dropout(input, p, train)
 
@@ -4254,7 +4254,7 @@ def aten_index_select(self: TTensor, dim: int, index: IntType) -> TTensor:
     result = op.Gather(self, index, axis=dim)
 
     if self_is_scalar:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
 
     return result
 
@@ -5098,7 +5098,7 @@ def aten_max(self: TReal) -> TReal:
     result = op.ReduceMax(self, keepdims=False)
 
     if self_is_scalar:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
 
     return result
 
@@ -5602,7 +5602,7 @@ def aten_multinomial(
     log_input = op.Log(unsqueezed_input)
     result = op.Multinomial(log_input, dtype=INT64.dtype, sample_size=num_samples)
     if Rank(self) == 1:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
     return result
 
 
@@ -7419,7 +7419,7 @@ def aten_scatter_reduce(
         src = op.Reshape(src, neg_1)
     result = op.ScatterElements(self, index, src, axis=dim, reduction=onnx_reduce)
     if self_is_scalar:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
     return result
 
 
@@ -7671,7 +7671,7 @@ def aten_softmax(self: TFloatOrBFloat16, dim: int, dtype: int = -1) -> TFloatOrB
         result = op.Cast(result, to=dtype)
     if self_is_scalar:
         # Convert to scalar when input is scalar
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
 
     return result
 
@@ -7686,7 +7686,7 @@ def aten_softmax_no_dtype(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
     result = op.Softmax(self, axis=dim)
     if self_is_scalar:
         # Convert to scalar when input is scalar
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
 
     return result
 
@@ -7982,7 +7982,7 @@ def _aten_stft_onnx(
     result = op.Transpose(result, perm=[0, 2, 1, 3])
     # Remove batch dimension, if needed
     if signal_rank == 1:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
     return result
 
 
@@ -8105,7 +8105,7 @@ def _aten_sum_dim_onnx(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     result = op.ReduceSum(self, dim, keepdims=keepdim)
 
     if self_is_scalar:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
     return result
 
 
@@ -8118,7 +8118,7 @@ def _aten_sum_dim_none(self: TReal, keepdim: bool = False) -> TReal:
     result = op.ReduceSum(self, keepdims=keepdim)
 
     if self_is_scalar:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+        result = op.Squeeze(result)
     return result
 
 
