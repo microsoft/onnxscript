@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from onnxscript import ir
-import onnx.numpy_helper
 
 import onnxscript.rewriter.pattern as orp
 
