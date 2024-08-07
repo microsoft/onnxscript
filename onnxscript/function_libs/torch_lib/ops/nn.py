@@ -1389,7 +1389,7 @@ def aten_nll_loss(
         reduction_str = "sum"
 
     result = op.NegativeLogLikelihoodLoss(
-        self, target, ignore_index=ignore_index, reduction=reduction_str
+        self, target, weight, ignore_index=ignore_index, reduction=reduction_str
     )
 
     if self_rank_is_1:
