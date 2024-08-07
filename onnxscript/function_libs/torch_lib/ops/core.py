@@ -45,7 +45,6 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     TInt,
     TReal,
     TRealOrUInt8,
-    TRealUnlessFloat16OrInt8,
     TRealUnlessInt16OrInt8,
     TTensor,
     TTensor2,
