@@ -6,7 +6,7 @@ on:
       - main
       - 'gh/**/base' # ghstack base branches
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event_name == 'workflow_dispatch' }}
