@@ -100,6 +100,10 @@ if sys.platform == "win32":
             "cannot import module, import_module does not work",
         ),
         skip("^test_bitwise_not_3d", "cannot import module, import_module does not work"),
+        skip(
+            "^test_resize_upsample_scales_linear_half_pixel_symmetric",
+            "cannot import module, import_module does not work",
+        ),
     )
 
 
