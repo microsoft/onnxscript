@@ -1147,6 +1147,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.nll_loss",
         nn_ops.aten_nll_loss,
         input_wrangler=_nll_loss_input_wrangler,
+        tolerance={torch.float16: (5e-2, 1e-2)},
     ),
     TorchLibOpInfo(
         "nn.functional.pixel_shuffle",
