@@ -2,8 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import onnx
-import onnx.numpy_helper
+from onnxscript import ir
 
 import onnxscript.rewriter.pattern as orp
 
@@ -62,7 +61,7 @@ class SoftmaxCrossEntropyLossV2(orp.RewriteRuleAsClass):
         wh2 = op.Where(neq2, op.Neg(op.Squeeze(ge, 1)), 0)
         denominator = op.Cast(
             op.ReduceSum(
-                op.Cast(neq3, to=onnx.TensorProto.INT64),
+                op.Cast(neq3, to=ir.DataType.INT64),
                 keepdims=0,
             ),
             to=onnx.TensorProto.FLOAT16,
@@ -82,7 +81,7 @@ class SoftmaxCrossEntropyLossV2(orp.RewriteRuleAsClass):
 
     @classmethod
     def check(cls, context, X, indices) -> bool:
-        if X.dtype != onnx.TensorProto.FLOAT16:
+        if X.dtype != ir.DataType.FLOAT16:
             return False
         if indices.dtype != onnx.TensorProto.INT64:
             return False
