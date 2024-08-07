@@ -1040,7 +1040,7 @@ class SimplePatternMatcher(PatternMatcher):
                     return True
                 return self.fail(
                     f"Variable {pattern_value.name} is bound to multiple values "
-                    f"value is {value}, bound value is {match.bindings[pattern_value.name]}."
+                    f"value is {value!r}, bound value is {match.bindings[pattern_value.name]!r}."
                 )
             match.bindings[pattern_value.name] = value
         return True
