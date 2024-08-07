@@ -459,8 +459,18 @@ def _add_attribute_to_torchscript_node(
             return node.fs_(key, list(value))  # type: ignore[arg-type]
         if isinstance(value[0], int):
             return node.is_(key, list(value))  # type: ignore[attr-defined]
-        raise TypeError(f"Unsupported sequence type '{type(value)}' for attribute '{key}'")
-    raise TypeError(f"Unsupported attribute type '{type(value)}' for attribute '{key}'")
+        raise TypeError(
+            f"Unsupported sequence type '{type(value)}' for attribute '{key}' in "
+            f"node={node!r}, value is {value!r}"
+        )
+    if "TensorProtoDataType" in str(type(value)):
+        # torch._C._onnx.TensorProtoDataType
+        return node.i_(key, int(value))
+
+    raise TypeError(
+        f"Unsupported attribute type '{type(value)}' for attribute '{key}' "
+        f"in node={node!r}, value is {value!r}"
+    )
 
 
 @runtime_typing.checked
