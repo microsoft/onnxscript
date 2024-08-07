@@ -89,7 +89,7 @@ def aten__log_softmax_half(
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
     result = op.LogSoftmax(self, axis=dim)
     if self_is_scalar:
-        result = op.Squeeze(result)
+        result = op.Squeeze(result, op.Constant(value_ints=[0]))
     return result
 
 
