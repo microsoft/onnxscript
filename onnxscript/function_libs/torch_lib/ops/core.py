@@ -542,7 +542,7 @@ def _integral_to_be_adjusted(dtype: int) -> bool:
 
 @torch_op("aten::arange", trace_only=True)
 def aten_arange(
-    end: Union[DOUBLE, FLOAT, INT16, INT32, INT64],
+    end: float,
     dtype: int = -1,
     layout: str = "",
     device: str = "",
@@ -551,9 +551,8 @@ def aten_arange(
     """arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     if dtype == -1:
-        zero = op.CastLike(0.0, end)
-        one = op.CastLike(1.0, end)
-        result = op.Range(zero, end, one)
+        end = float(end)
+        result = op.Range(0.0, end, 1.0)
     elif _range_supported(dtype):
         end = op.Cast(end, to=dtype)
         zero = op.Cast(0, to=dtype)
@@ -564,7 +563,7 @@ def aten_arange(
         # because the input dtype may be e.g. bfloat16 / int8 etc.
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
-        end = op.Cast(end, to=FLOAT.dtype)
+        end = op.Constant(value_float=end)
         zero = op.Constant(value_float=0.0)
         one = op.Constant(value_float=1.0)
         result = op.Cast(op.Range(zero, end, one), to=dtype)
@@ -574,8 +573,8 @@ def aten_arange(
 
 @torch_op("aten::arange.start", trace_only=True)
 def aten_arange_start(
-    start: TRealUnlessFloat16OrInt8,
-    end: TRealUnlessFloat16OrInt8,
+    start: float,
+    end: float,
     dtype: int = -1,
     layout: str = "",
     device: str = "",
@@ -587,8 +586,9 @@ def aten_arange_start(
     # a cast in the if branch.
 
     if dtype == -1:
-        one = op.CastLike(1.0, end)
-        result = op.Range(start, end, one)
+        start = float(start)
+        end = float(end)
+        result = op.Range(start, end, 1.0)
     elif _range_supported(dtype):
         end = op.Cast(end, to=dtype)
         start = op.Cast(start, to=dtype)
@@ -599,8 +599,8 @@ def aten_arange_start(
         # because the input dtype may be e.g. bfloat16 / int8 etc.
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
-        end = op.Cast(end, to=FLOAT.dtype)
-        start = op.Cast(start, to=FLOAT.dtype)
+        end = op.Constant(value_float=end)
+        start = op.Constant(value_float=start)
         one = op.Constant(value_float=1.0)
         result = op.Cast(op.Range(start, end, one), to=dtype)
 
