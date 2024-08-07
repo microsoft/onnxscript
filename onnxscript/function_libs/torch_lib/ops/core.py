@@ -612,16 +612,13 @@ def _adjust_args_for_arange_int_dtype(
     start: float,
     end: float,
     step: float,
-) -> Tuple[FLOAT, FLOAT, FLOAT]:
-    zero = op.Cast(0.0, to=FLOAT.dtype)
-    start = op.Cast(start, to=FLOAT.dtype)
-    end = op.Cast(end, to=FLOAT.dtype)
-    step = op.Cast(step, to=FLOAT.dtype)
+) -> Tuple[float, float, float]:
+    if start < 0:
+        start = math.ceil(start)
+    if step < 0:
+        start = math.floor(start)
 
-    start = op.Where(op.Less(start, zero), op.Ceil(start), start)
-    start = op.Where(op.Less(step, zero), op.Floor(start), start)
-
-    return (start, end, step)
+    return start, end, step
 
 
 @torch_op("aten::arange.start_step", trace_only=True)
@@ -648,18 +645,15 @@ def aten_arange_start_step(
         start, end, step = _adjust_args_for_arange_int_dtype(start, end, step)
         result = op.Cast(op.Range(start, end, step), to=dtype)
     elif dtype == INT64.dtype:
-        end = op.Cast(end, to=dtype)
-        start = op.Cast(start, to=dtype)
-        step = op.Cast(step, to=dtype)
+        end = int(end)
+        start = int(start)
+        step = int(step)
         result = op.Range(start, end, step)
     else:
         # Cast input to float if dtype is not supported by Range,
         # because the input dtype may be e.g. bfloat16,
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
-        end = op.Cast(end, to=FLOAT.dtype)
-        start = op.Cast(start, to=FLOAT.dtype)
-        step = op.Cast(step, to=FLOAT.dtype)
         result = op.Cast(op.Range(start, end, step), to=dtype)
 
     return result
@@ -4686,8 +4680,8 @@ def aten_linear_backward(
 
 @torch_op("aten::linspace", trace_only=True)
 def aten_linspace(
-    start: TFloat,
-    end: TFloat,
+    start: float,
+    end: float,
     steps: int,
     dtype: int = FLOAT.dtype,
     layout: str = "",
@@ -4705,6 +4699,7 @@ def aten_linspace(
     if steps == 1:
         return aten_full(op.Constant(value_ints=[steps]), start, dtype=dtype)
 
+    # TODO(justinchuby): Simplify the logic knowing start and end are floats
     rg = aten_arange_start(0, steps, dtype=dtype)
     start = op.Cast(start, to=dtype)
     end = op.Cast(end, to=dtype)
