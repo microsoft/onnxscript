@@ -8960,7 +8960,14 @@ def aten_zeros(
 
 
 @torch_op("aten::zeros_like", trace_only=True)
-def aten_zeros_like(self: TTensor, dtype: int = -1) -> TTensor:
+def aten_zeros_like(
+    self: TTensor,
+    dtype: int = -1,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+    memory_format: str = "",
+) -> TTensor:
     """zeros_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
     # NOTE: trace_only because both if branches need to be the same type, but we have
