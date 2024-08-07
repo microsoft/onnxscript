@@ -7982,7 +7982,7 @@ def _aten_stft_onnx(
     result = op.Transpose(result, perm=[0, 2, 1, 3])
     # Remove batch dimension, if needed
     if signal_rank == 1:
-        result = op.Squeeze(result)
+        result = op.Squeeze(result, op.Constant(value_ints=[0]))
     return result
 
 
