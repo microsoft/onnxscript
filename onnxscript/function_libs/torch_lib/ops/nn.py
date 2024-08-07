@@ -1468,6 +1468,7 @@ def aten_nll_loss_forward(
         total_weight = op.CastLike(op.Size(output), weight)
     return output, total_weight
 
+
 def aten_nll_loss_nd(
     self: TensorType,
     target: TensorType,
