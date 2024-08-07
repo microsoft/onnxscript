@@ -62,7 +62,7 @@ class SoftmaxCrossEntropyLossV2(orp.RewriteRuleAsClass):
         wh2 = op.Where(neq2, op.Neg(op.Squeeze(ge, 1)), 0)
         denominator = op.Cast(
             op.ReduceSum(
-                op.Cast(neq3, to=onnx.TensorProto.INT64),
+                op.Cast(neq3, to=ir.DataType.INT64),
                 keepdims=0,
             ),
             to=onnx.TensorProto.FLOAT16,
