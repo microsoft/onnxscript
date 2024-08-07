@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import onnx
+from onnxscript import ir
 import onnx.numpy_helper
 
 import onnxscript.rewriter.pattern as orp
