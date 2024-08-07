@@ -1601,10 +1601,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "arange_start_step",
         core_ops.aten_arange_start_step,
-    ).skip(
+    )
+    .skip(
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
-    ).skip(
+    )
+    .skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="dtype needs to be specified for non-float tensors",
         dtypes=(torch.float16, torch.int64, torch.int32),
@@ -1612,10 +1614,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "arange_start",
         core_ops.aten_arange_start,
-    ).skip(
+    )
+    .skip(
         matcher=lambda sample: len(sample.args) != 1,
         reason="arange_start overload takes two arguments (input, start)",
-    ).skip(
+    )
+    .skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="dtype needs to be specified for non-float tensors",
         dtypes=(torch.float16, torch.int64, torch.int32),
