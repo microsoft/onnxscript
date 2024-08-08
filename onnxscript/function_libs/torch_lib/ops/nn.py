@@ -27,6 +27,7 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     TFloat,
     TFloatOrBFloat16,
     TFloatOrUInt8,
+    TInt,
     TReal,
     TTensor,
 )
@@ -40,58 +41,7 @@ Rank = common_ops.Rank
 TFloatUnlessFloat32 = TypeVar("TFloatUnlessFloat32", bound=Union[BFLOAT16, FLOAT16, DOUBLE])
 
 
-@torch_op("aten::adaptive_avg_pool1d", traceable=True)
-def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
-    """adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor"""
-
-    # assert output_size == [1]
-    # TODO(justinchuby): Specify input constraints
-
-    if Rank(self) == 2:
-        # Unbatched case
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-        pooled = op.GlobalAveragePool(self)
-        result = op.Squeeze(pooled, op.Constant(value_ints=[0]))
-    else:
-        result = op.GlobalAveragePool(self)
-
-    return result
-
-
-@torch_op("aten::adaptive_avg_pool2d", traceable=True)
-def aten_adaptive_avg_pool2d(self: TFloat, output_size: INT64[2]) -> TFloat:
-    """adaptive_avg_pool2d(Tensor self, SymInt[2] output_size) -> Tensor"""
-
-    # assert output_size == [1, 1]
-    # TODO(justinchuby): Specify input constraints
-
-    if Rank(self) == 3:
-        # Unbatched case
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-        pooled = op.GlobalAveragePool(self)
-        result = op.Squeeze(pooled, op.Constant(value_ints=[0]))
-    else:
-        result = op.GlobalAveragePool(self)
-
-    return result
-
-
-@torch_op("aten::adaptive_avg_pool3d", traceable=True)
-def aten_adaptive_avg_pool3d(self: TFloat, output_size: INT64[3]) -> TFloat:
-    """adaptive_avg_pool3d(Tensor self, SymInt[3] output_size) -> Tensor"""
-
-    # assert output_size == [1, 1, 1]
-    # TODO(justinchuby): Specify input constraints
-
-    if Rank(self) == 4:
-        # Unbatched case
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-        pooled = op.GlobalAveragePool(self)
-        result = op.Squeeze(pooled, op.Constant(value_ints=[0]))
-    else:
-        result = op.GlobalAveragePool(self)
-
-    return result
+# NOTE: Implementations of adaptive_average_pool are handled by torch decomp
 
 
 def aten_adaptive_max_pool1d(
@@ -593,6 +543,56 @@ def aten_glu_backward_jvp(
     raise NotImplementedError()
 
 
+@torch_op("aten::group_norm", trace_only=True)
+def aten_group_norm(
+    input: TFloat,
+    num_groups: int,
+    weight: Optional[TFloat] = None,
+    bias: Optional[TFloat] = None,
+    eps: float = 1e-05,
+    cudnn_enabled: bool = True,
+) -> TensorType:
+    """group_norm(Tensor input, int num_groups, Tensor? weight=None, Tensor? bias=None, float eps=1e-05, bool cudnn_enabled=True) -> Tensor"""
+
+    # Actually we don't need N,C,HxW value because the input tensor has that information
+    if weight is None:  # Set to 1.0 as default, the shape is Channel size
+        weight = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(input, start=1, end=2))
+
+    if bias is None:  # Set to 0.0 as default, the shape is Channel size
+        bias = op.Expand(op.Constant(value_floats=[0.0]), op.Shape(input, start=1, end=2))
+
+    # Because onnx.GroupNorm() need size=group for weight and bias
+    # But the torch's aten function's input need size=channel, the size mismatched
+    # So we have to use onnx.InstanceNorm() to simulate
+    neg_1 = op.Constant(value_ints=[-1])
+    # Create weight_instance_norm and bias_instance_norm, copied from Torch ONNX converter
+    group_tensor = op.Reshape(num_groups, neg_1)
+    # 0 in the shape list keeps dimension value unchanged, for InstanceNorm need [0,group,-1]
+    shape_input = op.Concat(op.Constant(value_ints=[0]), group_tensor, neg_1, axis=0)
+    input_reshaped = op.Reshape(input, shape_input)
+    weight_inst_norm = op.Expand(
+        op.CastLike(op.Constant(value_float=1.0), input), group_tensor
+    )
+    bias_inst_norm = op.Expand(op.CastLike(op.Constant(value_float=0.0), input), group_tensor)
+    norm = op.InstanceNormalization(
+        input_reshaped, weight_inst_norm, bias_inst_norm, epsilon=eps
+    )
+    # Reshape back to input's shape
+    norm = op.Reshape(norm, op.Shape(input))
+    # Using the input weight and bias to do affine
+    # But need to unsqueeze to the target shape for broading cast easy
+    input_rank = Rank(input)
+    one = op.Constant(value_int=1)
+    axes_unsqueeze = op.Range(one, op.Sub(input_rank, one), one)
+    weight_full_shape = op.Unsqueeze(weight, axes_unsqueeze)
+    bias_full_shape = op.Unsqueeze(bias, axes_unsqueeze)
+    weight_full_shape = op.CastLike(weight_full_shape, norm)
+    norm_mul_weight = op.Mul(norm, weight_full_shape)
+    bias_full_shape = op.CastLike(bias_full_shape, norm_mul_weight)
+    norm_result = op.Add(norm_mul_weight, bias_full_shape)
+    return norm_result
+
+
 def aten_glu_jvp(glu: TensorType, x: TensorType, dx: TensorType, dim: int) -> TensorType:
     """glu_jvp(Tensor glu, Tensor x, Tensor dx, int dim) -> Tensor"""
 
@@ -659,16 +659,138 @@ def aten_huber_loss_backward(
     raise NotImplementedError()
 
 
-def aten_im2col(
-    self: TensorType,
-    kernel_size: Sequence[int],
-    dilation: Sequence[int],
-    padding: Sequence[int],
-    stride: Sequence[int],
-) -> TensorType:
-    """im2col(Tensor self, int[2] kernel_size, int[2] dilation, int[2] padding, int[2] stride) -> Tensor"""
+def _get_im2col_indices_along_dim(
+    input_d: TInt,
+    kernel_size_d: int,
+    dilation_d: int,
+    padding_d: int,
+    stride_d: int,
+):
+    # Input is always 4-D (N, C, H, W)
+    # Calculate indices of sliding blocks along spatial dimension
+    # Slide kernel over input each dim d:
+    # each dimension d ranges from 0 to input[d]+2xpadding[d]-dilation[d]x(kernel_size[d]-1)
+    # with steps = stride
 
-    raise NotImplementedError()
+    blocks_d = input_d + ((padding_d * 2) - (dilation_d * (kernel_size_d - 1)))
+
+    # Stride kernel over input and find starting indices along dim d
+    blocks_d_indices = op.Range(0, blocks_d, stride_d)
+    blocks_d_indices = op.Unsqueeze(blocks_d_indices, [0])
+
+    # Apply dilation on kernel and find its indices along dim d
+    kernel_grid = op.Range(0, kernel_size_d * dilation_d, dilation_d)
+    kernel_mask = op.Unsqueeze(kernel_grid, [1])
+
+    # Broadcast and add kernel staring positions (indices) with
+    # kernel_grid along dim d, to get block indices along dim d
+    block_mask = op.Add(blocks_d_indices, kernel_mask)
+
+    return block_mask
+
+
+def _get_im2col_padded_input(input, padding_h, padding_w):
+    # Input is always 4-D tensor (N, C, H, W)
+    # Padding tensor has the following format: (padding_h, padding_w)
+    # Reshape the padding to follow ONNX format: (dim1_begin, dim2_begin,...,dim1_end, dim2_end,...)
+    pad = op.Concat(
+        op.Constant(value_ints=[0, 0]),
+        op.Unsqueeze(padding_h, [0]),
+        op.Unsqueeze(padding_w, [0]),
+        op.Constant(value_ints=[0, 0]),
+        op.Unsqueeze(padding_h, [0]),
+        op.Unsqueeze(padding_w, [0]),
+        axis=0,
+    )
+    return op.Pad(input, pad)
+
+
+def _get_im2col_output_shape(input, kernel_h, kernel_w):
+    input_shape = op.Shape(input)
+    batch_dim = op.Gather(input_shape, 0, axis=0)
+    channel_dim = op.Gather(input_shape, 1, axis=0)
+    channel_unfolded = op.Mul(channel_dim, kernel_h * kernel_w)
+
+    return op.Concat(
+        op.Unsqueeze(batch_dim, [0]),
+        op.Unsqueeze(channel_unfolded, [0]),
+        op.Constant(value_ints=[-1]),
+        axis=0,
+    )
+
+
+@torch_op("aten::im2col", trace_only=True)
+def aten_im2col(
+    self: TReal,
+    kernel_size: Sequence[int],
+    dilation: Sequence[int] = (1, 1),
+    padding: Sequence[int] = (0, 0),
+    stride: Sequence[int] = (1, 1),
+) -> TensorType:
+    """im2col(Tensor self, int[2] kernel_size, int[2] dilation=1, int[2] padding=0, int[2] stride=1) -> Tensor"""
+
+    input_shape = op.Shape(self)
+    input_h = op.Gather(input_shape, 2, axis=0)
+    input_w = op.Gather(input_shape, 3, axis=0)
+
+    if not isinstance(kernel_size, Sequence):
+        kernel_size = (kernel_size, kernel_size)
+    kernel_sizes = list(kernel_size)
+
+    if not isinstance(dilation, Sequence):
+        dilation = (dilation, dilation)
+    dilations = list(dilation)
+
+    if not isinstance(padding, Sequence):
+        padding = (padding, padding)
+    pads = list(padding)
+
+    if isinstance(stride, int):
+        stride = (stride, stride)
+    strides = list(stride)
+
+    stride_h, stride_w = strides[0], strides[1]
+    padding_h, padding_w = pads[0], pads[1]
+    dilation_h, dilation_w = dilations[0], dilations[1]
+    kernel_h, kernel_w = kernel_sizes[0], kernel_sizes[1]
+
+    blocks_row_indices = _get_im2col_indices_along_dim(
+        input_h, kernel_h, dilation_h, padding_h, stride_h
+    )
+    blocks_col_indices = _get_im2col_indices_along_dim(
+        input_w, kernel_w, dilation_w, padding_w, stride_w
+    )
+
+    output_shape = _get_im2col_output_shape(self, kernel_h, kernel_w)
+    padded_input = _get_im2col_padded_input(self, padding_h, padding_w)
+
+    # For a 4D matrix of size (1, 1, 3, 3) as below with kernel_size=2, stride=1, and dilation=1
+    # [[[[1., 2., 3.,],
+    #    [4., 5., 6.,],
+    #    [7., 8., 9.,]]]]
+    # First gather indices along rows (dim=2) with blocks_row_indices = [[0,1], [1,2]] to get:
+    # [[[[[1., 2., 3.],
+    #     [4., 5., 6.]],
+    #    [[4., 5., 6.],
+    #     [7., 8., 9.]]]]]
+    # And then gather along cols (dim=4) with blocks_row_indices = [[0,1], [1,2]] to get:
+    # [[[[[[1., 2.],
+    #      [4., 5.]],
+    #     [[2., 3.],
+    #      [5., 6]]],
+    #    [[[4., 5.],
+    #      [7., 8.]],
+    #     [[5., 6.],
+    #      [8., 9.]]]]]]
+    # Transpose dims 3 (depth) and 4 (rows), and then reshape to output shape (1, 1, 4, 4) to get:
+    #  [[[1., 2., 4., 5.],
+    #    [2., 3., 5., 6.],
+    #    [4., 5., 7., 8.],
+    #    [5., 6., 8., 9.]]]
+    output = op.Gather(padded_input, blocks_row_indices, axis=2)
+    output = op.Gather(output, blocks_col_indices, axis=4)
+    output = op.Transpose(output, perm=[0, 1, 2, 4, 3, 5])
+    return op.Reshape(output, output_shape)
 
 
 def aten_infinitely_differentiable_gelu_backward(
@@ -1241,10 +1363,11 @@ def aten_multilabel_margin_loss_forward(
     raise NotImplementedError()
 
 
-@torch_op("aten::nll_loss", traceable=True)
+@torch_op("aten::nll_loss", trace_only=True)
 def aten_nll_loss(
     self: TFloat,
     target: INT64,
+    weight: Optional[TFloat] = None,
     reduction: int = 1,
     ignore_index: int = -100,
 ) -> TFloat:
@@ -1259,55 +1382,15 @@ def aten_nll_loss(
         target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
 
     if reduction == 0:
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, ignore_index=ignore_index, reduction="none"
-        )
+        reduction_str = "none"
     elif reduction == 1:
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, ignore_index=ignore_index, reduction="mean"
-        )
+        reduction_str = "mean"
     else:  # assert reduction == 2
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, ignore_index=ignore_index, reduction="sum"
-        )
+        reduction_str = "sum"
 
-    if self_rank_is_1:
-        result = op.Squeeze(result)
-
-    return result
-
-
-@torch_op("aten::nll_loss", traceable=True)
-def aten_nll_loss_weight(
-    self: TFloat,
-    target: INT64,
-    weight: TFloat,
-    reduction: int = 1,
-    ignore_index: int = -100,
-) -> TFloat:
-    """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
-
-    self_rank_is_1 = Rank(self) == 1
-    if self_rank_is_1:
-        # self rank should be at least 2
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-
-    rank_target = Rank(target)
-    if rank_target == 0:  # target rank should be at least 1
-        target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
-
-    if reduction == 0:
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, weight, ignore_index=ignore_index, reduction="none"
-        )
-    elif reduction == 1:
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, weight, ignore_index=ignore_index, reduction="mean"
-        )
-    else:
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, weight, ignore_index=ignore_index, reduction="sum"
-        )
+    result = op.NegativeLogLikelihoodLoss(
+        self, target, weight, ignore_index=ignore_index, reduction=reduction_str
+    )
 
     if self_rank_is_1:
         result = op.Squeeze(result)
@@ -1367,16 +1450,23 @@ def aten_nll_loss_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::nll_loss_forward", trace_only=True)
 def aten_nll_loss_forward(
     self: TensorType,
     target: TensorType,
     weight: Optional[TensorType],
     reduction: int,
-    ignore_index: INT64,
+    ignore_index: int,
 ) -> tuple[TensorType, TensorType]:
     """nll_loss_forward(Tensor self, Tensor target, Tensor? weight, int reduction, SymInt ignore_index) -> (Tensor output, Tensor total_weight)"""
 
-    raise NotImplementedError()
+    output = aten_nll_loss(self, target, weight, reduction, ignore_index)
+    # FIXME: Fake a total_weight tensor for now. It should be different based on weight, reduction and ignore_index
+    if weight is None:
+        total_weight = op.CastLike(op.Size(output), self)
+    else:
+        total_weight = op.CastLike(op.Size(output), weight)
+    return output, total_weight
 
 
 def aten_nll_loss_nd(

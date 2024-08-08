@@ -109,7 +109,7 @@ class FastGeluTest(unittest.TestCase):
             return (1.0 + tanh) * (0.5 * x)
 
         def fast_gelu(op, x):
-            return op.FastGelu(x, domain="com.microsoft")
+            return op.FastGelu(x, _domain="com.microsoft")
 
         return pattern.RewriteRule(fast_gelu_pattern1, fast_gelu)
 
@@ -130,7 +130,7 @@ class FastGeluTest(unittest.TestCase):
             return op.Mul(one_plus_tanh, half_x)
 
         def fast_gelu(op, x):
-            return op.FastGelu(x, domain="com.microsoft")
+            return op.FastGelu(x, _domain="com.microsoft")
 
         return pattern.RewriteRule(fast_gelu_pattern1_long, fast_gelu)
 
@@ -315,7 +315,7 @@ class RewriteRuleTest(unittest.TestCase):
             return x + x
 
         def double(op, x):
-            return op.Double(x, domain="custom.domain", version=10)
+            return op.Double(x, _domain="custom.domain", _version=10)
 
         rule = pattern.RewriteRule(add_same, double)
 
@@ -339,7 +339,7 @@ class RewriteRuleTest(unittest.TestCase):
             return x + x
 
         def double(op, x):
-            return op.Double(x, domain="custom.domain", version=10)
+            return op.Double(x, _domain="custom.domain", _version=10)
 
         rule = pattern.RewriteRule(add_same, double)
 
@@ -373,7 +373,7 @@ class RewriteRuleTest(unittest.TestCase):
 
         def concat_pattern(op, x, y):
             seq = op.SequenceConstruct(x, y)
-            result = op.ConcatFromSequence(seq, outputs=["result"])
+            result = op.ConcatFromSequence(seq, _outputs=["result"])
             return result
 
         def concat(op, x, y, result: ir.Value):
@@ -419,6 +419,19 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(len(model.graph), 1)
         self.assertEqual(model.graph[0].op_type, "Concat")
         self.assertNotIn("axis", model.graph[0].attributes)
+
+
+class PatternBuilderTest(unittest.TestCase):
+    def test_pattern_builder_context(self):
+        builder = pattern.OpsetPatternBuilder("", True)
+        with pattern.pattern_builder(builder):
+            x = builder.Op1()
+            y = builder.Op2(x)
+            z = x + y
+            w = builder.Op3(z)
+            _ = z * w
+        ops = [x.op_type for x in builder.nodes()]
+        self.assertEqual(ops, ["Op1", "Op2", "Add", "Op3", "Mul"])
 
 
 if __name__ == "__main__":

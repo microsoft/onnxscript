@@ -12,6 +12,7 @@ import onnx
 import onnx.parser
 import onnx.reference
 import onnxruntime as ort
+import parameterized
 
 from onnxscript import ir
 from onnxscript.rewriter import generic_pattern, pattern
@@ -19,6 +20,13 @@ from onnxscript.rewriter import generic_pattern, pattern
 FLOAT = onnx.TensorProto.FLOAT
 
 
+@parameterized.parameterized_class(
+    ("matcher_algo",),
+    [
+        (generic_pattern.GenericPatternMatcher,),
+        (pattern.SimplePatternMatcher,),
+    ],
+)
 class GenericPatternTest(unittest.TestCase):
     def _range(self, *shape, bias: float | None = None):
         n = np.prod(shape)
@@ -37,7 +45,7 @@ class GenericPatternTest(unittest.TestCase):
 
         def apply_pattern(op, x, y, z, **_):
             """Builds the replacement graph."""
-            return op.AddAdd(x, y, z, domain="ZZZ")
+            return op.AddAdd(x, y, z, _domain="ZZZ")
 
         def validate_mapping(context, x, y, z, **_) -> bool:
             """Validates the mapping."""
@@ -48,7 +56,7 @@ class GenericPatternTest(unittest.TestCase):
             match_pattern,
             apply_pattern,
             validate_mapping,
-            generic_pattern.GenericPatternMatcher,
+            self.matcher_algo,
         )
 
         class AddAdd(onnx.reference.op_run.OpRun):
@@ -119,7 +127,7 @@ class GenericPatternTest(unittest.TestCase):
 
         def apply_pattern(op, x, y, w, z, **_):
             """Builds the pattern to match."""
-            return op.AddAddAddAdd(x, y, w, z, domain="ZZZ", outputs=2)
+            return op.AddAddAddAdd(x, y, w, z, _domain="ZZZ", _outputs=2)
 
         def validate_mapping(context, **_) -> bool:
             return True
@@ -128,7 +136,7 @@ class GenericPatternTest(unittest.TestCase):
             match_pattern,
             apply_pattern,
             validate_mapping,
-            generic_pattern.GenericPatternMatcher,
+            self.matcher_algo,
             verbose=10,
         )
 
@@ -254,13 +262,9 @@ class GenericPatternTest(unittest.TestCase):
             return t1, t2
 
         def apply_pattern(op, x, **_):
-            return op.SinCos(x, domain="com.microsoft", outputs=2)
+            return op.SinCos(x, _domain="com.microsoft", _outputs=2)
 
-        rule = pattern.RewriteRule(
-            match_pattern,
-            apply_pattern,
-            matcher=generic_pattern.GenericPatternMatcher,
-        )
+        rule = pattern.RewriteRule(match_pattern, apply_pattern, matcher=self.matcher_algo)
         model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
@@ -281,20 +285,22 @@ class GenericPatternTest(unittest.TestCase):
         self.assertEqual(len(graph.node), 2)
         self.assertEqual(graph.node[0].op_type, "SinCos")
 
-    @unittest.skip("Input variable reuse not supported yet")
     def test_shared_root_value_extra_use(self):
+        if self.matcher_algo is generic_pattern.GenericPatternMatcher:
+            raise unittest.SkipTest("GenericPatternMatcher does not support extra uses yet.")
+
         def match_pattern(op, x):
             t1 = op.Sin(x)
             t2 = op.Cos(x)
             return t1, t2
 
         def apply_pattern(op, x, **_):
-            return op.SinCos(x, domain="com.microsoft", outputs=2)
+            return op.SinCos(x, _domain="com.microsoft", _outputs=2)
 
         rule = pattern.RewriteRule(
             match_pattern,
             apply_pattern,
-            matcher=generic_pattern.GenericPatternMatcher,
+            matcher=self.matcher_algo,
         )
         model_proto = onnx.parser.parse_model(
             """
@@ -314,7 +320,7 @@ class GenericPatternTest(unittest.TestCase):
         rule.apply_to_model(ir_model)
         graph = ir_model.graph
         self.assertEqual(len(graph), 3)
-        self.assertEqual(graph.node[0].op_type, "SinCos")
+        self.assertEqual(graph.node(0).op_type, "SinCos")
 
     def test_rotary_embedding(self):
         # The test work on a model if it has the expected name.
@@ -332,8 +338,8 @@ class GenericPatternTest(unittest.TestCase):
             output, _length = op.ConcatTraining(
                 transpose,
                 transpose,
-                domain="com.microsoft",
-                outputs=2,
+                _domain="com.microsoft",
+                _outputs=2,
             )
 
             sin = op.Sin(output)
@@ -359,15 +365,15 @@ class GenericPatternTest(unittest.TestCase):
                 pos_ids,
                 cos_cache,
                 sin_cache,
-                domain="com.microsoft",
-                outputs=2,
+                _domain="com.microsoft",
+                _outputs=2,
             )
 
         rule = pattern.RewriteRule(
             match_pattern,
             apply_pattern,
             validate_mapping,
-            generic_pattern.GenericPatternMatcher,
+            self.matcher_algo,
             verbose=10,
         )
 
@@ -389,7 +395,8 @@ class GenericPatternTest(unittest.TestCase):
         self.assertEqual(expected, [n.op_type for n in rewriten_model.graph.node])
         out = buffer.getvalue()
         # TODO(Rama): What is this assertion testing? Is it to check that `verbose` is working?
-        self.assertIn("[GenericPatternMatcher.match", out)
+        if self.matcher_algo is generic_pattern.GenericPatternMatcher:
+            self.assertIn("[GenericPatternMatcher.match", out)
 
     def test_rotary_embedding_onnxscript(self):
         # The test work on a model if it has the expected name.
@@ -402,7 +409,7 @@ class GenericPatternTest(unittest.TestCase):
             matmul = op.MatMul(pos_ids, cast)
             transpose = op.Transpose(matmul)
             output, _length = op.ConcatTraining(
-                transpose, transpose, domain="com.microsoft", outputs=2
+                transpose, transpose, _domain="com.microsoft", _outputs=2
             )
 
             sin = op.Sin(output)
@@ -424,7 +431,7 @@ class GenericPatternTest(unittest.TestCase):
                 value=onnx.numpy_helper.from_array(np.random.rand(256, 256).astype(np.float16))
             )
             part1, part2 = op.RotaryEmbedding(
-                x, pos_ids, cos_cache, sin_cache, domain="com.microsoft", outputs=2
+                x, pos_ids, cos_cache, sin_cache, _domain="com.microsoft", _outputs=2
             )
             return part1, part2
 
@@ -432,7 +439,7 @@ class GenericPatternTest(unittest.TestCase):
             rotary_match_pattern,
             rotary_apply_pattern,
             validate_rotary_mapping,
-            generic_pattern.GenericPatternMatcher,
+            self.matcher_algo,
             verbose=10,
         )
 
@@ -454,7 +461,8 @@ class GenericPatternTest(unittest.TestCase):
         self.assertEqual(expected, [n.op_type for n in rewriten_model.graph.node])
         out = buffer.getvalue()
         # TODO(justinchuby): Remove this assert - capturing stdout is not robust
-        self.assertIn("[GenericPatternMatcher.match", out)
+        if self.matcher_algo is generic_pattern.GenericPatternMatcher:
+            self.assertIn("[GenericPatternMatcher.match", out)
 
     def test_rotary_emb_file_onnxscript(self):
         # The test work on a model if it has the expected name.
@@ -467,7 +475,7 @@ class GenericPatternTest(unittest.TestCase):
             matmul = op.MatMul(pos_ids, cast)
             transpose = op.Transpose(matmul)
             output, _length = op.ConcatTraining(
-                transpose, transpose, domain="com.microsoft", outputs=2
+                transpose, transpose, _domain="com.microsoft", _outputs=2
             )
 
             sin = op.Sin(output)
@@ -489,7 +497,7 @@ class GenericPatternTest(unittest.TestCase):
                 value=onnx.numpy_helper.from_array(np.random.rand(256, 256).astype(np.float16))
             )
             part1, part2 = op.RotaryEmbedding(
-                x, pos_ids, cos_cache, sin_cache, domain="com.microsoft", outputs=2
+                x, pos_ids, cos_cache, sin_cache, _domain="com.microsoft", _outputs=2
             )
             return part1, part2
 
@@ -504,7 +512,7 @@ class GenericPatternTest(unittest.TestCase):
             rotary_match_pattern,
             rotary_apply_pattern,
             validate_rotary_mapping,
-            generic_pattern.GenericPatternMatcher,
+            self.matcher_algo,
             verbose=10,
         )
 
@@ -527,8 +535,8 @@ class GenericPatternTest(unittest.TestCase):
         #     return Y
 
         def transpose_transpose_pattern(op, X):
-            XT = op.Transpose(X, outputs=["XT"])
-            Y = op.Transpose(XT, outputs=["Y"])
+            XT = op.Transpose(X, _outputs=["XT"])
+            Y = op.Transpose(XT, _outputs=["Y"])
             return Y
 
         def transpose_transpose_mapping(perm0, perm1):
@@ -561,7 +569,7 @@ class GenericPatternTest(unittest.TestCase):
             transpose_transpose_pattern,
             transpose_transpose_apply_pattern,
             transpose_transpose_check,
-            generic_pattern.GenericPatternMatcher,
+            self.matcher_algo,
             verbose=0,
         )
 

@@ -87,7 +87,7 @@ def erf_gelu_pattern_2(op, x):
 
 
 def gelu(op, x: ir.Value):
-    return op.Gelu(x, domain="com.microsoft")
+    return op.Gelu(x, _domain="com.microsoft")
 
 
 ####################################

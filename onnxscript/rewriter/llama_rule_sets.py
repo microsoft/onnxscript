@@ -11,8 +11,6 @@ import onnxscript.ir as ir
 import onnxscript.rewriter.no_op as no_op
 import onnxscript.rewriter.pattern as orp
 
-op = orp.onnxop
-
 
 class CastIdentity(orp.RewriteRuleAsClass):
     """Replaces ``Cast(., to=to)`` by ``Identity`` if possible."""
@@ -155,7 +153,7 @@ class SlicesSplit(orp.RewriteRuleAsClass):
 
     @classmethod
     def rewrite(cls, op, x, begin0, end0, axes0, begin1, end1, axes1):
-        return op.Split(x, num_outputs=2, axis=-1, outputs=2)
+        return op.Split(x, num_outputs=2, axis=-1, _outputs=2)
 
 
 class TransposeIdentity(orp.RewriteRuleAsClass):
