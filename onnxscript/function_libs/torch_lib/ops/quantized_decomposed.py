@@ -56,6 +56,8 @@ def quantized_decomposed_dequantize_per_tensor(
 ) -> TensorType:
     # TODO(justinchuby): Use dtype when we use opset 21
     dequantized = op.DequantizeLinear(input, scale, common.constant(zero_point, dtype=dtype))
-    if out_dtype == -1:
+    if out_dtype in (-1, None):
+        # out_dtype can be None as well
         return dequantized
+    assert out_dtype > 0, f"out_dtype must be -1 or > 0 not {out_dtype}"
     return op.Cast(dequantized, to=out_dtype)
