@@ -19,7 +19,7 @@ from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import RealType, TTensor
 from onnxscript.onnx_opset import opset18 as op
-from onnxscript.onnx_types import TensorType
+from onnxscript.onnx_types import BOOL, TensorType
 
 
 @torch_op("prims::abs", traceable=True)
@@ -41,7 +41,6 @@ def prims_acosh(self: TensorType) -> TensorType:
     """acosh(Tensor self) -> Tensor"""
 
     return op.Acosh(self)
-
 
 
 @torch_op("prims::add", traceable=True)
@@ -767,22 +766,24 @@ def prims_svd(A: TensorType, full_matrices: bool) -> tuple[TensorType, TensorTyp
 
 
 @torch_op("prims::tan", traceable=True)
-def prims_tan(self: TensorType) -> TensorType:
+def prims_tan(self: TTensor) -> TTensor:
     """tan(Tensor self) -> Tensor"""
 
     return op.Tan(self)
 
 
-def prims_tanh(self: TensorType) -> TensorType:
+@torch_op("prims::tanh", traceable=True)
+def prims_tanh(self: TTensor) -> TTensor:
     """tanh(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Tanh(self)
 
 
+@torch_op("prims::transpose", traceable=True)
 def prims_transpose(a: TensorType, permutation: Sequence[int]) -> TensorType:
     """transpose(Tensor(a) a, int[] permutation) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    return op.Transpose(a, perm=permutation)
 
 
 def prims_trunc(self: TensorType) -> TensorType:
@@ -816,10 +817,11 @@ def prims_view_of(a: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def prims_where(pred: TensorType, a: TensorType, b: TensorType) -> TensorType:
+@torch_op("prims::where", traceable=True)
+def prims_where(pred: BOOL, a: TTensor, b: TTensor) -> TTensor:
     """where(Tensor pred, Tensor a, Tensor b) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Where(pred, a, b)
 
 
 def prims_zeta(self: TensorType, other: TensorType) -> TensorType:
