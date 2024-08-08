@@ -6553,12 +6553,15 @@ def aten_positive(self: TensorType) -> TensorType:
         "aten::pow.Tensor_Tensor",
         "aten::pow.Tensor_Scalar",
         "_operator::pow",
-    )
+    ),
+    traceable=True,
 )
-def aten_pow(self: TReal, exponent: TTensor) -> TReal:
+def aten_pow(self: TReal, exponent: TTensor2) -> TReal:
     """pow(Tensor self, Tensor exponent) -> Tensor"""
 
-    return op.Pow(self, exponent)
+    # Always cast the exponent to match dtype of self
+    # CastLike can be constant folded
+    return op.Pow(self, op.CastLike(exponent, self))
 
 
 @torch_op(("aten::prelu", "aten::_prelu_kernel"), trace_only=True)
