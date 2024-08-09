@@ -1144,21 +1144,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("nn.functional.mish", nn_ops.aten_mish),
     TorchLibOpInfo(
-        "nn.functional.nll_loss_weight",
-        nn_ops.aten_nll_loss_weight,
-        tolerance={torch.float16: (5e-2, 1e-2)},
-        input_wrangler=_nll_loss_input_wrangler,
-    ).skip(
-        matcher=lambda sample: "weight" not in sample.kwargs,
-        reason="this Aten overload need weight as kwargs",
-    ),
-    TorchLibOpInfo(
         "nn.functional.nll_loss",
         nn_ops.aten_nll_loss,
         input_wrangler=_nll_loss_input_wrangler,
-    ).skip(
-        matcher=lambda sample: "weight" in sample.kwargs,
-        reason="this Aten overload doesn't accept weight as kwargs",
+        tolerance={torch.float16: (5e-2, 1e-2)},
     ),
     TorchLibOpInfo(
         "nn.functional.pixel_shuffle",
@@ -1612,16 +1601,28 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "arange_start_step",
         core_ops.aten_arange_start_step,
-    ).xfail(
+    )
+    .skip(
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("dtype") is None,
+        reason="dtype needs to be specified for non-float tensors",
+        dtypes=(torch.float16, torch.int64, torch.int32),
     ),
     TorchLibOpInfo(
         "arange_start",
         core_ops.aten_arange_start,
-    ).skip(
+    )
+    .skip(
         matcher=lambda sample: len(sample.args) != 1,
         reason="arange_start overload takes two arguments (input, start)",
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("dtype") is None,
+        reason="dtype needs to be specified for non-float tensors",
+        dtypes=(torch.float16, torch.int64, torch.int32),
     ),
     TorchLibOpInfo(
         "arange",
@@ -1631,13 +1632,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.int32,),
         reason="fixme: output shape mismatch in edge cases. https://github.com/microsoft/onnxscript/issues/974",
     )
-    .xfail(
+    .skip(
         matcher=lambda sample: len(sample.args) != 0,
         reason="arange overload takes single argument",
     )
     .xfail(
         matcher=lambda sample: sample.kwargs.get("end") is not None,
         reason="arange overload does not support positional 'end' argument",
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("dtype") is None,
+        reason="dtype needs to be specified for non-float tensors",
+        dtypes=(torch.float16, torch.int64, torch.int32),
     ),
     TorchLibOpInfo("argmax", core_ops.aten_argmax)
     .skip(
@@ -2338,9 +2344,6 @@ ops_test_common.duplicate_opinfo(OPS_DB, "min", ("min_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "minimum", ("minimum_bool",))
 ops_test_common.duplicate_opinfo(
     OPS_DB, "nn.functional.linear", ("nn.functional.linear_bias",)
-)
-ops_test_common.duplicate_opinfo(
-    OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",)
 )
 ops_test_common.duplicate_opinfo(
     OPS_DB,
