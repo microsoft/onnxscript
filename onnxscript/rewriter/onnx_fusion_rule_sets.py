@@ -19,15 +19,15 @@ class SoftmaxCrossEntropyLoss(orp.RewriteRuleAsClass):
         wh2 = op.Where(neq1, op.Neg(op.Squeeze(ge, 1)), 0)
         denominator = op.Cast(
             op.ReduceSum(
-                op.Cast(neq1, to=onnx.TensorProto.FLOAT), keepdims=0, noop_with_empty_axes=0
+                op.Cast(neq1, to=ir.DataType.FLOAT), keepdims=0, noop_with_empty_axes=0
             ),
-            to=onnx.TensorProto.FLOAT16,
+            to=ir.DataType.FLOAT16,
         )
         numerator = op.Cast(
             op.ReduceSum(
-                op.Cast(wh2, to=onnx.TensorProto.FLOAT), keepdims=0, noop_with_empty_axes=0
+                op.Cast(wh2, to=ir.DataType.FLOAT), keepdims=0, noop_with_empty_axes=0
             ),
-            to=onnx.TensorProto.FLOAT16,
+            to=ir.DataType.FLOAT16,
         )
         return op.Div(numerator, denominator)
 
@@ -37,9 +37,9 @@ class SoftmaxCrossEntropyLoss(orp.RewriteRuleAsClass):
 
     @classmethod
     def check(cls, context, X, indices) -> bool:
-        if X.dtype != onnx.TensorProto.FLOAT16:
+        if X.dtype != ir.DataType.FLOAT16:
             return False
-        if indices.dtype != onnx.TensorProto.INT64:
+        if indices.dtype != ir.DataType.INT64:
             return False
         return True
 
@@ -56,7 +56,7 @@ class SoftmaxCrossEntropyLossV2(orp.RewriteRuleAsClass):
         wh1 = op.Where(neq1, indices, 0)
         uns = op.Unsqueeze(wh1, 1)
         ge = op.GatherElements(
-            op.LogSoftmax(X, axis=1), op.Cast(uns, to=onnx.TensorProto.INT64), axis=1
+            op.LogSoftmax(X, axis=1), op.Cast(uns, to=ir.DataType.INT64), axis=1
         )
         wh2 = op.Where(neq2, op.Neg(op.Squeeze(ge, 1)), 0)
         denominator = op.Cast(
@@ -64,14 +64,14 @@ class SoftmaxCrossEntropyLossV2(orp.RewriteRuleAsClass):
                 op.Cast(neq3, to=ir.DataType.INT64),
                 keepdims=0,
             ),
-            to=onnx.TensorProto.FLOAT16,
+            to=ir.DataType.FLOAT16,
         )
         numerator = op.Cast(
             op.ReduceSum(
-                op.Cast(wh2, to=onnx.TensorProto.FLOAT),
+                op.Cast(wh2, to=ir.DataType.FLOAT),
                 keepdims=0,
             ),
-            to=onnx.TensorProto.FLOAT16,
+            to=ir.DataType.FLOAT16,
         )
         return op.Div(numerator, denominator)
 
@@ -83,7 +83,7 @@ class SoftmaxCrossEntropyLossV2(orp.RewriteRuleAsClass):
     def check(cls, context, X, indices) -> bool:
         if X.dtype != ir.DataType.FLOAT16:
             return False
-        if indices.dtype != onnx.TensorProto.INT64:
+        if indices.dtype != ir.DataType.INT64:
             return False
         return True
 
