@@ -53,77 +53,82 @@ def set_base_dir(graph: _core.Graph | _core.GraphView, base_dir: str | os.PathLi
             tensor.base_dir = base_dir
 """Pass to save tensor data as external tensors."""
 
+
 import os
 
-from onnxscript.ir._core import Model, Tensor, ExternalTensor
+from onnxscript.ir import _core
 
 
 class ExternalDataInfo:
-    def __init__(self, external_tensor: ExternalTensor):
-        self.offset = external_tensor._offset
-        self.length = external_tensor._length
+    def __init__(self, name, offset, length):
+        self.name = name
+        self.offset = offset
+        self.length = length
 
 
-def save_external_data(raw_data, external_tensor: ExternalTensor, path: str):
-    external_data = ExternalDataInfo(external_tensor)
-    external_data_file_path = os.path.join(path, "tens_data")
-
-    with open("tens_data_1", "w+b") as data_file:
-        data_file.seek(0, 2)
-        if external_data.offset is not None:
-            # Pad file to required offset if needed
-            file_size = data_file.tell()
-            if external_data.offset > file_size:
-                data_file.write(b"\0" * (external_data.offset - file_size))
-
-            data_file.seek(external_data.offset)
-        #offset = data_file.tell()
-        data_file.write(raw_data)
-        #set_external_data(tensor, info.location, offset, data_file.tell() - offset)
-
-
-def _convert_initializers_to_external_tensor(
+def save_external_data(
     initializers,
-    path,
+    file_path,
     allocation_granularity: int = 65536, #64KB
 ):
-    current_offset = 0
-    for i_name, i_value in initializers.items():
-        print(i_name)
+    # Store external data such as name, offset and size
+    external_data_info = dict()
 
-        raw_data = i_value._raw
-        tensor_size = raw_data.size
-        # Convert each initializer to core.ExternalTensor
-        # Align tensors
-        alignment_factor = max(4096, allocation_granularity)
-        current_offset = (current_offset + alignment_factor - 1) // alignment_factor * alignment_factor
+    # Create file if it doesn't exist
+    if not os.path.isfile(file_path):
+        with open(file_path, "ab"):
+            pass
 
-        new_external_tensor = ExternalTensor(
-            path,
-            current_offset,
-            tensor_size,
+    with open(file_path, "r+b") as data_file:
+        current_offset = 0
+        for i_name, i_value in initializers.items():
+            tensor_val = i_value
+            if isinstance(tensor_val, _core.Value):
+                tensor_val = i_value._const_value
+            assert type(tensor_val) == _core.Tensor
+            raw_data = tensor_val.tobytes()
+            tensor_size = tensor_val.size
+            # Convert each initializer to core.ExternalTensor
+            # Align tensors
+            alignment_factor = max(4096, allocation_granularity)
+            current_offset = (current_offset + alignment_factor - 1) // alignment_factor * alignment_factor
+
+            data_file.seek(0, 2)
+            if current_offset is not None:
+                # Pad file to required offset if needed
+                file_size = data_file.tell()
+                if current_offset > file_size:
+                    data_file.write(b"\0" * (current_offset - file_size))
+                data_file.seek(current_offset)
+            data_file.write(raw_data)
+
+            # Store tensor external data
+            external_data_info[i_value.name] = ExternalDataInfo(
+                i_name,
+                current_offset,
+                tensor_size,
+            )
+
+            # Update offset
+            current_offset += tensor_size
+    return external_data_info
+
+
+def convert_model_to_external_data(model: _core.Model, base_path: str, file_path: str = ""):
+    file_path = os.path.join(base_path, file_path)
+    external_data_info = save_external_data(model.graph.initializers, file_path)
+
+    # Convert initializers to ExternalTensors
+    for i_name, i_value in model.graph.initializers.items():
+        assert i_name in external_data_info.keys()
+        tensor_info = external_data_info[i_name]
+        new_external_tensor = _core.ExternalTensor(
+            file_path,
+            tensor_info.offset,
+            tensor_info.length,
             i_value.dtype,
             shape=i_value.shape,
             name=i_value.name,
         )
-        initializers[i_name] = new_external_tensor
-
-        # Write data to file
-        save_external_data(raw_data, new_external_tensor, path)
-
-        # Update offset
-        current_offset += tensor_size
-    return initializers
-
-
-
-def _get_all_initializers(model: Model):
-    graph = model.graph
-    return graph.initializers
-
-def convert_model_to_external_data(model: Model, path):
-    initializers = _get_all_initializers(model)
-    print(initializers)
-    new_initializers = _convert_initializers_to_external_tensor(initializers, path)
-    print(new_initializers)
-
+        model.graph.initializers[i_name] = new_external_tensor
+    return model
