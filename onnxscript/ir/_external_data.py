@@ -53,7 +53,6 @@ def set_base_dir(graph: _core.Graph | _core.GraphView, base_dir: str | os.PathLi
             tensor.base_dir = base_dir
 """Pass to save tensor data as external tensors."""
 
-
 import os
 
 from onnxscript.ir import _core
@@ -69,7 +68,7 @@ class ExternalDataInfo:
 def save_external_data(
     initializers,
     file_path,
-    allocation_granularity: int = 65536, #64KB
+    allocation_granularity: int = 65536,  # 64KB
 ):
     # Store external data such as name, offset and size
     external_data_info = dict()
@@ -84,14 +83,16 @@ def save_external_data(
         for i_name, i_value in initializers.items():
             tensor_val = i_value
             if isinstance(tensor_val, _core.Value):
-                tensor_val = i_value._const_value
-            assert type(tensor_val) == _core.Tensor
+                tensor_val = i_value.const_value()  # pylint: disable=protected-access
+            assert isinstance(tensor_val, _core.Tensor)
             raw_data = tensor_val.tobytes()
             tensor_size = tensor_val.size
             # Convert each initializer to core.ExternalTensor
             # Align tensors
             alignment_factor = max(4096, allocation_granularity)
-            current_offset = (current_offset + alignment_factor - 1) // alignment_factor * alignment_factor
+            current_offset = (
+                (current_offset + alignment_factor - 1) // alignment_factor * alignment_factor
+            )
 
             data_file.seek(0, 2)
             if current_offset is not None:
@@ -120,15 +121,15 @@ def convert_model_to_external_data(model: _core.Model, base_path: str, file_path
 
     # Convert initializers to ExternalTensors
     for i_name, i_value in model.graph.initializers.items():
-        assert i_name in external_data_info.keys()
+        assert i_name in external_data_info
         tensor_info = external_data_info[i_name]
         new_external_tensor = _core.ExternalTensor(
             file_path,
             tensor_info.offset,
             tensor_info.length,
-            i_value.dtype,
-            shape=i_value.shape,
-            name=i_value.name,
+            i_value.dtype,  # type: ignore[arg-type]
+            shape=i_value.shape,  # type: ignore[arg-type]
+            name=i_value.name,  # type: ignore[arg-type]
         )
-        model.graph.initializers[i_name] = new_external_tensor
+        model.graph.initializers[i_name] = new_external_tensor  # type: ignore[assignment]
     return model

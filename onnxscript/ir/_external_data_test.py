@@ -59,21 +59,13 @@ if __name__ == "__main__":
     unittest.main()
 from __future__ import annotations
 
-import copy
-import pathlib
 import tempfile
 import unittest
-from typing import Any
 
-import ml_dtypes
 import numpy as np
-import onnx
-import onnx.external_data_helper
-import parameterized
-import torch
 
 from onnxscript import ir
-from onnxscript.ir import _core
+from onnxscript.ir import _core, _external_data
 
 
 class ExternalTensorTest(unittest.TestCase):
@@ -130,7 +122,7 @@ class ExternalTensorTest(unittest.TestCase):
         return model
 
     def test_initialize(self):
-        model_with_external_data = ir._external_data.convert_model_to_external_data(
+        model_with_external_data = _external_data.convert_model_to_external_data(
             self.model, self.base_path, file_path=self.external_data_name
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"]
@@ -140,7 +132,7 @@ class ExternalTensorTest(unittest.TestCase):
         np.testing.assert_equal(external_tensor.numpy(), self.data)
 
     def test_totypes_returns_correct_data_in(self):
-        model_with_external_data = ir._external_data.convert_model_to_external_data(
+        model_with_external_data = _external_data.convert_model_to_external_data(
             self.model, self.base_path, file_path=self.external_data_name
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"]

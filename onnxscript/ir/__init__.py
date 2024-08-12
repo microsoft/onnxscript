@@ -70,6 +70,7 @@ __all__ = [
     # IR Tensor initializer
     "tensor",
     # Pass infrastructure
+    "_external_data",
     "passes",
     "traversal",
     # IO
@@ -77,8 +78,7 @@ __all__ = [
     "save",
 ]
 
-from onnxscript.ir import passes, serde, traversal
-from onnxscript.ir import _external_data
+from onnxscript.ir import _external_data, passes, serde, traversal
 from onnxscript.ir._convenience import tensor
 from onnxscript.ir._core import (
     Attr,
