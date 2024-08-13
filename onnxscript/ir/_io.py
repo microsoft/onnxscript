@@ -5,10 +5,34 @@
 from __future__ import annotations
 
 import os
+from typing import Iterator
 
 import onnx
 
-from onnxscript.ir import _core, serde
+from onnxscript.ir import _core, _enums, _protocols, serde, traversal
+
+
+def _all_tensors(
+    graph: _core.Graph | _core.GraphView, include_constants: bool = False
+) -> Iterator[_protocols.TensorProtocol]:
+    """Iterate over all tensors in the graph."""
+
+    # Yield all tensors in initializers
+    for value in graph.initializers.values():
+        if value.const_value is not None:
+            yield value.const_value
+    if not include_constants:
+        return
+    # Look at constant attributes in nodes
+    for node in traversal.RecursiveGraphIterator(graph):
+        for attr in node.attributes.values():
+            if isinstance(attr, _core.RefAttr):
+                continue
+            if attr.type == _enums.AttributeType.TENSOR and attr.value is not None:
+                yield attr.value
+            elif attr.type == _enums.AttributeType.TENSORS and attr.value is not None:
+                for value in attr.value:
+                    yield value
 
 
 def load(path: str | os.PathLike, format: str | None = None) -> _core.Model:
@@ -29,7 +53,9 @@ def load(path: str | os.PathLike, format: str | None = None) -> _core.Model:
     base_dir = os.path.dirname(path)
     # Set the base directory for external data to the directory of the ONNX file
     # so that relative paths are resolved correctly.
-    _external_data.set_base_dir(model, base_dir)
+    for tensor in _all_tensors(model.graph, include_constants=True):
+        if isinstance(tensor, _core.ExternalTensor):
+            tensor.base_dir = base_dir
     return model
 
 

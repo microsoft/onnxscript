@@ -475,6 +475,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
 
     Attributes:
         path: The path to the data file. This can be a relative path or an absolute path.
+        base_dir: The base directory for the external data. It is used to resolve relative paths.
         offset: The offset in bytes from the start of the file.
         length: The length of the data in bytes.
         dtype: The data type of the tensor.
@@ -509,8 +510,15 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         name: str,
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
+        base_dir: os.PathLike | str = "",
     ) -> None:
-        self._path = path
+        if os.path.isabs(path):
+            self._base_dir = os.path.dirname(path)
+            self._path = os.path.basename(path)
+        else:
+            self._base_dir = base_dir
+            self._path = path
+
         self._offset: int | None = offset
         self._length: int | None = length
         self._dtype: _enums.DataType = dtype
@@ -527,6 +535,15 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
     def path(self) -> str | os.PathLike:
         # Immutable
         return self._path
+
+    @property
+    def base_dir(self) -> str | os.PathLike:
+        # Mutable
+        return self._base_dir
+
+    @base_dir.setter
+    def base_dir(self, value: str | os.PathLike) -> None:
+        self._base_dir = value
 
     @property
     def offset(self) -> int | None:
@@ -2069,7 +2086,7 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
         outputs: Sequence[Value],
         *,
         nodes: Iterable[Node],
-        initializers: Sequence[_protocols.TensorProtocol] = (),
+        initializers: Sequence[_protocols.ValueProtocol] = (),
         doc_string: str | None = None,
         opset_imports: dict[str, int] | None = None,
         name: str | None = None,
