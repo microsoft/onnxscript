@@ -47,13 +47,16 @@ class ExternalDataTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         expected_dir = "something_else"
         _external_data.set_base_dir(model.graph, expected_dir)
+
+        initializer_tensor = model.graph.initializers["test_tensor"].const_value
         assert isinstance(
-            model.graph.initializers["test_tensor"].const_value, ir.ExternalTensor
+            initializer_tensor, ir.ExternalTensor
         )
         self.assertEqual(
-            model.graph.initializers["test_tensor"].const_value.base_dir, expected_dir
+            initializer_tensor.base_dir, expected_dir
         )
-        self.assertEqual(model.graph.node(0).attributes["value"].value.base_dir, expected_dir)
+        attr_tensor = model.graph.node(0).attributes["value"].value
+        self.assertEqual(attr_tensor.base_dir, expected_dir)
 
 
 if __name__ == "__main__":
