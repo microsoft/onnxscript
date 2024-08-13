@@ -8,17 +8,19 @@ __all__ = [
     "RecursiveGraphIterator",
 ]
 
-from typing import Callable, Iterator, Reversible
+from typing import Callable, Iterator, Reversible, Union
 
 from typing_extensions import Self
 
 from onnxscript.ir import _core, _enums
 
+GraphLike = Union[_core.Graph, _core.Function, _core.GraphView]
+
 
 class RecursiveGraphIterator(Iterator[_core.Node], Reversible[_core.Node]):
     def __init__(
         self,
-        graph: _core.Graph | _core.Function | _core.GraphView,
+        graph_like: GraphLike,
         *,
         recursive: Callable[[_core.Node], bool] | None = None,
         reverse: bool = False,
@@ -26,15 +28,15 @@ class RecursiveGraphIterator(Iterator[_core.Node], Reversible[_core.Node]):
         """Iterate over the nodes in the graph, recursively visiting subgraphs.
 
         Args:
-            graph: The graph to traverse.
+            graph_like: The graph to traverse.
             recursive: A callback that determines whether to recursively visit the subgraphs
                 contained in a node. If not provided, all nodes in subgraphs are visited.
             reverse: Whether to iterate in reverse order.
         """
-        self._graph = graph
+        self._graph = graph_like
         self._recursive = recursive
         self._reverse = reverse
-        self._iterator = self._recursive_node_iter(graph)
+        self._iterator = self._recursive_node_iter(graph_like)
 
     def __iter__(self) -> Self:
         self._iterator = self._recursive_node_iter(self._graph)

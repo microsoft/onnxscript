@@ -4,15 +4,10 @@
 
 from __future__ import annotations
 
-
 import os
 from typing import Iterator
 
-
-
-import onnx
-
-from onnxscript.ir import _core, _enums, _protocols, serde, traversal
+from onnxscript.ir import _core, _enums, _protocols, traversal
 
 
 def _all_tensors(
@@ -37,11 +32,11 @@ def _all_tensors(
                 yield from attr.value
 
 
-def set_base_dir(graph: _core.Graph, base_dir: str | os.PathLike) -> None:
-    """Set the base directory for external data in a model.
+def set_base_dir(graph: _core.Graph | _core.GraphView, base_dir: str | os.PathLike) -> None:
+    """Set the base directory for external data in a graph.
 
     Args:
-        model: The model.
+        graph: The graph.
         base_dir: The base directory.
     """
     for tensor in _all_tensors(graph, include_constants=True):
