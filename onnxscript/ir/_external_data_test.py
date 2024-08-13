@@ -31,7 +31,7 @@ class ExternalDataTest(unittest.TestCase):
             inputs=[],
             outputs=[],
             initializer=[
-                tensor := onnx.helper.make_tensor(
+                onnx.helper.make_tensor(
                     name="test_tensor",
                     data_type=onnx.TensorProto.FLOAT,
                     dims=[1],
