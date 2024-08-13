@@ -1,0 +1,49 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+"""External data related utilities."""
+
+from __future__ import annotations
+
+
+import os
+from typing import Iterator
+
+
+
+import onnx
+
+from onnxscript.ir import _core, _enums, _protocols, serde, traversal
+
+
+def _all_tensors(
+    graph: _core.Graph | _core.GraphView, include_constants: bool = False
+) -> Iterator[_protocols.TensorProtocol]:
+    """Iterate over all tensors in the graph."""
+
+    # Yield all tensors in initializers
+    for value in graph.initializers.values():
+        if value.const_value is not None:
+            yield value.const_value
+    if not include_constants:
+        return
+    # Look at constant attributes in nodes
+    for node in traversal.RecursiveGraphIterator(graph):
+        for attr in node.attributes.values():
+            if isinstance(attr, _core.RefAttr):
+                continue
+            if attr.type == _enums.AttributeType.TENSOR and attr.value is not None:
+                yield attr.value
+            elif attr.type == _enums.AttributeType.TENSORS and attr.value is not None:
+                yield from attr.value
+
+
+def set_base_dir(graph: _core.Graph, base_dir: str | os.PathLike) -> None:
+    """Set the base directory for external data in a model.
+
+    Args:
+        model: The model.
+        base_dir: The base directory.
+    """
+    for tensor in _all_tensors(graph, include_constants=True):
+        if isinstance(tensor, _core.ExternalTensor):
+            tensor.base_dir = base_dir
