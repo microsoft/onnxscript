@@ -49,12 +49,8 @@ class ExternalDataTest(unittest.TestCase):
         _external_data.set_base_dir(model.graph, expected_dir)
 
         initializer_tensor = model.graph.initializers["test_tensor"].const_value
-        assert isinstance(
-            initializer_tensor, ir.ExternalTensor
-        )
-        self.assertEqual(
-            initializer_tensor.base_dir, expected_dir
-        )
+        assert isinstance(initializer_tensor, ir.ExternalTensor)
+        self.assertEqual(initializer_tensor.base_dir, expected_dir)
         attr_tensor = model.graph.node(0).attributes["value"].value
         self.assertEqual(attr_tensor.base_dir, expected_dir)
 
