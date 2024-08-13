@@ -2,13 +2,11 @@
 # Licensed under the MIT License.
 import unittest
 
-import numpy as np
 import onnx
 import onnx.external_data_helper
 
 from onnxscript import ir
 from onnxscript.ir import _external_data
-import tempfile
 
 
 class ExternalDataTest(unittest.TestCase):
@@ -43,7 +41,9 @@ class ExternalDataTest(unittest.TestCase):
             ],
         )
         model_proto = onnx.helper.make_model(graph)
-        onnx.external_data_helper.convert_model_to_external_data(model_proto, location="tempdir", size_threshold=0, convert_attribute=True)
+        onnx.external_data_helper.convert_model_to_external_data(
+            model_proto, location="tempdir", size_threshold=0, convert_attribute=True
+        )
         model = ir.serde.deserialize_model(model_proto)
         expected_dir = "something_else"
         _external_data.set_base_dir(model.graph, expected_dir)
