@@ -13,15 +13,22 @@ from onnxscript.ir import _core, _enums, _protocols, traversal
 
 
 def _all_tensors(
-    graph: _core.Graph | _core.GraphView, include_constants: bool = False
+    graph: _core.Graph | _core.GraphView, include_attributes: bool = False
 ) -> Iterator[_protocols.TensorProtocol]:
-    """Iterate over all tensors in the graph."""
+    """Iterate over all tensors in the graph.
 
+    Args:
+        graph: The graph to traverse tensors on.
+        include_attributes: Whether to include tensors in attributes.
+
+    Yields:
+        Tensors in the graph.
+    """
     # Yield all tensors in initializers
     for value in graph.initializers.values():
         if value.const_value is not None:
             yield value.const_value
-    if not include_constants:
+    if not include_attributes:
         return
     # Look at constant attributes in nodes
     for node in traversal.RecursiveGraphIterator(graph):
@@ -41,6 +48,6 @@ def set_base_dir(graph: _core.Graph | _core.GraphView, base_dir: str | os.PathLi
         graph: The graph to traverse tensors on.
         base_dir: The base directory. This is the directory where the ONNX file is.
     """
-    for tensor in _all_tensors(graph, include_constants=True):
+    for tensor in _all_tensors(graph, include_attributes=True):
         if isinstance(tensor, _core.ExternalTensor):
             tensor.base_dir = base_dir
