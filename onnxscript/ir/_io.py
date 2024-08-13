@@ -46,4 +46,5 @@ def save(model: _core.Model, path: str | os.PathLike, format: str | None = None)
     """
     proto = serde.serialize_model(model)
     onnx.save(proto, path, format=format)
-    # TODO(justinchuby): Handle external data
+    # TODO(justinchuby): Handle external data when the relative path has changed
+    # TODO(justinchuby): Handle off loading external data to disk when saving

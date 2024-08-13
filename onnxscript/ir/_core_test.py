@@ -243,6 +243,23 @@ class ExternalTensorTest(unittest.TestCase):
         # Ensure repeated reads are consistent
         np.testing.assert_equal(tensor, self.data)
 
+    def test_initialize_with_relative_path(self):
+        external_tensor = self.model.graph.initializer[0]
+        external_info = onnx.external_data_helper.ExternalDataInfo(external_tensor)
+        tensor = _core.ExternalTensor(
+            path=external_info.location,
+            offset=external_info.offset,
+            length=external_info.length,
+            dtype=ir.DataType.FLOAT,
+            name="input",
+            shape=_core.Shape(external_tensor.dims),
+            base_dir=pathlib.Path(self.base_path),
+        )
+        self.assertEqual(tensor.dtype, ir.DataType.FLOAT)
+        np.testing.assert_equal(tensor, self.data)
+        # Ensure repeated reads are consistent
+        np.testing.assert_equal(tensor, self.data)
+
     def test_totypes_returns_correct_data_in(self):
         external_tensor = self.model.graph.initializer[0]
         external_info = onnx.external_data_helper.ExternalDataInfo(external_tensor)
