@@ -476,6 +476,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
     Attributes:
         path: The path to the data file. This can be a relative path or an absolute path.
         base_dir: The base directory for the external data. It is used to resolve relative paths.
+            At serialization, only the ``path`` is serialized into the "location" field of the TensorProto.
         offset: The offset in bytes from the start of the file.
         length: The length of the data in bytes.
         dtype: The data type of the tensor.
@@ -573,7 +574,8 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             return
         # Map the whole file into the memory
         # TODO(justinchuby): Verify if this would exhaust the memory address space
-        with open(self._path, "rb") as f:
+        file_path = os.path.join(self._base_dir, self._path)
+        with open(file_path, "rb") as f:
             self.raw = mmap.mmap(
                 f.fileno(),
                 0,
@@ -616,7 +618,10 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         )
 
     def __repr__(self) -> str:
-        return f"{self._repr_base()}(path='{self._path}', name={self.name!r}, offset={self._offset!r}), length={self._length!r})"
+        return (
+            f"{self._repr_base()}(path='{self._path}', name={self.name!r}, "
+            f"offset={self._offset!r}, length={self._length!r}, base_dir={self._base_dir!r})"
+        )
 
     def numpy(self) -> np.ndarray:
         """Return the tensor as a numpy array.
