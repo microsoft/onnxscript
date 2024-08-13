@@ -70,5 +70,5 @@ def save(model: _core.Model, path: str | os.PathLike, format: str | None = None)
         format: The format of the file (e.g. protobuf, textproto, json, etc.).
             If None, the format is inferred from the file extension.
     """
-    onnx_model = serde.serialize_model(model)
-    onnx.save(onnx_model, path, format=format)
+    proto = serde.serialize_model(model)
+    onnx.save(proto, path, format=format)
