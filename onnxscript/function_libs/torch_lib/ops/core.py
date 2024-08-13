@@ -5771,6 +5771,10 @@ def aten_native_batch_norm(
         sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
         running_var = op.ReduceMean(sqr_input_sub_mean, axes, keepdims=False)
 
+    # TODO: This is a temporary fix for the issue that BatchNormalization
+    #       is forced to be in training mode in PyTorch, and ORT currently
+    #       only supports training mode with opset version lower than 14.
+    training = False
     # We have to split to two private functions, because BatchNormalization returns
     # three outputs when training_mode=True and one when it is False.
     if training:
@@ -5918,6 +5922,10 @@ def aten__native_batch_norm_legit_functional(
         sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
         running_var = op.ReduceMean(sqr_input_sub_mean, axes, keepdims=False)
 
+    # TODO: This is a temporary fix for the issue that BatchNormalization
+    #       is forced to be in training mode in PyTorch, and ORT currently
+    #       only supports training mode with opset version lower than 14.
+    training = False
     # We have to split to two private functions, because BatchNormalization returns
     # three outputs when training_mode=True and one when it is False.
     if training:
