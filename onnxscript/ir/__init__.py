@@ -71,6 +71,9 @@ __all__ = [
     # Pass infrastructure
     "passes",
     "traversal",
+    # IO
+    "load",
+    "save",
 ]
 
 from onnxscript.ir import passes, serde, traversal
@@ -114,6 +117,7 @@ from onnxscript.ir._enums import (
     AttributeType,
     DataType,
 )
+from onnxscript.ir._io import load, save
 from onnxscript.ir._protocols import (
     ArrayCompatible,
     AttributeProtocol,
