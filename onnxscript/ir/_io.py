@@ -33,8 +33,7 @@ def _all_tensors(
             if attr.type == _enums.AttributeType.TENSOR and attr.value is not None:
                 yield attr.value
             elif attr.type == _enums.AttributeType.TENSORS and attr.value is not None:
-                for value in attr.value:
-                    yield value
+                yield from attr.value
 
 
 def load(path: str | os.PathLike, format: str | None = None) -> _core.Model:
