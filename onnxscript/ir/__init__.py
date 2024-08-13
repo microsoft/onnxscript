@@ -117,6 +117,7 @@ from onnxscript.ir._enums import (
     AttributeType,
     DataType,
 )
+from onnxscript.ir._io import load, save
 from onnxscript.ir._protocols import (
     ArrayCompatible,
     AttributeProtocol,
@@ -137,7 +138,6 @@ from onnxscript.ir._protocols import (
     ValueProtocol,
 )
 from onnxscript.ir.serde import TensorProtoTensor, from_proto, to_proto
-from onnxscript.ir._io import load, save
 
 
 def __set_module() -> None:
