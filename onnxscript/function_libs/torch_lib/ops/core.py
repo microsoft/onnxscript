@@ -5763,21 +5763,13 @@ def aten_native_batch_norm(
     axes.pop(1)
     axes = op.Constant(value_ints=axes)
     if running_mean is None:  # Using input mean
-        running_mean = op.Squeeze(op.ReduceMean(input, axes))
-
-    running_mean_is_scalar = IsScalar(running_mean)
-    if running_mean_is_scalar:
-        running_mean = op.Reshape(running_mean, op.Constant(value_ints=[-1]))
+        running_mean = op.ReduceMean(input, axes, keepdims=False)
 
     if running_var is None:  # Using input var
         mean = op.ReduceMean(input, axes)
         input_sub_mean = op.Sub(input, mean)
         sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
-        running_var = op.Squeeze(op.ReduceMean(sqr_input_sub_mean, axes))
-
-    running_var_is_scalar = IsScalar(running_var)
-    if running_var_is_scalar:
-        running_var = op.Reshape(running_var, op.Constant(value_ints=[-1]))
+        running_var = op.ReduceMean(sqr_input_sub_mean, axes, keepdims=False)
 
     # We have to split to two private functions, because BatchNormalization returns
     # three outputs when training_mode=True and one when it is False.
@@ -5918,21 +5910,13 @@ def aten__native_batch_norm_legit_functional(
     axes.pop(1)
     axes = op.Constant(value_ints=axes)
     if running_mean is None:  # Using input mean
-        running_mean = op.Squeeze(op.ReduceMean(input, axes))
-
-    running_mean_is_scalar = IsScalar(running_mean)
-    if running_mean_is_scalar:
-        running_mean = op.Reshape(running_mean, op.Constant(value_ints=[-1]))
+        running_mean = op.ReduceMean(input, axes, keepdims=False)
 
     if running_var is None:  # Using input var
         mean = op.ReduceMean(input, axes)
         input_sub_mean = op.Sub(input, mean)
         sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
-        running_var = op.Squeeze(op.ReduceMean(sqr_input_sub_mean, axes))
-
-    running_var_is_scalar = IsScalar(running_var)
-    if running_var_is_scalar:
-        running_var = op.Reshape(running_var, op.Constant(value_ints=[-1]))
+        running_var = op.ReduceMean(sqr_input_sub_mean, axes, keepdims=False)
 
     # We have to split to two private functions, because BatchNormalization returns
     # three outputs when training_mode=True and one when it is False.
