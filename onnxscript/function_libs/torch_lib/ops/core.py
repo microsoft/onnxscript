@@ -8910,7 +8910,6 @@ def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
     raise NotImplementedError()
 
 
-
 @torch_op(
     (
         "aten::where.Scalar",
