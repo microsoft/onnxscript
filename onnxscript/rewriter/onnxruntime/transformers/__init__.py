@@ -20,10 +20,11 @@ TRANSFORMERS_FUNCTION_REWRITE_RULES: list[type[function_rule.FunctionRewriteRule
     # biassplitgelu.GegluRewriteRule,
     # multihead_attention.MHALlama2RewriteRule,
     multihead_attention.GQALlama3RewriteRule,
-    # multihead_attention.TorchLinearRewriteRule,
     # multihead_attention.AttentionRewriteRule,
-    multihead_attention.MLPRewriteRule,
-  
-  
+    multihead_attention.MLP3RewriteRule,
+    multihead_attention.GQALlama3RewriteRuleFirstAttention,
+    # multihead_attention.MLPRewriteRule,
+    # multihead_attention.GQALlamaRewriteRule,
+
 
 ]
