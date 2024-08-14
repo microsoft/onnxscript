@@ -3921,27 +3921,12 @@ def aten_hspmm(mat1: TensorType, mat2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::hstack")
 def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     """hstack(Tensor[] tensors) -> Tensor"""
 
-    @graph()
-    def reshape_to_atleast_2d(tensor):
-        shape = op.Shape(tensor)
-        rank = op.Size(shape)
-        if rank <= 1:
-            tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1]))
-        return tensor
+    # Decomposed by PyTorch: https://github.com/pytorch/pytorch/blob/bedf96d7ffe74b34bcfe52c7ae1ae05f40d6c8ee/torch/_refs/__init__.py#L3918
 
-    tensors_atleast_2d = op.SequenceMap(tensors, body=reshape_to_atleast_2d)
-
-    result = op.ConcatFromSequence(tensors_atleast_2d, axis=1, new_axis=0)
-
-    # hstack expects a non-empty sequence of tensors. So we don't need to check for length
-    rank_1d_or_less = op.Less(Rank(op.SequenceAt(tensors, 0)), 2)
-    if rank_1d_or_less:
-        result = op.Reshape(result, op.Constant(value_ints=[-1]))
-    return result
+    raise NotImplementedError()
 
 
 def aten_hypot(self: TensorType, other: TensorType) -> TensorType:
@@ -7821,9 +7806,12 @@ def aten_stack_complex(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTen
     return aten_stack(tensors, dim)
 
 
-@torch_op("aten::stack")
+@torch_op("aten::stack", trace_only=True)
 def aten_stack(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTensorOrString:
     """stack(Tensor[] tensors, int dim=0) -> Tensor"""
+    if isinstance(tensors, Sequence):
+        unsqueezed = [op.Unsqueeze(t, op.Constant(value_ints=[dim])) for t in tensors]
+        return op.Concat(*unsqueezed, axis=dim)
     return op.ConcatFromSequence(tensors, axis=dim, new_axis=1)
 
 
@@ -8915,22 +8903,12 @@ def aten_view_copy(self: TTensor, size: IntType) -> TTensor:
     return op.Reshape(self, size)
 
 
-@torch_op("aten::vstack")
 def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
     """vstack(Tensor[] tensors) -> Tensor"""
 
-    # The same logic as atleast_2d duplicated here to keep
-    # the function self contained
-    @graph()
-    def reshape_to_2d(tensor):
-        shape = op.Shape(tensor)
-        rank = op.Size(shape)
-        if rank <= 1:
-            tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1]))
-        return tensor
+    # Decomposed by PyTorch: https://github.com/pytorch/pytorch/blob/bedf96d7ffe74b34bcfe52c7ae1ae05f40d6c8ee/torch/_refs/__init__.py#L3928
+    raise NotImplementedError()
 
-    tensors_2d = op.SequenceMap(tensors, body=reshape_to_2d)
-    return op.ConcatFromSequence(tensors_2d, axis=0)
 
 
 @torch_op(

@@ -1585,13 +1585,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("view_as_real", core_ops.aten_view_as_real, complex=True),
     TorchLibOpInfo("view_as_real_copy", core_ops.aten_view_as_real_copy, complex=True),
     TorchLibOpInfo("view_copy", core_ops.aten_view_copy),
-    TorchLibOpInfo(
-        "vstack",
-        core_ops.aten_vstack,
-    ).xfail(
-        enabled_if=version_utils.onnxruntime_older_than("1.16"),
-        reason="fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x62afb00_rank). https://github.com/microsoft/onnxscript/issues/960",
-    ),
     TorchLibOpInfo("where", core_ops.aten_where, input_wrangler=_where_input_wrangler).xfail(
         dtypes=(torch.bool,),
         reason="fixme: ORT does not have an implementation for Where with bool inputs.",
@@ -1712,13 +1705,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="Using op.InstanceNormalization to simulate GroupNorm, which does not support 0-dim input",
     ),
     TorchLibOpInfo("heaviside", core_ops.aten_heaviside),
-    TorchLibOpInfo(
-        "hstack",
-        core_ops.aten_hstack,
-    ).xfail(
-        enabled_if=version_utils.onnxruntime_older_than("1.16"),
-        reason="fixme: RUNTIME_EXCEPTION : Exception during initialization: Invalid tensor data type 0. https://github.com/microsoft/onnxscript/issues/960",
-    ),
     TorchLibOpInfo(
         "nn.functional.grid_sample",
         core_ops.aten_grid_sampler,
