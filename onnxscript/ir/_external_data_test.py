@@ -57,6 +57,7 @@ class ExternalDataTest(unittest.TestCase):
         attr_tensor = model.graph.node(0).attributes["value"].value
         self.assertEqual(attr_tensor.base_dir, expected_dir)
 
+
 class ExternalTensorTest(unittest.TestCase):
     """Test the memory mapped external tensor class."""
 
@@ -102,7 +103,10 @@ class ExternalTensorTest(unittest.TestCase):
         graph = ir.Graph(
             inputs=node_0.inputs,  # type: ignore
             outputs=[node_1.outputs[0]],
-            initializers=[tensor1, tensor2],
+            initializers=[
+                ir.Value(name="tensor1", const_value=tensor1),
+                ir.Value(name="tensor2", const_value=tensor2),
+            ],
             # Unsorted nodes
             nodes=[node_1, node_0],
             name="test_graph",
@@ -114,7 +118,7 @@ class ExternalTensorTest(unittest.TestCase):
         model_with_external_data = _external_data.convert_model_to_external_data(
             self.model, self.base_path, file_path=self.external_data_name
         )
-        external_tensor = model_with_external_data.graph.initializers["tensor1"]
+        external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
         self.assertEqual(external_tensor.dtype, ir.DataType.FLOAT)
         np.testing.assert_equal(external_tensor.numpy(), self.data)
         # Ensure repeated reads are consistent
@@ -124,8 +128,8 @@ class ExternalTensorTest(unittest.TestCase):
         model_with_external_data = _external_data.convert_model_to_external_data(
             self.model, self.base_path, file_path=self.external_data_name
         )
-        external_tensor = model_with_external_data.graph.initializers["tensor1"]
-        external_tensor2 = model_with_external_data.graph.initializers["tensor2"]
+        external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
+        external_tensor2 = model_with_external_data.graph.initializers["tensor2"].const_value
 
         self.assertEqual(external_tensor.numpy().tobytes(), self.data.tobytes())
         self.assertEqual(external_tensor2.numpy().tobytes(), self.data_float16.tobytes())
