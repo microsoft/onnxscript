@@ -1801,7 +1801,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         reason="native_batch_norm outputs different dtypes on CPU and CUDA. Our implematation is based on that for CUDA",
     )
-    .xfail(
+    .skip(
         matcher=lambda sample: sample.kwargs.get("training") is True
         or sample.args[-3] is True,
         reason="fixme: ORT only supports BatchNorm less than opset14",
@@ -1816,7 +1816,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("training") is False,
         reason="native_batch_norm outputs different shapes on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
     )
-    .xfail(
+    .skip(
         matcher=lambda sample: sample.kwargs.get("training") is True
         or sample.args[-3] is True,
         reason="fixme: ORT only supports BatchNorm less than opset14",
@@ -1842,7 +1842,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         test_class_name="TestOutputConsistencyEager",
         reason="fixme: output 4 (new_running_var) does not match the gpu output sometimes",
     )
-    .xfail(
+    .skip(
         matcher=lambda sample: sample.kwargs.get("training") is True
         or sample.args[-3] is True,
         reason="fixme: ORT only supports BatchNorm less than opset14",
