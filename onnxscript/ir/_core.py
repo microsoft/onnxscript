@@ -1280,7 +1280,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     def op_identifier(self) -> _protocols.OperatorIdentifier:
         return self.domain, self.op_type, self.overload
 
-    def display(self, *, page: bool | None = None) -> None:
+    def display(self, *, page: bool = False) -> None:
         # Add the node's name to the displayed text
         print(f"Node: {self.name!r}")
         if self.doc_string:
