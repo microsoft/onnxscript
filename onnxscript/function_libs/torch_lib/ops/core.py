@@ -3921,12 +3921,29 @@ def aten_hspmm(mat1: TensorType, mat2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+# Do not register hstack - decomposed by PyTorch: https://github.com/pytorch/pytorch/blob/bedf96d7ffe74b34bcfe52c7ae1ae05f40d6c8ee/torch/_refs/__init__.py#L3918
+
+
 def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     """hstack(Tensor[] tensors) -> Tensor"""
 
-    # Decomposed by PyTorch: https://github.com/pytorch/pytorch/blob/bedf96d7ffe74b34bcfe52c7ae1ae05f40d6c8ee/torch/_refs/__init__.py#L3918
+    @graph()
+    def reshape_to_atleast_2d(tensor):
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        if rank <= 1:
+            tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1]))
+        return tensor
 
-    raise NotImplementedError()
+    tensors_atleast_2d = op.SequenceMap(tensors, body=reshape_to_atleast_2d)
+
+    result = op.ConcatFromSequence(tensors_atleast_2d, axis=1, new_axis=0)
+
+    # hstack expects a non-empty sequence of tensors. So we don't need to check for length
+    rank_1d_or_less = op.Less(Rank(op.SequenceAt(tensors, 0)), 2)
+    if rank_1d_or_less:
+        result = op.Reshape(result, op.Constant(value_ints=[-1]))
+    return result
 
 
 def aten_hypot(self: TensorType, other: TensorType) -> TensorType:
@@ -8903,11 +8920,24 @@ def aten_view_copy(self: TTensor, size: IntType) -> TTensor:
     return op.Reshape(self, size)
 
 
+# Do not register vstack - decomposed by PyTorch: https://github.com/pytorch/pytorch/blob/bedf96d7ffe74b34bcfe52c7ae1ae05f40d6c8ee/torch/_refs/__init__.py#L3918
+
+
 def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
     """vstack(Tensor[] tensors) -> Tensor"""
 
-    # Decomposed by PyTorch: https://github.com/pytorch/pytorch/blob/bedf96d7ffe74b34bcfe52c7ae1ae05f40d6c8ee/torch/_refs/__init__.py#L3928
-    raise NotImplementedError()
+    # The same logic as atleast_2d duplicated here to keep
+    # the function self contained
+    @graph()
+    def reshape_to_2d(tensor):
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        if rank <= 1:
+            tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1]))
+        return tensor
+
+    tensors_2d = op.SequenceMap(tensors, body=reshape_to_2d)
+    return op.ConcatFromSequence(tensors_2d, axis=0)
 
 
 @torch_op(
