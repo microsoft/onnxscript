@@ -116,7 +116,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         # Use math.ceil because when dtype is INT4, the itemsize is 0.5
         return math.ceil(self.dtype.itemsize * self.size)
 
-    def display(self, *, page: bool | None = None) -> None:
+    def display(self, *, page: bool = False) -> None:
         rich = _display.require_rich()
 
         if rich is None:
@@ -169,7 +169,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
             import rich.console  # type: ignore[import-not-found, no-redef]  # pylint: disable=import-outside-toplevel
 
             console = rich.console.Console()
-            with console.pager(styles=True):
+            with console.pager():
                 console.print(text)
         else:
             rich.print(text)
@@ -1280,7 +1280,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     def op_identifier(self) -> _protocols.OperatorIdentifier:
         return self.domain, self.op_type, self.overload
 
-    def display(self, *, page: bool | None = None) -> None:
+    def display(self, *, page: bool = False) -> None:
         # Add the node's name to the displayed text
         print(f"Node: {self.name!r}")
         if self.doc_string:
