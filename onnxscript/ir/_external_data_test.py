@@ -1,12 +1,15 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+import tempfile
 import unittest
 
 import onnx
 import onnx.external_data_helper
 
+import numpy as np
+
 from onnxscript import ir
-from onnxscript.ir import _external_data
+from onnxscript.ir import _core, _external_data
 
 
 class ExternalDataTest(unittest.TestCase):
@@ -53,20 +56,6 @@ class ExternalDataTest(unittest.TestCase):
         self.assertEqual(initializer_tensor.base_dir, expected_dir)
         attr_tensor = model.graph.node(0).attributes["value"].value
         self.assertEqual(attr_tensor.base_dir, expected_dir)
-
-
-if __name__ == "__main__":
-    unittest.main()
-from __future__ import annotations
-
-import tempfile
-import unittest
-
-import numpy as np
-
-from onnxscript import ir
-from onnxscript.ir import _core, _external_data
-
 
 class ExternalTensorTest(unittest.TestCase):
     """Test the memory mapped external tensor class."""
@@ -143,3 +132,7 @@ class ExternalTensorTest(unittest.TestCase):
         # Ensure repeated reads are consistent
         self.assertEqual(external_tensor.numpy().tobytes(), self.data.tobytes())
         self.assertEqual(external_tensor2.numpy().tobytes(), self.data_float16.tobytes())
+
+
+if __name__ == "__main__":
+    unittest.main()

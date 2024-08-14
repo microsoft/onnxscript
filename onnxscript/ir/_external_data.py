@@ -53,11 +53,6 @@ def set_base_dir(graph: _core.Graph | _core.GraphView, base_dir: str | os.PathLi
             tensor.base_dir = base_dir
 """Pass to save tensor data as external tensors."""
 
-import os
-
-from onnxscript.ir import _core
-
-
 class ExternalDataInfo:
     def __init__(self, name, offset, length):
         self.name = name
