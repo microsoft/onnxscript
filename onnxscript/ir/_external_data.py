@@ -88,7 +88,7 @@ def _compute_new_offset(
         align_threshold: Alignment threshold for size of data. Having a low threshold will waste file space for small initializers. Only when tensor's data is > the page_align_threshold it will be force aligned.
         allocation_granularity: The allocation Granularity for mmap() support. Typically 64KB for Windows & 4KB for other OSes.
     """
-    if align_offset:  # and tensor_size > align_threshold:
+    if align_offset and tensor_size > align_threshold:
         alignment_factor = max(4096, allocation_granularity)
         # Align to the next page or alloc granularity
         current_offset = (
@@ -136,10 +136,7 @@ def save_external_data(
         external_data_info: A collection of external data information stored for each tensor to be written as external data.
         file_path: Location to which external data is to be stored.
     """
-    if not os.path.isfile(file_path):
-        with open(file_path, "ab"):
-            pass
-    with open(file_path, "r+b") as data_file:
+    with open(file_path, "w+b") as data_file:
         for value, tensor_info in external_data_info:
             current_offset = tensor_info.offset
             raw_data = value._const_value.tobytes()
@@ -215,6 +212,8 @@ def convert_model_to_external_data(
         )
         external_data_info.append((value, tensor_info))
         current_offset = tensor_info.offset + tensor_info.length
+        # Take into account bytes needed based on dtype
+        current_offset *= tensor.dtype.itemsize
 
     file_path = os.path.join(base_path, file_path)
     save_external_data(external_data_info, file_path)
