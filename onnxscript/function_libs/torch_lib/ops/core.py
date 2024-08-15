@@ -3511,27 +3511,27 @@ def aten_flatten(self: TTensor, start_dim: int = 0, end_dim: int = -1) -> TTenso
         end_dim = dim + end_dim
 
     input_size = op.Shape(self)
-    slice1 = op.Slice(
+    dim_head = op.Slice(
         input_size,
         op.Constant(value_ints=[0]),
         op.Constant(value_ints=[start_dim]),
         op.Constant(value_ints=[0]),
     )
-    slices = [slice1, op.Constant(value_ints=[-1])]
+    final_dims = [dim_head, op.Constant(value_ints=[-1])]
     if end_dim < dim - 1:
-        slice3 = op.Slice(
+        dim_tail = op.Slice(
             input_size,
             op.Constant(value_ints=[end_dim + 1]),
             op.Constant(value_ints=[dim]),
             op.Constant(value_ints=[0]),
         )
-        slices = [
-            slice1,
+        final_dims = [
+            dim_head,
             op.Constant(value_ints=[-1]),
-            slice3,
+            dim_tail,
         ]
 
-    final_shape = op.Concat(*slices, axis=0)
+    final_shape = op.Concat(*final_dims, axis=0)
     return op.Reshape(self, final_shape)
 
 
