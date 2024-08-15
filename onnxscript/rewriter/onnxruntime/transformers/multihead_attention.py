@@ -1189,7 +1189,7 @@ class GQALlamaRewriteRule(AttentionRewriteRule):
         msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
         def gqa(
-            sym_size_int_2
+            sym_size_int_2,
             sym_size_int,
             hidden_states,
             sym_size_int_1,
