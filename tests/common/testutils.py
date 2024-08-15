@@ -14,7 +14,7 @@ import torch
 
 from onnxscript import optimizer
 from onnxscript._legacy_ir import visitor
-from onnxscript.rewriter import onnxruntime as ort_rewriter
+from onnxscript.rewriter import onnxruntime_patterns as ort_rewriter
 from onnxscript.utils import evaluation_utils
 
 
