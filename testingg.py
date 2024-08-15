@@ -4,12 +4,7 @@ import onnx.inliner
 import onnxscript.optimizer
 import onnxscript.rewriter
 from onnxscript.rewriter import onnxruntime as ort_rewriter
-from onnx import NodeProto, TensorProto, helper, external_data_helper, numpy_helper
-import numpy as np
-from onnxscript import ir
 from onnxscript.ir import convenience as ir_convenience
-
-from typing import List, Optional, Tuple, Union
 
 def export_to_onnx(input_model_path: str, output_model_path: str):
     """

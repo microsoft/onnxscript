@@ -52,22 +52,16 @@ from __future__ import annotations
 import abc
 import dataclasses
 import logging
-import numpy as np
 import onnx
 from onnx import helper as onnx_helper
-from onnx import NodeProto, TensorProto, helper, numpy_helper
 
 import onnxscript
 from onnxscript import ir
-from onnxscript.ir import SymbolicDim
 from onnxscript.rewriter import _ir_utils, function_rule
 
 logger = logging.getLogger(__name__)
 
-import dataclasses
-import abc
 from onnxscript import ir
-from typing import List, Tuple, Union, Optional
 
 from onnxscript.rewriter import _ir_utils, function_rule
 import onnx.shape_inference
