@@ -4,23 +4,17 @@ from __future__ import annotations
 import onnxscript
 from onnxscript import ir
 from onnxscript.rewriter import _ir_utils, function_rule
-
 import logging
-
 logger = logging.getLogger(__name__)
 
-class LNRewriteRule(function_rule.FunctionRewriteRule): #original code
-    FUNCTION_KEYWORD = "norm" # all i had to do was change this to a norm, since it is a keyword
+class LNRewriteRule(function_rule.FunctionRewriteRule):
+    FUNCTION_KEYWORD = "norm"
     PACKAGE_NAME = "transformers"
     _version_controller = function_rule.VersionController()
 
     @_version_controller.register_version(min_version="4.40", max_version="4.50")
-
     def _fusion(self, function: ir.Function) -> ir.Function:
-
-
        # depending on graph, you may have to find node by name or type instead of function
-
         aten_add_node = self._find_function_by_name(function, "aten_add")
         if aten_add_node is None:
 

@@ -87,15 +87,10 @@ class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
         if len(function.outputs) == 3 or len(function.outputs) == 4:
             if len(function.outputs) == 3:
                 # Usually the Attention related modules have 3 outputs:
-                # present_value, present_key, attn_output
                 present_value, _, attn_output = function.outputs
             else:
                 # Some Attention related modules have 4 outputs:
-                # _, present_value, _, attn_output = function.outputs
                 _, present_value, _, attn_output = function.outputs
-
-
-
 
             if present_value.shape is None:
                 raise function_rule.FunctionRewriteError(
@@ -112,10 +107,7 @@ class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
             head_size = present_value.shape[3]
             num_key_value_heads = present_value.shape[1]
             hidden_size = attn_output.shape[2]
-
             num_attention_heads = hidden_size // head_size
-
-
 
             return AttnSizeConfig(
                 num_attention_heads=num_attention_heads,
@@ -164,11 +156,6 @@ class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
             f"Attenion modules should have 3 outputs or scaled_dot_product_attention node, "
             f"got output: {len(function.outputs)} and no scaled_dot_product_attention."
         )
-
-
-
-
-
 
 
 
@@ -749,588 +736,9 @@ class MHAStableDiffusionUnetRewriteRule(AttentionRewriteRule):
         return ir.serde.deserialize_function(function_proto)
 
 
-
-
-import logging
-
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
-
-# class GQALlama3RewriteRule(AttentionRewriteRule): # make a diff and find out why this doesnt optimize enough, this one has kunals changes
-
-#     FUNCTION_KEYWORD = "LlamaAttention"
-#     PACKAGE_NAME = "transformers"
-#     _version_controller = function_rule.VersionController()
-
-#     def __init__(self) -> None:
-#         super().__init__()
-
-#     @_version_controller.register_version(min_version="4.39", max_version="4.42")
-#     def _fusion_with_4d_cache(self, function: ir.Function) -> ir.Function:
-#         print("Applying fusion with 4D cache for function:", function.name)
-#         if len(function.inputs) != 13:
-#             raise function_rule.FunctionRewriteError(
-#                 f"Unexpected number of inputs. Expected 13, got {len(function.inputs)}."
-#             )
-
-#         attn_size_config = self.infer_attn_size_config(function)
-
-#         op = onnxscript.opset18
-#         msft_op = onnxscript.values.Opset("com.microsoft", 1)
-
-#         cos_sin_gather_size = [attn_size_config.head_size // 2]
-#         expand_shape = [1, attn_size_config.num_attention_heads, 1, 1] #--
-
-#         def gqa(
-#             hidden_states,
-#             position_id,
-#             attention_mask,
-#             q_proj_weight,
-#             k_proj_weight,
-#             v_proj_weight,
-#             cos_cached,
-#             sin_cached,
-#             o_proj_weight,
-#             # input_0,
-#             # input_1,
-#             # hidden_states,
-#             # input_3,
-#             # position_id,
-#             # past_key,
-#             # past_value,
-#             # input_7,
-#             # q_proj_weight,
-#             # k_proj_weight,
-#             # v_proj_weight,
-#             # inv_freq,
-#             # o_proj_weight,
-
-#         ): #combine into 1, for the qkv weights
-
-
-#             q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
-#             k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
-#             v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
-
-#             cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-#             sin = op.Slice(op.Squeeze(sin_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-
-#             path = op.Shape(attention_mask)
-#             path2 = op.Gather(path, 1, axis = 0)
-#             total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32) # <-
-
-
-#             temp = op.ReduceSum(attention_mask, [1])
-#             temp2 = op.Sub(temp, [1])
-#             seqlens_k = op.Cast(temp2, to=onnx.TensorProto.INT32) # <--
-
-#             gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
-#                 q,
-#                 k,
-#                 v,
-#                 None,
-#                 None,
-#                 seqlens_k,
-#                 total_seq_lengths,
-#                 cos,
-#                 sin,
-#                 kv_num_heads=attn_size_config.num_key_value_heads,
-#                 num_heads=attn_size_config.num_attention_heads,
-#                 do_rotary = True,
-#                 rotary_interleaved = False,
-
-#             )
-#             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-
-
-#             return present_value, present_key, attn_output
-
-#         return onnxscript.script(default_opset=onnxscript.opset18)(
-#             gqa
-#         ).to_function_proto(), (onnx.helper.make_operatorsetid("com.microsoft", 1),)
-
-#     @_version_controller.register_version(min_version="4.39", max_version="4.42")
-#     def _fusion_with_2d_cache(self, function: ir.Function) -> ir.Function:
-#         print("Applying fusion with 2D cache for function:", function.name)
-#         attn_size_config = self.infer_attn_size_config(function)
-
-#         if len(function.inputs) != 13:
-#             raise function_rule.FunctionRewriteError(
-#                 f"Unexpected number of inputs. Expected 13, got {len(function.inputs)}."
-#             )
-
-#         op = onnxscript.opset18
-#         msft_op = onnxscript.values.Opset("com.microsoft", 1)
-
-#         cos_sin_gather_size = [attn_size_config.head_size // 2]
-#         expand_shape = [1, attn_size_config.num_attention_heads, 1, 1]
-
-#         def gqa(
-#             hidden_states,
-#             position_id,
-#             attention_mask,
-#             q_proj_weight,
-#             k_proj_weight,
-#             v_proj_weight,
-#             cos_cached,
-#             sin_cached,
-#             o_proj_weight,
-#         ):
-
-
-#             q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
-#             k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
-#             v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
-
-
-#             cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-#             sin = op.Slice(op.Squeeze(sin_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-
-#             # from attention mask downwards, reversed, path and temp denote both left and right nodes
-
-#             path = op.Shape(attention_mask)
-#             path2 = op.Gather(path, 1, axis = 0)
-#             total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32) # <-
-
-
-#             temp = op.ReduceSum(attention_mask, [1])
-#             temp2 = op.Sub(temp, [1])
-#             seqlens_k = op.Cast(temp2, to=onnx.TensorProto.INT32) # <--
-
-#             gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
-#                 q,
-#                 k,
-#                 v,
-#                 None,
-#                 None,
-#                 seqlens_k,
-#                 total_seq_lengths,
-#                 cos,
-#                 sin,
-#                 kv_num_heads=attn_size_config.num_key_value_heads,
-#                 num_heads=attn_size_config.num_attention_heads,
-#                 do_rotary = True,
-#                 rotary_interleaved = False,
-
-#             )
-#             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-
-#             return present_value, present_key, attn_output
-
-#         return onnxscript.script(default_opset=onnxscript.opset18)(
-#             gqa
-#         ).to_function_proto(), (onnx.helper.make_operatorsetid("com.microsoft", 1),)
-
-
-# class TorchLinearRewriteRule(function_rule.FunctionRewriteRule):# best one
-#     FUNCTION_KEYWORD = "layers"
-#     PACKAGE_NAME = "torch"
-#     _version_controller = function_rule.VersionController()
-#     def __init__(self, opset: onnxscript.values.Opset = onnxscript.opset18) -> None:
-#         super().__init__(opset)
-
-#     @_version_controller.register_version(min_version="2.3.1", max_version="2.4.0")
-#     def rewrite_linear_function(self, function: ir.Function) -> ir.Function:
-#         print("Rewriting torch linear function:", function.name) #This method rewrites the torch.nn.Linear function. It's registered for versions between 2.3.1 and 2.4.0 of the torch package
-
-#         # Print inputs
-#         print("Inputs:")
-#         for input in function.inputs:
-#             print(f"  - {input.name}: {input.shape}")
-
-#         # Print outputs
-#         print("Outputs:")
-#         for output in function.outputs:
-#             print(f"  - {output.name}: {output.shape}")
-
-#         # Print module and package details
-#         print(f"Module: {self.PACKAGE_NAME}")
-#         print(f"Function Keyword: {self.FUNCTION_KEYWORD}")
-
-#         if len(function.inputs) != 6:
-#             raise function_rule.FunctionRewriteError(
-#                 f"Unexpected number of inputs. Expected 6, got {len(function.inputs)}."
-#             )
-
-#         op = onnxscript.opset18
-
-#         def linear(input_tensor, weight, bias=None):
-#             output = op.MatMul(input_tensor, op.Transpose(weight, [1, 0]))
-#             return output
-#         #Defines a simplified linear function using ONNX operators. It handles the case without a bias term.
-
-#         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(linear).to_function_proto()
-#         print("Returning new function proto for torch linear without bias")
-#         return ir.serde.deserialize_function(function_proto) #function to an ONNX function prototype and deserializes
-
-
-
-
-
-
-
-
-
-# # # # Make a class for GQALlama3RewriteRule and let it inherit from the parent class, copy the same code for GQALlama2RewriteRule and mofify it to perform some function matching and rewriting
-# class GQALlama3RewriteRule(AttentionRewriteRule):
-#     FUNCTION_KEYWORD = "LlamaAttention"
-#     PACKAGE_NAME = "transformers"
-#     _version_controller = function_rule.VersionController()
-
-#     @_version_controller.register_version(min_version="4.39", max_version="4.42")
-#     def _fusion_with_4d_cache(self, function: ir.Function) -> ir.Function:
-#         print("Applying fusion with 4D cache for function:", function.name)
-#         if len(function.inputs) not in {12, 13}:
-#             raise function_rule.FunctionRewriteError(
-#                 f"Unexpected number of inputs. Expected 13, got {len(function.inputs)}."
-#             )
-
-#         attn_size_config = self.infer_attn_size_config(function)
-
-#         op = onnxscript.opset18
-#         msft_op = onnxscript.values.Opset("com.microsoft", 1)
-
-#         cos_sin_gather_size = [attn_size_config.head_size // 2]
-#         expand_shape = [1, attn_size_config.num_attention_heads, 1, 1]
-
-#         def gqa(
-#             sym_size_int_2,
-#             sym_size_int,
-#             hidden_states,       # %"mul_192"<FLOAT,[s0,s1,4096]>
-#             position_id,         #%"l_position_ids_"<INT64,[s0,s1]>
-#             key_states_10,
-#             value_states_10,
-#             attention_mask,      # %"slice_scatter_2"<FLOAT,[s0,1,s1,s1]>
-#             q_proj_weight,       # %"model.layers.10.self_attn.q_proj.weight"<FLOAT,[4096,4096]>
-#             k_proj_weight,       # %"model.layers.10.self_attn.k_proj.weight"<FLOAT,[4096,4096]>
-#             v_proj_weight,       # %"model.layers.10.self_attn.v_proj.weight"<FLOAT,[4096,4096]>
-#             cos_cached,          # %"cos_cached"<FLOAT,[64]>
-#             sin_cached,          # %"sin_cached"<FLOAT,[64]>
-#             o_proj_weight        # %"model.layers.10.self_attn.o_proj.weight"<FLOAT,[4096,4096]>
-#         ):
-#             print("gqa function called with inputs:", len(locals()))
-#             print("Inputs:", locals())
-#             q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
-#             k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
-#             v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
-
-#             cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-#             sin = op.Slice(op.Squeeze(sin_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-
-#             q_rope = msft_op.RotaryEmbedding(q, position_id, cos, sin, interleaved=False)
-#             k_rope = msft_op.RotaryEmbedding(k, position_id, cos, sin, interleaved=False)
-
-#             expanded_mask = op.Expand(attention_mask, expand_shape)
-
-#             gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
-#                 q_rope,
-#                 k_rope,
-#                 v,
-#                 None,
-#                 None,
-#                 expanded_mask,
-#                 num_heads=attn_size_config.num_attention_heads,
-#             )
-#             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-#             return present_value, present_key, attn_output
-
-#         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
-#         print("Returning new function proto for 4D cache")
-#         return ir.serde.deserialize_function(function_proto)
-
-#     @_version_controller.register_version(min_version="4.39", max_version="4.42")
-#     def _fusion_with_2d_cache(self, function: ir.Function) -> ir.Function:
-#         print("Applying fusion with 2D cache for function:", function.name)
-#         attn_size_config = self.infer_attn_size_config(function)
-
-#         if len(function.inputs) not in {12, 13}:
-#             raise function_rule.FunctionRewriteError(
-#                 f"Unexpected number of inputs. Expected 13, got {len(function.inputs)}."
-#             )
-
-#         op = onnxscript.opset18
-#         msft_op = onnxscript.values.Opset("com.microsoft", 1)
-
-#         cos_sin_gather_size = [attn_size_config.head_size // 2]
-#         expand_shape = [1, attn_size_config.num_attention_heads, 1, 1]
-
-#         def gqa(
-#             sym_size_int_2,
-#             sym_size_int,
-#             hidden_states,       # %"mul_192"<FLOAT,[s0,s1,4096]>
-#             position_id,         #%"l_position_ids_"<INT64,[s0,s1]>
-#             key_states_10,
-#             value_states_10,
-#             attention_mask,      # %"slice_scatter_2"<FLOAT,[s0,1,s1,s1]>
-#             q_proj_weight,       # %"model.layers.10.self_attn.q_proj.weight"<FLOAT,[4096,4096]>
-#             k_proj_weight,       # %"model.layers.10.self_attn.k_proj.weight"<FLOAT,[4096,4096]>
-#             v_proj_weight,       # %"model.layers.10.self_attn.v_proj.weight"<FLOAT,[4096,4096]>
-#             cos_cached,          # %"cos_cached"<FLOAT,[64]>
-#             sin_cached,          # %"sin_cached"<FLOAT,[64]>
-#             o_proj_weight        # %"model.layers.10.self_attn.o_proj.weight"<FLOAT,[4096,4096]>
-#         ):
-#             print("gqa function called with inputs:", len(locals()))
-#             print("Inputs:", locals())
-#             q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
-#             k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
-#             v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
-
-#             cos = op.Slice(cos_cached, [0], cos_sin_gather_size, [1])
-#             sin = op.Slice(sin_cached, [0], cos_sin_gather_size, [1])
-
-#             q_rope = msft_op.RotaryEmbedding(q, position_id, cos, sin, interleaved=False)
-#             k_rope = msft_op.RotaryEmbedding(k, position_id, cos, sin, interleaved=False)
-
-#             expanded_mask = op.Expand(attention_mask, expand_shape)
-
-#             gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
-#                 q_rope,
-#                 k_rope,
-#                 v,
-#                 None,
-#                 None,
-#                 expanded_mask,
-#                 num_heads=attn_size_config.num_attention_heads,
-#             )
-#             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-#             return present_value, present_key, attn_output
-
-#         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
-#         print("Returning new function proto for 2D cache")
-#         return ir.serde.deserialize_function(function_proto)
-
-
-
-
-
-
-
-# class TorchLinearRewriteRule(AttentionRewriteRule): # perfect code for rewriting torch linear function
-#     FUNCTION_KEYWORD = "torch_nn_modules_linear_Linear"
-#     PACKAGE_NAME = "torch"
-#     _version_controller = function_rule.VersionController()
-
-#     @_version_controller.register_version(min_version="2.3.1", max_version="2.4.0")
-#     def rewrite_linear_function(self, function: ir.Function) -> ir.Function:
-#         print("Rewriting torch linear function:", function.name)
-
-#         # Print inputs
-#         print("Inputs:")
-#         for input in function.inputs:
-#             print(f"  - {input.name}: {input.shape}")
-
-#         # Print outputs
-#         print("Outputs:")
-#         for output in function.outputs:
-#             print(f"  - {output.name}: {output.shape}")
-
-#         # Print module and package details
-#         print(f"Module: {self.PACKAGE_NAME}")
-#         print(f"Function Keyword: {self.FUNCTION_KEYWORD}")
-
-#         if len(function.inputs) != 4:
-#             raise function_rule.FunctionRewriteError(
-#                 f"Unexpected number of inputs. Expected 4, got {len(function.inputs)}."
-#             )
-
-#         op = onnxscript.opset18
-
-#         def linear(input_tensor, weight, bias=None):
-#             output = op.MatMul(input_tensor, op.Transpose(weight, [1, 0]))
-#             return output
-
-#         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(linear).to_function_proto()
-#         print("Returning new function proto for torch linear without bias")
-#         return ir.serde.deserialize_function(function_proto)
-
-
-# class LlamaAttentionRewriteRule(AttentionRewriteRule):
-#     FUNCTION_KEYWORD = "LlamaAttention"
-#     PACKAGE_NAME = "transformers" # needs to be changed i think to the package name of the function
-#     _version_controller = function_rule.VersionController()
-
-#     def __init__(self, opset: onnxscript.values.Opset = onnxscript.opset18) -> None:
-#         super().__init__(opset)
-
-#     @_version_controller.register_version(min_version="4.41", max_version="4.42")
-#     def rewrite_attention_function(self, function: ir.Function) -> ir.Function:
-#         print("Rewriting LlamaAttention function:", function.name)
-
-#         # Find the projection weight nodes by the function rule
-#         q_proj_weight_node = self._find_node_by_type(function, "ai.onnx", "MatMul", input_name="model.layers.10.self_attn.q_proj.weight")
-#         k_proj_weight_node = self._find_node_by_type(function, "ai.onnx", "MatMul", input_name="model.layers.10.self_attn.k_proj.weight")
-#         v_proj_weight_node = self._find_node_by_type(function, "ai.onnx", "MatMul", input_name="model.layers.10.self_attn.v_proj.weight")
-#         o_proj_weight_node = self._find_node_by_type(function, "ai.onnx", "MatMul", input_name="model.layers.10.self_attn.o_proj.weight")
-
-#         if not all([q_proj_weight_node, k_proj_weight_node, v_proj_weight_node, o_proj_weight_node]):
-#             raise function_rule.FunctionRewriteError("Could not find all the matmul required projection weights i need (q, k, v, o)")
-
-#         def apply_torch_linear_rewrite(node):
-#             torch_linear_rewriter = TorchLinearRewriteRule()
-#             return torch_linear_rewriter.rewrite_linear_function(node)
-
-#         # fusions
-#         q_proj_fused = apply_torch_linear_rewrite(q_proj_weight_node)
-#         k_proj_fused = apply_torch_linear_rewrite(k_proj_weight_node)
-#         v_proj_fused = apply_torch_linear_rewrite(v_proj_weight_node)
-#         o_proj_fused = apply_torch_linear_rewrite(o_proj_weight_node)
-
-#         # trying to replace the original nodes with the fused nodes in the function
-#         new_nodes = []
-#         for node in function:
-#             if node.name in {q_proj_weight_node.name, k_proj_weight_node.name, v_proj_weight_node.name, o_proj_weight_node.name}:
-#                 continue
-#             new_nodes.append(node)
-#         new_nodes.extend([q_proj_fused, k_proj_fused, v_proj_fused, o_proj_fused])
-
-#         function.node = new_nodes
-
-
-
-
-#this
-
-# class GQALlama3RewriteRule(AttentionRewriteRule):
-#     FUNCTION_KEYWORD = "LlamaAttention"
-#     PACKAGE_NAME = "transformers"
-#     _version_controller = function_rule.VersionController()
-
-#     def __init__(self, opset: onnxscript.values.Opset = onnxscript.opset18) -> None:
-#         super().__init__(opset)
-
-#     @_version_controller.register_version(min_version="4.39", max_version="4.42")
-#     def _fusion_with_4d_cache(self, function: ir.Function) -> ir.Function:
-#         print("Applying fusion with 4D cache for function:", function.name)
-#         if len(function.inputs) != 15:
-#             raise function_rule.FunctionRewriteError(
-#                 f"Unexpected number of inputs. Expected 15, got {len(function.inputs)}."
-#             )
-
-#         attn_size_config = self.infer_attn_size_config(function)
-
-#         op = onnxscript.opset18
-#         msft_op = onnxscript.values.Opset("com.microsoft", 1)
-
-#         cos_sin_gather_size = [attn_size_config.head_size // 2]
-#         expand_shape = [1, attn_size_config.num_attention_heads, 1, 1]
-
-#         def gqa(
-#             hidden_states,
-#             attention_mask,
-#             sym_size_int_2,
-#             sym_size_int,
-#             model_layers_10_input_layernorm_1,
-#             sym_size_int_3,
-#             l_position_ids_,
-#             key_states_10,
-#             value_states_10,
-#             slice_scatter_2,
-#             q_proj_weight,
-#             k_proj_weight,
-#             v_proj_weight,
-#             rotary_emb_inv_freq,
-#             o_proj_weight,
-
-#         ):
-#             q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
-#             k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
-#             v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
-
-#             cos = op.Slice(op.Squeeze(rotary_emb_inv_freq, [0, 1]), [0], cos_sin_gather_size, [1])
-#             sin = op.Slice(op.Squeeze(rotary_emb_inv_freq, [0, 1]), [0], cos_sin_gather_size, [1])
-
-#             q_rope = msft_op.RotaryEmbedding(q, l_position_ids_, cos, sin, interleaved=False)
-#             k_rope = msft_op.RotaryEmbedding(k, l_position_ids_, cos, sin, interleaved=False)
-
-
-#             expanded_mask = op.Expand(attention_mask, expand_shape)
-
-#             gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
-#                 q_rope,
-#                 k_rope,
-#                 v,
-#                 key_states_10,
-#                 value_states_10,
-#                 expanded_mask,
-#                 num_heads=attn_size_config.num_attention_heads,
-#             )
-#             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-#             return present_value, present_key, attn_output
-
-#         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
-#         print("Returning new function proto for 4D cache")
-#         return ir.serde.deserialize_function(function_proto)
-
-#     @_version_controller.register_version(min_version="4.39", max_version="4.42")
-#     def _fusion_with_2d_cache(self, function: ir.Function) -> ir.Function:
-#         print("Applying fusion with 2D cache for function:", function.name)
-#         attn_size_config = self.infer_attn_size_config(function)
-
-#         if len(function.inputs) != 15:
-#             raise function_rule.FunctionRewriteError(
-#                 f"Unexpected number of inputs. Expected 15, got {len(function.inputs)}."
-#             )
-
-#         op = onnxscript.opset18
-#         msft_op = onnxscript.values.Opset("com.microsoft", 1)
-
-#         cos_sin_gather_size = [attn_size_config.head_size // 2]
-#         expand_shape = [1, attn_size_config.num_attention_heads, 1, 1]
-
-#         def gqa(
-
-#             sym_size_int_2,
-#             sym_size_int,
-#             model_layers_10_input_layernorm_1,
-#             sym_size_int_3,
-#             l_position_ids_,
-#             key_states_10,
-#             value_states_10,
-#             slice_scatter_2,
-#             attention_mask,
-#             hidden_states,
-#             q_proj_weight,
-#             k_proj_weight,
-#             v_proj_weight,
-#             rotary_emb_inv_freq,
-#             o_proj_weight,
-
-#         ):
-#             q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
-#             k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
-#             v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
-
-#             cos = op.Slice(rotary_emb_inv_freq, [0], cos_sin_gather_size, [1])
-#             sin = op.Slice(rotary_emb_inv_freq, [0], cos_sin_gather_size, [1])
-
-#             q_rope = msft_op.RotaryEmbedding(q, l_position_ids_, cos, sin, interleaved=False)
-#             k_rope = msft_op.RotaryEmbedding(k, l_position_ids_, cos, sin, interleaved=False)
-
-#             expanded_mask = op.Expand(attention_mask, expand_shape)
-
-#             gqa_output, present_key, present_value = msft_op.MultiHeadAttention(
-#                 q_rope,
-#                 k_rope,
-#                 v,
-#                 key_states_10,
-#                 value_states_10,
-#                 expanded_mask,
-#                 num_heads=attn_size_config.num_attention_heads,
-#             )
-#             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-#             return present_value, present_key, attn_output
-
-#         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
-#         print("Returning new function proto for 2D cache")
-#         return ir.serde.deserialize_function(function_proto)
-
-
-
-
 """
-Actual implementations of llama3b rules (MLP and LLamaAttention Layers), only difference between llama2 and llama3 is the function inputs
+Implementations of llama3b rules (MLP and LLamaAttention), only difference between llama2 and llama3 is the model inputs
 These are for the newer transformer versions 4.39 to 4.42
-
 """
 class MLP3RewriteRule(AttentionRewriteRule): # same logic as attention layer
     FUNCTION_KEYWORD = "LlamaMLP"
@@ -1345,20 +753,17 @@ class MLP3RewriteRule(AttentionRewriteRule): # same logic as attention layer
         print("Optimizing MLP layer for function:", function.name)
         if len(function.inputs) != 5 and len(function.inputs) != 6:
             raise function_rule.FunctionRewriteError(
-                f"Unexpected number of inputs. Expected 6, got {len(function.inputs)}."
+                f"Unexpected number of inputs. Expected 5 or 6, got {len(function.inputs)}."
             )
-
         op = onnxscript.opset18
 
         def optimized_mlp(
-            # sym_size_int_2, # %"sym_size_int_2"<INT64,[]>
             sym_size_int,
-            input_tensor,  # %"sym_size_int"<INT64,[]>
-            gate_proj_weight,  # %"model.layers.10.mlp.gate_proj.weight"<FLOAT,[11008,4096]>
-            up_proj_weight,  # %"model.layers.10.mlp.up_proj.weight"<FLOAT,[11008,4096]>
-            down_proj_weight, # %"model.layers.10.mlp.down_proj.weight"<FLOAT,[4096,11008]>
+            input_tensor,
+            gate_proj_weight,
+            up_proj_weight,
+            down_proj_weight,
         ):
-
 
             gate_proj_weight_t = op.Transpose(gate_proj_weight, perm=[1, 0])
             up_proj_weight_t = op.Transpose(up_proj_weight, perm=[1, 0])
@@ -1368,14 +773,10 @@ class MLP3RewriteRule(AttentionRewriteRule): # same logic as attention layer
             up_proj_output = op.MatMul(input_tensor, up_proj_weight_t)
 
             act_fn_output = op.Sigmoid(gate_proj_output)
-
             gate_times_act_output = op.Mul(gate_proj_output, act_fn_output)
 
             mul_output = op.Mul(gate_times_act_output, up_proj_output)
-
-
             down_proj_output = op.MatMul(mul_output, down_proj_weight_t)
-
 
             return down_proj_output # must return just one which is down proj
 
@@ -1515,14 +916,11 @@ class GQALlama3RewriteRule(AttentionRewriteRule):
         return ir.serde.deserialize_function(function_proto)
 
 
-
 # first atttention
-
 class GQALlama3RewriteRuleFirstAttention(AttentionRewriteRule): # same logic as attention layer
     FUNCTION_KEYWORD = "LlamaAttention"
     PACKAGE_NAME = "transformers"
     _version_controller = function_rule.VersionController()
-
 
     @_version_controller.register_version(min_version="4.39", max_version="4.42")
     def _fusion_with_2d_cache_11_inp(self, function: ir.Function) -> ir.Function:
@@ -1537,44 +935,28 @@ class GQALlama3RewriteRuleFirstAttention(AttentionRewriteRule): # same logic as 
         op = onnxscript.opset18
         msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
-        # cos_sin_gather_size = [attn_size_config.head_size // 2]
-
-
         def gqa(
-
             sym_size_int,
-            hidden_states,       # %"mul_192"<FLOAT,[s0,s1,4096]>
-            position_id,         #%"l_position_ids_"<INT64,[s0,s1]>
+            hidden_states,
+            position_id,
             key_states,
             value_states,
-            attention_mask,      # %"slice_scatter_2"<FLOAT,[s0,1,s1,s1]>
-            q_proj_weight,       # %"model.layers.10.self_attn.q_proj.weight"<FLOAT,[4096,4096]>
-            k_proj_weight,       # %"model.layers.10.self_attn.k_proj.weight"<FLOAT,[4096,4096]>
-            v_proj_weight,       # %"model.layers.10.self_attn.v_proj.weight"<FLOAT,[4096,4096]>
-            inv_freq,          # %"cos_cached"<FLOAT,[64]>
-                   # %"sin_cached"<FLOAT,[64]>
-            o_proj_weight,       # %"model.layers.10.self_attn.o_proj.weight"<FLOAT,[4096,4096]>
-
+            attention_mask,
+            q_proj_weight,
+            k_proj_weight,
+            v_proj_weight,
+            inv_freq,
+            o_proj_weight,
         ):
-
-
             q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
             k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
             v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
-
-
-
-
-
-            # cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-            # sin = op.Slice(op.Squeeze(sin_cached, [0, 1]), [0], cos_sin_gather_size, [1])
 
             # from attention mask downwards, reversed, path and temp denote both left and right nodes
 
             path = op.Shape(attention_mask)
             path2 = op.Gather(path, 1, axis = 0)
             total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32) # <-
-
 
             temp = op.ReduceSum(attention_mask, [1])
             temp2 = op.Sub(temp, [1])
@@ -1597,18 +979,15 @@ class GQALlama3RewriteRuleFirstAttention(AttentionRewriteRule): # same logic as 
 
             )
             attn_output = op.MatMul(gqa_output, o_proj_weight)
-
-            return _, present_key, present_value, attn_output # for 11 inputs, we return 4 outputs but find t he correct output
+            return _, present_key, present_value, attn_output # for 11 inputs, we return 4 outputs but find the correct output
 
         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
         print("Returning new function proto for 2D cache")
         return ir.serde.deserialize_function(function_proto)
 
 
-
-
 """
-Actual implementations of llama2 rules (MLP and LLamaAttention Layers), only difference between llama2 and llama3 is the function inputs
+Implementations of llama2 rules (MLP and LLamaAttention Layers), only difference between llama2 and llama3 is the model inputs
 These are for the newer transformer versions 4.39 to 4.42
 
 """
@@ -1632,32 +1011,27 @@ class MLPRewriteRule(AttentionRewriteRule): # same logic as attention layer
         op = onnxscript.opset18
 
         def optimized_mlp(
-            sym_size_int_2, # %"sym_size_int_2"<INT64,[]>
+            sym_size_int_2,
             sym_size_int,
-            input_tensor,  # %"sym_size_int"<INT64,[]>
-            gate_proj_weight,  # %"model.layers.10.mlp.gate_proj.weight"<FLOAT,[11008,4096]>
-            up_proj_weight,  # %"model.layers.10.mlp.up_proj.weight"<FLOAT,[11008,4096]>
-            down_proj_weight, # %"model.layers.10.mlp.down_proj.weight"<FLOAT,[4096,11008]>
+            input_tensor,
+            gate_proj_weight,
+            up_proj_weight,
+            down_proj_weight,
         ):
-
 
             gate_proj_weight_t = op.Transpose(gate_proj_weight, perm=[1, 0])
             up_proj_weight_t = op.Transpose(up_proj_weight, perm=[1, 0])
+
             down_proj_weight_t = op.Transpose(down_proj_weight, perm=[1, 0])
-
             gate_proj_output = op.MatMul(input_tensor, gate_proj_weight_t)
-            up_proj_output = op.MatMul(input_tensor, up_proj_weight_t)
 
+            up_proj_output = op.MatMul(input_tensor, up_proj_weight_t)
             act_fn_output = op.Sigmoid(gate_proj_output)
 
             gate_times_act_output = op.Mul(gate_proj_output, act_fn_output)
-
             mul_output = op.Mul(gate_times_act_output, up_proj_output)
 
-
             down_proj_output = op.MatMul(mul_output, down_proj_weight_t)
-
-
             return down_proj_output # must return just one which is down proj
 
         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(optimized_mlp).to_function_proto()
@@ -1665,646 +1039,206 @@ class MLPRewriteRule(AttentionRewriteRule): # same logic as attention layer
         return ir.serde.deserialize_function(function_proto)
 
 
-
-# class GQALlamaRewriteRule(AttentionRewriteRule):
-
-#     FUNCTION_KEYWORD = "LlamaAttention"
-#     PACKAGE_NAME = "transformers"
-#     _version_controller = function_rule.VersionController()
-
-
-#     @_version_controller.register_version(min_version="4.39", max_version="4.42")
-#     def _fusion_with_4d_cache(self, function: ir.Function) -> ir.Function:
-#         print("Applying fusion with 4D cache for function:", function.name)
-#         if len(function.inputs) not in {12, 13}:
-#             raise function_rule.FunctionRewriteError(
-#                 f"Unexpected number of inputs. Expected 13, got {len(function.inputs)}."
-#             )
-
-#         attn_size_config = self.infer_attn_size_config(function)
-
-#         op = onnxscript.opset18
-#         msft_op = onnxscript.values.Opset("com.microsoft", 1)
-
-#         cos_sin_gather_size = [attn_size_config.head_size // 2]
-
-
-#         def gqa( # for llama3b, it has just 12 inputs, make sure its 12 else it will raise a Bind Assertion error, I will write a rule for llama2 and 3 differently but this is for llama3b now
-#             sym_size_int_2,
-#             sym_size_int,
-#             hidden_states,       # %"mul_192"<FLOAT,[s0,s1,4096]>
-#             position_ids,         #%"l_position_ids_"<INT64,[s0,s1]>
-#             key_states_10,
-#             value_states_10,
-#             attention_mask,      # %"slice_scatter_2"<FLOAT,[s0,1,s1,s1]>
-#             q_proj_weight,       # %"model.layers.10.self_attn.q_proj.weight"<FLOAT,[4096,4096]>
-#             k_proj_weight,       # %"model.layers.10.self_attn.k_proj.weight"<FLOAT,[4096,4096]>
-#             v_proj_weight,       # %"model.layers.10.self_attn.v_proj.weight"<FLOAT,[4096,4096]>
-#             cos_cached,          # %"cos_cached"<FLOAT,[64]>
-#             sin_cached,          # %"sin_cached"<FLOAT,[64]>
-#             o_proj_weight,       # %"model.layers.10.self_attn.o_proj.weight"<FLOAT,[4096,4096]>
-
-#         ):
-
-
-#             q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
-#             k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
-#             v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
-
-#             cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-#             sin = op.Slice(op.Squeeze(sin_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-
-#             path = op.Shape(attention_mask)
-#             path2 = op.Gather(path, 1, axis = 0)
-#             total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32) # <-
-
-
-#             temp = op.ReduceSum(attention_mask, [1])
-#             temp2 = op.Sub(temp, [1])
-#             seqlens_k = op.Cast(temp2, to=onnx.TensorProto.INT32) # <--
-
-#             gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
-#                 q,
-#                 k,
-#                 v,
-#                 key_states_10,
-#                 value_states_10,
-#                 seqlens_k,
-#                 total_seq_lengths,
-#                 cos,
-#                 sin,
-#                 kv_num_heads=attn_size_config.num_key_value_heads,
-#                 num_heads=attn_size_config.num_attention_heads,
-#                 do_rotary = True,
-#                 rotary_interleaved = False,
-
-#             )
-#             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-
-
-#             return present_value, present_key, attn_output
-
-#         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
-#         print("Returning new function proto for 2D cache")
-#         return ir.serde.deserialize_function(function_proto)
-
-#     @_version_controller.register_version(min_version="4.39", max_version="4.42")
-#     def _fusion_with_2d_cache(self, function: ir.Function) -> ir.Function:
-#         print("Applying fusion with 2D cache for function:", function.name)
-#         attn_size_config = self.infer_attn_size_config(function)
-
-#         if len(function.inputs) not in {12, 13}:
-#             raise function_rule.FunctionRewriteError(
-#                 f"Unexpected number of inputs. Expected 13, got {len(function.inputs)}."
-#             )
-
-#         op = onnxscript.opset18
-#         msft_op = onnxscript.values.Opset("com.microsoft", 1)
-
-#         cos_sin_gather_size = [attn_size_config.head_size // 2]
-
-
-
-
-        # def gqa(
-        #     sym_size_int_2,
-        #     sym_size_int,
-        #     hidden_states,       # %"mul_192"<FLOAT,[s0,s1,4096]>
-        #     position_id,         #%"l_position_ids_"<INT64,[s0,s1]>
-        #     key_states_10,
-        #     value_states_10,
-        #     attention_mask,      # %"slice_scatter_2"<FLOAT,[s0,1,s1,s1]>
-        #     q_proj_weight,       # %"model.layers.10.self_attn.q_proj.weight"<FLOAT,[4096,4096]>
-        #     k_proj_weight,       # %"model.layers.10.self_attn.k_proj.weight"<FLOAT,[4096,4096]>
-        #     v_proj_weight,       # %"model.layers.10.self_attn.v_proj.weight"<FLOAT,[4096,4096]>
-        #     cos_cached,          # %"cos_cached"<FLOAT,[64]>
-        #     sin_cached,          # %"sin_cached"<FLOAT,[64]>
-        #     o_proj_weight,       # %"model.layers.10.self_attn.o_proj.weight"<FLOAT,[4096,4096]>
-
-        # ):
-
-
-        #     q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
-        #     k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
-        #     v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
-
-
-        #     cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-        #     sin = op.Slice(op.Squeeze(sin_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-
-#             # from attention mask downwards, reversed, path and temp denote both left and right nodes
-
-#             path = op.Shape(attention_mask)
-#             path2 = op.Gather(path, 1, axis = 0)
-#             total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32) # <-
-
-
-#             temp = op.ReduceSum(attention_mask, [1])
-#             temp2 = op.Sub(temp, [1])
-#             seqlens_k = op.Cast(temp2, to=onnx.TensorProto.INT32) # <--
-
-#             gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
-#                 q,
-#                 k,
-#                 v,
-#                 key_states_10,
-#                 value_states_10,
-#                 seqlens_k,
-#                 total_seq_lengths,
-#                 cos,
-#                 sin,
-#                 kv_num_heads=attn_size_config.num_key_value_heads,
-#                 num_heads=attn_size_config.num_attention_heads,
-#                 do_rotary = True,
-#                 rotary_interleaved = False,
-
-#             )
-#             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-
-#             return present_value, present_key, attn_output
-
-#         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
-#         print("Returning new function proto for 2D cache")
-#         return ir.serde.deserialize_function(function_proto)
-
-
-
-
-
-# import numpy as np
-
-# class GQALlamaRewriteRule(AttentionRewriteRule):
-
-#     FUNCTION_KEYWORD = "LlamaAttention"
-#     PACKAGE_NAME = "transformers"
-#     _version_controller = function_rule.VersionController()
-
-#     def _pack_weights(self, q_weight, k_weight, v_weight):
-#         packed_weight = np.concatenate((q_weight, k_weight, v_weight), axis=0)
-#         return packed_weight
-
-#     @_version_controller.register_version(min_version="4.39", max_version="4.42")
-#     def _fusion_with_4d_cache(self, function: ir.Function) -> ir.Function:
-#         print("Applying fusion with 4D cache for function:", function.name)
-#         if len(function.inputs) not in {12, 13}:
-#             raise function_rule.FunctionRewriteError(
-#                 f"Unexpected number of inputs. Expected 13, got {len(function.inputs)}."
-#             )
-
-#         attn_size_config = self.infer_attn_size_config(function)
-
-#         op = onnxscript.opset18
-#         msft_op = onnxscript.values.Opset("com.microsoft", 1)
-
-#         cos_sin_gather_size = [attn_size_config.head_size // 2]
-
-#         def gqa(
-#             sym_size_int_2,
-#             sym_size_int,
-#             hidden_states,       # %"mul_192"<FLOAT,[s0,s1,4096]>
-#             position_ids,         #%"l_position_ids_"<INT64,[s0,s1]>
-#             key_states_10,
-#             value_states_10,
-#             attention_mask,      # %"slice_scatter_2"<FLOAT,[s0,1,s1,s1]>
-#             q_proj_weight,       # %"model.layers.10.self_attn.q_proj.weight"<FLOAT,[4096,4096]>
-#             k_proj_weight,       # %"model.layers.10.self_attn.k_proj.weight"<FLOAT,[4096,4096]>
-#             v_proj_weight,       # %"model.layers.10.self_attn.v_proj.weight"<FLOAT,[4096,4096]>
-#             cos_cached,          # %"cos_cached"<FLOAT,[64]>
-#             sin_cached,          # %"sin_cached"<FLOAT,[64]>
-#             o_proj_weight,       # %"model.layers.10.self_attn.o_proj.weight"<FLOAT,[4096,4096]>
-#         ):
-#             # # Pack the Q, K, V weights
-#             # packed_weight = self._pack_weights(q_proj_weight, k_proj_weight, v_proj_weight)
-
-#             # # Perform a single MatMul with packed weights
-#             # qkv = op.MatMul(hidden_states, op.Transpose(packed_weight, [1, 0]))
-
-#             # # Split the results back into Q, K, and V
-#             # q, k, v = op.Split(qkv, split=[attn_size_config.hidden_size, attn_size_config.hidden_size, attn_size_config.hidden_size], axis=-1)
-
-#             cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-#             sin = op.Slice(op.Squeeze(sin_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-
-#             path = op.Shape(attention_mask)
-#             path2 = op.Gather(path, 1, axis = 0)
-#             total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32) # <-
-
-#             temp = op.ReduceSum(attention_mask, [1])
-#             temp2 = op.Sub(temp, [1])
-#             seqlens_k = op.Cast(temp2, to=onnx.TensorProto.INT32) # <--
-
-#             gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
-#                 q,
-#                 k,
-#                 v,
-#                 key_states_10,
-#                 value_states_10,
-#                 seqlens_k,
-#                 total_seq_lengths,
-#                 cos,
-#                 sin,
-#                 kv_num_heads=attn_size_config.num_key_value_heads,
-#                 num_heads=attn_size_config.num_attention_heads,
-#                 do_rotary=True,
-#                 rotary_interleaved=False,
-#             )
-#             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-
-#             return present_value, present_key, attn_output
-
-#         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
-#         print("Returning new function proto for 2D cache")
-#         return ir.serde.deserialize_function(function_proto)
-
-#     # Similarly, update the _fusion_with_2d_cache method in the same manner
-#     @_version_controller.register_version(min_version="4.39", max_version="4.42")
-#     def _fusion_with_2d_cache(self, function: ir.Function) -> ir.Function:
-#         print("Applying fusion with 2D cache for function:", function.name)
-#         attn_size_config = self.infer_attn_size_config(function)
-
-#         if len(function.inputs) not in {12, 13}:
-#             raise function_rule.FunctionRewriteError(
-#                 f"Unexpected number of inputs. Expected 13, got {len(function.inputs)}."
-#             )
-
-#         op = onnxscript.opset18
-#         msft_op = onnxscript.values.Opset("com.microsoft", 1)
-
-#         cos_sin_gather_size = [attn_size_config.head_size // 2]
-
-#         def gqa(
-#             sym_size_int_2,
-#             sym_size_int,
-#             hidden_states,       # %"mul_192"<FLOAT,[s0,s1,4096]>
-#             position_id,         #%"l_position_ids_"<INT64,[s0,s1]>
-#             key_states_10,
-#             value_states_10,
-#             attention_mask,      # %"slice_scatter_2"<FLOAT,[s0,1,s1,s1]>
-#             q_proj_weight,       # %"model.layers.10.self_attn.q_proj.weight"<FLOAT,[4096,4096]>
-#             k_proj_weight,       # %"model.layers.10.self_attn.k_proj.weight"<FLOAT,[4096,4096]>
-#             v_proj_weight,       # %"model.layers.10.self_attn.v_proj.weight"<FLOAT,[4096,4096]>
-#             cos_cached,          # %"cos_cached"<FLOAT,[64]>
-#             sin_cached,          # %"sin_cached"<FLOAT,[64]>
-#             o_proj_weight,       # %"model.layers.10.self_attn.o_proj.weight"<FLOAT,[4096,4096]>
-#         ):
-#             # Pack the Q, K, V weights
-#             packed_weight = self._pack_weights(q_proj_weight, k_proj_weight, v_proj_weight)
-
-#             # Perform a single MatMul with packed weights
-#             qkv = op.MatMul(hidden_states, op.Transpose(packed_weight, [1, 0]))
-
-#             # Split the results back into Q, K, and V
-#             q, k, v = op.Split(qkv, split=[attn_size_config.hidden_size, attn_size_config.hidden_size, attn_size_config.hidden_size], axis=-1)
-
-#             cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-#             sin = op.Slice(op.Squeeze(sin_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-
-#             path = op.Shape(attention_mask)
-#             path2 = op.Gather(path, 1, axis = 0)
-#             total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32) # <-
-
-#             temp = op.ReduceSum(attention_mask, [1])
-#             temp2 = op.Sub(temp, [1])
-#             seqlens_k = op.Cast(temp2, to=onnx.TensorProto.INT32) # <--
-
-#             gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
-#                 q,
-#                 k,
-#                 v,
-#                 key_states_10,
-#                 value_states_10,
-#                 seqlens_k,
-#                 total_seq_lengths,
-#                 cos,
-#                 sin,
-#                 kv_num_heads=attn_size_config.num_key_value_heads,
-#                 num_heads=attn_size_config.num_attention_heads,
-#                 do_rotary=True,
-#                 rotary_interleaved=False,
-#             )
-#             attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-
-#             return present_value, present_key, attn_output
-
-#         function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
-#         print("Returning new function proto for 2D cache")
-#         return ir.serde.deserialize_function(function_proto)
-
-
-
-
-
-# class GQALlamaRewriteRule(AttentionRewriteRule):
-
-#     FUNCTION_KEYWORD = "LlamaAttention"
-#     PACKAGE_NAME = "transformers"
-#     _version_controller = function_rule.VersionController()
-
-
-    # @_version_controller.register_version(min_version="4.39", max_version="4.42")
-    # def _fusion_with_4d_cache_13_inputs(self, function: ir.Function) -> ir.Function:
-    #     print("Applying fusion with 4D cache for 13 inputs function:", function.name)
-    #     if len(function.inputs) not in {13}:
-    #         raise function_rule.FunctionRewriteError(
-    #             f"Unexpected number of inputs. Expected 13, got {len(function.inputs)}."
-    #         )
-
-    #     attn_size_config = self.infer_attn_size_config(function)
-
-    #     op = onnxscript.opset18
-    #     msft_op = onnxscript.values.Opset("com.microsoft", 1)
-
-    #     cos_sin_gather_size = [attn_size_config.head_size // 2]
-
-
-    #     def gqa( # for llama3b, it has just 12 inputs, make sure its 12 else it will raise a Bind Assertion error, I will write a rule for llama2 and 3 differently but this is for llama3b now
-
-    #         sym_size_int_2,
-    #         sym_size_int,
-    #         hidden_states,       # %"mul_192"<FLOAT,[s0,s1,4096]>
-    #         position_ids,         #%"l_position_ids_"<INT64,[s0,s1]>
-    #         key_states_10,
-    #         value_states_10,
-    #         attention_mask,      # %"slice_scatter_2"<FLOAT,[s0,1,s1,s1]>
-    #         q_proj_weight,       # %"model.layers.10.self_attn.q_proj.weight"<FLOAT,[4096,4096]>
-    #         k_proj_weight,       # %"model.layers.10.self_attn.k_proj.weight"<FLOAT,[4096,4096]>
-    #         v_proj_weight,       # %"model.layers.10.self_attn.v_proj.weight"<FLOAT,[4096,4096]>
-    #         cos_cached,          # %"cos_cached"<FLOAT,[64]>
-    #         sin_cached,          # %"sin_cached"<FLOAT,[64]>
-    #         o_proj_weight,       # %"model.layers.10.self_attn.o_proj.weight"<FLOAT,[4096,4096]>
-
-    #     ):
-    #         print("hidden_states for 13 inputs is:", hidden_states)
-
-
-    #         q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
-    #         k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
-    #         v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
-
-    #         cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-    #         sin = op.Slice(op.Squeeze(sin_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-
-    #         path = op.Shape(attention_mask)
-    #         path2 = op.Gather(path, 1, axis = 0)
-    #         total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32) # <-
-
-    #         one = op.Constant(value_ints=[1])
-    #         temp = op.ReduceSum(attention_mask, one)
-    #         temp2 = op.Sub(temp, one)
-    #         seqlens_k = op.Cast(temp2, to=onnx.TensorProto.INT32) # <--
-
-    #         gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
-    #             q,
-    #             k,
-    #             v,
-    #             key_states_10,
-    #             value_states_10,
-    #             seqlens_k,
-    #             total_seq_lengths,
-    #             cos,
-    #             sin,
-    #             kv_num_heads=attn_size_config.num_key_value_heads,
-    #             num_heads=attn_size_config.num_attention_heads,
-    #             do_rotary = True,
-    #             rotary_interleaved = False,
-
-    #         )
-    #         attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-
-
-    #         return present_value, present_key, attn_output
-
-    #     function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
-    #     print("Returning new function proto for 4D cache 13 inputs")
-    #     return ir.serde.deserialize_function(function_proto)
-
-    # @_version_controller.register_version(min_version="4.39", max_version="4.42")
-    # def _fusion_with_2d_cache(self, function: ir.Function) -> ir.Function:
-    #     print("Applying fusion with 2D cache for 13 inputs function:", function.name)
-    #     attn_size_config = self.infer_attn_size_config(function)
-
-    #     if len(function.inputs) not in {12, 13}:
-    #         raise function_rule.FunctionRewriteError(
-    #             f"Unexpected number of inputs. Expected 13, got {len(function.inputs)}."
-    #         )
-
-    #     op = onnxscript.opset18
-    #     msft_op = onnxscript.values.Opset("com.microsoft", 1)
-
-    #     cos_sin_gather_size = [attn_size_config.head_size // 2]
-
-
-
-
-    #     def gqa(
-    #         sym_size_int_2,
-    #         sym_size_int,
-    #         hidden_states,       # %"mul_192"<FLOAT,[s0,s1,4096]>
-    #         position_id,         #%"l_position_ids_"<INT64,[s0,s1]>
-    #         key_states_10,
-    #         value_states_10,
-    #         attention_mask,      # %"slice_scatter_2"<FLOAT,[s0,1,s1,s1]>
-    #         q_proj_weight,       # %"model.layers.10.self_attn.q_proj.weight"<FLOAT,[4096,4096]>
-    #         k_proj_weight,       # %"model.layers.10.self_attn.k_proj.weight"<FLOAT,[4096,4096]>
-    #         v_proj_weight,       # %"model.layers.10.self_attn.v_proj.weight"<FLOAT,[4096,4096]>
-    #         cos_cached,          # %"cos_cached"<FLOAT,[64]>
-    #         sin_cached,          # %"sin_cached"<FLOAT,[64]>
-    #         o_proj_weight,       # %"model.layers.10.self_attn.o_proj.weight"<FLOAT,[4096,4096]>
-
-    #     ):
-
-
-    #         q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
-    #         k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
-    #         v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
-
-
-    #         cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-    #         sin = op.Slice(op.Squeeze(sin_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-
-    #         # from attention mask downwards, reversed, path and temp denote both left and right nodes
-
-    #         path = op.Shape(attention_mask)
-    #         path2 = op.Gather(path, 1, axis = 0)
-    #         total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32) # <-
-
-
-    #         temp = op.ReduceSum(attention_mask, [1])
-    #         temp2 = op.Sub(temp, [1])
-    #         seqlens_k = op.Cast(temp2, to=onnx.TensorProto.INT32) # <--
-
-    #         gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
-    #             q,
-    #             k,
-    #             v,
-    #             key_states_10,
-    #             value_states_10,
-    #             seqlens_k,
-    #             total_seq_lengths,
-    #             cos,
-    #             sin,
-    #             kv_num_heads=attn_size_config.num_key_value_heads,
-    #             num_heads=attn_size_config.num_attention_heads,
-    #             do_rotary = True,
-    #             rotary_interleaved = False,
-
-    #         )
-    #         attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-
-    #         return present_value, present_key, attn_output
-
-    #     function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
-    #     print("Returning new function proto for 2D cache for 13 inputs")
-    #     return ir.serde.deserialize_function(function_proto)
-
-
-    # @_version_controller.register_version(min_version="4.39", max_version="4.42")
-    # def _fusion_with_4d_cache_12_inputs(self, function: ir.Function) -> ir.Function:
-    #     print("Applying fusion with 4D cache for 12 inputs function:", function.name)
-    #     if len(function.inputs) not in {12}:
-    #         raise function_rule.FunctionRewriteError(
-    #             f"Unexpected number of inputs. Expected 12, got {len(function.inputs)}."
-    #         )
-
-    #     attn_size_config = self.infer_attn_size_config(function)
-
-    #     op = onnxscript.opset18
-    #     msft_op = onnxscript.values.Opset("com.microsoft", 1)
-
-    #     cos_sin_gather_size = [attn_size_config.head_size // 2]
-
-
-    #     def gqa( # for llama3b, it has just 12 inputs, make sure its 12 else it will raise a Bind Assertion error, I will write a rule for llama2 and 3 differently but this is for llama3b now
-    #         sym_size_int,
-    #         hidden_states,       # %"mul_192"<FLOAT,[s0,s1,4096]>
-    #         position_ids,         #%"l_position_ids_"<INT64,[s0,s1]>
-    #         key_states_10,
-    #         value_states_10,
-    #         attention_mask,      # %"slice_scatter_2"<FLOAT,[s0,1,s1,s1]>
-    #         q_proj_weight,       # %"model.layers.10.self_attn.q_proj.weight"<FLOAT,[4096,4096]>
-    #         k_proj_weight,       # %"model.layers.10.self_attn.k_proj.weight"<FLOAT,[4096,4096]>
-    #         v_proj_weight,       # %"model.layers.10.self_attn.v_proj.weight"<FLOAT,[4096,4096]>
-    #         cos_cached,          # %"cos_cached"<FLOAT,[64]>
-    #         sin_cached,          # %"sin_cached"<FLOAT,[64]>
-    #         o_proj_weight,       # %"model.layers.10.self_attn.o_proj.weight"<FLOAT,[4096,4096]>
-
-    #     ):
-    #         print("hidden_states for 12 inputs is:", hidden_states)
-
-
-    #         q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
-    #         k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
-    #         v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
-
-    #         cos = op.Slice(op.Squeeze(cos_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-    #         sin = op.Slice(op.Squeeze(sin_cached, [0, 1]), [0], cos_sin_gather_size, [1])
-
-    #         path = op.Shape(attention_mask)
-    #         path2 = op.Gather(path, 1, axis = 0)
-    #         total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32) # <-
-
-
-    #         temp = op.ReduceSum(attention_mask, [1])
-    #         temp2 = op.Sub(temp, [1])
-    #         seqlens_k = op.Cast(temp2, to=onnx.TensorProto.INT32) # <--
-
-    #         gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
-    #             q,
-    #             k,
-    #             v,
-    #             key_states_10,
-    #             value_states_10,
-    #             seqlens_k,
-    #             total_seq_lengths,
-    #             cos,
-    #             sin,
-    #             kv_num_heads=attn_size_config.num_key_value_heads,
-    #             num_heads=attn_size_config.num_attention_heads,
-    #             do_rotary = True,
-    #             rotary_interleaved = False,
-
-    #         )
-    #         attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-
-
-    #         return present_value, present_key, attn_output
-
-    #     function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
-    #     print("Returning new function proto for 4D cache 12 inputs cache")
-    #     return ir.serde.deserialize_function(function_proto)
-
-
-    # @_version_controller.register_version(min_version="4.39", max_version="4.42")
-    # def _fusion_with_4d_cache_11_inputs(self, function: ir.Function) -> ir.Function:
-    #     print("Applying fusion with 4D cache for 11 inputs function:", function.name)
-    #     if len(function.inputs) not in {11}:
-    #         raise function_rule.FunctionRewriteError(
-    #             f"Unexpected number of inputs. Expected 11, got {len(function.inputs)}."
-    #         )
-
-    #     attn_size_config = self.infer_attn_size_config(function)
-
-    #     op = onnxscript.opset18
-    #     msft_op = onnxscript.values.Opset("com.microsoft", 1)
-
-    #     cos_sin_gather_size = [attn_size_config.head_size // 2]
-
-
-    #     def gqa( # for llama3b, it has just 12 inputs, make sure its 12 else it will raise a Bind Assertion error, I will write a rule for llama2 and 3 differently but this is for llama3b now
-    #         sym_size_int,
-    #         hidden_states,       # %"mul_192"<FLOAT,[s0,s1,4096]>
-    #         position_ids,         #%"l_position_ids_"<INT64,[s0,s1]>
-    #         key_states_10,
-    #         value_states_10,
-    #         attention_mask,      # %"slice_scatter_2"<FLOAT,[s0,1,s1,s1]>
-    #         q_proj_weight,       # %"model.layers.10.self_attn.q_proj.weight"<FLOAT,[4096,4096]>
-    #         k_proj_weight,       # %"model.layers.10.self_attn.k_proj.weight"<FLOAT,[4096,4096]>
-    #         v_proj_weight,       # %"model.layers.10.self_attn.v_proj.weight"<FLOAT,[4096,4096]>
-    #         inv_freq,          # %"rotary_embeding_inv_freq"<FLOAT,[64]>
-    #         o_proj_weight,       # %"model.layers.10.self_attn.o_proj.weight"<FLOAT,[4096,4096]>
-
-    #     ):
-
-    #         print("hidden_states for 11 inputs is:", hidden_states)
-
-
-    #         q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
-    #         k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
-    #         v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
-
-    #         cos = op.Slice(op.Squeeze(inv_freq, [0, 1]), [0], cos_sin_gather_size, [1])
-    #         sin = op.Slice(op.Squeeze(inv_freq, [0, 1]), [0], cos_sin_gather_size, [1])
-
-    #         path = op.Shape(attention_mask)
-    #         path2 = op.Gather(path, 1, axis = 0)
-    #         total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32) # <-
-
-
-    #         temp = op.ReduceSum(attention_mask, [1])
-    #         temp2 = op.Sub(temp, [1])
-    #         seqlens_k = op.Cast(temp2, to=onnx.TensorProto.INT32) # <--
-
-    #         gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
-    #             q,
-    #             k,
-    #             v,
-    #             key_states_10,
-    #             value_states_10,
-    #             seqlens_k,
-    #             total_seq_lengths,
-    #             cos,
-    #             sin,
-    #             kv_num_heads=attn_size_config.num_key_value_heads,
-    #             num_heads=attn_size_config.num_attention_heads,
-    #             do_rotary = True,
-    #             rotary_interleaved = False,
-
-    #         )
-    #         attn_output = op.MatMul(gqa_output, op.Transpose(o_proj_weight, [1, 0]))
-
-
-    #         return present_value, present_key, attn_output
-
-    #     function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
-    #     print("Returning new function proto for 4D cache for 11 inputs")
-    #     return ir.serde.deserialize_function(function_proto)
+# first attention
+class GQALlamaRewriteRuleFirstAttention(AttentionRewriteRule):
+    FUNCTION_KEYWORD = "LlamaAttention"
+    PACKAGE_NAME = "transformers"
+    _version_controller = function_rule.VersionController()
+
+    @_version_controller.register_version(min_version="4.39", max_version="4.42")
+    def _fusion_with_2d_cache_12_inp(self, function: ir.Function) -> ir.Function:
+        print("Applying fusion with 2D cache for function 12 inputs:", function.name)
+        attn_size_config = self.infer_attn_size_config(function)
+        # please refer to model for len of input size
+        if len(function.inputs) != 12:
+            raise function_rule.FunctionRewriteError(
+                f"Unexpected number of inputs. Expected 12, got {len(function.inputs)}."
+            )
+
+        op = onnxscript.opset18
+        msft_op = onnxscript.values.Opset("com.microsoft", 1)
+
+        def gqa(
+            sym_size_int,
+            hidden_states,
+            position_id,
+            key_states,
+            value_states,
+            attention_mask,
+            q_proj_weight,
+            k_proj_weight,
+            v_proj_weight,
+            inv_freq,
+            o_proj_weight,
+
+        ):
+
+            q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
+            k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
+            v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
+
+            # from attention mask downwards, reversed, path and temp denote both left and right nodes
+
+            path = op.Shape(attention_mask)
+            path2 = op.Gather(path, 1, axis = 0)
+            total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32) # <-
+
+            temp = op.ReduceSum(attention_mask, [1])
+            temp2 = op.Sub(temp, [1])
+            seqlens_k = op.Cast(temp2, to=onnx.TensorProto.INT32) # <--
+
+            gqa_output, present_key, present_value, _ = msft_op.GroupQueryAttention(
+                q,
+                k,
+                v,
+                key_states,
+                value_states,
+                seqlens_k,
+                total_seq_lengths,
+                inv_freq,
+                inv_freq,
+                kv_num_heads=attn_size_config.num_key_value_heads,
+                num_heads=attn_size_config.num_attention_heads,
+                do_rotary = True,
+                rotary_interleaved = False,
+
+            )
+            attn_output = op.MatMul(gqa_output, o_proj_weight)
+
+            return _, present_key, present_value, attn_output # for 12 inputs, we return 4 outputs but find the correct output
+
+        function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
+        print("Returning new function proto for 2D cache")
+        return ir.serde.deserialize_function(function_proto)
+
+
+class GQALlamaRewriteRule(AttentionRewriteRule):
+    FUNCTION_KEYWORD = "LlamaAttention"
+    PACKAGE_NAME = "transformers"
+    _version_controller = function_rule.VersionController()
+
+    @_version_controller.register_version(min_version="4.39", max_version="4.42")
+    def _fusion_with_4d_cache_13_inp(self, function: ir.Function) -> ir.Function:
+        print("Applying fusion with 4D cache for function 12 inputs:", function.name)
+        if len(function.inputs) != 13:
+            raise function_rule.FunctionRewriteError(
+                f"Unexpected number of inputs. Expected 13, got {len(function.inputs)}."
+            )
+        attn_size_config = self.infer_attn_size_config(function)
+        op = onnxscript.opset18
+        msft_op = onnxscript.values.Opset("com.microsoft", 1)
+
+        def gqa(
+            sym_size_int_2,
+            sym_size_int,
+            hidden_states,
+            sym_size_int_1,
+            position_ids,
+            key_states,
+            value_states,
+            attention_mask,
+            q_proj_weight,
+            k_proj_weight,
+            v_proj_weight,
+            inv_freq,
+            o_proj_weight,
+        ):
+            q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
+            k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
+            v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
+            # Process the attention mask to derive seqlens_k and total_seq_lengths
+            path = op.Shape(attention_mask)
+            path2 = op.Gather(path, indices=[1], axis=0)
+            total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32)
+
+            temp = op.ReduceSum(attention_mask, axes=[1])
+            temp2 = op.Sub(temp, op.CastLike(op.Constant(value_int=1), temp))
+            seqlens_k = op.Cast(temp2, to=onnx.TensorProto.INT32)
+            # Apply GroupQueryAttention
+            gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
+                q,
+                k,
+                v,
+                key_states,
+                value_states,
+                seqlens_k,
+                total_seq_lengths,
+                inv_freq,
+                inv_freq,
+                kv_num_heads=attn_size_config.num_key_value_heads,
+                num_heads=attn_size_config.num_attention_heads,
+                do_rotary=True,
+                rotary_interleaved=False,
+            )
+            attn_output = op.MatMul(gqa_output, o_proj_weight)
+            return present_value, present_key, attn_output
+        function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
+        return ir.serde.deserialize_function(function_proto)
+
+    @_version_controller.register_version(min_version="4.39", max_version="4.42")
+    def _fusion_with_2d_cache_12_inp(self, function: ir.Function) -> ir.Function:
+        print("Applying fusion with 2D cache for function 12 inputs:", function.name)
+
+        if len(function.inputs) != 12:
+            raise function_rule.FunctionRewriteError(
+                f"Unexpected number of inputs. Expected 12, got {len(function.inputs)}."
+            )
+        attn_size_config = self.infer_attn_size_config(function)
+
+        op = onnxscript.opset18
+        msft_op = onnxscript.values.Opset("com.microsoft", 1)
+
+        def gqa(
+            sym_size_int_2
+            sym_size_int,
+            hidden_states,
+            sym_size_int_1,
+            position_ids,
+            key_states,
+            value_states,
+            attention_mask,
+            q_proj_weight,
+            k_proj_weight,
+            v_proj_weight,
+            inv_freq,
+            o_proj_weight,
+        ):
+            # Transpose the projection weights
+            q = op.MatMul(hidden_states, op.Transpose(q_proj_weight, [1, 0]))
+            k = op.MatMul(hidden_states, op.Transpose(k_proj_weight, [1, 0]))
+            v = op.MatMul(hidden_states, op.Transpose(v_proj_weight, [1, 0]))
+
+            # Process the attention mask to derive seqlens_k and total_seq_lengths
+            path = op.Shape(attention_mask)
+            path2 = op.Gather(path, indices=[1], axis=0)
+            total_seq_lengths = op.Cast(path2, to=onnx.TensorProto.INT32)
+
+            temp = op.ReduceSum(attention_mask, axes=[1])
+            temp2 = op.Sub(temp, op.CastLike(op.Constant(value_int=1), temp))
+            seqlens_k = op.Cast(temp2, to=onnx.TensorProto.INT32)
+
+            # Apply GroupQueryAttention
+            gqa_output, present_key, present_value = msft_op.GroupQueryAttention(
+                q,
+                k,
+                v,
+                key_states,
+                value_states,
+                seqlens_k,
+                total_seq_lengths,
+                inv_freq,
+                inv_freq,
+                kv_num_heads=attn_size_config.num_key_value_heads,
+                num_heads=attn_size_config.num_attention_heads,
+                do_rotary=True,
+                rotary_interleaved=False,
+            )
+
+            # Compute the final attention output
+            attn_output = op.MatMul(gqa_output, o_proj_weight)
+
+            return present_value, present_key, attn_output
+
+        function_proto = onnxscript.script(default_opset=onnxscript.opset18)(gqa).to_function_proto()
+        print("Returning new function proto")
+        return ir.serde.deserialize_function(function_proto)

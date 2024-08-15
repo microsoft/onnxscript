@@ -26,5 +26,4 @@ TRANSFORMERS_FUNCTION_REWRITE_RULES: list[type[function_rule.FunctionRewriteRule
     # multihead_attention.MLPRewriteRule,
     # multihead_attention.GQALlamaRewriteRule,
 
-
 ]
