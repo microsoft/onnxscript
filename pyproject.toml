@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "License :: OSI Approved :: MIT License",
 ]
-dependencies = ["numpy", "onnx>=1.16", "typing_extensions", "ml_dtypes"]
+dependencies = ["numpy", "onnx>=1.16", "typing_extensions", "ml_dtypes", "packaging"]
 
 [tool.setuptools.packages.find]
 include = ["onnxscript*"]
@@ -108,7 +108,7 @@ warn_unused_configs = true
 warn_unused_ignores = false
 
 [tool.black]
-target-version = ["py38", "py39", "py310", "py311"]
+target-version = ["py39", "py310", "py311"]
 # Black's extend-exclude needs to be a regex string
 extend-exclude = "/tests/models|/tests/onnx_backend_test_code"
 line-length = 95

@@ -116,7 +116,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         # Use math.ceil because when dtype is INT4, the itemsize is 0.5
         return math.ceil(self.dtype.itemsize * self.size)
 
-    def display(self, *, page: bool | None = None) -> None:
+    def display(self, *, page: bool = False) -> None:
         rich = _display.require_rich()
 
         if rich is None:
@@ -169,7 +169,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
             import rich.console  # type: ignore[import-not-found, no-redef]  # pylint: disable=import-outside-toplevel
 
             console = rich.console.Console()
-            with console.pager(styles=True):
+            with console.pager():
                 console.print(text)
         else:
             rich.print(text)
@@ -475,6 +475,8 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
 
     Attributes:
         path: The path to the data file. This can be a relative path or an absolute path.
+        base_dir: The base directory for the external data. It is used to resolve relative paths.
+            At serialization, only the ``path`` is serialized into the "location" field of the TensorProto.
         offset: The offset in bytes from the start of the file.
         length: The length of the data in bytes.
         dtype: The data type of the tensor.
@@ -509,8 +511,15 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         name: str,
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
+        base_dir: os.PathLike | str = "",
     ) -> None:
-        self._path = path
+        if os.path.isabs(path):
+            self._base_dir = os.path.dirname(path)
+            self._path = os.path.basename(path)
+        else:
+            self._base_dir = base_dir
+            self._path = path
+
         self._offset: int | None = offset
         self._length: int | None = length
         self._dtype: _enums.DataType = dtype
@@ -527,6 +536,15 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
     def path(self) -> str | os.PathLike:
         # Immutable
         return self._path
+
+    @property
+    def base_dir(self) -> str | os.PathLike:
+        # Mutable
+        return self._base_dir
+
+    @base_dir.setter
+    def base_dir(self, value: str | os.PathLike) -> None:
+        self._base_dir = value
 
     @property
     def offset(self) -> int | None:
@@ -556,7 +574,8 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             return
         # Map the whole file into the memory
         # TODO(justinchuby): Verify if this would exhaust the memory address space
-        with open(self._path, "rb") as f:
+        file_path = os.path.join(self._base_dir, self._path)
+        with open(file_path, "rb") as f:
             self.raw = mmap.mmap(
                 f.fileno(),
                 0,
@@ -599,7 +618,10 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         )
 
     def __repr__(self) -> str:
-        return f"{self._repr_base()}(path='{self._path}', name={self.name!r}, offset={self._offset!r}), length={self._length!r})"
+        return (
+            f"{self._repr_base()}(path='{self._path}', name={self.name!r}, "
+            f"offset={self._offset!r}, length={self._length!r}, base_dir={self._base_dir!r})"
+        )
 
     def numpy(self) -> np.ndarray:
         """Return the tensor as a numpy array.
@@ -1258,7 +1280,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     def op_identifier(self) -> _protocols.OperatorIdentifier:
         return self.domain, self.op_type, self.overload
 
-    def display(self, *, page: bool | None = None) -> None:
+    def display(self, *, page: bool = False) -> None:
         # Add the node's name to the displayed text
         print(f"Node: {self.name!r}")
         if self.doc_string:
@@ -1444,11 +1466,12 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
         producer = self.producer()
-        producer_text = (
-            producer.name is not None or "anonymous_node:" + str(id(producer))
-            if producer is not None
-            else None
-        )
+        if producer is None:
+            producer_text = "None"
+        elif producer.name is not None:
+            producer_text = producer.name
+        else:
+            producer_text = f"anonymous_node:{id(producer)}"
         return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, producer={producer_text}, index={self.index()})"
 
     def __str__(self) -> str:
@@ -1646,12 +1669,12 @@ def _check_node_safe_to_remove(
             raise ValueError(
                 f"Node '{node!r}' is still an output of the graph and cannot be removed when safe=True."
             )
-        for use, _ in output.uses():
-            if use in to_remove:
-                continue
+        uses_not_to_remove = [user for user, _ in output.uses() if user not in to_remove]
+        if uses_not_to_remove:
             raise ValueError(
-                f"Node '{use!r}' is still being used by other nodes that are not to be "
-                f"removed. All of its uses: {list(output.uses())!r}"
+                f"Output value '{output!r}' is still being used by other nodes that are not to be "
+                f"removed. All of its users that is not being removed: {uses_not_to_remove!r}. "
+                "Please make sure these nodes are no longer using the output value."
             )
 
 
@@ -2068,7 +2091,7 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
         outputs: Sequence[Value],
         *,
         nodes: Iterable[Node],
-        initializers: Sequence[_protocols.TensorProtocol] = (),
+        initializers: Sequence[_protocols.ValueProtocol] = (),
         doc_string: str | None = None,
         opset_imports: dict[str, int] | None = None,
         name: str | None = None,
@@ -2413,7 +2436,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         inputs_text = ",\n".join(str(x) for x in self.inputs)
         outputs_text = ",\n".join(str(x) for x in self.outputs)
         attributes_text = ",\n".join(
-            f"{attr.name}: {attr.type}" + f" = {attr.value}" * (attr.value is None)
+            f"{attr.name}: {attr.type}" + f" = {attr.value}" * (attr.value is not None)
             for attr in self.attributes.values()
         )
         if attributes_text:

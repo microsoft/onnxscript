@@ -130,10 +130,11 @@ def aten_special_expit(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_special_expm1(self: TensorType) -> TensorType:
+@torch_op(("aten::expm1", "aten::special_expm1"))
+def aten_special_expm1(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """special_expm1(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Sub(op.Exp(self), 1)
 
 
 def aten_special_gammainc(self: TensorType, other: TensorType) -> TensorType:
@@ -214,7 +215,7 @@ def aten_special_log_ndtr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::log_softmax", "aten::special_log_softmax"), trace_only=True)
+@torch_op(("aten::log_softmax.int", "aten::special_log_softmax"), trace_only=True)
 def aten_special_log_softmax(
     self: TFloatOrBFloat16, dim: int, dtype: int = -1
 ) -> TFloatOrBFloat16:
@@ -364,7 +365,7 @@ def aten_special_xlog1py(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::xlogy")
+@torch_op(("aten::xlogy.Tensor", "aten::xlogy.Scalar_Self", "aten::xlogy.Scalar_Other"))
 def aten_special_xlogy(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """special_xlogy(Tensor self, Tensor other) -> Tensor"""
 

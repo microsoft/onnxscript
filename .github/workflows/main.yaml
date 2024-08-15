@@ -13,6 +13,7 @@ on:
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event_name == 'workflow_dispatch' }}
@@ -31,10 +32,8 @@ jobs:
           - py311-onnx-weekly
           - py311-ort-nightly
           - py311-experimental-torchlib-tracing
-          - py311-experimental-torchlib-onnx-ir
           - py310
           - py39
-          - py38
         include:
           - name: py311
             python-version: "3.11"
@@ -44,9 +43,6 @@ jobs:
             nox-tag: test
           - name: py39
             python-version: "3.9"
-            nox-tag: test
-          - name: py38
-            python-version: "3.8"
             nox-tag: test
           - name: py312-torch-nightly
             python-version: "3.12"
@@ -63,9 +59,6 @@ jobs:
           - name: py311-experimental-torchlib-tracing
             python-version: "3.11"
             nox-tag: test-experimental-torchlib-tracing
-          - name: py311-experimental-torchlib-onnx-ir
-            python-version: "3.11"
-            nox-tag: test-experimental-torchlib-onnx-ir
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -99,12 +92,32 @@ jobs:
         with:
           name: Error reports (${{ matrix.name }}-${{ matrix.os }})
           path: error_reports
-      - name: Upload IR profiling results
-        if: matrix.name == 'py311' || matrix.name == 'py311-onnx-weekly'
-        uses: actions/upload-artifact@v3
+
+  dort:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        transformers: ["4.37.2", "4.41.2", "4.42.3"]
+        torch: ["release", "nightly"]
+        python_version: ["3.11"]
+        nox-tag: ["test-dort"]
+        name:
+          - dort
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python ${{ matrix.python_version }}
+        uses: actions/setup-python@v5
         with:
-          name: IR profiling results
-          path: tests/ir/serde_test_profiles
+          python-version: ${{ matrix.python_version }}
+      - name: Install nox
+        run: python -m pip install nox
+      - name: Pull Test Data
+        run: git lfs pull
+      - run: |
+          nox -t ${{ matrix.nox-tag }} --forcecolor -- ${{ matrix.torch }} ${{ matrix.transformers }}
+        name: Run tests
 
   build_docs:
     strategy:

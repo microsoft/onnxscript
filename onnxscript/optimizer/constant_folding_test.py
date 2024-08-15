@@ -3,12 +3,29 @@
 import unittest
 
 import onnx
+import parameterized
 import pytest
 
-from onnxscript import optimizer
+import onnxscript.optimizer as optimizer
+from onnxscript.ir import serde
+from onnxscript.optimizer import _constant_folding, constant_folding
 
 
+@parameterized.parameterized_class(("using_ir",), [(False,), (True,)])
 class FoldConstantsTest(unittest.TestCase):
+    def _fold(self, model: onnx.ModelProto, onnx_shape_inference=False):
+        if self.using_ir:
+            ir_model = serde.deserialize_model(model)
+            _constant_folding.fold_constants(
+                ir_model, onnx_shape_inference=onnx_shape_inference
+            )
+            optimizer.remove_unused_nodes(ir_model)
+            return serde.serialize_model(ir_model)
+        else:
+            constant_folding.fold_constants(model, onnx_shape_inference=onnx_shape_inference)
+            optimizer.remove_unused_nodes(model)
+            return model
+
     def test_fold_add(self):
         model = onnx.parser.parse_model(
             """
@@ -20,7 +37,7 @@ class FoldConstantsTest(unittest.TestCase):
             }
         """
         )
-        optimized = optimizer.optimize(model, num_iterations=1)
+        optimized = self._fold(model)
         self.assertEqual(len(optimized.graph.node), 2)
         self.assertEqual(optimized.graph.node[0].output[0], "four")
 
@@ -36,7 +53,7 @@ class FoldConstantsTest(unittest.TestCase):
             }
         """
         )
-        optimized = optimizer.optimize(model, num_iterations=1)
+        optimized = self._fold(model)
         self.assertEqual(len(optimized.graph.node), 2)
         self.assertEqual(optimized.graph.node[0].output[0], "four")
 
@@ -53,7 +70,7 @@ class FoldConstantsTest(unittest.TestCase):
             }
         """
         )
-        optimized = optimizer.optimize(model, num_iterations=1)
+        optimized = self._fold(model)
         self.assertEqual(len(optimized.graph.node), 2)
         self.assertEqual(optimized.graph.node[0].output[0], "four")
 
@@ -70,7 +87,7 @@ class FoldConstantsTest(unittest.TestCase):
             }
         """
         )
-        optimized = optimizer.optimize(model, num_iterations=1)
+        optimized = self._fold(model)
         self.assertEqual(len(optimized.graph.node), 2)
         self.assertEqual(optimized.graph.node[0].output[0], "four")
 
@@ -91,7 +108,7 @@ class FoldConstantsTest(unittest.TestCase):
             }
         """
         )
-        optimized = optimizer.optimize(model, num_iterations=1)
+        optimized = self._fold(model)
         self.assertEqual(len(optimized.graph.node), 1)
         self.assertEqual(optimized.graph.node[0].output[0], "z")
         self.assertEqual(optimized.graph.node[0].op_type, "Mul")
@@ -117,7 +134,7 @@ class FoldConstantsTest(unittest.TestCase):
             }
         """
         )
-        optimized = optimizer.optimize(model, num_iterations=1)
+        optimized = self._fold(model)
         self.assertEqual(len(optimized.graph.node), 1)
         then_graph = onnx.helper.get_node_attr_value(optimized.graph.node[0], "then_branch")
         self.assertEqual(len(then_graph.node), 2)
@@ -144,7 +161,7 @@ class FoldConstantsTest(unittest.TestCase):
             }
         """
         )
-        optimized = optimizer.optimize(model, num_iterations=1)
+        optimized = self._fold(model)
         print(onnx.printer.to_text(optimized))
         self.assertEqual(len(optimized.graph.node), 2)
         self.assertEqual(optimized.graph.node[0].output[0], "m_square")
@@ -161,7 +178,7 @@ class FoldConstantsTest(unittest.TestCase):
             }
         """
         )
-        optimized = optimizer.optimize(model, num_iterations=1)
+        optimized = self._fold(model, onnx_shape_inference=True)
         self.assertEqual(len(optimized.graph.node), 2)
 
     def test_fold_redundant_cast2(self):
@@ -174,7 +191,7 @@ class FoldConstantsTest(unittest.TestCase):
             }
         """
         )
-        optimized = optimizer.optimize(model, num_iterations=1)
+        optimized = self._fold(model, onnx_shape_inference=True)
         self.assertEqual(len(optimized.graph.node), 1)
         self.assertEqual(optimized.graph.node[0].op_type, "Identity")
         self.assertEqual(optimized.graph.node[0].output[0], "z")
@@ -196,7 +213,7 @@ class FoldConstantsTest(unittest.TestCase):
         """
         )
         # No optimizations expected. Just make sure it doesn't crash.
-        optimized = optimizer.optimize(model, num_iterations=1, onnx_shape_inference=False)
+        optimized = self._fold(model, onnx_shape_inference=False)
         self.assertEqual(len(optimized.graph.node), 6)
 
     def test_shape_inference(self):
@@ -222,7 +239,7 @@ class FoldConstantsTest(unittest.TestCase):
             }
         """
         )
-        optimized = optimizer.optimize(model, num_iterations=1)
+        optimized = self._fold(model, onnx_shape_inference=True)
         print(onnx.printer.to_text(optimized))
         self.assertEqual(len(optimized.graph.node), 2)
         self.assertEqual(optimized.graph.node[0].output[0], "C")
@@ -274,7 +291,7 @@ func (float[1,512] x) => ( split_0,  split_1,  split_2,  split_3) {
    split_3 = SequenceAt (splits, int64_3)
 }
         """
-        optimized = optimizer.optimize(model, num_iterations=1)
+        optimized = self._fold(model)
         self.assertEqual(len(optimized.graph.node), 2)
         self.assertEqual(len(optimized.graph.node[-2].output), 4)
         self.assertEqual(optimized.graph.node[-2].op_type, "Split")
@@ -301,7 +318,7 @@ func (float[1,512] x) => ( return_val) {
 }
             """
         )
-        optimized = optimizer.optimize(model, num_iterations=1)
+        optimized = self._fold(model)
         self.assertEqual(len(optimized.graph.node), 3)
         self.assertEqual(len(optimized.graph.node[-2].output), 3)
         self.assertEqual(optimized.graph.node[-2].op_type, "Split")
@@ -328,76 +345,11 @@ func (float[1,3] x) => ( return_val) {
 }
             """
         )
-        optimized = optimizer.optimize(model, num_iterations=1)
+        optimized = self._fold(model)
         self.assertEqual(len(optimized.graph.node), 7)
         self.assertEqual(len(optimized.graph.node[1].output), 3)
         self.assertEqual(optimized.graph.node[1].op_type, "Split")
         self.assertEqual(len([n for n in optimized.graph.node if n.op_type == "Squeeze"]), 3)
-
-    def test_static_split_to_sequence_with_uneven_split(self):
-        model = onnx.parser.parse_model(
-            """
-<
-   ir_version: 8,
-   opset_import: ["pkg.onnxscript.torch_lib" : 1, "" : 18, "pkg.onnxscript.torch_lib.common" : 1],
-   producer_name: "pytorch",
-   producer_version: "2.2.0"
->
-main_graph (float[3,5] l_tensor_x_) => (float[3,5] return_val)
-   < _val_2, float[3,5] l_tensor_x_, float[2,5] getitem, float[1,5] getitem_1>
-{
-   _val_1 = Constant <value: tensor = int64 {2}> ()
-   _val_2 = pkg.onnxscript.torch_lib.aten_split <dim: int = 0> (l_tensor_x_, _val_1)
-   _val_3 = Constant <value: tensor = int64 {0}> ()
-   getitem = pkg.onnxscript.torch_lib.aten_getitem (_val_2, _val_3)
-   _val_5 = Constant <value: tensor = int64 {1}> ()
-   getitem_1 = pkg.onnxscript.torch_lib.aten_getitem (_val_2, _val_5)
-   return_val = Concat <axis: int = 0> (getitem_1, getitem)
-}
-<
-  domain: "pkg.onnxscript.torch_lib",
-  opset_import: ["" : 18]
->
-aten_split (self, split_size) => (return_val)
-{
-   return_val = SplitToSequence <axis: int = @dim> (self, split_size)
-}
-<
-  domain: "pkg.onnxscript.torch_lib",
-  opset_import: ["" : 18]
->
-aten_getitem (self, i) => (return_val)
-{
-   return_val = SequenceAt (self, i)
-}
-<
-  domain: "pkg.onnxscript.torch_lib.common",
-  opset_import: ["" : 18]
->
-Rank (input) => (return_val)
-{
-   tmp = Shape (input)
-   return_val = Size (tmp)
-}
-<
-  domain: "pkg.onnxscript.torch_lib.common",
-  opset_import: ["" : 18]
->
-IsScalar (input) => (return_val)
-{
-   tmp = Shape (input)
-   tmp_0 = Size (tmp)
-   tmp_1 = Constant <value_int: int = 0> ()
-   return_val = Equal (tmp_0, tmp_1)
-}
-            """
-        )
-        optimized = optimizer.optimize(model, onnx_shape_inference=False)
-
-        print(onnx.printer.to_text(optimized))
-        self.assertEqual(len(optimized.graph.node), 2)
-        self.assertEqual(len(optimized.graph.node[0].output), 2)
-        self.assertEqual(optimized.graph.node[0].op_type, "Split")
 
     def test_split_to_sequence_and_concat_from_sequence_with_new_axis_0(
         self,
@@ -408,14 +360,14 @@ IsScalar (input) => (return_val)
    ir_version: 8,
    opset_import: ["" : 18]
 >
-func (float[1,3] x) => ( return_val) {
+func (float[1,3] x) => (float[1,3] return_val) {
    const = Constant <value: tensor = int64[3] const {1,1,1}> ()
    splits = SplitToSequence <axis: int = 1> (x, const)
    return_val = ConcatFromSequence <axis: int = 1, new_axis: int = 0> (splits)
 }
             """
         )
-        optimized = optimizer.optimize(model, num_iterations=1)
+        optimized = self._fold(model)
         self.assertEqual(len(optimized.graph.node), 3)
         self.assertEqual(optimized.graph.node[2].op_type, "Concat")
         onnx.checker.check_model(optimized)
@@ -429,14 +381,14 @@ func (float[1,3] x) => ( return_val) {
    ir_version: 8,
    opset_import: ["" : 18]
 >
-func (float[1,3] x) => ( return_val) {
+func (float[1,3] x) => (float[1,3] return_val) {
    const = Constant <value: tensor = int64[3] const {1,1,1}> ()
    splits = SplitToSequence <axis: int = 1> (x, const)
    return_val = ConcatFromSequence <axis: int = 1, new_axis: int = 1> (splits)
 }
             """
         )
-        optimized = optimizer.optimize(model, num_iterations=1)
+        optimized = self._fold(model)
         self.assertEqual(len(optimized.graph.node), 7)
         self.assertEqual(optimized.graph.node[6].op_type, "Concat")
         onnx.checker.check_model(optimized)

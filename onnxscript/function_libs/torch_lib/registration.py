@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import re
-from types import FunctionType
 from typing import Any, Callable, Generator, Optional
 
 import onnxscript
@@ -102,7 +101,7 @@ def torch_op(
     private: bool = False,
     complex: bool = False,
     traceable: bool = False,
-) -> Callable[[FunctionType], onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction]:
+) -> Callable[[Callable], onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction]:
     """Register a torch op.
 
     Args:
@@ -132,7 +131,7 @@ def torch_op(
         registry = default_registry
 
     def wrapper(
-        func: FunctionType,
+        func: Callable,
     ) -> onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction:
         # Compile the function
         custom_opset = onnxscript.values.Opset(domain=_constants.DOMAIN, version=1)
@@ -141,7 +140,6 @@ def torch_op(
         if trace_only:
             processed_func = onnxscript.values.TracedOnnxFunction(custom_opset, func)
         else:
-            assert isinstance(func, FunctionType)
             processed_func = onnxscript.script(opset=custom_opset)(func)
             processed_func.traceable = traceable
 

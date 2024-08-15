@@ -7,7 +7,6 @@ import sys
 import unittest
 
 import numpy as np
-import onnx.inliner
 import onnxruntime
 import torch
 
@@ -16,32 +15,43 @@ import onnxscript.rewriter
 import onnxscript.tools.training_helper
 import onnxscript.tools.transformers_models
 import onnxscript.tools.transformers_models.phi
-
-HAS_TRANSFORMERS = onnxscript.tools.transformers_models.has_transformers()
-
-
-def export_to_onnx(model, *input_tensors, optimize=True):
-    prog = torch.onnx.dynamo_export(model, *input_tensors)
-    model_proto = prog.model_proto
-    if optimize:
-        model_proto = onnxscript.optimizer.optimize(
-            model_proto,
-            num_iterations=2,
-            onnx_shape_inference=True,
-        )
-        model_proto = onnxscript.rewriter.rewrite(model_proto)
-        model_proto = onnx.inliner.inline_local_functions(model_proto)
-    return model_proto
+from onnxscript._internal.version_utils import (
+    has_transformers,
+    ignore_warnings,
+    torch_older_than,
+)
 
 
 class TestExportPhi(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
-    @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
+    @unittest.skipIf(not has_transformers(), reason="transformers is missing")
+    @unittest.skipIf(torch_older_than("2.6"), reason="fails to export")
+    @ignore_warnings(UserWarning)
     def test_phi_export_cpu(self):
         model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
         input_tensors = input_tensors_many[0]
         expected = model(*input_tensors)
-        proto = export_to_onnx(model, *input_tensors)
+        proto = onnxscript.tools.transformers_models.export_to_onnx(model, *input_tensors)
+        names = [i.name for i in proto.graph.input]
+        np_input_tensors = [x.numpy() for x in input_tensors]
+        feeds = dict(zip(names, np_input_tensors))
+        sess = onnxruntime.InferenceSession(
+            proto.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+        results = sess.run(None, feeds)
+        np.testing.assert_allclose(expected[0].detach().numpy(), results[0], atol=1e-5)
+
+    @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
+    @unittest.skipIf(not has_transformers(), reason="transformers is missing")
+    @unittest.skipIf(torch_older_than("2.6"), reason="fails to export")
+    @ignore_warnings(UserWarning)
+    def test_phi_export_cpu_export_api(self):
+        model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
+        input_tensors = input_tensors_many[0]
+        expected = model(*input_tensors)
+        proto = onnxscript.tools.transformers_models.export_to_onnx(
+            model, *input_tensors, export_api=True
+        )
         names = [i.name for i in proto.graph.input]
         np_input_tensors = [x.numpy() for x in input_tensors]
         feeds = dict(zip(names, np_input_tensors))
@@ -53,14 +63,15 @@ class TestExportPhi(unittest.TestCase):
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not torch.cuda.is_available(), reason="CUDA not available")
-    @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
+    @unittest.skipIf(not has_transformers(), reason="transformers is missing")
+    @ignore_warnings(UserWarning)
     def test_phi_export_cuda(self):
         model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
         input_tensors_cpu = input_tensors_many[0]
         model = model.to("cuda")
         input_tensors = [i.to("cuda") for i in input_tensors_cpu]
         expected = model(*input_tensors)
-        proto = export_to_onnx(model, *input_tensors)
+        proto = onnxscript.tools.transformers_models.export_to_onnx(model, *input_tensors)
         names = [i.name for i in proto.graph.input]
         np_input_tensors = [x.detach().cpu().numpy() for x in input_tensors]
         feeds = dict(zip(names, np_input_tensors))
@@ -71,7 +82,8 @@ class TestExportPhi(unittest.TestCase):
         np.testing.assert_allclose(expected[0].detach().cpu().numpy(), results[0], atol=1e-5)
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
-    @unittest.skipIf(not HAS_TRANSFORMERS, reason="transformers is missing")
+    @unittest.skipIf(not has_transformers(), reason="transformers is missing")
+    @ignore_warnings(UserWarning)
     def test_phi_dort_static(self):
         model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
         input_tensors = input_tensors_many[0]
@@ -87,13 +99,11 @@ class TestExportPhi(unittest.TestCase):
         )
 
         results = compiled_model(*input_tensors)
-        torch.testing.assert_allclose(expected[0], results[0], atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(expected[0], results[0], atol=1e-5, rtol=1e-5)
 
         expected_gradients = onnxscript.tools.training_helper.train_loop(model, *input_tensors)
         gradients = onnxscript.tools.training_helper.train_loop(compiled_model, *input_tensors)
-        torch.testing.assert_allclose(
-            expected_gradients[0], gradients[0], atol=1e-5, rtol=1e-5
-        )
+        torch.testing.assert_close(expected_gradients[0], gradients[0], atol=1e-5, rtol=1e-5)
 
 
 if __name__ == "__main__":

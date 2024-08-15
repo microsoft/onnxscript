@@ -230,7 +230,8 @@ def convert_attributes(
     """
     attributes: list[_core.Attr | _core.RefAttr] = []
     for name, attr in attrs.items():
-        attributes.append(convert_attribute(name, attr))
+        if attr is not None:
+            attributes.append(convert_attribute(name, attr))
     return attributes
 
 
@@ -368,3 +369,71 @@ def tensor(
             doc_string=name,
         )
     return tensor_
+
+
+def create_value_mapping(graph: _core.Graph) -> dict[str, _core.Value]:
+    """Return a dictionary mapping names to values in the graph.
+
+    The mapping does not include values from subgraphs.
+
+    Args:
+        graph: The graph to extract the mapping from.
+
+    Returns:
+        A dictionary mapping names to values.
+    """
+    values = {}
+    values.update(graph.initializers)
+    # The names of the values can be None or "", which we need to exclude
+    for input in graph.inputs:
+        if not input.name:
+            continue
+        values[input.name] = input
+    for node in graph:
+        for value in node.outputs:
+            if not value.name:
+                continue
+            values[value.name] = value
+    return values
+
+
+def replace_nodes_and_values(
+    graph_or_function: _core.Graph | _core.Function,
+    /,
+    insertion_point: _core.Node,
+    old_nodes: Sequence[_core.Node],
+    new_nodes: Sequence[_core.Node],
+    old_values: Sequence[_core.Value],
+    new_values: Sequence[_core.Value],
+) -> None:
+    """Replaces nodes and values in the graph or function.
+
+    Args:
+        graph_or_function: The graph or function to replace nodes and values in.
+        insertion_point: The node to insert the new nodes after.
+        old_nodes: The nodes to replace.
+        new_nodes: The nodes to replace with.
+        old_values: The values to replace.
+        new_values: The values to replace with.
+    """
+
+    for old_value, new_value in zip(old_values, new_values):
+        # Propagate relevant info from old value to new value
+        # TODO(Rama): Perhaps this should be a separate utility function. Also, consider
+        # merging old and new type/shape info.
+        new_value.type = old_value.type
+        new_value.shape = old_value.shape
+        new_value.const_value = old_value.const_value
+        new_value.name = old_value.name
+
+    # Reconnect the users of the deleted values to use the new values
+    replace_all_uses_with(old_values, new_values)
+    # Update graph/function outputs if the node generates output
+    replacement_mapping = dict(zip(old_values, new_values))
+    for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
+        if graph_or_function_output in replacement_mapping:
+            graph_or_function.outputs[idx] = replacement_mapping[graph_or_function_output]
+
+    # insert new nodes after the index node
+    graph_or_function.insert_after(insertion_point, new_nodes)
+    graph_or_function.remove(old_nodes, safe=True)

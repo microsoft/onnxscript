@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import itertools
 import multiprocessing
 import os
 import platform
@@ -21,6 +22,8 @@ import onnx.inliner
 import onnxscript.optimizer
 import onnxscript.rewriter
 import onnxscript.rewriter.llama_rule_sets as rules
+import onnxscript.rewriter.onnxruntime as ort_rules
+import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
 from onnxscript.optimizer.remove_unused import remove_unused_nodes
 
@@ -193,6 +196,52 @@ def run_benchmark(
     return data
 
 
+def measure_discrepancies(
+    expected: list[tuple[Any, ...]],
+    outputs: list[tuple[Any, ...]],
+) -> tuple[float, float]:
+    """
+    Computes the discrepancies.
+
+    Args:
+        expected: list of outputs coming from a torch model
+        outputs: list of outputs coming from an onnx model
+
+    Returns:
+        max absolute errors, max relative errors
+    """
+
+    def _flatten(outputs):
+        flat = []
+        for tensor in outputs:
+            if isinstance(tensor, tuple):
+                flat.extend(_flatten(tensor))
+            else:
+                flat.append(tensor)
+        return tuple(flat)
+
+    abs_errs = []
+    rel_errs = []
+    for torch_outputs_mixed_types, onnx_outputs in zip(expected, outputs):
+        torch_outputs = _flatten(torch_outputs_mixed_types)
+        assert len(torch_outputs) == len(
+            onnx_outputs
+        ), f"Length mismatch {len(torch_outputs)} != {len(onnx_outputs)}"
+        for torch_tensor, onnx_tensor in zip(torch_outputs, onnx_outputs):
+            assert (
+                torch_tensor.dtype == onnx_tensor.dtype
+            ), f"Type mismatch {torch_tensor.dtype} != {onnx_tensor.dtype}"
+            assert (
+                torch_tensor.shape == onnx_tensor.shape
+            ), f"Type mismatch {torch_tensor.shape} != {onnx_tensor.shape}"
+            diff = torch_tensor - onnx_tensor
+            abs_err = float(diff.abs().max())
+            rel_err = float((diff.abs() / torch_tensor).max())
+            abs_errs.append(abs_err)
+            rel_errs.append(rel_err)
+    return max(abs_errs), max(rel_errs)
+
+
 def common_export(
     model: Any,
     inputs: Sequence[Any],
@@ -216,7 +265,7 @@ def common_export(
         inputs: inputs
         dynamic_shapes: dynamic shapes
         target_opset: target opset
-        optimization: optimization scenario
+        optimization: optimization scenario, '/' separated values
         verbose: verbosity
         stats: if not None, populates this
             dictionary with statistics about time
@@ -238,7 +287,7 @@ def common_export(
     if exporter == "script":
         torch.onnx.export(
             model,
-            inputs,
+            inputs,  # type: ignore[arg-type]
             filename,
             do_constant_folding=False,
             input_names=[f"input{i}" for i in range(len(inputs))],
@@ -257,6 +306,7 @@ def common_export(
 
     if stats is not None:
         stats["export_time"] = time.perf_counter() - begin
+        stats["filesize"] = os.stat(filename).st_size
 
     if verbose:
         print(f"[common_export] exporter done in {time.perf_counter() - begin}s")
@@ -303,8 +353,9 @@ def apply_rule_sets(
     Returns:
         optimized model
     """
+    assert rule_sets, "No need to call apply_rule_sets for an empty set."
     if verbose:
-        print("[apply_rule_sets] deserialize model")
+        print(f"[apply_rule_sets] deserialize model before {rule_sets}")
     begin = time.perf_counter()
     ir_model = ir.serde.deserialize_model(model_proto)
     end = time.perf_counter() - begin
@@ -319,11 +370,14 @@ def apply_rule_sets(
 
         if rule_set_name == "llama0":
             rule_set = rules.llama_p0_rule_set()
+        elif rule_set_name == "onnxruntime":
+            rule_set = orp.RewriteRuleSet(ort_rules.ORT_PATTERN_REWRITE_RULES)
         else:
-            raise AssertionError(f"Unexpected rule_set name {rule_set_name!r}")
+            raise ValueError(f"Unexpected rule_set name {rule_set_name!r}")
 
         begin = time.perf_counter()
         rule_set.apply_to_model(ir_model)
+        remove_unused_nodes(ir_model)
         end = time.perf_counter() - begin
         if stats is not None:
             stats[f"opt_rule_{rule_set_name}_time"] = end
@@ -366,7 +420,7 @@ def optimize_model_proto(
 
     Args:
         model_proto: ModelProto
-        optimization: comma separated value
+        optimization: '/' separated value
         verbose: verbosity
         stats: if not None, populates this dictionary with statistics
 
@@ -376,11 +430,25 @@ def optimize_model_proto(
     if not optimization:
         return model_proto
 
-    for value in optimization.split(","):
+    known_rule_sets = {"llama0", "onnxruntime"}
+
+    rule_sets: list[str] = []
+    for value in optimization.split("/"):
+        if value in known_rule_sets:
+            rule_sets.append(value)
+            continue
+        if value not in known_rule_sets and rule_sets:
+            model_proto = apply_rule_sets(model_proto, rule_sets, stats=stats, verbose=verbose)
+            del rule_sets[:]
+            continue
+
         if verbose:
             print(f"[optimize_model_proto] start {value}")
 
+        n_nodes = len(model_proto.graph.node)
+        n_functions = len(model_proto.functions)
         begin = time.perf_counter()
+
         if value == "optimize":
             model_proto = onnxscript.optimizer.optimize(
                 model_proto,
@@ -394,21 +462,25 @@ def optimize_model_proto(
         elif value == "inline":
             model_proto = onnx.inliner.inline_local_functions(model_proto)
 
-        elif value == "llama0":
-            model_proto = apply_rule_sets(
-                model_proto, ["llama0"], stats=stats, verbose=verbose
-            )
-
         else:
             raise AssertionError(
                 f"Optimization step {value!r} is not implemented in {optimization!r}"
             )
 
         end = time.perf_counter() - begin
+        delta = len(model_proto.graph.node) - n_nodes
+        deltaf = len(model_proto.functions) - n_functions
         if stats:
             stats[f"opt_{value}_time"] = end
+            stats[f"opt_{value}_dnodes"] = delta
+            stats[f"opt_{value}_dfunctions"] = deltaf
         if verbose:
-            print(f"[optimize_model_proto] {value} done in {end}")
+            print(
+                f"[optimize_model_proto] {value} done in {end} "
+                f"with +/- {delta} nodes, +/- {deltaf} functions"
+            )
+    if rule_sets:
+        model_proto = apply_rule_sets(model_proto, rule_sets, stats=stats, verbose=verbose)
 
     return model_proto
 
@@ -595,6 +667,7 @@ def run_onnx_inference(
     repeat: int = 5,
     verbose: int = 0,
     ort_optimize: bool = True,
+    torch_model: Any | None = None,
 ) -> dict[str, Any]:
     """
     Runs multiple times the same inference with onnxruntime.
@@ -606,6 +679,7 @@ def run_onnx_inference(
         repeat: number of iterations to repeat
         verbose: verbosity
         ort_optimize: enable, disable onnxruntime optimizations
+        torch_model: if not empty, measure the discrepancies
 
     Returns:
         statistcs
@@ -642,16 +716,26 @@ def run_onnx_inference(
         print(f"[run_inference] created session in {end}")
         print(f"[run_inference] start {warmup} warmup iterations")
 
+    if torch_model:
+        expected = [
+            torch_model(*example_inputs[i % len(example_inputs)]) for i in range(warmup)
+        ]
+
+    got = []
     iterations = []
     begin = time.perf_counter()
     for i in range(warmup):
         t0 = time.perf_counter()
-        wrapped_session.run_dlpack(*example_inputs[i % len(example_inputs)])
+        got.append(wrapped_session.run_dlpack(*example_inputs[i % len(example_inputs)]))
         iterations.append(time.perf_counter() - t0)
     end = time.perf_counter() - begin
     stats["warmup"] = warmup
     stats["warmup_time"] = end / warmup
     stats["warmup_iter"] = iterations
+    if torch_model:
+        abs_err, rel_err = measure_discrepancies(expected, got)
+        stats["discrepancies_abs"] = abs_err
+        stats["discrepancies_rel"] = rel_err
 
     if verbose:
         print(f"[run_inference] warmup done in {time.perf_counter() - begin}")
@@ -672,3 +756,28 @@ def run_onnx_inference(
         print(f"[run_inference] measure done in {time.perf_counter() - begin}")
 
     return stats
+
+
+def multi_run(kwargs: dict[str, Any]) -> bool:
+    """Checks if multiple values were sent for one argument."""
+    return any(isinstance(v, str) and "," in v for v in kwargs.values())
+
+
+def make_configs(kwargs: dict[str, Any]) -> list[dict[str, Any]]:
+    """Creates all the configurations based on the command line arguments."""
+    print(kwargs)
+    args = []
+    for k, v in kwargs.items():
+        if isinstance(v, str):
+            args.append([(k, s) for s in v.split(",")])
+        else:
+            args.append([(k, v)])
+    configs = list(itertools.product(*args))
+    return [dict(c) for c in configs]
+
+
+def make_dataframe_from_benchmark_data(data: list[dict]) -> Any:
+    """Creates a dataframe from the received data."""
+    import pandas
+
+    return pandas.DataFrame(data)

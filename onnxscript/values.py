@@ -11,6 +11,7 @@ import typing
 from enum import IntFlag
 from typing import (  # type: ignore[attr-defined]
     Any,
+    Callable,
     ClassVar,
     Optional,
     Protocol,
@@ -119,7 +120,7 @@ class Opset:
         # TODO: validate the op schema as 'None' values are removed?
         input_list = list(inputs)
         while input_list and input_list[-1] is None:
-            del input_list[-1]
+            input_list.pop()
         return input_list
 
 
@@ -452,7 +453,7 @@ class OnnxFunction(Op):
     def __init__(
         self,
         opset: Optional[Opset],
-        pyfun: types.FunctionType,
+        pyfun: Callable,
         irfun: irbuilder.IRFunction,
         source: str,
         kwargs: dict[str, Any],
@@ -527,6 +528,9 @@ class OnnxFunction(Op):
 
         return evaluator.default().eval_function(self, args, kwargs)
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.function!r})"
+
     def param_schemas(self) -> tuple[ParamSchema, ...]:
         """Returns the parameter schemas of this function."""
         if self._param_schemas is not None:
@@ -568,7 +572,7 @@ class TracedOnnxFunction(Op):
         func: Function.
     """
 
-    def __init__(self, opset: Opset, func: types.FunctionType):
+    def __init__(self, opset: Opset, func: Callable):
         super().__init__(opset, func.__name__)
         self.func = func
 

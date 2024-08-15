@@ -112,7 +112,9 @@ def get_phi_model(
                 self.model = PhiModel(config)
 
             def forward(self, input_ids, attention_mask):
-                model_output = self.model(input_ids, attention_mask=attention_mask)
+                model_output = self.model(
+                    input_ids, attention_mask=attention_mask, use_cache=False
+                )
                 return model_output.to_tuple()
 
         def generate_example_inputs(batch: int, seq: int, vocab_size: int):
@@ -145,7 +147,7 @@ def get_phi_model(
             self.model = PhiModel(config)
 
         def forward(self, input_ids):
-            model_output = self.model(input_ids)
+            model_output = self.model(input_ids, use_cache=False)
             return model_output.to_tuple()
 
     def generate_example_inputs_no_mask(batch: int, seq: int, vocab_size: int):
@@ -171,7 +173,7 @@ def get_phi_model(
     return PhiModelWrapperNoMask(config), example_args_collection, dynamic_shapes
 
 
-def get_phi_model_config(
+def get_phi_model_from_config(
     warmup: int = 5,
     repeat: int = 10,
     config: str = "small",
@@ -184,16 +186,16 @@ def get_phi_model_config(
     Returns a model Phi to test or benchmark.
 
     Args:
-        warmup: number of inputs to generate
-        repeat: number of inputs to generate for repeat
+        warmup: Number of inputs to generate.
+        repeat: Number of inputs to generate for repeat.
         config: small, medium or large
         num_hidden_layers: number of hidden layers
         implementation: eager or sdpa
-        with_mask: one or two inputs
+        with_mask: One or two inputs.
         dynamic_shapes: dynamic shapes or not
 
     Returns:
-        model and list of inputs
+        Model and list of inputs.
     """
     if config == "small":
         conf_dict = dict(
@@ -241,6 +243,6 @@ def get_phi_model_config(
             with_mask=with_mask,
         )
     else:
-        raise AssertionError(f"Unexpected configuration {config!r}.")
+        raise ValueError(f"Unexpected configuration {config!r}.")
 
     return get_phi_model(**conf_dict)  # type: ignore[arg-type]

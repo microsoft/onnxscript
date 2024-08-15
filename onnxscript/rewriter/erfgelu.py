@@ -21,7 +21,7 @@ def erf_gelu_pattern(op, x):
 
 # Replacement
 def gelu(op, x):
-    return op.Gelu(x, domain="com.microsoft")
+    return op.Gelu(x, _domain="com.microsoft")
 
 
 rule = pattern.RewriteRule(erf_gelu_pattern, gelu)

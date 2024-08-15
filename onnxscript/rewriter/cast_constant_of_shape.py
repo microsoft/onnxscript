@@ -9,7 +9,6 @@ import onnx.helper
 from onnxscript import ir
 from onnxscript.rewriter import pattern
 
-op = pattern.onnxop
 logger = logging.getLogger(__name__)
 
 

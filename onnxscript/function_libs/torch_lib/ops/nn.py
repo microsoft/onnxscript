@@ -27,6 +27,7 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     TFloat,
     TFloatOrBFloat16,
     TFloatOrUInt8,
+    TInt,
     TReal,
     TTensor,
 )
@@ -40,58 +41,7 @@ Rank = common_ops.Rank
 TFloatUnlessFloat32 = TypeVar("TFloatUnlessFloat32", bound=Union[BFLOAT16, FLOAT16, DOUBLE])
 
 
-@torch_op("aten::aten_adaptive_avg_pool1d", traceable=True)
-def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
-    """adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor"""
-
-    # assert output_size == [1]
-    # TODO(justinchuby): Specify input constraints
-
-    if Rank(self) == 2:
-        # Unbatched case
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-        pooled = op.GlobalAveragePool(self)
-        result = op.Squeeze(pooled, op.Constant(value_ints=[0]))
-    else:
-        result = op.GlobalAveragePool(self)
-
-    return result
-
-
-@torch_op("aten::aten_adaptive_avg_pool2d", traceable=True)
-def aten_adaptive_avg_pool2d(self: TFloat, output_size: INT64[2]) -> TFloat:
-    """adaptive_avg_pool2d(Tensor self, SymInt[2] output_size) -> Tensor"""
-
-    # assert output_size == [1, 1]
-    # TODO(justinchuby): Specify input constraints
-
-    if Rank(self) == 3:
-        # Unbatched case
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-        pooled = op.GlobalAveragePool(self)
-        result = op.Squeeze(pooled, op.Constant(value_ints=[0]))
-    else:
-        result = op.GlobalAveragePool(self)
-
-    return result
-
-
-@torch_op("aten::aten_adaptive_avg_pool3d", traceable=True)
-def aten_adaptive_avg_pool3d(self: TFloat, output_size: INT64[3]) -> TFloat:
-    """adaptive_avg_pool3d(Tensor self, SymInt[3] output_size) -> Tensor"""
-
-    # assert output_size == [1, 1, 1]
-    # TODO(justinchuby): Specify input constraints
-
-    if Rank(self) == 4:
-        # Unbatched case
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-        pooled = op.GlobalAveragePool(self)
-        result = op.Squeeze(pooled, op.Constant(value_ints=[0]))
-    else:
-        result = op.GlobalAveragePool(self)
-
-    return result
+# NOTE: Implementations of adaptive_average_pool are handled by torch decomp
 
 
 def aten_adaptive_max_pool1d(
@@ -206,7 +156,7 @@ def aten_avg_pool2d(
     padding: Sequence[int] = (0, 0),
     ceil_mode: bool = False,
     count_include_pad: bool = True,
-    divisor_override: Optional[int] = None,  # pylint: disable=unused-argument
+    divisor_override: Optional[int] = None,
 ) -> TFloat:
     """avg_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor"""
 
@@ -267,7 +217,7 @@ def aten_avg_pool3d(
     padding: Sequence[int] = (0, 0, 0),
     ceil_mode: bool = False,
     count_include_pad: bool = True,
-    divisor_override: Optional[int] = None,  # pylint: disable=unused-argument
+    divisor_override: Optional[int] = None,
 ) -> TFloat:
     """avg_pool3d(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor"""
 
@@ -565,10 +515,13 @@ def aten_gelu_backward(
     raise NotImplementedError()
 
 
-def aten_glu(self: TensorType, dim: int = -1) -> TensorType:
+@torch_op("aten::glu", traceable=True)
+def aten_glu(self: TFloat, dim: int = -1) -> TFloat:
     """glu(Tensor self, int dim=-1) -> Tensor"""
 
-    raise NotImplementedError()
+    first, second = op.Split(self, axis=dim, num_outputs=2)
+    result = op.Mul(first, op.Sigmoid(second))
+    return result
 
 
 def aten_glu_backward(grad_output: TensorType, self: TensorType, dim: int) -> TensorType:
@@ -588,6 +541,56 @@ def aten_glu_backward_jvp(
     """glu_backward_jvp(Tensor grad_x, Tensor grad_glu, Tensor x, Tensor dgrad_glu, Tensor dx, int dim) -> Tensor"""
 
     raise NotImplementedError()
+
+
+@torch_op("aten::group_norm", trace_only=True)
+def aten_group_norm(
+    input: TFloat,
+    num_groups: int,
+    weight: Optional[TFloat] = None,
+    bias: Optional[TFloat] = None,
+    eps: float = 1e-05,
+    cudnn_enabled: bool = True,
+) -> TensorType:
+    """group_norm(Tensor input, int num_groups, Tensor? weight=None, Tensor? bias=None, float eps=1e-05, bool cudnn_enabled=True) -> Tensor"""
+
+    # Actually we don't need N,C,HxW value because the input tensor has that information
+    if weight is None:  # Set to 1.0 as default, the shape is Channel size
+        weight = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(input, start=1, end=2))
+
+    if bias is None:  # Set to 0.0 as default, the shape is Channel size
+        bias = op.Expand(op.Constant(value_floats=[0.0]), op.Shape(input, start=1, end=2))
+
+    # Because onnx.GroupNorm() need size=group for weight and bias
+    # But the torch's aten function's input need size=channel, the size mismatched
+    # So we have to use onnx.InstanceNorm() to simulate
+    neg_1 = op.Constant(value_ints=[-1])
+    # Create weight_instance_norm and bias_instance_norm, copied from Torch ONNX converter
+    group_tensor = op.Reshape(num_groups, neg_1)
+    # 0 in the shape list keeps dimension value unchanged, for InstanceNorm need [0,group,-1]
+    shape_input = op.Concat(op.Constant(value_ints=[0]), group_tensor, neg_1, axis=0)
+    input_reshaped = op.Reshape(input, shape_input)
+    weight_inst_norm = op.Expand(
+        op.CastLike(op.Constant(value_float=1.0), input), group_tensor
+    )
+    bias_inst_norm = op.Expand(op.CastLike(op.Constant(value_float=0.0), input), group_tensor)
+    norm = op.InstanceNormalization(
+        input_reshaped, weight_inst_norm, bias_inst_norm, epsilon=eps
+    )
+    # Reshape back to input's shape
+    norm = op.Reshape(norm, op.Shape(input))
+    # Using the input weight and bias to do affine
+    # But need to unsqueeze to the target shape for broading cast easy
+    input_rank = Rank(input)
+    one = op.Constant(value_int=1)
+    axes_unsqueeze = op.Range(one, op.Sub(input_rank, one), one)
+    weight_full_shape = op.Unsqueeze(weight, axes_unsqueeze)
+    bias_full_shape = op.Unsqueeze(bias, axes_unsqueeze)
+    weight_full_shape = op.CastLike(weight_full_shape, norm)
+    norm_mul_weight = op.Mul(norm, weight_full_shape)
+    bias_full_shape = op.CastLike(bias_full_shape, norm_mul_weight)
+    norm_result = op.Add(norm_mul_weight, bias_full_shape)
+    return norm_result
 
 
 def aten_glu_jvp(glu: TensorType, x: TensorType, dx: TensorType, dim: int) -> TensorType:
@@ -629,12 +632,15 @@ def aten_hardtanh(self: TReal, min_val: float = -1.0, max_val: float = 1.0) -> T
     return op.Clip(self, min_val, max_val)
 
 
+@torch_op("aten::hardtanh_backward", trace_only=True)
 def aten_hardtanh_backward(
     grad_output: TensorType, self: TensorType, min_val: float, max_val: float
 ) -> TensorType:
     """hardtanh_backward(Tensor grad_output, Tensor self, Scalar min_val, Scalar max_val) -> Tensor"""
 
-    raise NotImplementedError()
+    max_mask = op.Where(op.Greater(self, max_val), 0.0, 1.0)
+    min_mask = op.Where(op.Less(self, min_val), 0.0, 1.0)
+    return op.Mul(op.Mul(grad_output, max_mask), min_mask)
 
 
 def aten_huber_loss(
@@ -653,16 +659,138 @@ def aten_huber_loss_backward(
     raise NotImplementedError()
 
 
-def aten_im2col(
-    self: TensorType,
-    kernel_size: Sequence[int],
-    dilation: Sequence[int],
-    padding: Sequence[int],
-    stride: Sequence[int],
-) -> TensorType:
-    """im2col(Tensor self, int[2] kernel_size, int[2] dilation, int[2] padding, int[2] stride) -> Tensor"""
+def _get_im2col_indices_along_dim(
+    input_d: TInt,
+    kernel_size_d: int,
+    dilation_d: int,
+    padding_d: int,
+    stride_d: int,
+):
+    # Input is always 4-D (N, C, H, W)
+    # Calculate indices of sliding blocks along spatial dimension
+    # Slide kernel over input each dim d:
+    # each dimension d ranges from 0 to input[d]+2xpadding[d]-dilation[d]x(kernel_size[d]-1)
+    # with steps = stride
 
-    raise NotImplementedError()
+    blocks_d = input_d + ((padding_d * 2) - (dilation_d * (kernel_size_d - 1)))
+
+    # Stride kernel over input and find starting indices along dim d
+    blocks_d_indices = op.Range(0, blocks_d, stride_d)
+    blocks_d_indices = op.Unsqueeze(blocks_d_indices, [0])
+
+    # Apply dilation on kernel and find its indices along dim d
+    kernel_grid = op.Range(0, kernel_size_d * dilation_d, dilation_d)
+    kernel_mask = op.Unsqueeze(kernel_grid, [1])
+
+    # Broadcast and add kernel staring positions (indices) with
+    # kernel_grid along dim d, to get block indices along dim d
+    block_mask = op.Add(blocks_d_indices, kernel_mask)
+
+    return block_mask
+
+
+def _get_im2col_padded_input(input, padding_h, padding_w):
+    # Input is always 4-D tensor (N, C, H, W)
+    # Padding tensor has the following format: (padding_h, padding_w)
+    # Reshape the padding to follow ONNX format: (dim1_begin, dim2_begin,...,dim1_end, dim2_end,...)
+    pad = op.Concat(
+        op.Constant(value_ints=[0, 0]),
+        op.Unsqueeze(padding_h, [0]),
+        op.Unsqueeze(padding_w, [0]),
+        op.Constant(value_ints=[0, 0]),
+        op.Unsqueeze(padding_h, [0]),
+        op.Unsqueeze(padding_w, [0]),
+        axis=0,
+    )
+    return op.Pad(input, pad)
+
+
+def _get_im2col_output_shape(input, kernel_h, kernel_w):
+    input_shape = op.Shape(input)
+    batch_dim = op.Gather(input_shape, 0, axis=0)
+    channel_dim = op.Gather(input_shape, 1, axis=0)
+    channel_unfolded = op.Mul(channel_dim, kernel_h * kernel_w)
+
+    return op.Concat(
+        op.Unsqueeze(batch_dim, [0]),
+        op.Unsqueeze(channel_unfolded, [0]),
+        op.Constant(value_ints=[-1]),
+        axis=0,
+    )
+
+
+@torch_op("aten::im2col", trace_only=True)
+def aten_im2col(
+    self: TReal,
+    kernel_size: Sequence[int],
+    dilation: Sequence[int] = (1, 1),
+    padding: Sequence[int] = (0, 0),
+    stride: Sequence[int] = (1, 1),
+) -> TensorType:
+    """im2col(Tensor self, int[2] kernel_size, int[2] dilation=1, int[2] padding=0, int[2] stride=1) -> Tensor"""
+
+    input_shape = op.Shape(self)
+    input_h = op.Gather(input_shape, 2, axis=0)
+    input_w = op.Gather(input_shape, 3, axis=0)
+
+    if not isinstance(kernel_size, Sequence):
+        kernel_size = (kernel_size, kernel_size)
+    kernel_sizes = list(kernel_size)
+
+    if not isinstance(dilation, Sequence):
+        dilation = (dilation, dilation)
+    dilations = list(dilation)
+
+    if not isinstance(padding, Sequence):
+        padding = (padding, padding)
+    pads = list(padding)
+
+    if isinstance(stride, int):
+        stride = (stride, stride)
+    strides = list(stride)
+
+    stride_h, stride_w = strides[0], strides[1]
+    padding_h, padding_w = pads[0], pads[1]
+    dilation_h, dilation_w = dilations[0], dilations[1]
+    kernel_h, kernel_w = kernel_sizes[0], kernel_sizes[1]
+
+    blocks_row_indices = _get_im2col_indices_along_dim(
+        input_h, kernel_h, dilation_h, padding_h, stride_h
+    )
+    blocks_col_indices = _get_im2col_indices_along_dim(
+        input_w, kernel_w, dilation_w, padding_w, stride_w
+    )
+
+    output_shape = _get_im2col_output_shape(self, kernel_h, kernel_w)
+    padded_input = _get_im2col_padded_input(self, padding_h, padding_w)
+
+    # For a 4D matrix of size (1, 1, 3, 3) as below with kernel_size=2, stride=1, and dilation=1
+    # [[[[1., 2., 3.,],
+    #    [4., 5., 6.,],
+    #    [7., 8., 9.,]]]]
+    # First gather indices along rows (dim=2) with blocks_row_indices = [[0,1], [1,2]] to get:
+    # [[[[[1., 2., 3.],
+    #     [4., 5., 6.]],
+    #    [[4., 5., 6.],
+    #     [7., 8., 9.]]]]]
+    # And then gather along cols (dim=4) with blocks_row_indices = [[0,1], [1,2]] to get:
+    # [[[[[[1., 2.],
+    #      [4., 5.]],
+    #     [[2., 3.],
+    #      [5., 6]]],
+    #    [[[4., 5.],
+    #      [7., 8.]],
+    #     [[5., 6.],
+    #      [8., 9.]]]]]]
+    # Transpose dims 3 (depth) and 4 (rows), and then reshape to output shape (1, 1, 4, 4) to get:
+    #  [[[1., 2., 4., 5.],
+    #    [2., 3., 5., 6.],
+    #    [4., 5., 7., 8.],
+    #    [5., 6., 8., 9.]]]
+    output = op.Gather(padded_input, blocks_row_indices, axis=2)
+    output = op.Gather(output, blocks_col_indices, axis=4)
+    output = op.Transpose(output, perm=[0, 1, 2, 4, 3, 5])
+    return op.Reshape(output, output_shape)
 
 
 def aten_infinitely_differentiable_gelu_backward(
@@ -1235,10 +1363,11 @@ def aten_multilabel_margin_loss_forward(
     raise NotImplementedError()
 
 
-@torch_op("aten::nll_loss", traceable=True)
+@torch_op("aten::nll_loss", trace_only=True)
 def aten_nll_loss(
     self: TFloat,
     target: INT64,
+    weight: Optional[TFloat] = None,
     reduction: int = 1,
     ignore_index: int = -100,
 ) -> TFloat:
@@ -1253,55 +1382,15 @@ def aten_nll_loss(
         target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
 
     if reduction == 0:
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, ignore_index=ignore_index, reduction="none"
-        )
+        reduction_str = "none"
     elif reduction == 1:
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, ignore_index=ignore_index, reduction="mean"
-        )
+        reduction_str = "mean"
     else:  # assert reduction == 2
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, ignore_index=ignore_index, reduction="sum"
-        )
+        reduction_str = "sum"
 
-    if self_rank_is_1:
-        result = op.Squeeze(result)
-
-    return result
-
-
-@torch_op("aten::nll_loss", traceable=True)
-def aten_nll_loss_weight(
-    self: TFloat,
-    target: INT64,
-    weight: TFloat,
-    reduction: int = 1,
-    ignore_index: int = -100,
-) -> TFloat:
-    """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
-
-    self_rank_is_1 = Rank(self) == 1
-    if self_rank_is_1:
-        # self rank should be at least 2
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-
-    rank_target = Rank(target)
-    if rank_target == 0:  # target rank should be at least 1
-        target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
-
-    if reduction == 0:
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, weight, ignore_index=ignore_index, reduction="none"
-        )
-    elif reduction == 1:
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, weight, ignore_index=ignore_index, reduction="mean"
-        )
-    else:
-        result = op.NegativeLogLikelihoodLoss(
-            self, target, weight, ignore_index=ignore_index, reduction="sum"
-        )
+    result = op.NegativeLogLikelihoodLoss(
+        self, target, weight, ignore_index=ignore_index, reduction=reduction_str
+    )
 
     if self_rank_is_1:
         result = op.Squeeze(result)
@@ -1361,16 +1450,23 @@ def aten_nll_loss_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::nll_loss_forward", trace_only=True)
 def aten_nll_loss_forward(
     self: TensorType,
     target: TensorType,
     weight: Optional[TensorType],
     reduction: int,
-    ignore_index: INT64,
+    ignore_index: int,
 ) -> tuple[TensorType, TensorType]:
     """nll_loss_forward(Tensor self, Tensor target, Tensor? weight, int reduction, SymInt ignore_index) -> (Tensor output, Tensor total_weight)"""
 
-    raise NotImplementedError()
+    output = aten_nll_loss(self, target, weight, reduction, ignore_index)
+    # FIXME: Fake a total_weight tensor for now. It should be different based on weight, reduction and ignore_index
+    if weight is None:
+        total_weight = op.CastLike(op.Size(output), self)
+    else:
+        total_weight = op.CastLike(op.Size(output), weight)
+    return output, total_weight
 
 
 def aten_nll_loss_nd(
@@ -1673,8 +1769,9 @@ def aten_scaled_dot_product_attention(
     dropout_p: float = 0.0,
     is_causal: bool = False,
     scale: Optional[float] = None,
+    enable_gqa: bool = False,
 ) -> TFloat:
-    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor
+    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None, bool enable_gqa=False) -> Tensor
 
     Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
 
@@ -1693,6 +1790,10 @@ def aten_scaled_dot_product_attention(
     assert (not is_causal) or (
         is_causal and attn_mask is None
     ), "is_causal and attn_mask cannot be set at the same time"
+
+    assert (
+        not enable_gqa
+    ), "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
 
     # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     if scale is None:
@@ -1742,7 +1843,7 @@ def aten__scaled_dot_product_flash_attention(
     value: TFloat,
     dropout_p: float = 0.0,
     is_causal: bool = False,
-    return_debug_mask: bool = False,  # pylint: disable=unused-argument
+    return_debug_mask: bool = False,
     scale: Optional[float] = None,
 ) -> Tuple[TFloat, FLOAT, INT64, INT64, INT64, INT64, INT64, INT64, FLOAT]:
     """_scaled_dot_product_flash_attention(Tensor query, Tensor key, Tensor value, float dropout_p=0.0, bool is_causal=False, bool return_debug_mask=False, *, float? scale=None) -> (Tensor output, Tensor logsumexp, Tensor cum_seq_q, Tensor cum_seq_k, int max_q, int max_k, Tensor philox_seed, Tensor philox_offset, Tensor debug_attn_mask)
@@ -1813,12 +1914,43 @@ def _aten_scaled_dot_product_efficient_attention_fillin_empty_outputs(
     return logsum_exp, empty_tensor_int
 
 
+@torch_op("aten::_scaled_dot_product_flash_attention_for_cpu", trace_only=True)
+def aten__scaled_dot_product_flash_attention_for_cpu(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    dropout_p: float = 0.0,
+    is_causal: bool = False,
+    attn_mask: Optional[TFloat] = None,
+    scale: Optional[float] = None,
+) -> Tuple[TFloat, FLOAT]:
+    """_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0.0, bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)"""
+    result = aten_scaled_dot_product_attention(
+        query,
+        key,
+        value,
+        attn_mask=attn_mask,
+        dropout_p=dropout_p,
+        is_causal=is_causal,
+        scale=scale,
+    )
+    query_shape = op.Shape(query)
+    query_first_dims = op.Slice(query_shape, [0], [1])
+    query_second_dims = op.Slice(query_shape, [1], [2])
+    num_heads = op.Slice(query_shape, [-2], [-1])
+    logsumexp_dim = op.Cast(
+        op.Ceil(op.Cast(query_second_dims, to=FLOAT.dtype) / 32.0) * 32.0, to=INT64.dtype
+    )
+    logsum_exp = op.Expand(0.0, op.Concat(query_first_dims, num_heads, logsumexp_dim, axis=0))
+    return result, logsum_exp
+
+
 @torch_op("aten::_scaled_dot_product_efficient_attention", trace_only=True)
 def aten__scaled_dot_product_efficient_attention(
     query: TFloat,
     key: TFloat,
     value: TFloat,
-    attn_bias: Optional[TFloat],  # pylint: disable=unused-argument
+    attn_bias: Optional[TFloat],
     compute_log_sumexp: bool,
     dropout_p: float = 0.0,
     is_causal: bool = False,
@@ -1855,8 +1987,9 @@ def aten_scaled_dot_product_attention_bool_mask(
     dropout_p: float = 0.0,
     is_causal: bool = False,
     scale: Optional[float] = None,
+    enable_gqa: bool = False,
 ) -> TFloat:
-    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor
+    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None, bool enable_gqa=False) -> Tensor
 
     Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
 
@@ -1875,6 +2008,10 @@ def aten_scaled_dot_product_attention_bool_mask(
     assert (not is_causal) or (
         is_causal and attn_mask is None
     ), "is_causal and attn_mask cannot be set at the same time"
+
+    assert (
+        not enable_gqa
+    ), "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
 
     if scale is None:
         scale = _attention_scale(query)
@@ -2012,10 +2149,11 @@ def aten_sigmoid_backward(grad_output: TensorType, output: TensorType) -> Tensor
     raise NotImplementedError()
 
 
-def aten_silu(self: TensorType) -> TensorType:
+@torch_op("aten::silu", traceable=True)
+def aten_silu(self: TFloat) -> TFloat:
     """silu(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Mul(self, op.Sigmoid(self))
 
 
 def aten_silu_backward(grad_output: TensorType, self: TensorType) -> TensorType:

@@ -3,8 +3,6 @@
 from onnxscript.rewriter import pattern
 from onnxscript.rewriter.broadcast_to_matmul import check_if_not_need_reshape
 
-op = pattern.onnxop
-
 
 # Pattern to match against
 def reshape_gemm_reshape_pattern(op, input_a, input_b, input_c, shape_a, shape_c):
