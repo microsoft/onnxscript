@@ -11,19 +11,19 @@ from onnxscript.rewriter.onnxruntime.transformers import (
 )
 
 TRANSFORMERS_FUNCTION_REWRITE_RULES: list[type[function_rule.FunctionRewriteRule]] = [
-    # multihead_attention.GQALlama2RewriteRule,
-    # multihead_attention.GQALlamaSdpa2RewriteRule,
-    # multihead_attention.AttnPhi15RewriteRule,
-    # multihead_attention.MHAStableDiffusionUnetRewriteRule,
+    multihead_attention.GQALlama2RewriteRule,
+    multihead_attention.GQALlamaSdpa2RewriteRule,
+    multihead_attention.AttnPhi15RewriteRule,
+    multihead_attention.MHAStableDiffusionUnetRewriteRule,
     layernorm.LNRewriteRule,
-    # fastgelu.GeluRewriteRule,
-    # biassplitgelu.GegluRewriteRule,
-    # multihead_attention.MHALlama2RewriteRule,
+    fastgelu.GeluRewriteRule,
+    biassplitgelu.GegluRewriteRule,
+    multihead_attention.MHALlama2RewriteRule,
     multihead_attention.GQALlama3RewriteRule,
-    # multihead_attention.AttentionRewriteRule,
+    multihead_attention.AttentionRewriteRule,
     multihead_attention.MLP3RewriteRule,
     multihead_attention.GQALlama3RewriteRuleFirstAttention,
-    # multihead_attention.MLPRewriteRule,
-    # multihead_attention.GQALlamaRewriteRule,
+    multihead_attention.MLPRewriteRule,
+    multihead_attention.GQALlamaRewriteRule,
 
 ]

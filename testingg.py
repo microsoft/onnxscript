@@ -4,7 +4,7 @@ import onnx.inliner
 import onnxscript.optimizer
 import onnxscript.rewriter
 from onnxscript.rewriter import onnxruntime as ort_rewriter
-from onnxscript.ir import convenience as ir_convenience
+
 
 def export_to_onnx(input_model_path: str, output_model_path: str):
     """
