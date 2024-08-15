@@ -3964,7 +3964,9 @@ def aten_hspmm(mat1: TensorType, mat2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::hstack")
+# Do not register hstack - decomposed by PyTorch: https://github.com/pytorch/pytorch/blob/bedf96d7ffe74b34bcfe52c7ae1ae05f40d6c8ee/torch/_refs/__init__.py#L3918
+
+
 def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     """hstack(Tensor[] tensors) -> Tensor"""
 
@@ -5806,14 +5808,18 @@ def aten_native_batch_norm(
     axes.pop(1)
     axes = op.Constant(value_ints=axes)
     if running_mean is None:  # Using input mean
-        running_mean = op.Squeeze(op.ReduceMean(input, axes))
+        running_mean = op.ReduceMean(input, axes, keepdims=False)
 
     if running_var is None:  # Using input var
         mean = op.ReduceMean(input, axes)
         input_sub_mean = op.Sub(input, mean)
         sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
-        running_var = op.Squeeze(op.ReduceMean(sqr_input_sub_mean, axes))
+        running_var = op.ReduceMean(sqr_input_sub_mean, axes, keepdims=False)
 
+    # TODO: This is a temporary fix for the issue that BatchNormalization
+    #       is forced to be in training mode in PyTorch, and ORT currently
+    #       only supports training mode with opset version lower than 14.
+    training = False
     # We have to split to two private functions, because BatchNormalization returns
     # three outputs when training_mode=True and one when it is False.
     if training:
@@ -5953,14 +5959,18 @@ def aten__native_batch_norm_legit_functional(
     axes.pop(1)
     axes = op.Constant(value_ints=axes)
     if running_mean is None:  # Using input mean
-        running_mean = op.Squeeze(op.ReduceMean(input, axes))
+        running_mean = op.ReduceMean(input, axes, keepdims=False)
 
     if running_var is None:  # Using input var
         mean = op.ReduceMean(input, axes)
         input_sub_mean = op.Sub(input, mean)
         sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
-        running_var = op.Squeeze(op.ReduceMean(sqr_input_sub_mean, axes))
+        running_var = op.ReduceMean(sqr_input_sub_mean, axes, keepdims=False)
 
+    # TODO: This is a temporary fix for the issue that BatchNormalization
+    #       is forced to be in training mode in PyTorch, and ORT currently
+    #       only supports training mode with opset version lower than 14.
+    training = False
     # We have to split to two private functions, because BatchNormalization returns
     # three outputs when training_mode=True and one when it is False.
     if training:
@@ -7856,9 +7866,12 @@ def aten_stack_complex(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTen
     return aten_stack(tensors, dim)
 
 
-@torch_op("aten::stack")
+@torch_op("aten::stack", trace_only=True)
 def aten_stack(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTensorOrString:
     """stack(Tensor[] tensors, int dim=0) -> Tensor"""
+    if isinstance(tensors, Sequence):
+        unsqueezed = [op.Unsqueeze(t, op.Constant(value_ints=[dim])) for t in tensors]
+        return op.Concat(*unsqueezed, axis=dim)
     return op.ConcatFromSequence(tensors, axis=dim, new_axis=1)
 
 
@@ -8950,7 +8963,9 @@ def aten_view_copy(self: TTensor, size: IntType) -> TTensor:
     return op.Reshape(self, size)
 
 
-@torch_op("aten::vstack")
+# Do not register vstack - decomposed by PyTorch: https://github.com/pytorch/pytorch/blob/bedf96d7ffe74b34bcfe52c7ae1ae05f40d6c8ee/torch/_refs/__init__.py#L3918
+
+
 def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
     """vstack(Tensor[] tensors) -> Tensor"""
 

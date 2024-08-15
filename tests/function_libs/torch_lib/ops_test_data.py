@@ -1586,13 +1586,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("view_as_real", core_ops.aten_view_as_real, complex=True),
     TorchLibOpInfo("view_as_real_copy", core_ops.aten_view_as_real_copy, complex=True),
     TorchLibOpInfo("view_copy", core_ops.aten_view_copy),
-    TorchLibOpInfo(
-        "vstack",
-        core_ops.aten_vstack,
-    ).xfail(
-        enabled_if=version_utils.onnxruntime_older_than("1.16"),
-        reason="fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x62afb00_rank). https://github.com/microsoft/onnxscript/issues/960",
-    ),
     TorchLibOpInfo("where", core_ops.aten_where, input_wrangler=_where_input_wrangler).xfail(
         dtypes=(torch.bool,),
         reason="fixme: ORT does not have an implementation for Where with bool inputs.",
@@ -1714,13 +1707,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("heaviside", core_ops.aten_heaviside),
     TorchLibOpInfo(
-        "hstack",
-        core_ops.aten_hstack,
-    ).xfail(
-        enabled_if=version_utils.onnxruntime_older_than("1.16"),
-        reason="fixme: RUNTIME_EXCEPTION : Exception during initialization: Invalid tensor data type 0. https://github.com/microsoft/onnxscript/issues/960",
-    ),
-    TorchLibOpInfo(
         "nn.functional.grid_sample",
         core_ops.aten_grid_sampler,
         input_wrangler=_grid_sample_input_wrangler,
@@ -1801,15 +1787,26 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         device_type="cpu",
         dtypes=(torch.float16,),
         reason="native_batch_norm outputs different dtypes on CPU and CUDA. Our implematation is based on that for CUDA",
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("training") is True
+        or sample.args[-3] is True,
+        reason="fixme: ORT only supports BatchNorm less than opset14",
     ),
     TorchLibOpInfo(
         "ops.aten._native_batch_norm_legit",
         core_ops.aten_native_batch_norm,
         tolerance={torch.float16: (1e-2, 7e-3)},
-    ).skip(
+    )
+    .skip(
         device_type="cpu",
         matcher=lambda sample: sample.kwargs.get("training") is False,
         reason="native_batch_norm outputs different shapes on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("training") is True
+        or sample.args[-3] is True,
+        reason="fixme: ORT only supports BatchNorm less than opset14",
     ),
     TorchLibOpInfo(
         "ops.aten._native_batch_norm_legit.no_stats",
@@ -1831,6 +1828,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("training") is True,
         test_class_name="TestOutputConsistencyEager",
         reason="fixme: output 4 (new_running_var) does not match the gpu output sometimes",
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("training") is True
+        or sample.args[-3] is True,
+        reason="fixme: ORT only supports BatchNorm less than opset14",
     ),
     TorchLibOpInfo(
         "ops.aten.native_group_norm",
