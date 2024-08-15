@@ -905,8 +905,6 @@ class GQALlama3RewriteRule(AttentionRewriteRule):
                 do_rotary=True,
                 rotary_interleaved=False,
             )
-
-            # Compute the final attention output
             attn_output = op.MatMul(gqa_output, o_proj_weight)
 
             return present_value, present_key, attn_output
