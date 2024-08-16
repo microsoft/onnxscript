@@ -23,7 +23,7 @@ import onnxscript.utils.utils as utils
 
 def is_control_flow_op(node: ir.Node) -> bool:
     return any(
-        isinstance(attr, (ir.AttrGraph, ir.AttrGraphs)) for attr in node.attributes.values()
+        attr.type in {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS} for attr in node.attributes.values()
     )
 
 
@@ -294,8 +294,9 @@ def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         # cond is a constant-value: inline the branch
         branch = "then_branch" if cond else "else_branch"
         graph_attr = node.attributes.get(branch, None)
-        if not isinstance(graph_attr, ir.AttrGraph):
+        if graph_attr.type != ir.AttributeType.GRAPH:
             return None
+        assert isinstance(graph_attr, ir.Attr)
         graph: ir.Graph = graph_attr.value
         formal_outs = graph.outputs
         actual_outs = node.outputs
@@ -623,7 +624,7 @@ class ConstantFolder:
 
         # Filter out bfloat16 cases?
         def convert(av):
-            if isinstance(av, ir.AttrTensor):
+            if av.type == ir.AttributeType.TENSOR:
                 return ir.serde.serialize_tensor(av.value)
             return av.value
 
