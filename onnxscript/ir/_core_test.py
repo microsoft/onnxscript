@@ -684,8 +684,8 @@ class NodeTest(unittest.TestCase):
 
 class GraphTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.v0 = _core.Input(name="v0")
-        self.v1 = _core.Input(name="v1")
+        self.v0 = _core.Value(name="v0")
+        self.v1 = _core.Value(name="v1")
         self.node = _core.Node(
             "", "Add", inputs=(self.v0, self.v1), num_outputs=1, name="node_add"
         )
@@ -759,8 +759,8 @@ class GraphTest(unittest.TestCase):
             self.graph.remove(self.node, safe=True)
 
     def test_remove_safe_raises_when_node_has_users(self):
-        v0 = _core.Input(name="v0")
-        v1 = _core.Input(name="v1")
+        v0 = _core.Value(name="v0")
+        v1 = _core.Value(name="v1")
         add_node = _core.Node("", "Add", inputs=(v0, v1), num_outputs=1)
         identity_node = _core.Node("", "Identity", inputs=add_node.outputs, num_outputs=1)
         graph = _core.Graph(
@@ -773,8 +773,8 @@ class GraphTest(unittest.TestCase):
             graph.remove(add_node, safe=True)
 
     def test_remove_safe_removes_uses_of_removed_nodes(self):
-        v0 = _core.Input(name="v0")
-        v1 = _core.Input(name="v1")
+        v0 = _core.Value(name="v0")
+        v1 = _core.Value(name="v1")
         add_node = _core.Node("", "Add", inputs=(v0, v1), num_outputs=1)
         identity_node = _core.Node("", "Identity", inputs=add_node.outputs, num_outputs=1)
         graph = _core.Graph(

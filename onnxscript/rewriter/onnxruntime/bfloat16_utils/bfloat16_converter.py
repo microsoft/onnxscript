@@ -7,7 +7,7 @@ from onnxscript import ir
 logger = logging.getLogger(__name__)
 
 
-def _convert_inputs_from_bfloat16_to_float16(value: ir.Input) -> None:
+def _convert_inputs_from_bfloat16_to_float16(value: ir.Value) -> None:
     if value.dtype != ir.DataType.BFLOAT16:
         return
     value.dtype = ir.DataType.FLOAT16
@@ -20,7 +20,7 @@ def _convert_outputs_from_bfloat16_to_float16(value: ir.Value) -> None:
     _insert_cast_nodes_for_bfloat16_to_float16_to_outputs(value)
 
 
-def _insert_cast_nodes_for_float16_to_bfloat16_to_inputs(value: ir.Input) -> None:
+def _insert_cast_nodes_for_float16_to_bfloat16_to_inputs(value: ir.Value) -> None:
     user_nodes_and_indices = tuple(value.uses())
 
     attr = ir.AttrInt64(name="to", value=ir.DataType.BFLOAT16)
