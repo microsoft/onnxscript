@@ -1632,7 +1632,12 @@ def Input(
     type: _protocols.TypeProtocol | None = None,
     doc_string: str | None = None,
 ) -> Value:
-    """Create an input of a Graph or a Function."""
+    """Create an input of a Graph or a Function.
+
+    This is equivalent to calling ``Value(name=name, shape=shape, type=type, doc_string=doc_string)``.
+    """
+
+    # The function name is capitalized to maintain API backward compatibility.
 
     return Value(name=name, shape=shape, type=type, doc_string=doc_string)
 
