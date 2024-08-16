@@ -22,9 +22,8 @@ import onnxscript.utils.utils as utils
 
 
 def is_control_flow_op(node: ir.Node) -> bool:
-    return any(
-        attr.type in {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS} for attr in node.attributes.values()
-    )
+    graph_types = {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}
+    return any(attr.type in graph_types for attr in node.attributes.values())
 
 
 def is_non_deterministic_op(node: ir.Node) -> bool:
