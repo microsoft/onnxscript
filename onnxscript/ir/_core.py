@@ -2568,6 +2568,7 @@ class Attr(_protocols.AttributeProtocol, _display.PrettyPrintable):
 
 # NOTE: The following functions are just for convenience
 def AttrFloat32(name: str, value: float, doc_string: str | None = None) -> Attr:
+    """Create a float attribute."""
     # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
@@ -2578,6 +2579,7 @@ def AttrFloat32(name: str, value: float, doc_string: str | None = None) -> Attr:
 
 
 def AttrInt64(name: str, value: int, doc_string: str | None = None) -> Attr:
+    """Create an int attribute."""
     # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
@@ -2588,6 +2590,7 @@ def AttrInt64(name: str, value: int, doc_string: str | None = None) -> Attr:
 
 
 def AttrString(name: str, value: str, doc_string: str | None = None) -> Attr:
+    """Create a str attribute."""
     # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
@@ -2600,6 +2603,7 @@ def AttrString(name: str, value: str, doc_string: str | None = None) -> Attr:
 def AttrTensor(
     name: str, value: _protocols.TensorProtocol, doc_string: str | None = None
 ) -> Attr:
+    """Create a tensor attribute."""
     # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
@@ -2610,6 +2614,7 @@ def AttrTensor(
 
 
 def AttrGraph(name: str, value: Graph, doc_string: str | None = None) -> Attr:
+    """Create a graph attribute."""
     # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
@@ -2620,6 +2625,7 @@ def AttrGraph(name: str, value: Graph, doc_string: str | None = None) -> Attr:
 
 
 def AttrFloat32s(name: str, value: Sequence[float], doc_string: str | None = None) -> Attr:
+    """Create a float sequence attribute."""
     # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
@@ -2630,6 +2636,7 @@ def AttrFloat32s(name: str, value: Sequence[float], doc_string: str | None = Non
 
 
 def AttrInt64s(name: str, value: Sequence[int], doc_string: str | None = None) -> Attr:
+    """Create an int sequence attribute."""
     # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
@@ -2640,6 +2647,7 @@ def AttrInt64s(name: str, value: Sequence[int], doc_string: str | None = None) -
 
 
 def AttrStrings(name: str, value: Sequence[str], doc_string: str | None = None) -> Attr:
+    """Create a string sequence attribute."""
     # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
@@ -2652,6 +2660,7 @@ def AttrStrings(name: str, value: Sequence[str], doc_string: str | None = None) 
 def AttrTensors(
     name: str, value: Sequence[_protocols.TensorProtocol], doc_string: str | None = None
 ) -> Attr:
+    """Create a tensor sequence attribute."""
     # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
@@ -2662,6 +2671,7 @@ def AttrTensors(
 
 
 def AttrGraphs(name: str, value: Sequence[Graph], doc_string: str | None = None) -> Attr:
+    """Create a graph sequence attribute."""
     # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
@@ -2675,6 +2685,7 @@ def AttrGraphs(name: str, value: Sequence[Graph], doc_string: str | None = None)
 def AttrSparseTensor(
     name: str, value: _protocols.SparseTensorProtocol, doc_string: str | None = None
 ) -> Attr:
+    """Create a sparse tensor attribute."""
     # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
@@ -2687,6 +2698,7 @@ def AttrSparseTensor(
 def AttrSparseTensors(
     name: str, value: Sequence[_protocols.SparseTensorProtocol], doc_string: str | None = None
 ) -> Attr:
+    """Create a sparse tensor sequence attribute."""
     # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
@@ -2708,6 +2720,7 @@ class TypeAndShape:
 
 
 def AttrTypeProto(name: str, value: TypeAndShape, doc_string: str | None = None) -> Attr:
+    """Create a type attribute."""
     # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
@@ -2720,6 +2733,7 @@ def AttrTypeProto(name: str, value: TypeAndShape, doc_string: str | None = None)
 def AttrTypeProtos(
     name: str, value: Sequence[TypeAndShape], doc_string: str | None = None
 ) -> Attr:
+    """Create a type sequence attribute."""
     # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
