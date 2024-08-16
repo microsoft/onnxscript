@@ -1626,20 +1626,15 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         return any(output is self for output in graph.outputs)
 
 
-class Input(Value):
-    """Input of a Graph or a Function."""
+def Input(
+    name: str | None = None,
+    shape: Shape | None = None,
+    type: _protocols.TypeProtocol | None = None,
+    doc_string: str | None = None,
+) -> Value:
+    """Create an input of a Graph or a Function."""
 
-    # Slots already defined in Value
-    __slots__ = ()
-
-    def __init__(
-        self,
-        name: str | None = None,
-        shape: Shape | None = None,
-        type: _protocols.TypeProtocol | None = None,
-        doc_string: str | None = None,
-    ) -> None:
-        super().__init__(name=name, shape=shape, type=type, doc_string=doc_string)
+    return Value(name=name, shape=shape, type=type, doc_string=doc_string)
 
 
 def _check_node_safe_to_remove(
@@ -1720,7 +1715,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
 
     def __init__(
         self,
-        inputs: Sequence[Input],
+        inputs: Sequence[Value],
         outputs: Sequence[Value],
         *,
         nodes: Iterable[Node],
@@ -1758,7 +1753,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self.extend(nodes)
 
     @property
-    def inputs(self) -> list[Input]:
+    def inputs(self) -> list[Value]:
         return self._inputs
 
     @property
@@ -2334,7 +2329,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         self._overload = value
 
     @property
-    def inputs(self) -> list[Input]:
+    def inputs(self) -> list[Value]:
         return self._graph.inputs
 
     @property
