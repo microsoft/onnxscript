@@ -1637,7 +1637,7 @@ def Input(
     This is equivalent to calling ``Value(name=name, shape=shape, type=type, doc_string=doc_string)``.
     """
 
-    # The function name is capitalized to maintain API backward compatibility.
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
 
     return Value(name=name, shape=shape, type=type, doc_string=doc_string)
 
@@ -2568,6 +2568,7 @@ class Attr(_protocols.AttributeProtocol, _display.PrettyPrintable):
 
 # NOTE: The following functions are just for convenience
 def AttrFloat32(name: str, value: float, doc_string: str | None = None) -> Attr:
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
         _enums.AttributeType.FLOAT,
@@ -2577,6 +2578,7 @@ def AttrFloat32(name: str, value: float, doc_string: str | None = None) -> Attr:
 
 
 def AttrInt64(name: str, value: int, doc_string: str | None = None) -> Attr:
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
         _enums.AttributeType.INT,
@@ -2586,6 +2588,7 @@ def AttrInt64(name: str, value: int, doc_string: str | None = None) -> Attr:
 
 
 def AttrString(name: str, value: str, doc_string: str | None = None) -> Attr:
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
         _enums.AttributeType.STRING,
@@ -2597,6 +2600,7 @@ def AttrString(name: str, value: str, doc_string: str | None = None) -> Attr:
 def AttrTensor(
     name: str, value: _protocols.TensorProtocol, doc_string: str | None = None
 ) -> Attr:
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
         _enums.AttributeType.TENSOR,
@@ -2606,6 +2610,7 @@ def AttrTensor(
 
 
 def AttrGraph(name: str, value: Graph, doc_string: str | None = None) -> Attr:
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
         _enums.AttributeType.GRAPH,
@@ -2615,6 +2620,7 @@ def AttrGraph(name: str, value: Graph, doc_string: str | None = None) -> Attr:
 
 
 def AttrFloat32s(name: str, value: Sequence[float], doc_string: str | None = None) -> Attr:
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
         _enums.AttributeType.FLOATS,
@@ -2624,6 +2630,7 @@ def AttrFloat32s(name: str, value: Sequence[float], doc_string: str | None = Non
 
 
 def AttrInt64s(name: str, value: Sequence[int], doc_string: str | None = None) -> Attr:
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
         _enums.AttributeType.INTS,
@@ -2633,6 +2640,7 @@ def AttrInt64s(name: str, value: Sequence[int], doc_string: str | None = None) -
 
 
 def AttrStrings(name: str, value: Sequence[str], doc_string: str | None = None) -> Attr:
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
         _enums.AttributeType.STRINGS,
@@ -2644,6 +2652,7 @@ def AttrStrings(name: str, value: Sequence[str], doc_string: str | None = None) 
 def AttrTensors(
     name: str, value: Sequence[_protocols.TensorProtocol], doc_string: str | None = None
 ) -> Attr:
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
         _enums.AttributeType.TENSORS,
@@ -2653,6 +2662,7 @@ def AttrTensors(
 
 
 def AttrGraphs(name: str, value: Sequence[Graph], doc_string: str | None = None) -> Attr:
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
         _enums.AttributeType.GRAPHS,
@@ -2665,6 +2675,7 @@ def AttrGraphs(name: str, value: Sequence[Graph], doc_string: str | None = None)
 def AttrSparseTensor(
     name: str, value: _protocols.SparseTensorProtocol, doc_string: str | None = None
 ) -> Attr:
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
         _enums.AttributeType.SPARSE_TENSOR,
@@ -2676,6 +2687,7 @@ def AttrSparseTensor(
 def AttrSparseTensors(
     name: str, value: Sequence[_protocols.SparseTensorProtocol], doc_string: str | None = None
 ) -> Attr:
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
         _enums.AttributeType.SPARSE_TENSORS,
@@ -2696,6 +2708,7 @@ class TypeAndShape:
 
 
 def AttrTypeProto(name: str, value: TypeAndShape, doc_string: str | None = None) -> Attr:
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
         _enums.AttributeType.TYPE_PROTO,
@@ -2707,6 +2720,7 @@ def AttrTypeProto(name: str, value: TypeAndShape, doc_string: str | None = None)
 def AttrTypeProtos(
     name: str, value: Sequence[TypeAndShape], doc_string: str | None = None
 ) -> Attr:
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
     return Attr(
         name,
         _enums.AttributeType.TYPE_PROTOS,
