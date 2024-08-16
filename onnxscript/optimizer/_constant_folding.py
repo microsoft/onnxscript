@@ -292,7 +292,9 @@ def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     if cond is not None:
         # cond is a constant-value: inline the branch
         branch = "then_branch" if cond else "else_branch"
-        graph_attr = node.attributes.get(branch, None)
+        graph_attr = node.attributes.get(branch)
+        if graph_attr is None:
+            return None
         if graph_attr.type != ir.AttributeType.GRAPH:
             return None
         assert isinstance(graph_attr, ir.Attr)
