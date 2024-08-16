@@ -1637,7 +1637,7 @@ def Input(
     This is equivalent to calling ``Value(name=name, shape=shape, type=type, doc_string=doc_string)``.
     """
 
-    # The function name is capitalized to maintain API backward compatibility.
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
 
     return Value(name=name, shape=shape, type=type, doc_string=doc_string)
 
@@ -2558,187 +2558,154 @@ class Attr(_protocols.AttributeProtocol, _display.PrettyPrintable):
         return True
 
     def __str__(self) -> str:
+        if self.type == _enums.AttributeType.GRAPH:
+            return textwrap.indent("\n" + str(self.value), " " * 4)
         return str(self.value)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name!r}, {self.type!r}, {self.value!r})"
 
 
-class _SpecializedAttr(Attr):
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.name!r}, {self.value!r})"
+# NOTE: The following functions are just for convenience
+def AttrFloat32(name: str, value: float, doc_string: str | None = None) -> Attr:
+    """Create a float attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.FLOAT,
+        value,
+        doc_string=doc_string,
+    )
 
 
-# NOTE: The following classes are just supporting classes (partially applied) for convenience
-# But I think they would be useful to have in the IR by having the type info
-# explicitly in the class type.
-class AttrFloat32(_SpecializedAttr):
-    def __init__(self, name: str, value: float, doc_string: str | None = None):
-        super().__init__(
-            name,
-            _enums.AttributeType.FLOAT,
-            value,
-            doc_string=doc_string,
-        )
+def AttrInt64(name: str, value: int, doc_string: str | None = None) -> Attr:
+    """Create an int attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.INT,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrInt64(_SpecializedAttr):
-    def __init__(self, name: str, value: int, doc_string: str | None = None):
-        super().__init__(
-            name,
-            _enums.AttributeType.INT,
-            value,
-            doc_string=doc_string,
-        )
+def AttrString(name: str, value: str, doc_string: str | None = None) -> Attr:
+    """Create a str attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.STRING,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrString(_SpecializedAttr):
-    def __init__(self, name: str, value: str, doc_string: str | None = None):
-        super().__init__(
-            name,
-            _enums.AttributeType.STRING,
-            value,
-            doc_string=doc_string,
-        )
+def AttrTensor(
+    name: str, value: _protocols.TensorProtocol, doc_string: str | None = None
+) -> Attr:
+    """Create a tensor attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.TENSOR,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrTensor(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: _protocols.TensorProtocol,
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.TENSOR,
-            value,
-            doc_string=doc_string,
-        )
+def AttrGraph(name: str, value: Graph, doc_string: str | None = None) -> Attr:
+    """Create a graph attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.GRAPH,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrGraph(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Graph,
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.GRAPH,
-            value,
-            doc_string=doc_string,
-        )
-
-    def __str__(self) -> str:
-        return textwrap.indent("\n" + super().__str__(), " " * 4)
+def AttrFloat32s(name: str, value: Sequence[float], doc_string: str | None = None) -> Attr:
+    """Create a float sequence attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.FLOATS,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrFloat32s(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[float],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.FLOATS,
-            value,
-            doc_string=doc_string,
-        )
+def AttrInt64s(name: str, value: Sequence[int], doc_string: str | None = None) -> Attr:
+    """Create an int sequence attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.INTS,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrInt64s(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[int],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.INTS,
-            value,
-            doc_string=doc_string,
-        )
+def AttrStrings(name: str, value: Sequence[str], doc_string: str | None = None) -> Attr:
+    """Create a string sequence attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.STRINGS,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrStrings(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[str],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.STRINGS,
-            value,
-            doc_string=doc_string,
-        )
+def AttrTensors(
+    name: str, value: Sequence[_protocols.TensorProtocol], doc_string: str | None = None
+) -> Attr:
+    """Create a tensor sequence attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.TENSORS,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrTensors(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[_protocols.TensorProtocol],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.TENSORS,
-            value,
-            doc_string=doc_string,
-        )
-
-
-class AttrGraphs(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[Graph],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.GRAPHS,
-            value,
-            doc_string=doc_string,
-        )
+def AttrGraphs(name: str, value: Sequence[Graph], doc_string: str | None = None) -> Attr:
+    """Create a graph sequence attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.GRAPHS,
+        value,
+        doc_string=doc_string,
+    )
 
 
 # NOTE: SparseTensor should be a sparse tensor proto
-class AttrSparseTensor(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[_protocols.SparseTensorProtocol],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.SPARSE_TENSOR,
-            value,
-            doc_string=doc_string,
-        )
+def AttrSparseTensor(
+    name: str, value: _protocols.SparseTensorProtocol, doc_string: str | None = None
+) -> Attr:
+    """Create a sparse tensor attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.SPARSE_TENSOR,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrSparseTensors(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[_protocols.SparseTensorProtocol],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.SPARSE_TENSORS,
-            value,
-            doc_string=doc_string,
-        )
+def AttrSparseTensors(
+    name: str, value: Sequence[_protocols.SparseTensorProtocol], doc_string: str | None = None
+) -> Attr:
+    """Create a sparse tensor sequence attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.SPARSE_TENSORS,
+        value,
+        doc_string=doc_string,
+    )
 
 
 @dataclasses.dataclass
@@ -2752,31 +2719,25 @@ class TypeAndShape:
     shape: Shape | None
 
 
-class AttrTypeProto(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: TypeAndShape,
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.TYPE_PROTO,
-            value,
-            doc_string=doc_string,
-        )
+def AttrTypeProto(name: str, value: TypeAndShape, doc_string: str | None = None) -> Attr:
+    """Create a type attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.TYPE_PROTO,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrTypeProtos(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[TypeAndShape],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.TYPE_PROTOS,
-            value,
-            doc_string=doc_string,
-        )
+def AttrTypeProtos(
+    name: str, value: Sequence[TypeAndShape], doc_string: str | None = None
+) -> Attr:
+    """Create a type sequence attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.TYPE_PROTOS,
+        value,
+        doc_string=doc_string,
+    )

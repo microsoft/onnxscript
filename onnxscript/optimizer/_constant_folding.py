@@ -22,9 +22,8 @@ import onnxscript.utils.utils as utils
 
 
 def is_control_flow_op(node: ir.Node) -> bool:
-    return any(
-        isinstance(attr, (ir.AttrGraph, ir.AttrGraphs)) for attr in node.attributes.values()
-    )
+    graph_types = {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}
+    return any(attr.type in graph_types for attr in node.attributes.values())
 
 
 def is_non_deterministic_op(node: ir.Node) -> bool:
@@ -293,9 +292,12 @@ def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     if cond is not None:
         # cond is a constant-value: inline the branch
         branch = "then_branch" if cond else "else_branch"
-        graph_attr = node.attributes.get(branch, None)
-        if not isinstance(graph_attr, ir.AttrGraph):
+        graph_attr = node.attributes.get(branch)
+        if graph_attr is None:
             return None
+        if graph_attr.type != ir.AttributeType.GRAPH:
+            return None
+        assert isinstance(graph_attr, ir.Attr)
         graph: ir.Graph = graph_attr.value
         formal_outs = graph.outputs
         actual_outs = node.outputs
@@ -623,7 +625,7 @@ class ConstantFolder:
 
         # Filter out bfloat16 cases?
         def convert(av):
-            if isinstance(av, ir.AttrTensor):
+            if av.type == ir.AttributeType.TENSOR:
                 return ir.serde.serialize_tensor(av.value)
             return av.value
 
