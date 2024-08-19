@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-import os
 import pathlib
 import tempfile
 import unittest
@@ -58,6 +57,57 @@ class ExternalDataTest(unittest.TestCase):
         self.assertEqual(initializer_tensor.base_dir, expected_dir)
         attr_tensor = model.graph.node(0).attributes["value"].value
         self.assertEqual(attr_tensor.base_dir, expected_dir)
+
+
+class OffsetCalcTest(unittest.TestCase):
+    """Test the offset calculation for the external tensor class."""
+
+    def test_align_offset_false(self):
+        # Tensor size > Align Threshold
+        current_offset = 20000
+        tensor_size = 1048
+        new_offset = _external_data.compute_new_offset(
+            current_offset, tensor_size, align_offset=False
+        )
+        self.assertEqual(current_offset, new_offset)
+
+    def test_align_with_small_align_threshold(self):
+        # Tensor size < Align Threshold
+        current_offset = 20000
+        tensor_size = 1048
+        new_offset = _external_data.compute_new_offset(
+            current_offset,
+            tensor_size,
+            align_threshold=1000,
+        )
+        self.assertNotEqual(current_offset, new_offset)
+
+    def test_align_with_large_align_threshold(self):
+        # Tensor size > Align Threshold
+        current_offset = 20000
+        tensor_size = 1048
+        new_offset = _external_data.compute_new_offset(
+            current_offset,
+            tensor_size,
+        )
+        self.assertEqual(current_offset, new_offset)
+
+    def test_allocation_granularity_diff(self):
+        # Tensor size > Align Threshold
+        current_offset = 20000
+        tensor_size = 1048577
+        new_offset_1 = _external_data.compute_new_offset(
+            current_offset,
+            tensor_size,
+            allocation_granularity=4000,
+        )
+        new_offset_2 = _external_data.compute_new_offset(
+            current_offset,
+            tensor_size,
+        )
+        self.assertNotEqual(current_offset, new_offset_1)
+        self.assertNotEqual(current_offset, new_offset_2)
+        self.assertNotEqual(new_offset_1, new_offset_2)
 
 
 class ExternalTensorTest(unittest.TestCase):

@@ -33,9 +33,7 @@ class ExternalDataInfo:
 
 def _all_tensors(
     graph: _core.Graph | _core.GraphView, include_attributes: bool = False
-) -> Iterator[
-    tuple[_protocols.TensorProtocol, _protocols.ValueProtocol | _protocols.AttributeProtocol]
-]:
+) -> Iterator[_protocols.TensorProtocol]:
     """Iterate over all tensors in the graph.
 
     Args:
@@ -117,7 +115,7 @@ def check_external_data_file(model: _core.Model, file_path: str | os.PathLike) -
 # Converting model initializers to external data
 
 
-def _compute_new_offset(
+def compute_new_offset(
     current_offset: int,
     tensor_size: int,
     align_offset: bool = True,
@@ -155,7 +153,7 @@ def set_external_data(
     """
     tensor_size = tensor.nbytes
     # Calculate updated offset and align tensors
-    current_offset = _compute_new_offset(
+    current_offset = compute_new_offset(
         current_offset,
         tensor_size,
         align_offset=align_offset,
