@@ -6618,7 +6618,6 @@ def aten_pow(self: TReal, exponent: TTensor) -> TReal:
 def aten_prelu(self: TReal, weight: TReal) -> TReal:
     """prelu(Tensor self, Tensor weight) -> Tensor"""
 
-    zero = op.CastLike(0, self)
     rank = len(self.shape)
     if rank == 0:
         # e.g. self: [], weight: [1]
@@ -6626,7 +6625,7 @@ def aten_prelu(self: TReal, weight: TReal) -> TReal:
     elif rank >= 2:
         # e.g. self: [5,10,5], weight: [10]
         weight = op.Reshape(weight, [1, -1] + [1] * (rank - 2))
-    return op.Add(op.Max(self, zero), op.Mul(weight, op.Min(self, zero)))
+    return op.PRelu(self, weight)
 
 
 def aten_prelu_backward(
