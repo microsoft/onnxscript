@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+import os
+import pathlib
 import tempfile
 import unittest
 
@@ -66,6 +68,7 @@ class ExternalTensorTest(unittest.TestCase):
         self.external_data_name = "external_tensors.bin"
         self.base_path = self.temp_dir.name
         self.data = np.random.rand(2, 42).astype(np.float32)
+        self.data_other = np.random.rand(2, 42).astype(np.float32)
         self.data_float16 = np.random.rand(2, 42).astype(np.float16)
         self.model = self._simple_model_with_external()
 
@@ -84,6 +87,19 @@ class ExternalTensorTest(unittest.TestCase):
             dtype=ir.DataType.FLOAT16,
             shape=_core.Shape(self.data_float16.shape),
             name="tensor2",
+        )
+        raw_data = self.data_other.tobytes()
+        # Save the data to disk
+        file_path = pathlib.Path(self.base_path) / self.external_data_name
+        with open(file_path, "w+b") as f:
+            f.write(raw_data)
+        tensor3 = _core.ExternalTensor(
+            path=file_path,
+            offset=0,
+            length=len(raw_data),
+            dtype=ir.DataType.FLOAT,
+            name="tensor3",
+            shape=_core.Shape(self.data_other.shape),
         )
 
         node_0 = ir.Node(
@@ -106,6 +122,7 @@ class ExternalTensorTest(unittest.TestCase):
             initializers=[
                 ir.Value(name="tensor1", const_value=tensor1),
                 ir.Value(name="tensor2", const_value=tensor2),
+                ir.Value(name="tensor3", const_value=tensor3),
             ],
             # Unsorted nodes
             nodes=[node_1, node_0],
@@ -115,7 +132,7 @@ class ExternalTensorTest(unittest.TestCase):
         return model
 
     def test_initialize(self):
-        model_with_external_data = _external_data.convert_model_to_external_data(
+        model_with_external_data = _external_data.to_external_data(
             self.model, self.base_path, file_path=self.external_data_name
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
@@ -125,7 +142,7 @@ class ExternalTensorTest(unittest.TestCase):
         np.testing.assert_equal(external_tensor.numpy(), self.data)
 
     def test_totypes_returns_correct_data_in(self):
-        model_with_external_data = _external_data.convert_model_to_external_data(
+        model_with_external_data = _external_data.to_external_data(
             self.model, self.base_path, file_path=self.external_data_name
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
@@ -136,6 +153,22 @@ class ExternalTensorTest(unittest.TestCase):
         # Ensure repeated reads are consistent
         self.assertEqual(external_tensor.numpy().tobytes(), self.data.tobytes())
         self.assertEqual(external_tensor2.numpy().tobytes(), self.data_float16.tobytes())
+
+    def test_non_empty_external_data(self):
+        model_with_external_data = _external_data.to_external_data(
+            self.model, self.base_path, file_path=self.external_data_name
+        )
+        external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
+        external_tensor2 = model_with_external_data.graph.initializers["tensor2"].const_value
+        external_tensor3 = model_with_external_data.graph.initializers["tensor3"].const_value
+
+        self.assertEqual(external_tensor.numpy().tobytes(), self.data.tobytes())
+        self.assertEqual(external_tensor2.numpy().tobytes(), self.data_float16.tobytes())
+        self.assertEqual(external_tensor3.numpy().tobytes(), self.data_other.tobytes())
+        # Ensure repeated reads are consistent
+        self.assertEqual(external_tensor.numpy().tobytes(), self.data.tobytes())
+        self.assertEqual(external_tensor2.numpy().tobytes(), self.data_float16.tobytes())
+        self.assertEqual(external_tensor3.numpy().tobytes(), self.data_other.tobytes())
 
 
 if __name__ == "__main__":
