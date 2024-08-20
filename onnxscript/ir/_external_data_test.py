@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+
 import pathlib
 import tempfile
 import unittest
@@ -206,7 +207,10 @@ class ExternalTensorTest(unittest.TestCase):
 
     def test_non_empty_external_data(self):
         model_with_external_data = _external_data.to_external_data(
-            self.model, self.base_path, file_path=self.external_data_name
+            self.model,
+            self.base_path,
+            file_path=self.external_data_name,
+            load_external_to_memory=True,
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
         external_tensor2 = model_with_external_data.graph.initializers["tensor2"].const_value

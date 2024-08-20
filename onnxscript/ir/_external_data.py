@@ -6,8 +6,8 @@ from __future__ import annotations
 
 __all__ = ["set_base_dir"]
 
+import mmap
 import os
-import pathlib
 from typing import Iterator
 
 import numpy as np
@@ -75,6 +75,35 @@ def set_base_dir(graph: _core.Graph | _core.GraphView, base_dir: str | os.PathLi
 # Loading external data
 
 
+def load_external_tensor(mmap_buffer, external_tensor):
+    """
+    dt = np.dtype(external_tensor.dtype.numpy()).newbyteorder("<")
+    if external_tensor.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
+        # Use uint8 to read in the full byte. Otherwise ml_dtypes.int4 will clip the values
+        dt = np.dtype(np.uint8).newbyteorder("<")
+        count = external_tensor.length // 2 + external_tensor.length % 2
+    else:
+        count = external_tensor.length
+    print(len(mmap_buffer))
+    print(count)
+    raw_data_np = np.frombuffer(
+        mmap_buffer, dtype=dt, offset=external_tensor.offset or 0, count=84
+    )
+    shape = external_tensor.shape.numpy()
+    # if self.dtype == _enums.DataType.INT4:
+    #    # Unpack the int4 arrays
+    #    self._array = _type_casting.unpack_int4(self._array, shape)
+    # elif self.dtype == _enums.DataType.UINT4:
+    #    self._array = _type_casting.unpack_uint4(self._array, shape)
+    # else:
+    raw_data_np = raw_data_np.reshape(shape)
+    """
+    raw_data = mmap_buffer.read(external_tensor.length)
+    raw_data = np.frombuffer(raw_data, dtype=external_tensor.dtype.numpy())
+    raw_data_np = np.reshape(raw_data, newshape=external_tensor.shape.numpy())
+    return raw_data_np
+
+
 def check_external_data_file(model: _core.Model, file_path: str | os.PathLike) -> None:
     """
     Check if file to which external data is to be written to is empty.
@@ -84,31 +113,29 @@ def check_external_data_file(model: _core.Model, file_path: str | os.PathLike) -
         model: Model to be converted.
         file_path: Location to which external data is to be stored.
     """
-    # Check if the file is empty
-    if os.stat(file_path).st_size == 0:
-        return
     # If file is not empty, load external data
     with open(file_path, "r+b") as data_file:
+        raw_data = mmap.mmap(
+            data_file.fileno(),
+            0,
+            access=mmap.ACCESS_READ,
+        )
         for value in model.graph.initializers.values():
             if isinstance(value.const_value, _core.ExternalTensor):
                 external_tensor = value.const_value
-                external_tensor_path = (
-                    pathlib.Path(external_tensor._base_dir) / external_tensor._path
+                external_tensor_path = os.path.join(
+                    external_tensor.base_dir, external_tensor.path
                 )
                 assert external_tensor_path == file_path
+                assert external_tensor.offset is not None
                 data_file.seek(external_tensor.offset)
 
-                # Read raw data from file based on offset and length
-                # TODO: Convert this into a more robust function
-                raw_data = data_file.read(external_tensor.length)
-                raw_data = np.frombuffer(raw_data, dtype=external_tensor.dtype.numpy())
-                raw_data = np.reshape(raw_data, newshape=external_tensor.shape.numpy())
-
-                # Store raw data as a tensor and update value.const_value
+                raw_data_np = load_external_tensor(raw_data, external_tensor)
                 tensor = _core.Tensor(
-                    raw_data, name=external_tensor.name, dtype=external_tensor.dtype
+                    raw_data_np, name=external_tensor.name, dtype=external_tensor.dtype
                 )
                 value.const_value = tensor
+                assert (value.name is not None) and (value.name in model.graph.initializers)
                 model.graph.initializers[value.name] = value
 
 
@@ -148,9 +175,7 @@ def set_external_data(
     align_threshold: int = 1048576,  # 1MB,
     allocation_granularity: int = 65536,  # 64KB
 ) -> ExternalDataInfo:
-    """
-    Method to capture information about a tensor that is to be stored as external data.
-    """
+    """Method to capture information about a tensor that is to be stored as external data."""
     tensor_size = tensor.nbytes
     # Calculate updated offset and align tensors
     current_offset = compute_new_offset(
@@ -162,7 +187,7 @@ def set_external_data(
     )
     # Store offset and tensor size as ExternalDataInfo
     external_data_info = ExternalDataInfo(
-        tensor.name,
+        tensor.name,  # type: ignore[arg-type]
         current_offset,
         tensor_size,
     )
@@ -183,7 +208,10 @@ def save_external_data(
     with open(file_path, "w+b") as data_file:
         for value, tensor_info in external_data_info:
             current_offset = tensor_info.offset
-            raw_data = value._const_value.tobytes()
+            assert value.const_value is not None
+            if isinstance(value.const_value, _core.ExternalTensor):
+                continue
+            raw_data = value.const_value.tobytes()
             if current_offset is not None:
                 # Pad file to required offset if needed
                 file_size = data_file.tell()
@@ -207,6 +235,7 @@ def store_as_external_tensors(
     """
     for value, tensor_info in external_data_info:
         tensor = value.const_value
+        assert tensor is not None
         external_tensor = _core.ExternalTensor(
             file_path,
             tensor_info.offset,
@@ -228,6 +257,7 @@ def to_external_data(
     align_offset: bool = True,
     align_threshold: int = 1048576,  # 1MB,
     allocation_granularity: int = 65536,  # 64KB
+    load_external_to_memory: bool = False,
 ) -> _core.Model:
     """
     Call to set all tensors with raw data as external data.
@@ -239,15 +269,19 @@ def to_external_data(
         align_offset: Offset will always be page aligned and alloction granularity aligned for mmap support. This is done by padding previous tensor data with zeros keeping same length. Tensor data will be aligned if > align_threshold
         align_threshold: Alignment threshold for size of data. Having a low threshold will waste file space for small initializers. Only when tensor's data is > the page_align_threshold it will be force aligned.
         allocation_granularity: The allocation Granularity for mmap() support. Typically 64KB for Windows & 4KB for other OSes.
+        load_external_to_memory: If set to true, loads all pre-existing external tensors to memory. Otherwise, all new external tensors are appended to file.
     """
-    file_path = pathlib.Path(base_path) / file_path
+    path = os.path.join(base_path, file_path)
     # Check if file path is valid, and create subsequent subdirectories within the path if they don't exist
-    try:
-        file_path.mkdir(parents=True, exist_ok=True)
-    except:
-        pass
+    parent_path, file_name = "/".join(path.split("/")[:-1]), path.split("/")[-1]
+    os.makedirs(parent_path, exist_ok=True)
     # Check if file is empty. If not, load pre-existing external data.
-    check_external_data_file(model, file_path)
+    if os.stat(path).st_size != 0:
+        if load_external_to_memory:
+            check_external_data_file(model, path)
+        else:
+            # If exisiting external tensors are not loaded to memory, copy the external data to a temporary location
+            os.rename(path, parent_path + "/temp_" + file_name)
 
     # Get all the tensors in the graph which are to be stored as external data.
     # Iterate through all the tensors, and extract the external data information such as
@@ -275,8 +309,10 @@ def to_external_data(
         external_data_info.append((value, tensor_info))
         current_offset = tensor_info.offset + tensor_info.length
 
-    save_external_data(external_data_info, file_path)
+    save_external_data(external_data_info, path)
 
     # Convert initializers to ExternalTensors
-    model = store_as_external_tensors(model, external_data_info, file_path)
+    model = store_as_external_tensors(model, external_data_info, path)
+
+    # Append pre-exiting external tensors to new data file.
     return model
