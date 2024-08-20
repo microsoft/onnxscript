@@ -822,7 +822,7 @@ def aten_leaky_relu_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::linear")
+# NOTE: Do not register - We rely on PyTorch decomposition to aten_addmm (Gemm)
 def aten_linear(input: TFloat, weight: TFloat) -> TFloat:
     """linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor"""
 
@@ -833,7 +833,7 @@ def aten_linear(input: TFloat, weight: TFloat) -> TFloat:
     return op.MatMul(input, weight_transposed)
 
 
-@torch_op("aten::linear")
+# NOTE: Do not register - We rely on PyTorch decomposition to aten_addmm (Gemm)
 def aten_linear_bias(input: TFloat, weight: TFloat, bias: TFloat) -> TFloat:
     """linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor"""
 
