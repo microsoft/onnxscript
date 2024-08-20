@@ -19,7 +19,7 @@ class ExternalDataInfo:
     """
     A class that stores information about a tensor that is to be stored as external data.
 
-    Args:
+    Attributes:
         name: The name of the tensor that is to be stored as external data.
         offset: The offset is used to determine where exactly in the file the external data is written to.
         length: Stores the size of the tensor.
@@ -75,7 +75,7 @@ def set_base_dir(graph: _core.Graph | _core.GraphView, base_dir: str | os.PathLi
 # Loading external data
 
 
-def load_external_tensor(mmap_buffer, external_tensor):
+def _load_external_tensor(mmap_buffer, external_tensor):
     """
     dt = np.dtype(external_tensor.dtype.numpy()).newbyteorder("<")
     if external_tensor.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
@@ -104,7 +104,7 @@ def load_external_tensor(mmap_buffer, external_tensor):
     return raw_data_np
 
 
-def check_external_data_file(model: _core.Model, file_path: str | os.PathLike) -> None:
+def _check_external_data_file(model: _core.Model, file_path: str | os.PathLike) -> None:
     """
     Check if file to which external data is to be written to is empty.
     If file already consists of external data, load external data.
@@ -130,7 +130,7 @@ def check_external_data_file(model: _core.Model, file_path: str | os.PathLike) -
                 assert external_tensor.offset is not None
                 data_file.seek(external_tensor.offset)
 
-                raw_data_np = load_external_tensor(raw_data, external_tensor)
+                raw_data_np = _load_external_tensor(raw_data, external_tensor)
                 tensor = _core.Tensor(
                     raw_data_np, name=external_tensor.name, dtype=external_tensor.dtype
                 )
@@ -168,7 +168,7 @@ def compute_new_offset(
     return current_offset
 
 
-def set_external_data(
+def _set_external_data(
     tensor: _protocols.TensorProtocol,
     current_offset: int,
     align_offset: bool = True,
@@ -194,7 +194,7 @@ def set_external_data(
     return external_data_info
 
 
-def save_external_data(
+def _save_external_data(
     external_data_info: list[tuple[_core.Value, ExternalDataInfo]],
     file_path: str | os.PathLike,
 ) -> None:
@@ -220,7 +220,7 @@ def save_external_data(
             data_file.write(raw_data)
 
 
-def store_as_external_tensors(
+def _store_as_external_tensors(
     model: _core.Model,
     external_data_info: list[tuple[_core.Value, ExternalDataInfo]],
     file_path: str | os.PathLike,
@@ -278,7 +278,7 @@ def to_external_data(
     # Check if file is empty. If not, load pre-existing external data.
     if os.stat(path).st_size != 0:
         if load_external_to_memory:
-            check_external_data_file(model, path)
+            _check_external_data_file(model, path)
         else:
             # If exisiting external tensors are not loaded to memory, copy the external data to a temporary location
             os.rename(path, parent_path + "/temp_" + file_name)
@@ -299,7 +299,7 @@ def to_external_data(
 
     current_offset = 0
     for value, tensor in tensors:
-        tensor_info = set_external_data(
+        tensor_info = _set_external_data(
             tensor,
             current_offset,
             align_offset=align_offset,
@@ -309,10 +309,10 @@ def to_external_data(
         external_data_info.append((value, tensor_info))
         current_offset = tensor_info.offset + tensor_info.length
 
-    save_external_data(external_data_info, path)
+    _save_external_data(external_data_info, path)
 
     # Convert initializers to ExternalTensors
-    model = store_as_external_tensors(model, external_data_info, path)
+    model = _store_as_external_tensors(model, external_data_info, path)
 
     # Append pre-exiting external tensors to new data file.
     return model

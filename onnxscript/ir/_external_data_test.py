@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-import pathlib
+import os
 import tempfile
 import unittest
 
@@ -11,7 +11,7 @@ import onnx.external_data_helper
 import numpy as np
 
 from onnxscript import ir
-from onnxscript.ir import _core, _external_data
+from onnxscript.ir import _external_data
 
 
 class ExternalDataTest(unittest.TestCase):
@@ -126,31 +126,31 @@ class ExternalTensorTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
-    def _simple_model_with_external(self) -> _core.Model:
-        tensor1 = _core.Tensor(
+    def _simple_model_with_external(self) -> ir.Model:
+        tensor1 = ir.Tensor(
             self.data,
             dtype=ir.DataType.FLOAT,
-            shape=_core.Shape(self.data.shape),
+            shape=ir.Shape(self.data.shape),
             name="tensor1",
         )
-        tensor2 = _core.Tensor(
+        tensor2 = ir.Tensor(
             self.data_float16,
             dtype=ir.DataType.FLOAT16,
-            shape=_core.Shape(self.data_float16.shape),
+            shape=ir.Shape(self.data_float16.shape),
             name="tensor2",
         )
         raw_data = self.data_other.tobytes()
         # Save the data to disk
-        file_path = pathlib.Path(self.base_path) / self.external_data_name
+        file_path = os.path.join(self.base_path, self.external_data_name)
         with open(file_path, "w+b") as f:
             f.write(raw_data)
-        tensor3 = _core.ExternalTensor(
+        tensor3 = ir.ExternalTensor(
             path=file_path,
             offset=0,
             length=len(raw_data),
             dtype=ir.DataType.FLOAT,
             name="tensor3",
-            shape=_core.Shape(self.data_other.shape),
+            shape=ir.Shape(self.data_other.shape),
         )
 
         node_0 = ir.Node(
