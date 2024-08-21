@@ -224,6 +224,34 @@ class ExternalTensorTest(unittest.TestCase):
         self.assertEqual(external_tensor2.numpy().tobytes(), self.data_float16.tobytes())
         self.assertEqual(external_tensor3.numpy().tobytes(), self.data_other.tobytes())
 
+    def test_external_data_sorted(self):
+        model_with_external_data = _external_data.to_external_data(
+            self.model,
+            self.base_path,
+            file_path=self.external_data_name,
+            load_external_to_memory=True,
+        )
+        file_path = os.path.join(self.base_path, self.external_data_name)
+        expected_tensor_order = [
+            model_with_external_data.graph.initializers["tensor2"].const_value.tobytes(),
+            model_with_external_data.graph.initializers["tensor1"].const_value.tobytes(),
+            model_with_external_data.graph.initializers["tensor3"].const_value.tobytes(),
+        ]
+        sorted_tensor_order = [
+            self.data_float16.tobytes(),
+            self.data.tobytes(),
+            self.data_other.tobytes(),
+        ]
+        with open(file_path, "r+b") as data_file:
+            current_offset = 0
+            for i, tensor_bytes in enumerate(sorted_tensor_order):
+                data_file.seek(current_offset)
+                tensor_length = len(tensor_bytes)
+                tensor_data = data_file.read(tensor_length)
+                current_offset += tensor_length
+                self.assertEqual(tensor_data, tensor_bytes)
+                self.assertEqual(tensor_data, expected_tensor_order[i])
+
 
 if __name__ == "__main__":
     unittest.main()
