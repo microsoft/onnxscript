@@ -20,7 +20,7 @@ class CastIdentity(orp.RewriteRuleAsClass):
         return op.Cast(x, to=to)
 
     @classmethod
-    def rewrite(cls, op, x: ir.Value, to: ir.AttrInt64):
+    def rewrite(cls, op, x: ir.Value, to: ir.Attr):
         return op.Identity(x)
 
     @classmethod
@@ -43,14 +43,14 @@ class CastCast(orp.RewriteRuleAsClass):
         return op.Cast(op.Cast(x, to=to_ignored), to=to)
 
     @classmethod
-    def check(cls, context, x: ir.Value, to: ir.AttrInt64, to_ignored: ir.AttrInt64) -> bool:
+    def check(cls, context, x: ir.Value, to: ir.Attr, to_ignored: ir.Attr) -> bool:
         return (
             to.value in cls._allowed_tensor_types
             and to_ignored.value in cls._allowed_tensor_types
         )
 
     @classmethod
-    def rewrite(cls, op, x: ir.Value, to: ir.AttrInt64, to_ignored: ir.AttrInt64):
+    def rewrite(cls, op, x: ir.Value, to: ir.Attr, to_ignored: ir.Attr):
         return op.Cast(x, to=to)
 
 

@@ -193,7 +193,7 @@ def convert_attributes(
         ...     "type_protos": [ir.TensorType(ir.DataType.FLOAT), ir.TensorType(ir.DataType.FLOAT)],
         ... }
         >>> convert_attributes(attrs)
-        [AttrInt64('int', 1), AttrFloat32('float', 1.0), AttrString('str', 'hello'), AttrInt64s('ints', [1, 2, 3]), AttrFloat32s('floats', [1.0, 2.0, 3.0]), AttrStrings('strings', ['hello', 'world']), AttrTensor('tensor', Tensor<DOUBLE,[3]>(array([1., 2., 3.]), name=None)), AttrTensor('tensor_proto', TensorProtoTensor<FLOAT,[3]>(name='proto')), AttrInt64s('graph', Graph(
+        [Attr('int', INT, 1), Attr('float', FLOAT, 1.0), Attr('str', STRING, 'hello'), Attr('ints', INTS, [1, 2, 3]), Attr('floats', FLOATS, [1.0, 2.0, 3.0]), Attr('strings', STRINGS, ['hello', 'world']), Attr('tensor', TENSOR, Tensor<DOUBLE,[3]>(array([1., 2., 3.]), name=None)), Attr('tensor_proto', TENSOR, TensorProtoTensor<FLOAT,[3]>(name='proto')), Attr('graph', INTS, Graph(
             name='graph0',
             inputs=(
         <BLANKLINE>
@@ -202,7 +202,7 @@ def convert_attributes(
         <BLANKLINE>
             ),
             len()=0
-        )), AttrGraphs('graphs', [Graph(
+        )), Attr('graphs', GRAPHS, [Graph(
             name='graph1',
             inputs=(
         <BLANKLINE>
@@ -220,7 +220,7 @@ def convert_attributes(
         <BLANKLINE>
             ),
             len()=0
-        )]), AttrTypeProto('type_proto', Tensor(FLOAT)), AttrTypeProtos('type_protos', [Tensor(FLOAT), Tensor(FLOAT)])]
+        )]), Attr('type_proto', TYPE_PROTO, Tensor(FLOAT)), Attr('type_protos', TYPE_PROTOS, [Tensor(FLOAT), Tensor(FLOAT)])]
 
     Args:
         attrs: A dictionary of {<attribute name>: <python objects>} to convert.
