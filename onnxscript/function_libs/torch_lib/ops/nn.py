@@ -1770,7 +1770,9 @@ def _attention_scale(query: TFloat) -> TFloat:
     q_shape = op.Shape(query)
     q_last_dim = op.Gather(q_shape, op.Constant(value_ints=[-1]))
     embedding_size = op.CastLike(q_last_dim, query)
-    scale = op.Div(op.Constant(value_float=1.0), op.Sqrt(embedding_size))
+    one = op.Constant(value_float=1.0)
+    cast_one = op.CastLike(one, query)
+    scale = op.Div(cast_one, op.Sqrt(embedding_size))
     return scale
 
 
