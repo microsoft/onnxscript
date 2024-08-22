@@ -1719,7 +1719,6 @@ def aten_rrelu_with_noise_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::scaled_dot_product_attention", private=True, traceable=True)
 def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     """Create a causal mask for the given query and key tensors.
 
@@ -1759,7 +1758,6 @@ def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     return attn_mask
 
 
-@torch_op("aten::scaled_dot_product_attention", private=True, traceable=True)
 def _attention_scale(query: TFloat) -> TFloat:
     """Calculate the scale factor for the attention result.
 
@@ -1769,7 +1767,9 @@ def _attention_scale(query: TFloat) -> TFloat:
     Returns:
         Scalar scale factor := 1 / math.sqrt(query.size(-1))
     """
-    embedding_size = op.CastLike(op.Shape(query)[-1], query)
+    q_shape = op.Shape(query)
+    q_last_dim = op.Gather(q_shape, op.Constant(value_ints=[-1]))
+    embedding_size = op.CastLike(q_last_dim, query)
     scale = op.Div(op.Constant(value_float=1.0), op.Sqrt(embedding_size))
     return scale
 
@@ -2048,7 +2048,6 @@ def aten_scaled_dot_product_attention_bool_mask(
     )
 
 
-@torch_op("aten::scaled_dot_product_attention", private=True, traceable=True)
 def _aten_scaled_dot_product_attention_no_mask_onnx(
     query: TFloat,
     key: TFloat,
@@ -2083,7 +2082,6 @@ def _aten_scaled_dot_product_attention_no_mask_onnx(
     return op.MatMul(attn_weight, value)
 
 
-@torch_op("aten::scaled_dot_product_attention", private=True, traceable=True)
 def _aten_scaled_dot_product_attention_bool_mask_onnx(
     query: TFloat,
     key: TFloat,
@@ -2123,7 +2121,6 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
     return op.MatMul(attn_weight, value)
 
 
-@torch_op("aten::scaled_dot_product_attention", private=True, traceable=True)
 def _aten_scaled_dot_product_attention_float_mask_onnx(
     query: TFloat,
     key: TFloat,
