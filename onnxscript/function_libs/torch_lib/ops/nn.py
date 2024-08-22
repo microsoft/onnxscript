@@ -1903,7 +1903,7 @@ def _aten_scaled_dot_product_efficient_attention_fillin_empty_outputs(
 
     query = op.Transpose(query, perm=[0, 2, 1, 3])
     query_shape = op.Shape(query)
-    query_first_dims = op.Slice(query_shape, op.Constant(value_ints=[_INT64_MIN]), [-1])
+    query_first_dims = op.Slice(query_shape, op.Constant(value_ints=[_INT64_MIN]), [1])
     query_second_dims = op.Slice(query_shape, [1], [2])
     num_heads = op.Slice(query_shape, [-2], [-1])
 
