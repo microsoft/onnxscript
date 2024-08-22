@@ -6,13 +6,18 @@ from __future__ import annotations
 
 __all__ = ["set_base_dir"]
 
-import mmap
 import os
 from typing import Iterator
 
-import numpy as np
-
 from onnxscript.ir import _core, _enums, _protocols, traversal
+
+# Note: If needed in future, add these as paramaters to the function calls
+# align_offset: Offset will always be page aligned and alloction granularity aligned for mmap support. This is done by padding previous tensor data with zeros keeping same length. Tensor data will be aligned if > align_threshold
+_ALIGN_OFFSET = True
+# align_threshold: Alignment threshold for size of data. Having a low threshold will waste file space for small initializers. Only when tensor's data is > the page_align_threshold it will be force aligned.
+_ALIGN_THRESHOLD = 1048576  # 1MB
+# allocation_granularity: The allocation Granularity for mmap() support. Typically 64KB for Windows & 4KB for other OSes.
+_ALLOCATION_GRANULARITY = 65536  # 64KB
 
 
 class ExternalDataInfo:
@@ -75,55 +80,24 @@ def set_base_dir(graph: _core.Graph | _core.GraphView, base_dir: str | os.PathLi
 # Loading external data
 
 
-def _load_external_tensor(mmap_buffer, external_tensor):
-    """
-    Load external tensor from mmap buffer
-
-    Args:
-        mmap_buffer: Memory map file buffer.
-        external_tensor: External tensor is to be stored.
-    """
-    # TODO: Make loading function more robust to handle all dtypes
-    raw_data = mmap_buffer.read(external_tensor.nbytes)
-    raw_data_np = np.frombuffer(raw_data, dtype=external_tensor.dtype.numpy())
-    raw_data_np = np.reshape(raw_data_np, newshape=external_tensor.shape.numpy())
-    return raw_data_np
-
-
-def _load_external_data_file(model: _core.Model, file_path: str | os.PathLike) -> None:
+def _load_external_data_file(model: _core.Model) -> None:
     """
     Check if file to which external data is to be written to is empty.
     If file already consists of external data, load external data.
 
     Args:
         model: Model to be converted.
-        file_path: Location to which external data is to be stored.
     """
     # If file is not empty, load external data
-    with open(file_path, "r+b") as data_file:
-        raw_data = mmap.mmap(
-            data_file.fileno(),
-            0,
-            access=mmap.ACCESS_READ,
-        )
-        for value in model.graph.initializers.values():
-            if isinstance(value.const_value, _core.ExternalTensor):
-                external_tensor = value.const_value
-                external_tensor_path = os.path.join(
-                    external_tensor.base_dir, external_tensor.path
-                )
-                if external_tensor_path != file_path:
-                    continue
-                assert external_tensor.offset is not None
-                data_file.seek(external_tensor.offset)
 
-                raw_data_np = _load_external_tensor(raw_data, external_tensor)
-                tensor = _core.Tensor(
-                    raw_data_np, name=external_tensor.name, dtype=external_tensor.dtype
-                )
-                value.const_value = tensor
-                assert (value.name is not None) and (value.name in model.graph.initializers)
-                model.graph.initializers[value.name] = value
+    for value in model.graph.initializers.values():
+        if isinstance(value.const_value, _core.ExternalTensor):
+            external_tensor = value.const_value
+            tensor_data = external_tensor.numpy().copy()
+            tensor = _core.Tensor(
+                tensor_data, name=external_tensor.name, dtype=external_tensor.dtype
+            )
+            value.const_value = tensor
 
 
 # Converting model initializers to external data
@@ -132,9 +106,9 @@ def _load_external_data_file(model: _core.Model, file_path: str | os.PathLike) -
 def compute_new_offset(
     current_offset: int,
     tensor_size: int,
-    align_offset: bool = True,
-    align_threshold: int = 1048576,  # 1MB,
-    allocation_granularity: int = 65536,  # 64KB
+    align_offset: bool = _ALIGN_OFFSET,
+    align_threshold: int = _ALIGN_THRESHOLD,
+    allocation_granularity: int = _ALLOCATION_GRANULARITY,
 ) -> int:
     """
     Method to compute updated offset.
@@ -158,20 +132,11 @@ def compute_new_offset(
 def _set_external_data(
     tensor: _protocols.TensorProtocol,
     current_offset: int,
-    align_offset: bool = True,
-    align_threshold: int = 1048576,  # 1MB,
-    allocation_granularity: int = 65536,  # 64KB
 ) -> ExternalDataInfo:
     """Method to capture information about a tensor that is to be stored as external data."""
     tensor_size = tensor.nbytes
     # Calculate updated offset and align tensors
-    current_offset = compute_new_offset(
-        current_offset,
-        tensor_size,
-        align_offset=align_offset,
-        align_threshold=align_threshold,
-        allocation_granularity=allocation_granularity,
-    )
+    current_offset = compute_new_offset(current_offset, tensor_size)
     # Store offset and tensor size as ExternalDataInfo
     external_data_info = ExternalDataInfo(
         tensor.name,  # type: ignore[arg-type]
@@ -217,16 +182,14 @@ def _save_external_data(
             data_file.write(raw_data)
 
 
-def _store_as_external_tensors(
-    model: _core.Model,
+def _convert_as_external_tensors(
     external_data_info: list[tuple[_core.Value, ExternalDataInfo]],
     file_path: str | os.PathLike,
-) -> _core.Model:
+) -> None:
     """
     Convert the tensors (stored within the values) written as external data to _core.ExternalTensor types.
 
     Args:
-        model: Model to be converted.
         external_data_info: A collection of external data information stored for each tensor to be written as external data.
         file_path: Location to which external data is to be stored.
     """
@@ -242,18 +205,11 @@ def _store_as_external_tensors(
             name=tensor.name,  # type: ignore[arg-type]
         )
         value.const_value = external_tensor
-        assert value.name in model.graph.initializers
-        model.graph.initializers[value.name] = value
-    return model
-
 
 def to_external_data(
     model: _core.Model,
     base_path: str | os.PathLike,
-    file_path: str = "",
-    align_offset: bool = True,
-    align_threshold: int = 1048576,  # 1MB,
-    allocation_granularity: int = 65536,  # 64KB
+    relative_path: str = None,
     load_external_to_memory: bool = False,
 ) -> _core.Model:
     """
@@ -262,13 +218,10 @@ def to_external_data(
     Args:
         model: Model to be converted.
         base_path: Path of base directory.
-        file_path: Path to which external data is to be stored.
-        align_offset: Offset will always be page aligned and alloction granularity aligned for mmap support. This is done by padding previous tensor data with zeros keeping same length. Tensor data will be aligned if > align_threshold
-        align_threshold: Alignment threshold for size of data. Having a low threshold will waste file space for small initializers. Only when tensor's data is > the page_align_threshold it will be force aligned.
-        allocation_granularity: The allocation Granularity for mmap() support. Typically 64KB for Windows & 4KB for other OSes.
-        load_external_to_memory: If set to true, loads all pre-existing external tensors to memory. Otherwise, all new external tensors are appended to file.
+        relative_path: Path to which external data is to be stored.
+        load_external_to_memory: If set to true, loads external tensors present in the same file path as destination path to memory. Otherwise, the external tensors are appended to file.
     """
-    path = os.path.join(base_path, file_path)
+    path = os.path.join(base_path, relative_path)
     # Check if file path is valid, and create subsequent subdirectories within the path if they don't exist
     parent_path, file_name = "/".join(path.split("/")[:-1]), path.split("/")[-1]
     os.makedirs(parent_path, exist_ok=True)
@@ -276,7 +229,7 @@ def to_external_data(
     # Check if file is empty. If not, load pre-existing external data.
     if os.stat(path).st_size != 0:
         if load_external_to_memory:
-            _load_external_data_file(model, path)
+            _load_external_data_file(model)
         else:
             # If exisiting external tensors are not loaded to memory, copy the external data to a temporary location
             os.rename(path, parent_path + "/temp/" + file_name)
@@ -297,18 +250,12 @@ def to_external_data(
 
     current_offset = 0
     for value, tensor in tensors:
-        tensor_info = _set_external_data(
-            tensor,
-            current_offset,
-            align_offset=align_offset,
-            align_threshold=align_threshold,
-            allocation_granularity=allocation_granularity,
-        )
+        tensor_info = _set_external_data(tensor, current_offset)
         external_data_info.append((value, tensor_info))
         current_offset = tensor_info.offset + tensor_info.length
 
     _save_external_data(external_data_info, path)
 
     # Convert initializers to ExternalTensors
-    model = _store_as_external_tensors(model, external_data_info, path)
+    _convert_as_external_tensors(external_data_info, path)
     return model
