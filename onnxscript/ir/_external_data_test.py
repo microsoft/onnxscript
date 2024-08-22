@@ -320,7 +320,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
 
     def test_external_data_simple(self):
         model_with_external_data = _external_data.to_external_data(
-            self.model, self.base_path, relative_path=self.external_data_name
+            self.model, self.base_path, self.external_data_name
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
         external_tensor2 = model_with_external_data.graph.initializers["tensor2"].const_value
@@ -335,7 +335,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         model_with_external_data = _external_data.to_external_data(
             self.model_with_external_data_same_path,
             self.base_path,
-            relative_path=self.external_data_name,
+            self.external_data_name,
             load_external_to_memory=True,
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
@@ -356,7 +356,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         model_with_external_data = _external_data.to_external_data(
             self.model_with_external_data_same_path,
             self.base_path,
-            relative_path=self.external_data_name,
+            self.external_data_name,
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
         external_tensor2 = model_with_external_data.graph.initializers["tensor2"].const_value
@@ -376,7 +376,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         model_with_external_data = _external_data.to_external_data(
             self.model_with_external_data_diff_path,
             self.base_path,
-            relative_path=self.external_data_name,
+            self.external_data_name,
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
         external_tensor2 = model_with_external_data.graph.initializers["tensor2"].const_value
@@ -406,7 +406,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         model_with_external_data = _external_data.to_external_data(
             self.model_with_custom_tensor_class,
             self.base_path,
-            relative_path=self.external_data_name,
+            self.external_data_name,
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
         external_tensor2 = model_with_external_data.graph.initializers["tensor2"].const_value
@@ -426,7 +426,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         model_with_external_data = _external_data.to_external_data(
             self.model_with_mixed_external_data,
             self.base_path,
-            relative_path=self.external_data_name,
+            self.external_data_name,
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
         external_tensor2 = model_with_external_data.graph.initializers["tensor2"].const_value
@@ -466,7 +466,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         model_with_external_data = _external_data.to_external_data(
             self.model_with_mixed_external_data,
             self.base_path,
-            relative_path=self.external_data_name,
+            self.external_data_name,
             load_external_to_memory=True,
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
@@ -507,7 +507,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         model_with_external_data = _external_data.to_external_data(
             self.model_with_mixed_external_data,
             self.base_path,
-            relative_path=self.external_data_name,
+            self.external_data_name,
         )
         file_path = os.path.join(self.base_path, self.external_data_name)
         expected_tensor_order = [

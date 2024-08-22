@@ -80,19 +80,22 @@ def set_base_dir(graph: _core.Graph | _core.GraphView, base_dir: str | os.PathLi
 # Loading external data
 
 
-def _load_external_data_file(model: _core.Model) -> None:
+def _load_external_data_file(model: _core.Model, relative_path: str | os.PathLike) -> None:
     """
     Check if file to which external data is to be written to is empty.
     If file already consists of external data, load external data.
 
     Args:
         model: Model to be converted.
+        relative_path: Path to which external data is to be stored.
     """
     # If file is not empty, load external data
 
     for value in model.graph.initializers.values():
         if isinstance(value.const_value, _core.ExternalTensor):
             external_tensor = value.const_value
+            if external_tensor.path != relative_path:
+                continue
             tensor_data = external_tensor.numpy().copy()
             tensor = _core.Tensor(
                 tensor_data, name=external_tensor.name, dtype=external_tensor.dtype
@@ -164,13 +167,6 @@ def _save_external_data(
             # If external tensor, retrieve raw_data from source_file
             if isinstance(value.const_value, _core.ExternalTensor):
                 external_tensor = value.const_value
-                external_tensor_file_path = os.path.join(
-                    external_tensor.base_dir, external_tensor.path
-                )
-                # If source file for external tensor is the same as the destination path
-                # use the previously renamed file (base_dir/temp/path.bin)
-                if external_tensor_file_path == file_path:
-                    external_tensor.base_dir = external_tensor.base_dir + "/temp/"  # type: ignore[operator]
                 raw_data = external_tensor.tobytes()
             else:
                 raw_data = value.const_value.tobytes()
@@ -206,10 +202,11 @@ def _convert_as_external_tensors(
         )
         value.const_value = external_tensor
 
+
 def to_external_data(
     model: _core.Model,
     base_path: str | os.PathLike,
-    relative_path: str = None,
+    relative_path: str | os.PathLike,
     load_external_to_memory: bool = False,
 ) -> _core.Model:
     """
@@ -223,16 +220,23 @@ def to_external_data(
     """
     path = os.path.join(base_path, relative_path)
     # Check if file path is valid, and create subsequent subdirectories within the path if they don't exist
-    parent_path, file_name = "/".join(path.split("/")[:-1]), path.split("/")[-1]
+    parent_path = os.path.join(*path.split("/")[:-1])
+    tmp_path = os.path.join(base_path, "tmp")
     os.makedirs(parent_path, exist_ok=True)
-    os.makedirs(parent_path + "/temp", exist_ok=True)
+    os.makedirs(tmp_path, exist_ok=True)
     # Check if file is empty. If not, load pre-existing external data.
     if os.stat(path).st_size != 0:
         if load_external_to_memory:
-            _load_external_data_file(model)
+            _load_external_data_file(model, relative_path)
         else:
             # If exisiting external tensors are not loaded to memory, copy the external data to a temporary location
-            os.rename(path, parent_path + "/temp/" + file_name)
+            os.rename(path, os.path.join(tmp_path, relative_path))
+            for value in model.graph.initializers.values():
+                if (
+                    isinstance(value.const_value, _core.ExternalTensor)
+                    and value.const_value.path == relative_path
+                ):
+                    value.const_value.base_dir = tmp_path
 
     # Get all the tensors in the graph which are to be stored as external data.
     # Iterate through all the tensors, and extract the external data information such as
