@@ -77,34 +77,20 @@ def set_base_dir(graph: _core.Graph | _core.GraphView, base_dir: str | os.PathLi
 
 def _load_external_tensor(mmap_buffer, external_tensor):
     """
-    dt = np.dtype(external_tensor.dtype.numpy()).newbyteorder("<")
-    if external_tensor.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
-        # Use uint8 to read in the full byte. Otherwise ml_dtypes.int4 will clip the values
-        dt = np.dtype(np.uint8).newbyteorder("<")
-        count = external_tensor.length // 2 + external_tensor.length % 2
-    else:
-        count = external_tensor.length
-    print(len(mmap_buffer))
-    print(count)
-    raw_data_np = np.frombuffer(
-        mmap_buffer, dtype=dt, offset=external_tensor.offset or 0, count=84
-    )
-    shape = external_tensor.shape.numpy()
-    # if self.dtype == _enums.DataType.INT4:
-    #    # Unpack the int4 arrays
-    #    self._array = _type_casting.unpack_int4(self._array, shape)
-    # elif self.dtype == _enums.DataType.UINT4:
-    #    self._array = _type_casting.unpack_uint4(self._array, shape)
-    # else:
-    raw_data_np = raw_data_np.reshape(shape)
+    Load external tensor from mmap buffer
+
+    Args:
+        mmap_buffer: Memory map file buffer.
+        external_tensor: External tensor is to be stored.
     """
-    raw_data = mmap_buffer.read(external_tensor.length)
-    raw_data = np.frombuffer(raw_data, dtype=external_tensor.dtype.numpy())
-    raw_data_np = np.reshape(raw_data, newshape=external_tensor.shape.numpy())
+    # TODO: Make loading function more robust to handle all dtypes
+    raw_data = mmap_buffer.read(external_tensor.nbytes)
+    raw_data_np = np.frombuffer(raw_data, dtype=external_tensor.dtype.numpy())
+    raw_data_np = np.reshape(raw_data_np, newshape=external_tensor.shape.numpy())
     return raw_data_np
 
 
-def _check_external_data_file(model: _core.Model, file_path: str | os.PathLike) -> None:
+def _load_external_data_file(model: _core.Model, file_path: str | os.PathLike) -> None:
     """
     Check if file to which external data is to be written to is empty.
     If file already consists of external data, load external data.
@@ -126,7 +112,8 @@ def _check_external_data_file(model: _core.Model, file_path: str | os.PathLike) 
                 external_tensor_path = os.path.join(
                     external_tensor.base_dir, external_tensor.path
                 )
-                assert external_tensor_path == file_path
+                if external_tensor_path != file_path:
+                    continue
                 assert external_tensor.offset is not None
                 data_file.seek(external_tensor.offset)
 
@@ -209,9 +196,19 @@ def _save_external_data(
         for value, tensor_info in external_data_info:
             current_offset = tensor_info.offset
             assert value.const_value is not None
+            # If external tensor, retrieve raw_data from source_file
             if isinstance(value.const_value, _core.ExternalTensor):
-                continue
-            raw_data = value.const_value.tobytes()
+                external_tensor = value.const_value
+                external_tensor_file_path = os.path.join(
+                    external_tensor.base_dir, external_tensor.path
+                )
+                # If source file for external tensor is the same as the destination path
+                # use the previously renamed file (base_dir/temp/path.bin)
+                if external_tensor_file_path == file_path:
+                    external_tensor.base_dir = external_tensor.base_dir + "/temp/"  # type: ignore[operator]
+                raw_data = external_tensor.tobytes()
+            else:
+                raw_data = value.const_value.tobytes()
             if current_offset is not None:
                 # Pad file to required offset if needed
                 file_size = data_file.tell()
@@ -275,13 +272,14 @@ def to_external_data(
     # Check if file path is valid, and create subsequent subdirectories within the path if they don't exist
     parent_path, file_name = "/".join(path.split("/")[:-1]), path.split("/")[-1]
     os.makedirs(parent_path, exist_ok=True)
+    os.makedirs(parent_path + "/temp", exist_ok=True)
     # Check if file is empty. If not, load pre-existing external data.
     if os.stat(path).st_size != 0:
         if load_external_to_memory:
-            _check_external_data_file(model, path)
+            _load_external_data_file(model, path)
         else:
             # If exisiting external tensors are not loaded to memory, copy the external data to a temporary location
-            os.rename(path, parent_path + "/temp_" + file_name)
+            os.rename(path, parent_path + "/temp/" + file_name)
 
     # Get all the tensors in the graph which are to be stored as external data.
     # Iterate through all the tensors, and extract the external data information such as
@@ -313,6 +311,4 @@ def to_external_data(
 
     # Convert initializers to ExternalTensors
     model = _store_as_external_tensors(model, external_data_info, path)
-
-    # Append pre-exiting external tensors to new data file.
     return model
