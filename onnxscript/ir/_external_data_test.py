@@ -1,17 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-
-from __future__ import annotations
-
 import os
 import tempfile
 import typing
 import unittest
 
+import numpy as np
 import onnx
 import onnx.external_data_helper
-
-import numpy as np
 
 from onnxscript import ir
 from onnxscript.ir import _external_data
