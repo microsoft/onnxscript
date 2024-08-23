@@ -473,7 +473,8 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
     The :attr:`location` must be a relative path conforming to the ONNX
     specification. Given the correct :attr:`base_dir`, the :attr:`path` is computed
     to be the full path to the data file. Users should expect that the :attr:`path`
-    always leads to the correct file.
+    always leads to the correct file. At initialization, paths are not checked.
+    It is the user's responsibility to ensure the paths are valid and accessible.
 
     Attributes:
         location: The location of the data file. It is the path relative to the base directory.
@@ -530,7 +531,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             metadata_props: The metadata properties.
             base_dir: The base directory for the external data. It is used to resolve relative paths.
         """
-        # Do not verify the location by default. This is because the location field
+        # NOTE: Do not verify the location by default. This is because the location field
         # in the tensor proto can be anything and we would like deserialization from
         # proto to IR to not fail.
         self._location = location
