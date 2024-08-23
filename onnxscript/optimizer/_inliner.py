@@ -46,12 +46,15 @@ class Inliner:
             value_map[function.inputs[i]] = None
 
         def substitute_attr(
-            key: str, value: ir.Attr | ir.RefAttr
+            key: str, attr: ir.Attr | ir.RefAttr
         ) -> ir.Attr | ir.RefAttr | None:
-            if isinstance(value, ir.Attr):
-                # TODO: handle subgraphs
-                return value
-            assert isinstance(value, ir.RefAttr)
+            if isinstance(attr, ir.Attr):
+                if attr.type == ir.AttributeType.GRAPH:
+                    return self._transform_graph(attr.value)
+                elif attr.type == ir.AttributeType.GRAPHS:
+                    return [self._transform_graph(graph) for graph in attr.value]
+                return attr
+            assert isinstance(attr, ir.RefAttr)
             if key in attributes:
                 return attributes[key]
             return None
@@ -86,6 +89,31 @@ class Inliner:
         nodes = [copy_node(node) for node in function]
         output_values = [value_map[output] for output in function.outputs]
         return nodes, output_values
+
+    def _transform_graph(self, graph: ir.Graph) -> ir.Graph:
+        input_values = [clone(v) for v in graph.inputs]
+        nodes = [clone(node) for node in graph]
+        initializers = [clone(v) for v in graph.initializers]
+
+        new_graph = ir.Graph(
+            input_values,
+            graph.outputs,
+            nodes=nodes,
+            initializers=initializers,
+            doc_string=graph.doc_string,
+            opset_imports=graph.opset_imports,
+            name=graph.name,
+            metadata_props=graph.metadata_props,
+        )
+        for node in graph:
+            replacement = self.transform_node(node)
+            if replacement is None:
+                new_graph.append(node)
+            else:
+                nodes, values = replacement
+                new_graph.extend(nodes)
+                new_graph.extend(values)
+        return new_graph
 
     def _visit_graph(self, graph: ir.Graph | ir.Function | ir.GraphView) -> None:
         for node in graph:
