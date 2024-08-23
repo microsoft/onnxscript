@@ -88,7 +88,7 @@ def _load_external_data_file(
     Load all external data that is at relative_path into memory for the provided model.
 
     Args:
-        model: Model to be converted.
+        tensors: Tensors to be converted to external tensors. They can be external tensors themselves.
         base_path: Path of base directory.
         relative_path: Path to which external data is to be stored, relative to the ONNX file.
     """
