@@ -470,13 +470,17 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
     To obtain an array, call :meth:`numpy`. To obtain the bytes,
     call :meth:`tobytes`.
 
-    The :attr:`path` can be a relative path or an absolute path.
-    Serializers should handle the path correctly to conform with the ONNX spec.
+    The :attr:`location` must be a relative path conforming to the ONNX
+    specification. Given the correct :attr:`base_dir`, the :attr:`path` is computed
+    to be the full path to the data file. Users should expect that the :attr:`path`
+    always leads to the correct file. At initialization, paths are not checked.
+    It is the user's responsibility to ensure the paths are valid and accessible.
 
     Attributes:
-        path: The path to the data file. This can be a relative path or an absolute path.
+        location: The location of the data file. It is the path relative to the base directory.
         base_dir: The base directory for the external data. It is used to resolve relative paths.
-            At serialization, only the ``path`` is serialized into the "location" field of the TensorProto.
+            At serialization, only the :attr:`location` is serialized into the "location" field of the ``TensorProto``.
+        path: The path to the data file. This is computed by joining :attr:`base_dir` and :attr:`location`.
         offset: The offset in bytes from the start of the file.
         length: The length of the data in bytes.
         dtype: The data type of the tensor.
@@ -488,12 +492,13 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
 
     __slots__ = (
         "_array",
+        "_base_dir",
         "_dtype",
         "_length",
+        "_location",
         "_metadata",
         "_metadata_props",
         "_offset",
-        "_path",
         "_shape",
         "doc_string",
         "name",
@@ -502,7 +507,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
 
     def __init__(
         self,
-        path: os.PathLike | str,
+        location: os.PathLike | str,
         offset: int | None,
         length: int | None,
         dtype: _enums.DataType,
@@ -513,13 +518,29 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         metadata_props: dict[str, str] | None = None,
         base_dir: os.PathLike | str = "",
     ) -> None:
-        if os.path.isabs(path):
-            self._base_dir = os.path.dirname(path)
-            self._path = os.path.basename(path)
-        else:
-            self._base_dir = base_dir
-            self._path = path
+        """Initialize an external tensor.
 
+        Args:
+            location: The location of the data file. It is the path relative to the base directory.
+            offset: The offset in bytes from the start of the file.
+            length: The length of the data in bytes.
+            dtype: The data type of the tensor.
+            shape: The shape of the tensor.
+            name: The name of the tensor..
+            doc_string: The documentation string.
+            metadata_props: The metadata properties.
+            base_dir: The base directory for the external data. It is used to resolve relative paths.
+        """
+        # NOTE: Do not verify the location by default. This is because the location field
+        # in the tensor proto can be anything and we would like deserialization from
+        # proto to IR to not fail.
+        if onnxscript.DEBUG:
+            if os.path.isabs(location):
+                raise ValueError(
+                    "The location must be a relative path. Please specify base_dir as well."
+                )
+        self._location = location
+        self._base_dir = base_dir
         self._offset: int | None = offset
         self._length: int | None = length
         self._dtype: _enums.DataType = dtype
@@ -533,11 +554,6 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         self._metadata: _metadata.MetadataStore | None = None
 
     @property
-    def path(self) -> str | os.PathLike:
-        # Immutable
-        return self._path
-
-    @property
     def base_dir(self) -> str | os.PathLike:
         # Mutable
         return self._base_dir
@@ -545,6 +561,16 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
     @base_dir.setter
     def base_dir(self, value: str | os.PathLike) -> None:
         self._base_dir = value
+
+    @property
+    def location(self) -> str | os.PathLike:
+        # Immutable
+        return self._location
+
+    @property
+    def path(self) -> str:
+        # Immutable, computed
+        return os.path.join(self._base_dir, self._location)
 
     @property
     def offset(self) -> int | None:
@@ -574,8 +600,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             return
         # Map the whole file into the memory
         # TODO(justinchuby): Verify if this would exhaust the memory address space
-        file_path = os.path.join(self._base_dir, self._path)
-        with open(file_path, "rb") as f:
+        with open(self.path, "rb") as f:
             self.raw = mmap.mmap(
                 f.fileno(),
                 0,
@@ -619,8 +644,8 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
 
     def __repr__(self) -> str:
         return (
-            f"{self._repr_base()}(path='{self._path}', name={self.name!r}, "
-            f"offset={self._offset!r}, length={self._length!r}, base_dir={self._base_dir!r})"
+            f"{self._repr_base()}(location='{self.location}', name={self.name!r}, "
+            f"offset={self.offset!r}, length={self.length!r}, base_dir={self.base_dir!r})"
         )
 
     def numpy(self) -> np.ndarray:

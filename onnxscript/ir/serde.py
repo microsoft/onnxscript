@@ -767,10 +767,11 @@ def deserialize_tensor(
     if proto.data_location == onnx.TensorProto.EXTERNAL:
         external_info = onnx.external_data_helper.ExternalDataInfo(proto)
         return _core.ExternalTensor(
-            path=os.path.join(base_path, external_info.location),
+            external_info.location,
             offset=external_info.offset,
             length=external_info.length,
             dtype=_enums.DataType(proto.data_type),
+            base_dir=base_path,
             name=_get_field(proto, "name"),
             shape=_core.Shape(proto.dims),
             doc_string=_get_field(proto, "doc_string"),
@@ -1333,7 +1334,7 @@ def serialize_tensor_into(
         # Store external tensors as is
         tensor_proto.data_location = onnx.TensorProto.EXTERNAL
         for k, v in {
-            "location": os.fspath(from_.path),
+            "location": os.fspath(from_.location),
             "offset": from_.offset,
             "length": from_.length,
         }.items():
