@@ -530,12 +530,11 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             metadata_props: The metadata properties.
             base_dir: The base directory for the external data. It is used to resolve relative paths.
         """
-        if os.path.isabs(location):
-            raise ValueError(
-                "The location must be a relative path. Please also specify the base_dir."
-            )
-        self._base_dir = base_dir
+        # Do not verify the location by default. This is because the location field
+        # in the tensor proto can be anything and we would like deserialization from
+        # proto to IR to not fail.
         self._location = location
+        self._base_dir = base_dir
         self._offset: int | None = offset
         self._length: int | None = length
         self._dtype: _enums.DataType = dtype
