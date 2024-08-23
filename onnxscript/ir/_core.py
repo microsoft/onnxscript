@@ -470,7 +470,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
     To obtain an array, call :meth:`numpy`. To obtain the bytes,
     call :meth:`tobytes`.
 
-    The :attr:`location` must be a relative directory conforming to the ONNX
+    The :attr:`location` must be a relative path conforming to the ONNX
     specification. Given the correct :attr:`base_dir`, the :attr:`path` is computed
     to be the full path to the data file. Users should expect that the :attr:`path`
     always leads to the correct file.
