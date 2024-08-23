@@ -476,10 +476,10 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
     always leads to the correct file.
 
     Attributes:
-        path: The path to the data file.
         location: The location of the data file. It is the path relative to the base directory.
         base_dir: The base directory for the external data. It is used to resolve relative paths.
-            At serialization, only the ``path`` is serialized into the "location" field of the TensorProto.
+            At serialization, only the :attr:`location` is serialized into the "location" field of the ``TensorProto``.
+        path: The path to the data file. This is computed by joining :attr:`base_dir` and :attr:`location`.
         offset: The offset in bytes from the start of the file.
         length: The length of the data in bytes.
         dtype: The data type of the tensor.
@@ -517,6 +517,19 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         metadata_props: dict[str, str] | None = None,
         base_dir: os.PathLike | str = "",
     ) -> None:
+        """Initialize an external tensor.
+
+        Args:
+            location: The location of the data file. It is the path relative to the base directory.
+            offset: The offset in bytes from the start of the file.
+            length: The length of the data in bytes.
+            dtype: The data type of the tensor.
+            shape: The shape of the tensor.
+            name: The name of the tensor..
+            doc_string: The documentation string.
+            metadata_props: The metadata properties.
+            base_dir: The base directory for the external data. It is used to resolve relative paths.
+        """
         if os.path.isabs(location):
             raise ValueError(
                 "The location must be a relative path. Please also specify the base_dir."
