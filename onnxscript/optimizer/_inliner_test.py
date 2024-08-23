@@ -1,9 +1,12 @@
 from __future__ import annotations
+
 import unittest
 
 from onnx import parser
+
 from onnxscript import ir
 from onnxscript.optimizer._inliner import inline
+
 
 class InlinerTest(unittest.TestCase):
     def test_basic(self):
@@ -36,6 +39,7 @@ class InlinerTest(unittest.TestCase):
         self.assertEqual(len(graph), 2)
         self.assertEqual(graph.node(0).op_type, "Add")
         self.assertEqual(graph.node(1).op_type, "Mul")
+
 
 if __name__ == "__main__":
     unittest.main()
