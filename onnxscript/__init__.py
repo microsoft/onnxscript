@@ -122,7 +122,7 @@ from ._internal.utils import external_tensor
 from .values import OnnxFunction, TracedOnnxFunction
 
 # Set DEBUG to True to enable additional debug checks
-DEBUG = False
+DEBUG: bool = False
 
 try:  # noqa: SIM105
     __version__ = importlib.metadata.version("onnxscript")
