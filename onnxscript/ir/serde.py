@@ -767,7 +767,7 @@ def deserialize_tensor(
     if proto.data_location == onnx.TensorProto.EXTERNAL:
         external_info = onnx.external_data_helper.ExternalDataInfo(proto)
         return _core.ExternalTensor(
-            location=external_info.location,
+            external_info.location,
             offset=external_info.offset,
             length=external_info.length,
             dtype=_enums.DataType(proto.data_type),
