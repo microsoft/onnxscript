@@ -518,7 +518,9 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         base_dir: os.PathLike | str = "",
     ) -> None:
         if os.path.isabs(location):
-            raise ValueError("The location must be a relative path. Please also specify the base_dir.")
+            raise ValueError(
+                "The location must be a relative path. Please also specify the base_dir."
+            )
         self._base_dir = base_dir
         self._location = location
         self._offset: int | None = offset
