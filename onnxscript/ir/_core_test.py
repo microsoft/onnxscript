@@ -231,10 +231,11 @@ class ExternalTensorTest(unittest.TestCase):
         external_tensor = self.model.graph.initializer[0]
         external_info = onnx.external_data_helper.ExternalDataInfo(external_tensor)
         tensor = _core.ExternalTensor(
-            pathlib.Path(self.base_path) / external_info.location,
+            external_info.location,
             offset=external_info.offset,
             length=external_info.length,
             dtype=ir.DataType.FLOAT,
+            base_dir=self.base_path,
             name="input",
             shape=_core.Shape(external_tensor.dims),
         )
@@ -264,10 +265,11 @@ class ExternalTensorTest(unittest.TestCase):
         external_tensor = self.model.graph.initializer[0]
         external_info = onnx.external_data_helper.ExternalDataInfo(external_tensor)
         tensor = _core.ExternalTensor(
-            pathlib.Path(self.base_path) / external_info.location,
+            external_info.location,
             offset=external_info.offset,
             length=external_info.length,
             dtype=ir.DataType.FLOAT,
+            base_dir=self.base_path,
             name="input",
             shape=_core.Shape(external_tensor.dims),
         )
