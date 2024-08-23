@@ -534,6 +534,9 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         # NOTE: Do not verify the location by default. This is because the location field
         # in the tensor proto can be anything and we would like deserialization from
         # proto to IR to not fail.
+        if onnxscript.DEBUG:
+            if os.path.isabs(location):
+                raise ValueError("The location must be a relative path. Please specify base_dir as well.")
         self._location = location
         self._base_dir = base_dir
         self._offset: int | None = offset
