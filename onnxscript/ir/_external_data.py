@@ -11,7 +11,7 @@ from typing import Iterator
 
 from onnxscript.ir import _core, _enums, _protocols, traversal
 
-# Note: If needed in future, add these as paramaters to the function calls
+# Note: If needed in future, add these as parameters to the function calls
 # align_offset: Offset will always be page aligned and alloction granularity aligned for mmap support. This is done by padding previous tensor data with zeros keeping same length. Tensor data will be aligned if > align_threshold
 _ALIGN_OFFSET = True
 # align_threshold: Alignment threshold for size of data. Having a low threshold will waste file space for small initializers. Only when tensor's data is > the page_align_threshold it will be force aligned.
@@ -212,7 +212,7 @@ def convert_tensors_to_external(
     """
     external_data_info: list[tuple[_protocols.TensorProtocol, ExternalDataInfo]] = []
     # Sort all tensors based on tensor sizes, in order to avoid unneccesarry alignment.
-    # All the smaller tensors are written earlier and alignment is peformed for the larger tensors.
+    # All the smaller tensors are written earlier and alignment is performed for the larger tensors.
     sorted_indices = sorted(range(len(tensors)), key=lambda i: tensors[i].nbytes)
     tensors = [tensors[i] for i in sorted_indices]
 
