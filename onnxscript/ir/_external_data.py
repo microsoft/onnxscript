@@ -150,7 +150,7 @@ def _set_external_data(
 
 
 def _save_external_data(
-    external_data_info: list[tuple[_core.Value, ExternalDataInfo]],
+    external_data_info: list[tuple[_protocols.TensorProtocol, ExternalDataInfo]],
     file_path: str | os.PathLike,
 ) -> None:
     """
@@ -161,15 +161,10 @@ def _save_external_data(
         file_path: Location to which external data is to be stored.
     """
     with open(file_path, "w+b") as data_file:
-        for value, tensor_info in external_data_info:
+        for tensor, tensor_info in external_data_info:
             current_offset = tensor_info.offset
-            assert value.const_value is not None
-            # If external tensor, retrieve raw_data from source_file
-            if isinstance(value.const_value, _core.ExternalTensor):
-                external_tensor = value.const_value
-                raw_data = external_tensor.tobytes()
-            else:
-                raw_data = value.const_value.tobytes()
+            assert tensor is not None
+            raw_data = tensor.tobytes()
             if current_offset is not None:
                 # Pad file to required offset if needed
                 file_size = data_file.tell()
@@ -179,9 +174,9 @@ def _save_external_data(
 
 
 def _convert_as_external_tensors(
-    external_data_info: list[tuple[_core.Value, ExternalDataInfo]],
+    external_data_info: list[tuple[_protocols.TensorProtocol, ExternalDataInfo]],
     file_path: str | os.PathLike,
-) -> None:
+) -> list[_core.ExternalTensor]:
     """
     Convert the tensors (stored within the values) written as external data to _core.ExternalTensor types.
 
@@ -189,8 +184,8 @@ def _convert_as_external_tensors(
         external_data_info: A collection of external data information stored for each tensor to be written as external data.
         file_path: Location to which external data is to be stored.
     """
-    for value, tensor_info in external_data_info:
-        tensor = value.const_value
+    external_tensors: list[_core.ExternalTensor] = []
+    for tensor, tensor_info in external_data_info:
         assert tensor is not None
         external_tensor = _core.ExternalTensor(
             file_path,
@@ -200,7 +195,42 @@ def _convert_as_external_tensors(
             shape=tensor.shape,  # type: ignore[arg-type]
             name=tensor.name,  # type: ignore[arg-type]
         )
-        value.const_value = external_tensor
+        external_tensors.append(external_tensor)
+    return external_tensors
+
+
+def convert_tensors_to_external(
+    tensors: list[_protocols.TensorProtocol],
+    abs_path: str | os.PathLike,
+) -> list[_core.ExternalTensor]:
+    """
+    This method takes in tensors to be converted to external tensors and returns the converted external tensors.
+
+    Args:
+        tensors: Tensors to be converted to external tensors
+        abs_path: Absolute path to which external data is to be stored.
+    """
+    external_data_info: list[tuple[_protocols.TensorProtocol, ExternalDataInfo]] = []
+    # Sort all tensors based on tensor sizes, in order to avoid unneccesarry alignment.
+    # All the smaller tensors are written earlier and alignment is peformed for the larger tensors.
+    sorted_indices = sorted(range(len(tensors)), key=lambda i: tensors[i].nbytes)
+    tensors = [tensors[i] for i in sorted_indices]
+
+    current_offset = 0
+    for tensor in tensors:
+        tensor_info = _set_external_data(tensor, current_offset)
+        external_data_info.append((tensor, tensor_info))
+        current_offset = tensor_info.offset + tensor_info.length
+    _save_external_data(external_data_info, abs_path)
+
+    # Convert initializers to ExternalTensors
+    external_tensors = _convert_as_external_tensors(external_data_info, abs_path)
+    # Sort external_tensors based on original key order
+    external_tensors = [
+        external_tensors[i]
+        for i in sorted(range(len(external_tensors)), key=lambda i: sorted_indices[i])
+    ]
+    return external_tensors
 
 
 def to_external_data(
@@ -242,24 +272,12 @@ def to_external_data(
     # Iterate through all the tensors, and extract the external data information such as
     # name, offset and length.
     # TODO: Currently attributes not handled, eventually try to use _all_tensors to include attrs
-    tensors: list[tuple[_core.Value, _protocols.TensorProtocol]] = []
+    tensors: list[_protocols.TensorProtocol] = []
     for value in model.graph.initializers.values():
         if value.const_value is not None:
-            tensors.append((value, value.const_value))
-    external_data_info: list[tuple[_core.Value, ExternalDataInfo]] = []
+            tensors.append(value.const_value)
 
-    # Sort all tensors based on tensor sizes, in order to avoid unneccesarry alignment.
-    # All the smaller tensors are written earlier and alignment is peformed for the larger tensors.
-    tensors = sorted(tensors, key=lambda x: x[1].nbytes)
-
-    current_offset = 0
-    for value, tensor in tensors:
-        tensor_info = _set_external_data(tensor, current_offset)
-        external_data_info.append((value, tensor_info))
-        current_offset = tensor_info.offset + tensor_info.length
-
-    _save_external_data(external_data_info, path)
-
-    # Convert initializers to ExternalTensors
-    _convert_as_external_tensors(external_data_info, path)
+    external_tensors = convert_tensors_to_external(tensors, path)
+    for value, external_tensor in zip(model.graph.initializers.values(), external_tensors):
+        value.const_value = external_tensor
     return model
