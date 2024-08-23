@@ -118,7 +118,6 @@ from .onnx_types import (
 # isort: on
 
 from . import ir, optimizer, rewriter
-from ._internal.utils import external_tensor
 from .values import OnnxFunction, TracedOnnxFunction
 
 # Set DEBUG to True to enable additional debug checks
