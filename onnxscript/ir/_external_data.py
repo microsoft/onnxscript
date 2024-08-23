@@ -6,8 +6,9 @@ from __future__ import annotations
 
 __all__ = ["set_base_dir"]
 
+import dataclasses
 import os
-from typing import Iterator
+from typing import Iterator, Sequence
 
 from onnxscript.ir import _core, _enums, _protocols, traversal
 
@@ -20,7 +21,8 @@ _ALIGN_THRESHOLD = 1048576  # 1MB
 _ALLOCATION_GRANULARITY = 65536  # 64KB
 
 
-class ExternalDataInfo:
+@dataclasses.dataclass
+class _ExternalDataInfo:
     """
     A class that stores information about a tensor that is to be stored as external data.
 
@@ -30,7 +32,7 @@ class ExternalDataInfo:
         length: Stores the size of the tensor.
     """
 
-    def __init__(self, name: str, offset: int, length: int):
+    def __init__(self, name: str | None, offset: int, length: int):
         self.name = name
         self.offset = offset
         self.length = length
@@ -77,20 +79,14 @@ def set_base_dir(graph: _core.Graph | _core.GraphView, base_dir: str | os.PathLi
             tensor.base_dir = base_dir
 
 
-# Loading external data
-
-
 def _load_external_data_file(model: _core.Model, relative_path: str | os.PathLike) -> None:
     """
-    Check if file to which external data is to be written to is empty.
-    If file already consists of external data, load external data.
+    Load all external data that is at relative_path into memory for the provided model.
 
     Args:
         model: Model to be converted.
         relative_path: Path to which external data is to be stored.
     """
-    # If file is not empty, load external data
-
     for value in model.graph.initializers.values():
         if isinstance(value.const_value, _core.ExternalTensor):
             external_tensor = value.const_value
@@ -103,9 +99,6 @@ def _load_external_data_file(model: _core.Model, relative_path: str | os.PathLik
             value.const_value = tensor
 
 
-# Converting model initializers to external data
-
-
 def compute_new_offset(
     current_offset: int,
     tensor_size: int,
@@ -114,7 +107,7 @@ def compute_new_offset(
     allocation_granularity: int = _ALLOCATION_GRANULARITY,
 ) -> int:
     """
-    Method to compute updated offset.
+    Compute the offset to align the tensor data based on the curent offset.
 
     Args:
         current_offset: Current location in the file at which tensor data will be written to.
@@ -126,23 +119,21 @@ def compute_new_offset(
     if align_offset and tensor_size > align_threshold:
         alignment_factor = max(4096, allocation_granularity)
         # Align to the next page or alloc granularity
-        current_offset = (
-            (current_offset + alignment_factor - 1) // alignment_factor * alignment_factor
-        )
+        return (current_offset + alignment_factor - 1) // alignment_factor * alignment_factor
     return current_offset
 
 
-def _set_external_data(
+def _compute_external_data_info(
     tensor: _protocols.TensorProtocol,
     current_offset: int,
-) -> ExternalDataInfo:
-    """Method to capture information about a tensor that is to be stored as external data."""
+) -> _ExternalDataInfo:
+    """Capture information about a tensor that is to be stored as external data."""
     tensor_size = tensor.nbytes
     # Calculate updated offset and align tensors
     current_offset = compute_new_offset(current_offset, tensor_size)
     # Store offset and tensor size as ExternalDataInfo
-    external_data_info = ExternalDataInfo(
-        tensor.name,  # type: ignore[arg-type]
+    external_data_info = _ExternalDataInfo(
+        tensor.name,
         current_offset,
         tensor_size,
     )
@@ -150,17 +141,17 @@ def _set_external_data(
 
 
 def _save_external_data(
-    external_data_info: list[tuple[_protocols.TensorProtocol, ExternalDataInfo]],
+    external_data_info: list[tuple[_protocols.TensorProtocol, _ExternalDataInfo]],
     file_path: str | os.PathLike,
 ) -> None:
     """
-    Writes tensor data to an external file according to information stored in ExternalDataInfo object.
+    Write tensor data to an external file according to information stored in ExternalDataInfo objects.
 
     Args:
         external_data_info: A collection of external data information stored for each tensor to be written as external data.
         file_path: Location to which external data is to be stored.
     """
-    with open(file_path, "w+b") as data_file:
+    with open(file_path, "wb") as data_file:
         for tensor, tensor_info in external_data_info:
             current_offset = tensor_info.offset
             assert tensor is not None
@@ -174,7 +165,7 @@ def _save_external_data(
 
 
 def _convert_as_external_tensors(
-    external_data_info: list[tuple[_protocols.TensorProtocol, ExternalDataInfo]],
+    external_data_info: list[tuple[_protocols.TensorProtocol, _ExternalDataInfo]],
     file_path: str | os.PathLike,
 ) -> list[_core.ExternalTensor]:
     """
@@ -200,17 +191,17 @@ def _convert_as_external_tensors(
 
 
 def convert_tensors_to_external(
-    tensors: list[_protocols.TensorProtocol],
+    tensors: Sequence[_protocols.TensorProtocol],
     abs_path: str | os.PathLike,
 ) -> list[_core.ExternalTensor]:
     """
-    This method takes in tensors to be converted to external tensors and returns the converted external tensors.
+    Convert a sequence of any TensorProtocol tensors to external tensors.
 
     Args:
-        tensors: Tensors to be converted to external tensors
+        tensors: Tensors to be converted to external tensors. They can be external tensors themselves.
         abs_path: Absolute path to which external data is to be stored.
     """
-    external_data_info: list[tuple[_protocols.TensorProtocol, ExternalDataInfo]] = []
+    external_data_info: list[tuple[_protocols.TensorProtocol, _ExternalDataInfo]] = []
     # Sort all tensors based on tensor sizes, in order to avoid unneccesarry alignment.
     # All the smaller tensors are written earlier and alignment is performed for the larger tensors.
     sorted_indices = sorted(range(len(tensors)), key=lambda i: tensors[i].nbytes)
@@ -218,7 +209,7 @@ def convert_tensors_to_external(
 
     current_offset = 0
     for tensor in tensors:
-        tensor_info = _set_external_data(tensor, current_offset)
+        tensor_info = _compute_external_data_info(tensor, current_offset)
         external_data_info.append((tensor, tensor_info))
         current_offset = tensor_info.offset + tensor_info.length
     _save_external_data(external_data_info, abs_path)
@@ -240,12 +231,12 @@ def to_external_data(
     load_external_to_memory: bool = False,
 ) -> _core.Model:
     """
-    Call to set all tensors with raw data as external data.
+    Set all tensors with raw data as external data.
 
     Args:
-        model: Model to be converted.
+        model: Model to process.
         base_path: Path of base directory.
-        relative_path: Path to which external data is to be stored.
+        relative_path: Path to which external data is to be stored, relative to the ONNX file.
         load_external_to_memory: If set to true, loads external tensors present in the same file path as destination path to memory. Otherwise, the external tensors are appended to file.
     """
     path = os.path.join(base_path, relative_path)
