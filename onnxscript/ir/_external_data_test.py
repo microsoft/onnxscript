@@ -66,7 +66,7 @@ class OffsetCalcTest(unittest.TestCase):
         # Tensor size > Align Threshold
         current_offset = 20000
         tensor_size = 1048
-        new_offset = _external_data.compute_new_offset(
+        new_offset = _external_data._compute_new_offset(  # pylint: disable=protected-access
             current_offset, tensor_size, align_offset=False
         )
         self.assertEqual(current_offset, new_offset)
@@ -75,7 +75,7 @@ class OffsetCalcTest(unittest.TestCase):
         # Tensor size < Align Threshold
         current_offset = 20000
         tensor_size = 1048
-        new_offset = _external_data.compute_new_offset(
+        new_offset = _external_data._compute_new_offset(  # pylint: disable=protected-access
             current_offset,
             tensor_size,
             align_threshold=1000,
@@ -86,7 +86,7 @@ class OffsetCalcTest(unittest.TestCase):
         # Tensor size > Align Threshold
         current_offset = 20000
         tensor_size = 1048
-        new_offset = _external_data.compute_new_offset(
+        new_offset = _external_data._compute_new_offset(  # pylint: disable=protected-access
             current_offset,
             tensor_size,
         )
@@ -96,12 +96,12 @@ class OffsetCalcTest(unittest.TestCase):
         # Tensor size > Align Threshold
         current_offset = 20000
         tensor_size = 1048577
-        new_offset_1 = _external_data.compute_new_offset(
+        new_offset_1 = _external_data._compute_new_offset(  # pylint: disable=protected-access
             current_offset,
             tensor_size,
             allocation_granularity=4000,
         )
-        new_offset_2 = _external_data.compute_new_offset(
+        new_offset_2 = _external_data._compute_new_offset(  # pylint: disable=protected-access
             current_offset,
             tensor_size,
         )
@@ -227,15 +227,16 @@ class OffloadExternalTensorTest(unittest.TestCase):
         raw_data = self.data_other.tobytes()
         # Save the data to disk
         file_path = os.path.join(self.base_path, self.external_data_name)
-        with open(file_path, "w+b") as f:
+        with open(file_path, "wb") as f:
             f.write(raw_data)
         tensor_same_file = ir.ExternalTensor(
-            path=file_path,
+            location=self.external_data_name,
             offset=0,
             length=len(raw_data),
             dtype=ir.DataType.FLOAT,
             name="tensor_same_file",
             shape=ir.Shape(self.data_other.shape),
+            base_dir=self.base_path,
         )
         model.graph.initializers["tensor_same_file"] = ir.Value(
             name="tensor_same_file", const_value=tensor_same_file
@@ -246,36 +247,39 @@ class OffloadExternalTensorTest(unittest.TestCase):
         model = self._simple_model()
         # File 1
         file_path_1 = os.path.join(self.base_path, self.ext_data_1)
-        with open(file_path_1, "w+b") as f:
+        with open(file_path_1, "wb") as f:
             f.write(self.data_ext1_1.tobytes())
             f.write(self.data_ext1_2.tobytes())
         tensor_ext1_1 = ir.ExternalTensor(
-            path=file_path_1,
+            location=self.ext_data_1,
             offset=0,
             length=len(self.data_ext1_1.tobytes()),
             dtype=ir.DataType.FLOAT,
             name="tensor_ext1_1",
             shape=ir.Shape(self.data_ext1_1.shape),
+            base_dir=self.base_path,
         )
         tensor_ext1_2 = ir.ExternalTensor(
-            path=file_path_1,
+            location=self.ext_data_1,
             offset=len(self.data_ext1_1.tobytes()),
             length=len(self.data_ext1_2.tobytes()),
             dtype=ir.DataType.FLOAT16,
             name="tensor_ext1_2",
             shape=ir.Shape(self.data_ext1_2.shape),
+            base_dir=self.base_path,
         )
         # File 2
         file_path_2 = os.path.join(self.base_path, self.ext_data_2)
-        with open(file_path_2, "w+b") as f:
+        with open(file_path_2, "wb") as f:
             f.write(self.data_ext2_1.tobytes())
         tensor_ext2_1 = ir.ExternalTensor(
-            path=file_path_2,
+            location=self.ext_data_2,
             offset=0,
             length=len(self.data_ext2_1.tobytes()),
             dtype=ir.DataType.FLOAT16,
             name="tensor_ext2_1",
             shape=ir.Shape(self.data_ext2_1.shape),
+            base_dir=self.base_path,
         )
         model.graph.initializers["tensor_ext1_1"] = ir.Value(
             name="tensor_ext1_1", const_value=tensor_ext1_1
