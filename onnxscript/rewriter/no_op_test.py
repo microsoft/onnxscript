@@ -180,7 +180,7 @@ class NoOpTest(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
             ("dropout zero", "ratio=0"),
-            ("dropout inference", "training_mode=1"),
+            ("dropout inference", "training_mode=0"),
         ]
     )
     def test_dropout_zero_or_inference_no_op_with_initializer(self, _, attribute: str):

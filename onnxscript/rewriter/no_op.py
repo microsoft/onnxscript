@@ -28,7 +28,7 @@ def dropout_zero(op, x):
 
 
 def dropout_inference(op, x):
-    return op.Dropout(x, training_mode=True)
+    return op.Dropout(x, training_mode=False)
 
 
 # Replacement
