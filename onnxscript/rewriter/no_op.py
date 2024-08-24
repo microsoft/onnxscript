@@ -24,7 +24,6 @@ def div_by_1(op, x):
 
 
 def dropout_zero(op, x):
-    # TODO(justinchuby): Make sure the attributes are matched
     return op.Dropout(x, ratio=0)
 
 
