@@ -1163,6 +1163,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT does not support empty tensor as input",
     ),
     TorchLibOpInfo(
+        "nn.functional.pixel_unshuffle",
+        core_ops.aten_pixel_unshuffle,
+    )
+    .xfail(
+        dtypes=(torch.int32, torch.int64),
+        reason="fixme: ONNX Runtime does not support int32/64 inputs",
+    )
+    .xfail(
+        matcher=lambda sample: sample.input.numel() == 0,
+        reason="fixme: ORT does not support empty tensor as input",
+    ),
+    TorchLibOpInfo(
         "ops.aten.reflection_pad1d",
         nn_ops.aten_reflection_pad1d,
     ).xfail(
