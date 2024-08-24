@@ -238,7 +238,7 @@ def aten_addcmul(
     return op.Add(self, op.Mul(op.Mul(value, tensor1), tensor2))
 
 
-@torch_op("aten::addmm", traceable=True)
+@torch_op("aten::addmm", trace_only=True)
 def aten_addmm(
     self: TReal, mat1: TReal, mat2: TReal, beta: float = 1.0, alpha: float = 1.0
 ) -> TReal:
@@ -246,6 +246,9 @@ def aten_addmm(
 
     # NOTE: ONNX Runtime does not support int inputs to Gemm as of 1.16.
     # To support int inputs, consider an overriding implementation that casts to float and back.
+
+    alpha = float(alpha)
+    beta = float(beta)
 
     # addmm only accepts 2d tensors: https://pytorch.org/docs/stable/generated/torch.addmm.html
     return op.Gemm(mat1, mat2, self, alpha=alpha, beta=beta)
