@@ -1167,8 +1167,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_pixel_unshuffle,
     )
     .xfail(
-        dtypes=(torch.int32, torch.int64, torch.bool),
-        reason="fixme: ONNX Runtime does not support int32/64/bool inputs",
+        dtypes=(torch.int32, torch.int64),
+        reason="fixme: ONNX Runtime does not support int32/64 inputs",
     )
     .xfail(
         matcher=lambda sample: sample.input.numel() == 0,
