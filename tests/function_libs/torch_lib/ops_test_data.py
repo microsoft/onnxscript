@@ -547,14 +547,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
     TorchLibOpInfo("addmm", core_ops.aten_addmm)
     .xfail(
-        "decomposed",
-        reason=(
-            "The float attributes alpha/beta come in as int in the test cases, which breaks"
-            "eager mode. We don't need to care about this as long as the full graph tests pass"
-        ),
-        test_class_name="TestOutputConsistencyEager",
-    )
-    .xfail(
         dtypes=(torch.int16, torch.int32, torch.int64),
         reason="ONNX Runtime does not support int inputs to Gemm",
     )
@@ -1153,6 +1145,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.pixel_shuffle",
         core_ops.aten_pixel_shuffle,
+    )
+    .xfail(
+        dtypes=(torch.int32, torch.int64),
+        reason="fixme: ONNX Runtime does not support int32/64 inputs",
+    )
+    .xfail(
+        matcher=lambda sample: sample.input.numel() == 0,
+        reason="fixme: ORT does not support empty tensor as input",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.pixel_unshuffle",
+        core_ops.aten_pixel_unshuffle,
     )
     .xfail(
         dtypes=(torch.int32, torch.int64),
