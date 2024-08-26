@@ -20,27 +20,39 @@ class CopyReplace:
     """Utilities for creating a copy of IR objects with substitutions for attributes/input values."""
 
     def __init__(
-        self, attr_map: dict[str, ir.Attr | ir.RefAttr], value_map: dict[ir.Value, ir.Value]
+        self,
+        attr_map: dict[str, ir.Attr | ir.RefAttr],
+        value_map: dict[ir.Value, ir.Value | None],
     ) -> None:
         self._value_map = value_map
         self._attr_map = attr_map
 
     def clone_value(self, value: ir.Value) -> ir.Value:
         # Only input-values are cloned.
-        if value.producer() is not None:
-            raise ValueError("Only input values should be cloned.")
+        if value in self._value_map:
+            return self._value_map[value]
+        assert value.producer() is not None, f"Value {value} has no entry in the value map"
         new_value = ir.Value(
             name=value.name, type=value.type, shape=value.shape, doc_string=value.doc_string
         )
         self._value_map[value] = new_value
         return new_value
 
+    def clone_optional_value(self, value: ir.Value | None) -> ir.Value | None:
+        if value is None:
+            return None
+        return self.clone_value(value)
+
     def clone_attr(self, key: str, attr: ir.Attr | ir.RefAttr) -> ir.Attr | ir.RefAttr | None:
         if isinstance(attr, ir.Attr):
             if attr.type == ir.AttributeType.GRAPH:
-                return self.clone_graph(attr.value)
+                graph = self.clone_graph(attr.value)
+                return ir.Attr(key, ir.AttributeType.GRAPH, graph, doc_string=attr.doc_string)
             elif attr.type == ir.AttributeType.GRAPHS:
-                return [self.clone_graph(graph) for graph in attr.value]
+                graphs = [self.clone_graph(graph) for graph in attr.value]
+                return ir.Attr(
+                    key, ir.AttributeType.GRAPHS, graphs, doc_string=attr.doc_string
+                )
             return attr
         assert isinstance(attr, ir.RefAttr)
         if key in self._attr_map:
@@ -51,7 +63,7 @@ class CopyReplace:
         return None
 
     def clone_node(self, copied: ir.Node) -> ir.Node:
-        new_inputs = [self._value_map[input] for input in copied.inputs]
+        new_inputs = [self.clone_optional_value(input) for input in copied.inputs]
         new_attributes = [
             new_value
             for key, value in copied.attributes.items()
@@ -84,7 +96,7 @@ class CopyReplace:
             input_values,
             graph.outputs,
             nodes=nodes,
-            initializers=initializers,
+            initializers=list(initializers.values()),
             doc_string=graph.doc_string,
             opset_imports=graph.opset_imports,
             name=graph.name,
