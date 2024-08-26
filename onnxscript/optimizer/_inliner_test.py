@@ -1,3 +1,7 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+"""Tests for onnxscript.optimizer._inliner"""
+
 from __future__ import annotations
 
 import unittest

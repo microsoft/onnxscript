@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable, Optional, Tuple
+from typing import Optional, Sequence, Tuple
 
 import onnxscript.ir as ir
 import onnxscript.ir.convenience as convenience
@@ -13,7 +13,7 @@ import onnxscript.ir.convenience as convenience
 # and a list of values that replaces the original node's outputs.
 # If the replacement is None, it indicates that the node should not be replaced.
 
-NodeReplacement = Optional[Tuple[Iterable[ir.Node], Iterable[ir.Value]]]
+NodeReplacement = Optional[Tuple[Sequence[ir.Node], Sequence[ir.Value]]]
 
 
 class CopyReplace:
@@ -27,7 +27,7 @@ class CopyReplace:
         self._value_map = value_map
         self._attr_map = attr_map
 
-    def clone_value(self, value: ir.Value) -> ir.Value:
+    def clone_value(self, value: ir.Value) -> ir.Value | None:
         # Only input-values are cloned.
         if value in self._value_map:
             return self._value_map[value]
@@ -93,7 +93,7 @@ class CopyReplace:
         initializers = graph.initializers  # Initializers are not cloned, but shared.
 
         return ir.Graph(
-            input_values,
+            input_values,  # type: ignore
             graph.outputs,
             nodes=nodes,
             initializers=list(initializers.values()),
@@ -144,9 +144,9 @@ class Inliner:
 
         nodes = [cloner.clone_node(node) for node in function]
         output_values = [value_map[output] for output in function.outputs]
-        return nodes, output_values
+        return nodes, output_values  # type: ignore
 
-    def transform_graph(self, graph: ir.Graph | ir.Function | ir.GraphView) -> None:
+    def transform_graph(self, graph: ir.Graph | ir.Function) -> None:
         for node in graph:
             replacement = self.transform_node(node)
             if replacement is None:
