@@ -52,11 +52,11 @@ class CopyReplace:
 
     def clone_node(self, copied: ir.Node) -> ir.Node:
         new_inputs = [self._value_map[input] for input in copied.inputs]
-        new_attributes = {
-            key: new_value
+        new_attributes = [
+            new_value
             for key, value in copied.attributes.items()
             if (new_value := self.clone_attr(key, value)) is not None
-        }
+        ]
         new_node = ir.Node(
             copied.domain,
             copied.op_type,
@@ -72,6 +72,7 @@ class CopyReplace:
         new_outputs = new_node.outputs
         for i, output in enumerate(copied.outputs):
             self._value_map[output] = new_outputs[i]
+            new_outputs[i].name = output.name
         return new_node
 
     def clone_graph(self, graph: ir.Graph) -> ir.Graph:
