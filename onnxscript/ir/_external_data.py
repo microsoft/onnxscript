@@ -32,10 +32,9 @@ class _ExternalDataInfo:
         length: Stores the size of the tensor.
     """
 
-    def __init__(self, name: str | None, offset: int, length: int):
-        self.name = name
-        self.offset = offset
-        self.length = length
+    name: str | None
+    offset: int
+    length: int
 
 
 def _all_tensors(
@@ -84,13 +83,15 @@ def _load_external_data_file(
     base_path: str | os.PathLike,
     relative_path: str | os.PathLike,
 ) -> list[_protocols.TensorProtocol]:
-    """
-    Load all external data that is at relative_path into memory for the provided model.
+    """Load all external data that is at relative_path into memory for the provided model.
 
     Args:
         tensors: Tensors to be converted to external tensors. They can be external tensors themselves.
         base_path: Path of base directory.
         relative_path: Path to which external data is to be stored, relative to the ONNX file.
+
+    Returns:
+        A list of ir.Tensor values.
     """
     updated_tensors: list[_protocols.TensorProtocol] = []
     for tensor in tensors:
@@ -113,8 +114,7 @@ def _compute_new_offset(
     align_threshold: int = _ALIGN_THRESHOLD,
     allocation_granularity: int = _ALLOCATION_GRANULARITY,
 ) -> int:
-    """
-    Compute the offset to align the tensor data based on the curent offset.
+    """Compute the offset to align the tensor data based on the current offset.
 
     Args:
         current_offset: Current location in the file at which tensor data will be written to.
@@ -122,6 +122,9 @@ def _compute_new_offset(
         align_offset: Offset will always be page aligned and alloction granularity aligned for mmap support. This is done by padding previous tensor data with zeros keeping same length. Tensor data will be aligned if > align_threshold
         align_threshold: Alignment threshold for size of data. Having a low threshold will waste file space for small initializers. Only when tensor's data is > the page_align_threshold it will be force aligned.
         allocation_granularity: The allocation Granularity for mmap() support. Typically 64KB for Windows & 4KB for other OSes.
+
+    Returns:
+        The updated offset value.
     """
     if align_offset and tensor_size > align_threshold:
         alignment_factor = max(4096, allocation_granularity)
@@ -151,8 +154,7 @@ def _save_external_data(
     external_data_info: list[tuple[_protocols.TensorProtocol, _ExternalDataInfo]],
     file_path: str | os.PathLike,
 ) -> None:
-    """
-    Write tensor data to an external file according to information stored in ExternalDataInfo objects.
+    """Write tensor data to an external file according to information stored in ExternalDataInfo objects.
 
     Args:
         external_data_info: A collection of external data information stored for each tensor to be written as external data.
@@ -175,13 +177,15 @@ def _convert_as_external_tensors(
     base_path: str | os.PathLike,
     relative_path: str | os.PathLike,
 ) -> list[_core.ExternalTensor]:
-    """
-    Convert the tensors (stored within the values) written as external data to _core.ExternalTensor types.
+    """Convert the tensors (stored within the values) written as external data to _core.ExternalTensor types.
 
     Args:
         external_data_info: A collection of external data information stored for each tensor to be written as external data.
         base_path: Path of base directory.
         relative_path: Path to which external data is to be stored, relative to the ONNX file.
+
+    Returns:
+        A list of external tensors.
     """
     external_tensors: list[_core.ExternalTensor] = []
     for tensor, tensor_info in external_data_info:
@@ -205,14 +209,16 @@ def convert_tensors_to_external(
     relative_path: str | os.PathLike,
     load_external_to_memory: bool = False,
 ) -> list[_core.ExternalTensor]:
-    """
-    Convert a sequence of any TensorProtocol tensors to external tensors.
+    """Convert a sequence of any TensorProtocol tensors to external tensors.
 
     Args:
         tensors: Tensors to be converted to external tensors. They can be external tensors themselves.
         base_path: Path of base directory.
         relative_path: Path to which external data is to be stored, relative to the ONNX file.
         load_external_to_memory: If set to true, loads external tensors present in the same file path as destination path to memory.
+
+    Returns:
+        A list of external tensors derived from a list of input tensors.
     """
     path = os.path.join(base_path, relative_path)
     # Check if file path is valid, and create subsequent subdirectories within the path if they don't exist
@@ -273,14 +279,16 @@ def to_external_data(
     relative_path: str | os.PathLike,
     load_external_to_memory: bool = False,
 ) -> _core.Model:
-    """
-    Set all tensors with raw data as external data.
+    """Set all tensors with raw data as external data.
 
     Args:
         model: Model to process.
         base_path: Path of base directory.
         relative_path: Path to which external data is to be stored, relative to the ONNX file.
         load_external_to_memory: If set to true, loads external tensors present in the same file path as destination path to memory. Otherwise, the external tensors are appended to file.
+
+    Returns:
+        An ir.Model with all tensors with raw data converted to external tensors.
     """
 
     # Get all the tensors in the graph which are to be stored as external data.
