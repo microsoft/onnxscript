@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Stable APIs for PyTorch 2.5."""
 
 from __future__ import annotations
@@ -17,9 +19,9 @@ import pathlib
 from typing import Callable
 
 import onnx
+
 from onnxscript import ir
 from onnxscript.ir import _external_data
-
 
 # Internal flag. Will go away.
 _TORCH_ONNX_OFFLOAD_EXTERNAL_DATA_WITH_IR = (
@@ -61,12 +63,9 @@ def convert_version(model: ir.Model, target_version: int) -> ir.Model:
 
 def check_model(model: ir.Model) -> None:
     """Check the model."""
-    pass
 
 
-def save_model_with_external_data(
-    model: ir.Model, model_path: str | os.PathLike
-) -> None:
+def save_model_with_external_data(model: ir.Model, model_path: str | os.PathLike) -> None:
     """Save the model with external data. The model is unchanged after saving."""
 
     if _TORCH_ONNX_OFFLOAD_EXTERNAL_DATA_WITH_IR:
