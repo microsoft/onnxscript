@@ -18,6 +18,13 @@ from typing import Callable
 
 import onnx
 from onnxscript import ir
+from onnxscript.ir import _external_data
+
+
+# Internal flag. Will go away.
+_TORCH_ONNX_OFFLOAD_EXTERNAL_DATA_WITH_IR = (
+    os.getenv("TORCH_ONNX_OFFLOAD_EXTERNAL_DATA_WITH_IR") == "1"
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -60,18 +67,39 @@ def check_model(model: ir.Model) -> None:
 def save_model_with_external_data(
     model: ir.Model, model_path: str | os.PathLike
 ) -> None:
-    """Save the model with external data."""
+    """Save the model with external data. The model is unchanged after saving."""
 
-    destination_path = pathlib.Path(model_path)
-    # Create the directory if it does not exist
-    data_path = f"{destination_path.name}.data"
-    proto = ir.serde.serialize_model(model)
-    onnx.save_model(
-        proto,
-        model_path,
-        save_as_external_data=True,
-        location=data_path,
-    )
+    if _TORCH_ONNX_OFFLOAD_EXTERNAL_DATA_WITH_IR:
+        initializer_values = model.graph.initializers.values()
+        tensors = [v.const_value for v in initializer_values]
+        destination_path = pathlib.Path(model_path)
+        base_dir = destination_path.parent
+        data_path = f"{destination_path.name}.data"
+
+        external_tensors = _external_data.convert_tensors_to_external(
+            tensors, base_dir, data_path
+        )
+
+        # Replace the initializer values with external tensors and save the model
+        for initializer, external_tensor in zip(initializer_values, external_tensors):
+            initializer.const_value = external_tensor
+        ir.save(model, model_path)
+
+        # Restore the original initializer values so the model is unchanged
+        for initializer, tensor in zip(initializer_values, tensors):
+            initializer.const_value = tensor
+
+    else:
+        destination_path = pathlib.Path(model_path)
+        # Create the directory if it does not exist
+        data_path = f"{destination_path.name}.data"
+        proto = ir.serde.serialize_model(model)
+        onnx.save_model(
+            proto,
+            model_path,
+            save_as_external_data=True,
+            location=data_path,
+        )
 
 
 def get_torchlib_ops() -> list[OnnxFunctionMeta]:
