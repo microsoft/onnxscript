@@ -102,7 +102,7 @@ def save_model_with_external_data(model: ir.Model, model_path: str | os.PathLike
 
 
 def get_torchlib_ops() -> list[OnnxFunctionMeta]:
-    from onnxscript.function_libs.torch_lib import (
+    from onnxscript.function_libs.torch_lib import (  # pylint: disable=import-outside-toplevel
         registration as torchlib_registration,
     )
 
