@@ -8,9 +8,9 @@ __all__ = [
     "check_model",
     "convert_version",
     "get_torchlib_ops",
-    "OnnxFunctionMeta",
     "optimize",
     "save_model_with_external_data",
+    "OnnxFunctionMeta",
 ]
 
 import dataclasses
