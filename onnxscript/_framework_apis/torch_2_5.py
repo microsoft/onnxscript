@@ -84,7 +84,9 @@ def save_model_with_external_data(model: ir.Model, model_path: str | os.PathLike
         data_path = f"{destination_path.name}.data"
 
         external_tensors = _external_data.convert_tensors_to_external(
-            tensors, base_dir, data_path  # type: ignore[arg-type]
+            tensors,  # type: ignore[arg-type]
+            base_dir,
+            data_path,
         )
 
         # Replace the initializer values with external tensors and save the model
