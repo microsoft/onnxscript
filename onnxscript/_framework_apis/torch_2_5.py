@@ -69,7 +69,7 @@ def save_model_with_external_data(model: ir.Model, model_path: str | os.PathLike
     """Save the model with external data. The model is unchanged after saving."""
 
     if _TORCH_ONNX_SAVE_EXTERNAL_DATA_WITH_IR:
-        initializer_values = model.graph.initializers.values()
+        initializer_values = tuple(model.graph.initializers.values())
         tensors = [v.const_value for v in initializer_values]
         destination_path = pathlib.Path(model_path)
         base_dir = destination_path.parent
