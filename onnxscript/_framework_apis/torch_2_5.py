@@ -64,6 +64,8 @@ def convert_version(model: ir.Model, target_version: int) -> ir.Model:
 def check_model(model: ir.Model) -> None:
     """Check the model."""
 
+    del model  # Unused yet
+
 
 def save_model_with_external_data(model: ir.Model, model_path: str | os.PathLike) -> None:
     """Save the model with external data. The model is unchanged after saving."""
