@@ -73,12 +73,18 @@ def save_model_with_external_data(model: ir.Model, model_path: str | os.PathLike
     if _TORCH_ONNX_SAVE_EXTERNAL_DATA_WITH_IR:
         initializer_values = tuple(model.graph.initializers.values())
         tensors = [v.const_value for v in initializer_values]
+        for tensor in tensors:
+            if tensor is None:
+                raise ValueError(
+                    "The model contains uninitialized initializer values. "
+                    "Please make sure all initializer values are initialized."
+                )
         destination_path = pathlib.Path(model_path)
         base_dir = destination_path.parent
         data_path = f"{destination_path.name}.data"
 
         external_tensors = _external_data.convert_tensors_to_external(
-            tensors, base_dir, data_path
+            tensors, base_dir, data_path  # type: ignore[arg-type]
         )
 
         # Replace the initializer values with external tensors and save the model
