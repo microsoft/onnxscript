@@ -24,7 +24,7 @@ from onnxscript import ir
 from onnxscript.ir import _external_data
 
 # Internal flag. Will go away.
-_TORCH_ONNX_OFFLOAD_EXTERNAL_DATA_WITH_IR = (
+_TORCH_ONNX_SAVE_EXTERNAL_DATA_WITH_IR = (
     os.getenv("TORCH_ONNX_OFFLOAD_EXTERNAL_DATA_WITH_IR") == "1"
 )
 
@@ -68,7 +68,7 @@ def check_model(model: ir.Model) -> None:
 def save_model_with_external_data(model: ir.Model, model_path: str | os.PathLike) -> None:
     """Save the model with external data. The model is unchanged after saving."""
 
-    if _TORCH_ONNX_OFFLOAD_EXTERNAL_DATA_WITH_IR:
+    if _TORCH_ONNX_SAVE_EXTERNAL_DATA_WITH_IR:
         initializer_values = model.graph.initializers.values()
         tensors = [v.const_value for v in initializer_values]
         destination_path = pathlib.Path(model_path)
