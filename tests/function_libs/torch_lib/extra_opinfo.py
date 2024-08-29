@@ -1321,12 +1321,14 @@ def sample_inputs__scaled_dot_product_efficient_attention(
     make = opinfo_core.partial(
         opinfo_core.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
     )
-    batch, seq_q, seq_kv, num_heads, head_dim = 4, 3, 6, 4, 8
+    batch, seq_q, seq_kv, num_heads, head_dim = 2, 3, 6, 4, 8
 
     dim_4_q_shape = (batch, num_heads, seq_q, head_dim)
     dim_4_kv_shape = (batch, num_heads, seq_kv, head_dim)
+    shape_attn_bias = (batch, num_heads, seq_q, seq_kv)
 
     qkv_shapes = [(dim_4_q_shape, dim_4_kv_shape)]
+
     samples = []
     for qkv_shape, is_causal, dropout_p, compute_log_sumexp in opinfo_core.product(
         qkv_shapes, [True, False], [0.0], [True, False]
@@ -1337,7 +1339,7 @@ def sample_inputs__scaled_dot_product_efficient_attention(
                 make(shape_q),
                 make(shape_kv),
                 make(shape_kv),
-                attn_bias=None,
+                attn_bias=make(shape_attn_bias),
                 is_causal=is_causal,
                 dropout_p=dropout_p,
                 compute_log_sumexp=compute_log_sumexp,
