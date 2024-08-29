@@ -229,6 +229,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         file_path = os.path.join(self.base_path, self.external_data_name)
         with open(file_path, "wb") as f:
             f.write(raw_data)
+            f.close()
         tensor_same_file = ir.ExternalTensor(
             location=self.external_data_name,
             offset=0,
@@ -250,6 +251,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         with open(file_path_1, "wb") as f:
             f.write(self.data_ext1_1.tobytes())
             f.write(self.data_ext1_2.tobytes())
+            f.close()
         tensor_ext1_1 = ir.ExternalTensor(
             location=self.ext_data_1,
             offset=0,
@@ -272,6 +274,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         file_path_2 = os.path.join(self.base_path, self.ext_data_2)
         with open(file_path_2, "wb") as f:
             f.write(self.data_ext2_1.tobytes())
+            f.close()
         tensor_ext2_1 = ir.ExternalTensor(
             location=self.ext_data_2,
             offset=0,
@@ -543,6 +546,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
                 current_offset += tensor_length
                 self.assertEqual(tensor_data, tensor_bytes)
                 self.assertEqual(tensor_data, expected_tensor_order[i])
+            data_file.close()
 
 
 if __name__ == "__main__":

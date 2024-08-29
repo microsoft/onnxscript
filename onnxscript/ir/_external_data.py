@@ -170,6 +170,7 @@ def _save_external_data(
             if current_offset > file_size:
                 data_file.write(b"\0" * (current_offset - file_size))
             data_file.write(raw_data)
+        data_file.close()
 
 
 def _convert_as_external_tensors(
