@@ -1974,7 +1974,7 @@ def aten__scaled_dot_product_efficient_attention(
     """_scaled_dot_product_efficient_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_bias, bool compute_log_sumexp, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> (Tensor output, Tensor log_sumexp, Tensor philox_seed, Tensor philox_offset)"""
 
     result = aten_scaled_dot_product_attention(
-        query, key, value, dropout_p=dropout_p, is_causal=is_causal, scale=scale
+        query, key, value, attn_bias, dropout_p=dropout_p, is_causal=is_causal, scale=scale
     )
 
     # The followings are not comsumed by the graph.
