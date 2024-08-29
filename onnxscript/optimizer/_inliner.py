@@ -15,6 +15,10 @@ import onnxscript.ir.convenience as convenience
 
 NodeReplacement = Optional[Tuple[Sequence[ir.Node], Sequence[ir.Value]]]
 
+# A call stack is a list of identifiers of call sites, where the first element is the
+# outermost call site, and the last element is the innermost call site.
+CallSiteId = str
+CallStack = list[CallSiteId]
 
 class CopyReplace:
     """Utilities for creating a copy of IR objects with substitutions for attributes/input values."""
@@ -23,9 +27,27 @@ class CopyReplace:
         self,
         attr_map: dict[str, ir.Attr | ir.RefAttr],
         value_map: dict[ir.Value, ir.Value | None],
+        used_value_names: set[str],
+        node_context: dict[ir.Node, CallStack],
+        call_stack: CallStack,
     ) -> None:
         self._value_map = value_map
         self._attr_map = attr_map
+        self._node_context = node_context
+        self._call_stack = call_stack
+        self._used_value_names = used_value_names
+
+    def make_unique_name(self, name: str) -> str:
+        # Generate a unique name by appending a number to the name until it is unique.
+        prefix = "_".join(self._call_stack)
+        name = prefix + "_" + name
+        candidate = name
+        i = 0
+        while candidate in self._used_value_names:
+            i += 1
+            candidate = f"{name}_{i}"
+        self._used_value_names.add(candidate)
+        return candidate
 
     def clone_value(self, value: ir.Value) -> ir.Value | None:
         # Only input-values are cloned.
@@ -84,7 +106,11 @@ class CopyReplace:
         new_outputs = new_node.outputs
         for i, output in enumerate(copied.outputs):
             self._value_map[output] = new_outputs[i]
-            new_outputs[i].name = output.name
+            old_name = output.name if output.name is not None else f"output_{i}"
+            new_outputs[i].name = self.make_unique_name(old_name)
+
+        self._node_context[new_node] = self._call_stack
+
         return new_node
 
     def clone_graph(self, graph: ir.Graph) -> ir.Graph:
@@ -94,6 +120,7 @@ class CopyReplace:
 
         return ir.Graph(
             input_values,  # type: ignore
+
             graph.outputs,
             nodes=nodes,
             initializers=list(initializers.values()),
@@ -108,10 +135,15 @@ class Inliner:
     def __init__(self, model: ir.Model) -> None:
         self._functions = model.functions
         self._opset_imports = model.opset_imports
+        self._node_context : dict[ir.Node, CallStack] = {}
+        self._used_value_names = set()
 
     def transform_node(self, node: ir.Node) -> NodeReplacement:
         id = node.op_identifier()
         if id not in self._functions:
+            for output in node.outputs:
+                if output.name is not None:
+                    self._used_value_names.add(output.name)
             return None
         # Inline the function-call
 
@@ -136,7 +168,15 @@ class Inliner:
         for i in range(len(node.inputs), len(function.inputs)):
             value_map[function.inputs[i]] = None
 
-        cloner = CopyReplace(attributes, value_map)
+        # Identify call-stack for node, used to generate unique names.
+        call_stack = self._node_context.get(node, [])
+        call_site_id = node.name
+        if call_site_id == "":
+            call_site_id = "_".join(id)
+            # TODO: disinguish between multiple calls to the same function
+        call_stack.append(call_site_id)
+
+        cloner = CopyReplace(attributes, value_map, self._used_value_names, self._node_context, call_stack)
 
         # iterate over the nodes in the function, creating a copy of each node
         # and replacing inputs with the corresponding values in the value map.
@@ -146,7 +186,12 @@ class Inliner:
         output_values = [value_map[output] for output in function.outputs]
         return nodes, output_values  # type: ignore
 
-    def transform_graph(self, graph: ir.Graph | ir.Function) -> None:
+    def transform_graph(self, graph: ir.Graph) -> None:
+        for input in graph.inputs:
+            if input.name is not None:
+                self._used_value_names.add(input.name)
+        for initializer in graph.initializers:
+            self._used_value_names.add(initializer)
         for node in graph:
             replacement = self.transform_node(node)
             if replacement is None:

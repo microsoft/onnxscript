@@ -7,6 +7,7 @@ from __future__ import annotations
 import unittest
 from typing import Callable, Sequence
 
+import onnx
 from onnx import parser
 
 from onnxscript import ir
@@ -46,8 +47,9 @@ class InlinerTest(unittest.TestCase):
         model_proto = parser.parse_model(input_model)
         model_ir = ir.serde.deserialize_model(model_proto)
         inline(model_ir)
-        # proto = ir.serde.serialize_model(model_ir)
-        # text = onnx.printer.to_text(proto)
+        proto = ir.serde.serialize_model(model_ir)
+        text = onnx.printer.to_text(proto)
+        print(text)
         expected_proto = parser.parse_model(expected_model)
         expected_ir = ir.serde.deserialize_model(expected_proto)
         self.assertEqual(len(model_ir.graph), len(expected_ir.graph))
@@ -100,7 +102,7 @@ class InlinerTest(unittest.TestCase):
                 Y = Mul(temp, temp)
             }
         """
-        self._check(input_model, expected_model)
+        self._check(input_model, expected_model, renameable=["temp"])
 
     def test_two_calls(self):
         input_model = """
@@ -156,7 +158,7 @@ class InlinerTest(unittest.TestCase):
                 Y = Mul(temp, temp)
             }
         """
-        self._check(input_model, expected_model)
+        self._check(input_model, expected_model, renameable=["temp"])
 
     def test_attr_parameter(self):
         input_model = """
