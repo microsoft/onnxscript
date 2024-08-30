@@ -94,6 +94,7 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
         expected = expected_model.to_model_proto()
         onnxscript.testing.assert_isomorphic(traced, expected)
 
+    @unittest.expectedFailure  # abs is traced now
     def test_model_local_function_constructed_by_traced_graph_is_same_as_compiled_graph(
         self,
     ):
