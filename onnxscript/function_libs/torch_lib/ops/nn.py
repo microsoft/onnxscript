@@ -389,7 +389,7 @@ def aten_cross_entropy_loss(
     return result
 
 
-@torch_op("aten::elu")
+@torch_op("aten::elu", traceable=True)
 def aten_elu(
     self: TFloat,
     alpha: float = 1.0,
@@ -398,8 +398,10 @@ def aten_elu(
 ) -> TFloat:
     """elu(Tensor self, Scalar alpha=1, Scalar scale=1, Scalar input_scale=1) -> Tensor"""
 
-    self = self * input_scale
-    return op.Elu(self, alpha=alpha) * scale
+    input_scale = op.CastLike(self, input_scale)
+    scale = op.CastLike(self, scale)
+    self = op.Mul(self, input_scale)
+    return op.Mul(op.Elu(self, alpha=alpha), scale)
 
 
 def aten_elu_backward(
