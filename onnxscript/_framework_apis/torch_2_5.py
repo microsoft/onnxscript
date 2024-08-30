@@ -135,7 +135,6 @@ def get_torchlib_ops() -> list[OnnxFunctionMeta]:
             )
             function_metas.append(function_meta)
         for complex_func in aten_overloads_func.complex:
-            qualified_name = complex_func.name
             function_meta = OnnxFunctionMeta(
                 qualified_name=qualified_name,
                 function=complex_func,
