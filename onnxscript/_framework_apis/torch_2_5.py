@@ -56,9 +56,18 @@ def optimize(model: ir.Model) -> ir.Model:
 
 def convert_version(model: ir.Model, target_version: int) -> ir.Model:
     """Convert the model to the specified ONNX opset version."""
-    proto = ir.serde.serialize_model(model)
-    proto = onnx.version_converter.convert_version(proto, target_version)
-    return ir.serde.deserialize_model(proto)
+    # model_version = model.opset_import.get("")
+    # if model_version == target_version:
+    #     # No conversion needed
+    #     return model
+
+    # # FIXME(justinchuby): version_converter does not support functions
+    # proto = ir.serde.serialize_model(model)
+    # proto = onnx.version_converter.convert_version(proto, target_version)
+    # return ir.serde.deserialize_model(proto)
+    # TODO(justinchuby): This function needs to be carefully implemented
+    # to handle large models. For now, we just return the model.
+    return model
 
 
 def check_model(model: ir.Model) -> None:
