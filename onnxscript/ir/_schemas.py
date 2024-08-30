@@ -151,9 +151,6 @@ def _get_type_from_str(
 
     A type str has the form of "tensor(float)" or composite type like "seq(tensor(float))".
     """
-
-    # TODO: Upstream this to IR
-
     # Split the type_str a sequence types and dtypes
     # 1. Remove the ending ")"
     striped = type_str.rstrip(")")
