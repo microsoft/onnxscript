@@ -10,7 +10,7 @@ import parameterized
 import onnxscript
 import onnxscript.testing
 from onnxscript import FLOAT, INT64, ir
-from onnxscript._internal import _schemas
+from onnxscript.ir import _schemas
 
 _TestTypeVarConstraints = TypeVar("_TestTypeVarConstraints", INT64, FLOAT)
 _TestTypeVarOneBound = TypeVar("_TestTypeVarOneBound", bound=INT64)

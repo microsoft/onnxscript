@@ -24,7 +24,8 @@ import onnx.defs
 
 from onnxscript import converter as converter_module
 from onnxscript import irbuilder, sourceinfo, type_annotation
-from onnxscript._internal import _schemas, ast_utils, deprecation
+from onnxscript._internal import ast_utils, deprecation
+from onnxscript.ir import _schemas
 
 _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
     onnx.defs.OpSchema.AttrType.FLOAT: float,
