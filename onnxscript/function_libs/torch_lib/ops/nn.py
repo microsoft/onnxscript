@@ -398,8 +398,8 @@ def aten_elu(
 ) -> TFloat:
     """elu(Tensor self, Scalar alpha=1, Scalar scale=1, Scalar input_scale=1) -> Tensor"""
 
-    input_scale = op.CastLike(self, input_scale)
-    scale = op.CastLike(self, scale)
+    input_scale = op.CastLike(input_scale, self)
+    scale = op.CastLike(scale, self)
     self = op.Mul(self, input_scale)
     return op.Mul(op.Elu(self, alpha=alpha), scale)
 
