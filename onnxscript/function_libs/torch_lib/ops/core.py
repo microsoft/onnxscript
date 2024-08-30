@@ -1016,6 +1016,7 @@ def aten_atleast_3d_sequence(self: Sequence[TTensor]) -> TTensor:
 
     return op.SequenceMap(self, body=reshape_to_3d)
 
+
 @torch_op("aten::baddbmm", trace_only=True)
 def aten_baddbmm(
     self: TRealOrUInt8,
@@ -7419,7 +7420,7 @@ def aten_scalar_tensor_complex(
 
 @torch_op("aten::scalar_tensor", trace_only=True)
 def aten_scalar_tensor_sym_number(
-    s: RealType,
+    s: TensorType,
     dtype: int = FLOAT.dtype,
     layout: str = "",
     device: str = "",
@@ -7428,21 +7429,7 @@ def aten_scalar_tensor_sym_number(
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
     if dtype == -1:
         dtype = FLOAT.dtype
-    # Set trace_only=True because different if branches return different dtypes
-    # which is not supported in an ONNX function
     return common_ops.cast_to(s, dtype=dtype)
-
-
-@torch_op("aten::scalar_tensor", trace_only=True)
-def aten_scalar_tensor_sym_bool(
-    s: BOOL,
-    dtype: int = BOOL.dtype,
-    layout: str = "",
-    device: str = "",
-    pin_memory: bool = False,
-) -> TensorType:
-    """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
-    return op.Identity(s)
 
 
 @torch_op("aten::scatter.value", trace_only=True)
