@@ -1028,13 +1028,11 @@ def aten_baddbmm(
     """baddbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
     # beta and alpha can be SymFloat
     batch_mul = op.MatMul(batch1, batch2)
-    if alpha is None:
-        # alpha is 1
+    if alpha is None or alpha == 1:
         mul_a = batch_mul
     else:
         mul_a = op.Mul(batch_mul, op.CastLike(alpha, self))
-    if beta is None:
-        # beta is 1
+    if beta is None or beta == 1:
         mul_b = self
     else:
         mul_b = op.Mul(self, op.CastLike(beta, self))
