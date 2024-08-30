@@ -24,7 +24,7 @@ import onnx.defs
 
 from onnxscript import converter as converter_module
 from onnxscript import irbuilder, sourceinfo, type_annotation
-from onnxscript._internal import ast_utils, deprecation
+from onnxscript._internal import _schemas, ast_utils, deprecation
 
 _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
     onnx.defs.OpSchema.AttrType.FLOAT: float,
@@ -173,7 +173,7 @@ def _get_attribute_value(attr_proto: onnx.AttributeProto) -> Any:
     return onnx.helper.get_attribute_value(attr_proto)
 
 
-def param_schemas_from_op_schema(
+def _param_schemas_from_op_schema(
     op_schema: onnx.defs.OpSchema,
 ) -> tuple[ParamSchema, ...]:
     """Get the parameter schemas from an ONNX OpSchema."""
@@ -222,7 +222,7 @@ def _param_schema_from_function_ir_attr(attr: irbuilder.IRAttributeParameter):
     )
 
 
-def param_schemas_from_function_ir(
+def _param_schemas_from_function_ir(
     function_ir: irbuilder.IRFunction,
 ) -> tuple[ParamSchema, ...]:
     """Get the parameter schemas from a FunctionIR."""
@@ -259,7 +259,7 @@ class OpLike(Protocol):
     @property
     def op_schema(self) -> Optional[onnx.defs.OpSchema]: ...
 
-    def param_schemas(self) -> Optional[tuple[ParamSchema, ...]]: ...
+    def signature(self) -> Optional[_schemas.OpSignature]: ...
 
 
 class Op(OpLike):
@@ -274,18 +274,19 @@ class Op(OpLike):
     """
 
     def __init__(
-        self, opset: Opset, opname: str, op_schema: Optional[onnx.defs.OpSchema] = None
+        self, opset: Opset, name: str, op_schema: Optional[onnx.defs.OpSchema] = None
     ) -> None:
         self._opset = opset
-        self._name = opname
-        self._op_schema = op_schema or opset[opname]
+        self._name = name
+        self._op_schema = op_schema or opset[name]
+        self._signature: Optional[_schemas.OpSignature] = None
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
 
         if self._op_schema is None:
             logger.debug(
                 "An OpSchema was not provided for Op '%s' and "
                 "there is not one found in opset '%s'.",
-                opname,
+                name,
                 opset,
             )
 
@@ -312,10 +313,32 @@ class Op(OpLike):
     def op_schema(self) -> Optional[onnx.defs.OpSchema]:
         return self._op_schema
 
+    @deprecation.deprecated(
+        since="0.1",
+        removed_in="the future",
+        instructions="check if '.op_schema' is not None instead",
+    )
     def has_schema(self) -> bool:
         """Returns True if this op has an OpSchema."""
         return self.op_schema is not None
 
+    @property
+    def signature(self) -> Optional[_schemas.OpSignature]:
+        """Returns the signature of this op."""
+        if self._signature is not None:
+            return self._signature
+
+        if self.op_schema is None:
+            return None
+
+        self._signature = _schemas.OpSignature.from_op_schema(self.op_schema)
+        return self._signature
+
+    @deprecation.deprecated(
+        since="0.1",
+        removed_in="the future",
+        instructions="use '.signature' instead",
+    )
     def param_schemas(self) -> Optional[tuple[ParamSchema, ...]]:
         """Returns the parameter schemas for this op, if it has one."""
         if self._param_schemas is not None:
@@ -325,7 +348,7 @@ class Op(OpLike):
         if op_schema is None:
             return None
 
-        self._param_schemas = param_schemas_from_op_schema(op_schema)
+        self._param_schemas = _param_schemas_from_op_schema(op_schema)
         return self._param_schemas
 
 
@@ -362,7 +385,7 @@ class TypeConstraint:
         return (self.name, self.allowed_types, self.description)
 
 
-def op_schema_from_function_ir(
+def _op_schema_from_function_ir(
     function_ir: irbuilder.IRFunction, opset: Opset
 ) -> onnx.defs.OpSchema:
     """Construct an ONNX OpSchema from an IRFunction."""
@@ -486,7 +509,7 @@ class OnnxFunction(Op):
     @property
     @deprecation.deprecated(
         since="0.1",
-        removed_in="0.3",
+        removed_in="the future",
         instructions="use '.name' instead",
     )
     def opname(self) -> str:
@@ -500,9 +523,22 @@ class OnnxFunction(Op):
         if self._op_schema is not None:
             return self._op_schema
 
-        self._op_schema = op_schema_from_function_ir(self.function_ir, self.opset)
+        self._op_schema = _op_schema_from_function_ir(self.function_ir, self.opset)
 
         return self._op_schema
+
+    def signature(self) -> Optional[_schemas.OpSignature]:
+        """Returns the signature of this op."""
+        if self._signature is not None:
+            return self._signature
+
+        if self.op_schema is None:
+            return None
+
+        self._signature = _schemas.OpSignature.from_function(
+            self.function, domain=self.function_ir.domain, name=self.name
+        )
+        return self._signature
 
     def __getitem__(self, instance):
         """Returns a lambda to evaluate function using given evaluator instance.
@@ -531,6 +567,11 @@ class OnnxFunction(Op):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.function!r})"
 
+    @deprecation.deprecated(
+        since="0.1",
+        removed_in="the future",
+        instructions="use '.signature' instead",
+    )
     def param_schemas(self) -> tuple[ParamSchema, ...]:
         """Returns the parameter schemas of this function."""
         if self._param_schemas is not None:
@@ -539,7 +580,7 @@ class OnnxFunction(Op):
         # NOTE: We generate the parameter schemas from the function_ir instead
         # of relying on the auto generated OpSchema because we need to preserve the keyword
         # argument order from the Python function definition, which is lost in OpSchema.
-        self._param_schemas = param_schemas_from_function_ir(self.function_ir)
+        self._param_schemas = _param_schemas_from_function_ir(self.function_ir)
         return self._param_schemas
 
     def to_function_proto(self) -> onnx.FunctionProto:
@@ -612,10 +653,29 @@ class TracedOnnxFunction(Op):
             return self._op_schema
 
         # FIXME(justinchuby): outputs are empty. Need to fix.
-        self._op_schema = op_schema_from_function_ir(self.function_ir, self._opset)
+        self._op_schema = _op_schema_from_function_ir(self.function_ir, self._opset)
 
         return self._op_schema
 
+    @property
+    def signature(self) -> Optional[_schemas.OpSignature]:
+        """Returns the signature of this op."""
+        if self._signature is not None:
+            return self._signature
+
+        if self.op_schema is None:
+            return None
+
+        self._signature = _schemas.OpSignature.from_function(
+            self.func, domain="_traced", name=self.name
+        )
+        return self._signature
+
+    @deprecation.deprecated(
+        since="0.1",
+        removed_in="the future",
+        instructions="use '.signature' instead",
+    )
     def param_schemas(self) -> tuple[ParamSchema, ...]:
         """Returns the parameter schemas of this function."""
         if self._param_schemas is not None:
@@ -624,7 +684,7 @@ class TracedOnnxFunction(Op):
         # NOTE: We generate the parameter schemas from the function_ir instead
         # of relying on the auto generated OpSchema because we need to preserve the keyword
         # argument order from the Python function definition, which is lost in OpSchema.
-        self._param_schemas = param_schemas_from_function_ir(self.function_ir)
+        self._param_schemas = _param_schemas_from_function_ir(self.function_ir)
         return self._param_schemas
 
 
