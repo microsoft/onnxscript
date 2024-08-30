@@ -5,7 +5,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Optional, Sequence, Tuple
+from dataclasses import dataclass, field
+from typing import Iterable, Sequence, Tuple
 
 import onnxscript.ir as ir
 import onnxscript.ir.convenience as convenience
@@ -16,37 +17,41 @@ import onnxscript.ir.convenience as convenience
 NodeReplacement = Tuple[Sequence[ir.Node], Sequence[ir.Value]]
 
 # A call stack is a list of identifiers of call sites, where the first element is the
-# outermost call site, and the last element is the innermost call site.
+# outermost call site, and the last element is the innermost call site. This is used
+# primarily for generating unique names for values in the inlined functions.
 CallSiteId = str
 CallStack = list[CallSiteId]
 
-class CopyReplace:
+
+class _CopyReplace:
     """Utilities for creating a copy of IR objects with substitutions for attributes/input values."""
 
     def __init__(
         self,
+        inliner: _Inliner,
         attr_map: dict[str, ir.Attr | ir.RefAttr],
         value_map: dict[ir.Value, ir.Value | None],
-        used_value_names: set[str],
-        node_context: dict[ir.Node, CallStack],
         call_stack: CallStack,
     ) -> None:
+        self._inliner = inliner
         self._value_map = value_map
         self._attr_map = attr_map
-        self._node_context = node_context
         self._call_stack = call_stack
-        self._used_value_names = used_value_names
 
-    def make_unique_name(self, name: str) -> str:
-        # Generate a unique name by appending a number to the name until it is unique.
+
+    def make_unique_name(self, name: str, used_names: set[str]) -> str:
+        # When a value X in a function is inlined into a graph, we rename X by adding a prefix
+        # representing the call-stack of the function. This should typically avoid name clashes.
+        # If there is a name clash, even after this, we add a numeric suffix to the name to make
+        # it unique. We use the same strategy to make node names unique.
         prefix = "_".join(self._call_stack)
         name = prefix + "_" + name
         candidate = name
         i = 1
-        while candidate in self._used_value_names:
+        while candidate in used_names:
             i += 1
             candidate = f"{name}_{i}"
-        self._used_value_names.add(candidate)
+        used_names.add(candidate)
         return candidate
 
     def clone_value(self, value: ir.Value) -> ir.Value | None:
@@ -91,6 +96,10 @@ class CopyReplace:
             for key, value in copied.attributes.items()
             if (new_value := self.clone_attr(key, value)) is not None
         ]
+        new_name = copied.name
+        if new_name is not None:
+            new_name = self.make_unique_name(new_name, self._inliner.used_node_names)
+
         new_node = ir.Node(
             copied.domain,
             copied.op_type,
@@ -99,7 +108,7 @@ class CopyReplace:
             overload=copied.overload,
             num_outputs=len(copied.outputs),
             graph=None,  #  TODO:
-            name=copied.name,  #  TODO: add a unique name
+            name=new_name,
             doc_string=copied.doc_string,
             metadata_props=copied.metadata_props,
         )
@@ -107,9 +116,9 @@ class CopyReplace:
         for i, output in enumerate(copied.outputs):
             self._value_map[output] = new_outputs[i]
             old_name = output.name if output.name is not None else f"output_{i}"
-            new_outputs[i].name = self.make_unique_name(old_name)
+            new_outputs[i].name = self.make_unique_name(old_name, self._inliner.used_value_names)
 
-        self._node_context[new_node] = self._call_stack
+        self._inliner.node_context[new_node] = self._call_stack
 
         return new_node
 
@@ -129,25 +138,30 @@ class CopyReplace:
             metadata_props=graph.metadata_props,
         )
 
+def _abbreviate(function_ids: Iterable[ir.OperatorIdentifier]) -> dict[ir.OperatorIdentifier, str]:
+    """Create a short unambiguous abbreviation for all function ids."""
+    def id_abbreviation(id: ir.OperatorIdentifier) -> str:
+        """Create a short unambiguous abbreviation for a function id."""
+        domain, name, overload = id
+        # Omit the domain, if it remains unambiguous after omitting it.
+        if any (x[0] != domain and x[1] == name and x[2] == overload for x in function_ids):
+            short_domain = domain + "_"
+        else:
+            short_domain = ""
+        if overload != "":
+            return short_domain + name + "_" + overload
+        return short_domain + name
+    return {id: id_abbreviation(id) for id in function_ids}
 
-class Inliner:
+class _Inliner:
     def __init__(self, model: ir.Model) -> None:
         self._functions = model.functions
+        self._function_id_abbreviations = _abbreviate(self._functions.keys())
         self._opset_imports = model.opset_imports
-        self._node_context : dict[ir.Node, CallStack] = {}
-        self._used_value_names = set()
-        function_ids = self._functions.keys()
-        def id_abbreviation(id: Tuple[str, str, str]) -> str:
-            """Create a short unambiguous abbreviation for a function id."""
-            domain, name, overload = id
-            if any (x[0] != domain and x[1] == name and x[2] == overload for x in function_ids):
-                short_domain = domain + "_"
-            else:
-                short_domain = ""
-            if overload != "":
-                return short_domain + name + "_" + overload
-            return short_domain + name
-        self._function_id_abbreviations = {id: id_abbreviation(id) for id in function_ids}
+        self.used_value_names: set[str] = set()
+        self.used_node_names: set[str] = set()
+        self.node_context: dict[ir.Node, CallStack] = {}
+
 
     def transform_node(self, node: ir.Node, call_site_id: str) -> NodeReplacement:
         id = node.op_identifier()
@@ -173,10 +187,10 @@ class Inliner:
             value_map[function.inputs[i]] = None
 
         # Identify call-stack for node, used to generate unique names.
-        call_stack = self._node_context.get(node, [])
+        call_stack = self.node_context.get(node, [])
         call_stack.append(call_site_id)
 
-        cloner = CopyReplace(attributes, value_map, self._used_value_names, self._node_context, call_stack)
+        cloner = _CopyReplace(self, attributes, value_map, call_stack)
 
         # iterate over the nodes in the function, creating a copy of each node
         # and replacing inputs with the corresponding values in the value map.
@@ -189,9 +203,9 @@ class Inliner:
     def transform_graph(self, graph: ir.Graph) -> None:
         for input in graph.inputs:
             if input.name is not None:
-                self._used_value_names.add(input.name)
+                self.used_value_names.add(input.name)
         for initializer in graph.initializers:
-            self._used_value_names.add(initializer)
+            self.used_value_names.add(initializer)
 
         # Pre-processing:
         # * Count the number of times each function is called in the graph.
@@ -199,12 +213,14 @@ class Inliner:
         # * And identify names of values that are used in the graph.
         id_count : dict[ir.OperatorIdentifier, int] = defaultdict(int)
         for node in graph:
+            if node.name:
+                self.used_node_names.add(node.name)
             id = node.op_identifier()
             if id in self._functions:
                 id_count[id] += 1
             for output in node.outputs:
                 if output.name is not None:
-                    self._used_value_names.add(output.name)
+                    self.used_value_names.add(output.name)
         next_id : dict[ir.OperatorIdentifier, int] = defaultdict(int)
         for node in graph:
             id = node.op_identifier()
@@ -234,6 +250,6 @@ class Inliner:
 
 
 def inline(model: ir.Model) -> None:
-    inliner = Inliner(model)
+    inliner = _Inliner(model)
     inliner.transform_graph(model.graph)
     model.functions.clear()
