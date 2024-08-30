@@ -261,11 +261,6 @@ def convert_tensors_to_external(
         current_offset = tensor_info.offset + tensor_info.length
     _save_external_data(external_data_info, path)
 
-    # Clean-up temporary file if it is created
-    tmp_path = os.path.join(base_path, "tmp", relative_path)
-    if os.path.exists(tmp_path):
-        os.remove(tmp_path)
-
     # Convert initializers to ExternalTensors
     external_tensors = _convert_as_external_tensors(
         external_data_info, base_path, relative_path
@@ -275,6 +270,12 @@ def convert_tensors_to_external(
         external_tensors[i]
         for i in sorted(range(len(external_tensors)), key=lambda i: sorted_indices[i])
     ]
+
+    # Clean-up temporary file if it is created
+    tmp_path = os.path.join(base_path, "tmp", relative_path)
+    if os.path.exists(tmp_path):
+        os.remove(tmp_path)
+
     return external_tensors
 
 
