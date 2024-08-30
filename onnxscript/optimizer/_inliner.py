@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from typing import Optional, Sequence, Tuple
 
 import onnxscript.ir as ir
@@ -11,9 +12,8 @@ import onnxscript.ir.convenience as convenience
 
 # A replacement for a node specifies a list of nodes that replaces the original node,
 # and a list of values that replaces the original node's outputs.
-# If the replacement is None, it indicates that the node should not be replaced.
 
-NodeReplacement = Optional[Tuple[Sequence[ir.Node], Sequence[ir.Value]]]
+NodeReplacement = Tuple[Sequence[ir.Node], Sequence[ir.Value]]
 
 # A call stack is a list of identifiers of call sites, where the first element is the
 # outermost call site, and the last element is the innermost call site.
@@ -42,7 +42,7 @@ class CopyReplace:
         prefix = "_".join(self._call_stack)
         name = prefix + "_" + name
         candidate = name
-        i = 0
+        i = 1
         while candidate in self._used_value_names:
             i += 1
             candidate = f"{name}_{i}"
@@ -120,7 +120,6 @@ class CopyReplace:
 
         return ir.Graph(
             input_values,  # type: ignore
-
             graph.outputs,
             nodes=nodes,
             initializers=list(initializers.values()),
@@ -137,16 +136,21 @@ class Inliner:
         self._opset_imports = model.opset_imports
         self._node_context : dict[ir.Node, CallStack] = {}
         self._used_value_names = set()
+        function_ids = self._functions.keys()
+        def id_abbreviation(id: Tuple[str, str, str]) -> str:
+            """Create a short unambiguous abbreviation for a function id."""
+            domain, name, overload = id
+            if any (x[0] != domain and x[1] == name and x[2] == overload for x in function_ids):
+                short_domain = domain + "_"
+            else:
+                short_domain = ""
+            if overload != "":
+                return short_domain + name + "_" + overload
+            return short_domain + name
+        self._function_id_abbreviations = {id: id_abbreviation(id) for id in function_ids}
 
-    def transform_node(self, node: ir.Node) -> NodeReplacement:
+    def transform_node(self, node: ir.Node, call_site_id: str) -> NodeReplacement:
         id = node.op_identifier()
-        if id not in self._functions:
-            for output in node.outputs:
-                if output.name is not None:
-                    self._used_value_names.add(output.name)
-            return None
-        # Inline the function-call
-
         function = self._functions[id]
 
         # check opset compatibility and update the opset imports
@@ -170,10 +174,6 @@ class Inliner:
 
         # Identify call-stack for node, used to generate unique names.
         call_stack = self._node_context.get(node, [])
-        call_site_id = node.name
-        if call_site_id == "":
-            call_site_id = "_".join(id)
-            # TODO: disinguish between multiple calls to the same function
         call_stack.append(call_site_id)
 
         cloner = CopyReplace(attributes, value_map, self._used_value_names, self._node_context, call_stack)
@@ -192,9 +192,36 @@ class Inliner:
                 self._used_value_names.add(input.name)
         for initializer in graph.initializers:
             self._used_value_names.add(initializer)
+
+        # Pre-processing:
+        # * Count the number of times each function is called in the graph.
+        #   This is used for disambiguating names of values in the inlined functions.
+        # * And identify names of values that are used in the graph.
+        id_count : dict[ir.OperatorIdentifier, int] = defaultdict(int)
         for node in graph:
-            replacement = self.transform_node(node)
-            if replacement is None:
+            id = node.op_identifier()
+            if id in self._functions:
+                id_count[id] += 1
+            for output in node.outputs:
+                if output.name is not None:
+                    self._used_value_names.add(output.name)
+        next_id : dict[ir.OperatorIdentifier, int] = defaultdict(int)
+        for node in graph:
+            id = node.op_identifier()
+            if id in self._functions:
+                # If there are multiple calls to same function, we use a prefix to disambiguate
+                # the different call-sites:
+                if id_count[id] > 1:
+                    call_site_prefix = f"_{next_id[id]}"
+                    next_id[id] += 1
+                else:
+                    call_site_prefix = ""
+                call_site = node.name or (self._function_id_abbreviations[id] + call_site_prefix)
+                nodes, values = self.transform_node(node, call_site)
+                convenience.replace_nodes_and_values(
+                    graph, node, [node], nodes, node.outputs, values
+                )
+            else:
                 for attr in node.attributes.values():
                     if not isinstance(attr, ir.Attr):
                         continue
@@ -203,11 +230,7 @@ class Inliner:
                     elif attr.type == ir.AttributeType.GRAPHS:
                         for graph in attr.value:
                             self.transform_graph(graph)
-            else:
-                nodes, values = replacement
-                convenience.replace_nodes_and_values(
-                    graph, node, [node], nodes, node.outputs, values
-                )
+
 
 
 def inline(model: ir.Model) -> None:
