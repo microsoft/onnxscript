@@ -23,6 +23,24 @@ CallSiteId = str
 CallStack = list[CallSiteId]
 
 
+def _make_unique_name(name: str, callstack: CallStack, used_names: set[str]) -> str:
+    """Generate a unique name from a name, calling-context, and set of used names.
+
+    When a value X in a function is inlined into a graph, we rename X by adding a prefix
+    representing the call-stack of the function. This should typically avoid name clashes.
+    If there is a name clash, even after this, we add a numeric suffix to the name to make
+    it unique. We use the same strategy to make node names unique.
+    """
+    prefix = "_".join(callstack)
+    name = prefix + "_" + name
+    candidate = name
+    i = 1
+    while candidate in used_names:
+        i += 1
+        candidate = f"{name}_{i}"
+    used_names.add(candidate)
+    return candidate
+
 class _CopyReplace:
     """Utilities for creating a copy of IR objects with substitutions for attributes/input values."""
 
@@ -38,26 +56,10 @@ class _CopyReplace:
         self._attr_map = attr_map
         self._call_stack = call_stack
 
-
-    def make_unique_name(self, name: str, used_names: set[str]) -> str:
-        # When a value X in a function is inlined into a graph, we rename X by adding a prefix
-        # representing the call-stack of the function. This should typically avoid name clashes.
-        # If there is a name clash, even after this, we add a numeric suffix to the name to make
-        # it unique. We use the same strategy to make node names unique.
-        prefix = "_".join(self._call_stack)
-        name = prefix + "_" + name
-        candidate = name
-        i = 1
-        while candidate in used_names:
-            i += 1
-            candidate = f"{name}_{i}"
-        used_names.add(candidate)
-        return candidate
-
     def clone_value(self, value: ir.Value) -> ir.Value | None:
-        # Only input-values are cloned.
         if value in self._value_map:
             return self._value_map[value]
+        # If the value is not in the value map, it must be a graph input.
         assert value.producer() is not None, f"Value {value} has no entry in the value map"
         new_value = ir.Value(
             name=value.name, type=value.type, shape=value.shape, doc_string=value.doc_string
@@ -98,7 +100,7 @@ class _CopyReplace:
         ]
         new_name = copied.name
         if new_name is not None:
-            new_name = self.make_unique_name(new_name, self._inliner.used_node_names)
+            new_name = _make_unique_name(new_name, self._call_stack, self._inliner.used_node_names)
 
         new_node = ir.Node(
             copied.domain,
@@ -116,7 +118,7 @@ class _CopyReplace:
         for i, output in enumerate(copied.outputs):
             self._value_map[output] = new_outputs[i]
             old_name = output.name if output.name is not None else f"output_{i}"
-            new_outputs[i].name = self.make_unique_name(old_name, self._inliner.used_value_names)
+            new_outputs[i].name = _make_unique_name(old_name, self._call_stack, self._inliner.used_value_names)
 
         self._inliner.node_context[new_node] = self._call_stack
 
@@ -163,7 +165,7 @@ class _Inliner:
         self.node_context: dict[ir.Node, CallStack] = {}
 
 
-    def transform_node(self, node: ir.Node, call_site_id: str) -> NodeReplacement:
+    def _instantiate_call(self, node: ir.Node, call_site_id: str) -> NodeReplacement:
         id = node.op_identifier()
         function = self._functions[id]
 
@@ -200,7 +202,7 @@ class _Inliner:
         output_values = [value_map[output] for output in function.outputs]
         return nodes, output_values  # type: ignore
 
-    def transform_graph(self, graph: ir.Graph) -> None:
+    def inline_calls_in(self, graph: ir.Graph) -> None:
         for input in graph.inputs:
             if input.name is not None:
                 self.used_value_names.add(input.name)
@@ -233,7 +235,7 @@ class _Inliner:
                 else:
                     call_site_prefix = ""
                 call_site = node.name or (self._function_id_abbreviations[id] + call_site_prefix)
-                nodes, values = self.transform_node(node, call_site)
+                nodes, values = self._instantiate_call(node, call_site)
                 convenience.replace_nodes_and_values(
                     graph, node, [node], nodes, node.outputs, values
                 )
@@ -242,14 +244,15 @@ class _Inliner:
                     if not isinstance(attr, ir.Attr):
                         continue
                     if attr.type == ir.AttributeType.GRAPH:
-                        self.transform_graph(attr.value)
+                        self.inline_calls_in(attr.value)
                     elif attr.type == ir.AttributeType.GRAPHS:
                         for graph in attr.value:
-                            self.transform_graph(graph)
+                            self.inline_calls_in(graph)
 
 
 
 def inline(model: ir.Model) -> None:
+    """Inline all function calls (recursively) in the model."""
     inliner = _Inliner(model)
-    inliner.transform_graph(model.graph)
+    inliner.inline_calls_in(model.graph)
     model.functions.clear()
