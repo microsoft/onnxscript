@@ -182,6 +182,29 @@ class InlinerTest(unittest.TestCase):
         """
         self._check(input_model, expected_model)
 
+    def test_attr_parameter_with_default_value(self):
+        input_model = """
+            <ir_version: 8, opset_import: [ "" : 17, "local" : 1 ]>
+            agraph (float[N] X) => (float[N] Y)
+            {
+                T = local.foo <alpha = 0.5> (X)
+                Y = local.foo (T)
+            }
+
+            <opset_import: [ "" : 17, "local" : 1 ], domain: "local">
+            foo <alpha: float=0.6> (x) => (y) {
+                y = Selu <alpha: float = @alpha> (x)
+            }
+        """
+        expected_model = """
+            <ir_version: 8, opset_import: [ "" : 17, "local" : 1 ]>
+            agraph (float[N] X) => (float[N] Y)
+            {
+                T = Selu <alpha: float = 0.5> (X)
+                Y = Selu <alpha: float = 0.6> (T)
+            }
+        """
+        self._check(input_model, expected_model)
 
 if __name__ == "__main__":
     unittest.main()

@@ -180,6 +180,14 @@ class _Inliner:
 
         # Identify substitutions for both inputs and attributes of the function:
         attributes = node.attributes
+        default_attr_values = {
+            attr.name: attr
+            for attr in function.attributes.values()
+            if attr.name not in attributes and attr.value is not None
+        }
+        if default_attr_values:
+            attributes = {**attributes, **default_attr_values}
+
         if len(node.inputs) > len(function.inputs):
             raise ValueError(f"Input mismatch: {len(node.inputs)} > {len(function.inputs)}")
         value_map = {}
