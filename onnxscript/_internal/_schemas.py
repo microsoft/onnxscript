@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 from __future__ import annotations
 
 import collections.abc
@@ -17,6 +19,7 @@ from typing import (
 )
 
 import onnx
+
 import onnxscript
 from onnxscript import ir
 
@@ -281,9 +284,7 @@ def _get_allowed_types_from_type_annotation(
         allowed_types = set()
         if constraints := type_.__constraints__:
             for constraint in constraints:
-                allowed_types.update(
-                    _get_allowed_types_from_type_annotation(constraint)
-                )
+                allowed_types.update(_get_allowed_types_from_type_annotation(constraint))
         else:
             bound = type_.__bound__
             if bound is None:
@@ -309,8 +310,8 @@ def _get_allowed_types_from_type_annotation(
         allowed_types = set()
         subtypes = typing.get_args(type_)
         for subtype in subtypes:
-            assert (
-                subtype is not type(None)
+            assert subtype is not type(
+                None
             ), "Union should not contain None type because it is handled by _is_optional."
             allowed_types.update(_get_allowed_types_from_type_annotation(subtype))
         return allowed_types
@@ -318,8 +319,7 @@ def _get_allowed_types_from_type_annotation(
     if isinstance(origin_type, type) and issubclass(origin_type, Sequence):
         subtypes = typing.get_args(type_)
         return {
-            ir.SequenceType(t)
-            for t in _get_allowed_types_from_type_annotation(subtypes[0])
+            ir.SequenceType(t) for t in _get_allowed_types_from_type_annotation(subtypes[0])
         }
 
     # Allow everything by default
@@ -385,8 +385,7 @@ class OpSignature:
             constraint.type_param_str: TypeConstraintParam(
                 name=constraint.type_param_str,
                 allowed_types={
-                    _get_type_from_str(type_str)
-                    for type_str in constraint.allowed_type_strs
+                    _get_type_from_str(type_str) for type_str in constraint.allowed_type_strs
                 },
                 description=constraint.description,
             )
@@ -394,8 +393,7 @@ class OpSignature:
         }
 
         params = [
-            _convert_formal_parameter(param, type_constraints)
-            for param in op_schema.inputs
+            _convert_formal_parameter(param, type_constraints) for param in op_schema.inputs
         ]
 
         for param in op_schema.attributes.values():
@@ -417,8 +415,7 @@ class OpSignature:
             )
 
         outputs = [
-            _convert_formal_parameter(param, type_constraints)
-            for param in op_schema.outputs
+            _convert_formal_parameter(param, type_constraints) for param in op_schema.outputs
         ]
 
         return cls(
@@ -451,9 +448,7 @@ class OpSignature:
                     param.name,
                     py_signature,
                 )
-                type_constraints[param.name] = TypeConstraintParam.any_value(
-                    f"T_{param.name}"
-                )
+                type_constraints[param.name] = TypeConstraintParam.any_value(f"T_{param.name}")
             else:
                 type_ = type_hints[param.name]
                 if (attr_type := _get_attr_type(type_)) != ir.AttributeType.UNDEFINED:
@@ -488,9 +483,7 @@ class OpSignature:
                         # 3. Otherwise, create a new TypeConstraintParam
                         type_constraint = TypeConstraintParam(
                             name=type_constraint_name,
-                            allowed_types=_get_allowed_types_from_type_annotation(
-                                type_
-                            ),
+                            allowed_types=_get_allowed_types_from_type_annotation(type_),
                         )
                         type_constraints[type_constraint_name] = type_constraint
                     # 4. Create Parameter
@@ -529,9 +522,7 @@ class OpSignature:
                     return_param_name = f"TReturn{i}"
                     type_constraint = TypeConstraintParam(
                         name=return_param_name,
-                        allowed_types=_get_allowed_types_from_type_annotation(
-                            return_type_i
-                        ),
+                        allowed_types=_get_allowed_types_from_type_annotation(return_type_i),
                     )
                     type_constraints[return_param_name] = type_constraint
                 outputs.append(

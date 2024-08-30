@@ -1,18 +1,16 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 from __future__ import annotations
 
 import unittest
 from typing import Any, Optional, Sequence, TypeVar, Union
 
+import parameterized
+
 import onnxscript
 import onnxscript.testing
-import parameterized
 from onnxscript import FLOAT, INT64, ir
-
-from torch_onnx import _schemas
+from onnxscript._internal import _schemas
 
 _TestTypeVarConstraints = TypeVar("_TestTypeVarConstraints", INT64, FLOAT)
 _TestTypeVarOneBound = TypeVar("_TestTypeVarOneBound", bound=INT64)
@@ -146,9 +144,7 @@ class TypeConversionFunctionsTest(unittest.TestCase):
         ]
     )
     def test_pytype_to_ir_type(self, _, pytype: Any, expected: set[ir.TypeProtocol]):
-        self.assertEqual(
-            _schemas._get_allowed_types_from_type_annotation(pytype), expected
-        )
+        self.assertEqual(_schemas._get_allowed_types_from_type_annotation(pytype), expected)
 
     @parameterized.parameterized.expand(
         [
