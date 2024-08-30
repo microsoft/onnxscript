@@ -296,7 +296,7 @@ def aten_binary_cross_entropy_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::celu")
+@torch_op("aten::celu", traceable=True)
 def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
     """celu(Tensor self, Scalar alpha=1.0) -> Tensor"""
 
@@ -398,9 +398,8 @@ def aten_elu(
 ) -> TFloat:
     """elu(Tensor self, Scalar alpha=1, Scalar scale=1, Scalar input_scale=1) -> Tensor"""
 
-    # del scale
-    # del input_scale
-    return op.Elu(self, alpha=alpha)
+    self = self * input_scale
+    return op.Elu(self, alpha=alpha) * scale
 
 
 def aten_elu_backward(
@@ -602,7 +601,7 @@ def aten_glu_jvp(glu: TensorType, x: TensorType, dx: TensorType, dim: int) -> Te
     raise NotImplementedError()
 
 
-@torch_op("aten::hardsigmoid")
+@torch_op("aten::hardsigmoid", traceable=True)
 def aten_hardsigmoid(self: TFloat) -> TFloat:
     """hardsigmoid(Tensor self) -> Tensor"""
 
@@ -1583,7 +1582,7 @@ def aten_reflection_pad3d_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::relu")
+@torch_op("aten::relu", traceable=True)
 def aten_relu(self: TReal) -> TReal:
     """relu(Tensor self) -> Tensor"""
 

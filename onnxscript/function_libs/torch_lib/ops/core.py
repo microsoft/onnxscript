@@ -7558,7 +7558,7 @@ def aten_sgn(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::sigmoid")
+@torch_op("aten::sigmoid", traceable=True)
 def aten_sigmoid(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """sigmoid(Tensor self) -> Tensor"""
 
