@@ -1016,21 +1016,27 @@ def aten_atleast_3d_sequence(self: Sequence[TTensor]) -> TTensor:
 
     return op.SequenceMap(self, body=reshape_to_3d)
 
-
-@torch_op("aten::baddbmm")
+@torch_op("aten::baddbmm", trace_only=True)
 def aten_baddbmm(
     self: TRealOrUInt8,
     batch1: TRealUnlessInt16OrInt8,
     batch2: TRealUnlessInt16OrInt8,
-    beta: float = 1.0,
-    alpha: float = 1.0,
+    beta: Optional[TFloat],
+    alpha: Optional[TFloat],
 ) -> TRealUnlessInt16OrInt8:
     """baddbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
+    # beta and alpha can be SymFloat
     batch_mul = op.MatMul(batch1, batch2)
-    alpha_cast = op.CastLike(alpha, self)
-    mul_a = op.Mul(batch_mul, alpha_cast)
-    beta_cast = op.CastLike(beta, self)
-    mul_b = op.Mul(self, beta_cast)
+    if alpha is None:
+        # alpha is 1
+        mul_a = batch_mul
+    else:
+        mul_a = op.Mul(batch_mul, op.CastLike(alpha, self))
+    if beta is None:
+        # beta is 1
+        mul_b = self
+    else:
+        mul_b = op.Mul(self, op.CastLike(beta, self))
     return op.Add(mul_a, mul_b)
 
 
@@ -7425,6 +7431,18 @@ def aten_scalar_tensor_sym_number(
     # Set trace_only=True because different if branches return different dtypes
     # which is not supported in an ONNX function
     return common_ops.cast_to(s, dtype=dtype)
+
+
+@torch_op("aten::scalar_tensor", trace_only=True)
+def aten_scalar_tensor_sym_bool(
+    s: BOOL,
+    dtype: int = BOOL.dtype,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+) -> TensorType:
+    """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+    return op.Identity(s)
 
 
 @torch_op("aten::scatter.value", trace_only=True)
