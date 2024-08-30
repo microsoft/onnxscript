@@ -10,7 +10,6 @@ __all__ = [
     "get_torchlib_ops",
     "optimize",
     "save_model_with_external_data",
-    "OnnxFunctionMeta",
 ]
 
 import dataclasses
@@ -21,6 +20,7 @@ from typing import Callable
 import onnx
 
 from onnxscript import ir
+from onnxscript.function_libs.torch_lib import registration
 from onnxscript.ir import _external_data
 
 # Internal flag. Will go away.
@@ -30,7 +30,7 @@ _TORCH_ONNX_SAVE_EXTERNAL_DATA_WITH_IR = (
 
 
 @dataclasses.dataclass(frozen=True)
-class OnnxFunctionMeta:
+class _OnnxFunctionMeta:
     """A wrapper of onnx-script function with additional metadata.
 
     qualified_name: The qualified name of the aten operator.
@@ -112,12 +112,13 @@ def save_model_with_external_data(model: ir.Model, model_path: str | os.PathLike
         )
 
 
-def get_torchlib_ops() -> list[OnnxFunctionMeta]:
-    from onnxscript.function_libs.torch_lib import (  # pylint: disable=import-outside-toplevel
-        registration as torchlib_registration,
-    )
+def get_torchlib_ops() -> list[_OnnxFunctionMeta]:
+    # Trigger op registration
+    from onnxscript.function_libs.torch_lib import ops
 
-    torchlib_registry = torchlib_registration.default_registry
+    del ops  # Unused
+
+    torchlib_registry = registration.default_registry
     function_metas = []
 
     for qualified_name, aten_overloads_func in torchlib_registry.items():
@@ -126,7 +127,7 @@ def get_torchlib_ops() -> list[OnnxFunctionMeta]:
             continue
 
         for overload_func in aten_overloads_func.overloads:
-            function_meta = OnnxFunctionMeta(
+            function_meta = _OnnxFunctionMeta(
                 qualified_name=qualified_name,
                 function=overload_func,
                 domain=overload_func.function_ir.domain,
@@ -135,7 +136,7 @@ def get_torchlib_ops() -> list[OnnxFunctionMeta]:
             )
             function_metas.append(function_meta)
         for complex_func in aten_overloads_func.complex:
-            function_meta = OnnxFunctionMeta(
+            function_meta = _OnnxFunctionMeta(
                 qualified_name=qualified_name,
                 function=complex_func,
                 domain=complex_func.function_ir.domain,
