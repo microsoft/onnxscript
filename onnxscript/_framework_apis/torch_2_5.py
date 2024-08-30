@@ -67,6 +67,7 @@ def convert_version(model: ir.Model, target_version: int) -> ir.Model:
     # return ir.serde.deserialize_model(proto)
     # TODO(justinchuby): This function needs to be carefully implemented
     # to handle large models. For now, we just return the model.
+    del target_version  # Unused
     return model
 
 
@@ -123,7 +124,9 @@ def save_model_with_external_data(model: ir.Model, model_path: str | os.PathLike
 
 def get_torchlib_ops() -> list[_OnnxFunctionMeta]:
     # Trigger op registration
-    from onnxscript.function_libs.torch_lib import ops
+    from onnxscript.function_libs.torch_lib import (  # pylint: disable=import-outside-toplevel
+        ops,
+    )
 
     del ops  # Unused
 
