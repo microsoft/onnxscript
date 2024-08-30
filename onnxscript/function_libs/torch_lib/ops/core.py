@@ -133,7 +133,7 @@ def aten__softmax(
     return aten_softmax_no_dtype(self, dim)
 
 
-@torch_op(("aten::abs", "_operator::abs"))
+@torch_op(("aten::abs", "_operator::abs"), traceable=True)
 def aten_abs(self: TRealOrUInt8) -> TRealOrUInt8:
     """abs(Tensor self) -> Tensor"""
 
@@ -7558,7 +7558,7 @@ def aten_sgn(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::sigmoid")
+@torch_op("aten::sigmoid", traceable=True)
 def aten_sigmoid(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """sigmoid(Tensor self) -> Tensor"""
 
