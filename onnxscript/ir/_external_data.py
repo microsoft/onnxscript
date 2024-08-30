@@ -170,7 +170,6 @@ def _save_external_data(
             if current_offset > file_size:
                 data_file.write(b"\0" * (current_offset - file_size))
             data_file.write(raw_data)
-        data_file.close()
 
 
 def _convert_as_external_tensors(
@@ -271,6 +270,12 @@ def convert_tensors_to_external(
         external_tensors[i]
         for i in sorted(range(len(external_tensors)), key=lambda i: sorted_indices[i])
     ]
+
+    # Clean-up temporary file if it is created
+    tmp_path = os.path.join(base_path, "tmp", relative_path)
+    if os.path.exists(tmp_path):
+        os.remove(tmp_path)
+
     return external_tensors
 
 
