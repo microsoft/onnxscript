@@ -1022,8 +1022,8 @@ def aten_baddbmm(
     self: TRealOrUInt8,
     batch1: TRealUnlessInt16OrInt8,
     batch2: TRealUnlessInt16OrInt8,
-    beta: Optional[TFloat],
-    alpha: Optional[TFloat],
+    beta: Optional[TFloat] = None,
+    alpha: Optional[TFloat] = None,
 ) -> TRealUnlessInt16OrInt8:
     """baddbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
     # beta and alpha can be SymFloat
