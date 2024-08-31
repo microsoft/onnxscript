@@ -179,7 +179,7 @@ class NoOpTest(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         [
-            ("dropout zero", "ratio=0"),
+            ("dropout zero", "ratio=0.0"),
             ("dropout inference", "training_mode=0"),
         ]
     )
