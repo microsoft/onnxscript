@@ -24,11 +24,11 @@ def div_by_1(op, x):
 
 
 def dropout_zero(op, x):
-    return op.Dropout(x, ratio=0)
+    return op.Dropout(x, ratio=0.0, _allow_other_attributes=True)
 
 
 def dropout_inference(op, x):
-    return op.Dropout(x, training_mode=False)
+    return op.Dropout(x, training_mode=False, _allow_other_attributes=True)
 
 
 # Replacement
