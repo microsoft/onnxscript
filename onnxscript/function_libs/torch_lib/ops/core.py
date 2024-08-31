@@ -8113,12 +8113,14 @@ def aten_stft(
         "aten::subtract.Tensor",
         "aten::subtract.Scalar",
         "_operator::sub",
-    )
+    ),
+    trace_only=True
 )
 def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
-    alpha = op.CastLike(alpha, other)
-    other = op.Mul(other, alpha)
+    if alpha != 1.0:
+        alpha = op.CastLike(alpha, other)
+        other = op.Mul(other, alpha)
 
     return op.Sub(self, other)
 
