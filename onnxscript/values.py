@@ -260,6 +260,7 @@ class OpLike(Protocol):
     @property
     def op_schema(self) -> Optional[onnx.defs.OpSchema]: ...
 
+    @property
     def signature(self) -> Optional[_schemas.OpSignature]: ...
 
 
@@ -334,6 +335,10 @@ class Op(OpLike):
 
         self._signature = _schemas.OpSignature.from_op_schema(self.op_schema)
         return self._signature
+
+    @signature.setter
+    def signature(self, value: _schemas.OpSignature):
+        self._signature = value
 
     @deprecation.deprecated(
         since="0.1",
@@ -528,6 +533,7 @@ class OnnxFunction(Op):
 
         return self._op_schema
 
+    @property
     def signature(self) -> Optional[_schemas.OpSignature]:
         """Returns the signature of this op."""
         if self._signature is not None:
@@ -540,6 +546,10 @@ class OnnxFunction(Op):
             self.function, domain=self.function_ir.domain, name=self.name
         )
         return self._signature
+
+    @signature.setter
+    def signature(self, value: _schemas.OpSignature):
+        self._signature = value
 
     def __getitem__(self, instance):
         """Returns a lambda to evaluate function using given evaluator instance.
@@ -671,6 +681,10 @@ class TracedOnnxFunction(Op):
             self.func, domain="_traced", name=self.name
         )
         return self._signature
+
+    @signature.setter
+    def signature(self, value: _schemas.OpSignature):
+        self._signature = value
 
     @deprecation.deprecated(
         since="0.1",
