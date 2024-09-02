@@ -797,6 +797,154 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(add_node.inputs, (None, None))
 
     # TODO(justinchuby): Test graph mutation methods
+    def test_topological_sort_empty(self):
+        graph = _core.Graph(
+            inputs=(),
+            outputs=(),
+            nodes=(),
+            opset_imports={"": 1},
+        )
+        graph.sort()
+        self.assertEqual(tuple(graph), ())
+
+    def test_topological_sort_linear(self):
+        # edges=[(1,2),(2,3)]
+        v0 = _core.Value(name="v0")
+        node1 = _core.Node("", "Node1", inputs=(v0,), num_outputs=1)
+        node2 = _core.Node("", "Node2", inputs=(node1.outputs[0],), num_outputs=1)
+        node3 = _core.Node("", "Node3", inputs=(node2.outputs[0],), num_outputs=1)
+        graph = _core.Graph(
+            (v0,),
+            node3.outputs,
+            nodes=(node3, node2, node1),
+            opset_imports={"": 1},
+        )
+        graph.sort()
+        sorted_nodes = tuple(graph)
+        expected_order = (node1, node2, node3)
+        self.assertEqual(sorted_nodes, expected_order)
+
+    def test_topological_sort_independent_subgraphs(self):
+        # edges=[(1,3),(2,4)]
+        v0 = _core.Value(name="v0")
+        v1 = _core.Value(name="v1")
+        node1 = _core.Node("", "Node1", inputs=(v0,), num_outputs=1)
+        node2 = _core.Node("", "Node2", inputs=(v1,), num_outputs=1)
+        node3 = _core.Node("", "Node3", inputs=(node1.outputs[0],), num_outputs=1)
+        node4 = _core.Node("", "Node4", inputs=(node2.outputs[0],), num_outputs=1)
+        graph = _core.Graph(
+            (v0, v1),
+            (node3.outputs[0], node4.outputs[0]),
+            nodes=(node4, node3, node2, node1),
+            opset_imports={"": 1},
+        )
+        graph.sort()
+        sorted_nodes = tuple(graph)
+        expected_order = (node2, node4, node1, node3)
+        self.assertEqual(sorted_nodes, expected_order)
+
+    def test_topological_sort_shared_child(self):
+        # edges=[(1,3),(2,3)]
+        v0 = _core.Value(name="v0")
+        node1 = _core.Node("", "Node1", inputs=(v0,), num_outputs=1)
+        node2 = _core.Node("", "Node2", inputs=(v0,), num_outputs=1)
+        node3 = _core.Node(
+            "", "Node3", inputs=(node1.outputs[0], node2.outputs[0]), num_outputs=1
+        )
+        graph = _core.Graph(
+            (v0,),
+            (node3.outputs[0],),
+            nodes=(node3, node2, node1),
+            opset_imports={"": 1},
+        )
+        graph.sort()
+        sorted_nodes = tuple(graph)
+        expected_order = (node2, node1, node3)
+        self.assertEqual(sorted_nodes, expected_order)
+
+    def test_topological_sort_shared_parent(self):
+        # edges=[(1,2),(1,3)]
+        v0 = _core.Value(name="v0")
+        node1 = _core.Node("", "Node1", inputs=(v0,), num_outputs=1)
+        node2 = _core.Node("", "Node2", inputs=(node1.outputs[0],), num_outputs=1)
+        node3 = _core.Node("", "Node3", inputs=(node1.outputs[0],), num_outputs=1)
+        graph = _core.Graph(
+            (v0,),
+            (node2.outputs[0], node3.outputs[0]),
+            nodes=(node3, node2, node1),
+            opset_imports={"": 1},
+        )
+        graph.sort()
+        sorted_nodes = tuple(graph)
+        expected_order = (node1, node3, node2)
+        self.assertEqual(sorted_nodes, expected_order)
+
+    def test_topological_sort_cycle_detection(self):
+        # edges=[(1,2),(2,3),(3,2)]
+        v0 = _core.Value(name="v0")
+        node1 = _core.Node("", "Node1", inputs=(v0,), num_outputs=1)
+        node2 = _core.Node("", "Node2", inputs=(node1.outputs[0], v0), num_outputs=1)
+        node3 = _core.Node("", "Node3", inputs=(node2.outputs[0],), num_outputs=1)
+        node2.replace_input_with(1, node3.outputs[0])
+        graph = _core.Graph(
+            (v0,),
+            (node3.outputs[0],),
+            nodes=(node1, node2, node3),
+            opset_imports={"": 1},
+        )
+        with self.assertRaises(ValueError):
+            graph.sort()
+
+    def test_topological_sort_subgraph(self):
+        v0 = _core.Value(name="va")
+        v1 = _core.Value(name="vb")
+        v2 = _core.Value(name="vc")
+        v3 = _core.Value(name="vd")
+        node0 = _core.Node("", "a", inputs=(v0,), num_outputs=1)
+        node1 = _core.Node("", "b", inputs=(v1,), num_outputs=1)
+        node2 = _core.Node("", "c", inputs=(v2,), num_outputs=1)
+        node3 = _core.Node("", "d", inputs=(v3,), num_outputs=1)
+        node4 = _core.Node(
+            "", "sub", inputs=(node2.outputs[0], node3.outputs[0]), num_outputs=1
+        )
+        node5 = _core.Node(
+            "", "add", inputs=(node2.outputs[0], node3.outputs[0]), num_outputs=1
+        )
+        node6 = _core.Node("", ">", inputs=(node0.outputs[0], node1.outputs[0]), num_outputs=1)
+        then_graph = _core.Graph(
+            inputs=(node2.outputs[0], node3.outputs[0]),
+            outputs=(node4.outputs[0],),
+            nodes=(node4,),
+            name="then_graph",
+        )
+        else_graph = _core.Graph(
+            inputs=(node2.outputs[0], node3.outputs[0]),
+            outputs=(node5.outputs[0],),
+            nodes=(node5,),
+            name="else_graph",
+        )
+        node7 = _core.Node(
+            "",
+            "if",
+            inputs=(node6.outputs[0],),
+            num_outputs=1,
+            attributes=[
+                ir.AttrGraph("then_branch", then_graph),
+                ir.AttrGraph("else_branch", else_graph),
+            ],
+        )
+        main_graph_rev = _core.Graph(
+            inputs=(v0, v1, v2, v3),
+            outputs=(node7.outputs[0],),
+            nodes=(node7, node6, node3, node2, node1, node0),  # if, >, d, c, b, a
+            name="main_graph_rev",
+            opset_imports={"": 1},
+        )
+        main_graph_rev.sort()
+        self.assertEqual(
+            tuple(node.op_type for node in tuple(main_graph_rev)),
+            ("d", "c", "b", "a", ">", "if"),
+        )
 
 
 class TypeTest(unittest.TestCase):

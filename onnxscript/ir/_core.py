@@ -15,6 +15,7 @@ from __future__ import annotations
 import abc
 import contextlib
 import dataclasses
+import heapq
 import math
 import mmap
 import os
@@ -1977,8 +1978,78 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._nodes.insert_before(node, new_nodes)
 
     def sort(self) -> None:
-        """Topologically sort the nodes in the graph."""
-        raise NotImplementedError("Not implemented yet")
+        """Perform a topological sort of this graph and all subgraphs in O(#nodes + #values) time.
+
+        This method sorts the nodes that each node appears AFTER all its parents, while maintaining the original order as much as possible.
+
+        Raises:
+            ValueError: If the graph contains a cycle, making topological sorting impossible.
+        """
+        # 1. Initialization
+        nodes = list(
+            onnxscript.ir.traversal.RecursiveGraphIterator(self)
+        )  # traverse all nodes
+        sorted_nodes_by_graph: dict[Graph, list[Node]] = {
+            graph: []  # type: ignore[misc]
+            for graph in {node.graph for node in nodes}  # type: ignore[misc]
+        }  # store the sorted nodes of each subgraph
+        node_depth: dict[Node, int] = dict.fromkeys(nodes, 0)  # number of direct children
+        node_parents: dict[Node, list[Node]] = {node: [] for node in nodes}  # direct parents
+        node_index: dict[Node, int] = {
+            node: -i for i, node in enumerate(nodes)
+        }  # NEGATIVE original order
+
+        # a helper function to add a parent of a node, and increment the depth of the parent
+        def add_parent(child: Node, parent: Node | None) -> None:
+            if parent:
+                node_parents[child].append(parent)
+                node_depth[parent] += 1
+
+        for node in nodes:
+            # All producers of input values are considered as direct parents.
+            for input_value in node.inputs:
+                if input_value is None:
+                    continue
+                parent_node = input_value.producer()
+                add_parent(node, parent_node)
+            # All nodes in attribute graphs are considered as direct parents.
+            for attr in node.attributes.values():
+                if not isinstance(attr, Attr):
+                    continue
+                if attr.type == _enums.AttributeType.GRAPH:
+                    for parent_node in attr.value:
+                        add_parent(node, parent_node)
+                elif attr.type == _enums.AttributeType.GRAPHS:
+                    for attribute_graph in attr.value:
+                        for parent_node in attribute_graph:
+                            add_parent(node, parent_node)
+        # 2. Priority Queue: Track nodes with zero direct children in a priority queue, using NEGATIVE original index for ordering.
+        # This ensures nodes appearing LATER in the original order are processed EARLIER. We get REVERSED topological order of each subgraph.
+        priority_queue: list[tuple[int, Node]] = [
+            (node_index[node], node) for node in nodes if node_depth[node] == 0
+        ]
+        heapq.heapify(priority_queue)
+
+        # 3. Topological Sort:
+        num_of_sorted_nodes = 0
+        while priority_queue:
+            # Pop the node with the most negative index and add it to the sorted nodes by subgraph.
+            _, current_node = heapq.heappop(priority_queue)
+            sorted_nodes_by_graph[current_node.graph].append(current_node)  # type: ignore[index]
+            num_of_sorted_nodes += 1
+            # Decrement the depth of its parents. If any parent node has zero direct children, push it into the queue.
+            for parent_node in node_parents[current_node]:
+                node_depth[parent_node] -= 1
+                if node_depth[parent_node] == 0:
+                    heapq.heappush(priority_queue, (node_index[parent_node], parent_node))
+
+        # 4. Cycle Check: Ensure all nodes are processed. If not, raise a ValueError indicating a cycle.
+        if num_of_sorted_nodes != len(nodes):
+            raise ValueError("Graph contains a cycle, topological sort is not possible.")
+
+        # 5. Reverse: Reverse the sorted nodes of each subgraph to get the topological order.
+        for subgraph, sorted_nodes in sorted_nodes_by_graph.items():
+            subgraph.extend(reversed(sorted_nodes))
 
     # End of mutation methods
 
