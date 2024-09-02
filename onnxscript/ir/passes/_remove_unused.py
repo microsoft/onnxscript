@@ -3,10 +3,13 @@
 """Utilities for removing unused nodes the IR graph."""
 
 from __future__ import annotations
+
 from collections import deque
 from typing import Union
+
 import onnxscript.ir as ir
-from onnxscript.ir import Graph,Value,Node
+from onnxscript.ir import Graph, Node, Value
+
 
 class RemoveUnused:
     def __init__(self, graph_like: Union[Graph, ir.GraphView]):
@@ -50,7 +53,7 @@ class RemoveUnused:
                 if input_value and input_value not in visited_values:
                     visited_values.add(input_value)
                     value_queue.append(input_value)
-        
+
         # Remove
         for node in all_nodes:
             if node not in visited_nodes:

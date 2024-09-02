@@ -1,9 +1,10 @@
 import unittest
+
 from onnxscript import ir
 from onnxscript.ir.passes._remove_unused import RemoveUnused
 
-class RemoveUnusedTest(unittest.TestCase):
 
+class RemoveUnusedTest(unittest.TestCase):
     def test_purge_empty(self):
         graph = ir.Graph(
             inputs=(),
@@ -57,8 +58,11 @@ class RemoveUnusedTest(unittest.TestCase):
             opset_imports={"": 1},
         )
         node1 = ir.Node(
-            "", "Node1", inputs=(v0,), num_outputs=1,
-            attributes=[ir.AttrGraph("subgraph_attr", subgraph)]
+            "",
+            "Node1",
+            inputs=(v0,),
+            num_outputs=1,
+            attributes=[ir.AttrGraph("subgraph_attr", subgraph)],
         )
         graph = ir.Graph(
             (v0,),
@@ -117,6 +121,7 @@ class RemoveUnusedTest(unittest.TestCase):
         self.assertEqual(tuple(main_graph), (node0, node1, node2, node3, node6, node7))
         self.assertEqual(tuple(then_graph), (node4,))
         self.assertEqual(tuple(else_graph), ())
+
 
 if __name__ == "__main__":
     unittest.main()
