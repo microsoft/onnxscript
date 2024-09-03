@@ -138,17 +138,11 @@ def aten_abs(self: TRealOrUInt8) -> TRealOrUInt8:
     return op.Abs(self)
 
 
-@torch_op("aten::abs", complex=True)
+@torch_op("aten::abs", complex=True, traceable=True)
 def aten_abs_complex(self: TRealOrUInt8) -> TRealOrUInt8:
     """abs(Tensor self) -> Tensor"""
-    # self_real = self[..., 0]
-    self_real = op.Slice(self, [0], [1], axes=[-1])
-    # self_imag = self[..., 1]
-    self_imag = op.Slice(self, [1], [2], axes=[-1])
-    real_pow = op.Pow(self_real, 2)
-    imag_pow = op.Pow(self_imag, 2)
-    real_plus_imag = op.Add(real_pow, imag_pow)
-    return op.Squeeze(op.Sqrt(real_plus_imag), axes=[-1])
+
+    return op.ReduceL2(self, [-1], keepdims=False)
 
 
 @torch_op("aten::acos", traceable=True)
