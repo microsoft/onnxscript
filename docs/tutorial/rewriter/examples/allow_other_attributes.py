@@ -1,9 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Onnx Pattern Rewriting with _allow_other_attributes option.
+"""Onnx Pattern Rewriting with attributes
 
-This script shows how to define a rewriting rule based on patterns while
-utilizing the _allow_other_attributes option.
+This script shows how to define a rewriting rule based on patterns that
+are dependent on the attributes of the nodes.
 
 First we write a dummy model with an Add node with an additional attribute
 ===================
@@ -18,8 +18,9 @@ from onnxscript.rewriter import pattern
 
 @script()
 def original_model(A: FLOAT[2, 2], B: FLOAT[2, 2]) -> FLOAT[2, 2]:
-    add = opset18.Add(A, B, alpha=0.5)
-    return add
+    add = opset18.Add(A, B)
+    result = opset18.Dropout(add, training_mode=False)
+    return result
 
 
 _model = original_model.to_model_proto()
@@ -31,8 +32,8 @@ onnx.checker.check_model(_model)
 # =====================
 
 
-def add_pattern(op, input_a, input_b):
-    return op.Add(input_a, input_b, _allow_other_attributes=True)
+def add_pattern(op, input):
+    return op.Dropout(input, training_mode=False, _allow_other_attributes=True)
 
 
 ####################################
@@ -40,8 +41,8 @@ def add_pattern(op, input_a, input_b):
 # =====================
 
 
-def add_replacement(op, input_a, input_b, **_):
-    return op.Add(input_a, input_b)
+def add_replacement(op, input, **_):
+    return op.Identity(input)
 
 
 ####################################
