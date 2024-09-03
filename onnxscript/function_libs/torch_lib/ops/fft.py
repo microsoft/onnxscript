@@ -76,28 +76,34 @@ def _fftn_onnx(
     Returns:
         The transformed tensor.
     """
-
-    # NOTE: trace_only because we need to process each dimension in a loop
     # NOTE: SymInt dim is not support because DFT-17 needs a static axis
 
-    # The 0-th dimension in ONNX DFT-17 is the batch dimension. We need to add a new
-    # dimension at the beginning to represent the batch dimension.
-    transformed = op.Unsqueeze(self, axes=[0])
+    if 0 in dims:
+        # Taking FFT along the first dimension
+        # The 0-th dimension in ONNX DFT-17 is the batch dimension. We need to add a new
+        # dimension at the beginning to represent the batch dimension.
+        unsqueeze_first_dim = True
+    else:
+        unsqueeze_first_dim = False
 
-    # Add 1 to account for the batch dimension when counting axes from the left
-    new_dims = [dim_ + 1 if dim_ >= 0 else dim_ for dim_ in dims]
 
-    for dim in new_dims[:-1]:
+    if unsqueeze_first_dim:
+        transformed = op.Unsqueeze(self, axes=[0])
+        # Add 1 to account for the batch dimension when counting axes from the left
+        dims = [dim_ + 1 if dim_ >= 0 else dim_ for dim_ in dims]
+
+    for dim in dims[:-1]:
         transformed = op.DFT(transformed, axis=dim, inverse=inverse, onesided=False)
 
     # Torch computers one-sided FFT on the last dimension only.
     if onesided:
-        transformed = op.DFT(transformed, axis=new_dims[-1], inverse=inverse, onesided=True)
+        transformed = op.DFT(transformed, axis=dims[-1], inverse=inverse, onesided=True)
     else:
-        transformed = op.DFT(transformed, axis=new_dims[-1], inverse=inverse, onesided=False)
+        transformed = op.DFT(transformed, axis=dims[-1], inverse=inverse, onesided=False)
 
-    # Remove the batch dimension
-    transformed = op.Squeeze(transformed, axes=[0])
+    if unsqueeze_first_dim:
+        # Remove the batch dimension
+        transformed = op.Squeeze(transformed, axes=[0])
 
     return _fftn_onnx_normalization(self, transformed, normalization, not inverse, dims)
 
