@@ -21,12 +21,6 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
-@torch_op(
-    ("aten::_fft_c2c", "aten::_fft_c2r", "aten::_fft_r2c"),
-    private=True,
-    complex=True,
-    traceable=True,
-)
 def _fftn_onnx_normalization(
     self,
     transformed: TFloat,
@@ -64,12 +58,6 @@ def _fftn_onnx_normalization(
     return result
 
 
-@torch_op(
-    ("aten::_fft_c2c", "aten::_fft_c2r", "aten::_fft_r2c"),
-    trace_only=True,
-    private=True,
-    complex=True,
-)
 def _fftn_onnx(
     self: TFloat, dims: Sequence[int], normalization: int, inverse: bool, onesided: bool
 ) -> TFloat:
@@ -91,7 +79,6 @@ def _fftn_onnx(
 
     # NOTE: trace_only because we need to process each dimension in a loop
     # NOTE: SymInt dim is not support because DFT-17 needs a static axis
-    # TODO(justinchuby): Make dim dynamic and remove trace_only when ONNX provides support
 
     # The 0-th dimension in ONNX DFT-17 is the batch dimension. We need to add a new
     # dimension at the beginning to represent the batch dimension.
@@ -124,9 +111,7 @@ def aten__fft_c2c(
     Standard complex to complex FFT (forward or backward).
     """
 
-    # NOTE: trace_only because we need to negate forward
-    # NOTE: SymInt dim is not support because DFT-17 needs a static axis
-    # TODO(justinchuby): Make dim dynamic and remove trace_only when ONNX provides support
+    # NOTE: SymInt dim is not supported because DFT-17 needs a static axis
 
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
@@ -139,7 +124,7 @@ def aten__fft_c2r(
     self: TFloat,
     dim: Sequence[int],
     normalization: int,
-    last_dim_size: INT64,  # pylint: disable=unused-argument
+    last_dim_size: INT64,
 ) -> TFloat:
     """_fft_c2r(Tensor self, int[] dim, int normalization, SymInt last_dim_size) -> Tensor
 
@@ -154,9 +139,10 @@ def aten__fft_c2r(
     dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
     transformed = _fftn_onnx(self, dim, normalization, inverse=True, onesided=False)
     # Take only the real part
-    real_part = op.Slice(transformed, axes=[-1], starts=[0], ends=[1])
+    real_part = op.Squeeze(op.Slice(transformed, axes=[-1], starts=[0], ends=[1]), axes=[-1])
+    last_dim_size = op.Reshape(last_dim_size, shape=[1])
 
-    return op.Squeeze(real_part, axes=[-1])
+    return op.Slice(real_part, axes=[-1], starts=[0], ends=last_dim_size)
 
 
 @torch_op("aten::_fft_r2c", trace_only=True)
