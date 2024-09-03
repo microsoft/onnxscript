@@ -57,7 +57,12 @@ def _fftn_onnx_normalization(
 
 
 def _fftn_onnx(
-    self: TFloat, dims: Sequence[int], normalization: int, inverse: bool, onesided: bool, last_dim_size: Optional[INT64] = None
+    self: TFloat,
+    dims: Sequence[int],
+    normalization: int,
+    inverse: bool,
+    onesided: bool,
+    last_dim_size: Optional[INT64] = None,
 ) -> TFloat:
     """Standard complex to complex or real to complex FFT (forward or backward).
 
@@ -94,7 +99,9 @@ def _fftn_onnx(
     if onesided:
         transformed = op.DFT(transformed, axis=dims[-1], inverse=inverse, onesided=True)
     elif last_dim_size is not None:
-        transformed = op.DFT(transformed, last_dim_size, axis=dims[-1], inverse=inverse, onesided=False)
+        transformed = op.DFT(
+            transformed, last_dim_size, axis=dims[-1], inverse=inverse, onesided=False
+        )
     else:
         transformed = op.DFT(transformed, axis=dims[-1], inverse=inverse, onesided=False)
 
@@ -137,10 +144,12 @@ def aten__fft_c2r(
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
     dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
-    transformed = _fftn_onnx(self, dim, normalization, inverse=True, onesided=False, last_dim_size=last_dim_size)
+    transformed = _fftn_onnx(
+        self, dim, normalization, inverse=True, onesided=False, last_dim_size=last_dim_size
+    )
     # Take only the real part
     real_part = op.Slice(transformed, axes=[-1], starts=[0], ends=[1])
-    return op.Squeeze(result, axes=[-1])
+    return op.Squeeze(real_part, axes=[-1])
 
 
 @torch_op("aten::_fft_r2c", trace_only=True)
