@@ -141,10 +141,12 @@ def aten__fft_c2r(
     dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
     transformed = _fftn_onnx(self, dim, normalization, inverse=True, onesided=False)
     # Take only the real part
-    real_part = op.Squeeze(op.Slice(transformed, axes=[-1], starts=[0], ends=[1]), axes=[-1])
+    real_part = op.Slice(transformed, axes=[-1], starts=[0], ends=[1])
     last_dim_size = op.Reshape(last_dim_size, shape=[1])
-
-    return op.Slice(real_part, axes=[-1], starts=[0], ends=last_dim_size)
+    # The last dim is -2 because the real last dim is the complex dim, which we
+    # remove in the last step with Squeeze.
+    result = op.Slice(real_part, axes=[-2], starts=[0], ends=last_dim_size)
+    return op.Squeeze(result, axes=[-1])
 
 
 @torch_op("aten::_fft_r2c", trace_only=True)
