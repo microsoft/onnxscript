@@ -136,7 +136,15 @@ class OffloadExternalTensorTest(unittest.TestCase):
         self.model_with_mixed_external_data = self._model_with_mixed_external_data()
 
     def tearDown(self) -> None:
-        self.temp_dir.cleanup()
+        # Handle exceptions for windows and python versions < 3.10
+        try:
+            self.temp_dir.cleanup()
+        except PermissionError as e:
+            print(f"PermissionError: {e}")
+        except FileNotFoundError as e:
+            print(f"FileNotFoundError: {e}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            print(f"An unexpected error occurred: {e}")
 
     def _simple_model(self) -> ir.Model:
         tensor1 = ir.Tensor(
