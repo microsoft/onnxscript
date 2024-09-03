@@ -296,7 +296,7 @@ def aten_binary_cross_entropy_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::celu")
+@torch_op("aten::celu", traceable=True)
 def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
     """celu(Tensor self, Scalar alpha=1.0) -> Tensor"""
 
@@ -389,7 +389,7 @@ def aten_cross_entropy_loss(
     return result
 
 
-@torch_op("aten::elu")
+@torch_op("aten::elu", traceable=True)
 def aten_elu(
     self: TFloat,
     alpha: float = 1.0,
@@ -398,9 +398,10 @@ def aten_elu(
 ) -> TFloat:
     """elu(Tensor self, Scalar alpha=1, Scalar scale=1, Scalar input_scale=1) -> Tensor"""
 
-    # del scale
-    # del input_scale
-    return op.Elu(self, alpha=alpha)
+    input_scale = op.CastLike(input_scale, self)
+    scale = op.CastLike(scale, self)
+    self = op.Mul(self, input_scale)
+    return op.Mul(op.Elu(self, alpha=alpha), scale)
 
 
 def aten_elu_backward(
@@ -602,7 +603,7 @@ def aten_glu_jvp(glu: TensorType, x: TensorType, dx: TensorType, dim: int) -> Te
     raise NotImplementedError()
 
 
-@torch_op("aten::hardsigmoid")
+@torch_op("aten::hardsigmoid", traceable=True)
 def aten_hardsigmoid(self: TFloat) -> TFloat:
     """hardsigmoid(Tensor self) -> Tensor"""
 
@@ -1583,7 +1584,7 @@ def aten_reflection_pad3d_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::relu")
+@torch_op("aten::relu", traceable=True)
 def aten_relu(self: TReal) -> TReal:
     """relu(Tensor self) -> Tensor"""
 
@@ -1974,7 +1975,7 @@ def aten__scaled_dot_product_efficient_attention(
     """_scaled_dot_product_efficient_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_bias, bool compute_log_sumexp, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> (Tensor output, Tensor log_sumexp, Tensor philox_seed, Tensor philox_offset)"""
 
     result = aten_scaled_dot_product_attention(
-        query, key, value, dropout_p=dropout_p, is_causal=is_causal, scale=scale
+        query, key, value, attn_bias, dropout_p=dropout_p, is_causal=is_causal, scale=scale
     )
 
     # The followings are not comsumed by the graph.

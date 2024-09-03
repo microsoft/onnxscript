@@ -1,7 +1,5 @@
-# --------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 # mypy: disable-error-code="misc,arg-type,type-arg,valid-type,assignment,return-value"
 """torch.ops.aten operators under the `core` module.
 
@@ -133,24 +131,18 @@ def aten__softmax(
     return aten_softmax_no_dtype(self, dim)
 
 
-@torch_op(("aten::abs", "_operator::abs"))
+@torch_op(("aten::abs", "_operator::abs"), traceable=True)
 def aten_abs(self: TRealOrUInt8) -> TRealOrUInt8:
     """abs(Tensor self) -> Tensor"""
 
     return op.Abs(self)
 
 
-@torch_op("aten::abs", complex=True)
+@torch_op("aten::abs", complex=True, traceable=True)
 def aten_abs_complex(self: TRealOrUInt8) -> TRealOrUInt8:
     """abs(Tensor self) -> Tensor"""
-    # self_real = self[..., 0]
-    self_real = op.Slice(self, [0], [1], axes=[-1])
-    # self_imag = self[..., 1]
-    self_imag = op.Slice(self, [1], [2], axes=[-1])
-    real_pow = op.Pow(self_real, 2)
-    imag_pow = op.Pow(self_imag, 2)
-    real_plus_imag = op.Add(real_pow, imag_pow)
-    return op.Squeeze(op.Sqrt(real_plus_imag), axes=[-1])
+
+    return op.ReduceL2(self, [-1], keepdims=False)
 
 
 @torch_op("aten::acos", traceable=True)
@@ -167,12 +159,13 @@ def aten_acosh(self: TFloat) -> TFloat:
     return op.Acosh(self)
 
 
-@torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"))
+@torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"), trace_only=True)
 def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
     # TODO(microsoft/onnxruntime#15977): Improve fp16 precision
-    alpha = op.CastLike(alpha, other)
-    other = op.Mul(other, alpha)
+    if alpha != 1.0:
+        alpha = op.CastLike(alpha, other)
+        other = op.Mul(other, alpha)
     return op.Add(self, other)
 
 
@@ -238,7 +231,7 @@ def aten_addcmul(
     return op.Add(self, op.Mul(op.Mul(value, tensor1), tensor2))
 
 
-@torch_op("aten::addmm")
+@torch_op("aten::addmm", trace_only=True)
 def aten_addmm(
     self: TReal, mat1: TReal, mat2: TReal, beta: float = 1.0, alpha: float = 1.0
 ) -> TReal:
@@ -246,6 +239,9 @@ def aten_addmm(
 
     # NOTE: ONNX Runtime does not support int inputs to Gemm as of 1.16.
     # To support int inputs, consider an overriding implementation that casts to float and back.
+
+    alpha = float(alpha)
+    beta = float(beta)
 
     # addmm only accepts 2d tensors: https://pytorch.org/docs/stable/generated/torch.addmm.html
     return op.Gemm(mat1, mat2, self, alpha=alpha, beta=beta)
@@ -1014,20 +1010,25 @@ def aten_atleast_3d_sequence(self: Sequence[TTensor]) -> TTensor:
     return op.SequenceMap(self, body=reshape_to_3d)
 
 
-@torch_op("aten::baddbmm")
+@torch_op("aten::baddbmm", trace_only=True)
 def aten_baddbmm(
     self: TRealOrUInt8,
     batch1: TRealUnlessInt16OrInt8,
     batch2: TRealUnlessInt16OrInt8,
-    beta: float = 1.0,
-    alpha: float = 1.0,
+    beta: Optional[TFloat] = None,
+    alpha: Optional[TFloat] = None,
 ) -> TRealUnlessInt16OrInt8:
     """baddbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
+    # beta and alpha can be SymFloat
     batch_mul = op.MatMul(batch1, batch2)
-    alpha_cast = op.CastLike(alpha, self)
-    mul_a = op.Mul(batch_mul, alpha_cast)
-    beta_cast = op.CastLike(beta, self)
-    mul_b = op.Mul(self, beta_cast)
+    if alpha is None or alpha == 1:
+        mul_a = batch_mul
+    else:
+        mul_a = op.Mul(batch_mul, op.CastLike(alpha, self))
+    if beta is None or beta == 1:
+        mul_b = self
+    else:
+        mul_b = op.Mul(self, op.CastLike(beta, self))
     return op.Add(mul_a, mul_b)
 
 
@@ -6539,25 +6540,31 @@ def aten_pinverse(self: TensorType, rcond: float = 1e-15) -> TensorType:
 def aten_pixel_shuffle(self: TReal, upscale_factor: int) -> TReal:
     """pixel_shuffle(Tensor self, int upscale_factor) -> Tensor"""
     self_shape = op.Shape(self)
-    batch = self_shape[:-3]
-    C_out = op.Unsqueeze(self_shape[-3], [0])
-    H_out = op.Unsqueeze(self_shape[-2], [0])
-    W_out = op.Unsqueeze(self_shape[-1], [0])
+    batch_dims = self_shape[:-3]
+    chw_in_dims = self_shape[-3:]
     # Reshaping input by collapsing all leading dimensions to match ONNX op requirement (4D)
     reshaped_self = op.Reshape(
-        self, op.Concat(op.Unsqueeze(-1, [0]), C_out, H_out, W_out, axis=0)
+        self, op.Concat(op.Constant(value_ints=[-1]), chw_in_dims, axis=0)
     )
-    depth_to_space_output = op.DepthToSpace(
-        reshaped_self, blocksize=upscale_factor, mode="CRD"
-    )
-    output_shape = op.Concat(batch, op.Shape(depth_to_space_output)[1:], axis=0)
-    return op.Reshape(depth_to_space_output, output_shape)
+    depth_to_space = op.DepthToSpace(reshaped_self, blocksize=upscale_factor, mode="CRD")
+    output_shape = op.Concat(batch_dims, op.Shape(depth_to_space)[1:], axis=0)
+    return op.Reshape(depth_to_space, output_shape)
 
 
-def aten_pixel_unshuffle(self: TensorType, downscale_factor: int) -> TensorType:
+@torch_op("aten::pixel_unshuffle")
+def aten_pixel_unshuffle(self: TReal, downscale_factor: int) -> TReal:
     """pixel_unshuffle(Tensor self, int downscale_factor) -> Tensor"""
 
-    raise NotImplementedError()
+    self_shape = op.Shape(self)
+    batch_dims = self_shape[:-3]
+    chw_in_dims = self_shape[-3:]
+    # Reshaping input by collapsing all leading dimensions to match ONNX op requirement (4D)
+    reshaped_self = op.Reshape(
+        self, op.Concat(op.Constant(value_ints=[-1]), chw_in_dims, axis=0)
+    )
+    space_to_depth = op.SpaceToDepth(reshaped_self, blocksize=downscale_factor)
+    output_shape = op.Concat(batch_dims, op.Shape(space_to_depth)[1:], axis=0)
+    return op.Reshape(space_to_depth, output_shape)
 
 
 def aten_poisson(self: TensorType, generator: Optional[str] = None) -> TensorType:
@@ -7404,7 +7411,7 @@ def aten_scalar_tensor_complex(
 
 @torch_op("aten::scalar_tensor", trace_only=True)
 def aten_scalar_tensor_sym_number(
-    s: RealType,
+    s: TensorType,
     dtype: int = FLOAT.dtype,
     layout: str = "",
     device: str = "",
@@ -7413,8 +7420,6 @@ def aten_scalar_tensor_sym_number(
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
     if dtype == -1:
         dtype = FLOAT.dtype
-    # Set trace_only=True because different if branches return different dtypes
-    # which is not supported in an ONNX function
     return common_ops.cast_to(s, dtype=dtype)
 
 
@@ -7549,7 +7554,7 @@ def aten_sgn(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::sigmoid")
+@torch_op("aten::sigmoid", traceable=True)
 def aten_sigmoid(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """sigmoid(Tensor self) -> Tensor"""
 
@@ -8100,13 +8105,14 @@ def aten_stft(
         "aten::subtract.Tensor",
         "aten::subtract.Scalar",
         "_operator::sub",
-    )
+    ),
+    trace_only=True,
 )
 def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
-    alpha = op.CastLike(alpha, other)
-    other = op.Mul(other, alpha)
-
+    if alpha != 1.0:
+        alpha = op.CastLike(alpha, other)
+        other = op.Mul(other, alpha)
     return op.Sub(self, other)
 
 
