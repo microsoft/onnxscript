@@ -1,7 +1,5 @@
-# --------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 # mypy: disable-error-code="misc,arg-type,type-arg,valid-type,assignment,return-value"
 """torch.ops.aten operators under the `fft` module.
 
@@ -78,14 +76,10 @@ def _fftn_onnx(
     """
     # NOTE: SymInt dim is not support because DFT-17 needs a static axis
 
-    if 0 in dims:
-        # Taking FFT along the first dimension
-        # The 0-th dimension in ONNX DFT-17 is the batch dimension. We need to add a new
-        # dimension at the beginning to represent the batch dimension.
-        unsqueeze_first_dim = True
-    else:
-        unsqueeze_first_dim = False
-
+    # If taking FFT along the 0-th dimension: Since
+    # the 0-th dimension in ONNX DFT-17 is the batch dimension (cannot take DFT over),
+    # we need to add a new dimension at the beginning to represent the batch dimension.
+    unsqueeze_first_dim = 0 in dims
     if unsqueeze_first_dim:
         transformed = op.Unsqueeze(self, axes=[0])
         # Add 1 to account for the batch dimension when counting axes from the left
