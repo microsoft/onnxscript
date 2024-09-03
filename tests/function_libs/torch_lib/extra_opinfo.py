@@ -689,8 +689,13 @@ def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
             (0, 1),
             (0, 1, 2),
         ]:
+            # Slice
             yield opinfo_core.SampleInput(
                 nd_tensor(), dim=dim, normalization=normalization, last_dim_size=6
+            )
+            # Pad
+            yield opinfo_core.SampleInput(
+                nd_tensor(), dim=dim, normalization=normalization, last_dim_size=64
             )
 
 
