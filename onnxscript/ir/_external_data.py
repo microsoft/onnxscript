@@ -164,7 +164,10 @@ def _save_external_data(
         for tensor, tensor_info in external_data_info:
             current_offset = tensor_info.offset
             assert tensor is not None
-            raw_data = tensor.tobytes()
+            if isinstance(tensor, _core.ExternalTensor):
+                raw_data = tensor.copy()
+            else:
+                raw_data = tensor.tobytes()
             # Pad file to required offset if needed
             file_size = data_file.tell()
             if current_offset > file_size:
@@ -223,7 +226,7 @@ def convert_tensors_to_external(
     path = os.path.join(base_path, relative_path)
     # Check if file path is valid, and create subsequent subdirectories within the path if they don't exist
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp_file_created = False
+    tempfile_created = False
     # Check if file exists. Load pre-existing external data if it does.
     if os.path.exists(path):
         # Check if any tensor in the model is using the destination file
