@@ -90,6 +90,8 @@ def _fftn_onnx(
         transformed = op.Unsqueeze(self, axes=[0])
         # Add 1 to account for the batch dimension when counting axes from the left
         dims = [dim_ + 1 if dim_ >= 0 else dim_ for dim_ in dims]
+    else:
+        transformed = self
 
     for dim in dims[:-1]:
         transformed = op.DFT(transformed, axis=dim, inverse=inverse, onesided=False)
