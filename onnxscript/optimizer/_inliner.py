@@ -49,11 +49,13 @@ class _CopyReplace:
         inliner: _Inliner,
         attr_map: dict[str, ir.Attr | ir.RefAttr],
         value_map: dict[ir.Value, ir.Value | None],
+        metadata_props: dict[str, str],
         call_stack: CallStack,
     ) -> None:
         self._inliner = inliner
         self._value_map = value_map
         self._attr_map = attr_map
+        self._metadata_props = metadata_props
         self._call_stack = call_stack
 
     def clone_value(self, value: ir.Value) -> ir.Value | None:
@@ -102,6 +104,10 @@ class _CopyReplace:
         if new_name is not None:
             new_name = _make_unique_name(new_name, self._call_stack, self._inliner.used_node_names)
 
+        new_metadata = {**self._metadata_props, **copied.metadata_props}
+        # TODO: For now, node metadata overrides callnode metadata if there is a conflict.
+        # Do we need to preserve both?
+
         new_node = ir.Node(
             copied.domain,
             copied.op_type,
@@ -112,7 +118,7 @@ class _CopyReplace:
             graph=None,  #  TODO:
             name=new_name,
             doc_string=copied.doc_string,
-            metadata_props=copied.metadata_props,
+            metadata_props=new_metadata,
         )
         new_outputs = new_node.outputs
         for i, output in enumerate(copied.outputs):
@@ -179,7 +185,7 @@ class _Inliner:
                 )
 
         # Identify substitutions for both inputs and attributes of the function:
-        attributes = node.attributes
+        attributes : dict[str, ir.Attr | ir.RefAttr] = node.attributes
         default_attr_values = {
             attr.name: attr
             for attr in function.attributes.values()
@@ -200,7 +206,7 @@ class _Inliner:
         call_stack = self.node_context.get(node, [])
         call_stack.append(call_site_id)
 
-        cloner = _CopyReplace(self, attributes, value_map, call_stack)
+        cloner = _CopyReplace(self, attributes, value_map, node.metadata_props, call_stack)
 
         # iterate over the nodes in the function, creating a copy of each node
         # and replacing inputs with the corresponding values in the value map.
