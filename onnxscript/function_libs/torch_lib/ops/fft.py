@@ -92,6 +92,7 @@ def _fftn_onnx(
         inverse: Whether to compute the inverse FFT.
         onesided: Whether to compute the one-sided FFT, which retains only the
             positive frequencies.
+        last_dim_size: The size of the last specified dimension.
 
     Returns:
         The transformed tensor.
@@ -122,13 +123,16 @@ def _fftn_onnx(
     else:
         transformed = op.DFT(transformed, axis=dims[-1], inverse=inverse, onesided=False)
 
-    if unsqueeze_first_dim:
-        # Remove the batch dimension
-        transformed = op.Squeeze(transformed, axes=[0])
-
-    return _fftn_onnx_normalization(
+    normalized = _fftn_onnx_normalization(
         self, transformed, normalization, not inverse, dims, last_dim_size=last_dim_size
     )
+    # Be sure to normalize before squeezing the batch dimension, because dims would
+    # have been shifted by 1 if the batch dimension was added.
+    if unsqueeze_first_dim:
+        # Remove the batch dimension
+        normalized = op.Squeeze(normalized, axes=[0])
+
+    return normalized
 
 
 @torch_op("aten::_fft_c2c", trace_only=True, complex=True)
