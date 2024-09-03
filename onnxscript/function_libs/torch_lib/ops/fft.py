@@ -32,8 +32,12 @@ def _fftn_onnx_normalization(
     if last_dim_size is None:
         total_sample_count = op.ReduceProd(op.Gather(self_shape, dims), keepdims=0)
     else:
-        total_sample_count = op.ReduceProd(op.Gather(self_shape, dims[:-1]), keepdims=0)
-        total_sample_count = op.Mul(total_sample_count, last_dim_size)
+        all_other_dims = dims[:-1]
+        if all_other_dims:
+            total_sample_count = op.ReduceProd(op.Gather(self_shape, dims[:-1]), keepdims=0)
+            total_sample_count = op.Mul(total_sample_count, last_dim_size)
+        else:
+            total_sample_count = last_dim_size
     total_sample_count = op.CastLike(total_sample_count, transformed)
 
     # Normalize the result
