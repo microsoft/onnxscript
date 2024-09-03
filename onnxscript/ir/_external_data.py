@@ -226,7 +226,7 @@ def convert_tensors_to_external(
     path = os.path.join(base_path, relative_path)
     # Check if file path is valid, and create subsequent subdirectories within the path if they don't exist
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tempfile_created = False
+    tmp_file_created = False
     # Check if file exists. Load pre-existing external data if it does.
     if os.path.exists(path):
         # Check if any tensor in the model is using the destination file
