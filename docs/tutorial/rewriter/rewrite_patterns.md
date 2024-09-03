@@ -86,7 +86,7 @@ The graph (on the left) consists of the target pattern before the rewrite rule i
 
 ## Specifying attributes in the pattern
 
-This section demonstrates the use of the attribute values in pattern-based rewriting. 
+This section demonstrates the use of attribute values in pattern-based rewriting. 
 First, write a target pattern and replacement pattern in a similar way to the previous examples.
 The example pattern below will match successfully only against Dropout nodes with the
 attribute value `training_mode` set to `False`.
@@ -220,32 +220,3 @@ The final graph with the applied rewrite looks as follows:
 
 ![broadcast_rewrite](examples/img/broadcast_02.png){align=center}
 
-## Using `_allow_other_attributes` option
-
-This section demonstrates the use of the `_allow_other_attributes` option in pattern-based rewriting. The `_allow_other_attributes` option allows the pattern to match nodes that have additional attributes not specified in the pattern.
-
-Consider a model with the following pattern:
-
-![target_pattern](examples/img/allow_other_attributes_01.png){align=center}
-
-In this pattern, the `Add` node has an additional attribute `alpha` which is not specified in the pattern. We can use the `_allow_other_attributes` option to match this pattern.
-
-First, write a target pattern and replacement pattern in a similar way to the previous examples.
-
-```{literalinclude} examples/allow_other_attributes.py
-:pyobject: add_pattern
-```
-
-```{literalinclude} examples/allow_other_attributes.py
-:pyobject: add_replacement
-```
-
-With the `_allow_other_attributes` option set to `True`, the pattern will match the `Add` node even if it has additional attributes.
-
-```{literalinclude} examples/allow_other_attributes.py
-:pyobject: apply_rewrite
-```
-
-The final graph with the applied rewrite looks as follows:
-
-![allow_other_attributes_rewrite](examples/img/allow_other_attributes_02.png){align=center}

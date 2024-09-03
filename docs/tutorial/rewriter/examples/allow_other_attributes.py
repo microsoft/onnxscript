@@ -4,9 +4,6 @@
 
 This script shows how to define a rewriting rule based on patterns that
 are dependent on the attributes of the nodes.
-
-First we write a dummy model with an Add node with an additional attribute
-===================
 """
 
 import onnx
