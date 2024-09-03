@@ -59,7 +59,7 @@ def _fftn_onnx_normalization(
 
 
 def _fftn_onnx(
-    self: TFloat, dims: Sequence[int], normalization: int, inverse: bool, onesided: bool
+    self: TFloat, dims: Sequence[int], normalization: int, inverse: bool, onesided: bool, last_dim_size: Optional[INT64] = None
 ) -> TFloat:
     """Standard complex to complex or real to complex FFT (forward or backward).
 
@@ -99,6 +99,8 @@ def _fftn_onnx(
     # Torch computers one-sided FFT on the last dimension only.
     if onesided:
         transformed = op.DFT(transformed, axis=dims[-1], inverse=inverse, onesided=True)
+    elif last_dim_size is not None:
+        transformed = op.DFT(transformed, last_dim_size, axis=dims[-1], inverse=inverse, onesided=False)
     else:
         transformed = op.DFT(transformed, axis=dims[-1], inverse=inverse, onesided=False)
 
@@ -141,14 +143,9 @@ def aten__fft_c2r(
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
     dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
-    transformed = _fftn_onnx(self, dim, normalization, inverse=True, onesided=False)
+    transformed = _fftn_onnx(self, dim, normalization, inverse=True, onesided=False, last_dim_size=last_dim_size)
     # Take only the real part
     real_part = op.Slice(transformed, axes=[-1], starts=[0], ends=[1])
-    last_dim_size = op.Reshape(last_dim_size, shape=[1])
-    # The last dim is -2 because the real last dim is the complex dim, which we
-    # remove in the last step with Squeeze.
-    result = op.Slice(real_part, axes=[-2], starts=[0], ends=last_dim_size)
-    # TODO(justinchuby): We may need to pad if last_dim_size is bigger
     return op.Squeeze(result, axes=[-1])
 
 
