@@ -671,6 +671,18 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         length = self._length or self.nbytes
         return self.raw[offset : offset + length]
 
+    def copy(self) -> np.ndarray:
+        """Creates a copy of the numpy array representing the tensor.
+
+        This will also delete all references to the memory buffer and close the memory-mapped file.
+        """
+        _copy = self.numpy().copy()
+        # Delete references
+        self._array = None
+        # Close mmap file
+        self.raw.close()
+        return _copy
+
     @property
     def metadata_props(self) -> dict[str, str]:
         if self._metadata_props is None:

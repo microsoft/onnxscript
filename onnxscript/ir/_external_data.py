@@ -99,7 +99,7 @@ def _load_external_data_file(
             external_tensor = tensor
             if os.path.samefile(tensor.path, os.path.join(base_path, relative_path)):
                 # Copy the data as the .numpy() call references data from a file whose data is eventually modified
-                tensor_data = external_tensor.numpy().copy()
+                tensor_data = external_tensor.copy()
                 tensor = _core.Tensor(
                     tensor_data, name=external_tensor.name, dtype=external_tensor.dtype
                 )
