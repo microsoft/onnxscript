@@ -2522,7 +2522,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         self._graph.insert_before(node, new_nodes)
 
     def sort(self) -> None:
-        """Topologically sort the nodes in the function."""
+        """Perform a topological sort of this graph and all subgraphs in O(#nodes + #values) time."""
         self._graph.sort()
 
     # End of mutation methods
