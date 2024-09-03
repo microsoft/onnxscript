@@ -20,15 +20,20 @@ from onnxscript.onnx_types import TensorType
 
 
 def _fftn_onnx_normalization(
-    self,
+    self: TFloat,
     transformed: TFloat,
     normalization: int,
     forward: bool,
     dims: Sequence[int],
+    last_dim_size: Optional[INT64] = None,
 ) -> TFloat:
     # Obtain the total_sample_count (n) for normalization
     self_shape = op.Shape(self)
-    total_sample_count = op.ReduceProd(op.Gather(self_shape, dims), keepdims=0)
+    if last_dim_size is None:
+        total_sample_count = op.ReduceProd(op.Gather(self_shape, dims), keepdims=0)
+    else:
+        total_sample_count = op.ReduceProd(op.Gather(self_shape, dims[:-1]), keepdims=0)
+        total_sample_count = op.Mul(total_sample_count, last_dim_size)
     total_sample_count = op.CastLike(total_sample_count, transformed)
 
     # Normalize the result
@@ -109,7 +114,7 @@ def _fftn_onnx(
         # Remove the batch dimension
         transformed = op.Squeeze(transformed, axes=[0])
 
-    return _fftn_onnx_normalization(self, transformed, normalization, not inverse, dims)
+    return _fftn_onnx_normalization(self, transformed, normalization, not inverse, dims, last_dim_size=last_dim_size)
 
 
 @torch_op("aten::_fft_c2c", trace_only=True, complex=True)
