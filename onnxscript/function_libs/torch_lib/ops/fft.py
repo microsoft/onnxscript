@@ -126,6 +126,7 @@ def _fftn_onnx(
     normalized = _fftn_onnx_normalization(
         self, transformed, normalization, not inverse, dims, last_dim_size=last_dim_size
     )
+    # TODO: Merge to normalization mode and ONNX inverse mode
     # Be sure to normalize before squeezing the batch dimension, because dims would
     # have been shifted by 1 if the batch dimension was added.
     if unsqueeze_first_dim:
