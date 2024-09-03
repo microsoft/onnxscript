@@ -148,6 +148,7 @@ def aten__fft_c2r(
     # The last dim is -2 because the real last dim is the complex dim, which we
     # remove in the last step with Squeeze.
     result = op.Slice(real_part, axes=[-2], starts=[0], ends=last_dim_size)
+    # TODO(justinchuby): We may need to pad if last_dim_size is bigger
     return op.Squeeze(result, axes=[-1])
 
 
