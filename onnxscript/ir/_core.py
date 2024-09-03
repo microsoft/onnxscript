@@ -680,6 +680,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         # Delete references
         self._array = None
         # Close mmap file
+        assert self.raw is not None
         self.raw.close()
         return _copy
 
