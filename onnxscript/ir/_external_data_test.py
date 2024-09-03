@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 import os
+import sys
 import tempfile
 import typing
 import unittest
@@ -115,7 +116,10 @@ class OffloadExternalTensorTest(unittest.TestCase):
 
     def setUp(self):
         # File paths
-        self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)  # pylint: disable=consider-using-with
+        if sys.version_info == 3 and sys.version_info >= 10:
+            self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)  # pylint: disable=consider-using-with
+        else:
+            self.temp_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         self.external_data_name = "external_tensors.bin"
         self.base_path = self.temp_dir.name
         self.ext_data_1 = "external_data_1.bin"
