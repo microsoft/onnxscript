@@ -39,24 +39,32 @@ def _fftn_onnx_normalization(
     # Normalize the result
     # Reference https://pytorch.org/docs/stable/generated/torch.fft.fftn.html#torch.fft.fftn
     # Reference https://github.com/pytorch/pytorch/blob/d090c18fcaaba6e1b5cb474a89058cf6081c8275/torch/_refs/fft.py#L42
-    if normalization == 1:
-        # "ortho" - normalize by 1/sqrt(n)
+    # Norm values defined in https://github.com/pytorch/pytorch/blob/758d78790164bfb041555daed380de96e06f78a3/aten/src/ATen/native/SpectralOps.cpp#L117-L131
+    # Norm modes: https://github.com/pytorch/pytorch/blob/758d78790164bfb041555daed380de96e06f78a3/aten/src/ATen/native/SpectralOpsUtils.h#L15-L19
+    if normalization == 0:
+        # "none" - no normalization
+        if forward:
+            result = transformed
+        else:
+            # Revert the 1/n normalization done by ONNX
+            result = op.Mul(transformed, total_sample_count)
+    elif normalization == 1:
+        # "ortho" - divide by 1/sqrt(signal_size)
         if forward:
             result = op.Div(transformed, op.Sqrt(total_sample_count))
         else:
+            # ifft of DFT in ONNX is already normalized with 1/n, so we should
+            # multiply by n before dividing by sqrt(n) to get the correct result,
+            # Which is equivalent to `*sqrt(n)` in the end.
             result = op.Mul(transformed, op.Sqrt(total_sample_count))
-    elif normalization == 2:
+    else:
+        # normalization == 2, divide by signal_size
         # "forward" - normalize by 1/n
         if forward:
             result = op.Div(transformed, total_sample_count)
         else:
+            # Keep the 1/n normalization done by ONNX
             result = transformed
-    else:
-        # "backward" - no normalization
-        if forward:
-            result = transformed
-        else:
-            result = op.Mul(transformed, total_sample_count)
 
     return result
 
@@ -114,7 +122,9 @@ def _fftn_onnx(
         # Remove the batch dimension
         transformed = op.Squeeze(transformed, axes=[0])
 
-    return _fftn_onnx_normalization(self, transformed, normalization, not inverse, dims, last_dim_size=last_dim_size)
+    return _fftn_onnx_normalization(
+        self, transformed, normalization, not inverse, dims, last_dim_size=last_dim_size
+    )
 
 
 @torch_op("aten::_fft_c2c", trace_only=True, complex=True)
