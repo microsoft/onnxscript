@@ -797,6 +797,13 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(add_node.inputs, (None, None))
 
     # TODO(justinchuby): Test graph mutation methods
+
+    # Test topological sort.
+    # Graph structure:
+    #   nodes: [node, ...]
+    #   edges: [(parent_node, child_node), ...]
+    #   subgraphs: {node: [subgraph, ...]}
+
     def test_topological_sort_empty(self):
         graph = _core.Graph(
             inputs=(),
@@ -808,7 +815,7 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(tuple(graph), ())
 
     def test_topological_sort_linear(self):
-        # edges=[(1,2),(2,3)]
+        # nodes=[1,2,3], edges=[(1,2),(2,3)]
         v0 = _core.Value(name="v0")
         node1 = _core.Node("", "Node1", inputs=(v0,), num_outputs=1)
         node2 = _core.Node("", "Node2", inputs=(node1.outputs[0],), num_outputs=1)
@@ -825,7 +832,7 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(sorted_nodes, expected_order)
 
     def test_topological_sort_independent_subgraphs(self):
-        # edges=[(1,3),(2,4)]
+        # nodes=[1,2,3,4], edges=[(1,3),(2,4)]
         v0 = _core.Value(name="v0")
         v1 = _core.Value(name="v1")
         node1 = _core.Node("", "Node1", inputs=(v0,), num_outputs=1)
@@ -844,7 +851,7 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(sorted_nodes, expected_order)
 
     def test_topological_sort_shared_child(self):
-        # edges=[(1,3),(2,3)]
+        # nodes=[1,2,3], edges=[(1,3),(2,3)]
         v0 = _core.Value(name="v0")
         node1 = _core.Node("", "Node1", inputs=(v0,), num_outputs=1)
         node2 = _core.Node("", "Node2", inputs=(v0,), num_outputs=1)
@@ -863,7 +870,7 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(sorted_nodes, expected_order)
 
     def shared_parent_nodes(self):
-        # edges=[(1,2),(1,3)]
+        # nodes=[1,2,3], edges=[(1,2),(1,3)]
         v0 = _core.Value(name="v0")
         node1 = _core.Node("", "Node1", inputs=(v0,), num_outputs=1)
         node2 = _core.Node("", "Node2", inputs=(node1.outputs[0],), num_outputs=1)
@@ -919,7 +926,7 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(sorted_nodes, expected_order)
 
     def test_topological_sort_cycle_detection(self):
-        # edges=[(1,2),(2,3),(3,2)]
+        # nodes=[1,2,3], edges=[(1,2),(2,3),(3,2)]
         v0 = _core.Value(name="v0")
         node1 = _core.Node("", "Node1", inputs=(v0,), num_outputs=1)
         node2 = _core.Node("", "Node2", inputs=(node1.outputs[0], v0), num_outputs=1)
@@ -935,6 +942,9 @@ class GraphTest(unittest.TestCase):
             graph.sort()
 
     def test_topological_sort_subgraph(self):
+        # main_graph: nodes=[a,b,c,d,>,if], edges=[(a,>),(b,>),(>,if)], subgraphs={if:[then_graph,else_graph]}
+        # then_graph: nodes=[sub], edges=[(c,sub),(d,sub)]
+        # else_graph: nodes=[add], edges=[(c,add),(d,add)]
         v0 = _core.Value(name="va")
         v1 = _core.Value(name="vb")
         v2 = _core.Value(name="vc")
