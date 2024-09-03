@@ -86,7 +86,6 @@ def _fftn_onnx(
     else:
         unsqueeze_first_dim = False
 
-
     if unsqueeze_first_dim:
         transformed = op.Unsqueeze(self, axes=[0])
         # Add 1 to account for the batch dimension when counting axes from the left
