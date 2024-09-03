@@ -130,9 +130,6 @@ def aten__fft_c2r(
 
     Complex to real inverse FFT.
     """
-
-    # TODO(justinchuby): Figure out what last_dim_size does
-
     self_rank = len(self.shape)
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
