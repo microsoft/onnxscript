@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 import unittest
 
 from onnxscript import ir
@@ -47,32 +49,6 @@ class RemoveUnusedTest(unittest.TestCase):
         remove_unused = RemoveUnused(graph)
         remove_unused.purge()
         self.assertEqual(tuple(graph), ())
-
-    def test_purge_subgraph(self):
-        v0 = ir.Value(name="v0")
-        node0 = ir.Node("", "Node0", inputs=(v0,), num_outputs=1)
-        subgraph = ir.Graph(
-            inputs=(v0,),
-            outputs=(),
-            nodes=[ir.Node("", "SubNode1", inputs=(v0,), num_outputs=1)],
-            opset_imports={"": 1},
-        )
-        node1 = ir.Node(
-            "",
-            "Node1",
-            inputs=(v0,),
-            num_outputs=1,
-            attributes=[ir.AttrGraph("subgraph_attr", subgraph)],
-        )
-        graph = ir.Graph(
-            (v0,),
-            (node1.outputs[0],),
-            nodes=(node0, node1),
-            opset_imports={"": 1},
-        )
-        remove_unused = RemoveUnused(graph)
-        remove_unused.purge()
-        self.assertEqual(tuple(graph), (node0, node1))
 
     def test_purge_subgraph(self):
         v0 = ir.Value(name="va")

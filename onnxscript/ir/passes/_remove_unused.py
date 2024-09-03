@@ -16,9 +16,7 @@ class RemoveUnused:
         self._graph = graph_like
 
     def purge(self) -> None:
-        """
-        Remove unused nodes in this graph and all its subgraphs that do not contribute to any graph_outputs.
-        """
+        """Remove unused nodes in this graph and all its subgraphs that do not contribute to any graph_outputs."""
         # 1. Initialize
         #   Gather all nodes from the graph and its subgraphs using a recursive iterator.
         #   Identify all subgraphs by checking the graph of each node.
@@ -57,4 +55,4 @@ class RemoveUnused:
         # Remove
         for node in all_nodes:
             if node not in visited_nodes:
-                node.graph.remove(node)
+                node.graph.remove(node)  # type: ignore[union-attr]
