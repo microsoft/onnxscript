@@ -2357,8 +2357,8 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
     model_version={self.model_version!r},
 >"""
         graph_text = str(self.graph)
-        functions_text = ",\n\n".join(str(func) for func in self.functions.values())
-        return f"{signature}\n{graph_text}" + f"\n\n{functions_text}" * len(self.functions)
+        functions_text = "\n\n".join(str(func) for func in self.functions.values())
+        return f"{signature}\n{graph_text}" + f"\n\n{functions_text}"
 
     def __repr__(self) -> str:
         return f"""\
