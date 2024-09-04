@@ -671,7 +671,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         length = self._length or self.nbytes
         return self.raw[offset : offset + length]
 
-    def cleanup(self) -> None:
+    def release(self) -> None:
         """Delete all references to the memory buffer and close the memory-mapped file."""
         self._array = None
         if self.raw is not None:

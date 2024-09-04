@@ -100,7 +100,7 @@ def _load_external_data_file(
             if os.path.samefile(tensor.path, os.path.join(base_path, relative_path)):
                 # Copy the data as the .numpy() call references data from a file whose data is eventually modified
                 tensor_data = external_tensor.numpy().copy()
-                external_tensor.cleanup()
+                external_tensor.release()
                 tensor = _core.Tensor(
                     tensor_data, name=external_tensor.name, dtype=external_tensor.dtype
                 )
@@ -167,7 +167,7 @@ def _save_external_data(
             assert tensor is not None
             raw_data = tensor.tobytes()
             if isinstance(tensor, _core.ExternalTensor):
-                tensor.cleanup()
+                tensor.release()
             # Pad file to required offset if needed
             file_size = data_file.tell()
             if current_offset > file_size:
