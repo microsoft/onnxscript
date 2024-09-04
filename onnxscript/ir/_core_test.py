@@ -678,7 +678,6 @@ class NodeTest(unittest.TestCase):
             (self.v0, self.v1),  # type: ignore
             self.node.outputs,
             nodes=(self.node,),
-            opset_imports={"": 1},
         )
         self.assertIn(self.node, graph)
 
@@ -696,7 +695,6 @@ class GraphTest(unittest.TestCase):
             (self.v0, self.v1),
             self.node.outputs,
             nodes=(self.node,),
-            opset_imports={"": 1},
         )
 
     def test_initialize(self):
@@ -770,7 +768,6 @@ class GraphTest(unittest.TestCase):
             (v0, v1),
             identity_node.outputs,
             nodes=(add_node, identity_node),
-            opset_imports={"": 1},
         )
         with self.assertRaisesRegex(ValueError, "used by other nodes"):
             graph.remove(add_node, safe=True)
@@ -784,7 +781,6 @@ class GraphTest(unittest.TestCase):
             (v0, v1),
             identity_node.outputs,
             nodes=(add_node, identity_node),
-            opset_imports={"": 1},
         )
         # Remove add_node and check that it is no longer a consumer of v0 and v1
         sub_node = _core.Node("", "Sub", inputs=(v0, v1), num_outputs=1)
@@ -801,20 +797,19 @@ class GraphTest(unittest.TestCase):
     # Test topological sort.
     # Graph structure:
     #   nodes: [node, ...]
-    #   edges: [(parent_node, child_node), ...]
+    #   edges: [(predecessor_node, successor_node), ...]
     #   subgraphs: {node: [subgraph, ...]}
 
-    def test_topological_sort_empty(self):
+    def test_topological_sort_empty_graph(self):
         graph = _core.Graph(
             inputs=(),
             outputs=(),
             nodes=(),
-            opset_imports={"": 1},
         )
         graph.sort()
         self.assertEqual(tuple(graph), ())
 
-    def test_topological_sort_linear(self):
+    def test_topological_sort_linear_dependencies(self):
         # nodes=[1,2,3], edges=[(1,2),(2,3)]
         v0 = _core.Value(name="v0")
         node1 = _core.Node("", "Node1", inputs=(v0,), num_outputs=1)
@@ -824,7 +819,6 @@ class GraphTest(unittest.TestCase):
             (v0,),
             node3.outputs,
             nodes=(node3, node2, node1),
-            opset_imports={"": 1},
         )
         graph.sort()
         sorted_nodes = tuple(graph)
@@ -843,14 +837,13 @@ class GraphTest(unittest.TestCase):
             (v0, v1),
             (node3.outputs[0], node4.outputs[0]),
             nodes=(node4, node3, node2, node1),
-            opset_imports={"": 1},
         )
         graph.sort()
         sorted_nodes = tuple(graph)
         expected_order = (node2, node4, node1, node3)
         self.assertEqual(sorted_nodes, expected_order)
 
-    def test_topological_sort_shared_child(self):
+    def test_topological_sort_shared_successor(self):
         # nodes=[1,2,3], edges=[(1,3),(2,3)]
         v0 = _core.Value(name="v0")
         node1 = _core.Node("", "Node1", inputs=(v0,), num_outputs=1)
@@ -862,68 +855,40 @@ class GraphTest(unittest.TestCase):
             (v0,),
             (node3.outputs[0],),
             nodes=(node3, node2, node1),
-            opset_imports={"": 1},
         )
         graph.sort()
         sorted_nodes = tuple(graph)
         expected_order = (node2, node1, node3)
         self.assertEqual(sorted_nodes, expected_order)
 
-    def shared_parent_nodes(self):
-        # nodes=[1,2,3], edges=[(1,2),(1,3)]
+    def _create_shared_predecessor_nodes(
+        self,
+    ) -> tuple[_core.Value, tuple[_core.Node, _core.Node, _core.Node]]:
+        # nodes=[0,1,2], edges=[(0,1),(0,2)]
         v0 = _core.Value(name="v0")
-        node1 = _core.Node("", "Node1", inputs=(v0,), num_outputs=1)
-        node2 = _core.Node("", "Node2", inputs=(node1.outputs[0],), num_outputs=1)
-        node3 = _core.Node("", "Node3", inputs=(node1.outputs[0],), num_outputs=1)
-        return v0, node1, node2, node3
+        node0 = _core.Node("", "Node0", inputs=(v0,), num_outputs=1)
+        node1 = _core.Node("", "Node1", inputs=(node0.outputs[0],), num_outputs=1)
+        node2 = _core.Node("", "Node2", inputs=(node0.outputs[0],), num_outputs=1)
+        return v0, (node0, node1, node2)
 
-    def test_topological_sort_shared_parent_test_123(self):
-        v0, node1, node2, node3 = self.shared_parent_nodes()
-        graph = _core.Graph((v0,), (), nodes=(node1, node2, node3), opset_imports={"": 1})
+    @parameterized.parameterized.expand(
+        [
+            ("012", (0, 1, 2), (0, 1, 2)),
+            ("021", (0, 2, 1), (0, 2, 1)),
+            ("102", (1, 0, 2), (0, 1, 2)),
+            ("120", (1, 2, 0), (0, 1, 2)),
+            ("201", (2, 0, 1), (0, 2, 1)),
+            ("210", (2, 1, 0), (0, 2, 1)),
+        ]
+    )
+    def test_topological_sort_shared_predecessor(
+        self, _: str, initial_order: tuple[int], expected_order: tuple[int]
+    ):
+        v0, nodes = self._create_shared_predecessor_nodes()
+        graph = _core.Graph((v0,), (), nodes=[nodes[i] for i in initial_order])
         graph.sort()
-        sorted_nodes = tuple(graph)
-        expected_order = (node1, node2, node3)
-        self.assertEqual(sorted_nodes, expected_order)
-
-    def test_topological_sort_shared_parent_test_132(self):
-        v0, node1, node2, node3 = self.shared_parent_nodes()
-        graph = _core.Graph((v0,), (), nodes=(node1, node3, node2), opset_imports={"": 1})
-        graph.sort()
-        sorted_nodes = tuple(graph)
-        expected_order = (node1, node3, node2)
-        self.assertEqual(sorted_nodes, expected_order)
-
-    def test_topological_sort_shared_parent_test_213(self):
-        v0, node1, node2, node3 = self.shared_parent_nodes()
-        graph = _core.Graph((v0,), (), nodes=(node2, node1, node3), opset_imports={"": 1})
-        graph.sort()
-        sorted_nodes = tuple(graph)
-        expected_order = (node1, node2, node3)
-        self.assertEqual(sorted_nodes, expected_order)
-
-    def test_topological_sort_shared_parent_test_231(self):
-        v0, node1, node2, node3 = self.shared_parent_nodes()
-        graph = _core.Graph((v0,), (), nodes=(node2, node3, node1), opset_imports={"": 1})
-        graph.sort()
-        sorted_nodes = tuple(graph)
-        expected_order = (node1, node2, node3)
-        self.assertEqual(sorted_nodes, expected_order)
-
-    def test_topological_sort_shared_parent_test_312(self):
-        v0, node1, node2, node3 = self.shared_parent_nodes()
-        graph = _core.Graph((v0,), (), nodes=(node3, node1, node2), opset_imports={"": 1})
-        graph.sort()
-        sorted_nodes = tuple(graph)
-        expected_order = (node1, node3, node2)
-        self.assertEqual(sorted_nodes, expected_order)
-
-    def test_topological_sort_shared_parent_test_321(self):
-        v0, node1, node2, node3 = self.shared_parent_nodes()
-        graph = _core.Graph((v0,), (), nodes=(node3, node2, node1), opset_imports={"": 1})
-        graph.sort()
-        sorted_nodes = tuple(graph)
-        expected_order = (node1, node3, node2)
-        self.assertEqual(sorted_nodes, expected_order)
+        sorted_nodes = list(graph)
+        self.assertEqual(sorted_nodes, [nodes[i] for i in expected_order])
 
     def test_topological_sort_cycle_detection(self):
         # nodes=[1,2,3], edges=[(1,2),(2,3),(3,2)]
@@ -936,7 +901,6 @@ class GraphTest(unittest.TestCase):
             (v0,),
             (node3.outputs[0],),
             nodes=(node1, node2, node3),
-            opset_imports={"": 1},
         )
         with self.assertRaises(ValueError):
             graph.sort()
@@ -987,7 +951,6 @@ class GraphTest(unittest.TestCase):
             outputs=(node7.outputs[0],),
             nodes=(node7, node6, node3, node2, node1, node0),  # if, >, d, c, b, a
             name="main_graph_rev",
-            opset_imports={"": 1},
         )
         main_graph_rev.sort()
         self.assertEqual(
