@@ -80,12 +80,11 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-      - name: Upload Test Results
-        if: always()
-        uses: actions/upload-artifact@v3
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
         with:
-          name: Test Results (${{ matrix.name }}-${{ matrix.os }})
-          path: pytest.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
       - name: Upload torchlib error reports
         if: always()
         uses: actions/upload-artifact@v3
