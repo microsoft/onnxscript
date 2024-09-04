@@ -15,6 +15,7 @@ from __future__ import annotations
 import abc
 import contextlib
 import dataclasses
+import heapq
 import math
 import mmap
 import os
@@ -1977,8 +1978,103 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._nodes.insert_before(node, new_nodes)
 
     def sort(self) -> None:
-        """Topologically sort the nodes in the graph."""
-        raise NotImplementedError("Not implemented yet")
+        """Perform a topological sort of this graph and all subgraphs in O(#nodes + #values) time.
+
+        This sort is stable. It preserves the original order as much as possible.
+
+        Referece: https://github.com/madelson/MedallionTopologicalSort#stable-sort
+
+        Raises:
+            ValueError: If the graph contains a cycle, making topological sorting impossible.
+        """
+        # Obtain all nodes from the graph and its subgraphs for sorting
+        nodes = list(onnxscript.ir.traversal.RecursiveGraphIterator(self))
+        # Store the sorted nodes of each subgraph
+        sorted_nodes_by_graph: dict[Graph, list[Node]] = {
+            graph: [] for graph in {node.graph for node in nodes if node.graph is not None}
+        }
+        # TODO: Explain why we need to store direct predecessors and children and why
+        # we only need to store the direct ones
+
+        # The depth of a node is defined as the number of direct children it has
+        node_depth: dict[Node, int] = dict.fromkeys(nodes, 0)
+        # Direct predecessors of a node
+        node_predecessors: dict[Node, list[Node]] = {node: [] for node in nodes}
+        # Store the negative index of the nodes because heapq is a min heap and we
+        # want to pop the node with largest index value first, effectively turning
+        # it to a max heap
+        neg_node_index: dict[Node, int] = {node: -i for i, node in enumerate(nodes)}
+
+        def add_predecessor(child: Node, predecessor: Node | None) -> None:
+            """Add a predecessor of a node, and increment the depth of the predecessor."""
+            if predecessor is None:
+                return
+            node_predecessors[child].append(predecessor)
+            node_depth[predecessor] += 1
+
+        # 1. Build the direct predecessors of each node and the depth of each node
+        # for sorting topolocally using Kahn's algorithm.
+        # Note that when a node contains graph attributes (aka. has subgraphs),
+        # we consider all nodes in the subgraphs *predecessors* of this node. This
+        # way we ensure the implicit dependencies of the subgraphs are captured
+        # as predecessors of the node.
+        for node in nodes:
+            # All producers of input values are considered as direct predecessors.
+            for input_value in node.inputs:
+                if input_value is None:
+                    continue
+                predecessor_node = input_value.producer()
+                add_predecessor(node, predecessor_node)
+            # All nodes in attribute graphs are considered as direct predecessors.
+            for attr in node.attributes.values():
+                if not isinstance(attr, Attr):
+                    continue
+                # A nice thing about this algorithm is that we only need to record
+                # direct predecessors. This continues to be true even with subgraphs.
+                # When a node in a subgraph (a) contains its own subgraphs (b), the
+                # node in subgraphs (b) are guranteed to appear before the node
+                # in (a).
+                if attr.type == _enums.AttributeType.GRAPH:
+                    for predecessor_node in attr.value:
+                        add_predecessor(node, predecessor_node)
+                elif attr.type == _enums.AttributeType.GRAPHS:
+                    for attribute_graph in attr.value:
+                        for predecessor_node in attribute_graph:
+                            add_predecessor(node, predecessor_node)
+
+        # 2. Priority Queue: Track nodes with zero direct children in a priority queue,
+        # using NEGATIVE original index for ordering.
+        # This ensures nodes appearing LATER in the original order are processed EARLIER.
+        # We get REVERSED topological order of each subgraph.
+        priority_queue: list[tuple[int, Node]] = [
+            (neg_node_index[node], node) for node in nodes if node_depth[node] == 0
+        ]
+        heapq.heapify(priority_queue)
+
+        # 3. Topological Sort:
+        num_of_sorted_nodes = 0
+        while priority_queue:
+            # Pop the node with the most negative index and add it to the sorted nodes by subgraph.
+            _, current_node = heapq.heappop(priority_queue)
+            assert current_node.graph is not None
+            sorted_nodes_by_graph[current_node.graph].append(current_node)
+            num_of_sorted_nodes += 1
+            # Decrement the depth of its predecessors. If any predecessor node has zero direct children, push it into the queue.
+            for predecessor_node in node_predecessors[current_node]:
+                node_depth[predecessor_node] -= 1
+                if node_depth[predecessor_node] == 0:
+                    heapq.heappush(
+                        priority_queue, (neg_node_index[predecessor_node], predecessor_node)
+                    )
+
+        # 4. Cycle Check: Ensure all nodes are processed. If not, raise a ValueError indicating a cycle.
+        if num_of_sorted_nodes != len(nodes):
+            raise ValueError("Graph contains a cycle, topological sort is not possible.")
+
+        # 5. Reverse: Reverse the sorted nodes of each subgraph to get the topological order.
+        for graph, sorted_nodes in sorted_nodes_by_graph.items():
+            # The graph container ensures all the nodes are unique so we can safely extend
+            graph.extend(reversed(sorted_nodes))
 
     # End of mutation methods
 
@@ -2451,7 +2547,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         self._graph.insert_before(node, new_nodes)
 
     def sort(self) -> None:
-        """Topologically sort the nodes in the function."""
+        """Perform a topological sort of this graph and all subgraphs in O(#nodes + #values) time."""
         self._graph.sort()
 
     # End of mutation methods
