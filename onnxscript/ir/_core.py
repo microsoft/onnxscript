@@ -674,8 +674,9 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
     def cleanup(self) -> None:
         """Delete all references to the memory buffer and close the memory-mapped file."""
         self._array = None
-        assert self.raw is not None
-        self.raw.close()
+        if self.raw is not None:
+            self.raw.close()
+            self.raw = None
 
     @property
     def metadata_props(self) -> dict[str, str]:

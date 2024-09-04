@@ -116,7 +116,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
 
     def setUp(self):
         # File paths
-        if sys.version_info == 3 and sys.version_info >= 10:
+        if sys.version_info[:2] >= (3, 10):
             self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)  # pylint: disable=consider-using-with
         else:
             self.temp_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
