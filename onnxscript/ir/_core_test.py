@@ -695,6 +695,7 @@ class GraphTest(unittest.TestCase):
             (self.v0, self.v1),
             self.node.outputs,
             nodes=(self.node,),
+            opset_imports={"": 1},
         )
 
     def test_initialize(self):
@@ -768,6 +769,7 @@ class GraphTest(unittest.TestCase):
             (v0, v1),
             identity_node.outputs,
             nodes=(add_node, identity_node),
+            opset_imports={"": 1},
         )
         with self.assertRaisesRegex(ValueError, "used by other nodes"):
             graph.remove(add_node, safe=True)
@@ -781,6 +783,7 @@ class GraphTest(unittest.TestCase):
             (v0, v1),
             identity_node.outputs,
             nodes=(add_node, identity_node),
+            opset_imports={"": 1},
         )
         # Remove add_node and check that it is no longer a consumer of v0 and v1
         sub_node = _core.Node("", "Sub", inputs=(v0, v1), num_outputs=1)
