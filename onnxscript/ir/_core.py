@@ -1982,6 +1982,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
 
         This sort is stable. It preserves the original order as much as possible.
 
+        Referece: https://github.com/madelson/MedallionTopologicalSort#stable-sort
+
         Raises:
             ValueError: If the graph contains a cycle, making topological sorting impossible.
         """
