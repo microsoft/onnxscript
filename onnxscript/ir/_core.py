@@ -1980,8 +1980,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def sort(self) -> None:
         """Perform a topological sort of this graph and all subgraphs in O(#nodes + #values) time.
 
-        This method sorts the nodes that each node appears AFTER all its predecessors,
-        while maintaining the original order as much as possible.
+        This sort is stable. It preserves the original order as much as possible.
 
         Raises:
             ValueError: If the graph contains a cycle, making topological sorting impossible.
