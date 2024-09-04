@@ -1338,7 +1338,7 @@ def sample_inputs__scaled_dot_product_efficient_attention(
                 make(shape_q),
                 make(shape_kv),
                 make(shape_kv),
-                attn_bias=None,
+                attn_bias=None,  # TODO: Add attn_bias
                 is_causal=is_causal,
                 dropout_p=dropout_p,
                 compute_log_sumexp=compute_log_sumexp,
