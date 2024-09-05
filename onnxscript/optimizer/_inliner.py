@@ -139,7 +139,7 @@ class _CopyReplace:
             input_values,  # type: ignore
             graph.outputs,
             nodes=nodes,
-            initializers=initializers,
+            initializers=initializers,  # type: ignore
             doc_string=graph.doc_string,
             opset_imports=graph.opset_imports,
             name=graph.name,
