@@ -40,6 +40,7 @@ def _make_unique_name(name: str, callstack: CallStack, used_names: set[str]) -> 
     used_names.add(candidate)
     return candidate
 
+
 class _CopyReplace:
     """Utilities for creating a copy of IR objects with substitutions for attributes/input values."""
 
@@ -63,7 +64,11 @@ class _CopyReplace:
         # If the value is not in the value map, it must be a graph input.
         assert value.producer() is not None, f"Value {value} has no entry in the value map"
         new_value = ir.Value(
-            name=value.name, type=value.type, shape=value.shape, doc_string=value.doc_string, const_value=value.const_value
+            name=value.name,
+            type=value.type,
+            shape=value.shape,
+            doc_string=value.doc_string,
+            const_value=value.const_value,
         )
         self._value_map[value] = new_value
         return new_value
@@ -101,7 +106,9 @@ class _CopyReplace:
         ]
         new_name = node.name
         if new_name is not None:
-            new_name = _make_unique_name(new_name, self._call_stack, self._inliner.used_node_names)
+            new_name = _make_unique_name(
+                new_name, self._call_stack, self._inliner.used_node_names
+            )
 
         new_metadata = {**self._metadata_props, **node.metadata_props}
         # TODO: For now, node metadata overrides callnode metadata if there is a conflict.
@@ -123,7 +130,9 @@ class _CopyReplace:
         for i, output in enumerate(node.outputs):
             self._value_map[output] = new_outputs[i]
             old_name = output.name if output.name is not None else f"output_{i}"
-            new_outputs[i].name = _make_unique_name(old_name, self._call_stack, self._inliner.used_value_names)
+            new_outputs[i].name = _make_unique_name(
+                old_name, self._call_stack, self._inliner.used_value_names
+            )
 
         self._inliner.node_context[new_node] = self._call_stack
 
@@ -145,20 +154,26 @@ class _CopyReplace:
             metadata_props=graph.metadata_props,
         )
 
-def _abbreviate(function_ids: Iterable[ir.OperatorIdentifier]) -> dict[ir.OperatorIdentifier, str]:
+
+def _abbreviate(
+    function_ids: Iterable[ir.OperatorIdentifier],
+) -> dict[ir.OperatorIdentifier, str]:
     """Create a short unambiguous abbreviation for all function ids."""
+
     def id_abbreviation(id: ir.OperatorIdentifier) -> str:
         """Create a short unambiguous abbreviation for a function id."""
         domain, name, overload = id
         # Omit the domain, if it remains unambiguous after omitting it.
-        if any (x[0] != domain and x[1] == name and x[2] == overload for x in function_ids):
+        if any(x[0] != domain and x[1] == name and x[2] == overload for x in function_ids):
             short_domain = domain + "_"
         else:
             short_domain = ""
         if overload != "":
             return short_domain + name + "_" + overload
         return short_domain + name
+
     return {id: id_abbreviation(id) for id in function_ids}
+
 
 class _Inliner:
     def __init__(self, model: ir.Model) -> None:
@@ -168,7 +183,6 @@ class _Inliner:
         self.used_value_names: set[str] = set()
         self.used_node_names: set[str] = set()
         self.node_context: dict[ir.Node, CallStack] = {}
-
 
     def _instantiate_call(self, node: ir.Node, call_site_id: CallSiteId) -> NodeReplacement:
         id = node.op_identifier()
@@ -184,7 +198,7 @@ class _Inliner:
                 )
 
         # Identify substitutions for both inputs and attributes of the function:
-        attributes : dict[str, ir.Attr | ir.RefAttr] = node.attributes
+        attributes: dict[str, ir.Attr | ir.RefAttr] = node.attributes
         default_attr_values = {
             attr.name: attr
             for attr in function.attributes.values()
@@ -192,8 +206,13 @@ class _Inliner:
         }
         if default_attr_values:
             attributes = {**attributes, **default_attr_values}
-        if any(attr.type == ir.AttributeType.GRAPH or attr.type == ir.AttributeType.GRAPHS for attr in attributes.values()):
-            raise ValueError("Inliner does not support graph attribute parameters to functions")
+        if any(
+            attr.type == ir.AttributeType.GRAPH or attr.type == ir.AttributeType.GRAPHS
+            for attr in attributes.values()
+        ):
+            raise ValueError(
+                "Inliner does not support graph attribute parameters to functions"
+            )
 
         if len(node.inputs) > len(function.inputs):
             raise ValueError(f"Input mismatch: {len(node.inputs)} > {len(function.inputs)}")
@@ -228,7 +247,7 @@ class _Inliner:
         # * Count the number of times each function is called in the graph.
         #   This is used for disambiguating names of values in the inlined functions.
         # * And identify names of values that are used in the graph.
-        id_count : dict[ir.OperatorIdentifier, int] = defaultdict(int)
+        id_count: dict[ir.OperatorIdentifier, int] = defaultdict(int)
         for node in graph:
             if node.name:
                 self.used_node_names.add(node.name)
@@ -238,7 +257,7 @@ class _Inliner:
             for output in node.outputs:
                 if output.name is not None:
                     self.used_value_names.add(output.name)
-        next_id : dict[ir.OperatorIdentifier, int] = defaultdict(int)
+        next_id: dict[ir.OperatorIdentifier, int] = defaultdict(int)
         for node in graph:
             id = node.op_identifier()
             if id in self._functions:
@@ -249,10 +268,17 @@ class _Inliner:
                     next_id[id] += 1
                 else:
                     call_site_prefix = ""
-                call_site = node.name or (self._function_id_abbreviations[id] + call_site_prefix)
+                call_site = node.name or (
+                    self._function_id_abbreviations[id] + call_site_prefix
+                )
                 nodes, values = self._instantiate_call(node, call_site)
                 ir_convenience.replace_nodes_and_values(
-                    graph, insertion_point=node, old_nodes=[node], new_nodes=nodes, old_values=node.outputs, new_values=values
+                    graph,
+                    insertion_point=node,
+                    old_nodes=[node],
+                    new_nodes=nodes,
+                    old_values=node.outputs,
+                    new_values=values,
                 )
             else:
                 for attr in node.attributes.values():
@@ -263,7 +289,6 @@ class _Inliner:
                     elif attr.type == ir.AttributeType.GRAPHS:
                         for graph in attr.value:
                             self.inline_calls_in(graph)
-
 
 
 def inline(model: ir.Model) -> None:

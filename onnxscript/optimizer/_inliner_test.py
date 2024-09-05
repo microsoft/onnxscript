@@ -206,5 +206,6 @@ class InlinerTest(unittest.TestCase):
         """
         self._check(input_model, expected_model)
 
+
 if __name__ == "__main__":
     unittest.main()
