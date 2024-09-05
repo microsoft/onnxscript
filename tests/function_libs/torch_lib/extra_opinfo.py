@@ -2008,7 +2008,9 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="floor_divide",
         op=torch.ops.aten.floor_divide,
         dtypes=common_dtype.integral_types(),
-        rhs_make_tensor_kwargs=dict(exclude_zero=True),
+        # Create only positive inputs
+        lhs_make_tensor_kwargs=dict(low=0),
+        rhs_make_tensor_kwargs=dict(exclude_zero=True, low=0),
     ),
     opinfo_core.OpInfo(
         "ops.aten.index.Tensor",

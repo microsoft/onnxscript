@@ -3589,6 +3589,8 @@ def aten_floor_divide(self: TFloat, other: TFloat) -> TFloat:
 def aten_floor_divide_int(self: TInt, other: TInt) -> TInt:
     """floor_divide(Tensor self, Tensor other) -> Tensor"""
 
+    # We implement floor_divide only for positive inputs (using integer division)
+    # because that is the usual intended case and is the most efficient.
     return op.Div(self, other)
 
 
