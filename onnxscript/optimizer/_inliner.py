@@ -193,6 +193,8 @@ class _Inliner:
         }
         if default_attr_values:
             attributes = {**attributes, **default_attr_values}
+        if any(attr.type == ir.AttributeType.GRAPH or attr.type == ir.AttributeType.GRAPHS for attr in attributes.values()):
+            raise ValueError("Inliner does not support graph attribute parameters to functions")
 
         if len(node.inputs) > len(function.inputs):
             raise ValueError(f"Input mismatch: {len(node.inputs)} > {len(function.inputs)}")
