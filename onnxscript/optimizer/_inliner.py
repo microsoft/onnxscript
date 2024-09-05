@@ -171,7 +171,7 @@ class _Inliner:
         self.node_context: dict[ir.Node, CallStack] = {}
 
 
-    def _instantiate_call(self, node: ir.Node, call_site_id: str) -> NodeReplacement:
+    def _instantiate_call(self, node: ir.Node, call_site_id: CallSiteId) -> NodeReplacement:
         id = node.op_identifier()
         function = self._functions[id]
 
