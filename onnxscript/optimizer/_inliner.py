@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from typing import Iterable, Sequence, Tuple
 
 import onnxscript.ir as ir
-import onnxscript.ir.convenience as convenience
+import onnxscript.ir.convenience as ir_convenience
 
 # A replacement for a node specifies a list of nodes that replaces the original node,
 # and a list of values that replaces the original node's outputs.
@@ -115,7 +115,7 @@ class _CopyReplace:
             new_attributes,
             overload=node.overload,
             num_outputs=len(node.outputs),
-            graph=None,  #  TODO:
+            graph=None,
             name=new_name,
             doc_string=node.doc_string,
             metadata_props=new_metadata,
@@ -252,7 +252,7 @@ class _Inliner:
                     call_site_prefix = ""
                 call_site = node.name or (self._function_id_abbreviations[id] + call_site_prefix)
                 nodes, values = self._instantiate_call(node, call_site)
-                convenience.replace_nodes_and_values(
+                ir_convenience.replace_nodes_and_values(
                     graph, insertion_point=node, old_nodes=[node], new_nodes=nodes, old_values=node.outputs, new_values=values
                 )
             else:
