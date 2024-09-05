@@ -64,7 +64,7 @@ class _CopyReplace:
         # If the value is not in the value map, it must be a graph input.
         assert value.producer() is not None, f"Value {value} has no entry in the value map"
         new_value = ir.Value(
-            name=value.name, type=value.type, shape=value.shape, doc_string=value.doc_string
+            name=value.name, type=value.type, shape=value.shape, doc_string=value.doc_string, const_value=value.const_value
         )
         self._value_map[value] = new_value
         return new_value
@@ -93,35 +93,35 @@ class _CopyReplace:
         # removed. This is just the ONNX representation of optional-attributes.
         return None
 
-    def clone_node(self, copied: ir.Node) -> ir.Node:
-        new_inputs = [self.clone_optional_value(input) for input in copied.inputs]
+    def clone_node(self, node: ir.Node) -> ir.Node:
+        new_inputs = [self.clone_optional_value(input) for input in node.inputs]
         new_attributes = [
             new_value
-            for key, value in copied.attributes.items()
+            for key, value in node.attributes.items()
             if (new_value := self.clone_attr(key, value)) is not None
         ]
-        new_name = copied.name
+        new_name = node.name
         if new_name is not None:
             new_name = _make_unique_name(new_name, self._call_stack, self._inliner.used_node_names)
 
-        new_metadata = {**self._metadata_props, **copied.metadata_props}
+        new_metadata = {**self._metadata_props, **node.metadata_props}
         # TODO: For now, node metadata overrides callnode metadata if there is a conflict.
         # Do we need to preserve both?
 
         new_node = ir.Node(
-            copied.domain,
-            copied.op_type,
+            node.domain,
+            node.op_type,
             new_inputs,
             new_attributes,
-            overload=copied.overload,
-            num_outputs=len(copied.outputs),
+            overload=node.overload,
+            num_outputs=len(node.outputs),
             graph=None,  #  TODO:
             name=new_name,
-            doc_string=copied.doc_string,
+            doc_string=node.doc_string,
             metadata_props=new_metadata,
         )
         new_outputs = new_node.outputs
-        for i, output in enumerate(copied.outputs):
+        for i, output in enumerate(node.outputs):
             self._value_map[output] = new_outputs[i]
             old_name = output.name if output.name is not None else f"output_{i}"
             new_outputs[i].name = _make_unique_name(old_name, self._call_stack, self._inliner.used_value_names)
@@ -133,13 +133,13 @@ class _CopyReplace:
     def clone_graph(self, graph: ir.Graph) -> ir.Graph:
         input_values = [self.clone_value(v) for v in graph.inputs]
         nodes = [self.clone_node(node) for node in graph]
-        initializers = graph.initializers  # Initializers are not cloned, but shared.
+        initializers = [self.clone_value(init) for init in graph.initializers.values()]
 
         return ir.Graph(
             input_values,  # type: ignore
             graph.outputs,
             nodes=nodes,
-            initializers=list(initializers.values()),
+            initializers=initializers,
             doc_string=graph.doc_string,
             opset_imports=graph.opset_imports,
             name=graph.name,
@@ -251,7 +251,7 @@ class _Inliner:
                 call_site = node.name or (self._function_id_abbreviations[id] + call_site_prefix)
                 nodes, values = self._instantiate_call(node, call_site)
                 convenience.replace_nodes_and_values(
-                    graph, node, [node], nodes, node.outputs, values
+                    graph, insertion_point=node, old_nodes=[node], new_nodes=nodes, old_values=node.outputs, new_values=values
                 )
             else:
                 for attr in node.attributes.values():
