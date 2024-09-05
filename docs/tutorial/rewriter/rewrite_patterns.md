@@ -86,7 +86,7 @@ The graph (on the left) consists of the target pattern before the rewrite rule i
 
 ## Specifying attributes in the pattern
 
-This section demonstrates the use of attribute values in pattern-based rewriting. 
+This section demonstrates the use of attribute values in pattern-based rewriting.
 First, write a target pattern and replacement pattern in a similar way to the previous examples.
 The example pattern below will match successfully only against Dropout nodes with the
 attribute value `training_mode` set to `False`.
