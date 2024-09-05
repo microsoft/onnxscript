@@ -3564,7 +3564,7 @@ def aten_flipud(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::floor")
+@torch_op("aten::floor", traceable=True)
 def aten_floor(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """floor(Tensor self) -> Tensor"""
 
@@ -3578,11 +3578,18 @@ def python_math_floor(self: TFloatOrBFloat16) -> TInt:
     return op.Cast(floor, to=INT64.dtype)
 
 
-@torch_op(("aten::floor_divide", "_operator::floordiv"))
+@torch_op(("aten::floor_divide", "_operator::floordiv"), traceable=True)
 def aten_floor_divide(self: TFloat, other: TFloat) -> TFloat:
     """floor_divide(Tensor self, Tensor other) -> Tensor"""
 
     return op.Floor(op.Div(self, other))
+
+
+@torch_op(("aten::floor_divide", "_operator::floordiv"), traceable=True)
+def aten_floor_divide_int(self: TInt, other: TInt) -> TInt:
+    """floor_divide(Tensor self, Tensor other) -> Tensor"""
+
+    return op.Div(self, other)
 
 
 def aten_fmax(self: TensorType, other: TensorType) -> TensorType:
@@ -3597,14 +3604,14 @@ def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::fmod.Tensor", "aten::fmod.Scalar"))
+@torch_op(("aten::fmod.Tensor", "aten::fmod.Scalar"), traceable=True)
 def aten_fmod(self: TRealOrUInt8, other: TRealOrUInt8) -> TRealOrUInt8:
     """fmod.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.Mod(self, other, fmod=1)
 
 
-@torch_op("aten::frac")
+@torch_op("aten::frac", traceable=True)
 def aten_frac(self: TFloat) -> TFloat:
     """frac(Tensor self) -> Tensor
 

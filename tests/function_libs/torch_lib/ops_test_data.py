@@ -841,11 +841,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("flatten", core_ops.aten_flatten),
     TorchLibOpInfo("floor", core_ops.aten_floor),
-    TorchLibOpInfo("floor_divide", core_ops.aten_floor_divide).xfail(
-        dtypes=(torch.float16,),
-        test_class_name="TestOutputConsistencyEager",
-        reason="fixme: off-by-one issue due to numerical precision. https://github.com/microsoft/onnxscript/issues/989",
-    ),
+    TorchLibOpInfo("ops.aten.floor_divide", core_ops.aten_floor_divide),
+    TorchLibOpInfo("ops.aten.floor_divide.int", core_ops.aten_floor_divide_int),
     TorchLibOpInfo("fmod", core_ops.aten_fmod),
     TorchLibOpInfo("frac", core_ops.aten_frac),
     TorchLibOpInfo("full", core_ops.aten_full),

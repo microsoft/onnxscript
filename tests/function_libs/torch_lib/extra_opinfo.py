@@ -1997,6 +1997,19 @@ OP_DB: List[opinfo_core.OpInfo] = [
         sample_inputs_func=sample_inputs__fft_r2c,
         supports_out=False,
     ),
+    opinfo_core.BinaryUfuncInfo(
+        "ops.aten.floor_divide",
+        aten_name="floor_divide",
+        dtypes=common_dtype.floating_types_and_half(),
+        rhs_make_tensor_kwargs=dict(exclude_zero=True),
+    ),
+    opinfo_core.BinaryUfuncInfo(
+        "ops.aten.floor_divide.int",
+        aten_name="floor_divide",
+        op=torch.ops.aten.floor_divide,
+        dtypes=common_dtype.integral_types(),
+        rhs_make_tensor_kwargs=dict(exclude_zero=True),
+    ),
     opinfo_core.OpInfo(
         "ops.aten.index.Tensor",
         aten_name="index.Tensor",
