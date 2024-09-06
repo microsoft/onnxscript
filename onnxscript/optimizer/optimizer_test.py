@@ -71,10 +71,10 @@ class OptimizerTest(unittest.TestCase):
     def test_static_split_to_sequence_with_uneven_split_ir(self):
         model_proto = self._model_proto()
         model_ir = ir.serde.deserialize_model(model_proto)
-        optimized = optimizer.optimize(model_ir, num_iterations=1, onnx_shape_inference=False)
-        self.assertEqual(len(optimized.graph), 2)
-        self.assertEqual(len(optimized.graph.node(0).outputs), 2)
-        self.assertEqual(optimized.graph.node(0).op_type, "Split")
+        optimizer.optimize(model_ir, num_iterations=1, onnx_shape_inference=False)
+        self.assertEqual(len(model_ir.graph), 2)
+        self.assertEqual(len(model_ir.graph.node(0).outputs), 2)
+        self.assertEqual(model_ir.graph.node(0).op_type, "Split")
 
 if __name__ == "__main__":
     unittest.main()

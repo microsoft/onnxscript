@@ -35,17 +35,15 @@ _default_rewrite_rules=[
     *cast_constant_of_shape.rules.rules,
 ]
 
-ModelProtoOrIr = TypeVar("ModelProtoOrIr", onnx.ModelProto, ir.Model)
-
 def optimize(
-    model: ModelProtoOrIr,
+    model: onnx.ModelProto,
     num_iterations: int = 2,
     *,
     onnx_shape_inference: bool = True,
     stop_if_no_change: bool = True,
     external_data_folder: str = "",
     **kwargs: Any,
-) -> ModelProtoOrIr:
+) -> onnx.ModelProto:
     """Optimize the model. Perform optimizations and clean-ups such as constant folding, dead code elimination, etc.
 
     Args:
@@ -66,8 +64,6 @@ def optimize(
             "This would turn off incremental onnx shape inference and rely on model carried shapes and types. "
             "See 'onnx_shape_inference' for more details."
         )
-    if isinstance(model, ir.Model):
-        return _optimize_ir(model, num_iterations, onnx_shape_inference=onnx_shape_inference, stop_if_no_change=stop_if_no_change)
     for _ in range(num_iterations):
         if onnx_shape_inference:
             if model.ByteSize() < 1024 * 1024 * 1024 * 2:
@@ -118,13 +114,13 @@ def optimize(
 
     return model
 
-def _optimize_ir(
+def optimize_ir(
     model: ir.Model,
     num_iterations: int = 2,
     *,
     onnx_shape_inference: bool = True,
     stop_if_no_change: bool = True,
-) -> ir.Model:
+) -> None:
     del stop_if_no_change  # Looks like rewriter doesn't support this yet.
     _inliner.inline(model)
     for _ in range(num_iterations):
@@ -134,11 +130,11 @@ def _optimize_ir(
             pattern_rewrite_rules=_default_rewrite_rules
         )
     remove_unused_nodes(model)
-    return model
     
 
 __all__ = [
     "fold_constants",
     "remove_unused_nodes",
     "optimize",
+    "optimize_ir",
 ]
