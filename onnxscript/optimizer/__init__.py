@@ -1,12 +1,15 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+from __future__ import annotations
+
 import logging
 from typing import Any
 
 import onnx
 import onnx.shape_inference
 
-from onnxscript import rewriter
+from onnxscript import ir, rewriter
+from onnxscript.optimizer import _constant_folding, _inliner
 from onnxscript.optimizer.constant_folding import fold_constants
 from onnxscript.optimizer.remove_unused import remove_unused_nodes
 from onnxscript.optimizer.remove_unused_function import remove_unused_functions
@@ -22,6 +25,13 @@ from onnxscript.rewriter import (
 )
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_REWRITE_RULES = [
+    *no_op.rules.rules,  # TODO: merge this rule into constant folding?
+    *broadcast_to_matmul.rules.rules,
+    gemm_to_matmul_add.rule,
+    *cast_constant_of_shape.rules.rules,
+]
 
 
 def optimize(
@@ -79,15 +89,7 @@ def optimize(
         model = remove_unused_functions(model)
         inline_functions_with_unused_outputs(model)
         # NOTE: This is general rewrite rules
-        model = rewriter.rewrite(
-            model,
-            pattern_rewrite_rules=[
-                *no_op.rules.rules,  # TODO: merge this rule into constant folding?
-                *broadcast_to_matmul.rules.rules,
-                gemm_to_matmul_add.rule,
-                *cast_constant_of_shape.rules.rules,
-            ],
-        )
+        model = rewriter.rewrite(model, pattern_rewrite_rules=_DEFAULT_REWRITE_RULES)
         if stop_if_no_change and not modified:
             logger.debug("Stopping after %d iterations.", _)
             break
@@ -109,8 +111,24 @@ def optimize(
     return model
 
 
+def optimize_ir(
+    model: ir.Model,
+    num_iterations: int = 2,
+    *,
+    onnx_shape_inference: bool = True,
+    stop_if_no_change: bool = True,
+) -> None:
+    del stop_if_no_change  # Looks like rewriter doesn't support this yet.
+    _inliner.inline(model)
+    for _ in range(num_iterations):
+        _constant_folding.fold_constants(model, onnx_shape_inference=onnx_shape_inference)
+        rewriter.rewrite(model, pattern_rewrite_rules=_DEFAULT_REWRITE_RULES)
+    remove_unused_nodes(model)
+
+
 __all__ = [
     "fold_constants",
     "remove_unused_nodes",
     "optimize",
+    "optimize_ir",
 ]

@@ -123,7 +123,7 @@ class _CopyReplace:
             num_outputs=len(node.outputs),
             graph=None,
             name=new_name,
-            doc_string=node.doc_string,
+            doc_string=node.doc_string,  # type: ignore
             metadata_props=new_metadata,
         )
         new_outputs = new_node.outputs
