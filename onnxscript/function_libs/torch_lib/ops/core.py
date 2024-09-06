@@ -345,8 +345,7 @@ def aten_all(self: TTensor) -> BOOL:
     else:
         self_bool = op.Cast(self, to=BOOL.dtype)
         self_int = op.Cast(self_bool, to=INT64.dtype)
-        empty_axes = op.Shape(self, start=0, end=0)
-        all_true = op.ReduceMin(self_int, empty_axes, keepdims=False)
+        all_true = op.ReduceMin(self_int, axes=op.Constant(value_ints=[]), keepdims=False)
         result = op.Cast(all_true, to=BOOL.dtype)
     return result
 
@@ -390,8 +389,7 @@ def aten_all_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
     else:
         self_bool = op.Cast(self, to=BOOL.dtype)
         self_int = op.Cast(self_bool, to=INT64.dtype)
-        empty_axes = op.Shape(self, start=0, end=0)
-        all_true = op.ReduceMin(self_int, empty_axes, keepdims=keepdims)
+        all_true = op.ReduceMin(self_int, axes=op.Constant(value_ints=[]), keepdims=keepdims)
         result = op.Cast(all_true, to=BOOL.dtype)
     return result
 
@@ -415,8 +413,10 @@ def aten_allclose(
 
     # If min is 0, some elements are not close -> allclose is False
     # If min is 1, all elements are close -> allclose is True
-    empty_axes = op.Shape(self, start=0, end=0)
-    return op.Cast(op.ReduceMin(is_close_int, empty_axes, keepdims=False), to=BOOL.dtype)
+    return op.Cast(
+        op.ReduceMin(is_close_int, axes=op.Constant(value_ints=[]), keepdims=False),
+        to=BOOL.dtype,
+    )
 
 
 def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
@@ -471,8 +471,7 @@ def aten_any(self: TTensor) -> BOOL:
         self_bool = op.Cast(self, to=BOOL.dtype)
         # op.ReduceMax() in the next step cannot process BOOL inputs, so convert to INT64
         self_int = op.Cast(self_bool, to=INT64.dtype)
-        empty_axes = op.Shape(self, start=0, end=0)
-        any_true = op.ReduceMax(self_int, empty_axes, keepdims=False)
+        any_true = op.ReduceMax(self_int, axes=op.Constant(value_ints=[]), keepdims=False)
         result = op.Cast(any_true, to=BOOL.dtype)
     return result
 
@@ -518,8 +517,7 @@ def aten_any_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
     else:
         self_bool = op.Cast(self, to=BOOL.dtype)
         self_int = op.Cast(self_bool, to=INT64.dtype)
-        empty_axes = op.Shape(self, start=0, end=0)
-        any_true = op.ReduceMax(self_int, empty_axes, keepdims=keepdims)
+        any_true = op.ReduceMax(self_int, axes=op.Constant(value_ints=[]), keepdims=keepdims)
         result = op.Cast(any_true, to=BOOL.dtype)
     return result
 
@@ -3291,8 +3289,9 @@ def aten_equal(self: TTensor, other: TTensor) -> BOOL:
     elementwise_equal = op.Equal(self, other)
     elementwise_equal_int = op.Cast(elementwise_equal, to=INT64.dtype)
     # ReduceMin does not support bool. So we cast to int64
-    empty_axes = op.Shape(self, start=0, end=0)
-    all_equal = op.ReduceMin(elementwise_equal_int, empty_axes, keepdims=False)
+    all_equal = op.ReduceMin(
+        elementwise_equal_int, axes=op.Constant(value_ints=[]), keepdims=False
+    )
     return op.Cast(all_equal, to=BOOL.dtype)
 
 
@@ -4259,8 +4258,7 @@ def aten_index_put_bool(
     # FIXME: ORT ArgMax fails on INT64 input even though ONNX allows it
     index_int = op.Cast(index, to=INT32.dtype)
     # if all False, return op.Identity(self)
-    empty_axes = op.Shape(self, start=0, end=0)
-    if op.ReduceSum(index_int, empty_axes) == 0:
+    if op.ReduceSum(index_int, axes=op.Constant(value_ints=[])) == 0:
         result = self
     else:
         # change array([F,F,T,F,F]) to array([2])
@@ -4491,8 +4489,10 @@ def aten_is_same_size(self: TTensor, other: TTensor) -> BOOL:
         other_shape = op.Shape(other)
         result_bool = op.Equal(self_shape, other_shape)
         result_int = op.Cast(result_bool, to=INT8.dtype)
-        empty_axes = op.Shape(self, start=0, end=0)
-        result = op.Cast(op.ReduceMin(result_int, empty_axes, keepdims=False), to=BOOL.dtype)
+        result = op.Cast(
+            op.ReduceMin(result_int, axes=op.Constant(value_ints=[]), keepdims=False),
+            to=BOOL.dtype,
+        )
 
     return result
 
@@ -5158,8 +5158,7 @@ def aten_max(self: TReal) -> TReal:
     if self_is_scalar:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-    empty_axes = op.Shape(self, start=0, end=0)
-    result = op.ReduceMax(self, empty_axes, keepdims=False)
+    result = op.ReduceMax(self, axes=op.Constant(value_ints=[]), keepdims=False)
 
     if self_is_scalar:
         result = op.Squeeze(result)
@@ -5199,8 +5198,7 @@ def aten_maximum_bool(self: BOOL, other: BOOL) -> BOOL:
 def aten_mean(self: TReal) -> TReal:
     """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
 
-    empty_axes = op.Shape(self, start=0, end=0)
-    result = op.ReduceMean(self, empty_axes)
+    result = op.ReduceMean(self, axes=op.Constant(value_ints=[]))
     return op.Squeeze(result)
 
 
@@ -5233,8 +5231,7 @@ def aten_meshgrid(tensors: Sequence[TensorType]) -> TensorType:
 def aten_min(self: TReal) -> TReal:
     """min(Tensor self) -> Tensor"""
 
-    empty_axes = op.Shape(self, start=0, end=0)
-    return op.ReduceMin(self, empty_axes, keepdims=False)
+    return op.ReduceMin(self, axes=op.Constant(value_ints=[]), keepdims=False)
 
 
 @torch_op("aten::min.dim", traceable=True)
@@ -8196,8 +8193,7 @@ def _aten_sum_dim_none(self: TReal, keepdim: bool = False) -> TReal:
     if self_is_scalar:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-    empty_axes = op.Shape(self, start=0, end=0)
-    result = op.ReduceSum(self, empty_axes, keepdims=keepdim)
+    result = op.ReduceSum(self, axes=op.Constant(value_ints=[]), keepdims=keepdim)
 
     if self_is_scalar:
         result = op.Squeeze(result)
@@ -8794,16 +8790,16 @@ def aten_var_correction(
 
 @torch_op("aten::var", private=True, traceable=True)
 def _aten_var_onnx(self: TReal, correction: float, keepdim: bool = False) -> TReal:
-    empty_axes = op.Shape(self, start=0, end=0)
-    mean = op.ReduceMean(self, empty_axes, keepdims=keepdim)
+    mean = op.ReduceMean(self, axes=op.Constant(value_ints=[]), keepdims=keepdim)
     sub_mean = op.Sub(self, mean)
     sqr_mean = op.Mul(sub_mean, sub_mean)
-    var = op.ReduceMean(sqr_mean, empty_axes, keepdims=keepdim)
+    var = op.ReduceMean(sqr_mean, axes=op.Constant(value_ints=[]), keepdims=keepdim)
     # Adjust var according to correction value
     if correction > 0.0:
         self_shape = op.Shape(self)
-        empty_axes = op.Shape(self, start=0, end=0)
-        numel_float = op.CastLike(op.ReduceProd(self_shape, empty_axes, keepdims=False), self)
+        numel_float = op.CastLike(
+            op.ReduceProd(self_shape, axes=op.Constant(value_ints=[]), keepdims=False), self
+        )
         mul = op.Mul(var, numel_float)
         sub = op.Sub(numel_float, op.CastLike(correction, self))
         var = op.Div(mul, sub)
@@ -8824,8 +8820,9 @@ def _aten_var_dim_onnx(
     if correction > 0.0:
         self_shape = op.Shape(self)
         dim_size = op.Gather(self_shape, dims, axis=0)
-        empty_axes = op.Shape(self, start=0, end=0)
-        numel_float = op.CastLike(op.ReduceProd(dim_size, empty_axes, keepdims=False), self)
+        numel_float = op.CastLike(
+            op.ReduceProd(dim_size, axes=op.Constant(value_ints=[]), keepdims=False), self
+        )
         mul = op.Mul(var, numel_float)
         sub = op.Sub(numel_float, op.CastLike(correction, self))
         var = op.Div(mul, sub)
@@ -8880,16 +8877,16 @@ def _aten_var_mean_onnx(
     self: TReal, correction: float = 1.0, keepdim: bool = False
 ) -> Tuple[TReal, TReal]:
     # Compute mean and var
-    empty_axes = op.Shape(self, start=0, end=0)
-    mean = op.ReduceMean(self, empty_axes, keepdims=keepdim)
+    mean = op.ReduceMean(self, axes=op.Constant(value_ints=[]), keepdims=keepdim)
     sub_mean = op.Sub(self, mean)
     sqr_mean = op.Mul(sub_mean, sub_mean)
-    var = op.ReduceMean(sqr_mean, empty_axes, keepdims=keepdim)
+    var = op.ReduceMean(sqr_mean, axes=op.Constant(value_ints=[]), keepdims=keepdim)
     # Adjust var according to correction value
     if correction > 0.0:
         self_shape = op.Shape(self)
-        empty_axes = op.Shape(self, start=0, end=0)
-        numel_float = op.CastLike(op.ReduceProd(self_shape, empty_axes, keepdims=False), self)
+        numel_float = op.CastLike(
+            op.ReduceProd(self_shape, axes=op.Constant(value_ints=[]), keepdims=False), self
+        )
         mul = op.Mul(var, numel_float)
         sub = op.Sub(numel_float, op.CastLike(correction, self))
         var = op.Div(mul, sub)
@@ -8911,8 +8908,9 @@ def _aten_var_mean_dim_onnx(
     if correction > 0.0:
         self_shape = op.Shape(self)
         dim_size = op.Gather(self_shape, dims, axis=0)
-        empty_axes = op.Shape(self, start=0, end=0)
-        numel_float = op.CastLike(op.ReduceProd(dim_size, empty_axes, keepdims=False), self)
+        numel_float = op.CastLike(
+            op.ReduceProd(dim_size, axes=op.Constant(value_ints=[]), keepdims=False), self
+        )
         mul = op.Mul(var, numel_float)
         sub = op.Sub(numel_float, op.CastLike(correction, self))
         var = op.Div(mul, sub)

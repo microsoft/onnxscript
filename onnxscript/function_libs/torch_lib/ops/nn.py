@@ -1296,11 +1296,10 @@ def aten_mse_loss(self: TReal, target: TReal, reduction: int = 1) -> TReal:
     """mse_loss(Tensor self, Tensor target, int reduction=Mean) -> Tensor"""
     # FIXME: When reduction=0, the shape(result) will be different than other case
     result = op.Mul(self - target, self - target)
-    empty_axes = op.Shape(self, start=0, end=0)
     if reduction == 1:  # mean
-        result = op.ReduceMean(result, empty_axes, keepdims=False)
+        result = op.ReduceMean(result, axes=op.Constant(value_ints=[]), keepdims=False)
     if reduction == 2:  # sum
-        result = op.ReduceSum(result, empty_axes, keepdims=False)
+        result = op.ReduceSum(result, axes=op.Constant(value_ints=[]), keepdims=False)
 
     return result
 

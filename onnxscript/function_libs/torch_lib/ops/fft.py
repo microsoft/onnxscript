@@ -36,8 +36,9 @@ def _fftn_onnx_normalization(
 ) -> TFloat:
     # Obtain the total_sample_count (n) for normalization
     self_shape = op.Shape(self)
-    empty_axes = op.Shape(self, start=0, end=0)
-    total_sample_count = op.ReduceProd(op.Gather(self_shape, dims), empty_axes, keepdims=0)
+    total_sample_count = op.ReduceProd(
+        op.Gather(self_shape, dims), axes=op.Constant(value_ints=[]), keepdims=0
+    )
     total_sample_count = op.CastLike(total_sample_count, transformed)
 
     # Normalize the result
