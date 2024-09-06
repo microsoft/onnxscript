@@ -122,7 +122,7 @@ def _optimize_ir(
     *,
     onnx_shape_inference: bool = True,
     stop_if_no_change: bool = True,
-) -> None:
+) -> ir.Model:
     del stop_if_no_change  # Looks like rewriter doesn't support this yet.
     _inliner.inline(model)
     for _ in range(num_iterations):
