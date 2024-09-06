@@ -8,10 +8,8 @@ from typing import Any
 import onnx
 import onnx.shape_inference
 
-from onnxscript import ir
-from onnxscript import rewriter
-from onnxscript.optimizer import _inliner
-from onnxscript.optimizer import _constant_folding
+from onnxscript import ir, rewriter
+from onnxscript.optimizer import _constant_folding, _inliner
 from onnxscript.optimizer.constant_folding import fold_constants
 from onnxscript.optimizer.remove_unused import remove_unused_nodes
 from onnxscript.optimizer.remove_unused_function import remove_unused_functions
