@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, TypeVar
 
 import onnx
 import onnx.shape_inference
@@ -35,15 +35,17 @@ _default_rewrite_rules=[
     *cast_constant_of_shape.rules.rules,
 ]
 
+ModelProtoOrIr = TypeVar("ModelProtoOrIr", onnx.ModelProto, ir.Model)
+
 def optimize(
-    model: onnx.ModelProto | ir.Model,
+    model: ModelProtoOrIr,
     num_iterations: int = 2,
     *,
     onnx_shape_inference: bool = True,
     stop_if_no_change: bool = True,
     external_data_folder: str = "",
     **kwargs: Any,
-) -> onnx.ModelProto | ir.Model:
+) -> ModelProtoOrIr:
     """Optimize the model. Perform optimizations and clean-ups such as constant folding, dead code elimination, etc.
 
     Args:
