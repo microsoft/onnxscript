@@ -35,9 +35,6 @@ _default_rewrite_rules=[
     *cast_constant_of_shape.rules.rules,
 ]
 
-for r in _default_rewrite_rules:
-    print(type(r))
-
 def optimize(
     model: onnx.ModelProto | ir.Model,
     num_iterations: int = 2,
