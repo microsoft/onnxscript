@@ -1,12 +1,17 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+from __future__ import annotations
+
 import logging
 from typing import Any
 
 import onnx
 import onnx.shape_inference
 
+from onnxscript import ir
 from onnxscript import rewriter
+from onnxscript.optimizer import _inliner
+from onnxscript.optimizer import _constant_folding
 from onnxscript.optimizer.constant_folding import fold_constants
 from onnxscript.optimizer.remove_unused import remove_unused_nodes
 from onnxscript.optimizer.remove_unused_function import remove_unused_functions
@@ -23,16 +28,25 @@ from onnxscript.rewriter import (
 
 logger = logging.getLogger(__name__)
 
+_default_rewrite_rules=[
+    *no_op.rules.rules,  # TODO: merge this rule into constant folding?
+    *broadcast_to_matmul.rules.rules,
+    gemm_to_matmul_add.rule,
+    *cast_constant_of_shape.rules.rules,
+]
+
+for r in _default_rewrite_rules:
+    print(type(r))
 
 def optimize(
-    model: onnx.ModelProto,
+    model: onnx.ModelProto | ir.Model,
     num_iterations: int = 2,
     *,
     onnx_shape_inference: bool = True,
     stop_if_no_change: bool = True,
     external_data_folder: str = "",
     **kwargs: Any,
-) -> onnx.ModelProto:
+) -> onnx.ModelProto | ir.Model:
     """Optimize the model. Perform optimizations and clean-ups such as constant folding, dead code elimination, etc.
 
     Args:
@@ -53,6 +67,8 @@ def optimize(
             "This would turn off incremental onnx shape inference and rely on model carried shapes and types. "
             "See 'onnx_shape_inference' for more details."
         )
+    if isinstance(model, ir.Model):
+        return _optimize_ir(model, num_iterations, onnx_shape_inference=onnx_shape_inference, stop_if_no_change=stop_if_no_change)
     for _ in range(num_iterations):
         if onnx_shape_inference:
             if model.ByteSize() < 1024 * 1024 * 1024 * 2:
@@ -81,12 +97,7 @@ def optimize(
         # NOTE: This is general rewrite rules
         model = rewriter.rewrite(
             model,
-            pattern_rewrite_rules=[
-                *no_op.rules.rules,  # TODO: merge this rule into constant folding?
-                *broadcast_to_matmul.rules.rules,
-                gemm_to_matmul_add.rule,
-                *cast_constant_of_shape.rules.rules,
-            ],
+            pattern_rewrite_rules=_default_rewrite_rules
         )
         if stop_if_no_change and not modified:
             logger.debug("Stopping after %d iterations.", _)
@@ -108,6 +119,24 @@ def optimize(
 
     return model
 
+def _optimize_ir(
+    model: ir.Model,
+    num_iterations: int = 2,
+    *,
+    onnx_shape_inference: bool = True,
+    stop_if_no_change: bool = True,
+) -> None:
+    del stop_if_no_change  # Looks like rewriter doesn't support this yet.
+    _inliner.inline(model)
+    for _ in range(num_iterations):
+        _constant_folding.fold_constants(model, onnx_shape_inference=onnx_shape_inference)
+        rewriter.rewrite(
+            model,
+            pattern_rewrite_rules=_default_rewrite_rules
+        )
+    remove_unused_nodes(model)
+    return model
+    
 
 __all__ = [
     "fold_constants",

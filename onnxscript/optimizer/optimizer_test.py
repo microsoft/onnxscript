@@ -5,12 +5,13 @@ import unittest
 
 import onnx
 
+import onnxscript.ir as ir
 import onnxscript.optimizer as optimizer
 
 
 class OptimizerTest(unittest.TestCase):
-    def test_static_split_to_sequence_with_uneven_split(self):
-        model = onnx.parser.parse_model(
+    def _model_proto(self) -> onnx.ModelProto:
+        return onnx.parser.parse_model(
             """
                 <
                     ir_version: 8,
@@ -59,11 +60,21 @@ class OptimizerTest(unittest.TestCase):
                 }
                 """
         )
-        optimized = optimizer.optimize(model, num_iterations=1, onnx_shape_inference=False)
+
+    def test_static_split_to_sequence_with_uneven_split_proto(self):
+        model_proto = self._model_proto()
+        optimized = optimizer.optimize(model_proto, num_iterations=1, onnx_shape_inference=False)
         self.assertEqual(len(optimized.graph.node), 2)
         self.assertEqual(len(optimized.graph.node[0].output), 2)
         self.assertEqual(optimized.graph.node[0].op_type, "Split")
 
+    def test_static_split_to_sequence_with_uneven_split_ir(self):
+        model_proto = self._model_proto()
+        model_ir = ir.serde.deserialize_model(model_proto)
+        optimized = optimizer.optimize(model_ir, num_iterations=1, onnx_shape_inference=False)
+        self.assertEqual(len(optimized.graph), 2)
+        self.assertEqual(len(optimized.graph.node(0).outputs), 2)
+        self.assertEqual(optimized.graph.node(0).op_type, "Split")
 
 if __name__ == "__main__":
     unittest.main()
