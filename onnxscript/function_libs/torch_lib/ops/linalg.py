@@ -345,18 +345,22 @@ def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool
     ord = op.Cast(ord, to=FLOAT.dtype)  # Must be FLOAT, due to op.IsInf() needs FLOAT
     # TODO(justinchuby): Evaluate IsInf in trace mode
     if op.IsInf(ord, detect_negative=0, detect_positive=1):
-        result = op.ReduceMax(self, keepdims=keepdim)
+        empty_axes = op.Shape(self, start=0, end=0)
+        result = op.ReduceMax(self, empty_axes, keepdims=keepdim)
     elif op.IsInf(ord, detect_negative=1, detect_positive=0):
-        result = op.ReduceMin(self, keepdims=keepdim)
+        empty_axes = op.Shape(self, start=0, end=0)
+        result = op.ReduceMin(self, empty_axes, keepdims=keepdim)
     elif ord == 0.0:  # sum(x!=0) means count non-zero elements
         self_bool = op.Cast(self, to=BOOL.dtype)
         self_0_1 = op.CastLike(self_bool, self)
-        result = op.ReduceSum(self_0_1, keepdims=False)
+        empty_axes = op.Shape(self, start=0, end=0)
+        result = op.ReduceSum(self_0_1, empty_axes, keepdims=False)
     # TODO(microsoft/onnxruntime#18338): Use ReduceL1/L2 when ONNX Runtime is fixed
     else:
         ord_float = op.CastLike(ord, self)
         self_pow = op.Pow(self, ord_float)
-        result = op.Pow(op.ReduceSum(self_pow, keepdims=keepdim), op.Div(1.0, ord_float))
+        empty_axes = op.Shape(self, start=0, end=0)
+        result = op.Pow(op.ReduceSum(self_pow, empty_axes, keepdims=keepdim), op.Div(1.0, ord_float))
 
     if self_is_scalar:
         result = op.Squeeze(result)
