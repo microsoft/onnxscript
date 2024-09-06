@@ -8798,7 +8798,7 @@ def _aten_var_onnx(self: TReal, correction: float, keepdim: bool = False) -> TRe
     mean = op.ReduceMean(self, empty_axes, keepdims=keepdim)
     sub_mean = op.Sub(self, mean)
     sqr_mean = op.Mul(sub_mean, sub_mean)
-    var = op.ReduceMean(sqr_mean, empty, keepdims=keepdim)
+    var = op.ReduceMean(sqr_mean, empty_axes, keepdims=keepdim)
     # Adjust var according to correction value
     if correction > 0.0:
         self_shape = op.Shape(self)
@@ -8884,7 +8884,7 @@ def _aten_var_mean_onnx(
     mean = op.ReduceMean(self, empty_axes, keepdims=keepdim)
     sub_mean = op.Sub(self, mean)
     sqr_mean = op.Mul(sub_mean, sub_mean)
-    var = op.ReduceMean(sqr_mean, empty, keepdims=keepdim)
+    var = op.ReduceMean(sqr_mean, empty_axes, keepdims=keepdim)
     # Adjust var according to correction value
     if correction > 0.0:
         self_shape = op.Shape(self)
