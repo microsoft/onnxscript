@@ -138,17 +138,11 @@ def aten_abs(self: TRealOrUInt8) -> TRealOrUInt8:
     return op.Abs(self)
 
 
-@torch_op("aten::abs", complex=True)
+@torch_op("aten::abs", complex=True, traceable=True)
 def aten_abs_complex(self: TRealOrUInt8) -> TRealOrUInt8:
     """abs(Tensor self) -> Tensor"""
-    # self_real = self[..., 0]
-    self_real = op.Slice(self, [0], [1], axes=[-1])
-    # self_imag = self[..., 1]
-    self_imag = op.Slice(self, [1], [2], axes=[-1])
-    real_pow = op.Pow(self_real, 2)
-    imag_pow = op.Pow(self_imag, 2)
-    real_plus_imag = op.Add(real_pow, imag_pow)
-    return op.Squeeze(op.Sqrt(real_plus_imag), axes=[-1])
+
+    return op.ReduceL2(self, [-1], keepdims=False)
 
 
 @torch_op("aten::acos", traceable=True)
@@ -3570,7 +3564,7 @@ def aten_flipud(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::floor")
+@torch_op("aten::floor", traceable=True)
 def aten_floor(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """floor(Tensor self) -> Tensor"""
 
@@ -3584,11 +3578,20 @@ def python_math_floor(self: TFloatOrBFloat16) -> TInt:
     return op.Cast(floor, to=INT64.dtype)
 
 
-@torch_op(("aten::floor_divide", "_operator::floordiv"))
+@torch_op(("aten::floor_divide", "_operator::floordiv"), traceable=True)
 def aten_floor_divide(self: TFloat, other: TFloat) -> TFloat:
     """floor_divide(Tensor self, Tensor other) -> Tensor"""
 
     return op.Floor(op.Div(self, other))
+
+
+@torch_op(("aten::floor_divide", "_operator::floordiv"), traceable=True)
+def aten_floor_divide_int(self: TInt, other: TInt) -> TInt:
+    """floor_divide(Tensor self, Tensor other) -> Tensor"""
+
+    # We implement floor_divide only for positive inputs (using integer division)
+    # because that is the usual intended case and is the most efficient.
+    return op.Div(self, other)
 
 
 def aten_fmax(self: TensorType, other: TensorType) -> TensorType:
@@ -3603,14 +3606,14 @@ def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::fmod.Tensor", "aten::fmod.Scalar"))
+@torch_op(("aten::fmod.Tensor", "aten::fmod.Scalar"), traceable=True)
 def aten_fmod(self: TRealOrUInt8, other: TRealOrUInt8) -> TRealOrUInt8:
     """fmod.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.Mod(self, other, fmod=1)
 
 
-@torch_op("aten::frac")
+@torch_op("aten::frac", traceable=True)
 def aten_frac(self: TFloat) -> TFloat:
     """frac(Tensor self) -> Tensor
 

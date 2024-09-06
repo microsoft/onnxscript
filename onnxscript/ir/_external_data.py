@@ -100,6 +100,7 @@ def _load_external_data_file(
             if os.path.samefile(tensor.path, os.path.join(base_path, relative_path)):
                 # Copy the data as the .numpy() call references data from a file whose data is eventually modified
                 tensor_data = external_tensor.numpy().copy()
+                external_tensor.release()
                 tensor = _core.Tensor(
                     tensor_data, name=external_tensor.name, dtype=external_tensor.dtype
                 )
@@ -165,6 +166,8 @@ def _save_external_data(
             current_offset = tensor_info.offset
             assert tensor is not None
             raw_data = tensor.tobytes()
+            if isinstance(tensor, _core.ExternalTensor):
+                tensor.release()
             # Pad file to required offset if needed
             file_size = data_file.tell()
             if current_offset > file_size:
@@ -223,6 +226,7 @@ def convert_tensors_to_external(
     path = os.path.join(base_path, relative_path)
     # Check if file path is valid, and create subsequent subdirectories within the path if they don't exist
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp_file_created = False
     # Check if file exists. Load pre-existing external data if it does.
     if os.path.exists(path):
         # Check if any tensor in the model is using the destination file
@@ -241,6 +245,7 @@ def convert_tensors_to_external(
                 os.makedirs(tmp_path, exist_ok=True)
                 # If exisiting external tensors are not loaded to memory, copy the external data to a temporary location
                 os.rename(path, os.path.join(tmp_path, relative_path))
+                tmp_file_created = True
                 for tensor in tensors:
                     if (
                         isinstance(tensor, _core.ExternalTensor)
@@ -270,6 +275,12 @@ def convert_tensors_to_external(
         external_tensors[i]
         for i in sorted(range(len(external_tensors)), key=lambda i: sorted_indices[i])
     ]
+
+    # Clean-up temporary file if it is created
+    tmp_path = os.path.join(base_path, "tmp", relative_path)
+    if os.path.exists(tmp_path) and tmp_file_created:
+        os.remove(tmp_path)
+
     return external_tensors
 
 
