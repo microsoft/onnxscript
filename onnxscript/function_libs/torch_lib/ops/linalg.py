@@ -360,7 +360,9 @@ def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool
         ord_float = op.CastLike(ord, self)
         self_pow = op.Pow(self, ord_float)
         empty_axes = op.Shape(self, start=0, end=0)
-        result = op.Pow(op.ReduceSum(self_pow, empty_axes, keepdims=keepdim), op.Div(1.0, ord_float))
+        result = op.Pow(
+            op.ReduceSum(self_pow, empty_axes, keepdims=keepdim), op.Div(1.0, ord_float)
+        )
 
     if self_is_scalar:
         result = op.Squeeze(result)
