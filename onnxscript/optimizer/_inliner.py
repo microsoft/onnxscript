@@ -19,7 +19,11 @@ NodeReplacement = Tuple[Sequence[ir.Node], Sequence[ir.Value]]
 # outermost call site, and the last element is the innermost call site. This is used
 # primarily for generating unique names for values in the inlined functions.
 CallSiteId = str
-CallStack = list[CallSiteId]
+try:
+    CallStack = list[CallSiteId]
+except TypeError:
+    # python 3.8
+    CallStack = list
 
 
 def _make_unique_name(name: str, callstack: CallStack, used_names: set[str]) -> str:
