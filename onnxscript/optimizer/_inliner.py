@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Iterable, Sequence, Tuple
+from typing import Iterable, List, Sequence, Tuple
 
 import onnxscript.ir as ir
 import onnxscript.ir.convenience as ir_convenience
@@ -19,7 +19,7 @@ NodeReplacement = Tuple[Sequence[ir.Node], Sequence[ir.Value]]
 # outermost call site, and the last element is the innermost call site. This is used
 # primarily for generating unique names for values in the inlined functions.
 CallSiteId = str
-CallStack = list[CallSiteId]
+CallStack = List[CallSiteId]
 
 
 def _make_unique_name(name: str, callstack: CallStack, used_names: set[str]) -> str:
