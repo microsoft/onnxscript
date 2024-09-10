@@ -1321,12 +1321,13 @@ def sample_inputs__scaled_dot_product_efficient_attention(
     make = opinfo_core.partial(
         opinfo_core.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
     )
-    batch, seq_q, seq_kv, num_heads, head_dim = 4, 3, 6, 4, 8
+    batch, seq_q, seq_kv, num_heads, head_dim = 2, 3, 6, 4, 8
 
     dim_4_q_shape = (batch, num_heads, seq_q, head_dim)
     dim_4_kv_shape = (batch, num_heads, seq_kv, head_dim)
 
     qkv_shapes = [(dim_4_q_shape, dim_4_kv_shape)]
+
     samples = []
     for qkv_shape, is_causal, dropout_p, compute_log_sumexp in opinfo_core.product(
         qkv_shapes, [True, False], [0.0], [True, False]
@@ -1337,7 +1338,7 @@ def sample_inputs__scaled_dot_product_efficient_attention(
                 make(shape_q),
                 make(shape_kv),
                 make(shape_kv),
-                attn_bias=None,
+                attn_bias=None,  # TODO: Add attn_bias
                 is_causal=is_causal,
                 dropout_p=dropout_p,
                 compute_log_sumexp=compute_log_sumexp,
@@ -1995,6 +1996,21 @@ OP_DB: List[opinfo_core.OpInfo] = [
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs__fft_r2c,
         supports_out=False,
+    ),
+    opinfo_core.BinaryUfuncInfo(
+        "ops.aten.floor_divide",
+        aten_name="floor_divide",
+        dtypes=common_dtype.floating_types_and_half(),
+        rhs_make_tensor_kwargs=dict(exclude_zero=True),
+    ),
+    opinfo_core.BinaryUfuncInfo(
+        "ops.aten.floor_divide.int",
+        aten_name="floor_divide",
+        op=torch.ops.aten.floor_divide,
+        dtypes=common_dtype.integral_types(),
+        # Create only positive inputs
+        lhs_make_tensor_kwargs=dict(low=0),
+        rhs_make_tensor_kwargs=dict(exclude_zero=True, low=0),
     ),
     opinfo_core.OpInfo(
         "ops.aten.index.Tensor",

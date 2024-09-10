@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "License :: OSI Approved :: MIT License",
 ]
-dependencies = ["numpy", "onnx>=1.16", "typing_extensions", "ml_dtypes"]
+dependencies = ["numpy", "onnx>=1.16", "typing_extensions", "ml_dtypes", "packaging"]
 
 [tool.setuptools.packages.find]
 include = ["onnxscript*"]
@@ -193,6 +193,7 @@ ignore = [
     "PERF401", # List comprehension is not always readable
     "PYI041", # int | float is more clear
     "RUF022", # We don't need to sort __all__ for elements to be grouped
+    "RUF031", # Parentheses for tuple in subscripts is more readable
     "SIM102", # Collapible if statements are not always more readable
     "SIM108", # We don't always encourage ternary operators
     "SIM114", # Don't always combine if branches for debugability
@@ -209,7 +210,7 @@ ignore-init-module-imports = true
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["TID252"] # Allow relative imports in init files
 "setup.py" = ["TID251"] # pathlib is allowed in supporting code
-"**/{examples,tests,docs,tools,utils,opgen}/*" = ["TID251"] # pathlib is allowed in supporting code
+"**/{examples,tests,docs,tools,utils,opgen,_framework_apis}/*" = ["TID251"] # pathlib is allowed in supporting code
 "**/*_test.py" = ["TID251"] # pathlib is allowed in tests
 
 [tool.ruff.lint.flake8-tidy-imports]

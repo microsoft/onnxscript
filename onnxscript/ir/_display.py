@@ -11,8 +11,6 @@ from __future__ import annotations
 
 from typing import Any
 
-_LONG_TEXT_LIMIT = 3000
-
 
 def require_rich() -> Any:
     """Raise an ImportError if rich is not installed."""
@@ -24,11 +22,11 @@ def require_rich() -> Any:
 
 
 class PrettyPrintable:
-    def display(self, *, page: bool | None = None) -> None:
+    def display(self, *, page: bool = False) -> None:
         """Pretty print the object.
 
         Args:
-            page: Whether to page the output if it is too long.
+            page: Whether to page the output.
         """
         rich = require_rich()
         text = str(self)
@@ -41,16 +39,11 @@ class PrettyPrintable:
             )
             return
 
-        if page is None and len(text) > _LONG_TEXT_LIMIT:
-            # By default, page the output if it is too long
-            page = True
         if page:
             import rich.console
-            import rich.syntax
 
             console = rich.console.Console()
-            syntax = rich.syntax.Syntax(text, "cpp", theme="ansi_light")
-            with console.pager(styles=True):
-                console.print(syntax)
+            with console.pager():
+                console.print(text)
         else:
             rich.print(text)

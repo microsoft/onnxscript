@@ -6,7 +6,25 @@ __all__ = [
     # Modules
     "serde",
     # IR classes
+    "Tensor",
+    "ExternalTensor",
+    "StringTensor",
+    "SymbolicDim",
+    "Shape",
+    "TensorType",
+    "OptionalType",
+    "SequenceType",
+    "SparseTensorType",
+    "TypeAndShape",
+    "Value",
     "Attr",
+    "RefAttr",
+    "Node",
+    "Function",
+    "Graph",
+    "GraphView",
+    "Model",
+    # Constructors
     "AttrFloat32",
     "AttrFloat32s",
     "AttrGraph",
@@ -19,26 +37,9 @@ __all__ = [
     "AttrStrings",
     "AttrTensor",
     "AttrTensors",
-    "TypeAndShape",
     "AttrTypeProto",
     "AttrTypeProtos",
-    "SymbolicDim",
-    "ExternalTensor",
-    "StringTensor",
-    "Function",
-    "Graph",
-    "GraphView",
     "Input",
-    "Model",
-    "Node",
-    "RefAttr",
-    "Shape",
-    "Tensor",
-    "Value",
-    "TensorType",
-    "OptionalType",
-    "SequenceType",
-    "SparseTensorType",
     # Protocols
     "ArrayCompatible",
     "DLPackCompatible",
@@ -71,6 +72,9 @@ __all__ = [
     # Pass infrastructure
     "passes",
     "traversal",
+    # IO
+    "load",
+    "save",
 ]
 
 from onnxscript.ir import passes, serde, traversal
@@ -114,6 +118,7 @@ from onnxscript.ir._enums import (
     AttributeType,
     DataType,
 )
+from onnxscript.ir._io import load, save
 from onnxscript.ir._protocols import (
     ArrayCompatible,
     AttributeProtocol,

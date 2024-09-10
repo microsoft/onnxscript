@@ -71,9 +71,11 @@ def process_function_or_graph(function_or_graph: ir.Function | ir.Graph) -> int:
             if onnx_opset_version is not None:
                 remove_unused_optional_outputs(node, graph_outputs, onnx_opset_version)
             for attr in node.attributes.values():
-                if isinstance(attr, ir.AttrGraph):
+                if not isinstance(attr, ir.Attr):
+                    continue
+                if attr.type == ir.AttributeType.GRAPH:
                     count += process_function_or_graph(attr.value)
-                elif isinstance(attr, ir.AttrGraphs):
+                elif attr.type == ir.AttributeType.GRAPHS:
                     for graph in attr.value:
                         count += process_function_or_graph(graph)
     return count

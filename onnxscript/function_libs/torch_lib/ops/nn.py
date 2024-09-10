@@ -37,6 +37,9 @@ from onnxscript.onnx_types import TensorType
 _MATH_PI = math.pi
 Rank = common_ops.Rank
 
+_INT64_MAX = 9223372036854775807
+_INT64_MIN = -9223372036854775808
+
 # All float types but float32
 TFloatUnlessFloat32 = TypeVar("TFloatUnlessFloat32", bound=Union[BFLOAT16, FLOAT16, DOUBLE])
 
@@ -293,7 +296,7 @@ def aten_binary_cross_entropy_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::celu")
+@torch_op("aten::celu", traceable=True)
 def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
     """celu(Tensor self, Scalar alpha=1.0) -> Tensor"""
 
@@ -386,7 +389,7 @@ def aten_cross_entropy_loss(
     return result
 
 
-@torch_op("aten::elu")
+@torch_op("aten::elu", traceable=True)
 def aten_elu(
     self: TFloat,
     alpha: float = 1.0,
@@ -395,9 +398,10 @@ def aten_elu(
 ) -> TFloat:
     """elu(Tensor self, Scalar alpha=1, Scalar scale=1, Scalar input_scale=1) -> Tensor"""
 
-    # del scale
-    # del input_scale
-    return op.Elu(self, alpha=alpha)
+    input_scale = op.CastLike(input_scale, self)
+    scale = op.CastLike(scale, self)
+    self = op.Mul(self, input_scale)
+    return op.Mul(op.Elu(self, alpha=alpha), scale)
 
 
 def aten_elu_backward(
@@ -599,7 +603,7 @@ def aten_glu_jvp(glu: TensorType, x: TensorType, dx: TensorType, dim: int) -> Te
     raise NotImplementedError()
 
 
-@torch_op("aten::hardsigmoid")
+@torch_op("aten::hardsigmoid", traceable=True)
 def aten_hardsigmoid(self: TFloat) -> TFloat:
     """hardsigmoid(Tensor self) -> Tensor"""
 
@@ -822,7 +826,7 @@ def aten_leaky_relu_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::linear")
+# NOTE: Do not register - We rely on PyTorch decomposition to aten_addmm (Gemm)
 def aten_linear(input: TFloat, weight: TFloat) -> TFloat:
     """linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor"""
 
@@ -833,7 +837,7 @@ def aten_linear(input: TFloat, weight: TFloat) -> TFloat:
     return op.MatMul(input, weight_transposed)
 
 
-@torch_op("aten::linear")
+# NOTE: Do not register - We rely on PyTorch decomposition to aten_addmm (Gemm)
 def aten_linear_bias(input: TFloat, weight: TFloat, bias: TFloat) -> TFloat:
     """linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor"""
 
@@ -1580,7 +1584,7 @@ def aten_reflection_pad3d_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::relu")
+@torch_op("aten::relu", traceable=True)
 def aten_relu(self: TReal) -> TReal:
     """relu(Tensor self) -> Tensor"""
 
@@ -1716,7 +1720,6 @@ def aten_rrelu_with_noise_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::scaled_dot_product_attention", private=True)
 def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     """Create a causal mask for the given query and key tensors.
 
@@ -1732,20 +1735,30 @@ def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     Returns:
         Tensor of shape [L, S]
     """
-    target_length = op.Shape(query)[-2:-1]
-    source_length = op.Shape(key)[-2:-1]
+    q_shape = op.Shape(query)
+    k_shape = op.Shape(key)
+
+    target_length = op.Slice(
+        q_shape, op.Constant(value_ints=[-2]), op.Constant(value_ints=[-1])
+    )
+    source_length = op.Slice(
+        k_shape, op.Constant(value_ints=[-2]), op.Constant(value_ints=[-1])
+    )
     # attn_mask = torch.ones(L, S) := {
     size = op.Concat(target_length, source_length, axis=0)
-    attn_mask = op.Expand(1.0, size)
+    attn_mask = op.Expand(op.Constant(value_float=1.0), size)
     # }
     attn_mask = op.Trilu(attn_mask, upper=0)
     # The causal mask has 0s in the lower triangle and -inf in the upper triangle.
-    attn_mask = op.Where(op.Equal(attn_mask, 0.0), op.Constant(value_float=-float("inf")), 0.0)
+    attn_mask = op.Where(
+        op.Equal(attn_mask, op.Constant(value_float=0.0)),
+        op.Constant(value_float=-float("inf")),
+        op.Constant(value_float=0.0),
+    )
     attn_mask = op.CastLike(attn_mask, query)
     return attn_mask
 
 
-@torch_op("aten::scaled_dot_product_attention", private=True)
 def _attention_scale(query: TFloat) -> TFloat:
     """Calculate the scale factor for the attention result.
 
@@ -1755,8 +1768,12 @@ def _attention_scale(query: TFloat) -> TFloat:
     Returns:
         Scalar scale factor := 1 / math.sqrt(query.size(-1))
     """
-    embedding_size = op.CastLike(op.Shape(query)[-1], query)
-    scale = op.Div(1.0, op.Sqrt(embedding_size))
+    q_shape = op.Shape(query)
+    q_last_dim = op.Gather(q_shape, op.Constant(value_ints=[-1]))
+    embedding_size = op.CastLike(q_last_dim, query)
+    one = op.Constant(value_float=1.0)
+    cast_one = op.CastLike(one, query)
+    scale = op.Div(cast_one, op.Sqrt(embedding_size))
     return scale
 
 
@@ -1769,8 +1786,9 @@ def aten_scaled_dot_product_attention(
     dropout_p: float = 0.0,
     is_causal: bool = False,
     scale: Optional[float] = None,
+    enable_gqa: bool = False,
 ) -> TFloat:
-    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor
+    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None, bool enable_gqa=False) -> Tensor
 
     Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
 
@@ -1790,6 +1808,10 @@ def aten_scaled_dot_product_attention(
         is_causal and attn_mask is None
     ), "is_causal and attn_mask cannot be set at the same time"
 
+    assert (
+        not enable_gqa
+    ), "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
+
     # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     if scale is None:
         scale = _attention_scale(query)
@@ -1808,7 +1830,6 @@ def aten_scaled_dot_product_attention(
     )
 
 
-@torch_op("aten::_scaled_dot_product_flash_attention", private=True)
 def _aten__scaled_dot_product_flash_attention_fillin_empty_outputs(
     query: TFloat,
 ) -> Tuple[FLOAT, INT64, INT64, FLOAT]:
@@ -1884,9 +1905,9 @@ def _aten_scaled_dot_product_efficient_attention_fillin_empty_outputs(
 
     query = op.Transpose(query, perm=[0, 2, 1, 3])
     query_shape = op.Shape(query)
-    query_first_dims = query_shape[:1]
-    query_second_dims = query_shape[1:2]
-    num_heads = query_shape[-2:-1]
+    query_first_dims = op.Slice(query_shape, op.Constant(value_ints=[_INT64_MIN]), [1])
+    query_second_dims = op.Slice(query_shape, [1], [2])
+    num_heads = op.Slice(query_shape, [-2], [-1])
 
     if compute_log_sumexp:
         logsumexp_dim = op.Cast(
@@ -1954,7 +1975,7 @@ def aten__scaled_dot_product_efficient_attention(
     """_scaled_dot_product_efficient_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_bias, bool compute_log_sumexp, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> (Tensor output, Tensor log_sumexp, Tensor philox_seed, Tensor philox_offset)"""
 
     result = aten_scaled_dot_product_attention(
-        query, key, value, dropout_p=dropout_p, is_causal=is_causal, scale=scale
+        query, key, value, attn_bias, dropout_p=dropout_p, is_causal=is_causal, scale=scale
     )
 
     # The followings are not comsumed by the graph.
@@ -1982,8 +2003,9 @@ def aten_scaled_dot_product_attention_bool_mask(
     dropout_p: float = 0.0,
     is_causal: bool = False,
     scale: Optional[float] = None,
+    enable_gqa: bool = False,
 ) -> TFloat:
-    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor
+    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None, bool enable_gqa=False) -> Tensor
 
     Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
 
@@ -2002,6 +2024,10 @@ def aten_scaled_dot_product_attention_bool_mask(
     assert (not is_causal) or (
         is_causal and attn_mask is None
     ), "is_causal and attn_mask cannot be set at the same time"
+
+    assert (
+        not enable_gqa
+    ), "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
 
     if scale is None:
         scale = _attention_scale(query)
@@ -2024,7 +2050,6 @@ def aten_scaled_dot_product_attention_bool_mask(
     )
 
 
-@torch_op("aten::scaled_dot_product_attention", private=True)
 def _aten_scaled_dot_product_attention_no_mask_onnx(
     query: TFloat,
     key: TFloat,
@@ -2034,9 +2059,9 @@ def _aten_scaled_dot_product_attention_no_mask_onnx(
 ) -> TFloat:
     # Swap the last two axes of key
     key_shape = op.Shape(key)
-    key_last_dim = key_shape[-1:]
-    key_second_last_dim = key_shape[-2:-1]
-    key_first_dims = key_shape[:-2]
+    key_last_dim = op.Slice(key_shape, [-1], op.Constant(value_ints=[_INT64_MAX]))
+    key_second_last_dim = op.Slice(key_shape, [-2], [-1])
+    key_first_dims = op.Slice(key_shape, op.Constant(value_ints=[_INT64_MIN]), [-2])
     # Contract the dimensions that are not the last two so we can transpose
     # with a static permutation.
     key_squeezed_shape = op.Concat(
@@ -2059,7 +2084,6 @@ def _aten_scaled_dot_product_attention_no_mask_onnx(
     return op.MatMul(attn_weight, value)
 
 
-@torch_op("aten::scaled_dot_product_attention", private=True)
 def _aten_scaled_dot_product_attention_bool_mask_onnx(
     query: TFloat,
     key: TFloat,
@@ -2070,9 +2094,9 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
 ) -> TFloat:
     # Swap the last two axes of key
     key_shape = op.Shape(key)
-    key_last_dim = key_shape[-1:]
-    key_second_last_dim = key_shape[-2:-1]
-    key_first_dims = key_shape[:-2]
+    key_last_dim = op.Slice(key_shape, [-1], op.Constant(value_ints=[_INT64_MAX]))
+    key_second_last_dim = op.Slice(key_shape, [-2], [-1])
+    key_first_dims = op.Slice(key_shape, op.Constant(value_ints=[_INT64_MIN]), [-2])
     # Contract the dimensions that are not the last two so we can transpose
     # with a static permutation.
     key_squeezed_shape = op.Concat(
@@ -2088,7 +2112,9 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
     query_scaled = op.Mul(query, op.Sqrt(scale))
     key_transposed_scaled = op.Mul(key_transposed, op.Sqrt(scale))
     # Turn the Boolean mask to float: attn_mask.masked_fill(not attn_mask, -float('inf'))
-    attn_mask = op.Where(attn_mask, 0.0, op.Constant(value_float=-float("inf")))
+    attn_mask = op.Where(
+        attn_mask, op.Constant(value_float=0.0), op.Constant(value_float=-float("inf"))
+    )
     attn_weight = op.Softmax(
         op.Add(op.MatMul(query_scaled, key_transposed_scaled), attn_mask),
         axis=-1,
@@ -2097,7 +2123,6 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
     return op.MatMul(attn_weight, value)
 
 
-@torch_op("aten::scaled_dot_product_attention", private=True)
 def _aten_scaled_dot_product_attention_float_mask_onnx(
     query: TFloat,
     key: TFloat,
@@ -2108,9 +2133,9 @@ def _aten_scaled_dot_product_attention_float_mask_onnx(
 ) -> TFloat:
     # Swap the last two axes of key
     key_shape = op.Shape(key)
-    key_last_dim = key_shape[-1:]
-    key_second_last_dim = key_shape[-2:-1]
-    key_first_dims = key_shape[:-2]
+    key_last_dim = op.Slice(key_shape, [-1], op.Constant(value_ints=[_INT64_MAX]))
+    key_second_last_dim = op.Slice(key_shape, [-2], [-1])
+    key_first_dims = op.Slice(key_shape, op.Constant(value_ints=[_INT64_MIN]), [-2])
     # Contract the dimensions that are not the last two so we can transpose
     # with a static permutation.
     key_squeezed_shape = op.Concat(

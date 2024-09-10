@@ -15,6 +15,7 @@ from __future__ import annotations
 import abc
 import contextlib
 import dataclasses
+import heapq
 import math
 import mmap
 import os
@@ -116,7 +117,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         # Use math.ceil because when dtype is INT4, the itemsize is 0.5
         return math.ceil(self.dtype.itemsize * self.size)
 
-    def display(self, *, page: bool | None = None) -> None:
+    def display(self, *, page: bool = False) -> None:
         rich = _display.require_rich()
 
         if rich is None:
@@ -169,7 +170,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
             import rich.console  # type: ignore[import-not-found, no-redef]  # pylint: disable=import-outside-toplevel
 
             console = rich.console.Console()
-            with console.pager(styles=True):
+            with console.pager():
                 console.print(text)
         else:
             rich.print(text)
@@ -470,11 +471,17 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
     To obtain an array, call :meth:`numpy`. To obtain the bytes,
     call :meth:`tobytes`.
 
-    The :attr:`path` can be a relative path or an absolute path.
-    Serializers should handle the path correctly to conform with the ONNX spec.
+    The :attr:`location` must be a relative path conforming to the ONNX
+    specification. Given the correct :attr:`base_dir`, the :attr:`path` is computed
+    to be the full path to the data file. Users should expect that the :attr:`path`
+    always leads to the correct file. At initialization, paths are not checked.
+    It is the user's responsibility to ensure the paths are valid and accessible.
 
     Attributes:
-        path: The path to the data file. This can be a relative path or an absolute path.
+        location: The location of the data file. It is the path relative to the base directory.
+        base_dir: The base directory for the external data. It is used to resolve relative paths.
+            At serialization, only the :attr:`location` is serialized into the "location" field of the ``TensorProto``.
+        path: The path to the data file. This is computed by joining :attr:`base_dir` and :attr:`location`.
         offset: The offset in bytes from the start of the file.
         length: The length of the data in bytes.
         dtype: The data type of the tensor.
@@ -486,12 +493,13 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
 
     __slots__ = (
         "_array",
+        "_base_dir",
         "_dtype",
         "_length",
+        "_location",
         "_metadata",
         "_metadata_props",
         "_offset",
-        "_path",
         "_shape",
         "doc_string",
         "name",
@@ -500,7 +508,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
 
     def __init__(
         self,
-        path: os.PathLike | str,
+        location: os.PathLike | str,
         offset: int | None,
         length: int | None,
         dtype: _enums.DataType,
@@ -509,8 +517,31 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         name: str,
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
+        base_dir: os.PathLike | str = "",
     ) -> None:
-        self._path = path
+        """Initialize an external tensor.
+
+        Args:
+            location: The location of the data file. It is the path relative to the base directory.
+            offset: The offset in bytes from the start of the file.
+            length: The length of the data in bytes.
+            dtype: The data type of the tensor.
+            shape: The shape of the tensor.
+            name: The name of the tensor..
+            doc_string: The documentation string.
+            metadata_props: The metadata properties.
+            base_dir: The base directory for the external data. It is used to resolve relative paths.
+        """
+        # NOTE: Do not verify the location by default. This is because the location field
+        # in the tensor proto can be anything and we would like deserialization from
+        # proto to IR to not fail.
+        if onnxscript.DEBUG:
+            if os.path.isabs(location):
+                raise ValueError(
+                    "The location must be a relative path. Please specify base_dir as well."
+                )
+        self._location = location
+        self._base_dir = base_dir
         self._offset: int | None = offset
         self._length: int | None = length
         self._dtype: _enums.DataType = dtype
@@ -524,9 +555,23 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         self._metadata: _metadata.MetadataStore | None = None
 
     @property
-    def path(self) -> str | os.PathLike:
+    def base_dir(self) -> str | os.PathLike:
+        # Mutable
+        return self._base_dir
+
+    @base_dir.setter
+    def base_dir(self, value: str | os.PathLike) -> None:
+        self._base_dir = value
+
+    @property
+    def location(self) -> str | os.PathLike:
         # Immutable
-        return self._path
+        return self._location
+
+    @property
+    def path(self) -> str:
+        # Immutable, computed
+        return os.path.join(self._base_dir, self._location)
 
     @property
     def offset(self) -> int | None:
@@ -556,7 +601,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             return
         # Map the whole file into the memory
         # TODO(justinchuby): Verify if this would exhaust the memory address space
-        with open(self._path, "rb") as f:
+        with open(self.path, "rb") as f:
             self.raw = mmap.mmap(
                 f.fileno(),
                 0,
@@ -599,7 +644,10 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         )
 
     def __repr__(self) -> str:
-        return f"{self._repr_base()}(path='{self._path}', name={self.name!r}, offset={self._offset!r}), length={self._length!r})"
+        return (
+            f"{self._repr_base()}(location='{self.location}', name={self.name!r}, "
+            f"offset={self.offset!r}, length={self.length!r}, base_dir={self.base_dir!r})"
+        )
 
     def numpy(self) -> np.ndarray:
         """Return the tensor as a numpy array.
@@ -622,6 +670,13 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         offset = self._offset or 0
         length = self._length or self.nbytes
         return self.raw[offset : offset + length]
+
+    def release(self) -> None:
+        """Delete all references to the memory buffer and close the memory-mapped file."""
+        self._array = None
+        if self.raw is not None:
+            self.raw.close()
+            self.raw = None
 
     @property
     def metadata_props(self) -> dict[str, str]:
@@ -1258,7 +1313,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     def op_identifier(self) -> _protocols.OperatorIdentifier:
         return self.domain, self.op_type, self.overload
 
-    def display(self, *, page: bool | None = None) -> None:
+    def display(self, *, page: bool = False) -> None:
         # Add the node's name to the displayed text
         print(f"Node: {self.name!r}")
         if self.doc_string:
@@ -1604,20 +1659,20 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         return any(output is self for output in graph.outputs)
 
 
-class Input(Value):
-    """Input of a Graph or a Function."""
+def Input(
+    name: str | None = None,
+    shape: Shape | None = None,
+    type: _protocols.TypeProtocol | None = None,
+    doc_string: str | None = None,
+) -> Value:
+    """Create an input of a Graph or a Function.
 
-    # Slots already defined in Value
-    __slots__ = ()
+    This is equivalent to calling ``Value(name=name, shape=shape, type=type, doc_string=doc_string)``.
+    """
 
-    def __init__(
-        self,
-        name: str | None = None,
-        shape: Shape | None = None,
-        type: _protocols.TypeProtocol | None = None,
-        doc_string: str | None = None,
-    ) -> None:
-        super().__init__(name=name, shape=shape, type=type, doc_string=doc_string)
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+
+    return Value(name=name, shape=shape, type=type, doc_string=doc_string)
 
 
 def _check_node_safe_to_remove(
@@ -1698,7 +1753,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
 
     def __init__(
         self,
-        inputs: Sequence[Input],
+        inputs: Sequence[Value],
         outputs: Sequence[Value],
         *,
         nodes: Iterable[Node],
@@ -1736,7 +1791,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self.extend(nodes)
 
     @property
-    def inputs(self) -> list[Input]:
+    def inputs(self) -> list[Value]:
         return self._inputs
 
     @property
@@ -1930,8 +1985,103 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._nodes.insert_before(node, new_nodes)
 
     def sort(self) -> None:
-        """Topologically sort the nodes in the graph."""
-        raise NotImplementedError("Not implemented yet")
+        """Perform a topological sort of this graph and all subgraphs in O(#nodes + #values) time.
+
+        This sort is stable. It preserves the original order as much as possible.
+
+        Referece: https://github.com/madelson/MedallionTopologicalSort#stable-sort
+
+        Raises:
+            ValueError: If the graph contains a cycle, making topological sorting impossible.
+        """
+        # Obtain all nodes from the graph and its subgraphs for sorting
+        nodes = list(onnxscript.ir.traversal.RecursiveGraphIterator(self))
+        # Store the sorted nodes of each subgraph
+        sorted_nodes_by_graph: dict[Graph, list[Node]] = {
+            graph: [] for graph in {node.graph for node in nodes if node.graph is not None}
+        }
+        # TODO: Explain why we need to store direct predecessors and children and why
+        # we only need to store the direct ones
+
+        # The depth of a node is defined as the number of direct children it has
+        node_depth: dict[Node, int] = dict.fromkeys(nodes, 0)
+        # Direct predecessors of a node
+        node_predecessors: dict[Node, list[Node]] = {node: [] for node in nodes}
+        # Store the negative index of the nodes because heapq is a min heap and we
+        # want to pop the node with largest index value first, effectively turning
+        # it to a max heap
+        neg_node_index: dict[Node, int] = {node: -i for i, node in enumerate(nodes)}
+
+        def add_predecessor(child: Node, predecessor: Node | None) -> None:
+            """Add a predecessor of a node, and increment the depth of the predecessor."""
+            if predecessor is None:
+                return
+            node_predecessors[child].append(predecessor)
+            node_depth[predecessor] += 1
+
+        # 1. Build the direct predecessors of each node and the depth of each node
+        # for sorting topolocally using Kahn's algorithm.
+        # Note that when a node contains graph attributes (aka. has subgraphs),
+        # we consider all nodes in the subgraphs *predecessors* of this node. This
+        # way we ensure the implicit dependencies of the subgraphs are captured
+        # as predecessors of the node.
+        for node in nodes:
+            # All producers of input values are considered as direct predecessors.
+            for input_value in node.inputs:
+                if input_value is None:
+                    continue
+                predecessor_node = input_value.producer()
+                add_predecessor(node, predecessor_node)
+            # All nodes in attribute graphs are considered as direct predecessors.
+            for attr in node.attributes.values():
+                if not isinstance(attr, Attr):
+                    continue
+                # A nice thing about this algorithm is that we only need to record
+                # direct predecessors. This continues to be true even with subgraphs.
+                # When a node in a subgraph (a) contains its own subgraphs (b), the
+                # node in subgraphs (b) are guranteed to appear before the node
+                # in (a).
+                if attr.type == _enums.AttributeType.GRAPH:
+                    for predecessor_node in attr.value:
+                        add_predecessor(node, predecessor_node)
+                elif attr.type == _enums.AttributeType.GRAPHS:
+                    for attribute_graph in attr.value:
+                        for predecessor_node in attribute_graph:
+                            add_predecessor(node, predecessor_node)
+
+        # 2. Priority Queue: Track nodes with zero direct children in a priority queue,
+        # using NEGATIVE original index for ordering.
+        # This ensures nodes appearing LATER in the original order are processed EARLIER.
+        # We get REVERSED topological order of each subgraph.
+        priority_queue: list[tuple[int, Node]] = [
+            (neg_node_index[node], node) for node in nodes if node_depth[node] == 0
+        ]
+        heapq.heapify(priority_queue)
+
+        # 3. Topological Sort:
+        num_of_sorted_nodes = 0
+        while priority_queue:
+            # Pop the node with the most negative index and add it to the sorted nodes by subgraph.
+            _, current_node = heapq.heappop(priority_queue)
+            assert current_node.graph is not None
+            sorted_nodes_by_graph[current_node.graph].append(current_node)
+            num_of_sorted_nodes += 1
+            # Decrement the depth of its predecessors. If any predecessor node has zero direct children, push it into the queue.
+            for predecessor_node in node_predecessors[current_node]:
+                node_depth[predecessor_node] -= 1
+                if node_depth[predecessor_node] == 0:
+                    heapq.heappush(
+                        priority_queue, (neg_node_index[predecessor_node], predecessor_node)
+                    )
+
+        # 4. Cycle Check: Ensure all nodes are processed. If not, raise a ValueError indicating a cycle.
+        if num_of_sorted_nodes != len(nodes):
+            raise ValueError("Graph contains a cycle, topological sort is not possible.")
+
+        # 5. Reverse: Reverse the sorted nodes of each subgraph to get the topological order.
+        for graph, sorted_nodes in sorted_nodes_by_graph.items():
+            # The graph container ensures all the nodes are unique so we can safely extend
+            graph.extend(reversed(sorted_nodes))
 
     # End of mutation methods
 
@@ -2069,7 +2219,7 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
         outputs: Sequence[Value],
         *,
         nodes: Iterable[Node],
-        initializers: Sequence[_protocols.TensorProtocol] = (),
+        initializers: Sequence[_protocols.ValueProtocol] = (),
         doc_string: str | None = None,
         opset_imports: dict[str, int] | None = None,
         name: str | None = None,
@@ -2214,8 +2364,8 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
     model_version={self.model_version!r},
 >"""
         graph_text = str(self.graph)
-        functions_text = ",\n\n".join(str(func) for func in self.functions.values())
-        return f"{signature}\n{graph_text}" + f"\n\n{functions_text}" * len(self.functions)
+        functions_text = "\n\n".join(str(func) for func in self.functions.values())
+        return f"{signature}\n{graph_text}" + f"\n\n{functions_text}"
 
     def __repr__(self) -> str:
         return f"""\
@@ -2312,7 +2462,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         self._overload = value
 
     @property
-    def inputs(self) -> list[Input]:
+    def inputs(self) -> list[Value]:
         return self._graph.inputs
 
     @property
@@ -2404,7 +2554,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         self._graph.insert_before(node, new_nodes)
 
     def sort(self) -> None:
-        """Topologically sort the nodes in the function."""
+        """Perform a topological sort of this graph and all subgraphs in O(#nodes + #values) time."""
         self._graph.sort()
 
     # End of mutation methods
@@ -2536,187 +2686,154 @@ class Attr(_protocols.AttributeProtocol, _display.PrettyPrintable):
         return True
 
     def __str__(self) -> str:
+        if self.type == _enums.AttributeType.GRAPH:
+            return textwrap.indent("\n" + str(self.value), " " * 4)
         return str(self.value)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name!r}, {self.type!r}, {self.value!r})"
 
 
-class _SpecializedAttr(Attr):
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.name!r}, {self.value!r})"
+# NOTE: The following functions are just for convenience
+def AttrFloat32(name: str, value: float, doc_string: str | None = None) -> Attr:
+    """Create a float attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.FLOAT,
+        value,
+        doc_string=doc_string,
+    )
 
 
-# NOTE: The following classes are just supporting classes (partially applied) for convenience
-# But I think they would be useful to have in the IR by having the type info
-# explicitly in the class type.
-class AttrFloat32(_SpecializedAttr):
-    def __init__(self, name: str, value: float, doc_string: str | None = None):
-        super().__init__(
-            name,
-            _enums.AttributeType.FLOAT,
-            value,
-            doc_string=doc_string,
-        )
+def AttrInt64(name: str, value: int, doc_string: str | None = None) -> Attr:
+    """Create an int attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.INT,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrInt64(_SpecializedAttr):
-    def __init__(self, name: str, value: int, doc_string: str | None = None):
-        super().__init__(
-            name,
-            _enums.AttributeType.INT,
-            value,
-            doc_string=doc_string,
-        )
+def AttrString(name: str, value: str, doc_string: str | None = None) -> Attr:
+    """Create a str attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.STRING,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrString(_SpecializedAttr):
-    def __init__(self, name: str, value: str, doc_string: str | None = None):
-        super().__init__(
-            name,
-            _enums.AttributeType.STRING,
-            value,
-            doc_string=doc_string,
-        )
+def AttrTensor(
+    name: str, value: _protocols.TensorProtocol, doc_string: str | None = None
+) -> Attr:
+    """Create a tensor attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.TENSOR,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrTensor(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: _protocols.TensorProtocol,
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.TENSOR,
-            value,
-            doc_string=doc_string,
-        )
+def AttrGraph(name: str, value: Graph, doc_string: str | None = None) -> Attr:
+    """Create a graph attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.GRAPH,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrGraph(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Graph,
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.GRAPH,
-            value,
-            doc_string=doc_string,
-        )
-
-    def __str__(self) -> str:
-        return textwrap.indent("\n" + super().__str__(), " " * 4)
+def AttrFloat32s(name: str, value: Sequence[float], doc_string: str | None = None) -> Attr:
+    """Create a float sequence attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.FLOATS,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrFloat32s(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[float],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.FLOATS,
-            value,
-            doc_string=doc_string,
-        )
+def AttrInt64s(name: str, value: Sequence[int], doc_string: str | None = None) -> Attr:
+    """Create an int sequence attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.INTS,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrInt64s(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[int],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.INTS,
-            value,
-            doc_string=doc_string,
-        )
+def AttrStrings(name: str, value: Sequence[str], doc_string: str | None = None) -> Attr:
+    """Create a string sequence attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.STRINGS,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrStrings(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[str],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.STRINGS,
-            value,
-            doc_string=doc_string,
-        )
+def AttrTensors(
+    name: str, value: Sequence[_protocols.TensorProtocol], doc_string: str | None = None
+) -> Attr:
+    """Create a tensor sequence attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.TENSORS,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrTensors(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[_protocols.TensorProtocol],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.TENSORS,
-            value,
-            doc_string=doc_string,
-        )
-
-
-class AttrGraphs(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[Graph],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.GRAPHS,
-            value,
-            doc_string=doc_string,
-        )
+def AttrGraphs(name: str, value: Sequence[Graph], doc_string: str | None = None) -> Attr:
+    """Create a graph sequence attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.GRAPHS,
+        value,
+        doc_string=doc_string,
+    )
 
 
 # NOTE: SparseTensor should be a sparse tensor proto
-class AttrSparseTensor(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[_protocols.SparseTensorProtocol],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.SPARSE_TENSOR,
-            value,
-            doc_string=doc_string,
-        )
+def AttrSparseTensor(
+    name: str, value: _protocols.SparseTensorProtocol, doc_string: str | None = None
+) -> Attr:
+    """Create a sparse tensor attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.SPARSE_TENSOR,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrSparseTensors(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[_protocols.SparseTensorProtocol],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.SPARSE_TENSORS,
-            value,
-            doc_string=doc_string,
-        )
+def AttrSparseTensors(
+    name: str, value: Sequence[_protocols.SparseTensorProtocol], doc_string: str | None = None
+) -> Attr:
+    """Create a sparse tensor sequence attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.SPARSE_TENSORS,
+        value,
+        doc_string=doc_string,
+    )
 
 
 @dataclasses.dataclass
@@ -2730,31 +2847,25 @@ class TypeAndShape:
     shape: Shape | None
 
 
-class AttrTypeProto(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: TypeAndShape,
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.TYPE_PROTO,
-            value,
-            doc_string=doc_string,
-        )
+def AttrTypeProto(name: str, value: TypeAndShape, doc_string: str | None = None) -> Attr:
+    """Create a type attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.TYPE_PROTO,
+        value,
+        doc_string=doc_string,
+    )
 
 
-class AttrTypeProtos(_SpecializedAttr):
-    def __init__(
-        self,
-        name: str,
-        value: Sequence[TypeAndShape],
-        doc_string: str | None = None,
-    ):
-        super().__init__(
-            name,
-            _enums.AttributeType.TYPE_PROTOS,
-            value,
-            doc_string=doc_string,
-        )
+def AttrTypeProtos(
+    name: str, value: Sequence[TypeAndShape], doc_string: str | None = None
+) -> Attr:
+    """Create a type sequence attribute."""
+    # NOTE: The function name is capitalized to maintain API backward compatibility.
+    return Attr(
+        name,
+        _enums.AttributeType.TYPE_PROTOS,
+        value,
+        doc_string=doc_string,
+    )

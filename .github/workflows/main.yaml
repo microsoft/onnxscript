@@ -71,7 +71,7 @@ jobs:
       - name: Pull Test Data
         run: git lfs pull
       - name: Run tests
-        run: nox -t ${{ matrix.nox-tag }} --forcecolor -- --cov=onnxscript --cov-report=xml --cov-append --cov-branch -n=auto --junit-xml pytest.xml
+        run: nox -t ${{ matrix.nox-tag }} --forcecolor -- --cov=onnxscript --cov-report=xml --cov-append --cov-branch -n=auto --junitxml junit.xml
         env:
           CATCH_ORT_SEGFAULT: "${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}"
           CREATE_REPRODUCTION_REPORT: "${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}"
@@ -80,12 +80,11 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-      - name: Upload Test Results
-        if: always()
-        uses: actions/upload-artifact@v3
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
         with:
-          name: Test Results (${{ matrix.name }}-${{ matrix.os }})
-          path: pytest.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
       - name: Upload torchlib error reports
         if: always()
         uses: actions/upload-artifact@v3
@@ -161,23 +160,3 @@ jobs:
             echo "Update readme by running `python docs/update_readme.py`"
             exit 1
           fi
-
-  publish-test-results:
-    name: "Publish Tests Results to Github"
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      checks: write
-      # only needed unless run with comment_mode: off
-      pull-requests: write
-    if: always()
-    steps:
-      - name: Download Artifacts
-        uses: actions/download-artifact@v3
-        with:
-          path: artifacts
-
-      - name: Publish Test Results
-        uses: EnricoMi/publish-unit-test-result-action@v2
-        with:
-          files: "artifacts/**/*.xml"

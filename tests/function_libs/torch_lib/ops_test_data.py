@@ -547,14 +547,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
     TorchLibOpInfo("addmm", core_ops.aten_addmm)
     .xfail(
-        "decomposed",
-        reason=(
-            "The float attributes alpha/beta come in as int in the test cases, which breaks"
-            "eager mode. We don't need to care about this as long as the full graph tests pass"
-        ),
-        test_class_name="TestOutputConsistencyEager",
-    )
-    .xfail(
         dtypes=(torch.int16, torch.int32, torch.int64),
         reason="ONNX Runtime does not support int inputs to Gemm",
     )
@@ -847,12 +839,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: size 0 inputs are not handled yet",
         matcher=lambda sample: sample.input.numel() == 0,
     ),
+    TorchLibOpInfo("flatten", core_ops.aten_flatten),
     TorchLibOpInfo("floor", core_ops.aten_floor),
-    TorchLibOpInfo("floor_divide", core_ops.aten_floor_divide).xfail(
+    TorchLibOpInfo("ops.aten.floor_divide", core_ops.aten_floor_divide).skip(
         dtypes=(torch.float16,),
         test_class_name="TestOutputConsistencyEager",
         reason="fixme: off-by-one issue due to numerical precision. https://github.com/microsoft/onnxscript/issues/989",
     ),
+    TorchLibOpInfo("ops.aten.floor_divide.int", core_ops.aten_floor_divide_int),
     TorchLibOpInfo("fmod", core_ops.aten_fmod),
     TorchLibOpInfo("frac", core_ops.aten_frac),
     TorchLibOpInfo("full", core_ops.aten_full),
@@ -1152,6 +1146,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.pixel_shuffle",
         core_ops.aten_pixel_shuffle,
+    )
+    .xfail(
+        dtypes=(torch.int32, torch.int64),
+        reason="fixme: ONNX Runtime does not support int32/64 inputs",
+    )
+    .xfail(
+        matcher=lambda sample: sample.input.numel() == 0,
+        reason="fixme: ORT does not support empty tensor as input",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.pixel_unshuffle",
+        core_ops.aten_pixel_unshuffle,
     )
     .xfail(
         dtypes=(torch.int32, torch.int64),
@@ -1585,13 +1591,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("view_as_real", core_ops.aten_view_as_real, complex=True),
     TorchLibOpInfo("view_as_real_copy", core_ops.aten_view_as_real_copy, complex=True),
     TorchLibOpInfo("view_copy", core_ops.aten_view_copy),
-    TorchLibOpInfo(
-        "vstack",
-        core_ops.aten_vstack,
-    ).xfail(
-        enabled_if=version_utils.onnxruntime_older_than("1.16"),
-        reason="fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x62afb00_rank). https://github.com/microsoft/onnxscript/issues/960",
-    ),
     TorchLibOpInfo("where", core_ops.aten_where, input_wrangler=_where_input_wrangler).xfail(
         dtypes=(torch.bool,),
         reason="fixme: ORT does not have an implementation for Where with bool inputs.",
@@ -1713,13 +1712,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("heaviside", core_ops.aten_heaviside),
     TorchLibOpInfo(
-        "hstack",
-        core_ops.aten_hstack,
-    ).xfail(
-        enabled_if=version_utils.onnxruntime_older_than("1.16"),
-        reason="fixme: RUNTIME_EXCEPTION : Exception during initialization: Invalid tensor data type 0. https://github.com/microsoft/onnxscript/issues/960",
-    ),
-    TorchLibOpInfo(
         "nn.functional.grid_sample",
         core_ops.aten_grid_sampler,
         input_wrangler=_grid_sample_input_wrangler,
@@ -1800,15 +1792,26 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         device_type="cpu",
         dtypes=(torch.float16,),
         reason="native_batch_norm outputs different dtypes on CPU and CUDA. Our implematation is based on that for CUDA",
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("training") is True
+        or sample.args[-3] is True,
+        reason="fixme: ORT only supports BatchNorm less than opset14",
     ),
     TorchLibOpInfo(
         "ops.aten._native_batch_norm_legit",
         core_ops.aten_native_batch_norm,
         tolerance={torch.float16: (1e-2, 7e-3)},
-    ).skip(
+    )
+    .skip(
         device_type="cpu",
         matcher=lambda sample: sample.kwargs.get("training") is False,
         reason="native_batch_norm outputs different shapes on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("training") is True
+        or sample.args[-3] is True,
+        reason="fixme: ORT only supports BatchNorm less than opset14",
     ),
     TorchLibOpInfo(
         "ops.aten._native_batch_norm_legit.no_stats",
@@ -1830,6 +1833,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("training") is True,
         test_class_name="TestOutputConsistencyEager",
         reason="fixme: output 4 (new_running_var) does not match the gpu output sometimes",
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("training") is True
+        or sample.args[-3] is True,
+        reason="fixme: ORT only supports BatchNorm less than opset14",
     ),
     TorchLibOpInfo(
         "ops.aten.native_group_norm",
@@ -1938,20 +1946,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape)
         or not sample.input.shape,
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
-    ),
-    TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear).skip(
-        # input: input, args: weight, bias; so len(args) == 2 means bias is provided
-        matcher=lambda sample: len(sample.args) != 1,
-        reason="this overload is implemented for bias=None",
-    ),
-    TorchLibOpInfo(
-        "nn.functional.linear_bias",
-        nn_ops.aten_linear_bias,
-        tolerance={torch.float16: (2e-1, 4e-4)},
-    ).skip(
-        # input: input, args: weight, bias; so len(args) == 2 means bias is provided
-        matcher=lambda sample: len(sample.args) != 2,
-        reason="this overload is implemented for bias!=None",
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool1d",
