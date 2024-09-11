@@ -6,6 +6,8 @@ import numpy as np
 import parameterized
 import torch
 
+from onnxscript._internal.version_utils import torch_older_than
+
 
 class TestIssuesOnnxExporter(unittest.TestCase):
     def assertEqualArray(self, a, b, atol=None, rtol=None):
@@ -16,6 +18,7 @@ class TestIssuesOnnxExporter(unittest.TestCase):
         torch.testing.allclose(a, b, atol=atol, rtol=rtol)
 
     @parameterized.parameterized.expand(["script", "dynamo"])
+    @unittest.skipIf(torch_older_than("2.5"), reason="only available in 2.5")
     def test_updated_parameter(self, exporter):
         class UpdateModel(torch.nn.Module):
             def __init__(self):
@@ -85,6 +88,7 @@ class TestIssuesOnnxExporter(unittest.TestCase):
         self.assertEqual(e2[0].shape, model.params.shape)
 
     @parameterized.parameterized.expand(["script", "dynamo"])
+    @unittest.skipIf(torch_older_than("2.5"), reason="only available in 2.5")
     def test_scaled_dot_product_attention(self, exporter):
         class ScaledDotProductAttentionModel(torch.nn.Module):
             def __init__(self, d_model, scale):
