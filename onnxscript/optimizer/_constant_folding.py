@@ -676,7 +676,7 @@ class ConstantFolder:
             self.replace_node(node, replacement, root)
 
     def visit_graph(self, graph: ir.Graph) -> None:
-        for node in enumerate(graph):
+        for node in graph:
             self.visit_node(node, graph)
 
     def visit_function(self, function: ir.Function) -> None:
