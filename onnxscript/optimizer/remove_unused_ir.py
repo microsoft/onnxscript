@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def remove_unused_optional_outputs(
-    node: ir.Node, graph_outputs: frozenset[ir.Value], onnx_opset_version: int
+    node: ir.Node, graph_outputs: frozenset[int], onnx_opset_version: int
 ) -> None:
     try:
         if node.domain not in {"", "onnx.ai"}:
@@ -27,7 +27,7 @@ def remove_unused_optional_outputs(
         def is_used_output(i: int) -> bool:
             if i < len(node.outputs):
                 val = node.outputs[i]
-                return val in graph_outputs or bool(val.uses())
+                return id(val) in graph_outputs or bool(val.uses())
             return False
 
         if is_used_output(1) or is_used_output(2):
@@ -50,18 +50,18 @@ def remove_unused_optional_outputs(
         return
 
     for i, out in enumerate(node.outputs):
-        if out not in graph_outputs and (not out.uses()) and optional_info[i] is True:
+        if id(out) not in graph_outputs and (not out.uses()) and optional_info[i] is True:
             out.name = ""
 
 
 def process_function_or_graph(function_or_graph: ir.Function | ir.Graph) -> int:
-    graph_outputs = frozenset(function_or_graph.outputs)
+    graph_outputs = frozenset([id(x) for x in function_or_graph.outputs])
     onnx_opset_version = function_or_graph.opset_imports.get("", None)
     count = 0
     for node in reversed(function_or_graph):
         removable = True
         for output in node.outputs:
-            if output in graph_outputs or output.uses():
+            if id(output) in graph_outputs or output.uses():
                 removable = False
                 break
         if removable:
@@ -84,10 +84,10 @@ def process_function_or_graph(function_or_graph: ir.Function | ir.Graph) -> int:
 def remove_unused_nodes(model: ir.Model) -> None:
     """Removes unused nodes from the model."""
     count = process_function_or_graph(model.graph)
-    graph_outputs = frozenset(model.graph.outputs)
+    graph_outputs = frozenset([id(x) for x in model.graph.outputs])
     initializers = model.graph.initializers
     for init in list(initializers.values()):
-        if not (init in graph_outputs or init.uses()):
+        if not (id(init) in graph_outputs or init.uses()):
             del initializers[init.name]  # type: ignore[arg-type]
             count += 1
 

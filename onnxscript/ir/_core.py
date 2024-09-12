@@ -421,7 +421,12 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         if isinstance(self._raw, np.ndarray):
             return self._raw
         # We do not cache the value to save memory
-        return self.__array__()
+        try:
+            result = self.__array__()
+        except Exception:
+            self._raw = self._raw.detach()
+            result = self.__array__()
+        return result
 
     def tobytes(self) -> bytes:
         """Returns the value as bytes encoded in little endian.
@@ -1676,7 +1681,7 @@ def Input(
 
 
 def _check_node_safe_to_remove(
-    node: Node, to_remove: AbstractSet[Node], graph_outputs: AbstractSet[Value]
+    node: Node, to_remove: AbstractSet[Node], graph_outputs: AbstractSet[int]
 ) -> None:
     """Check if a node is safe to remove.
 
@@ -1698,7 +1703,7 @@ def _check_node_safe_to_remove(
         ValueError: If the node is still being used by other nodes not to be removed.
     """
     for output in node.outputs:
-        if output in graph_outputs:
+        if id(output) in graph_outputs:
             raise ValueError(
                 f"Node '{node!r}' is still an output of the graph and cannot be removed when safe=True."
             )
@@ -1934,7 +1939,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             nodes_set: AbstractSet[Node] = {nodes}
         else:
             nodes_set = frozenset(nodes)
-        graph_outputs = frozenset(self.outputs)
+        graph_outputs = frozenset([id(x) for x in self.outputs])
         for node in nodes_set:
             if node.graph is not self:
                 raise ValueError(f"The node '{node!r}' does not belong to this graph.")

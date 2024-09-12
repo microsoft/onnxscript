@@ -429,10 +429,11 @@ def replace_nodes_and_values(
     # Reconnect the users of the deleted values to use the new values
     replace_all_uses_with(old_values, new_values)
     # Update graph/function outputs if the node generates output
-    replacement_mapping = dict(zip(old_values, new_values))
+    replacement_mapping = dict(zip([id(x) for x in old_values], new_values))
     for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
-        if graph_or_function_output in replacement_mapping:
-            graph_or_function.outputs[idx] = replacement_mapping[graph_or_function_output]
+        x = id(graph_or_function_output)
+        if x in replacement_mapping:
+            graph_or_function.outputs[idx] = replacement_mapping[x]
 
     # insert new nodes after the index node
     graph_or_function.insert_after(insertion_point, new_nodes)

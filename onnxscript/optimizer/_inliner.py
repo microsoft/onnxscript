@@ -90,8 +90,13 @@ class _CopyReplace:
                 )
             return attr
         assert isinstance(attr, ir.RefAttr)
-        if key in self._attr_map:
-            return self._attr_map[key]
+        ref_attr_name = attr.ref_attr_name
+        if ref_attr_name in self._attr_map:
+            ref_attr = self._attr_map[ref_attr_name]
+            if isinstance(ref_attr, ir.Attr):
+                return ir.Attr(key, ref_attr.type, ref_attr.value, doc_string=ref_attr.doc_string)
+            assert isinstance(ref_attr, ir.RefAttr)
+            return ir.RefAttr(key, ref_attr.ref_attr_name, ref_attr.type, doc_string=ref_attr.doc_string)
         # Note that if a function has an attribute-parameter X, and a call (node) to the function
         # has no attribute X, all references to X in nodes inside the function body will be
         # removed. This is just the ONNX representation of optional-attributes.

@@ -803,9 +803,10 @@ def _valid_to_replace(
     # except for the value that is replaced.
     # * Must ensure that replacement subgraph does not use any of the deleted
     # (intermediate) values. (Not necessary for now. Guaranteed.)
+    output_ids = [id(x) for x in output_values]
     for n in matched_nodes:
         for v in n.outputs:
-            if v in output_values:
+            if id(v) in output_ids:
                 continue
             if v.is_graph_output():
                 # value is an output-value of the graph/function.

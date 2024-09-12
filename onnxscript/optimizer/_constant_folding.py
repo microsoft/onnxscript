@@ -77,15 +77,15 @@ class Replacement:
 
 class OptimizerState:
     def __init__(self):
-        self._sym_value_map: dict[ir.Value, Any] = {}
+        pass
 
     def get_sym_value(self, value: ir.Value | None) -> Any:
         if value is None:
             return None
-        return self._sym_value_map.get(value)
+        return value.meta.get("sym_value")
 
     def set_sym_value(self, value: ir.Value, sym_value: Any) -> None:
-        self._sym_value_map[value] = sym_value
+        value.meta["sym_value"] = sym_value
 
 
 # The "partial evaluators" below are non-standard evaluators. They are used to perform
@@ -676,7 +676,7 @@ class ConstantFolder:
             self.replace_node(node, replacement, root)
 
     def visit_graph(self, graph: ir.Graph) -> None:
-        for node in graph:
+        for node in enumerate(graph):
             self.visit_node(node, graph)
 
     def visit_function(self, function: ir.Function) -> None:
