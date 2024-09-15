@@ -62,7 +62,7 @@ class _CopyReplace:
         if value in self._value_map:
             return self._value_map[value]
         # If the value is not in the value map, it must be a graph input.
-        assert value.producer() is not None, f"Value {value} has no entry in the value map"
+        assert value.producer() is None, f"Value {value} has no entry in the value map"
         new_value = ir.Value(
             name=value.name,
             type=value.type,
@@ -147,10 +147,11 @@ class _CopyReplace:
         input_values = [self.clone_value(v) for v in graph.inputs]
         nodes = [self.clone_node(node) for node in graph]
         initializers = [self.clone_value(init) for init in graph.initializers.values()]
+        output_values = [self.clone_value(v) for v in graph.outputs]
 
         return ir.Graph(
             input_values,  # type: ignore
-            graph.outputs,
+            output_values,  # type: ignore
             nodes=nodes,
             initializers=initializers,  # type: ignore
             doc_string=graph.doc_string,

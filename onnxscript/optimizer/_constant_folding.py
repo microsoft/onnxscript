@@ -348,7 +348,7 @@ def sequence_construct(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
 def concat_from_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input = node.inputs[0]
     inputs = state.get_sym_value(input)
-    if any(x is None for x in inputs):
+    if inputs is None or any(x is None for x in inputs):
         return None
     new_axis = _get_int_attribute(node, "new_axis", 0)
     axis = _get_int_attribute(node, "axis", None)
@@ -676,7 +676,7 @@ class ConstantFolder:
             self.replace_node(node, replacement, root)
 
     def visit_graph(self, graph: ir.Graph) -> None:
-        for node in enumerate(graph):
+        for node in graph:
             self.visit_node(node, graph)
 
     def visit_function(self, function: ir.Function) -> None:
