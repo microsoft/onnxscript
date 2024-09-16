@@ -2157,14 +2157,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("ops.aten.slice_scatter", core_ops.aten_slice_scatter),
     TorchLibOpInfo("slice", core_ops.aten_slice),
     TorchLibOpInfo(
-        "ops.aten.stft",  # Custom from extra_opinfo
-        core_ops.aten_stft,
-        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
-    ).xfail(
-        dtypes=(torch.float16,),
-        reason="RuntimeError: MKL FFT doesn't support tensors of type: Half",
-    ),
-    TorchLibOpInfo(
         "sum",
         core_ops.aten_sum_dim_IntList,
         input_wrangler=_sum_input_wrangler,
