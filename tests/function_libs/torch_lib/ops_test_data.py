@@ -1497,33 +1497,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("stack", core_ops.aten_stack),
     TorchLibOpInfo("stack", core_ops.aten_stack_complex, complex=True),
-    TorchLibOpInfo(
-        "std_mean",
-        core_ops.aten_std_mean,
-    ).xfail(
-        # kwargs is empty
-        matcher=lambda sample: len(sample.kwargs) > 0,
-        reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
-    ),
-    TorchLibOpInfo(
-        "std_mean_dim",
-        core_ops.aten_std_mean_dim,
-    ).xfail(
-        # kwargs["dim"] must exist, kwargs["correction"] must not exist
-        matcher=lambda sample: not (
-            sample.kwargs.get("dim", None) is not None
-            and sample.kwargs.get("correction", None) is None
-        ),
-        reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
-    ),
-    TorchLibOpInfo(
-        "std_mean_correction",
-        core_ops.aten_std_mean_correction,
-    ).skip(
-        # Don't accept input[1]=bool and 'correction' must be in kwargs
-        matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
-        reason="this Aten overload only support when correction attribute exists",
-    ),
     TorchLibOpInfo("sub", core_ops.aten_sub),
     TorchLibOpInfo("sub", core_ops.aten_sub_complex, complex=True),
     # TorchLibOpInfo("sym_size", core_ops.aten_sym_size),  # no test case in OPS_DB
@@ -2184,41 +2157,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("ops.aten.slice_scatter", core_ops.aten_slice_scatter),
     TorchLibOpInfo("slice", core_ops.aten_slice),
     TorchLibOpInfo(
-        "ops.aten.stft",  # Custom from extra_opinfo
-        core_ops.aten_stft,
-        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
-    ).xfail(
-        dtypes=(torch.float16,),
-        reason="RuntimeError: MKL FFT doesn't support tensors of type: Half",
-    ),
-    TorchLibOpInfo(
-        "std",
-        core_ops.aten_std,
-    ).xfail(
-        # kwargs must be empty
-        matcher=lambda sample: len(sample.kwargs) > 0,
-        reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
-    ),
-    TorchLibOpInfo(
-        "std_dim",
-        core_ops.aten_std_dim,
-    ).xfail(
-        # kwargs["dim"] must exist, kwargs["correction"] must not exist
-        matcher=lambda sample: not (
-            sample.kwargs.get("dim", None) is not None
-            and sample.kwargs.get("correction", None) is None
-        ),
-        reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
-    ),
-    TorchLibOpInfo(
-        "std_correction",
-        core_ops.aten_std_correction,
-    ).skip(
-        # Don't accept input[1]=bool and 'correction' must be in kwargs
-        matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
-        reason="this Aten overload only support when correction attribute exists",
-    ),
-    TorchLibOpInfo(
         "sum",
         core_ops.aten_sum_dim_IntList,
         input_wrangler=_sum_input_wrangler,
@@ -2238,60 +2176,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),  # Custom from extra_opinfo
     TorchLibOpInfo("transpose", core_ops.aten_transpose),
     TorchLibOpInfo("transpose", core_ops.aten_transpose_complex, complex=True),
-    TorchLibOpInfo(
-        "var_mean",
-        core_ops.aten_var_mean,
-    ).xfail(
-        # kwargs is empty
-        matcher=lambda sample: len(sample.kwargs) > 0,
-        reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
-    ),
-    TorchLibOpInfo(
-        "var_mean_dim",
-        core_ops.aten_var_mean_dim,
-    ).xfail(
-        # kwargs["dim"] must exist, kwargs["correction"] must not exist
-        matcher=lambda sample: not (
-            sample.kwargs.get("dim", None) is not None
-            and sample.kwargs.get("correction", None) is None
-        ),
-        reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
-    ),
-    TorchLibOpInfo(
-        "var_mean_correction",
-        core_ops.aten_var_mean_correction,
-    ).skip(
-        # Don't accept input[1]=bool and 'correction' must be in kwargs
-        matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
-        reason="this Aten overload only support when correction attribute exists",
-    ),
-    TorchLibOpInfo(
-        "var",
-        core_ops.aten_var,
-    ).xfail(
-        # kwargs must be empty
-        matcher=lambda sample: len(sample.kwargs) > 0,
-        reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
-    ),
-    TorchLibOpInfo(
-        "var_dim",
-        core_ops.aten_var_dim,
-    ).xfail(
-        # kwargs["dim"] must exist, kwargs["correction"] must not exist
-        matcher=lambda sample: not (
-            sample.kwargs.get("dim", None) is not None
-            and sample.kwargs.get("correction", None) is None
-        ),
-        reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
-    ),
-    TorchLibOpInfo(
-        "var_correction",
-        core_ops.aten_var_correction,
-    ).skip(
-        # Don't accept input[1]=bool and 'correction' must be in kwargs
-        matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
-        reason="this Aten overload only support when correction attribute exists",
-    ),
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like),
     TorchLibOpInfo("torchvision.ops.nms", vision_ops.torchvision_nms),
 )
@@ -2364,10 +2248,6 @@ ops_test_common.duplicate_opinfo(
 ops_test_common.duplicate_opinfo(OPS_DB, "ops.aten._softmax", ("ops.aten._softmax_half",))
 ops_test_common.duplicate_opinfo(OPS_DB, "round", ("round_decimals",))
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
-ops_test_common.duplicate_opinfo(OPS_DB, "std_mean", ("std_mean_dim", "std_mean_correction"))
-ops_test_common.duplicate_opinfo(OPS_DB, "std", ("std_dim", "std_correction"))
-ops_test_common.duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction"))
-ops_test_common.duplicate_opinfo(OPS_DB, "var", ("var_dim", "var_correction"))
 ops_test_common.duplicate_opinfo(OPS_DB, "view_as_complex", ("view_as_complex_copy",))
 ops_test_common.duplicate_opinfo(OPS_DB, "view_as_real", ("view_as_real_copy",))
 
@@ -2510,7 +2390,6 @@ PRIMS_OPS_WITH_OP_INFO = (
     "transpose",
     "trunc",
     "uniform",
-    "var",
     "where",
 )
 

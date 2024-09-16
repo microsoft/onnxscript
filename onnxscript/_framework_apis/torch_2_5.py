@@ -25,7 +25,7 @@ from onnxscript.ir import _external_data
 
 # Internal flag. Will go away.
 _TORCH_ONNX_SAVE_EXTERNAL_DATA_WITH_IR = (
-    os.getenv("TORCH_ONNX_OFFLOAD_EXTERNAL_DATA_WITH_IR") == "1"
+    os.getenv("TORCH_ONNX_OFFLOAD_EXTERNAL_DATA_WITH_IR") != "0"
 )
 
 
