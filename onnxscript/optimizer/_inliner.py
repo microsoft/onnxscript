@@ -94,9 +94,13 @@ class _CopyReplace:
         if ref_attr_name in self._attr_map:
             ref_attr = self._attr_map[ref_attr_name]
             if isinstance(ref_attr, ir.Attr):
-                return ir.Attr(key, ref_attr.type, ref_attr.value, doc_string=ref_attr.doc_string)
+                return ir.Attr(
+                    key, ref_attr.type, ref_attr.value, doc_string=ref_attr.doc_string
+                )
             assert isinstance(ref_attr, ir.RefAttr)
-            return ir.RefAttr(key, ref_attr.ref_attr_name, ref_attr.type, doc_string=ref_attr.doc_string)
+            return ir.RefAttr(
+                key, ref_attr.ref_attr_name, ref_attr.type, doc_string=ref_attr.doc_string
+            )
         # Note that if a function has an attribute-parameter X, and a call (node) to the function
         # has no attribute X, all references to X in nodes inside the function body will be
         # removed. This is just the ONNX representation of optional-attributes.
@@ -147,7 +151,9 @@ class _CopyReplace:
         input_values = [self.clone_value(v) for v in graph.inputs]
         nodes = [self.clone_node(node) for node in graph]
         initializers = [self.clone_value(init) for init in graph.initializers.values()]
-        output_values = [self.clone_value(v) for v in graph.outputs]
+        output_values = [
+            self.clone_value(v) for v in graph.outputs
+        ]  # Looks up already cloned values
 
         return ir.Graph(
             input_values,  # type: ignore
