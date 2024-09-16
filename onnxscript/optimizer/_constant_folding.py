@@ -77,15 +77,15 @@ class Replacement:
 
 class OptimizerState:
     def __init__(self):
-        pass
+        self._sym_value_map: dict[ir.Value, Any] = {}
 
     def get_sym_value(self, value: ir.Value | None) -> Any:
         if value is None:
             return None
-        return value.meta.get("sym_value")
+        return self._sym_value_map.get(value)
 
     def set_sym_value(self, value: ir.Value, sym_value: Any) -> None:
-        value.meta["sym_value"] = sym_value
+        self._sym_value_map[value] = sym_value
 
 
 # The "partial evaluators" below are non-standard evaluators. They are used to perform

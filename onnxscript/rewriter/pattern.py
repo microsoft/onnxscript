@@ -806,7 +806,7 @@ def _valid_to_replace(
     output_ids = [id(x) for x in output_values]
     for n in matched_nodes:
         for v in n.outputs:
-            if id(v) in output_ids:
+            if v in output_ids:
                 continue
             if v.is_graph_output():
                 # value is an output-value of the graph/function.
