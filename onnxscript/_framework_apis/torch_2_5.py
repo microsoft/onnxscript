@@ -29,7 +29,7 @@ _TORCH_ONNX_SAVE_EXTERNAL_DATA_WITH_IR = (
 )
 
 # Internal flag. Will go away.
-_TORCH_ONNX_ENABLE_OPTIMIZATION = os.getenv("TORCH_ONNX_ENABLE_OPTIMIZATION") == "1'"
+_TORCH_ONNX_ENABLE_OPTIMIZATION = os.getenv("TORCH_ONNX_ENABLE_OPTIMIZATION") == "1"
 
 
 @dataclasses.dataclass(frozen=True)
