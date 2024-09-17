@@ -19,7 +19,7 @@ from typing import Callable
 
 import onnx
 
-from onnxscript import ir
+from onnxscript import ir, optimizer
 from onnxscript.function_libs.torch_lib import registration
 from onnxscript.ir import _external_data
 
@@ -27,6 +27,9 @@ from onnxscript.ir import _external_data
 _TORCH_ONNX_SAVE_EXTERNAL_DATA_WITH_IR = (
     os.getenv("TORCH_ONNX_OFFLOAD_EXTERNAL_DATA_WITH_IR") != "0"
 )
+
+# Internal flag. Will go away.
+_TORCH_ONNX_ENABLE_OPTIMIZATION = os.getenv("TORCH_ONNX_ENABLE_OPTIMIZATION") == "1'"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -50,7 +53,8 @@ class _OnnxFunctionMeta:
 def optimize(model: ir.Model) -> ir.Model:
     """Optimize the model."""
 
-    # TODO(justinchuby): Use the optimizer
+    if _TORCH_ONNX_ENABLE_OPTIMIZATION:
+        optimizer.optimize_ir(model)
     return model
 
 
