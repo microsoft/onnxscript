@@ -439,6 +439,10 @@ def split_to_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     else:
         return None
 
+    # If Split returns a single value, we need to wrap it into a list.
+    if isinstance(split_values, ir.Value):
+        split_values = [split_values]
+
     keepdims = _get_int_attribute(node, "keepdims", 1)
     if keepdims is None:
         return None
