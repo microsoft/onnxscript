@@ -2645,6 +2645,18 @@ def aten_upsample_nearest3d(
     return _aten_upsample_output_size(self, size, "nearest", "asymmetric")
 
 
+@torch_op("aten::upsample_nearest3d.vec", trace_only=True)
+def aten_upsample_nearest3d_vec(
+    input: TReal,
+    output_size: INT64,
+    scale_factors: Optional[Sequence[float]] = None,
+) -> TReal:
+    """upsample_nearest3d.vec(Tensor input, SymInt[]? output_size, float[]? scale_factors) -> Tensor"""
+
+    # TODO: Use scale_factors?
+    return _aten_upsample_output_size(self, size, "nearest", "asymmetric")
+
+    
 def aten_upsample_nearest3d_backward(
     grad_output: TensorType,
     output_size: INT64,
