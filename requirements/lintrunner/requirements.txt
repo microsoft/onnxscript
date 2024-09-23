@@ -6,6 +6,6 @@ ruff==0.6.5
 mypy==1.10.1
 types-PyYAML==6.0.12.20240808
 # PYLINT
-pylint==2.17.6
+pylint==3.3.0
 # EDITORCONFIG-CHECKER
 editorconfig-checker==3.0.3
