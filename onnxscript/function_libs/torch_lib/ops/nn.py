@@ -2654,7 +2654,7 @@ def aten_upsample_nearest3d_vec(
     """upsample_nearest3d.vec(Tensor input, SymInt[]? output_size, float[]? scale_factors) -> Tensor"""
 
     # TODO: Use scale_factors?
-    return _aten_upsample_output_size(self, size, "nearest", "asymmetric")
+    return _aten_upsample_output_size(input, output_size, "nearest", "asymmetric")
 
     
 def aten_upsample_nearest3d_backward(
