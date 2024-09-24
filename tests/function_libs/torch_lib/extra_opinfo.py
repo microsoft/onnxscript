@@ -1855,12 +1855,12 @@ def sample_inputs_upsample_nearest3d_vec(op_info, device, dtype, requires_grad, 
     )
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
-        shape(L, rank, False),
+        None,
         [1.7, 1.5, 2.0],  # scaler
     )
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
-        shape(L, rank, False),
+        None,
         [0.6, 0.3, 0.5],
     )
 
