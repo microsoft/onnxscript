@@ -2361,12 +2361,13 @@ def _aten_upsample_output_size(
     mode: str,
     coordinate_transformation_mode: str,
 ) -> TReal:
-    batch_channels = op.Shape(self, end=2, start=0)
+    batch_and_channel = op.Shape(self, end=2, start=0)
     # When output_size is passed in as a list of integers, the torch.onnx
     # graph builder when handling op.Concat may fail
     # to determine the output type. We cast it to INT64 to ensure the output
     output_size = op.Cast(output_size, to=INT64.dtype)
-    output_size = op.Concat(batch_channels, output_size, axis=0)
+    # Append the batch and channel dimensions to the requested output size
+    output_size = op.Concat(batch_and_channel, output_size, axis=0)
     return op.Resize(
         self,
         None,
