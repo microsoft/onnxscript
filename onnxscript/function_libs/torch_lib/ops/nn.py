@@ -2379,16 +2379,14 @@ def _aten_upsample_output_size(
 
 def _aten_upsample_scales(
     self: TReal,
-    scale_factors: TFloat,
+    scale_factors: Sequence[float],
     mode: str,
     coordinate_transformation_mode: str,
 ) -> TReal:
-    scale_factors = op.Cast(scale_factors, to=FLOAT.dtype)
-    scale_factors = op.Concat(op.Constant(value_floats=[1.0, 1.0]), scale_factors, axis=0)
     return op.Resize(
         self,
         None,
-        scale_factors,  # format should be: [1.0, 1.0, scale_h, scale_w]
+        op.Constant(value_floats=[1.0, 1.0, *scale_factors]),  # format should be: [1.0, 1.0, scale_h, scale_w]
         None,
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
@@ -2430,7 +2428,7 @@ def aten_upsample_bicubic2d_vec(
     if scale_factors is not None:
         result = _aten_upsample_scales(
             self,
-            op.Constant(value_floats=scale_factors),
+            scale_factors,
             mode="cubic",
             coordinate_transformation_mode=coordinate_transformation_mode,
         )
@@ -2492,7 +2490,7 @@ def aten_upsample_bilinear2d_vec(
     if scale_factors is not None:
         result = _aten_upsample_scales(
             self,
-            op.Constant(value_floats=scale_factors),
+            scale_factors,
             mode="linear",
             coordinate_transformation_mode=coordinate_transformation_mode,
         )
@@ -2525,15 +2523,18 @@ def aten_upsample_linear1d(
     self: TReal, output_size: INT64, align_corners: bool, scales: Optional[float] = None
 ) -> TReal:
     """upsample_linear1d(Tensor self, SymInt[1] output_size, bool align_corners, float? scales=None) -> Tensor"""
-    # FIXME(justinchuby): Support when scales is provided and align_corners is False
-    del scales
     coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
-    return _aten_upsample_output_size(
-        self,
-        output_size,
-        mode="linear",
-        coordinate_transformation_mode=coordinate_transformation_mode,
-    )
+    if scales is not None:
+        return _aten_upsample_scales(
+            self, scales, "linear", coordinate_transformation_mode
+        )
+    else:
+        return _aten_upsample_output_size(
+            self,
+            output_size,
+            mode="linear",
+            coordinate_transformation_mode=coordinate_transformation_mode,
+        )
 
 
 def aten_upsample_linear1d_backward(
@@ -2550,15 +2551,15 @@ def aten_upsample_linear1d_backward(
 
 @torch_op("aten::upsample_nearest1d", trace_only=True)
 def aten_upsample_nearest1d(
-    self: TReal, output_size: INT64, scale_factor: Optional[float] = None
+    self: TReal, output_size: INT64, scales: Optional[float] = None
 ) -> TReal:
     """upsample_nearest1d(Tensor self, SymInt[1] output_size, float? scales=None) -> Tensor"""
-    if size is not None:
-        return _aten_upsample_output_size(self, output_size, "nearest", "asymmetric")
-    else:
+    if scales is not None:
         return _aten_upsample_scales(
-            self, op.Constant(value_floats=[scale_factor]), "nearest", "asymmetric"
+            self, scales, "nearest", "asymmetric"
         )
+    else:
+        return _aten_upsample_output_size(self, output_size, "nearest", "asymmetric")
 
 
 @torch_op(
@@ -2578,7 +2579,7 @@ def aten_upsample_nearestnd_vec(
 
     if scale_factors is not None:
         return _aten_upsample_scales(
-            input, op.Constant(value_floats=scale_factors), "nearest", "asymmetric"
+            input,scale_factors, "nearest", "asymmetric"
         )
     else:
         return _aten_upsample_output_size(input, output_size, "nearest", "asymmetric")
@@ -2698,7 +2699,7 @@ def aten_upsample_trilinear3d_vec(
     if scale_factors is not None:
         result = _aten_upsample_scales(
             self,
-            op.Constant(value_floats=scale_factors),
+            scale_factors,
             mode="linear",
             coordinate_transformation_mode=coordinate_transformation_mode,
         )
