@@ -2391,7 +2391,6 @@ PRIMS_OPS_WITH_OP_INFO = (
     "signbit",
     "sin",
     "sinh",
-    "slice",
     "sqrt",
     "squeeze",
     "sub",

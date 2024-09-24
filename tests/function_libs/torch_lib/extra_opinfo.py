@@ -1605,6 +1605,7 @@ def sample_inputs_upsample_nearest1d(op_info, device, dtype, requires_grad, **kw
 
     N, C = 2, 3
     D = 4
+    SS = 3
     L = 5
 
     rank = 1
@@ -1633,12 +1634,12 @@ def sample_inputs_upsample_nearest1d(op_info, device, dtype, requires_grad, **kw
     )
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
-        None,  # output_size
+        shape(S, rank, False),  # output_size
         [1.7],  # scaler
     )
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
-        None,  # if this is None, the scalar must be list
+        shape(S, rank, False),  # if this is None, the scalar must be list
         [0.6],
     )
 
@@ -1687,6 +1688,7 @@ def sample_inputs_upsample_nearest1d_vec(op_info, device, dtype, requires_grad, 
     )
 
 
+
 def sample_inputs_upsample_nearest2d(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -1722,14 +1724,12 @@ def sample_inputs_upsample_nearest2d(op_info, device, dtype, requires_grad, **kw
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
         shape(L, rank, False),
-        1.7,
-        2.0,  # scaler
+        1.7, 2.0,  # scaler
     )
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
         shape(L, rank, False),
-        0.6,
-        0.4,
+        0.6, 0.4,
     )
 
 
@@ -1812,16 +1812,12 @@ def sample_inputs_upsample_nearest3d(op_info, device, dtype, requires_grad, **kw
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
         shape(L, rank, False),
-        1.7,
-        1.5,
-        2.0,  # scaler
+        1.7, 1.5, 2.0,  # scaler
     )
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
         shape(L, rank, False),
-        0.6,
-        0.3,
-        0.5,
+        0.6, 0.3, 0.5,
     )
 
 
