@@ -2355,17 +2355,6 @@ def _get_upsample_align_corners_mode(align_corners: bool) -> str:
     return "align_corners" if align_corners else "pytorch_half_pixel"
 
 
-@torch_op(
-    (
-        "aten::upsample_bicubic2d",
-        "aten::upsample_bilinear2d",
-        "aten::upsample_nearest1d",
-        "aten::upsample_nearest2d",
-        "aten::upsample_nearest3d",
-        "aten::upsample_trilinear3d",
-    ),
-    private=True,
-)
 def _aten_upsample_output_size(
     self: TReal,
     output_size: INT64,
@@ -2388,7 +2377,6 @@ def _aten_upsample_output_size(
     )
 
 
-@torch_op(("aten::upsample_bicubic2d", "aten::upsample_bilinear2d"), private=True)
 def _aten_upsample_scales(
     self: TReal,
     scale_factors: TFloat,
@@ -2570,7 +2558,6 @@ def aten_upsample_nearest1d(
         return _aten_upsample_nearest1d_scales(self, scale_factor)
 
 
-@torch_op("aten::upsample_nearest1d", private=True)
 def _aten_upsample_nearest1d_scales(
     self: TReal,
     scale_factors: TFloat,
@@ -2645,18 +2632,29 @@ def aten_upsample_nearest3d(
     return _aten_upsample_output_size(self, size, "nearest", "asymmetric")
 
 
-@torch_op("aten::upsample_nearest3d.vec", trace_only=True)
-def aten_upsample_nearest3d_vec(
+@torch_op(
+    (
+        "aten::upsample_nearest1d.vec",
+        "aten::upsample_nearest2d.vec",
+        "aten::upsample_nearest3d.vec",
+    ),
+    trace_only=True,
+)
+def aten_upsample_nearestnd_vec(
     input: TReal,
-    output_size: INT64,
+    output_size: Optional[INT64] = None,
     scale_factors: Optional[Sequence[float]] = None,
 ) -> TReal:
     """upsample_nearest3d.vec(Tensor input, SymInt[]? output_size, float[]? scale_factors) -> Tensor"""
 
-    # TODO: Use scale_factors?
-    return _aten_upsample_output_size(input, output_size, "nearest", "asymmetric")
+    if scale_factors is not None:
+        return _aten_upsample_scales(
+            input, op.Constant(value_floats=scale_factors), "nearest", "asymmetric"
+        )
+    else:
+        return _aten_upsample_output_size(input, output_size, "nearest", "asymmetric")
 
-    
+
 def aten_upsample_nearest3d_backward(
     grad_output: TensorType,
     output_size: INT64,
