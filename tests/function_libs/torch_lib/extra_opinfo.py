@@ -1667,16 +1667,8 @@ def sample_inputs_upsample_nearest1d_vec(op_info, device, dtype, requires_grad, 
         high=1,
     )
 
-    yield opinfo_core.SampleInput(
-        make_arg(shape(D, rank)),
-        shape(S, rank, False),
-        None
-    )
-    yield opinfo_core.SampleInput(
-        make_arg(shape(D, rank)),
-        shape(L, rank, False),
-        None
-    )
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(S, rank, False), None)
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(L, rank, False), None)
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
         None,  # output_size
@@ -1687,7 +1679,6 @@ def sample_inputs_upsample_nearest1d_vec(op_info, device, dtype, requires_grad, 
         None,
         scale_factors=(0.6,),
     )
-
 
 
 def sample_inputs_upsample_nearest2d(op_info, device, dtype, requires_grad, **kwargs):
@@ -1758,16 +1749,8 @@ def sample_inputs_upsample_nearest2d_vec(op_info, device, dtype, requires_grad, 
         high=1,
     )
 
-    yield opinfo_core.SampleInput(
-        make_arg(shape(D, rank)),
-        shape(S, rank, False),
-        None
-    )
-    yield opinfo_core.SampleInput(
-        make_arg(shape(D, rank)),
-        shape(L, rank, False),
-        None
-    )
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(S, rank, False), None)
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(L, rank, False), None)
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
         None,
@@ -1848,16 +1831,8 @@ def sample_inputs_upsample_nearest3d_vec(op_info, device, dtype, requires_grad, 
         high=1,
     )
 
-    yield opinfo_core.SampleInput(
-        make_arg(shape(D, rank)),
-        shape(S, rank, False),
-        None
-    )
-    yield opinfo_core.SampleInput(
-        make_arg(shape(D, rank)),
-        shape(L, rank, False),
-        None
-    )
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(S, rank, False), None)
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(L, rank, False), None)
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
         None,

@@ -2497,6 +2497,7 @@ def aten_upsample_bilinear2d_vec(
             coordinate_transformation_mode=coordinate_transformation_mode,
         )
     else:
+        assert output_size is not None
         result = _aten_upsample_output_size(
             self,
             output_size,
@@ -2526,15 +2527,13 @@ def aten_upsample_linear1d(
 ) -> TReal:
     """upsample_linear1d(Tensor self, SymInt[1] output_size, bool align_corners, float? scales=None) -> Tensor"""
     coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
-    if scales is not None:
-        return _aten_upsample_scales(self, [scales], "linear", coordinate_transformation_mode)
-    else:
-        return _aten_upsample_output_size(
-            self,
-            output_size,
-            mode="linear",
-            coordinate_transformation_mode=coordinate_transformation_mode,
-        )
+    # scales is ignored in PyTorch
+    return _aten_upsample_output_size(
+        self,
+        output_size,
+        mode="linear",
+        coordinate_transformation_mode=coordinate_transformation_mode,
+    )
 
 
 def aten_upsample_linear1d_backward(
@@ -2578,6 +2577,7 @@ def aten_upsample_nearestnd_vec(
     if scale_factors is not None:
         return _aten_upsample_scales(input, scale_factors, "nearest", "asymmetric")
     else:
+        assert output_size is not None
         return _aten_upsample_output_size(input, output_size, "nearest", "asymmetric")
 
 
