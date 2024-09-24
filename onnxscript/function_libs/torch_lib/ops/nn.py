@@ -2386,7 +2386,9 @@ def _aten_upsample_scales(
     return op.Resize(
         self,
         None,
-        op.Constant(value_floats=[1.0, 1.0, *scale_factors]),  # format should be: [1.0, 1.0, scale_h, scale_w]
+        op.Constant(
+            value_floats=[1.0, 1.0, *scale_factors]
+        ),  # format should be: [1.0, 1.0, scale_h, scale_w]
         None,
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
@@ -2525,9 +2527,7 @@ def aten_upsample_linear1d(
     """upsample_linear1d(Tensor self, SymInt[1] output_size, bool align_corners, float? scales=None) -> Tensor"""
     coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
     if scales is not None:
-        return _aten_upsample_scales(
-            self, scales, "linear", coordinate_transformation_mode
-        )
+        return _aten_upsample_scales(self, [scales], "linear", coordinate_transformation_mode)
     else:
         return _aten_upsample_output_size(
             self,
@@ -2555,9 +2555,7 @@ def aten_upsample_nearest1d(
 ) -> TReal:
     """upsample_nearest1d(Tensor self, SymInt[1] output_size, float? scales=None) -> Tensor"""
     if scales is not None:
-        return _aten_upsample_scales(
-            self, scales, "nearest", "asymmetric"
-        )
+        return _aten_upsample_scales(self, [scales], "nearest", "asymmetric")
     else:
         return _aten_upsample_output_size(self, output_size, "nearest", "asymmetric")
 
@@ -2578,9 +2576,7 @@ def aten_upsample_nearestnd_vec(
     """upsample_nearest3d.vec(Tensor input, SymInt[]? output_size, float[]? scale_factors) -> Tensor"""
 
     if scale_factors is not None:
-        return _aten_upsample_scales(
-            input,scale_factors, "nearest", "asymmetric"
-        )
+        return _aten_upsample_scales(input, scale_factors, "nearest", "asymmetric")
     else:
         return _aten_upsample_output_size(input, output_size, "nearest", "asymmetric")
 
@@ -2608,7 +2604,7 @@ def aten_upsample_nearest2d(
     if scales_h is not None and scales_w is not None:
         return _aten_upsample_scales(
             self,
-            op.Constant(value_floats=[scales_h, scales_w]),
+            [scales_h, scales_w],
             "nearest",
             "asymmetric",
         )
@@ -2641,7 +2637,7 @@ def aten_upsample_nearest3d(
     if scales_d is not None and scales_h is not None and scales_w is not None:
         return _aten_upsample_scales(
             self,
-            op.Constant(value_floats=[scales_d, scales_h, scales_w]),
+            [scales_d, scales_h, scales_w],
             "nearest",
             "asymmetric",
         )
