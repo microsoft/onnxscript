@@ -2097,12 +2097,24 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nn_ops.aten_upsample_nearest1d,
     ),
     TorchLibOpInfo(
+        "ops.aten.upsample_nearest1d.vec",
+        nn_ops.aten_upsample_nearestnd_vec,
+    ),
+    TorchLibOpInfo(
         "ops.aten.upsample_nearest2d",
         nn_ops.aten_upsample_nearest2d,
     ),
     TorchLibOpInfo(
+        "ops.aten.upsample_nearest2d.vec",
+        nn_ops.aten_upsample_nearestnd_vec,
+    ),
+    TorchLibOpInfo(
         "ops.aten.upsample_nearest3d",
         nn_ops.aten_upsample_nearest3d,
+    ),
+    TorchLibOpInfo(
+        "ops.aten.upsample_nearest3d.vec",
+        nn_ops.aten_upsample_nearestnd_vec,
     ),
     TorchLibOpInfo(
         "ops.aten.upsample_trilinear3d.default",
