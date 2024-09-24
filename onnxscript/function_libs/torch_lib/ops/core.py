@@ -3269,7 +3269,7 @@ def aten_empty_strided(
     return op.Expand(zero, size)
 
 
-@torch_op(("aten::eq", "aten::eq.Tensor", "aten::eq.Scalar", "operator::eq"))
+@torch_op(("aten::eq", "aten::eq.Tensor", "aten::eq.Scalar", "_operator::eq"))
 def aten_eq(self: TTensor, other: TTensor) -> BOOL:
     """eq.Tensor(Tensor self, Tensor other) -> Tensor"""
 
