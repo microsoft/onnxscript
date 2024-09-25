@@ -2417,7 +2417,7 @@ def aten_upsample_bicubic2d(
     )
 
 
-@torch_op(("aten::upsample_bicubic2d.vec", "aten::upsample_linear1d.vec", trace_only=True)
+@torch_op(("aten::upsample_bicubic2d.vec", "aten::upsample_linear1d.vec"), trace_only=True)
 def aten_upsample_bicubic2d_vec(
     self: TReal,
     output_size: INT64,
