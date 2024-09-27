@@ -879,6 +879,10 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
             )
         self._frozen: bool = frozen
 
+    def copy(self):
+        """Return a copy of the shape."""
+        return Shape(self._dims, self._denotations, self._frozen)
+
     @property
     def dims(self) -> tuple[int | SymbolicDim, ...]:
         """All dimensions in the shape.

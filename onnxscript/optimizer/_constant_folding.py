@@ -236,7 +236,13 @@ def cast(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input = _get_input(node, 0)
     output = _get_output(node, 0)
     if input is not None and output is not None:
-        _update_type(output, input.type)
+        input_shape = input.shape
+        if input_shape is not None:
+            output.shape = input_shape.copy()
+    if output is not None:
+        output_dtype = _get_int_attribute(node, "to", None)
+        if output_dtype is not None:
+            output.type = ir.TensorType(ir.DataType(output_dtype))
     return None
 
 
