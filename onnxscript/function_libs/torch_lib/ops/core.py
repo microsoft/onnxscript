@@ -6619,7 +6619,8 @@ def aten_positive(self: TensorType) -> TensorType:
         "aten::pow.Tensor_Tensor",
         "aten::pow.Tensor_Scalar",
         "_operator::pow",
-    )
+    ),
+    traceable=True
 )
 def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     """pow(Tensor self, Tensor exponent) -> Tensor"""
@@ -7304,7 +7305,7 @@ def aten_rot90(self: TensorType, k: int = 1, dims: Sequence[int] = (0, 1)) -> Te
     raise NotImplementedError()
 
 
-@torch_op("aten::round")
+@torch_op("aten::round", traceable=True)
 def aten_round(self: TFloat) -> TFloat:
     """round(Tensor self) -> Tensor"""
 
@@ -7353,7 +7354,7 @@ def aten_rrelu(
     raise NotImplementedError()
 
 
-@torch_op("aten::rsqrt")
+@torch_op("aten::rsqrt", traceable=True)
 def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """rsqrt(Tensor self) -> Tensor"""
 
@@ -7810,7 +7811,7 @@ def aten_split_with_sizes_copy(
     raise NotImplementedError()
 
 
-@torch_op("aten::sqrt")
+@torch_op("aten::sqrt", traceable=True)
 def aten_sqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """sqrt(Tensor self) -> Tensor"""
 
