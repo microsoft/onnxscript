@@ -8,11 +8,14 @@ import unittest
 import onnx.checker
 import onnx.parser
 
-from onnxscript import ir
+from onnxscript import ir, script, FLOAT, opset17 as op
 from onnxscript.rewriter import _ir_utils, cast_constant_of_shape, pattern
 
 logger = logging.getLogger(__name__)
 
+def _parse_model_ir(onnxtxt: str) -> ir.Model:
+    model_proto = onnx.parser.parse_model(onnxtxt)
+    return ir.serde.deserialize_model(model_proto)
 
 class ReciprocalMulTest(unittest.TestCase):
     def rule(self) -> pattern.RewriteRule:
@@ -420,6 +423,31 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(model.graph[0].op_type, "Concat")
         self.assertNotIn("axis", model.graph[0].attributes)
 
+    def test_match_none_input(self):
+        def none_pattern(op, x):
+            # match against a call to Original where the first input is None
+            return op.Original(None, x)
+
+        def replacement(op, x):
+            return op.Replaced(x)
+        
+        rule = pattern.RewriteRule(none_pattern, replacement)
+
+        @script()
+        def test_model(x: FLOAT[1024]) -> (FLOAT[1024]):
+            # Pattern should match following call
+            t1 = op.Original(None, x)
+            # Pattern should not match following call
+            z = op.Original(t1, x)
+            return z
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+
+        count = rule.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(model.graph), 2)
+        self.assertEqual(model.graph.node(0).op_type, "Replaced")
+        self.assertEqual(model.graph.node(1).op_type, "Original")
 
 class PatternBuilderTest(unittest.TestCase):
     def test_pattern_builder_context(self):
