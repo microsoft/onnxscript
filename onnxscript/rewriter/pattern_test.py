@@ -448,7 +448,7 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(model.graph.node(0).op_type, "Replaced")
         self.assertEqual(model.graph.node(1).op_type, "Original")
 
-    def test_match_none_input(self):
+    def test_match_optional_input(self):
         def none_pattern(op, optional_input, x):
             # match against a call to Original where the first input may or may not be None
             return op.Original(optional_input, x)
