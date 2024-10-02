@@ -15,11 +15,6 @@ from onnxscript.rewriter import _ir_utils, cast_constant_of_shape, pattern
 logger = logging.getLogger(__name__)
 
 
-def _parse_model_ir(onnxtxt: str) -> ir.Model:
-    model_proto = onnx.parser.parse_model(onnxtxt)
-    return ir.serde.deserialize_model(model_proto)
-
-
 class ReciprocalMulTest(unittest.TestCase):
     def rule(self) -> pattern.RewriteRule:
         def reciprocal_mul_pattern(op, x, y):
