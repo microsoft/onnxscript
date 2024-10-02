@@ -592,9 +592,11 @@ class NodeOutputPattern(ValuePattern):
 
 Var = ValuePattern
 
+
 def _is_pattern_variable(x: Any) -> bool:
     # The derived classes of ValuePattern represent constant patterns and node-output patterns.
     return type(x) is ValuePattern
+
 
 class Constant(ValuePattern):
     """Represents a pattern that matches against a scalar constant value."""
@@ -988,16 +990,16 @@ class SimplePatternMatcher(PatternMatcher):
 
     def _match_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
         """Match an IR value against a ValuePattern instance."""
-        if value is None:
-            if not _is_pattern_variable(pattern_value):
-                return self.fail("Mismatch: input value is None, but pattern value is not a variable.")
-
         if not self._bind_value(pattern_value, value):
             return False
 
         if isinstance(pattern_value, NodeOutputPattern):
+            if value is None:
+                return self.fail("Mismatch: Computed node pattern does not match None.")
             return self._match_node_output(pattern_value, value)
         if isinstance(pattern_value, Constant):
+            if value is None:
+                return self.fail("Mismatch: Constant pattern does not match None.")
             return self._match_constant(pattern_value, value)
         return True
 
