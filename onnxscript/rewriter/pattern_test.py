@@ -8,14 +8,17 @@ import unittest
 import onnx.checker
 import onnx.parser
 
-from onnxscript import ir, script, FLOAT, opset17 as op
+from onnxscript import FLOAT, ir, script
+from onnxscript import opset17 as op
 from onnxscript.rewriter import _ir_utils, cast_constant_of_shape, pattern
 
 logger = logging.getLogger(__name__)
 
+
 def _parse_model_ir(onnxtxt: str) -> ir.Model:
     model_proto = onnx.parser.parse_model(onnxtxt)
     return ir.serde.deserialize_model(model_proto)
+
 
 class ReciprocalMulTest(unittest.TestCase):
     def rule(self) -> pattern.RewriteRule:
@@ -430,16 +433,17 @@ class RewriteRuleTest(unittest.TestCase):
 
         def replacement(op, x):
             return op.Replaced(x)
-        
+
         rule = pattern.RewriteRule(none_pattern, replacement)
 
         @script()
-        def test_model(x: FLOAT[1024]) -> (FLOAT[1024]):
+        def test_model(x: FLOAT[1024]) -> FLOAT[1024]:
             # Pattern should match following call
             t1 = op.Original(None, x)
             # Pattern should not match following call
             z = op.Original(t1, x)
             return z
+
         model_proto = test_model.to_model_proto()
         model = ir.serde.deserialize_model(model_proto)
 
@@ -448,6 +452,36 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(len(model.graph), 2)
         self.assertEqual(model.graph.node(0).op_type, "Replaced")
         self.assertEqual(model.graph.node(1).op_type, "Original")
+
+    def test_match_none_input(self):
+        def none_pattern(op, optional_input, x):
+            # match against a call to Original where the first input may or may not be None
+            return op.Original(optional_input, x)
+
+        def replacement(op, optional_input, x):
+            if optional_input is None:
+                return op.ReplacedNone(x)
+            return op.ReplacedNotNone(x)
+
+        rule = pattern.RewriteRule(none_pattern, replacement)
+
+        @script()
+        def test_model(x: FLOAT[1024]) -> FLOAT[1024]:
+            # Pattern should match following call
+            t1 = op.Original(None, x)
+            # as well as this one
+            z = op.Original(t1, x)
+            return z
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+
+        count = rule.apply_to_model(model)
+        self.assertEqual(count, 2)
+        self.assertEqual(len(model.graph), 2)
+        self.assertEqual(model.graph.node(0).op_type, "ReplacedNone")
+        self.assertEqual(model.graph.node(1).op_type, "ReplacedNotNone")
+
 
 class PatternBuilderTest(unittest.TestCase):
     def test_pattern_builder_context(self):
