@@ -6620,7 +6620,7 @@ def aten_positive(self: TensorType) -> TensorType:
         "aten::pow.Tensor_Scalar",
         "_operator::pow",
     ),
-    traceable=True
+    traceable=True,
 )
 def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     """pow(Tensor self, Tensor exponent) -> Tensor"""
