@@ -25,7 +25,6 @@ class LNRewriteRule(function_rule.FunctionRewriteRule):
             raise function_rule.FunctionRewriteError("Could not find Add node")
 
         eps_ir_value = aten_add_node.inputs[1]
-        ir.convenience.compute_const_value(eps_ir_value)
         eps_const_value = eps_ir_value.const_value
         if eps_const_value is None:
             raise function_rule.FunctionRewriteError("Could not find eps")

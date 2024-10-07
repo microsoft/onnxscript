@@ -7,7 +7,6 @@ import logging
 import numpy as np
 import onnx
 
-from onnxscript import ir
 from onnxscript.rewriter import pattern
 
 torch_module_op = pattern.torch_module_op
@@ -43,13 +42,11 @@ def check_if_simulated_instance_norm_is_used(
     Returns:
         bool: True if the simulated instance normalization is used, False otherwise.
     """
-    ir.convenience.compute_const_value(weight_for_norm)
     weight_for_norm_const_value = weight_for_norm.const_value
     if weight_for_norm_const_value is None:
         return False
     weight_for_norm = weight_for_norm_const_value.numpy()
 
-    ir.convenience.compute_const_value(bias_for_norm)
     bias_for_norm_const_value = bias_for_norm.const_value
     if bias_for_norm_const_value is None:
         return False
@@ -77,7 +74,6 @@ def check_if_simulated_instance_norm_is_used(
     if not all(dim == 1 for dim in bias_full_shape[1:]):
         return False
 
-    ir.convenience.compute_const_value(adjusted_input_shape)
     adjusted_input_shape_const_value = adjusted_input_shape.const_value
 
     g = weight_for_norm.shape[0]
@@ -88,7 +84,6 @@ def check_if_simulated_instance_norm_is_used(
         return False
 
     # NOTE: Restrict the rule to only support constant shape
-    ir.convenience.compute_const_value(original_input_shape)
     original_input_shape_const_value = original_input_shape.const_value
     if (
         original_input_shape_const_value is None

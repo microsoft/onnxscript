@@ -617,7 +617,6 @@ class Constant(ValuePattern):
         return self._value
 
     def matches(self, value: ir.Value, match: MatchResult) -> MatchResult:
-        ir.convenience.compute_const_value(value)
         constant_value = value.const_value
         if constant_value is None:
             return match.fail(f"Value is not a constant, expecting {self.value}.")
@@ -914,7 +913,6 @@ class SimplePatternMatcher(PatternMatcher):
         if subgraph replacement happens. But subsequent DCE will remove the constant
         node if it is not used elsewhere.
         """
-        ir.convenience.compute_const_value(value)
         constant_value = value.const_value
         if constant_value is None:
             return self.fail(

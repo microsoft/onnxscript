@@ -437,38 +437,3 @@ def replace_nodes_and_values(
     # insert new nodes after the index node
     graph_or_function.insert_after(insertion_point, new_nodes)
     graph_or_function.remove(old_nodes, safe=True)
-
-
-def compute_const_value(ir_value: _core.Value) -> None:
-    """Evaluates Constant nodes and sets the const_value attribute of the Value."""
-    node = ir_value.producer()
-    if node is None:
-        return
-    if node.op_type != "Constant" or node.domain not in {"", "ai.onnx"}:
-        return
-    attr_name, attr_value = next(iter(node.attributes.items()))
-    if attr_value is None or not isinstance(attr_value, _core.Attr):
-        return
-
-    const_value: _core.TensorProtocol
-    if attr_name in {"value_float", "value_floats"}:
-        const_value = _core.Tensor(
-            np.array(attr_value.value, dtype=np.float32), name=ir_value.name
-        )
-    elif attr_name in {"value_int", "value_ints"}:
-        const_value = _core.Tensor(
-            np.array(attr_value.value, dtype=np.int64), name=ir_value.name
-        )
-    elif attr_name in {"value_string", "value_strings"}:
-        const_value = _core.StringTensor(
-            np.array(attr_value.value, dtype=np.bytes_), name=ir_value.name
-        )
-    elif attr_name == "value":
-        const_value = typing.cast(_protocols.TensorProtocol, attr_value.value)
-    else:
-        return
-
-    ir_value.const_value = const_value
-    ir_value.shape = const_value.shape  # type: ignore
-    ir_value.dtype = const_value.dtype
-    return ir_value
