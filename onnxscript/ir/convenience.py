@@ -9,9 +9,11 @@ __all__ = [
     "convert_attributes",
     "replace_all_uses_with",
     "replace_nodes_and_values",
+    "compute_const_value",
 ]
 
 from onnxscript.ir._convenience import (
+    compute_const_value,
     convert_attribute,
     convert_attributes,
     replace_all_uses_with,

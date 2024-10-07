@@ -56,8 +56,9 @@ import onnx
 from onnx import helper as onnx_helper
 
 import onnxscript
+import onnxscript.ir.convenience
 from onnxscript import ir
-from onnxscript.rewriter import _ir_utils, function_rule
+from onnxscript.rewriter import function_rule
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +111,8 @@ class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
                 assert (
                     constant_node.op_type == "Constant"
                 ), "Expected the second input to Reshape to be a Constant node."
-                value = _ir_utils.propagate_const_value(reshape_node.inputs[1])
+                value = reshape_node.inputs[1]
+                ir.convenience.compute_const_value(value)
                 constant_value = value.const_value
                 if constant_value is None:
                     raise function_rule.FunctionRewriteError(

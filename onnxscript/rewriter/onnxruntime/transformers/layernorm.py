@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 
 import onnxscript
+import onnxscript.ir.convenience
 from onnxscript import ir
-from onnxscript.rewriter import _ir_utils, function_rule
+from onnxscript.rewriter import function_rule
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,8 @@ class LNRewriteRule(function_rule.FunctionRewriteRule):
         if aten_add_node is None:
             raise function_rule.FunctionRewriteError("Could not find Add node")
 
-        eps_ir_value = _ir_utils.propagate_const_value(aten_add_node.inputs[1])
+        eps_ir_value = aten_add_node.inputs[1]
+        ir.convenience.compute_const_value(eps_ir_value)
         eps_const_value = eps_ir_value.const_value
         if eps_const_value is None:
             raise function_rule.FunctionRewriteError("Could not find eps")
