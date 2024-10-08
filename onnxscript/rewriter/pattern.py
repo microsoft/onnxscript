@@ -919,7 +919,10 @@ class SimplePatternMatcher(PatternMatcher):
                 f"Value {value.name} is not a constant, expecting {pattern_constant.value}.",
             )
 
-        constant_value_numpy = constant_value.numpy()
+        try:
+            constant_value_numpy = constant_value.numpy()
+        except FileNotFoundError:
+            return self.fail(f"Constant value of {value.name} not available.")
         # TODO (rama): allow users to specify shape requirement, if desired.
         if constant_value_numpy.size != 1:
             return self.fail(

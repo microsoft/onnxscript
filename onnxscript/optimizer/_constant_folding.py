@@ -32,6 +32,10 @@ def is_non_deterministic_op(node: ir.Node) -> bool:
     )
 
 
+def is_onnx_op(node: ir.Node, op_type: str) -> bool:
+    return node.op_type == op_type and utils.is_onnx_domain(node.domain)
+
+
 def is_constant_op(node: ir.Node) -> bool:
     return node.op_type in {"Constant", "ConstantOfShape"} and utils.is_onnx_domain(
         node.domain
@@ -168,7 +172,11 @@ def _get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
         return None
     const_value = val.const_value
     if const_value is not None:
-        return const_value.numpy()
+        try:
+            return const_value.numpy()
+        except FileNotFoundError:
+            # External data is not available.
+            return None
     return None
 
 
@@ -604,6 +612,12 @@ class ConstantFolder:
         for i, value in enumerate(node.inputs):
             sym_value = self._state.get_sym_value(value)
             if isinstance(sym_value, ir.Value):
+                logger.debug(
+                    "Node [%s]: Replacing input %s with %s",
+                    node.name,
+                    value.name,
+                    sym_value.name,
+                )
                 node.replace_input_with(i, sym_value)
                 # TODO(rama): consider merging type/other info from both values
 
@@ -626,7 +640,11 @@ class ConstantFolder:
                     output = [output]
                 return Replacement(output, context.nodes)
 
-        if is_control_flow_op(node) or is_non_deterministic_op(node):
+        if (
+            is_control_flow_op(node)
+            or is_non_deterministic_op(node)
+            or is_onnx_op(node, "Constant")
+        ):
             return None
 
         input_values = [_get_numpy_value(x) for x in node.inputs]
@@ -648,7 +666,7 @@ class ConstantFolder:
             return None
         if len(node.outputs) == 1 and not isinstance(outputs, (tuple, list)):
             replacement = self.new_constant(node.outputs[0], outputs)
-            if is_constant_op(node) or replacement is None:
+            if is_onnx_op(node, "ConstantOfShape") or replacement is None:
                 return None
             return Replacement(replacement.outputs, [replacement])
         else:
