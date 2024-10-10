@@ -23,7 +23,6 @@ from typing import (
 
 from onnxscript import ir
 from onnxscript.ir import _convenience, _tape
-from onnxscript.rewriter import _ir_utils
 
 T = TypeVar("T")
 
@@ -618,7 +617,6 @@ class Constant(ValuePattern):
         return self._value
 
     def matches(self, value: ir.Value, match: MatchResult) -> MatchResult:
-        value = _ir_utils.propagate_const_value(value)
         constant_value = value.const_value
         if constant_value is None:
             return match.fail(f"Value is not a constant, expecting {self.value}.")
@@ -915,14 +913,16 @@ class SimplePatternMatcher(PatternMatcher):
         if subgraph replacement happens. But subsequent DCE will remove the constant
         node if it is not used elsewhere.
         """
-        value = _ir_utils.propagate_const_value(value)
         constant_value = value.const_value
         if constant_value is None:
             return self.fail(
                 f"Value {value.name} is not a constant, expecting {pattern_constant.value}.",
             )
 
-        constant_value_numpy = constant_value.numpy()
+        try:
+            constant_value_numpy = constant_value.numpy()
+        except FileNotFoundError:
+            return self.fail(f"Constant value of {value.name} not available.")
         # TODO (rama): allow users to specify shape requirement, if desired.
         if constant_value_numpy.size != 1:
             return self.fail(
