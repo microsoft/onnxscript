@@ -2030,12 +2030,6 @@ def aten_convolution(
         stride = (stride, stride)
     strides = list(stride)
 
-    if bias is None:
-        weight_dim_0 = op.Shape(weight, start=0, end=1)
-        bias_shape = op.Expand(weight_dim_0, op.Constant(value_ints=[1]))
-        zero = op.CastLike(0.0, input)
-        bias = op.Expand(zero, bias_shape)
-
     result = _aten_convolution_onnx(
         input,
         weight,
