@@ -2480,7 +2480,7 @@ def aten_upsample_bilinear2d(
     )
 
 
-@torch_op("aten::upsample_bilinear2d.vec", trace_only=True)
+@torch_op(("aten::upsample_bilinear2d.vec", "aten::upsample_linear1d.vec"), trace_only=True)
 def aten_upsample_bilinear2d_vec(
     self: TReal,
     output_size: Optional[INT64],
