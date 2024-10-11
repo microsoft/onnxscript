@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 # use ORT's implementation if we want to.
 
 
-def _process_constant_node(node: ir.node) -> None:
+def _process_constant_node(node: ir.Node) -> None:
     """Sets const_value of output value of a Constant op node."""
     if node.op_type != "Constant" or node.domain not in {"", "ai.onnx"}:
         return
@@ -660,7 +660,7 @@ class ConstantFolder:
                 logger.debug(
                     "Node [%s]: Replacing input %s with %s",
                     node.name,
-                    value.name,
+                    value.name,  # type: ignore[union-attr]
                     sym_value.name,
                 )
                 node.replace_input_with(i, sym_value)
