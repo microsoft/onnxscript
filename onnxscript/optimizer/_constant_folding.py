@@ -703,9 +703,9 @@ class ConstantFolder:
         if any(x is None for x in input_values):
             return None
 
-        if any(input.size > self._input_size_limit for input in input_values):
+        if any(input.size > self._input_size_limit for input in input_values):  # type: ignore[union-attr]
             if logger.isEnabledFor(logging.DEBUG):
-                input_sizes = [input.size for input in input_values]
+                input_sizes = [input.size for input in input_values]  # type: ignore[union-attr]
                 logger.debug(
                     "Skipping constant folding for op %s due to large input size: %s",
                     node.op_type,
