@@ -43,7 +43,9 @@ def is_constant_op(node: ir.Node) -> bool:
     )
 
 
-_DEFAULT_CONSTANT_FOLD_SIZE_LIMIT = constant_folding._DEFAULT_CONSTANT_FOLD_SIZE_LIMIT
+_DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 1024
+
+_DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = constant_folding._DEFAULT_CONSTANT_FOLD_SIZE_LIMIT
 
 logger = logging.getLogger(__name__)
 
@@ -550,11 +552,16 @@ class ConstantFolder:
 
     def __init__(
         self,
+        *,
         external_data_folder: str,
-        do_shape_inference: bool,
+        shape_inference: bool,
+        input_size_limit: int,
+        output_size_limit: int,
     ) -> None:
         self._external_data_folder = external_data_folder
-        self._do_shape_inference = do_shape_inference
+        self._shape_inference = shape_inference
+        self._input_size_limit = input_size_limit
+        self._output_size_limit = output_size_limit
         self._init()
 
     def _init(self) -> None:
@@ -632,7 +639,7 @@ class ConstantFolder:
 
         irvalue.const_value = _convenience.tensor(value)
 
-        if value.nbytes > _DEFAULT_CONSTANT_FOLD_SIZE_LIMIT:
+        if value.nbytes > self._output_size_limit:
             logger.info(
                 "Skip storing constant folded nvalue %s due to large size %s.",
                 irvalue.name,
@@ -667,7 +674,7 @@ class ConstantFolder:
                 # TODO(rama): consider merging type/other info from both values
 
         # Do incremental shape inference
-        if self._do_shape_inference and not is_control_flow_op(node):
+        if self._shape_inference and not is_control_flow_op(node):
             self._do_inference(node)
 
         if node.domain not in self.opset_imports:
@@ -694,6 +701,14 @@ class ConstantFolder:
 
         input_values = [_get_numpy_value(x) for x in node.inputs]
         if any(x is None for x in input_values):
+            return None
+
+        if any(input.size > self._input_size_limit for input in input_values):
+            if logger.isEnabledFor(logging.DEBUG):
+                input_sizes = [input.size for input in input_values]
+                logger.debug(
+                    f"Skipping constant folding for op {node.op_type} due to large input size: {input_sizes}"
+                )
             return None
 
         # Filter out bfloat16 cases?
@@ -770,14 +785,18 @@ def fold_constants(
     external_data_folder: str = "",
     *,
     onnx_shape_inference: bool = False,
+    input_size_limit: int = _DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
+    output_size_limit: int = _DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
 ) -> bool:
     """
     Applies constant folding optimization to the model.
     Returns true iff the model was modified.
     """
     folder = ConstantFolder(
-        external_data_folder,
-        onnx_shape_inference,
+        external_data_folder=external_data_folder,
+        shape_inference=onnx_shape_inference,
+        input_size_limit=input_size_limit,
+        output_size_limit=output_size_limit,
     )
     folder.visit_model(model)
     for op in folder.counts:

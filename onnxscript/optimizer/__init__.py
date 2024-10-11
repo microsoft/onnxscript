@@ -111,17 +111,33 @@ def optimize(
     return model
 
 
+_DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = (
+    _constant_folding._DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT
+)
+
+_DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = (
+    _constant_folding._DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT
+)
+
+
 def optimize_ir(
     model: ir.Model,
     num_iterations: int = 2,
     *,
     onnx_shape_inference: bool = True,
     stop_if_no_change: bool = True,
+    input_size_limit: int = _DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
+    output_size_limit: int = _DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
 ) -> None:
     del stop_if_no_change  # Looks like rewriter doesn't support this yet.
     _inliner.inline(model)
     for _ in range(num_iterations):
-        _constant_folding.fold_constants(model, onnx_shape_inference=onnx_shape_inference)
+        _constant_folding.fold_constants(
+            model,
+            onnx_shape_inference=onnx_shape_inference,
+            input_size_limit=input_size_limit,
+            output_size_limit=output_size_limit,
+        )
         rewriter.rewrite(model, pattern_rewrite_rules=_DEFAULT_REWRITE_RULES)
     remove_unused_nodes(model)
 
