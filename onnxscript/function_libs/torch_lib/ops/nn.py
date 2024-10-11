@@ -25,7 +25,6 @@ from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
     TFloat,
-    TFloatOrBFloat16,
     TFloatOrUInt8,
     TInt,
     TReal,
@@ -364,13 +363,13 @@ def aten_conv_depthwise3d(
 
 @torch_op("aten::cross_entropy_loss", traceable=True)
 def aten_cross_entropy_loss(
-    self: TFloatOrBFloat16,
+    self: TFloat,
     target: IntType,
-    weight: Optional[TFloatOrBFloat16] = None,
+    weight: Optional[TFloat] = None,
     reduction: int = 1,  # default is 'mean'
     ignore_index: int = -100,
     label_smoothing: float = 0.0,  # this was ignored due to ONNX not support
-) -> TFloatOrBFloat16:
+) -> TFloat:
     """cross_entropy_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100, float label_smoothing=0.0) -> Tensor"""
 
     if reduction == 0:  # "none"
@@ -812,7 +811,7 @@ def aten_l1_loss(self: TensorType, target: TensorType, reduction: int = 1) -> Te
 
 
 @torch_op("aten::leaky_relu")
-def aten_leaky_relu(self: TFloatOrBFloat16, negative_slope: float = 0.01) -> TFloatOrBFloat16:
+def aten_leaky_relu(self: TFloat, negative_slope: float = 0.01) -> TFloat:
     """leaky_relu(Tensor self, Scalar negative_slope=0.01) -> Tensor"""
 
     return op.LeakyRelu(self, alpha=negative_slope)
@@ -850,7 +849,7 @@ def aten_linear_bias(input: TFloat, weight: TFloat, bias: TFloat) -> TFloat:
 
 
 @torch_op("aten::log_sigmoid")
-def aten_log_sigmoid(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def aten_log_sigmoid(self: TFloat) -> TFloat:
     """log_sigmoid(Tensor self) -> Tensor"""
 
     return op.Log(op.Sigmoid(self))
