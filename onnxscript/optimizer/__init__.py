@@ -129,6 +129,20 @@ def optimize_ir(
     input_size_limit: int = _DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
     output_size_limit: int = _DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
 ) -> None:
+    """
+    Optimizes a model.
+
+    Args:
+        model: The model to be optimized
+        num_iterations: Number of times the optimization loop is repeated
+        onnx_shape_inference: Applies node-level shape-inference as part of optimization
+        input_size_limit: Will not apply constant folding to ops with any input of size
+            greater than this. Does not apply to special ops like Shape() and Size().
+        output_size_limit: Will not rewrite any foldable-op into a Constant op if the size
+            of the output tensor is greater than this.
+        stop_if_no_change: Not supported currently (has no effect). Meant to stop the
+            outer optimization loop if no change is detected in one iteration.
+    """
     del stop_if_no_change  # Looks like rewriter doesn't support this yet.
     _inliner.inline(model)
     for _ in range(num_iterations):

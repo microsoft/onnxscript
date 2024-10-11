@@ -707,7 +707,9 @@ class ConstantFolder:
             if logger.isEnabledFor(logging.DEBUG):
                 input_sizes = [input.size for input in input_values]
                 logger.debug(
-                    f"Skipping constant folding for op {node.op_type} due to large input size: {input_sizes}"
+                    "Skipping constant folding for op %s due to large input size: %s",
+                    node.op_type,
+                    input_sizes,
                 )
             return None
 
