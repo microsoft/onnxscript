@@ -21,6 +21,7 @@ from typing import (
     Union,
 )
 
+import onnxscript.optimizer
 from onnxscript import ir
 from onnxscript.ir import _convenience, _tape
 
@@ -1366,6 +1367,7 @@ class RewriteRuleSet:
                 # for inserted nodes in the case of patterns with multiple output-nodes. The following
                 # is sufficient for patterns with a single output-node "node", which can serve as the
                 # insertion-point.
+                onnxscript.optimizer.basic_constant_propagation(delta.new_nodes)
                 _convenience.replace_nodes_and_values(
                     graph_or_function,
                     node,
@@ -1380,8 +1382,10 @@ class RewriteRuleSet:
 
     def apply_to_model(self, model: ir.Model, verbose: int | None = None) -> int:
         assert isinstance(model, ir.Model)
+        onnxscript.optimizer.basic_constant_propagation(model.graph)
         count = self._apply_to_graph_or_function(model, model.graph, verbose=verbose)
         for function in model.functions.values():
+            onnxscript.optimizer.basic_constant_propagation(function)
             count += self._apply_to_graph_or_function(model, function, verbose=verbose)
         return count
 

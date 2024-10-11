@@ -1612,35 +1612,6 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
             return
         raise TypeError(f"Expected value to be a Shape or None, got '{type(value)}'")
 
-    def _compute_const_value(self) -> None:
-        """Evaluates Constant nodes and sets the const_value attribute of the Value."""
-        node = self.producer()
-        if node is None:
-            return
-        if node.op_type != "Constant" or node.domain not in {"", "ai.onnx"}:
-            return
-        attr_name, attr_value = next(iter(node.attributes.items()))
-        if attr_value is None or not isinstance(attr_value, Attr):
-            return
-
-        const_value: _protocols.TensorProtocol
-        if attr_name in {"value_float", "value_floats"}:
-            const_value = Tensor(np.array(attr_value.value, dtype=np.float32), name=self.name)
-        elif attr_name in {"value_int", "value_ints"}:
-            const_value = Tensor(np.array(attr_value.value, dtype=np.int64), name=self.name)
-        elif attr_name in {"value_string", "value_strings"}:
-            const_value = StringTensor(
-                np.array(attr_value.value, dtype=np.bytes_), name=self.name
-            )
-        elif attr_name == "value":
-            const_value = typing.cast(_protocols.TensorProtocol, attr_value.value)
-        else:
-            return
-
-        self.const_value = const_value
-        self.shape = const_value.shape  # type: ignore
-        self.dtype = const_value.dtype
-
     @property
     def const_value(
         self,
@@ -1650,10 +1621,6 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         The value can be backed by different raw data types, such as numpy arrays.
         The only guarantee is that it conforms TensorProtocol.
         """
-        if self._const_value != None:
-            return self._const_value
-        # On-demand computation of constant value. Currently limited to outputs of Constant nodes.
-        self._compute_const_value()
         return self._const_value
 
     @const_value.setter
