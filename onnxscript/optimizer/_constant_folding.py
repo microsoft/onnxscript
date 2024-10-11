@@ -8,7 +8,8 @@ from __future__ import annotations
 import dataclasses
 import logging
 import math
-from typing import Any, Callable, Sequence, Union
+import typing
+from typing import Any, Callable, Iterable, Sequence, Union
 
 import numpy as np
 import onnx
@@ -32,6 +33,10 @@ def is_non_deterministic_op(node: ir.Node) -> bool:
     )
 
 
+def is_onnx_op(node: ir.Node, op_type: str) -> bool:
+    return node.op_type == op_type and utils.is_onnx_domain(node.domain)
+
+
 def is_constant_op(node: ir.Node) -> bool:
     return node.op_type in {"Constant", "ConstantOfShape"} and utils.is_onnx_domain(
         node.domain
@@ -46,6 +51,50 @@ logger = logging.getLogger(__name__)
 # The API below works only for non-control-flow ops (ops without any graph-attributes).
 # This currently used ONNX's reference implementation. But we could also
 # use ORT's implementation if we want to.
+
+
+def _process_constant_node(node: ir.Node) -> None:
+    """Sets const_value of output value of a Constant op node."""
+    if node.op_type != "Constant" or node.domain not in {"", "ai.onnx"}:
+        return
+    if len(node.attributes) != 1:
+        return
+    attr_name, attr_value = next(iter(node.attributes.items()))
+    if len(node.outputs) != 1:
+        return
+    ir_value = node.outputs[0]
+
+    if attr_value is None or not isinstance(attr_value, ir.Attr):
+        return
+
+    const_value: ir.TensorProtocol
+    if attr_name in {"value_float", "value_floats"}:
+        const_value = ir.Tensor(
+            np.array(attr_value.value, dtype=np.float32), name=ir_value.name
+        )
+    elif attr_name in {"value_int", "value_ints"}:
+        const_value = ir.Tensor(np.array(attr_value.value, dtype=np.int64), name=ir_value.name)
+    elif attr_name in {"value_string", "value_strings"}:
+        const_value = ir.StringTensor(
+            np.array(attr_value.value, dtype=np.bytes_), name=ir_value.name
+        )
+    elif attr_name == "value":
+        const_value = typing.cast(ir.TensorProtocol, attr_value.value)
+    else:
+        return
+
+    ir_value.const_value = const_value
+    ir_value.shape = const_value.shape  # type: ignore
+    ir_value.dtype = const_value.dtype
+
+
+def basic_constant_propagation(nodes: Iterable[ir.Node]) -> None:
+    """Performs basic constant propagation for a sequence of nodes.
+
+    Just marks the output values of Constant op nodes with their const_value.
+    """
+    for node in nodes:
+        _process_constant_node(node)
 
 
 class ReferenceEvaluator:
@@ -168,7 +217,11 @@ def _get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
         return None
     const_value = val.const_value
     if const_value is not None:
-        return const_value.numpy()
+        try:
+            return const_value.numpy()
+        except FileNotFoundError:
+            # External data is not available.
+            return None
     return None
 
 
@@ -604,6 +657,12 @@ class ConstantFolder:
         for i, value in enumerate(node.inputs):
             sym_value = self._state.get_sym_value(value)
             if isinstance(sym_value, ir.Value):
+                logger.debug(
+                    "Node [%s]: Replacing input %s with %s",
+                    node.name,
+                    value.name,  # type: ignore[union-attr]
+                    sym_value.name,
+                )
                 node.replace_input_with(i, sym_value)
                 # TODO(rama): consider merging type/other info from both values
 
@@ -629,6 +688,10 @@ class ConstantFolder:
         if is_control_flow_op(node) or is_non_deterministic_op(node):
             return None
 
+        if is_onnx_op(node, "Constant"):
+            _process_constant_node(node)
+            return None
+
         input_values = [_get_numpy_value(x) for x in node.inputs]
         if any(x is None for x in input_values):
             return None
@@ -648,7 +711,7 @@ class ConstantFolder:
             return None
         if len(node.outputs) == 1 and not isinstance(outputs, (tuple, list)):
             replacement = self.new_constant(node.outputs[0], outputs)
-            if is_constant_op(node) or replacement is None:
+            if is_onnx_op(node, "ConstantOfShape") or replacement is None:
                 return None
             return Replacement(replacement.outputs, [replacement])
         else:

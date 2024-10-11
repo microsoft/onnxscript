@@ -10,7 +10,7 @@ import onnx.parser
 
 from onnxscript import FLOAT, ir, script
 from onnxscript import opset17 as op
-from onnxscript.rewriter import _ir_utils, cast_constant_of_shape, pattern
+from onnxscript.rewriter import cast_constant_of_shape, pattern
 
 logger = logging.getLogger(__name__)
 
@@ -259,7 +259,6 @@ class RewriteRuleTest(unittest.TestCase):
 
         def check_for_redundant_reshape(context, x, newshape):
             oldshape = x.shape
-            newshape = _ir_utils.propagate_const_value(newshape)
             newshape_const_value = newshape.const_value
             if newshape_const_value is None:
                 return False

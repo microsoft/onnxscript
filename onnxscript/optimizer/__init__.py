@@ -126,9 +126,12 @@ def optimize_ir(
     remove_unused_nodes(model)
 
 
+basic_constant_propagation = _constant_folding.basic_constant_propagation
+
 __all__ = [
     "fold_constants",
     "remove_unused_nodes",
     "optimize",
     "optimize_ir",
+    "basic_constant_propagation",
 ]

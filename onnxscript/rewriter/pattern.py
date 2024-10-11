@@ -21,9 +21,9 @@ from typing import (
     Union,
 )
 
+import onnxscript.optimizer
 from onnxscript import ir
 from onnxscript.ir import _convenience, _tape
-from onnxscript.rewriter import _ir_utils
 
 T = TypeVar("T")
 
@@ -618,7 +618,6 @@ class Constant(ValuePattern):
         return self._value
 
     def matches(self, value: ir.Value, match: MatchResult) -> MatchResult:
-        value = _ir_utils.propagate_const_value(value)
         constant_value = value.const_value
         if constant_value is None:
             return match.fail(f"Value is not a constant, expecting {self.value}.")
@@ -915,14 +914,16 @@ class SimplePatternMatcher(PatternMatcher):
         if subgraph replacement happens. But subsequent DCE will remove the constant
         node if it is not used elsewhere.
         """
-        value = _ir_utils.propagate_const_value(value)
         constant_value = value.const_value
         if constant_value is None:
             return self.fail(
                 f"Value {value.name} is not a constant, expecting {pattern_constant.value}.",
             )
 
-        constant_value_numpy = constant_value.numpy()
+        try:
+            constant_value_numpy = constant_value.numpy()
+        except FileNotFoundError:
+            return self.fail(f"Constant value of {value.name} not available.")
         # TODO (rama): allow users to specify shape requirement, if desired.
         if constant_value_numpy.size != 1:
             return self.fail(
@@ -1372,6 +1373,7 @@ class RewriteRuleSet:
                 # for inserted nodes in the case of patterns with multiple output-nodes. The following
                 # is sufficient for patterns with a single output-node "node", which can serve as the
                 # insertion-point.
+                onnxscript.optimizer.basic_constant_propagation(delta.new_nodes)
                 _convenience.replace_nodes_and_values(
                     graph_or_function,
                     node,
@@ -1386,8 +1388,10 @@ class RewriteRuleSet:
 
     def apply_to_model(self, model: ir.Model, verbose: int | None = None) -> int:
         assert isinstance(model, ir.Model)
+        onnxscript.optimizer.basic_constant_propagation(model.graph)
         count = self._apply_to_graph_or_function(model, model.graph, verbose=verbose)
         for function in model.functions.values():
+            onnxscript.optimizer.basic_constant_propagation(function)
             count += self._apply_to_graph_or_function(model, function, verbose=verbose)
         return count
 
