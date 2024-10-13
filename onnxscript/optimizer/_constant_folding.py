@@ -17,19 +17,18 @@ import onnx.reference.ops
 
 import onnxscript.ir as ir
 import onnxscript.ir._convenience as _convenience
-import onnxscript.optimizer as optimizer
-
 import onnxscript.rewriter.pattern as orp
 import onnxscript.utils.utils as utils
-
 
 DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 1024
 
 DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = 1024 * 1024
 
+
 def is_control_flow_op(node: ir.Node) -> bool:
     graph_types = {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}
     return any(attr.type in graph_types for attr in node.attributes.values())
+
 
 non_deterministic_ops = frozenset(
     {
@@ -41,10 +40,9 @@ non_deterministic_ops = frozenset(
     }
 )
 
+
 def is_non_deterministic_op(node: ir.Node) -> bool:
-    return node.op_type in non_deterministic_ops and utils.is_onnx_domain(
-        node.domain
-    )
+    return node.op_type in non_deterministic_ops and utils.is_onnx_domain(node.domain)
 
 
 def is_onnx_op(node: ir.Node, op_type: str) -> bool:
