@@ -11,7 +11,9 @@ import onnx.reference.ops
 
 import onnxscript._legacy_ir as ir
 from onnxscript._legacy_ir import visitor
+import onnxscript.optimizer as optimizer
 from onnxscript.optimizer import evaluator
+import onnxscript.optimizer._constant_folding as _constant_folding
 from onnxscript.utils.utils import (
     is_control_flow_op,
     is_onnx_domain,
@@ -19,26 +21,15 @@ from onnxscript.utils.utils import (
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_CONSTANT_FOLD_SIZE_LIMIT = 1024 * 1024
-
 # Ops excluded from constant-propagation:
 # * Random ops, which are not deterministic (checked below)
 # * Control flow ops (checked by presence of graph-attribute)
-
-non_deterministic_ops = frozenset(
-    {
-        "RandomUniform",
-        "RandomNormal",
-        "RandomUniformLike",
-        "RandomNormalLike",
-        "Multinomial",
-    }
-)
 
 onnx_domain = frozenset({"", "onnx.ai"})
 
 
 def is_non_deterministic_op(node: onnx.NodeProto) -> bool:
+    non_deterministic_ops = _constant_folding.non_deterministic_ops
     return node.op_type in non_deterministic_ops and is_onnx_domain(node.domain)
 
 
@@ -89,7 +80,7 @@ class ConstantFolder(visitor.FunctionCallsiteProtoTransformer):
             )
             return None
 
-        if value.nbytes > _DEFAULT_CONSTANT_FOLD_SIZE_LIMIT:
+        if value.nbytes > _constant_folding.DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT:
             logger.info(
                 "Skip storing constant folded nvalue %s due to large size %s.",
                 name,

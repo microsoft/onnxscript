@@ -17,18 +17,32 @@ import onnx.reference.ops
 
 import onnxscript.ir as ir
 import onnxscript.ir._convenience as _convenience
-import onnxscript.optimizer.constant_folding as constant_folding
+import onnxscript.optimizer as optimizer
+
 import onnxscript.rewriter.pattern as orp
 import onnxscript.utils.utils as utils
 
+
+DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 1024
+
+DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = 1024 * 1024
 
 def is_control_flow_op(node: ir.Node) -> bool:
     graph_types = {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}
     return any(attr.type in graph_types for attr in node.attributes.values())
 
+non_deterministic_ops = frozenset(
+    {
+        "RandomUniform",
+        "RandomNormal",
+        "RandomUniformLike",
+        "RandomNormalLike",
+        "Multinomial",
+    }
+)
 
 def is_non_deterministic_op(node: ir.Node) -> bool:
-    return node.op_type in constant_folding.non_deterministic_ops and utils.is_onnx_domain(
+    return node.op_type in non_deterministic_ops and utils.is_onnx_domain(
         node.domain
     )
 
@@ -42,10 +56,6 @@ def is_constant_op(node: ir.Node) -> bool:
         node.domain
     )
 
-
-_DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 1024
-
-_DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = constant_folding._DEFAULT_CONSTANT_FOLD_SIZE_LIMIT
 
 logger = logging.getLogger(__name__)
 
@@ -787,8 +797,8 @@ def fold_constants(
     external_data_folder: str = "",
     *,
     onnx_shape_inference: bool = False,
-    input_size_limit: int = _DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
-    output_size_limit: int = _DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
+    input_size_limit: int = DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
+    output_size_limit: int = DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
 ) -> bool:
     """
     Applies constant folding optimization to the model.

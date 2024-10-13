@@ -111,23 +111,14 @@ def optimize(
     return model
 
 
-_DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = (
-    _constant_folding._DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT
-)
-
-_DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = (
-    _constant_folding._DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT
-)
-
-
 def optimize_ir(
     model: ir.Model,
     num_iterations: int = 2,
     *,
     onnx_shape_inference: bool = True,
     stop_if_no_change: bool = True,
-    input_size_limit: int = _DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
-    output_size_limit: int = _DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
+    input_size_limit: int = _constant_folding.DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
+    output_size_limit: int = _constant_folding.DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
 ) -> None:
     """Optimizes a model.
 
