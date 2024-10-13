@@ -12,7 +12,7 @@ import onnx.reference.ops
 import onnxscript._legacy_ir as ir
 from onnxscript._legacy_ir import visitor
 import onnxscript.optimizer as optimizer
-from onnxscript.optimizer import evaluator
+from onnxscript.optimizer._legacy import evaluator
 import onnxscript.optimizer._constant_folding as _constant_folding
 from onnxscript.utils.utils import (
     is_control_flow_op,

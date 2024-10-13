@@ -10,8 +10,8 @@ import onnx.shape_inference
 
 from onnxscript import ir, rewriter
 from onnxscript.optimizer import _constant_folding, _inliner
-from onnxscript.optimizer.constant_folding import fold_constants
-from onnxscript.optimizer.remove_unused import remove_unused_nodes
+from onnxscript.optimizer._legacy.constant_folding import fold_constants
+from onnxscript.optimizer._remove_unused import remove_unused_nodes
 from onnxscript.optimizer.remove_unused_function import remove_unused_functions
 from onnxscript.optimizer.simple_function_folding import (
     inline_functions_with_unused_outputs,

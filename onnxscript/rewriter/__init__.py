@@ -15,7 +15,7 @@ __all__ = [
 import onnx
 
 from onnxscript import ir
-from onnxscript.optimizer import remove_unused, remove_unused_function
+from onnxscript.optimizer import _remove_unused, remove_unused_function
 from onnxscript.rewriter import function_rule, pattern
 
 RewriteRuleSet = pattern.RewriteRuleSet
@@ -48,7 +48,7 @@ def rewrite(
         count = pattern_rewrite_rules.apply_to_model(model_ir)
         if count:
             print(f"Applied {count} of general pattern rewrite rules.")
-    remove_unused.remove_unused_nodes(model_ir)
+    _remove_unused.remove_unused_nodes(model_ir)
     model_ir = remove_unused_function.remove_unused_functions(model_ir)
     if proto:
         model = ir.serde.serialize_model(model_ir)

@@ -25,7 +25,7 @@ import onnxscript.rewriter.llama_rule_sets as rules
 import onnxscript.rewriter.onnxruntime as ort_rules
 import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
-from onnxscript.optimizer.remove_unused import remove_unused_nodes
+from onnxscript.optimizer._remove_unused import remove_unused_nodes
 
 
 def get_parsed_args(
