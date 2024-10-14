@@ -46,8 +46,8 @@ exclude_patterns = [
     'onnxscript/onnx_types.py',
     'onnxscript/**/*_test.py', # Skip linting test files for speed
     'onnxscript/function_libs/torch_lib/ops/**', # Operators typing do not play well with mypy
-    'onnxscript/optimizer/legacy/evaluator.py',  # FIXME
-    'onnxscript/optimizer/legacy/constant_folding.py',  # FIXME
+    'onnxscript/optimizer/_legacy/evaluator.py',  # FIXME
+    'onnxscript/optimizer/_legacy/constant_folding.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/fastgelu.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/instance_to_group_normalization.py',  # FIXME
     'onnxscript/_legacy_ir/irbuilder.py',  # FIXME
