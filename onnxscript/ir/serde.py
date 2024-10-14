@@ -1039,7 +1039,7 @@ def _should_create_value_info_for_value(value: _protocols.ValueProtocol) -> bool
     if value.shape is None and value.type is None:
         return False
     if not value.name:
-        logging.debug("Did not serialize '%s' because its name is empty", value)
+        logger.debug("Did not serialize '%s' because its name is empty", value)
         return False
     return True
 
