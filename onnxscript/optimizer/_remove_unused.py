@@ -6,6 +6,7 @@ import logging
 
 import onnx
 
+import onnxscript.optimizer._legacy._remove_unused_proto
 from onnxscript import ir
 
 logger = logging.getLogger(__name__)
@@ -81,8 +82,8 @@ def process_function_or_graph(function_or_graph: ir.Function | ir.Graph) -> int:
     return count
 
 
-def remove_unused_nodes(model: ir.Model) -> None:
-    """Removes unused nodes from the model."""
+def _remove_unused_nodes(model: ir.Model) -> None:
+    """Removes unused nodes from a model in IR form."""
     count = process_function_or_graph(model.graph)
     graph_outputs = frozenset(model.graph.outputs)
     initializers = model.graph.initializers
@@ -95,3 +96,11 @@ def remove_unused_nodes(model: ir.Model) -> None:
         count += process_function_or_graph(function)
 
     logger.info("Removed %s unused nodes", count)
+
+
+def remove_unused_nodes(model: ir.Model | onnx.ModelProto) -> None:
+    """Removes unused nodes from a model."""
+    if isinstance(model, ir.Model):
+        _remove_unused_nodes(model)
+    else:
+        onnxscript.optimizer._legacy._remove_unused_proto.remove_unused_nodes(model)
