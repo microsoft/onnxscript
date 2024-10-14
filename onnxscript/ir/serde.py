@@ -1294,12 +1294,16 @@ def serialize_node_into(node_proto: onnx.NodeProto, from_: _protocols.NodeProtoc
         else:
             node_proto.input.append(input_.name)
     # Do not include the trailing outputs that have empty names
-    non_empty_outputs_reversed = []
+    trailing_empty_outputs = 0
     for output in reversed(from_.outputs):
-        if not output.name:
-            continue
-        non_empty_outputs_reversed.append(output)
-    for output in reversed(non_empty_outputs_reversed):
+        if output.name:
+            break
+        trailing_empty_outputs += 1
+    if trailing_empty_outputs > 0:
+        outputs = from_.outputs[:-trailing_empty_outputs]
+    else:
+        outputs = from_.outputs
+    for output in outputs:
         node_proto.output.append(output.name)
 
     for attr in from_.attributes.values():
