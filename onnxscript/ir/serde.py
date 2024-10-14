@@ -1036,7 +1036,12 @@ def _should_create_value_info_for_value(value: _protocols.ValueProtocol) -> bool
         True if value info should be created for the value.
     """
     # No need to serialize value info if it is not set
-    return not (value.shape is None and value.type is None)
+    if value.shape is None and value.type is None:
+        return False
+    if not value.name:
+        logging.debug("Did not serialize '%s' because its name is empty", value)
+        return False
+    return True
 
 
 def _serialize_experimental_value_info_for_function_ir9_into(
@@ -1288,8 +1293,15 @@ def serialize_node_into(node_proto: onnx.NodeProto, from_: _protocols.NodeProtoc
             node_proto.input.append("")
         else:
             node_proto.input.append(input_.name)
-    for output in from_.outputs:
+    # Do not include the trailing outputs that have empty names
+    non_empty_outputs_reversed = []
+    for output in reversed(from_.outputs):
+        if not output.name:
+            continue
+        non_empty_outputs_reversed.append(output)
+    for output in reversed(non_empty_outputs_reversed):
         node_proto.output.append(output.name)
+
     for attr in from_.attributes.values():
         if isinstance(attr, _core.Attr):
             serialize_attribute_into(node_proto.attribute.add(), from_=attr)
