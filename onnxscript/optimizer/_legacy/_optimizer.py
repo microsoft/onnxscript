@@ -8,16 +8,15 @@ from typing import Any
 import onnx
 import onnx.shape_inference
 
-import onnxscript.optimizer
 from onnxscript import rewriter
-from onnxscript.optimizer._optimizer import _DEFAULT_REWRITE_RULES
-from onnxscript.optimizer._legacy.constant_folding import fold_constants
-from onnxscript.optimizer._remove_unused import remove_unused_nodes
-from onnxscript.optimizer._remove_unused_function import remove_unused_functions
 from onnxscript.optimizer._legacy._simple_function_folding import (
     inline_functions_with_unused_outputs,
     inline_simple_functions,
 )
+from onnxscript.optimizer._legacy.constant_folding import fold_constants
+from onnxscript.optimizer._optimizer import _DEFAULT_REWRITE_RULES
+from onnxscript.optimizer._remove_unused import remove_unused_nodes
+from onnxscript.optimizer._remove_unused_function import remove_unused_functions
 
 logger = logging.getLogger(__name__)
 

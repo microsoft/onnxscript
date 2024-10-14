@@ -5,9 +5,8 @@ from __future__ import annotations
 import logging
 
 from onnxscript import ir, rewriter
-from onnxscript.optimizer._remove_unused import remove_unused_nodes
 from onnxscript.optimizer import _constant_folding, _inliner
-
+from onnxscript.optimizer._remove_unused import remove_unused_nodes
 from onnxscript.rewriter import (
     broadcast_to_matmul,
     cast_constant_of_shape,

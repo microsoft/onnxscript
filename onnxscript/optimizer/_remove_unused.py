@@ -97,6 +97,7 @@ def _remove_unused_nodes(model: ir.Model) -> None:
 
     logger.info("Removed %s unused nodes", count)
 
+
 def remove_unused_nodes(model: ir.Model | onnx.ModelProto) -> None:
     """Removes unused nodes from a model."""
     if isinstance(model, ir.Model):
