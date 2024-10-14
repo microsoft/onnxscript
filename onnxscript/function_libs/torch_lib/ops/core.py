@@ -7352,18 +7352,11 @@ def aten_rsqrt(self: TFloat) -> TFloat:
     return op.Reciprocal(op.Sqrt(self))
 
 
-@torch_op(("aten::rsub.Tensor", "aten::rsub.Scalar"))
+# Do not register rsub. It will be decomposed and type promoted by torch
 def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
-    return op.Sub(other, op.Mul(self, alpha))
-
-
-@torch_op(("aten::rsub.Tensor", "aten::rsub.Scalar"), trace_only=True, complex=True)
-def aten_rsub_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
-    """rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
-
-    return aten_rsub(self, other, alpha)
+    raise NotImplementedError
 
 
 @torch_op("aten::scalar_tensor", trace_only=True)
