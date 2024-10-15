@@ -70,6 +70,7 @@ _NON_NUMPY_NATIVE_TYPES = frozenset(
         _enums.DataType.FLOAT8E5M2FNUZ,
         _enums.DataType.INT4,
         _enums.DataType.UINT4,
+        _enums.DataType.FLOAT4E2M1,
     )
 )
 
@@ -182,7 +183,7 @@ def _check_numpy_representation_type(array: np.ndarray, dtype: _enums.DataType) 
     When the dtype is not one of the numpy native dtypes, the value needs need to be:
 
     - ``int8`` or ``uint8`` for int4, with the sign bit extended to 8 bits.
-    - ``uint8`` for uint4.
+    - ``uint8`` for uint4 or float4.
     - ``uint8`` for 8-bit data types.
     - ``uint16`` for bfloat16
 
@@ -212,6 +213,11 @@ def _check_numpy_representation_type(array: np.ndarray, dtype: _enums.DataType) 
             if array.dtype not in (np.uint8, ml_dtypes.uint4):
                 raise TypeError(
                     f"The numpy array dtype must be uint8 or or ml_dtypes.uint4 (not {array.dtype}) for IR data type {dtype}."
+                )
+        if dtype == _enums.DataType.FLOAT4E2M1:
+            if array.dtype not in (np.uint8, ml_dtypes.float4_e2m1fn):
+                raise TypeError(
+                    f"The numpy array dtype must be uint8 or ml_dtypes.float4_e2m1fn (not {array.dtype}) for IR data type {dtype}."
                 )
         return
 
@@ -256,6 +262,8 @@ def _maybe_view_np_array_with_ml_dtypes(
         return array.view(ml_dtypes.int4)
     if dtype == _enums.DataType.UINT4:
         return array.view(ml_dtypes.uint4)
+    if dtype == _enums.DataType.FLOAT4E2M1:
+        return array.view(ml_dtypes.float4_e2m1fn)
     return array
 
 
@@ -431,7 +439,11 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         """
         # TODO(justinchuby): Support DLPack
         array = self.numpy()
-        if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
+        if self.dtype in {
+            _enums.DataType.INT4,
+            _enums.DataType.UINT4,
+            _enums.DataType.FLOAT4E2M1,
+        }:
             # Pack the array into int4
             array = _type_casting.pack_int4(array)
         else:
@@ -609,7 +621,11 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             )
         # Handle the byte order correctly by always using little endian
         dt = np.dtype(self.dtype.numpy()).newbyteorder("<")
-        if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
+        if self.dtype in {
+            _enums.DataType.INT4,
+            _enums.DataType.UINT4,
+            _enums.DataType.FLOAT4E2M1,
+        }:
             # Use uint8 to read in the full byte. Otherwise ml_dtypes.int4 will clip the values
             dt = np.dtype(np.uint8).newbyteorder("<")
             count = self.size // 2 + self.size % 2
@@ -622,6 +638,8 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             self._array = _type_casting.unpack_int4(self._array, shape)
         elif self.dtype == _enums.DataType.UINT4:
             self._array = _type_casting.unpack_uint4(self._array, shape)
+        elif self.dtype == _enums.DataType.FLOAT4E2M1:
+            self._array = _type_casting.unpack_float4e2m1(self._array, shape)
         else:
             self._array = self._array.reshape(shape)
 

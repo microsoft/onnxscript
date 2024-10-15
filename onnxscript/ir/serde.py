@@ -323,6 +323,8 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
             return _type_casting.unpack_int4(array.astype(np.uint8), self._proto.dims)
         elif dtype == _enums.DataType.UINT4:
             return _type_casting.unpack_uint4(array.astype(np.uint8), self._proto.dims)
+        elif dtype == _enums.DataType.FLOAT4E2M1:
+            return _type_casting.unpack_float4e2m1(array.astype(np.uint8), self._proto.dims)
         else:
             # Otherwise convert to the correct dtype and reshape
             # Note we cannot use view() here because the storage dtype may not be the same size as the target
@@ -369,6 +371,7 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
                 _enums.DataType.FLOAT8E5M2FNUZ,
                 _enums.DataType.INT4,
                 _enums.DataType.UINT4,
+                _enums.DataType.FLOAT4E2M1,
             }:
                 # uint4 and int4 values are already packed, even when stored as int32
                 # so we don't need to pack them again
