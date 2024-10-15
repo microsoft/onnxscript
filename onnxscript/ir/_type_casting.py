@@ -89,3 +89,18 @@ def unpack_int4(
     """
     unpacked = _unpack_uint4_as_uint8(data, dims)
     return _extend_int4_sign_bits(unpacked).view(ml_dtypes.int4)
+
+
+def unpack_float4e2m1(
+    data: npt.NDArray[np.uint8], dims: Sequence[int]
+) -> npt.NDArray[ml_dtypes.float4e2m1]:
+    """Convert a packed float4e2m1 array to unpacked float4e2m1 array.
+
+    Args:
+        data: A numpy array.
+        dims: The dimensions are used to reshape the unpacked buffer.
+
+    Returns:
+        A numpy array of float32 reshaped to dims.
+    """
+    return _unpack_uint4_as_uint8(data, dims).view(ml_dtypes.float4e2m1)
