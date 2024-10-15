@@ -439,7 +439,11 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         """
         # TODO(justinchuby): Support DLPack
         array = self.numpy()
-        if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4, _enums.DataType.FLOAT4E2M1}:
+        if self.dtype in {
+            _enums.DataType.INT4,
+            _enums.DataType.UINT4,
+            _enums.DataType.FLOAT4E2M1,
+        }:
             # Pack the array into int4
             array = _type_casting.pack_int4(array)
         else:
@@ -617,7 +621,11 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             )
         # Handle the byte order correctly by always using little endian
         dt = np.dtype(self.dtype.numpy()).newbyteorder("<")
-        if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4, _enums.DataType.FLOAT4E2M1}:
+        if self.dtype in {
+            _enums.DataType.INT4,
+            _enums.DataType.UINT4,
+            _enums.DataType.FLOAT4E2M1,
+        }:
             # Use uint8 to read in the full byte. Otherwise ml_dtypes.int4 will clip the values
             dt = np.dtype(np.uint8).newbyteorder("<")
             count = self.size // 2 + self.size % 2
