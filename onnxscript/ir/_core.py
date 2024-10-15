@@ -639,7 +639,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         elif self.dtype == _enums.DataType.UINT4:
             self._array = _type_casting.unpack_uint4(self._array, shape)
         elif self.dtype == _enums.DataType.FLOAT4E2M1:
-            self._array = _type_casting.unpack_float4_e2m1(self._array, shape)
+            self._array = _type_casting.unpack_float4e2m1(self._array, shape)
         else:
             self._array = self._array.reshape(shape)
 
