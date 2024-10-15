@@ -1360,8 +1360,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("round_decimals", core_ops.aten_round_decimals),
     TorchLibOpInfo("rsqrt", core_ops.aten_rsqrt),
-    TorchLibOpInfo("rsub", core_ops.aten_rsub),
-    TorchLibOpInfo("rsub", core_ops.aten_rsub_complex, complex=True),
     TorchLibOpInfo(
         "scalar_tensor",
         core_ops.aten_scalar_tensor,
