@@ -122,6 +122,7 @@ _ITEMSIZE_MAP = {
     DataType.FLOAT8E5M2FNUZ: 1,
     DataType.UINT4: 0.5,
     DataType.INT4: 0.5,
+    DataType.FLOAT4E2M1: 0.5,
 }
 
 
