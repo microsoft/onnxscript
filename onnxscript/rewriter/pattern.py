@@ -678,6 +678,16 @@ def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[NodePattern]:
     node_patterns.reverse()
     return node_patterns
 
+def _add_backward_slice(
+    node: NodePattern, backward_slice: set[NodePattern]
+) -> None:
+    if node in backward_slice:
+        return
+    backward_slice.add(node)
+    for value_pattern in node.inputs:
+        if isinstance(value_pattern, NodeOutputPattern):
+            _add_backward_slice(value_pattern.producer(), backward_slice)
+
 
 class GraphPattern:
     """Represents a pattern that can be matched against a subgraph."""
@@ -694,8 +704,10 @@ class GraphPattern:
             raise ValueError("GraphPattern must have at least one output")
         self._nodes = nodes  # _nodes_in_pattern(outputs)
 
-        # Check if all outputs are produced by the same node.
+        # Determine the output nodes of the pattern. These are a minimal set of nodes
+        # whose backward-slices cover the entire pattern.
         output_nodes: set[NodePattern] = set()
+        covered: set[NodePattern] = set()
         for value_pattern in outputs:
             if not isinstance(value_pattern, ValuePattern):
                 raise TypeError(
@@ -706,7 +718,11 @@ class GraphPattern:
                     "Constant values are not allowed as graph pattern outputs."
                 )
             if isinstance(value_pattern, NodeOutputPattern):
-                output_nodes.add(value_pattern.producer())
+                candidate = value_pattern.producer()
+                if candidate not in covered:
+                    output_nodes.add(candidate)
+                    _add_backward_slice(candidate, covered)
+
         self.output_nodes: list[NodePattern] = list(output_nodes)
 
     @property
@@ -1112,10 +1128,10 @@ class SimplePatternMatcher(PatternMatcher):
         if not _valid_to_replace(match.nodes, output_values):
             return match.fail("Matched nodes have other uses preventing replacement.")
 
-        if len(node.outputs) != pattern.num_outputs:
-            return match.fail(
-                f"Number of node outputs mismatch: expected {pattern.num_outputs}, got {len(node.outputs)}."
-            )
+        # if len(node.outputs) != pattern.num_outputs:
+        #     return match.fail(
+        #         f"Number of node outputs mismatch: expected {pattern.num_outputs}, got {len(node.outputs)}."
+        #     )
 
         match.outputs.extend(output_values)
         return match
