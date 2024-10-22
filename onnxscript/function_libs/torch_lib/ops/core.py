@@ -573,8 +573,8 @@ def aten_arange(
 
 @torch_op("aten::arange.start", trace_only=True)
 def aten_arange_start(
-    start: float,
-    end: float,
+    start: TReal,
+    end: TReal,
     dtype: int = -1,
     layout: str = "",
     device: str = "",
@@ -583,12 +583,8 @@ def aten_arange_start(
     """arange.start(Scalar start, Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     if dtype == -1 or dtype is None:
-        if isinstance(start, int) and isinstance(end, int):
-            result = op.Range(start, end, 1)
-        else:
-            start = float(start)
-            end = float(end)
-            result = op.Range(start, end, 1.0)
+        one = op.CastLike(1.0, end)
+        result = op.Range(start, end, one)
     elif _range_supported(dtype):
         end = op.Cast(end, to=dtype)
         start = op.Cast(start, to=dtype)
@@ -599,8 +595,8 @@ def aten_arange_start(
         # because the input dtype may be e.g. bfloat16 / int8 etc.
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
-        end = op.Constant(value_float=float(end))
-        start = op.Constant(value_float=float(start))
+        end = op.Cast(end, to=FLOAT.dtype)
+        start = op.Cast(start, to=FLOAT.dtype)
         one = op.Constant(value_float=1.0)
         result = op.Cast(op.Range(start, end, one), to=dtype)
 
