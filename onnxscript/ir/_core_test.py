@@ -55,6 +55,7 @@ class TensorTest(unittest.TestCase):
             ("int4", np.int8, ir.DataType.INT4),
             ("int4_uint8", np.uint8, ir.DataType.INT4),
             ("uint4", np.uint8, ir.DataType.UINT4),
+            ("float4e2m1", np.uint8, ir.DataType.FLOAT4E2M1),
         ]
     )
     def test_init_with_non_native_numpy_dtype(self, _: str, np_dtype, dtype: ir.DataType):
@@ -131,32 +132,46 @@ class TensorTest(unittest.TestCase):
         tensor = _core.Tensor(torch_tensor, dtype=ir.DataType.FLOAT)
         self.assertEqual(tensor.tobytes(), array.tobytes())
 
-    def test_tobtyes_returns_packed_data_for_int4(self):
+    def test_tobytes_returns_packed_data_for_int4(self):
         array = np.array([-8, -1, 0, 1, 2, 7, 1], dtype=np.int8)
         # Test odd sized array
         assert len(array) % 2 == 1
         tensor = _core.Tensor(array, dtype=ir.DataType.INT4)
         self.assertEqual(tensor.tobytes(), b"\xf8\x10r\x01")
 
-    def test_tobtyes_returns_packed_data_for_int4_ml_dtypes(self):
+    def test_tobytes_returns_packed_data_for_int4_ml_dtypes(self):
         array = np.array([-8, -1, 0, 1, 2, 7, 1], dtype=ml_dtypes.int4)
         # Test odd sized array
         assert len(array) % 2 == 1
         tensor = _core.Tensor(array, dtype=ir.DataType.INT4)
         self.assertEqual(tensor.tobytes(), b"\xf8\x10r\x01")
 
-    def test_tobtyes_returns_packed_data_for_uint4(self):
+    def test_tobytes_returns_packed_data_for_uint4(self):
         array = np.array([0, 1, 2, 7, 15], dtype=np.uint8)
         # Test odd sized array
         assert len(array) % 2 == 1
         tensor = _core.Tensor(array, dtype=ir.DataType.UINT4)
         self.assertEqual(tensor.tobytes(), b"\x10r\x0f")
 
-    def test_tobtyes_returns_packed_data_for_uint4_ml_dtypes(self):
+    def test_tobytes_returns_packed_data_for_uint4_ml_dtypes(self):
         array = np.array([0, 1, 2, 7, 15], dtype=ml_dtypes.uint4)
         # Test odd sized array
         assert len(array) % 2 == 1
         tensor = _core.Tensor(array, dtype=ir.DataType.UINT4)
+        self.assertEqual(tensor.tobytes(), b"\x10r\x0f")
+
+    def test_tobytes_returns_packed_data_for_float4e2m1(self):
+        array = np.array([0, 1, 2, 7, 15], dtype=np.uint8)
+        # Test odd sized array
+        assert len(array) % 2 == 1
+        tensor = _core.Tensor(array, dtype=ir.DataType.FLOAT4E2M1)
+        self.assertEqual(tensor.tobytes(), b"\x10r\x0f")
+
+    def test_tobytes_returns_packed_data_for_float4e2m1_ml_dtypes(self):
+        array = np.array([0, 1, 2, 7, 15], dtype=np.uint8)
+        # Test odd sized array
+        assert len(array) % 2 == 1
+        tensor = _core.Tensor(array, dtype=ir.DataType.FLOAT4E2M1)
         self.assertEqual(tensor.tobytes(), b"\x10r\x0f")
 
     def test_metadata(self):
@@ -436,6 +451,19 @@ class ExternalTensorTest(unittest.TestCase):
     def test_external_tensor_complex(self, _: str, np_dtype: np.dtype):
         expected_array = np.array([[0.0 + 1j, 0.2 - 1j, 0.3]], dtype=np_dtype)
         tensor_proto = ir.serde.serialize_tensor(ir.Tensor(expected_array))
+        with tempfile.TemporaryDirectory() as temp_dir:
+            _to_external_tensor(tensor_proto, temp_dir, "tensor.bin")
+            tensor = ir.serde.deserialize_tensor(tensor_proto, temp_dir)
+            np.testing.assert_array_equal(tensor.numpy(), expected_array)
+            # Close the mmap file by deleting the reference to tensor so Windows doesn't complain
+            # about permission errors
+            del tensor
+
+    def test_external_tensor_float4e2m1(self):
+        expected_array = np.array([0, 1, 2, 7, 15]).view(ml_dtypes.float4_e2m1fn)
+        tensor_proto = ir.serde.serialize_tensor(
+            ir.Tensor(expected_array, dtype=ir.DataType.FLOAT4E2M1)
+        )
         with tempfile.TemporaryDirectory() as temp_dir:
             _to_external_tensor(tensor_proto, temp_dir, "tensor.bin")
             tensor = ir.serde.deserialize_tensor(tensor_proto, temp_dir)
