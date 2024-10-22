@@ -963,8 +963,9 @@ class SimplePatternMatcher(PatternMatcher):
         pattern_constant_value = pattern_constant._value
 
         if isinstance(pattern_constant_value, list):
-            if constant_value_numpy.shape != (len(pattern_constant_value),):
-                return self.fail(f"Value has mismatching shape, expecting ({self.value},).")
+            expected_shape = (len(pattern_constant_value),)
+            if constant_value_numpy.shape != expected_shape:
+                return self.fail(f"Value has mismatching shape, expecting {expected_shape}.")
             if not all(
                 math.isclose(
                     constant_value_numpy.item(i),
