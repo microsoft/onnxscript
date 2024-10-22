@@ -24,7 +24,7 @@ def div_by_1(op, x):
 
 
 def dropout_zero(op, x):
-    return op.Dropout(x, 0.0)
+    return op.Dropout(x, ratio=0.0)
 
 
 def dropout_inference(op, x):
