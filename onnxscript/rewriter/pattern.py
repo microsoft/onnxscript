@@ -601,7 +601,10 @@ class Constant(ValuePattern):
     """Represents a pattern that matches against a scalar constant value."""
 
     def __init__(
-        self, value: int | float | list[int] | list[float], rel_tol: float = 1e-5, abs_tol: float = 1e-8
+        self,
+        value: int | float | list[int] | list[float],
+        rel_tol: float = 1e-5,
+        abs_tol: float = 1e-8,
     ) -> None:
         super().__init__(None)
         self._value = value
@@ -634,7 +637,9 @@ class Constant(ValuePattern):
                 )
                 for i in range(len(self._value))
             ):
-                return match.fail(f"Value mismatch: expected {self._value}, got {constant_value_numpy}.")
+                return match.fail(
+                    f"Value mismatch: expected {self._value}, got {constant_value_numpy}."
+                )
             return match
 
         # Scalar constant case:
@@ -678,9 +683,8 @@ def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[NodePattern]:
     node_patterns.reverse()
     return node_patterns
 
-def _add_backward_slice(
-    node: NodePattern, backward_slice: set[NodePattern]
-) -> None:
+
+def _add_backward_slice(node: NodePattern, backward_slice: set[NodePattern]) -> None:
     if node in backward_slice:
         return
     backward_slice.add(node)
@@ -970,7 +974,9 @@ class SimplePatternMatcher(PatternMatcher):
                 )
                 for i in range(len(pattern_constant_value))
             ):
-                return self.fail(f"Value mismatch: expected {pattern_constant_value}, got {constant_value_numpy}.")
+                return self.fail(
+                    f"Value mismatch: expected {pattern_constant_value}, got {constant_value_numpy}."
+                )
             return True
 
         # TODO (rama): allow users to specify shape requirement, if desired.
