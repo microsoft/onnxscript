@@ -1134,11 +1134,6 @@ class SimplePatternMatcher(PatternMatcher):
         if not _valid_to_replace(match.nodes, output_values):
             return match.fail("Matched nodes have other uses preventing replacement.")
 
-        # if len(node.outputs) != pattern.num_outputs:
-        #     return match.fail(
-        #         f"Number of node outputs mismatch: expected {pattern.num_outputs}, got {len(node.outputs)}."
-        #     )
-
         match.outputs.extend(output_values)
         return match
 
