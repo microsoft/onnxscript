@@ -632,7 +632,42 @@ def aten_arange_start_step(
     """arange.start_step(Scalar start, Scalar end, Scalar step=1, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     if dtype == -1:
-        result = op.Range(start, end, step)
+        # TODO: Because this is a trace_only function, the inputs are not promoted to
+        # Tensor until it hits ONNX ops. However, if it's dynamic, it should be
+        # Tensor at this point.
+        # https://github.com/microsoft/onnxscript/issues/1914
+        if isinstance(start, (int, float)):
+            start_is_int = isinstance(start, int)
+        else:
+            start_is_int = start.dtype in {
+                INT16.dtype,
+                INT32.dtype,
+                INT64.dtype,
+            }
+        if isinstance(end, (int, float)):
+            end_is_int = isinstance(end, int)
+        else:
+            end_is_int = end.dtype in {
+                INT16.dtype,
+                INT32.dtype,
+                INT64.dtype,
+            }
+        if isinstance(step, (int, float)):
+            step_is_int = isinstance(step, int)
+        else:
+            step_is_int = step.dtype in {
+                INT16.dtype,
+                INT32.dtype,
+                INT64.dtype,
+            }
+        if start_is_int and end_is_int and step_is_int:
+            result = op.Range(start, end, step)
+        else:
+            # to float
+            start = op.Cast(start, to=FLOAT.dtype)
+            end = op.Cast(end, to=FLOAT.dtype)
+            step = op.Cast(step, to=FLOAT.dtype)
+            result = op.Range(start, end, step)
     elif _integral_to_be_adjusted(dtype):
         # PyTorch arange op handles these integral types differently from INT64,
         # so we have to adjust these arguments accordingly.
