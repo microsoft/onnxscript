@@ -1,7 +1,5 @@
-# --------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 # mypy: disable-error-code="misc,arg-type,type-arg,valid-type,assignment,return-value"
 """torch.ops.aten operators under the `core` module.
 
@@ -41,10 +39,10 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     RealType,
     TFloat,
     TFloatHighPrecision,
-    TFloatOrBFloat16,
     TInt,
     TReal,
     TRealOrUInt8,
+    TRealUnlessFloat16OrInt8,
     TRealUnlessInt16OrInt8,
     TTensor,
     TTensor2,
@@ -140,17 +138,11 @@ def aten_abs(self: TRealOrUInt8) -> TRealOrUInt8:
     return op.Abs(self)
 
 
-@torch_op("aten::abs", complex=True)
+@torch_op("aten::abs", complex=True, traceable=True)
 def aten_abs_complex(self: TRealOrUInt8) -> TRealOrUInt8:
     """abs(Tensor self) -> Tensor"""
-    # self_real = self[..., 0]
-    self_real = op.Slice(self, [0], [1], axes=[-1])
-    # self_imag = self[..., 1]
-    self_imag = op.Slice(self, [1], [2], axes=[-1])
-    real_pow = op.Pow(self_real, 2)
-    imag_pow = op.Pow(self_imag, 2)
-    real_plus_imag = op.Add(real_pow, imag_pow)
-    return op.Squeeze(op.Sqrt(real_plus_imag), axes=[-1])
+
+    return op.ReduceL2(self, [-1], keepdims=False)
 
 
 @torch_op("aten::acos", traceable=True)
@@ -167,12 +159,13 @@ def aten_acosh(self: TFloat) -> TFloat:
     return op.Acosh(self)
 
 
-@torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"))
+@torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"), trace_only=True)
 def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
     # TODO(microsoft/onnxruntime#15977): Improve fp16 precision
-    alpha = op.CastLike(alpha, other)
-    other = op.Mul(other, alpha)
+    if alpha != 1.0:
+        alpha = op.CastLike(alpha, other)
+        other = op.Mul(other, alpha)
     return op.Add(self, other)
 
 
@@ -548,7 +541,7 @@ def _integral_to_be_adjusted(dtype: int) -> bool:
 
 @torch_op("aten::arange", trace_only=True)
 def aten_arange(
-    end: float,
+    end: TRealUnlessFloat16OrInt8,
     dtype: int = -1,
     layout: str = "",
     device: str = "",
@@ -557,10 +550,9 @@ def aten_arange(
     """arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     if dtype == -1 or dtype is None:
-        if isinstance(end, int):
-            result = op.Range(0, end, 1)
-        else:
-            result = op.Range(0.0, end, 1.0)
+        zero = op.CastLike(0.0, end)
+        one = op.CastLike(1.0, end)
+        result = op.Range(zero, end, one)
     elif _range_supported(dtype):
         end = op.Cast(end, to=dtype)
         zero = op.Cast(0, to=dtype)
@@ -571,7 +563,7 @@ def aten_arange(
         # because the input dtype may be e.g. bfloat16 / int8 etc.
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
-        end = op.Constant(value_float=float(end))
+        end = op.Cast(end, to=FLOAT.dtype)
         zero = op.Constant(value_float=0.0)
         one = op.Constant(value_float=1.0)
         result = op.Cast(op.Range(zero, end, one), to=dtype)
@@ -581,8 +573,8 @@ def aten_arange(
 
 @torch_op("aten::arange.start", trace_only=True)
 def aten_arange_start(
-    start: float,
-    end: float,
+    start: TRealUnlessFloat16OrInt8,
+    end: TRealUnlessFloat16OrInt8,
     dtype: int = -1,
     layout: str = "",
     device: str = "",
@@ -591,12 +583,8 @@ def aten_arange_start(
     """arange.start(Scalar start, Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     if dtype == -1 or dtype is None:
-        if isinstance(start, int) and isinstance(end, int):
-            result = op.Range(start, end, 1)
-        else:
-            start = float(start)
-            end = float(end)
-            result = op.Range(start, end, 1.0)
+        one = op.CastLike(1.0, end)
+        result = op.Range(start, end, one)
     elif _range_supported(dtype):
         end = op.Cast(end, to=dtype)
         start = op.Cast(start, to=dtype)
@@ -607,8 +595,8 @@ def aten_arange_start(
         # because the input dtype may be e.g. bfloat16 / int8 etc.
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
-        end = op.Constant(value_float=float(end))
-        start = op.Constant(value_float=float(start))
+        end = op.Cast(end, to=FLOAT.dtype)
+        start = op.Cast(start, to=FLOAT.dtype)
         one = op.Constant(value_float=1.0)
         result = op.Cast(op.Range(start, end, one), to=dtype)
 
@@ -616,23 +604,26 @@ def aten_arange_start(
 
 
 def _adjust_args_for_arange_int_dtype(
-    start: float,
-    end: float,
-    step: float,
-) -> Tuple[float, float, float]:
-    if start < 0:
-        start = math.ceil(start)
-    if step < 0:
-        start = math.floor(start)
+    start: TRealUnlessFloat16OrInt8,
+    end: TRealUnlessFloat16OrInt8,
+    step: TRealUnlessFloat16OrInt8,
+) -> Tuple[FLOAT, FLOAT, FLOAT]:
+    zero = op.Cast(0.0, to=FLOAT.dtype)
+    start = op.Cast(start, to=FLOAT.dtype)
+    end = op.Cast(end, to=FLOAT.dtype)
+    step = op.Cast(step, to=FLOAT.dtype)
 
-    return float(start), float(end), float(step)
+    start = op.Where(op.Less(start, zero), op.Ceil(start), start)
+    start = op.Where(op.Less(step, zero), op.Floor(start), start)
+
+    return (start, end, step)
 
 
 @torch_op("aten::arange.start_step", trace_only=True)
 def aten_arange_start_step(
-    start: float,
-    end: float,
-    step: float = 1.0,
+    start: TRealUnlessFloat16OrInt8,
+    end: TRealUnlessFloat16OrInt8,
+    step: TRealUnlessFloat16OrInt8 = 1.0,
     dtype: int = -1,
     layout: str = "",
     device: str = "",
@@ -640,13 +631,42 @@ def aten_arange_start_step(
 ) -> TensorType:
     """arange.start_step(Scalar start, Scalar end, Scalar step=1, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    if dtype == -1 or dtype is None:
-        if isinstance(start, int) and isinstance(end, int):
-            result = op.Range(start, end, int(step))
+    if dtype == -1:
+        # TODO: Because this is a trace_only function, the inputs are not promoted to
+        # Tensor until it hits ONNX ops. However, if it's dynamic, it should be
+        # Tensor at this point.
+        # https://github.com/microsoft/onnxscript/issues/1914
+        if isinstance(start, (int, float)):
+            start_is_int = isinstance(start, int)
         else:
-            start = float(start)
-            end = float(end)
-            step = float(step)
+            start_is_int = start.dtype in {
+                INT16.dtype,
+                INT32.dtype,
+                INT64.dtype,
+            }
+        if isinstance(end, (int, float)):
+            end_is_int = isinstance(end, int)
+        else:
+            end_is_int = end.dtype in {
+                INT16.dtype,
+                INT32.dtype,
+                INT64.dtype,
+            }
+        if isinstance(step, (int, float)):
+            step_is_int = isinstance(step, int)
+        else:
+            step_is_int = step.dtype in {
+                INT16.dtype,
+                INT32.dtype,
+                INT64.dtype,
+            }
+        if start_is_int and end_is_int and step_is_int:
+            result = op.Range(start, end, step)
+        else:
+            # to float
+            start = op.Cast(start, to=FLOAT.dtype)
+            end = op.Cast(end, to=FLOAT.dtype)
+            step = op.Cast(step, to=FLOAT.dtype)
             result = op.Range(start, end, step)
     elif _integral_to_be_adjusted(dtype):
         # PyTorch arange op handles these integral types differently from INT64,
@@ -655,18 +675,18 @@ def aten_arange_start_step(
         start, end, step = _adjust_args_for_arange_int_dtype(start, end, step)
         result = op.Cast(op.Range(start, end, step), to=dtype)
     elif dtype == INT64.dtype:
-        end = int(end)
-        start = int(start)
-        step = int(step)
+        end = op.Cast(end, to=dtype)
+        start = op.Cast(start, to=dtype)
+        step = op.Cast(step, to=dtype)
         result = op.Range(start, end, step)
     else:
         # Cast input to float if dtype is not supported by Range,
         # because the input dtype may be e.g. bfloat16,
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
-        end = float(end)
-        start = float(start)
-        step = float(step)
+        end = op.Cast(end, to=FLOAT.dtype)
+        start = op.Cast(start, to=FLOAT.dtype)
+        step = op.Cast(step, to=FLOAT.dtype)
         result = op.Cast(op.Range(start, end, step), to=dtype)
 
     return result
@@ -2038,12 +2058,6 @@ def aten_convolution(
         stride = (stride, stride)
     strides = list(stride)
 
-    if bias is None:
-        weight_dim_0 = op.Shape(weight, start=0, end=1)
-        bias_shape = op.Expand(weight_dim_0, op.Constant(value_ints=[1]))
-        zero = op.CastLike(0.0, input)
-        bias = op.Expand(zero, bias_shape)
-
     result = _aten_convolution_onnx(
         input,
         weight,
@@ -3232,22 +3246,21 @@ def aten_empty(
 
 
 @torch_op("aten::empty_like", trace_only=True)
-def aten_empty_like(self: TTensor, dtype: int = -1) -> TTensor:
+def aten_empty_like(
+    self: TTensor,
+    dtype: int = -1,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+    memory_format: str = "",
+) -> TTensor:
     """empty_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
-    # NOTE: trace_only because both if branches need to be the same type, but we have
-    # a cast in the if branch.
-
-    if dtype == -1:
+    if dtype == -1 or dtype is None:
         zero = op.CastLike(0, self)
     else:
         zero = op.Cast(0, to=dtype)
 
-    return _aten_empty_like_onnx(self, zero)
-
-
-@torch_op("aten::empty_like", private=True)
-def _aten_empty_like_onnx(self: TTensor, zero) -> TTensor:
     shape = op.Shape(self)
     return op.Expand(zero, shape)
 
@@ -3277,7 +3290,7 @@ def aten_empty_strided(
     return op.Expand(zero, size)
 
 
-@torch_op(("aten::eq", "aten::eq.Tensor", "aten::eq.Scalar"))
+@torch_op(("aten::eq", "aten::eq.Tensor", "aten::eq.Scalar", "_operator::eq"))
 def aten_eq(self: TTensor, other: TTensor) -> BOOL:
     """eq.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -3571,25 +3584,34 @@ def aten_flipud(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::floor")
-def aten_floor(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+@torch_op("aten::floor", traceable=True)
+def aten_floor(self: TFloat) -> TFloat:
     """floor(Tensor self) -> Tensor"""
 
     return op.Floor(self)
 
 
 @torch_op("math::floor", traceable=True)
-def python_math_floor(self: TFloatOrBFloat16) -> TInt:
+def python_math_floor(self: TFloat) -> TInt:
     """floor(Tensor self) -> Tensor"""
     floor = op.Floor(self)
     return op.Cast(floor, to=INT64.dtype)
 
 
-@torch_op(("aten::floor_divide", "_operator::floordiv"))
+@torch_op(("aten::floor_divide", "_operator::floordiv"), traceable=True)
 def aten_floor_divide(self: TFloat, other: TFloat) -> TFloat:
     """floor_divide(Tensor self, Tensor other) -> Tensor"""
 
     return op.Floor(op.Div(self, other))
+
+
+@torch_op(("aten::floor_divide", "_operator::floordiv"), traceable=True)
+def aten_floor_divide_int(self: TInt, other: TInt) -> TInt:
+    """floor_divide(Tensor self, Tensor other) -> Tensor"""
+
+    # We implement floor_divide only for positive inputs (using integer division)
+    # because that is the usual intended case and is the most efficient.
+    return op.Div(self, other)
 
 
 def aten_fmax(self: TensorType, other: TensorType) -> TensorType:
@@ -3604,14 +3626,14 @@ def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::fmod.Tensor", "aten::fmod.Scalar"))
+@torch_op(("aten::fmod.Tensor", "aten::fmod.Scalar"), traceable=True)
 def aten_fmod(self: TRealOrUInt8, other: TRealOrUInt8) -> TRealOrUInt8:
     """fmod.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.Mod(self, other, fmod=1)
 
 
-@torch_op("aten::frac")
+@torch_op("aten::frac", traceable=True)
 def aten_frac(self: TFloat) -> TFloat:
     """frac(Tensor self) -> Tensor
 
@@ -3973,8 +3995,6 @@ def aten_hspmm(mat1: TensorType, mat2: TensorType) -> TensorType:
 
 
 # Do not register hstack - decomposed by PyTorch: https://github.com/pytorch/pytorch/blob/bedf96d7ffe74b34bcfe52c7ae1ae05f40d6c8ee/torch/_refs/__init__.py#L3918
-
-
 def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     """hstack(Tensor[] tensors) -> Tensor"""
 
@@ -4534,7 +4554,7 @@ def aten_isfinite(self: TFloatHighPrecision) -> BOOL:
 
 
 @torch_op("aten::isinf")
-def aten_isinf(self: TFloatOrBFloat16) -> BOOL:
+def aten_isinf(self: TFloat) -> BOOL:
     """isinf(Tensor self) -> Tensor"""
 
     # Added Cast inside the function so it can support all real dtypes naturally
@@ -4543,14 +4563,14 @@ def aten_isinf(self: TFloatOrBFloat16) -> BOOL:
 
 
 @torch_op("aten::isnan")
-def aten_isnan(self: TFloatOrBFloat16) -> BOOL:
+def aten_isnan(self: TFloat) -> BOOL:
     """isnan(Tensor self) -> Tensor"""
 
     return op.IsNaN(self)
 
 
 @torch_op("aten::isneginf")
-def aten_isneginf(self: TFloatOrBFloat16) -> BOOL:
+def aten_isneginf(self: TFloat) -> BOOL:
     """isneginf(Tensor self) -> Tensor"""
 
     # Added Cast inside the function so it can support all real dtypes naturally
@@ -4559,7 +4579,7 @@ def aten_isneginf(self: TFloatOrBFloat16) -> BOOL:
 
 
 @torch_op("aten::isposinf")
-def aten_isposinf(self: TFloatOrBFloat16) -> BOOL:
+def aten_isposinf(self: TFloat) -> BOOL:
     """isposinf(Tensor self) -> Tensor"""
 
     # Added Cast inside the function so it can support all real dtypes naturally
@@ -4743,8 +4763,8 @@ def aten_linear_backward(
 
 @torch_op("aten::linspace", trace_only=True)
 def aten_linspace(
-    start: float,
-    end: float,
+    start: TFloat,
+    end: TFloat,
     steps: int,
     dtype: int = FLOAT.dtype,
     layout: str = "",
@@ -4762,7 +4782,6 @@ def aten_linspace(
     if steps == 1:
         return aten_full(op.Constant(value_ints=[steps]), start, dtype=dtype)
 
-    # TODO(justinchuby): Simplify the logic knowing start and end are floats
     rg = aten_arange_start(0, steps, dtype=dtype)
     start = op.Cast(start, to=dtype)
     end = op.Cast(end, to=dtype)
@@ -4779,42 +4798,42 @@ def aten_linspace(
 
 
 @torch_op("aten::log", traceable=True)
-def aten_log(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def aten_log(self: TFloat) -> TFloat:
     """log(Tensor self) -> Tensor"""
 
     return op.Log(self)
 
 
 @torch_op("aten::log10", traceable=True)
-def aten_log10(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def aten_log10(self: TFloat) -> TFloat:
     """log10(Tensor self) -> Tensor"""
 
     return op.Div(op.Log(self), op.CastLike(op.Log(10.0), self))
 
 
 @torch_op("aten::log1p")
-def aten_log1p(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def aten_log1p(self: TFloat) -> TFloat:
     """log1p(Tensor self) -> Tensor"""
 
     return op.Log(op.Add(self, 1.0))
 
 
 @torch_op("aten::log2", traceable=True)
-def aten_log2(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def aten_log2(self: TFloat) -> TFloat:
     """log2(Tensor self) -> Tensor"""
 
     return op.Div(op.Log(self), op.CastLike(op.Log(2.0), self))
 
 
 @torch_op("aten::logaddexp", traceable=True)
-def aten_logaddexp(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def aten_logaddexp(self: TFloat, other: TFloat) -> TFloat:
     """logaddexp(Tensor self, Tensor other) -> Tensor"""
 
     return op.Log(op.Add(op.Exp(self), op.Exp(other)))
 
 
 @torch_op("aten::logaddexp2", traceable=True)
-def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def aten_logaddexp2(self: TFloat, other: TFloat) -> TFloat:
     """logaddexp2(Tensor self, Tensor other) -> Tensor"""
     two = op.CastLike(2.0, self)
     summation = op.Add(op.Pow(two, self), op.Pow(two, other))
@@ -4823,7 +4842,7 @@ def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOr
 
 
 @torch_op("aten::logcumsumexp", traceable=True)
-def aten_logcumsumexp(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
+def aten_logcumsumexp(self: TFloat, dim: int) -> TFloat:
     """logcumsumexp(Tensor self, int dim) -> Tensor"""
 
     if IsScalar(self):
@@ -4909,12 +4928,12 @@ def aten_logical_xor(self: BOOL, other: BOOL) -> BOOL:
 
 
 @torch_op("aten::logit", private=True)
-def _aten_logit_onnx(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def _aten_logit_onnx(self: TFloat) -> TFloat:
     return op.Log(op.Div(self, op.Sub(1.0, self)))
 
 
 @torch_op("aten::logit", private=True)
-def _aten_logit_clamp_onnx(self: TFloatOrBFloat16, eps: float) -> TFloatOrBFloat16:
+def _aten_logit_clamp_onnx(self: TFloat, eps: float) -> TFloat:
     eps = op.CastLike(eps, self)
     one = op.CastLike(1.0, self)
     temporary_self = op.Where(self <= one - eps, self, one - eps)
@@ -4924,7 +4943,7 @@ def _aten_logit_clamp_onnx(self: TFloatOrBFloat16, eps: float) -> TFloatOrBFloat
 
 
 @torch_op("aten::logit", trace_only=True)
-def aten_logit(self: TFloatOrBFloat16, eps: Optional[float] = None) -> TFloatOrBFloat16:
+def aten_logit(self: TFloat, eps: Optional[float] = None) -> TFloat:
     """logit(Tensor self, float? eps=None) -> Tensor"""
     if eps is None:
         return _aten_logit_onnx(self)
@@ -6042,9 +6061,7 @@ def aten_native_channel_shuffle(self: TensorType, groups: int) -> TensorType:
 
 
 @torch_op("aten::native_dropout", trace_only=True)
-def aten_native_dropout(
-    input: TFloatOrBFloat16, p: float, train: bool = True
-) -> Tuple[TFloatOrBFloat16, BOOL]:
+def aten_native_dropout(input: TFloat, p: float, train: bool = True) -> Tuple[TFloat, BOOL]:
     """native_dropout(Tensor input, float p, bool? train) -> (Tensor, Tensor)"""
 
     result, mask = op.Dropout(input, p, train)
@@ -6620,7 +6637,8 @@ def aten_positive(self: TensorType) -> TensorType:
         "aten::pow.Tensor_Tensor",
         "aten::pow.Tensor_Scalar",
         "_operator::pow",
-    )
+    ),
+    traceable=True,
 )
 def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     """pow(Tensor self, Tensor exponent) -> Tensor"""
@@ -7055,7 +7073,7 @@ def aten_real(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::reciprocal")
-def aten_reciprocal(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def aten_reciprocal(self: TFloat) -> TFloat:
     """reciprocal(Tensor self) -> Tensor"""
 
     return op.Reciprocal(self)
@@ -7074,7 +7092,7 @@ def aten_refine_names(self: TensorType, names: Sequence[str]) -> TensorType:
 
 
 @torch_op(("aten::remainder.Tensor", "aten::remainder.Scalar"))
-def aten_remainder(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def aten_remainder(self: TFloat, other: TFloat) -> TFloat:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     # TODO(justinchuby): Improve fp16 precision by following the logic in
@@ -7086,7 +7104,7 @@ def aten_remainder(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrB
     return op.Sub(self, op.Mul(rounded_quotient, other))
 
 
-@torch_op(("aten::remainder.Tensor", "aten::remainder.Scalar"))
+@torch_op(("aten::remainder.Tensor", "aten::remainder.Scalar", "_operator::mod"))
 def aten_remainder_int(self: TInt, other: TInt) -> TInt:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -7305,7 +7323,7 @@ def aten_rot90(self: TensorType, k: int = 1, dims: Sequence[int] = (0, 1)) -> Te
     raise NotImplementedError()
 
 
-@torch_op("aten::round")
+@torch_op("aten::round", traceable=True)
 def aten_round(self: TFloat) -> TFloat:
     """round(Tensor self) -> Tensor"""
 
@@ -7354,25 +7372,18 @@ def aten_rrelu(
     raise NotImplementedError()
 
 
-@torch_op("aten::rsqrt")
-def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+@torch_op("aten::rsqrt", traceable=True)
+def aten_rsqrt(self: TFloat) -> TFloat:
     """rsqrt(Tensor self) -> Tensor"""
 
     return op.Reciprocal(op.Sqrt(self))
 
 
-@torch_op(("aten::rsub.Tensor", "aten::rsub.Scalar"))
+# Do not register rsub. It will be decomposed and type promoted by torch
 def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
-    return op.Sub(other, op.Mul(self, alpha))
-
-
-@torch_op(("aten::rsub.Tensor", "aten::rsub.Scalar"), trace_only=True, complex=True)
-def aten_rsub_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
-    """rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
-
-    return aten_rsub(self, other, alpha)
+    raise NotImplementedError
 
 
 @torch_op("aten::scalar_tensor", trace_only=True)
@@ -7562,7 +7573,7 @@ def aten_sgn(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::sigmoid", traceable=True)
-def aten_sigmoid(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def aten_sigmoid(self: TFloat) -> TFloat:
     """sigmoid(Tensor self) -> Tensor"""
 
     return op.Sigmoid(self)
@@ -7724,7 +7735,7 @@ def aten_smm(self: TensorType, mat2: TensorType) -> TensorType:
 
 
 @torch_op(("aten::softmax.int", "aten::special_softmax"), trace_only=True)
-def aten_softmax(self: TFloatOrBFloat16, dim: int, dtype: int = -1) -> TFloatOrBFloat16:
+def aten_softmax(self: TFloat, dim: int, dtype: int = -1) -> TFloat:
     """softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
 
     self_is_scalar = IsScalar(self)
@@ -7741,7 +7752,7 @@ def aten_softmax(self: TFloatOrBFloat16, dim: int, dtype: int = -1) -> TFloatOrB
 
 
 @torch_op(("aten::softmax.int", "aten::special_softmax"), traceable=True)
-def aten_softmax_no_dtype(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
+def aten_softmax_no_dtype(self: TFloat, dim: int) -> TFloat:
     """softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
 
     self_is_scalar = IsScalar(self)
@@ -7811,8 +7822,8 @@ def aten_split_with_sizes_copy(
     raise NotImplementedError()
 
 
-@torch_op("aten::sqrt")
-def aten_sqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+@torch_op("aten::sqrt", traceable=True)
+def aten_sqrt(self: TFloat) -> TFloat:
     """sqrt(Tensor self) -> Tensor"""
 
     return op.Sqrt(self)
@@ -7886,14 +7897,14 @@ def aten_stack(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTensorOrStr
     return op.ConcatFromSequence(tensors, axis=dim, new_axis=1)
 
 
-@torch_op("aten::std", trace_only=True)
+# std is decomposed by PyTroch
 def aten_std(self: TReal, unbiased: bool = True) -> TReal:
     """std(Tensor self, bool unbiased=True) -> Tensor"""
     var = _aten_var_onnx(self, correction=float(unbiased), keepdim=False)
     return op.Sqrt(var)
 
 
-@torch_op("aten::std.dim", trace_only=True)
+# std_dim is decomposed by PyTroch
 def aten_std_dim(
     self: TReal,
     dim: Sequence[int],
@@ -7906,7 +7917,7 @@ def aten_std_dim(
     return op.Sqrt(var)
 
 
-@torch_op("aten::var.correction", trace_only=True)
+# std is decomposed by PyTroch
 def aten_std_correction(
     self: TReal,
     # FIXME(justinchuby): Make dim Optional[Sequence[int]]
@@ -7926,7 +7937,7 @@ def aten_std_correction(
     return op.Sqrt(var)
 
 
-@torch_op("aten::std_mean", trace_only=True)
+# std_mean is decomposed by PyTroch
 def aten_std_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
     """std_mean(Tensor self, bool unbiased=True) -> (Tensor, Tensor)"""
 
@@ -7936,7 +7947,7 @@ def aten_std_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
     return op.Sqrt(var), mean
 
 
-@torch_op("aten::std_mean.dim", trace_only=True)
+# std_mean is decomposed by PyTroch
 def aten_std_mean_dim(
     self: TReal, dim: Sequence[int], unbiased: bool = True, keepdim: bool = False
 ) -> Tuple[TReal, TReal]:
@@ -7950,7 +7961,7 @@ def aten_std_mean_dim(
     return op.Sqrt(var), mean
 
 
-@torch_op("aten::std_mean.correction", trace_only=True)
+# std_mean is decomposed by PyTroch
 def aten_std_mean_correction(
     self: TReal,
     # FIXME(justinchuby): Make dim Optional[Sequence[int]]
@@ -7972,139 +7983,6 @@ def aten_std_mean_correction(
     return op.Sqrt(var), mean
 
 
-@torch_op("aten::stft", private=True)
-def _add_batch_dimension(self: TFloatOrBFloat16) -> Tuple[TFloatOrBFloat16, INT64]:
-    signal_rank = Rank(self)
-    if signal_rank == 1:
-        # Add a batch dimension
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-    return op.Identity(self), signal_rank
-
-
-@torch_op("aten::stft", private=True)
-def _center_window_around_zeros_if_needed(
-    window: TFloatOrBFloat16, n_fft: int
-) -> TFloatOrBFloat16:
-    # first dimension
-    n_win = op.Shape(window, start=0, end=1)
-    # Center window around zeros if needed (required by ONNX's STFT)
-    if n_win < n_fft:
-        left = (n_fft - n_win) / 2
-
-        right = n_fft - left - n_win
-        left = op.Reshape(left, op.Constant(value_ints=[1]))
-        right = op.Reshape(right, op.Constant(value_ints=[1]))
-
-        left_win = op.Expand(op.Constant(value_ints=[0]), left)
-        right_win = op.Expand(op.Constant(value_ints=[0]), right)
-        right_win = op.CastLike(right_win, window)
-        left_win = op.CastLike(left_win, window)
-        window = op.Concat(left_win, window, right_win, axis=0)
-    return window
-
-
-@torch_op("aten::stft", private=True)
-def _create_window_from_win_length(win_length: int, n_fft: int) -> TFloatOrBFloat16:
-    left = (n_fft - win_length) / 2
-
-    right = n_fft - left - win_length
-    left = op.Reshape(left, op.Constant(value_ints=[1]))
-    right = op.Reshape(right, op.Constant(value_ints=[1]))
-    win_length = op.Reshape(win_length, op.Constant(value_ints=[1]))
-
-    left_win = op.Expand(op.Constant(value_ints=[0]), left)
-    right_win = op.Expand(op.Constant(value_ints=[0]), right)
-    window_list = op.Expand(op.Constant(value_ints=[1]), win_length)
-    return op.Concat(left_win, window_list, right_win, axis=0)
-
-
-@torch_op("aten::stft", private=True)
-def _create_window_from_n_fft(n_fft: int) -> TFloatOrBFloat16:
-    n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
-    window = op.Expand(op.Constant(value_ints=[1]), n_fft_tensor)
-    return window
-
-
-@torch_op("aten::stft", private=True)
-def _normalize_fft_result(
-    signal: TFloatOrBFloat16, result: TFloatOrBFloat16, n_fft: int
-) -> TFloatOrBFloat16:
-    n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
-    sqrt_nfft = op.Sqrt(op.CastLike(n_fft_tensor, signal))
-    result = result / sqrt_nfft
-    return result
-
-
-@torch_op("aten::stft", private=True)
-def _aten_stft_onnx(
-    signal: TFloatOrBFloat16,
-    frame_step_const: INT64,
-    window: Union[TFloatOrBFloat16, INT64],
-    frame_length_const: INT64,
-    signal_rank: INT64,
-    onesided: int,
-) -> TFloatOrBFloat16:
-    window = op.CastLike(window, signal)
-    result = op.STFT(signal, frame_step_const, window, frame_length_const, onesided=onesided)
-    result = op.Transpose(result, perm=[0, 2, 1, 3])
-    # Remove batch dimension, if needed
-    if signal_rank == 1:
-        result = op.Squeeze(result, op.Constant(value_ints=[0]))
-    return result
-
-
-@torch_op("aten::stft", trace_only=True)
-def aten_stft(
-    self: TFloatOrBFloat16,
-    n_fft: int,
-    hop_length: Optional[int] = None,
-    win_length: Optional[int] = None,
-    window: Optional[TFloatOrBFloat16] = None,
-    normalized: bool = False,
-    onesided: Optional[bool] = None,
-    return_complex: Optional[bool] = None,
-) -> TFloatOrBFloat16:
-    """stft(Tensor self, int n_fft, int? hop_length=None, int? win_length=None, Tensor? window=None, bool normalized=False, bool? onesided=None, bool? return_complex=None) -> Tensor"""
-
-    # NOTE: regarless of the value of return_complex, we always return a real representation.
-    del return_complex
-
-    # Get STFT sizes
-    if hop_length is None:
-        # core dump
-        # hop_leagth = op.Div(op.Constant(value_ints=n_fft), op.Constant(value_ints=[4]))
-        hop_length = n_fft // 4
-    frame_step_const = op.Reshape(hop_length, op.Constant(value_ints=[1]))
-    frame_length_const = op.Reshape(n_fft, op.Constant(value_ints=[1]))
-
-    # Pre-process input if needed
-    self, signal_rank = _add_batch_dimension(self)
-
-    # Get window and make sure it's the same size as `win_length` or `n_fft`
-    if window is not None and window.shape[0] is not None:
-        window = _center_window_around_zeros_if_needed(window, n_fft)
-    elif window is None:
-        if win_length is not None:
-            window = _create_window_from_win_length(win_length, n_fft)
-        else:
-            window = _create_window_from_n_fft(n_fft)
-
-    if onesided is None or onesided:
-        onesided = 1
-    else:
-        onesided = 0
-    # remove batch dimension included
-    result = _aten_stft_onnx(
-        self, frame_step_const, window, frame_length_const, signal_rank, onesided
-    )
-
-    # Normalize, if needed
-    if normalized:
-        result = _normalize_fft_result(self, result, n_fft)
-
-    return result
-
-
 @torch_op(
     (
         "aten::sub.Tensor",
@@ -8112,13 +7990,14 @@ def aten_stft(
         "aten::subtract.Tensor",
         "aten::subtract.Scalar",
         "_operator::sub",
-    )
+    ),
+    trace_only=True,
 )
 def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
-    alpha = op.CastLike(alpha, other)
-    other = op.Mul(other, alpha)
-
+    if alpha != 1.0:
+        alpha = op.CastLike(alpha, other)
+        other = op.Mul(other, alpha)
     return op.Sub(self, other)
 
 
@@ -8534,7 +8413,7 @@ def aten_triu_indices(row: int, col: int, offset: int = 0) -> TensorType:
 
 
 @torch_op("aten::trunc")
-def aten_trunc(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def aten_trunc(self: TFloat) -> TFloat:
     """trunc(Tensor self) -> Tensor"""
 
     # Reference https://github.com/onnx/onnx/issues/4588#issuecomment-1463970126
@@ -8736,7 +8615,7 @@ def aten_vander(
     raise NotImplementedError()
 
 
-@torch_op("aten::var", trace_only=True)
+# var is decomposed by PyTroch
 def aten_var(self: TReal, unbiased: Optional[bool] = True) -> TReal:
     """var(Tensor self, bool unbiased=True) -> Tensor"""
 
@@ -8745,7 +8624,7 @@ def aten_var(self: TReal, unbiased: Optional[bool] = True) -> TReal:
     return _aten_var_onnx(self, correction=float(unbiased), keepdim=False)
 
 
-@torch_op("aten::var.dim", trace_only=True)
+# var is decomposed by PyTroch
 def aten_var_dim(
     self: TReal,
     dim: Sequence[int],
@@ -8757,7 +8636,7 @@ def aten_var_dim(
     return _aten_var_dim_onnx(self, dims=dim, correction=float(unbiased), keepdim=keepdim)
 
 
-@torch_op("aten::var.correction", trace_only=True)
+# var is decomposed by PyTroch
 def aten_var_correction(
     self: TReal,
     # FIXME(justinchuby): Make dim Optional[Sequence[int]]
@@ -8777,7 +8656,7 @@ def aten_var_correction(
     return var
 
 
-@torch_op("aten::var", private=True, traceable=True)
+# var is decomposed by PyTroch
 def _aten_var_onnx(self: TReal, correction: float, keepdim: bool = False) -> TReal:
     mean = op.ReduceMean(self, keepdims=keepdim)
     sub_mean = op.Sub(self, mean)
@@ -8794,7 +8673,7 @@ def _aten_var_onnx(self: TReal, correction: float, keepdim: bool = False) -> TRe
     return var
 
 
-@torch_op("aten::var.dim", private=True, traceable=True)
+# var is decomposed by PyTroch
 def _aten_var_dim_onnx(
     self: TReal, dims: Sequence[int], correction: float, keepdim: bool = False
 ) -> TReal:
@@ -8815,7 +8694,7 @@ def _aten_var_dim_onnx(
     return var
 
 
-@torch_op("aten::var_mean", trace_only=True)
+# var_mean is decomposed by PyTroch
 def aten_var_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
     """var_mean(Tensor self, bool unbiased=True) -> (Tensor, Tensor)"""
 
@@ -8824,7 +8703,7 @@ def aten_var_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
     return _aten_var_mean_onnx(self, correction=float(unbiased), keepdim=False)
 
 
-@torch_op("aten::var_mean.dim", trace_only=True)
+# var_mean is decomposed by PyTroch
 def aten_var_mean_dim(
     self: TReal, dim: Sequence[int], unbiased: bool = True, keepdim: bool = False
 ) -> Tuple[TReal, TReal]:
@@ -8835,7 +8714,7 @@ def aten_var_mean_dim(
     return _aten_var_mean_dim_onnx(self, dims=dim, correction=float(unbiased), keepdim=keepdim)
 
 
-@torch_op("aten::var_mean.correction", trace_only=True)
+# var_mean is decomposed by PyTroch
 def aten_var_mean_correction(
     self: TReal,
     # FIXME(justinchuby): Make dim Optional[Sequence[int]]
@@ -8857,7 +8736,7 @@ def aten_var_mean_correction(
     return var, mean
 
 
-@torch_op("aten::var_mean", private=True)
+# var_mean is decomposed by PyTroch
 def _aten_var_mean_onnx(
     self: TReal, correction: float = 1.0, keepdim: bool = False
 ) -> Tuple[TReal, TReal]:
@@ -8877,7 +8756,7 @@ def _aten_var_mean_onnx(
     return var, mean
 
 
-@torch_op("aten::var_mean.dim", private=True)
+# var_mean is decomposed by PyTroch
 def _aten_var_mean_dim_onnx(
     self: TReal, dims: Sequence[int], correction: float, keepdim: bool = False
 ) -> Tuple[TReal, TReal]:
@@ -8975,8 +8854,6 @@ def aten_view_copy(self: TTensor, size: IntType) -> TTensor:
 
 
 # Do not register vstack - decomposed by PyTorch: https://github.com/pytorch/pytorch/blob/bedf96d7ffe74b34bcfe52c7ae1ae05f40d6c8ee/torch/_refs/__init__.py#L3918
-
-
 def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
     """vstack(Tensor[] tensors) -> Tensor"""
 
@@ -8996,6 +8873,7 @@ def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
 
 @torch_op(
     (
+        "aten::where",
         "aten::where.Scalar",
         "aten::where.ScalarSelf",
         "aten::where.ScalarOther",

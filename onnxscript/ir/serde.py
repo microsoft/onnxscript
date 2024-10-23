@@ -323,6 +323,8 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
             return _type_casting.unpack_int4(array.astype(np.uint8), self._proto.dims)
         elif dtype == _enums.DataType.UINT4:
             return _type_casting.unpack_uint4(array.astype(np.uint8), self._proto.dims)
+        elif dtype == _enums.DataType.FLOAT4E2M1:
+            return _type_casting.unpack_float4e2m1(array.astype(np.uint8), self._proto.dims)
         else:
             # Otherwise convert to the correct dtype and reshape
             # Note we cannot use view() here because the storage dtype may not be the same size as the target
@@ -369,6 +371,7 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
                 _enums.DataType.FLOAT8E5M2FNUZ,
                 _enums.DataType.INT4,
                 _enums.DataType.UINT4,
+                _enums.DataType.FLOAT4E2M1,
             }:
                 # uint4 and int4 values are already packed, even when stored as int32
                 # so we don't need to pack them again
@@ -1036,7 +1039,12 @@ def _should_create_value_info_for_value(value: _protocols.ValueProtocol) -> bool
         True if value info should be created for the value.
     """
     # No need to serialize value info if it is not set
-    return not (value.shape is None and value.type is None)
+    if value.shape is None and value.type is None:
+        return False
+    if not value.name:
+        logger.debug("Did not serialize '%s' because its name is empty", value)
+        return False
+    return True
 
 
 def _serialize_experimental_value_info_for_function_ir9_into(
@@ -1269,6 +1277,23 @@ def serialize_node(node: _protocols.NodeProtocol) -> onnx.NodeProto:
     return node_proto
 
 
+def _remove_trailing_outputs(
+    outputs: Sequence[_protocols.ValueProtocol],
+) -> Sequence[_protocols.ValueProtocol]:
+    """Remove trailing outputs that have empty names.
+
+    Args:
+        outputs: The outputs to remove trailing outputs from.
+
+    Returns:
+        The outputs with trailing outputs removed.
+    """
+    for i, output in enumerate(reversed(outputs)):
+        if output.name:
+            return outputs[: len(outputs) - i]
+    return []
+
+
 @_capture_errors(lambda node_proto, from_: repr(from_))
 def serialize_node_into(node_proto: onnx.NodeProto, from_: _protocols.NodeProtocol) -> None:
     node_proto.op_type = from_.op_type
@@ -1288,8 +1313,11 @@ def serialize_node_into(node_proto: onnx.NodeProto, from_: _protocols.NodeProtoc
             node_proto.input.append("")
         else:
             node_proto.input.append(input_.name)
-    for output in from_.outputs:
+
+    # Do not include the trailing outputs that have empty names
+    for output in _remove_trailing_outputs(from_.outputs):
         node_proto.output.append(output.name)
+
     for attr in from_.attributes.values():
         if isinstance(attr, _core.Attr):
             serialize_attribute_into(node_proto.attribute.add(), from_=attr)

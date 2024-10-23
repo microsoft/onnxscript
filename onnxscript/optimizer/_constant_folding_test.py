@@ -8,7 +8,8 @@ import pytest
 
 import onnxscript.optimizer as optimizer
 from onnxscript.ir import serde
-from onnxscript.optimizer import _constant_folding, constant_folding
+from onnxscript.optimizer import _constant_folding
+from onnxscript.optimizer._legacy import constant_folding
 
 
 @parameterized.parameterized_class(("using_ir",), [(False,), (True,)])

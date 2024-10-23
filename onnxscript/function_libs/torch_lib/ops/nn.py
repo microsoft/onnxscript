@@ -25,7 +25,6 @@ from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
     TFloat,
-    TFloatOrBFloat16,
     TFloatOrUInt8,
     TInt,
     TReal,
@@ -364,13 +363,13 @@ def aten_conv_depthwise3d(
 
 @torch_op("aten::cross_entropy_loss", traceable=True)
 def aten_cross_entropy_loss(
-    self: TFloatOrBFloat16,
+    self: TFloat,
     target: IntType,
-    weight: Optional[TFloatOrBFloat16] = None,
+    weight: Optional[TFloat] = None,
     reduction: int = 1,  # default is 'mean'
     ignore_index: int = -100,
     label_smoothing: float = 0.0,  # this was ignored due to ONNX not support
-) -> TFloatOrBFloat16:
+) -> TFloat:
     """cross_entropy_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100, float label_smoothing=0.0) -> Tensor"""
 
     if reduction == 0:  # "none"
@@ -812,7 +811,7 @@ def aten_l1_loss(self: TensorType, target: TensorType, reduction: int = 1) -> Te
 
 
 @torch_op("aten::leaky_relu")
-def aten_leaky_relu(self: TFloatOrBFloat16, negative_slope: float = 0.01) -> TFloatOrBFloat16:
+def aten_leaky_relu(self: TFloat, negative_slope: float = 0.01) -> TFloat:
     """leaky_relu(Tensor self, Scalar negative_slope=0.01) -> Tensor"""
 
     return op.LeakyRelu(self, alpha=negative_slope)
@@ -850,7 +849,7 @@ def aten_linear_bias(input: TFloat, weight: TFloat, bias: TFloat) -> TFloat:
 
 
 @torch_op("aten::log_sigmoid")
-def aten_log_sigmoid(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def aten_log_sigmoid(self: TFloat) -> TFloat:
     """log_sigmoid(Tensor self) -> Tensor"""
 
     return op.Log(op.Sigmoid(self))
@@ -2355,28 +2354,19 @@ def _get_upsample_align_corners_mode(align_corners: bool) -> str:
     return "align_corners" if align_corners else "pytorch_half_pixel"
 
 
-@torch_op(
-    (
-        "aten::upsample_bicubic2d",
-        "aten::upsample_bilinear2d",
-        "aten::upsample_nearest1d",
-        "aten::upsample_nearest2d",
-        "aten::upsample_nearest3d",
-        "aten::upsample_trilinear3d",
-    ),
-    private=True,
-)
 def _aten_upsample_output_size(
     self: TReal,
     output_size: INT64,
     mode: str,
     coordinate_transformation_mode: str,
 ) -> TReal:
-    self_shape = op.Shape(self)
-    starts = op.Constant(value_ints=[0])
-    ends = op.Constant(value_ints=[2])
-    batch_channel = op.Slice(self_shape, starts, ends)
-    output_size = op.Concat(batch_channel, output_size, axis=0)
+    batch_and_channel = op.Shape(self, end=2, start=0)
+    # When output_size is passed in as a list of integers, the torch.onnx
+    # graph builder when handling op.Concat may fail
+    # to determine the output type. We cast it to INT64 to ensure the output
+    output_size = op.Cast(output_size, to=INT64.dtype)
+    # Append the batch and channel dimensions to the requested output size
+    output_size = op.Concat(batch_and_channel, output_size, axis=0)
     return op.Resize(
         self,
         None,
@@ -2388,22 +2378,22 @@ def _aten_upsample_output_size(
     )
 
 
-@torch_op(("aten::upsample_bicubic2d", "aten::upsample_bilinear2d"), private=True)
 def _aten_upsample_scales(
     self: TReal,
-    scale_factors: TFloat,
+    scale_factors: Sequence[float],
     mode: str,
     coordinate_transformation_mode: str,
 ) -> TReal:
-    scale_factors = op.Cast(scale_factors, to=FLOAT.dtype)
-    scale_factors = op.Concat(op.Constant(value_floats=[1.0, 1.0]), scale_factors, axis=0)
     return op.Resize(
         self,
         None,
-        scale_factors,  # format should be: [1.0, 1.0, scale_h, scale_w]
+        op.Constant(
+            value_floats=[1.0, 1.0, *scale_factors]
+        ),  # format should be: [1.0, 1.0, scale_h, scale_w]
         None,
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
+        nearest_mode="floor",
     )
 
 
@@ -2441,7 +2431,7 @@ def aten_upsample_bicubic2d_vec(
     if scale_factors is not None:
         result = _aten_upsample_scales(
             self,
-            op.Constant(value_floats=scale_factors),
+            scale_factors,
             mode="cubic",
             coordinate_transformation_mode=coordinate_transformation_mode,
         )
@@ -2503,11 +2493,12 @@ def aten_upsample_bilinear2d_vec(
     if scale_factors is not None:
         result = _aten_upsample_scales(
             self,
-            op.Constant(value_floats=scale_factors),
+            scale_factors,
             mode="linear",
             coordinate_transformation_mode=coordinate_transformation_mode,
         )
     else:
+        assert output_size is not None
         result = _aten_upsample_output_size(
             self,
             output_size,
@@ -2536,9 +2527,8 @@ def aten_upsample_linear1d(
     self: TReal, output_size: INT64, align_corners: bool, scales: Optional[float] = None
 ) -> TReal:
     """upsample_linear1d(Tensor self, SymInt[1] output_size, bool align_corners, float? scales=None) -> Tensor"""
-    # FIXME(justinchuby): Support when scales is provided and align_corners is False
-    del scales
     coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    # scales is ignored in PyTorch
     return _aten_upsample_output_size(
         self,
         output_size,
@@ -2561,31 +2551,35 @@ def aten_upsample_linear1d_backward(
 
 @torch_op("aten::upsample_nearest1d", trace_only=True)
 def aten_upsample_nearest1d(
-    self: TReal, size: INT64, scale_factor: Optional[float] = None
+    self: TReal, output_size: INT64, scales: Optional[float] = None
 ) -> TReal:
     """upsample_nearest1d(Tensor self, SymInt[1] output_size, float? scales=None) -> Tensor"""
-    if size is not None:
-        return _aten_upsample_output_size(self, size, "nearest", "asymmetric")
+    if scales is not None:
+        return _aten_upsample_scales(self, [scales], "nearest", "asymmetric")
     else:
-        return _aten_upsample_nearest1d_scales(self, scale_factor)
+        return _aten_upsample_output_size(self, output_size, "nearest", "asymmetric")
 
 
-@torch_op("aten::upsample_nearest1d", private=True)
-def _aten_upsample_nearest1d_scales(
-    self: TReal,
-    scale_factors: TFloat,
+@torch_op(
+    (
+        "aten::upsample_nearest1d.vec",
+        "aten::upsample_nearest2d.vec",
+        "aten::upsample_nearest3d.vec",
+    ),
+    trace_only=True,
+)
+def aten_upsample_nearestnd_vec(
+    input: TReal,
+    output_size: Optional[INT64] = None,
+    scale_factors: Optional[Sequence[float]] = None,
 ) -> TReal:
-    scale_factors = op.Cast(scale_factors, to=FLOAT.dtype)
-    scale_factors = op.Concat(op.Constant(value_floats=[1.0, 1.0]), scale_factors, axis=0)
-    return op.Resize(
-        self,
-        None,
-        scale_factors,  # format should be: [1.0, 1.0, scale_h, scale_w]
-        None,
-        mode="nearest",
-        coordinate_transformation_mode="asymmetric",
-        nearest_mode="floor",
-    )
+    """upsample_nearest3d.vec(Tensor input, SymInt[]? output_size, float[]? scale_factors) -> Tensor"""
+
+    if scale_factors is not None:
+        return _aten_upsample_scales(input, scale_factors, "nearest", "asymmetric")
+    else:
+        assert output_size is not None
+        return _aten_upsample_output_size(input, output_size, "nearest", "asymmetric")
 
 
 def aten_upsample_nearest1d_backward(
@@ -2602,18 +2596,21 @@ def aten_upsample_nearest1d_backward(
 @torch_op("aten::upsample_nearest2d", trace_only=True)
 def aten_upsample_nearest2d(
     self: TReal,
-    size: INT64,
+    output_size: INT64,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
 ) -> TReal:
     """upsample_nearest2d(Tensor self, SymInt[2] output_size, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
-    # NOTE: trace_only because optional attributes are not supported by ONNX
-    # TODO(justinchuby): Conditionally use scales
-    del scales_h
-    del scales_w
-
-    return _aten_upsample_output_size(self, size, "nearest", "asymmetric")
+    if scales_h is not None and scales_w is not None:
+        return _aten_upsample_scales(
+            self,
+            [scales_h, scales_w],
+            "nearest",
+            "asymmetric",
+        )
+    else:
+        return _aten_upsample_output_size(self, output_size, "nearest", "asymmetric")
 
 
 def aten_upsample_nearest2d_backward(
@@ -2631,18 +2628,22 @@ def aten_upsample_nearest2d_backward(
 @torch_op("aten::upsample_nearest3d", trace_only=True)
 def aten_upsample_nearest3d(
     self: TReal,
-    size: INT64,
+    output_size: INT64,
     scales_d: Optional[float] = None,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
 ) -> TReal:
     """upsample_nearest3d(Tensor self, SymInt[3] output_size, float? scales_d=None, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
-    del scales_h
-    del scales_w
-    del scales_d
-
-    return _aten_upsample_output_size(self, size, "nearest", "asymmetric")
+    if scales_d is not None and scales_h is not None and scales_w is not None:
+        return _aten_upsample_scales(
+            self,
+            [scales_d, scales_h, scales_w],
+            "nearest",
+            "asymmetric",
+        )
+    else:
+        return _aten_upsample_output_size(self, output_size, "nearest", "asymmetric")
 
 
 def aten_upsample_nearest3d_backward(
@@ -2695,7 +2696,7 @@ def aten_upsample_trilinear3d_vec(
     if scale_factors is not None:
         result = _aten_upsample_scales(
             self,
-            op.Constant(value_floats=scale_factors),
+            scale_factors,
             mode="linear",
             coordinate_transformation_mode=coordinate_transformation_mode,
         )

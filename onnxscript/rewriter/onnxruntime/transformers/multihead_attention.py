@@ -56,8 +56,10 @@ import onnx
 from onnx import helper as onnx_helper
 
 import onnxscript
+import onnxscript.ir.convenience
+import onnxscript.rewriter._ir_utils as _ir_utils
 from onnxscript import ir
-from onnxscript.rewriter import _ir_utils, function_rule
+from onnxscript.rewriter import function_rule
 
 logger = logging.getLogger(__name__)
 
@@ -110,8 +112,8 @@ class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
                 assert (
                     constant_node.op_type == "Constant"
                 ), "Expected the second input to Reshape to be a Constant node."
-                value = _ir_utils.propagate_const_value(reshape_node.inputs[1])
-                constant_value = value.const_value
+                value = reshape_node.inputs[1]
+                constant_value = _ir_utils.get_const_value(value)
                 if constant_value is None:
                     raise function_rule.FunctionRewriteError(
                         "Failed to propagate constant value for Reshape node."

@@ -64,6 +64,7 @@ class DataType(enum.IntEnum):
     FLOAT8E5M2FNUZ = 20
     UINT4 = 21
     INT4 = 22
+    FLOAT4E2M1 = 23
 
     @classmethod
     def from_numpy(cls, dtype: np.dtype) -> DataType:
@@ -121,6 +122,7 @@ _ITEMSIZE_MAP = {
     DataType.FLOAT8E5M2FNUZ: 1,
     DataType.UINT4: 0.5,
     DataType.INT4: 0.5,
+    DataType.FLOAT4E2M1: 0.5,
 }
 
 
@@ -149,6 +151,13 @@ _NP_TYPE_TO_DATA_TYPE = {
     np.dtype(ml_dtypes.int4): DataType.INT4,
     np.dtype(ml_dtypes.uint4): DataType.UINT4,
 }
+
+# TODO(after min req for ml_dtypes>=0.5): Move this inside _NP_TYPE_TO_DATA_TYPE
+_NP_TYPE_TO_DATA_TYPE.update(
+    {np.dtype(ml_dtypes.float4_e2m1fn): DataType.FLOAT4E2M1}
+    if hasattr(ml_dtypes, "float4_e2m1fn")
+    else {}
+)
 
 # ONNX DataType to Numpy dtype.
 _DATA_TYPE_TO_NP_TYPE = {v: k for k, v in _NP_TYPE_TO_DATA_TYPE.items()}

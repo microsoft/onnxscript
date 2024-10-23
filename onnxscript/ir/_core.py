@@ -15,6 +15,7 @@ from __future__ import annotations
 import abc
 import contextlib
 import dataclasses
+import heapq
 import math
 import mmap
 import os
@@ -69,6 +70,7 @@ _NON_NUMPY_NATIVE_TYPES = frozenset(
         _enums.DataType.FLOAT8E5M2FNUZ,
         _enums.DataType.INT4,
         _enums.DataType.UINT4,
+        _enums.DataType.FLOAT4E2M1,
     )
 )
 
@@ -181,7 +183,7 @@ def _check_numpy_representation_type(array: np.ndarray, dtype: _enums.DataType) 
     When the dtype is not one of the numpy native dtypes, the value needs need to be:
 
     - ``int8`` or ``uint8`` for int4, with the sign bit extended to 8 bits.
-    - ``uint8`` for uint4.
+    - ``uint8`` for uint4 or float4.
     - ``uint8`` for 8-bit data types.
     - ``uint16`` for bfloat16
 
@@ -211,6 +213,11 @@ def _check_numpy_representation_type(array: np.ndarray, dtype: _enums.DataType) 
             if array.dtype not in (np.uint8, ml_dtypes.uint4):
                 raise TypeError(
                     f"The numpy array dtype must be uint8 or or ml_dtypes.uint4 (not {array.dtype}) for IR data type {dtype}."
+                )
+        if dtype == _enums.DataType.FLOAT4E2M1:
+            if array.dtype not in (np.uint8, ml_dtypes.float4_e2m1fn):
+                raise TypeError(
+                    f"The numpy array dtype must be uint8 or ml_dtypes.float4_e2m1fn (not {array.dtype}) for IR data type {dtype}."
                 )
         return
 
@@ -255,6 +262,8 @@ def _maybe_view_np_array_with_ml_dtypes(
         return array.view(ml_dtypes.int4)
     if dtype == _enums.DataType.UINT4:
         return array.view(ml_dtypes.uint4)
+    if dtype == _enums.DataType.FLOAT4E2M1:
+        return array.view(ml_dtypes.float4_e2m1fn)
     return array
 
 
@@ -430,7 +439,11 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         """
         # TODO(justinchuby): Support DLPack
         array = self.numpy()
-        if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
+        if self.dtype in {
+            _enums.DataType.INT4,
+            _enums.DataType.UINT4,
+            _enums.DataType.FLOAT4E2M1,
+        }:
             # Pack the array into int4
             array = _type_casting.pack_int4(array)
         else:
@@ -608,7 +621,11 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             )
         # Handle the byte order correctly by always using little endian
         dt = np.dtype(self.dtype.numpy()).newbyteorder("<")
-        if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
+        if self.dtype in {
+            _enums.DataType.INT4,
+            _enums.DataType.UINT4,
+            _enums.DataType.FLOAT4E2M1,
+        }:
             # Use uint8 to read in the full byte. Otherwise ml_dtypes.int4 will clip the values
             dt = np.dtype(np.uint8).newbyteorder("<")
             count = self.size // 2 + self.size % 2
@@ -621,6 +638,8 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             self._array = _type_casting.unpack_int4(self._array, shape)
         elif self.dtype == _enums.DataType.UINT4:
             self._array = _type_casting.unpack_uint4(self._array, shape)
+        elif self.dtype == _enums.DataType.FLOAT4E2M1:
+            self._array = _type_casting.unpack_float4e2m1(self._array, shape)
         else:
             self._array = self._array.reshape(shape)
 
@@ -669,6 +688,13 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         offset = self._offset or 0
         length = self._length or self.nbytes
         return self.raw[offset : offset + length]
+
+    def release(self) -> None:
+        """Delete all references to the memory buffer and close the memory-mapped file."""
+        self._array = None
+        if self.raw is not None:
+            self.raw.close()
+            self.raw = None
 
     @property
     def metadata_props(self) -> dict[str, str]:
@@ -870,6 +896,10 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
                 "The number of denotations, when provided, must be equal to the number of dimensions."
             )
         self._frozen: bool = frozen
+
+    def copy(self):
+        """Return a copy of the shape."""
+        return Shape(self._dims, self._denotations, self._frozen)
 
     @property
     def dims(self) -> tuple[int | SymbolicDim, ...]:
@@ -1977,8 +2007,103 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._nodes.insert_before(node, new_nodes)
 
     def sort(self) -> None:
-        """Topologically sort the nodes in the graph."""
-        raise NotImplementedError("Not implemented yet")
+        """Perform a topological sort of this graph and all subgraphs in O(#nodes + #values) time.
+
+        This sort is stable. It preserves the original order as much as possible.
+
+        Referece: https://github.com/madelson/MedallionTopologicalSort#stable-sort
+
+        Raises:
+            ValueError: If the graph contains a cycle, making topological sorting impossible.
+        """
+        # Obtain all nodes from the graph and its subgraphs for sorting
+        nodes = list(onnxscript.ir.traversal.RecursiveGraphIterator(self))
+        # Store the sorted nodes of each subgraph
+        sorted_nodes_by_graph: dict[Graph, list[Node]] = {
+            graph: [] for graph in {node.graph for node in nodes if node.graph is not None}
+        }
+        # TODO: Explain why we need to store direct predecessors and children and why
+        # we only need to store the direct ones
+
+        # The depth of a node is defined as the number of direct children it has
+        node_depth: dict[Node, int] = dict.fromkeys(nodes, 0)
+        # Direct predecessors of a node
+        node_predecessors: dict[Node, list[Node]] = {node: [] for node in nodes}
+        # Store the negative index of the nodes because heapq is a min heap and we
+        # want to pop the node with largest index value first, effectively turning
+        # it to a max heap
+        neg_node_index: dict[Node, int] = {node: -i for i, node in enumerate(nodes)}
+
+        def add_predecessor(child: Node, predecessor: Node | None) -> None:
+            """Add a predecessor of a node, and increment the depth of the predecessor."""
+            if predecessor is None:
+                return
+            node_predecessors[child].append(predecessor)
+            node_depth[predecessor] += 1
+
+        # 1. Build the direct predecessors of each node and the depth of each node
+        # for sorting topolocally using Kahn's algorithm.
+        # Note that when a node contains graph attributes (aka. has subgraphs),
+        # we consider all nodes in the subgraphs *predecessors* of this node. This
+        # way we ensure the implicit dependencies of the subgraphs are captured
+        # as predecessors of the node.
+        for node in nodes:
+            # All producers of input values are considered as direct predecessors.
+            for input_value in node.inputs:
+                if input_value is None:
+                    continue
+                predecessor_node = input_value.producer()
+                add_predecessor(node, predecessor_node)
+            # All nodes in attribute graphs are considered as direct predecessors.
+            for attr in node.attributes.values():
+                if not isinstance(attr, Attr):
+                    continue
+                # A nice thing about this algorithm is that we only need to record
+                # direct predecessors. This continues to be true even with subgraphs.
+                # When a node in a subgraph (a) contains its own subgraphs (b), the
+                # node in subgraphs (b) are guranteed to appear before the node
+                # in (a).
+                if attr.type == _enums.AttributeType.GRAPH:
+                    for predecessor_node in attr.value:
+                        add_predecessor(node, predecessor_node)
+                elif attr.type == _enums.AttributeType.GRAPHS:
+                    for attribute_graph in attr.value:
+                        for predecessor_node in attribute_graph:
+                            add_predecessor(node, predecessor_node)
+
+        # 2. Priority Queue: Track nodes with zero direct children in a priority queue,
+        # using NEGATIVE original index for ordering.
+        # This ensures nodes appearing LATER in the original order are processed EARLIER.
+        # We get REVERSED topological order of each subgraph.
+        priority_queue: list[tuple[int, Node]] = [
+            (neg_node_index[node], node) for node in nodes if node_depth[node] == 0
+        ]
+        heapq.heapify(priority_queue)
+
+        # 3. Topological Sort:
+        num_of_sorted_nodes = 0
+        while priority_queue:
+            # Pop the node with the most negative index and add it to the sorted nodes by subgraph.
+            _, current_node = heapq.heappop(priority_queue)
+            assert current_node.graph is not None
+            sorted_nodes_by_graph[current_node.graph].append(current_node)
+            num_of_sorted_nodes += 1
+            # Decrement the depth of its predecessors. If any predecessor node has zero direct children, push it into the queue.
+            for predecessor_node in node_predecessors[current_node]:
+                node_depth[predecessor_node] -= 1
+                if node_depth[predecessor_node] == 0:
+                    heapq.heappush(
+                        priority_queue, (neg_node_index[predecessor_node], predecessor_node)
+                    )
+
+        # 4. Cycle Check: Ensure all nodes are processed. If not, raise a ValueError indicating a cycle.
+        if num_of_sorted_nodes != len(nodes):
+            raise ValueError("Graph contains a cycle, topological sort is not possible.")
+
+        # 5. Reverse: Reverse the sorted nodes of each subgraph to get the topological order.
+        for graph, sorted_nodes in sorted_nodes_by_graph.items():
+            # The graph container ensures all the nodes are unique so we can safely extend
+            graph.extend(reversed(sorted_nodes))
 
     # End of mutation methods
 
@@ -2261,8 +2386,8 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
     model_version={self.model_version!r},
 >"""
         graph_text = str(self.graph)
-        functions_text = ",\n\n".join(str(func) for func in self.functions.values())
-        return f"{signature}\n{graph_text}" + f"\n\n{functions_text}" * len(self.functions)
+        functions_text = "\n\n".join(str(func) for func in self.functions.values())
+        return f"{signature}\n{graph_text}" + f"\n\n{functions_text}"
 
     def __repr__(self) -> str:
         return f"""\
@@ -2451,7 +2576,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         self._graph.insert_before(node, new_nodes)
 
     def sort(self) -> None:
-        """Topologically sort the nodes in the function."""
+        """Perform a topological sort of this graph and all subgraphs in O(#nodes + #values) time."""
         self._graph.sort()
 
     # End of mutation methods

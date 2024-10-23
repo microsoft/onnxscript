@@ -21,9 +21,9 @@ from typing import (
     Union,
 )
 
+import onnxscript.optimizer
 from onnxscript import ir
 from onnxscript.ir import _convenience, _tape
-from onnxscript.rewriter import _ir_utils
 
 T = TypeVar("T")
 
@@ -282,12 +282,11 @@ def _to_value_pattern(
         return x
     if isinstance(x, (int, float)):
         return Constant(x)
-    # TODO(rama): support lists of int/float
-    # if isinstance(x, list):
-    #     if all(isinstance(i, (int, float)) for i in x):
-    #         return Constant(x)
-    #     raise ValueError("Only lists of int/float can be used as a ValuePattern")
-    # TODO(titaiwang): Could this be wrapped Constant?
+    if isinstance(x, Sequence):
+        if all(isinstance(i, (int, float)) for i in x):
+            return Constant(x)
+        raise ValueError("Only lists of int/float can be used as a ValuePattern")
+
     raise TypeError(f"Cannot convert {type(x)} to ValuePattern")
 
 
@@ -593,14 +592,22 @@ class NodeOutputPattern(ValuePattern):
 Var = ValuePattern
 
 
+def _is_pattern_variable(x: Any) -> bool:
+    # The derived classes of ValuePattern represent constant patterns and node-output patterns.
+    return type(x) is ValuePattern
+
+
 class Constant(ValuePattern):
     """Represents a pattern that matches against a scalar constant value."""
 
     def __init__(
-        self, value: int | float, rel_tol: float = 1e-5, abs_tol: float = 1e-8
+        self,
+        value: int | float | Sequence[int] | Sequence[float],
+        rel_tol: float = 1e-5,
+        abs_tol: float = 1e-8,
     ) -> None:
         super().__init__(None)
-        self._value = value
+        self._value = list(value) if isinstance(value, Sequence) else value
         self._rel_tol = rel_tol
         self._abs_tol = abs_tol
 
@@ -609,16 +616,33 @@ class Constant(ValuePattern):
         return Constant(self._value, self._rel_tol, self._abs_tol)
 
     @property
-    def value(self) -> int | float:
+    def value(self) -> int | float | list[int] | list[float]:
         return self._value
 
     def matches(self, value: ir.Value, match: MatchResult) -> MatchResult:
-        value = _ir_utils.propagate_const_value(value)
         constant_value = value.const_value
         if constant_value is None:
             return match.fail(f"Value is not a constant, expecting {self.value}.")
 
         constant_value_numpy = constant_value.numpy()
+        if isinstance(self._value, list):
+            if constant_value_numpy.shape != (len(self._value),):
+                return match.fail(f"Value has mismatching shape, expecting ({self.value},).")
+            if not all(
+                math.isclose(
+                    constant_value_numpy.item(i),
+                    self._value[i],
+                    rel_tol=self._rel_tol,
+                    abs_tol=self._abs_tol,
+                )
+                for i in range(len(self._value))
+            ):
+                return match.fail(
+                    f"Value mismatch: expected {self._value}, got {constant_value_numpy}."
+                )
+            return match
+
+        # Scalar constant case:
         # TODO (rama): allow users to specify shape requirement, if desired.
         if constant_value_numpy.size != 1:
             return match.fail(f"Value is not a scalar, expecting {self.value}.")
@@ -660,6 +684,20 @@ def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[NodePattern]:
     return node_patterns
 
 
+def _add_backward_slice(node: NodePattern, backward_slice: set[NodePattern]) -> None:
+    """Adds all nodes in the backward slice of given node to the set `backward_slice`.
+
+    The backward slice of a node is the set of all nodes that are reachable from the node
+    in a backward traversal from the given node.
+    """
+    if node in backward_slice:
+        return
+    backward_slice.add(node)
+    for value_pattern in node.inputs:
+        if isinstance(value_pattern, NodeOutputPattern):
+            _add_backward_slice(value_pattern.producer(), backward_slice)
+
+
 class GraphPattern:
     """Represents a pattern that can be matched against a subgraph."""
 
@@ -675,8 +713,10 @@ class GraphPattern:
             raise ValueError("GraphPattern must have at least one output")
         self._nodes = nodes  # _nodes_in_pattern(outputs)
 
-        # Check if all outputs are produced by the same node.
+        # Determine the output nodes of the pattern. These are a minimal set of nodes
+        # whose backward-slices cover the entire pattern.
         output_nodes: set[NodePattern] = set()
+        covered: set[NodePattern] = set()
         for value_pattern in outputs:
             if not isinstance(value_pattern, ValuePattern):
                 raise TypeError(
@@ -687,7 +727,11 @@ class GraphPattern:
                     "Constant values are not allowed as graph pattern outputs."
                 )
             if isinstance(value_pattern, NodeOutputPattern):
-                output_nodes.add(value_pattern.producer())
+                candidate = value_pattern.producer()
+                if candidate not in covered:
+                    output_nodes.add(candidate)
+                    _add_backward_slice(candidate, covered)
+
         self.output_nodes: list[NodePattern] = list(output_nodes)
 
     @property
@@ -910,28 +954,51 @@ class SimplePatternMatcher(PatternMatcher):
         if subgraph replacement happens. But subsequent DCE will remove the constant
         node if it is not used elsewhere.
         """
-        value = _ir_utils.propagate_const_value(value)
         constant_value = value.const_value
         if constant_value is None:
             return self.fail(
                 f"Value {value.name} is not a constant, expecting {pattern_constant.value}.",
             )
 
-        constant_value_numpy = constant_value.numpy()
+        try:
+            constant_value_numpy = constant_value.numpy()
+        except FileNotFoundError:
+            return self.fail(f"Constant value of {value.name} not available.")
+
+        pattern_constant_value = pattern_constant._value
+
+        if isinstance(pattern_constant_value, list):
+            expected_shape = (len(pattern_constant_value),)
+            if constant_value_numpy.shape != expected_shape:
+                return self.fail(f"Value has mismatching shape, expecting {expected_shape}.")
+            if not all(
+                math.isclose(
+                    constant_value_numpy.item(i),
+                    pattern_constant_value[i],
+                    rel_tol=pattern_constant._rel_tol,
+                    abs_tol=pattern_constant._abs_tol,
+                )
+                for i in range(len(pattern_constant_value))
+            ):
+                return self.fail(
+                    f"Value mismatch: expected {pattern_constant_value}, got {constant_value_numpy}."
+                )
+            return True
+
         # TODO (rama): allow users to specify shape requirement, if desired.
         if constant_value_numpy.size != 1:
             return self.fail(
-                f"Value {value.name} is not a scalar, expecting {pattern_constant.value}.",
+                f"Value {value.name} is not a scalar, expecting {pattern_constant_value}.",
             )
 
         if not math.isclose(
             constant_value_numpy.item(),
-            pattern_constant._value,
+            pattern_constant_value,
             rel_tol=pattern_constant._rel_tol,
             abs_tol=pattern_constant._abs_tol,
         ):
             return self.fail(
-                f"Constant value mismatch: expected {pattern_constant._value}, got {constant_value_numpy.item()}.",
+                f"Constant value mismatch: expected {pattern_constant_value}, got {constant_value_numpy.item()}.",
             )
 
         return True
@@ -954,18 +1021,20 @@ class SimplePatternMatcher(PatternMatcher):
 
         self._matched[pattern_node] = node
 
-        for arg_value, previous_node_output_pattern in zip(node.inputs, pattern_node.inputs):
-            # previous_node_output_pattern could be a Var, if it's the original arg.
-            if arg_value is None and previous_node_output_pattern is None:
-                continue
-            if arg_value is None or previous_node_output_pattern is None:
-                msg = (
-                    "Input not expected to be None"
-                    if arg_value is None
-                    else "Input expected to be None"
-                )
-                return self.fail(msg)
-            if not self._match_value(previous_node_output_pattern, arg_value):
+        # TODO: Revisit this to handle optional trailing inputs better.
+        if len(node.inputs) != len(pattern_node.inputs):
+            return self.fail(
+                "Input nums mismatch. {len(node.inputs)} vs {len(pattern_node.inputs)}"
+            )
+
+        for arg_value, arg_pattern in zip(node.inputs, pattern_node.inputs):
+            # arg_pattern could be a Var, if it's the original arg.
+            if arg_pattern is None:
+                if arg_value is None:
+                    continue
+                else:
+                    return self.fail("(Optional) input is expected to be None but is not.")
+            if not self._match_value(arg_pattern, arg_value):
                 return False
 
         for i, output_value_pattern in enumerate(pattern_node.outputs):
@@ -975,7 +1044,7 @@ class SimplePatternMatcher(PatternMatcher):
         match.nodes.append(node)
         return True
 
-    def _bind_value(self, pattern_value: ValuePattern, value: ir.Value) -> bool:
+    def _bind_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
         """Bind a ValuePattern var to ir Value."""
         if pattern_value.name is not None:
             match = self._match
@@ -987,14 +1056,18 @@ class SimplePatternMatcher(PatternMatcher):
             match.bindings[pattern_value.name] = value
         return True
 
-    def _match_value(self, pattern_value: ValuePattern, value: ir.Value) -> bool:
+    def _match_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
         """Match an IR value against a ValuePattern instance."""
         if not self._bind_value(pattern_value, value):
             return False
 
         if isinstance(pattern_value, NodeOutputPattern):
+            if value is None:
+                return self.fail("Mismatch: Computed node pattern does not match None.")
             return self._match_node_output(pattern_value, value)
         if isinstance(pattern_value, Constant):
+            if value is None:
+                return self.fail("Mismatch: Constant pattern does not match None.")
             return self._match_constant(pattern_value, value)
         return True
 
@@ -1066,11 +1139,6 @@ class SimplePatternMatcher(PatternMatcher):
             return match
         if not _valid_to_replace(match.nodes, output_values):
             return match.fail("Matched nodes have other uses preventing replacement.")
-
-        if len(node.outputs) != pattern.num_outputs:
-            return match.fail(
-                f"Number of node outputs mismatch: expected {pattern.num_outputs}, got {len(node.outputs)}."
-            )
 
         match.outputs.extend(output_values)
         return match
@@ -1361,6 +1429,7 @@ class RewriteRuleSet:
                 # for inserted nodes in the case of patterns with multiple output-nodes. The following
                 # is sufficient for patterns with a single output-node "node", which can serve as the
                 # insertion-point.
+                onnxscript.optimizer.basic_constant_propagation(delta.new_nodes)
                 _convenience.replace_nodes_and_values(
                     graph_or_function,
                     node,
@@ -1375,8 +1444,10 @@ class RewriteRuleSet:
 
     def apply_to_model(self, model: ir.Model, verbose: int | None = None) -> int:
         assert isinstance(model, ir.Model)
+        onnxscript.optimizer.basic_constant_propagation(model.graph)
         count = self._apply_to_graph_or_function(model, model.graph, verbose=verbose)
         for function in model.functions.values():
+            onnxscript.optimizer.basic_constant_propagation(function)
             count += self._apply_to_graph_or_function(model, function, verbose=verbose)
         return count
 
