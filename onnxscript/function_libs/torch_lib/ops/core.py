@@ -632,8 +632,6 @@ def aten_arange_start_step(
     """arange.start_step(Scalar start, Scalar end, Scalar step=1, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     if dtype == -1:
-        start = op.Cast(start, to=FLOAT.dtype)
-        end = op.Cast(end, to=FLOAT.dtype)
         result = op.Range(start, end, step)
     elif _integral_to_be_adjusted(dtype):
         # PyTorch arange op handles these integral types differently from INT64,
