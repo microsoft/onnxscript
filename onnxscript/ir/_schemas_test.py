@@ -144,7 +144,7 @@ class TypeConversionFunctionsTest(unittest.TestCase):
         ]
     )
     def test_pytype_to_ir_type(self, _, pytype: Any, expected: set[ir.TypeProtocol]):
-        self.assertEqual(_schemas._get_allowed_types_from_type_annotation(pytype), expected)
+        self.assertEqual(_schemas._get_allowed_types_from_type_annotation(pytype), expected)  # pylint: disable=protected-access
 
     @parameterized.parameterized.expand(
         [
@@ -169,7 +169,7 @@ class TypeConversionFunctionsTest(unittest.TestCase):
         ]
     )
     def test_get_type_constraint_name(self, _: str, pytype: Any, expected: str | None):
-        self.assertEqual(_schemas._get_type_constraint_name(pytype), expected)
+        self.assertEqual(_schemas._get_type_constraint_name(pytype), expected)  # pylint: disable=protected-access
 
 
 if __name__ == "__main__":
