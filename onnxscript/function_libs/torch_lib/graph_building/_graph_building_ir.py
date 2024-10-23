@@ -237,9 +237,6 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                 else:
                     # Python constants are scalars
                     return 0
-            elif function.traceable:
-                # Trace the function call instead of adding the function as a node
-                return function.function(*args, **kwargs)
 
         # args/kwargs are TorchScriptTensor/python built-in based
         param_schemas = function.param_schemas()
@@ -269,6 +266,10 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                 value, float
             ):
                 attributes[name] = (value,)
+        if function.traceable:
+            inputs = self._graph.precprocess_inputs(inputs, attributes)
+            # Trace the function call instead of adding the function as a node
+            return function.function(*inputs, **attributes)
         return self._graph.add_function_call(function, inputs, attributes)
 
 
@@ -522,15 +523,11 @@ class TorchScriptGraph:
         )
         return value
 
-    def _add_ir_graph_op_call(
+    def precprocess_inputs(
         self,
-        *,
-        domain: str,
-        op_type: str,
         onnx_inputs: Sequence[ValidInputType],
         onnx_attributes: Mapping[str, ValidArgumentType],
-        num_outputs: int,
-    ) -> Sequence[TorchScriptTensor]:
+    ) -> list[TorchScriptTensor]:
         graph_inputs: list[TorchScriptTensor] = []
         assert isinstance(onnx_inputs, Sequence)
         for input in onnx_inputs:
@@ -559,6 +556,18 @@ class TorchScriptGraph:
             assert not isinstance(
                 value, TorchScriptTensor
             ), f"ONNX attribute must not be a TorchScriptTensor, got {key}: {value}."
+        return graph_inputs
+
+    def _add_ir_graph_op_call(
+        self,
+        *,
+        domain: str,
+        op_type: str,
+        onnx_inputs: Sequence[ValidInputType],
+        onnx_attributes: Mapping[str, ValidArgumentType],
+        num_outputs: int,
+    ) -> Sequence[TorchScriptTensor]:
+        graph_inputs = self.precprocess_inputs(onnx_inputs, onnx_attributes)
         tensors = _create_op_call_in_graph(
             self._graph,
             domain,
