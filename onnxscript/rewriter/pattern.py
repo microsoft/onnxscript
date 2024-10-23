@@ -1024,7 +1024,7 @@ class SimplePatternMatcher(PatternMatcher):
         # TODO: Revisit this to handle optional trailing inputs better.
         if len(node.inputs) != len(pattern_node.inputs):
             return self.fail(
-                "Input nums mismatch. {len(node.inputs)} vs {len(pattern_node.inputs)}"
+                f"Input nums mismatch. {len(node.inputs)} vs {len(pattern_node.inputs)}"
             )
 
         for arg_value, arg_pattern in zip(node.inputs, pattern_node.inputs):
