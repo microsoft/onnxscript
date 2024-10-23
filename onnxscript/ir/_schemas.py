@@ -8,15 +8,7 @@ import inspect
 import logging
 import types
 import typing
-from typing import (
-    Any,
-    Iterator,
-    Mapping,
-    Optional,
-    Sequence,
-    TypeVar,
-    Union,
-)
+from typing import Any, Iterator, Mapping, Optional, Sequence, TypeVar, Union
 
 import onnx
 
@@ -103,7 +95,7 @@ class TypeConstraintParam:
 
     @classmethod
     def any_value(cls, name: str, description: str = "") -> TypeConstraintParam:
-        return cls(name, _ALL_VALUE_TYPES, description)  # type: ignore
+        return cls(name, _ALL_VALUE_TYPES, description)  # type: ignore[arg-type]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -129,6 +121,8 @@ class Parameter:
 
 @dataclasses.dataclass(frozen=True)
 class AttributeParameter:
+    """A parameter in the function signature that represents an ONNX attribute."""
+
     name: str
     type: ir.AttributeType
     required: bool
@@ -147,7 +141,7 @@ class AttributeParameter:
 def _get_type_from_str(
     type_str: str,
 ) -> ir.TensorType | ir.SequenceType | ir.OptionalType:
-    """Converter a type_str from ONNX Opschema to ir.TypeProtocol.
+    """Converter a type_str from ONNX OpSchema to ir.TypeProtocol.
 
     A type str has the form of "tensor(float)" or composite type like "seq(tensor(float))".
     """
@@ -180,14 +174,14 @@ def _convert_formal_parameter(
     param: onnx.defs.OpSchema.FormalParameter,
     type_constraints: Mapping[str, TypeConstraintParam],
 ) -> Parameter:
-    """Convert a formal parameter from ONNX Opschema to Parameter."""
+    """Convert a formal parameter from ONNX OpSchema to Parameter."""
     if param.type_str in type_constraints:
         type_constraint = type_constraints[param.type_str]
     else:
         # param.type_str can be a plain type like 'int64'.
         type_constraint = TypeConstraintParam(
             name=param.name,
-            allowed_types={_get_type_from_str(param.type_str)},  # type: ignore
+            allowed_types={_get_type_from_str(param.type_str)},
         )
     return Parameter(
         name=param.name,
@@ -377,7 +371,7 @@ class OpSignature:
 
     @classmethod
     def from_op_schema(cls, op_schema: onnx.defs.OpSchema) -> OpSignature:
-        """Produce an OpSignature from an ONNX Opschema."""
+        """Produce an OpSignature from an ONNX OpSchema."""
         type_constraints = {
             constraint.type_param_str: TypeConstraintParam(
                 name=constraint.type_param_str,
@@ -434,7 +428,7 @@ class OpSignature:
         # https://github.com/python/cpython/issues/102405
         type_hints = typing.get_type_hints(func)
 
-        params = []
+        params: list[Parameter | AttributeParameter] = []
         # Create a mapping from type to a unique name
         type_constraints: dict[str, TypeConstraintParam] = {}
 
@@ -445,7 +439,20 @@ class OpSignature:
                     param.name,
                     py_signature,
                 )
-                type_constraints[param.name] = TypeConstraintParam.any_value(f"T_{param.name}")
+                type_constraint = TypeConstraintParam.any_value(f"T_{param.name}")
+                type_constraints[param.name] = type_constraint
+                params.append(
+                    Parameter(
+                        name=param.name,
+                        type_constraint=type_constraint,
+                        required=param.default is inspect.Parameter.empty,
+                        # TODO: Handle variadic
+                        variadic=False,
+                        default=param.default
+                        if param.default is not inspect.Parameter.empty
+                        else _EMPTY_DEFAULT,
+                    )
+                )
             else:
                 type_ = type_hints[param.name]
                 if (attr_type := _get_attr_type(type_)) != ir.AttributeType.UNDEFINED:
@@ -485,7 +492,7 @@ class OpSignature:
                         type_constraints[type_constraint_name] = type_constraint
                     # 4. Create Parameter
                     params.append(
-                        Parameter(  # type: ignore[arg-type]
+                        Parameter(
                             name=param.name,
                             type_constraint=type_constraint,
                             required=param.default is inspect.Parameter.empty,
