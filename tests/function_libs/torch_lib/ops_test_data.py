@@ -1349,6 +1349,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .xfail(
         variant_name="decimals_0",
         reason="This variant does not accept decimals",
+        test_class_name="TestOutputConsistencyEager",
     )
     .xfail(
         variant_name="decimals_3",
