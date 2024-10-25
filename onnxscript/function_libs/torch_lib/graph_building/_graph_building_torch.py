@@ -421,6 +421,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                 attributes[name] = (value,)
         if function.traceable:
             inputs = self._graph.preprocess_inputs(inputs)
+            inputs = _wrap_torch_value_to_tensor(inputs)  # type: ignore[assignment]
             # Trace the function call instead of adding the function as a node
             return function.function(*inputs, **attributes)
         return self._graph.add_function_call(function, inputs, attributes)
