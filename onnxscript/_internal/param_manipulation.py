@@ -131,18 +131,3 @@ def tag_arguments_with_param_schemas(
             raise TypeError(f"Required input/attribute '{param}' was not provided")
 
     return tagged_args, tagged_kwargs
-
-
-def return_to_args_order(
-    param_schemas: Sequence[values.ParamSchema],
-    inputs: list[Any],
-    attributes: dict[str, Any],
-) -> list[Sequence[Any]]:
-    """Return the inputs and attributes to the order of the function signature."""
-    args = []
-    for param in param_schemas:
-        if param.name in attributes:
-            args.append(attributes.pop(param.name))
-        else:
-            args.append(inputs.pop(0))
-    return args
