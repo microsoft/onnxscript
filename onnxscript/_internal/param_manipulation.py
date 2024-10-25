@@ -131,3 +131,18 @@ def tag_arguments_with_param_schemas(
             raise TypeError(f"Required input/attribute '{param}' was not provided")
 
     return tagged_args, tagged_kwargs
+
+
+def turn_to_kwargs_to_avoid_ordering(
+    param_schemas: Sequence[values.ParamSchema],
+    inputs: list[Any],
+    attributes: dict[str, Any],
+) -> dict[str, Any]:
+    """Return the inputs and attributes to the order of the function signature."""
+    for idx, param in enumerate(param_schemas):
+        if param.name not in attributes:
+            if param.is_variadic_input:
+                attributes[param.name] = inputs[idx:]
+            elif inputs:
+                attributes[param.name] = inputs.pop(0)
+    return attributes
