@@ -133,16 +133,16 @@ def tag_arguments_with_param_schemas(
     return tagged_args, tagged_kwargs
 
 
-def return_to_args_order(
+def turn_to_kwargs_to_avoid_ordering(
     param_schemas: Sequence[values.ParamSchema],
     inputs: list[Any],
     attributes: dict[str, Any],
-) -> list[Sequence[Any]]:
+) -> dict[str, Any]:
     """Return the inputs and attributes to the order of the function signature."""
-    args = []
-    for param in param_schemas:
-        if param.name in attributes:
-            args.append(attributes.pop(param.name))
-        else:
-            args.append(inputs.pop(0))
-    return args
+    for idx, param in enumerate(param_schemas):
+        if param.name not in attributes:
+            if param.is_variadic_input:
+                attributes[param.name] = inputs[idx:]
+            elif inputs:
+                attributes[param.name] = inputs.pop(0)
+    return attributes
