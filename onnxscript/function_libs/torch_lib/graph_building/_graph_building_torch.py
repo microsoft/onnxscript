@@ -422,8 +422,10 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         if function.traceable:
             inputs = self._graph.preprocess_inputs(inputs)
             inputs = _wrap_torch_value_to_tensor(inputs)  # type: ignore[assignment]
+            # return to args order, as it's traced onnx function
+            args = param_manipulation.return_to_args_order(param_schemas, inputs, attributes)
             # Trace the function call instead of adding the function as a node
-            return function.function(*inputs, **attributes)
+            return function.function(*args)
         return self._graph.add_function_call(function, inputs, attributes)
 
 
