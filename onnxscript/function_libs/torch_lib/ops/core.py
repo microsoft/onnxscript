@@ -5752,9 +5752,14 @@ def aten_nansum(
 def aten_narrow(self: TTensor, dim: INT64, start: INT64, length: INT64) -> TTensor:
     """narrow(Tensor(a) self, int dim, SymInt start, SymInt length) -> Tensor(a)"""
 
-    dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
-    start = op.Reshape(start, op.Constant(value_ints=[-1]))
-    length = op.Reshape(length, op.Constant(value_ints=[-1]))
+    if IsScalar(dim):
+        dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
+
+    if IsScalar(start):
+        start = op.Reshape(start, op.Constant(value_ints=[-1]))
+
+    if IsScalar(length):
+        length = op.Reshape(length, op.Constant(value_ints=[-1]))
 
     end = op.Add(start, length)
     return op.Slice(self, start, end, dim)

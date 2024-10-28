@@ -704,13 +704,17 @@ class TorchScriptGraph:
             value.setDebugName(_rename_intermediate_value(value.debugName()))
             return value
 
+        shape: list[int] | None = None
         if isinstance(constant, bool):
             # Be sure to put bool before int, because bool is a subclass of int
             constant_tensor = torch.tensor(constant, dtype=torch.bool)
+            shape = []
         elif isinstance(constant, float):
             constant_tensor = torch.tensor(constant, dtype=torch.float)
+            shape = []
         elif isinstance(constant, int):
             constant_tensor = torch.tensor(constant, dtype=torch.int64)
+            shape = []
         elif isinstance(constant, (tuple, list)) and all(
             isinstance(val, int) for val in constant
         ):
@@ -734,6 +738,8 @@ class TorchScriptGraph:
             attributes=dict(value=constant_tensor),
         )[0]
         value.setDebugName(_rename_intermediate_value(value.debugName()))
+        if shape is not None:
+            value.setType(value.type().with_sizes(shape))
         return value
 
     def preprocess_inputs(self, onnx_inputs: Sequence[ValidInputType]) -> List[torch.Value]:
