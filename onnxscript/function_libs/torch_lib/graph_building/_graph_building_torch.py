@@ -739,7 +739,7 @@ class TorchScriptGraph:
         )[0]
         value.setDebugName(_rename_intermediate_value(value.debugName()))
         if shape is not None:
-            value.setType(value.type().with_sizes(shape))
+            value.setType(value.type().with_sizes(shape))  # type: ignore[arg-type]
         return value
 
     def preprocess_inputs(self, onnx_inputs: Sequence[ValidInputType]) -> List[torch.Value]:
