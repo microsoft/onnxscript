@@ -261,7 +261,7 @@ class OpLike(Protocol):
     def op_schema(self) -> Optional[onnx.defs.OpSchema]: ...
 
     @property
-    def signature(self) -> Optional[_schemas.OpSignature]: ...
+    def op_signature(self) -> Optional[_schemas.OpSignature]: ...
 
 
 class Op(OpLike):
@@ -325,7 +325,7 @@ class Op(OpLike):
         return self.op_schema is not None
 
     @property
-    def signature(self) -> Optional[_schemas.OpSignature]:
+    def op_signature(self) -> Optional[_schemas.OpSignature]:
         """Returns the signature of this op."""
         if self._signature is not None:
             return self._signature
@@ -336,8 +336,8 @@ class Op(OpLike):
         self._signature = _schemas.OpSignature.from_op_schema(self.op_schema)
         return self._signature
 
-    @signature.setter
-    def signature(self, value: _schemas.OpSignature):
+    @op_signature.setter
+    def op_signature(self, value: _schemas.OpSignature):
         self._signature = value
 
     @deprecation.deprecated(
@@ -534,7 +534,7 @@ class OnnxFunction(Op):
         return self._op_schema
 
     @property
-    def signature(self) -> Optional[_schemas.OpSignature]:
+    def op_signature(self) -> Optional[_schemas.OpSignature]:
         """Returns the signature of this op."""
         if self._signature is not None:
             return self._signature
@@ -547,8 +547,8 @@ class OnnxFunction(Op):
         )
         return self._signature
 
-    @signature.setter
-    def signature(self, value: _schemas.OpSignature):
+    @op_signature.setter
+    def op_signature(self, value: _schemas.OpSignature):
         self._signature = value
 
     def __getitem__(self, instance):
@@ -669,7 +669,7 @@ class TracedOnnxFunction(Op):
         return self._op_schema
 
     @property
-    def signature(self) -> Optional[_schemas.OpSignature]:
+    def op_signature(self) -> Optional[_schemas.OpSignature]:
         """Returns the signature of this op."""
         if self._signature is not None:
             return self._signature
@@ -682,8 +682,8 @@ class TracedOnnxFunction(Op):
         )
         return self._signature
 
-    @signature.setter
-    def signature(self, value: _schemas.OpSignature):
+    @op_signature.setter
+    def op_signature(self, value: _schemas.OpSignature):
         self._signature = value
 
     @deprecation.deprecated(
