@@ -71,6 +71,7 @@ class ExpandIdentity(orp.RewriteRuleAsClass):
             # Shape is not a constant and cannot be guessed.
             return False
         if (x_shape := x.shape) is None:
+            # We don't know the shape of the input
             return False
         return x_shape.dims == tuple(shape.const_value.numpy().tolist())
 
