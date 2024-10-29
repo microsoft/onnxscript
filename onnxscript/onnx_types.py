@@ -8,31 +8,28 @@ from typing import ClassVar, Optional, Tuple, Union
 
 import onnx
 import onnx.helper
+
 import onnxscript.ir
 
-DType = onnxscript.ir.DataType
+_DType = onnxscript.ir.DataType
+_DimType = Union[int, str, type(None)]
+_ShapeType = Union[Tuple[_DimType, ...], _DimType, type(Ellipsis)]
 
-DimType = Union[int, str, type(None)]
+_tensor_type_shape_cache: dict[_DType, TensorType] = {}
+tensor_type_registry: dict[_DType, TensorType] = {}
 
 
-def check_dim(dim):
+def _check_dim(dim):
     if not isinstance(dim, (int, str, type(None))):
         raise TypeError(f"Invalid dimension {dim}")
 
 
-ShapeType = Union[Tuple[DimType, ...], DimType, type(Ellipsis)]
-
-
-def check_shape(shape):
+def _check_shape(shape):
     if isinstance(shape, tuple):
         for dim in shape:
-            check_dim(dim)
+            _check_dim(dim)
     elif shape != Ellipsis:
-        check_dim(shape)
-
-
-tensor_type_registry: dict[DType, TensorType] = {}
-_tensor_type_shape_cache: dict[DType, TensorType] = {}
+        _check_dim(shape)
 
 
 class TensorType(abc.ABC):
@@ -59,13 +56,13 @@ class TensorType(abc.ABC):
         tensor: FLOAT[128, 1024]
     """
 
-    dtype: ClassVar[DType]
-    shape: ClassVar[Optional[ShapeType]]
+    dtype: ClassVar[_DType]
+    shape: ClassVar[Optional[_ShapeType]]
 
     def __new__(cls):
         raise NotImplementedError("TensorTypes cannot be instantiated")
 
-    def __init_subclass__(cls, dtype: DType, shape: Optional[ShapeType] = None):
+    def __init_subclass__(cls, dtype: _DType, shape: Optional[_ShapeType] = None):
         cls.dtype = dtype
         cls.shape = shape
         if shape is None:
@@ -77,9 +74,9 @@ class TensorType(abc.ABC):
                 )
             tensor_type_registry[dtype] = cls
         else:
-            check_shape(shape)
+            _check_shape(shape)
 
-    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+    def __class_getitem__(cls, shape: Optional[_ShapeType]) -> type[TensorType]:
         if cls.shape is not None:
             raise ValueError("Invalid usage: shape already specified.")
         if shape is None:
