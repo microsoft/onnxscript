@@ -55,7 +55,7 @@ class CastCast(orp.RewriteRuleAsClass):
 
 
 class ExpandIdentity(orp.RewriteRuleAsClass):
-    """Replaces ``Expand(., shape)`` by ``Identity`` if possible."""
+    """Replaces ``Expand(..., shape)`` by ``Identity`` if possible."""
 
     @classmethod
     def pattern(cls, op, x, shape):
@@ -70,8 +70,9 @@ class ExpandIdentity(orp.RewriteRuleAsClass):
         if shape.const_value is None:
             # Shape is not a constant and cannot be guessed.
             return False
-        shape_x = x.shape
-        return shape_x.dims == tuple(shape.const_value.numpy().tolist())
+        if (x_shape := x.shape) is None:
+            return False
+        return x_shape.dims == tuple(shape.const_value.numpy().tolist())
 
 
 class ReshapeReshape(orp.RewriteRuleAsClass):
