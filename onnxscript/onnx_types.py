@@ -8,8 +8,9 @@ from typing import ClassVar, Optional, Tuple, Union
 
 import onnx
 import onnx.helper
+import onnxscript.ir
 
-DType = onnx.TensorProto.DataType
+DType = onnxscript.ir.DataType
 
 DimType = Union[int, str, type(None)]
 
@@ -108,83 +109,91 @@ class TensorType(abc.ABC):
         return f"tensor({cls.__name__.lower()})"
 
 
-class FLOAT(TensorType, dtype=onnx.TensorProto.FLOAT):
+class FLOAT(TensorType, dtype=onnxscript.ir.DataType.FLOAT):
     pass
 
 
-class UINT8(TensorType, dtype=onnx.TensorProto.UINT8):
+class UINT8(TensorType, dtype=onnxscript.ir.DataType.UINT8):
     pass
 
 
-class INT8(TensorType, dtype=onnx.TensorProto.INT8):
+class INT8(TensorType, dtype=onnxscript.ir.DataType.INT8):
     pass
 
 
-class UINT16(TensorType, dtype=onnx.TensorProto.UINT16):
+class UINT16(TensorType, dtype=onnxscript.ir.DataType.UINT16):
     pass
 
 
-class INT16(TensorType, dtype=onnx.TensorProto.INT16):
+class INT16(TensorType, dtype=onnxscript.ir.DataType.INT16):
     pass
 
 
-class INT32(TensorType, dtype=onnx.TensorProto.INT32):
+class INT32(TensorType, dtype=onnxscript.ir.DataType.INT32):
     pass
 
 
-class INT64(TensorType, dtype=onnx.TensorProto.INT64):
+class INT64(TensorType, dtype=onnxscript.ir.DataType.INT64):
     pass
 
 
-class STRING(TensorType, dtype=onnx.TensorProto.STRING):
+class STRING(TensorType, dtype=onnxscript.ir.DataType.STRING):
     pass
 
 
-class BOOL(TensorType, dtype=onnx.TensorProto.BOOL):
+class BOOL(TensorType, dtype=onnxscript.ir.DataType.BOOL):
     pass
 
 
-class FLOAT16(TensorType, dtype=onnx.TensorProto.FLOAT16):
+class FLOAT16(TensorType, dtype=onnxscript.ir.DataType.FLOAT16):
     pass
 
 
-class DOUBLE(TensorType, dtype=onnx.TensorProto.DOUBLE):
+class DOUBLE(TensorType, dtype=onnxscript.ir.DataType.DOUBLE):
     pass
 
 
-class UINT32(TensorType, dtype=onnx.TensorProto.UINT32):
+class UINT32(TensorType, dtype=onnxscript.ir.DataType.UINT32):
     pass
 
 
-class UINT64(TensorType, dtype=onnx.TensorProto.UINT64):
+class UINT64(TensorType, dtype=onnxscript.ir.DataType.UINT64):
     pass
 
 
-class COMPLEX64(TensorType, dtype=onnx.TensorProto.COMPLEX64):
+class COMPLEX64(TensorType, dtype=onnxscript.ir.DataType.COMPLEX64):
     pass
 
 
-class COMPLEX128(TensorType, dtype=onnx.TensorProto.COMPLEX128):
+class COMPLEX128(TensorType, dtype=onnxscript.ir.DataType.COMPLEX128):
     pass
 
 
-class BFLOAT16(TensorType, dtype=onnx.TensorProto.BFLOAT16):
+class BFLOAT16(TensorType, dtype=onnxscript.ir.DataType.BFLOAT16):
     pass
 
 
-class FLOAT8E4M3FN(TensorType, dtype=onnx.TensorProto.FLOAT8E4M3FN):
+class FLOAT8E4M3FN(TensorType, dtype=onnxscript.ir.DataType.FLOAT8E4M3FN):
     pass
 
 
-class FLOAT8E4M3FNUZ(TensorType, dtype=onnx.TensorProto.FLOAT8E4M3FNUZ):
+class FLOAT8E4M3FNUZ(TensorType, dtype=onnxscript.ir.DataType.FLOAT8E4M3FNUZ):
     pass
 
 
-class FLOAT8E5M2(TensorType, dtype=onnx.TensorProto.FLOAT8E5M2):
+class FLOAT8E5M2(TensorType, dtype=onnxscript.ir.DataType.FLOAT8E5M2):
     pass
 
 
-class FLOAT8E5M2FNUZ(TensorType, dtype=onnx.TensorProto.FLOAT8E5M2FNUZ):
+class FLOAT8E5M2FNUZ(TensorType, dtype=onnxscript.ir.DataType.FLOAT8E5M2FNUZ):
+    pass
+
+
+class INT4(TensorType, dtype=onnxscript.ir.DataType.INT4):
+    pass
+
+
+class UINT4(TensorType, dtype=onnxscript.ir.DataType.UINT4):
     pass
 
 
