@@ -390,9 +390,6 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                 else:
                     # Python constants are scalars
                     return 0
-            elif function.traceable:
-                # Trace the function call instead of adding the function as a node
-                return function.function(*args, **kwargs)
 
         # args/kwargs are TorchScriptTensor/python built-in based
         param_schemas = function.param_schemas()
@@ -422,6 +419,15 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                 value, float
             ):
                 attributes[name] = (value,)
+        if function.traceable:
+            inputs = self._graph.preprocess_inputs(inputs)
+            inputs = _wrap_torch_value_to_tensor(inputs)  # type: ignore[assignment]
+            # The args and kwargs matters, as it's traced onnx function
+            kwargs = param_manipulation.turn_to_kwargs_to_avoid_ordering(
+                param_schemas, inputs, attributes
+            )
+            # Trace the function call instead of adding the function as a node
+            return function.function(**kwargs)
         return self._graph.add_function_call(function, inputs, attributes)
 
 
@@ -730,14 +736,7 @@ class TorchScriptGraph:
         value.setDebugName(_rename_intermediate_value(value.debugName()))
         return value
 
-    @runtime_typing.checked
-    def _add_torchscript_op_call(
-        self,
-        name: str,
-        onnx_inputs: Sequence[ValidInputType],
-        onnx_attributes: Mapping[str, ValidArgumentType],
-        n_outputs: int,
-    ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
+    def preprocess_inputs(self, onnx_inputs: Sequence[ValidInputType]) -> List[torch.Value]:
         unwrapped_inputs = _unwrap_tensors_to_torch_values(onnx_inputs)
         graph_inputs = []
         assert isinstance(unwrapped_inputs, Sequence)
@@ -761,6 +760,17 @@ class TorchScriptGraph:
                 graph_inputs.append(self._add_constant_to_graph(input))
             else:
                 graph_inputs.append(input)
+        return graph_inputs
+
+    @runtime_typing.checked
+    def _add_torchscript_op_call(
+        self,
+        name: str,
+        onnx_inputs: Sequence[ValidInputType],
+        onnx_attributes: Mapping[str, ValidArgumentType],
+        n_outputs: int,
+    ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
+        graph_inputs = self.preprocess_inputs(onnx_inputs)
         for key, value in onnx_attributes.items():
             assert not isinstance(
                 value, TorchScriptTensor
