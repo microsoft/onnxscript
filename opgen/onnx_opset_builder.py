@@ -17,7 +17,7 @@ from onnx.defs import (
 )
 from onnx.helper import get_attribute_value
 
-import opgen.pygen as cg
+import pygen as cg
 
 __all__ = [
     "OpsetId",
