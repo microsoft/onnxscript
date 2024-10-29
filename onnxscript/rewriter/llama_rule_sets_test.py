@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 import onnx
 import onnx.reference
+import parameterized
 
 import onnxscript
 import onnxscript.onnx_types as ot
@@ -191,37 +192,65 @@ class LlamaRuleSetsTest(unittest.TestCase):
             self.assertEqual(["Identity"], [n.op_type for n in rewritten_model.graph.node])
             self._check_model(model_proto, rewritten_model)
 
-    @classmethod
-    def _expand_identity_models(cls):
-        models = [
-            onnx.helper.make_model(
-                onnx.helper.make_graph(
-                    [
-                        onnx.helper.make_node("Expand", ["X", "shape"], ["Y"]),
-                    ],
-                    "name",
-                    [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 5])],
-                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [3, 4, 5])],
-                    [
-                        onnx.numpy_helper.from_array(
-                            np.array([3, 4, 5], dtype=np.int64), name="shape"
-                        )
-                    ],
+    @parameterized.parameterized.expand(
+        [
+            (
+                "normal_case",
+                ir.serde.deserialize_model(
+                    onnx.helper.make_model(
+                        onnx.helper.make_graph(
+                            [
+                                onnx.helper.make_node("Expand", ["X", "shape"], ["Y"]),
+                            ],
+                            "name",
+                            [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 5])],
+                            [onnx.helper.make_tensor_value_info("Y", FLOAT, [3, 4, 5])],
+                            [
+                                onnx.numpy_helper.from_array(
+                                    np.array([3, 4, 5], dtype=np.int64), name="shape"
+                                )
+                            ],
+                        ),
+                        opset_imports=[onnx.helper.make_opsetid("", 18)],
+                    )
                 ),
-                opset_imports=[onnx.helper.make_opsetid("", 18)],
+                ("Identity",),
+            ),
+            (
+                "input_no_shape",
+                ir.serde.deserialize_model(
+                    onnx.helper.make_model(
+                        onnx.helper.make_graph(
+                            [
+                                onnx.helper.make_node("Identity", ["X"], ["Y"]),
+                                onnx.helper.make_node("Expand", ["Y", "shape"], ["Z"]),
+                            ],
+                            "name",
+                            [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 5])],
+                            [onnx.helper.make_tensor_value_info("Z", FLOAT, [3, 4, 5])],
+                            [
+                                onnx.numpy_helper.from_array(
+                                    np.array([3, 4, 5], dtype=np.int64), name="shape"
+                                )
+                            ],
+                        ),
+                        opset_imports=[onnx.helper.make_opsetid("", 18)],
+                    )
+                ),
+                ("Identity", "Expand"),
             ),
         ]
-        return models
+    )
+    def test_llama_p0_rule_set_expand_identity(
+        self, _: str, model: ir.Model, expected_nodes: tuple[str, ...]
+    ):
+        rule_set = llama_rule_sets.llama_p0_rule_set()
+        original_proto = ir.serde.serialize_model(model)
+        rule_set.apply_to_model(model)
+        rewritten_model = ir.serde.serialize_model(model)
 
-    def test_llama_p0_rule_set_expand_identity(self):
-        for model_proto in self._expand_identity_models():
-            ir_model = ir.serde.deserialize_model(model_proto)
-            rule_set = llama_rule_sets.llama_p0_rule_set()
-            rule_set.apply_to_model(ir_model)
-            rewritten_model = ir.serde.serialize_model(ir_model)
-
-            self.assertEqual(["Identity"], [n.op_type for n in rewritten_model.graph.node])
-            self._check_model(model_proto, rewritten_model)
+        self.assertEqual(tuple(n.op_type for n in model.graph), expected_nodes)
+        self._check_model(original_proto, rewritten_model)
 
     @classmethod
     def _unsqueeze_unsqueeze_models(cls):
