@@ -343,7 +343,7 @@ class Op(OpLike):
     @deprecation.deprecated(
         since="0.1",
         removed_in="the future",
-        instructions="use '.signature' instead",
+        instructions="use '.op_signature' instead",
     )
     def param_schemas(self) -> Optional[tuple[ParamSchema, ...]]:
         """Returns the parameter schemas for this op, if it has one."""
@@ -581,7 +581,7 @@ class OnnxFunction(Op):
     @deprecation.deprecated(
         since="0.1",
         removed_in="the future",
-        instructions="use '.signature' instead",
+        instructions="use '.op_signature' instead",
     )
     def param_schemas(self) -> tuple[ParamSchema, ...]:
         """Returns the parameter schemas of this function."""
@@ -689,7 +689,7 @@ class TracedOnnxFunction(Op):
     @deprecation.deprecated(
         since="0.1",
         removed_in="the future",
-        instructions="use '.signature' instead",
+        instructions="use '.op_signature' instead",
     )
     def param_schemas(self) -> tuple[ParamSchema, ...]:
         """Returns the parameter schemas of this function."""
