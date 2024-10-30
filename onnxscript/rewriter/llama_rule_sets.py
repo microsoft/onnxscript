@@ -241,8 +241,12 @@ class UnsqueezeUnsqueeze(orp.RewriteRuleAsClass):
 
     @classmethod
     def rewrite(cls, op, x: ir.Value, axes1: ir.Value, axes2: ir.Value):
-        v1 = axes1.const_value.numpy()  # type: ignore[union-attr]
-        v2 = axes2.const_value.numpy()  # type: ignore[union-attr]
+        if axes1.const_value is None or axes2.const_value is None:
+            return False
+        v1 = axes1.const_value.numpy()
+        v2 = axes2.const_value.numpy()
+        assert isinstance(v1, np.ndarray)
+        assert isinstance(v2, np.ndarray)
         if len(v1) != 1 or len(v2) != 1:
             # Implemented later if needed.
             return False
