@@ -33,8 +33,12 @@ def convert_version(model: ir.Model, target_version: int) -> ir.Model:
         for node in graph._nodes:
             adapter_set = pick_adapter_set(opset_version)
             if node.op_type in adapter_set:
-                adapter = adapter_set[node.op_type]
-                # Call the correct adapter [ver->ver+1]
-                adapter(node, opset_version + 1)
+                adapters = adapter_set[node.op_type]
+                if not isinstance(adapters, list):
+                    adapters = [adapters]
+                for adapter_func in adapters:
+                    # Call the correct adapter [ver->ver+1]
+                    adapter_func(node, opset_version + 1)
 
+    model.version = target_version
     return model
