@@ -29,16 +29,16 @@ def _check_if_redundant_slice(
     steps_const = steps.const_value
 
     # Check if the values are scalar
-    if starts_const.numpy().size != 1:
+    if starts_const.numpy().size != 1:  # type: ignore[union-attr]
         logger.info("The value 'start' is not a scalar.")
         return False
-    if ends_const.numpy().size != 1:
+    if ends_const.numpy().size != 1:  # type: ignore[union-attr]
         logger.info("The value 'end' is not a scalar.")
         return False
-    if axes_const.numpy().size != 1:
+    if axes_const.numpy().size != 1:  # type: ignore[union-attr]
         logger.info("The value 'axis' is not a scalar.")
         return False
-    if steps_const.numpy().size != 1:
+    if steps_const.numpy().size != 1:  # type: ignore[union-attr]
         logger.info("The value 'step' is not a scalar.")
         return False
 
