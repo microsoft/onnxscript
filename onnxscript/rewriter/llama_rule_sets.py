@@ -224,9 +224,7 @@ class TransposeTranspose(orp.RewriteRuleAsClass):
 
 
 class UnsqueezeUnsqueeze(orp.RewriteRuleAsClass):
-    """Replaces ``Unsqueeze(Unsqueeze(., axes1), axes2)``
-    with one Unsqueeze.
-    """
+    """Replaces ``Unsqueeze(Unsqueeze(., axes1), axes2)`` with one Unsqueeze."""
 
     @classmethod
     def pattern(cls, op, x, axes1, axes2):
@@ -245,9 +243,9 @@ class UnsqueezeUnsqueeze(orp.RewriteRuleAsClass):
             return False
         v1 = axes1.const_value.numpy()
         v2 = axes2.const_value.numpy()
-        assert isinstance(v1, np.ndarray)
-        assert isinstance(v2, np.ndarray)
-        if len(v1) != 1 or len(v2) != 1:
+        if not v1.shape or not v2.shape:
+            return False
+        if v1.shape[0] != 1 or v2.shape[0] != 1:
             # Implemented later if needed.
             return False
         axes = cls._combine_axes(v1, v2)
