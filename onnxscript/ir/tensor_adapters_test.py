@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import unittest
-import numpy as np
 
-import torch
-from onnxscript.ir import tensor_adapters
+import numpy as np
 import parameterized
+import torch
+
+from onnxscript.ir import tensor_adapters
 
 
 class TorchTensorTest(unittest.TestCase):
