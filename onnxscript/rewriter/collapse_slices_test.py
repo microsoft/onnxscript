@@ -36,7 +36,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         self.assertIn("Identity", [node.op_type for node in model.graph])
         testing.assert_numerically_equal(
             model_proto,
-            ir.serde.serialize_model(model),
+            model,
             (np.random.rand(512, 16, 112).astype(np.float32),),
         )
 
@@ -61,7 +61,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         self.assertIn("Identity", [node.op_type for node in model.graph])
         testing.assert_numerically_equal(
             model_proto,
-            ir.serde.serialize_model(model),
+            model,
             (np.random.rand(512, 16, 112).astype(np.float32),),
         )
 
@@ -95,6 +95,4 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         self.assertIn("Identity", [node.op_type for node in model.graph])
 
         input = np.random.rand(112, 16, 512).astype(np.float32)
-        testing.assert_numerically_equal(
-            original_model_proto, ir.serde.serialize_model(model), (input, input)
-        )
+        testing.assert_numerically_equal(original_model_proto, model, (input, input))

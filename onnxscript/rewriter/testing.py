@@ -7,10 +7,12 @@ import numpy as np
 import onnx
 import onnxruntime as ort
 
+from onnxscript import ir
+
 
 def assert_numerically_equal(
-    original_model_proto: onnx.ModelProto,
-    the_rewritten_model_proto: onnx.ModelProto,
+    original_model_proto: onnx.ModelProto | ir.Model,
+    rewritten_model_proto: onnx.ModelProto | ir.Model,
     args: tuple[Any, ...],
     rtol: float = 1,
     atol: float = 1e-3,
@@ -18,12 +20,18 @@ def assert_numerically_equal(
     """Assert that the two models are numerically equal.
 
     Args:
-        original_model_proto (onnx.ModelProto): The original model proto.
-        the_rewritten_model_proto (onnx.ModelProto): The rewritten by the rules model proto.
+        original_model_proto: The original model proto or ir.Model.
+        rewritten_model_proto: The rewritten by the rules model proto or ir.Model.
         rtol: Relative tolerance.
         atol: Absolute tolerance.
         args: The positional arguments to pass to the model.
     """
+
+    if isinstance(original_model_proto, ir.Model):
+        original_model_proto = ir.serde.serialize_model(original_model_proto)
+    if isinstance(rewritten_model_proto, ir.Model):
+        rewritten_model_proto = ir.serde.serialize_model(rewritten_model_proto)
+
     original_proto_ort_inputs = {
         k.name: v for k, v in zip(original_model_proto.graph.input, args)
     }
@@ -37,10 +45,10 @@ def assert_numerically_equal(
     )
 
     the_rewritten_proto_ort_inputs = {
-        k.name: v for k, v in zip(the_rewritten_model_proto.graph.input, args)
+        k.name: v for k, v in zip(rewritten_model_proto.graph.input, args)
     }
     the_rewritten_proto_ort_inference_session = _ort_session_initializer(
-        the_rewritten_model_proto.SerializeToString()
+        rewritten_model_proto.SerializeToString()
     )
     the_rewritten_outputs = the_rewritten_proto_ort_inference_session.run(
         None, the_rewritten_proto_ort_inputs, run_options=run_options

@@ -19,7 +19,7 @@ def _check_if_redundant_slice(
     axes: ir.Value,
     steps: ir.Value,
     **_,
-):
+) -> bool:
     """If the starts is 0, and the ends is equal to or grater than the shape of the specified axis, then the slice is redundant."""
     del context  # Reserved for future extensions
 
