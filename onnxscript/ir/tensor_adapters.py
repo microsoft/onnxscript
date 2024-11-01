@@ -1,6 +1,26 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Compatible adapters implementing the TensorProtocol interface for various framework tensor types."""
+"""Compatible adapters implementing the TensorProtocol interface for various framework tensor types.
+
+This module provides public classes that implement the :class:`onnxscript.ir.TensorProtocol`
+interface for various tensor types from popular deep learning frameworks.
+
+You can use these classes to create tensors and use them in the IR graph like any other tensor.
+
+Example::
+    import torch
+    from onnxscript import ir
+
+    # Create a PyTorch tensor
+    torch_tensor = torch.tensor([1, 2, 3])
+
+    # Wrap the PyTorch tensor in a TorchTensor object
+    ir_tensor = ir.tensor_adapters.TorchTensor(torch_tensor)
+
+    # Use the IR tensor in the graph
+    attr = ir.AttrTensor("x", ir_tensor)
+    print(attr)
+"""
 
 # NOTE: DO NOT import any framework-specific modules here in the global namespace.
 
@@ -73,13 +93,17 @@ class TorchTensor(ir.Tensor):
         # it avoids copying to a NumPy array
         import torch._subclasses.fake_tensor
 
-        if isinstance(self.raw, torch._subclasses.fake_tensor.FakeTensor):
+        with torch._subclasses.fake_tensor.unset_fake_temporarily():
+            # Disable any fake mode so calling detach() etc. will return a real tensor
+            tensor = self.raw.detach().cpu().contiguous()
+
+        if isinstance(tensor, torch._subclasses.fake_tensor.FakeTensor):
             raise TypeError(
                 f"Cannot take content out from the FakeTensor ('{self.name}'). Please replace the tensor "
                 "with a tensor backed by real data using ONNXProgram.apply_weights() "
                 "or save the model without initializers by setting include_initializers=False."
             )
-        tensor = self.raw.detach().cpu().contiguous()
+
         return bytes(
             (ctypes.c_ubyte * tensor.element_size() * tensor.numel()).from_address(
                 tensor.data_ptr()
