@@ -1,7 +1,10 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Unit tests for the tensor_adapters module."""
 
 from __future__ import annotations
 
+import importlib.util
 import unittest
 
 import numpy as np
@@ -11,6 +14,14 @@ import torch
 from onnxscript.ir import tensor_adapters
 
 
+def skip_if_no(module_name: str):
+    """Decorator to skip a test if a module is not installed."""
+    if importlib.util.find_spec(module_name) is None:
+        return unittest.skip(f"{module_name} not installed")
+    return lambda func: func
+
+
+@skip_if_no("torch")
 class TorchTensorTest(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
