@@ -239,11 +239,17 @@ class UnsqueezeUnsqueeze(orp.RewriteRuleAsClass):
 
     @classmethod
     def rewrite(cls, op, x: ir.Value, axes1: ir.Value, axes2: ir.Value):
+        assert axes1.const_value is not None
+        assert axes2.const_value is not None
+        v1 = axes1.const_value.numpy()
+        v2 = axes2.const_value.numpy()
         axes = cls._combine_axes(v1, v2)
         return op.Unsqueeze(x, op.Constant(value=onnx.numpy_helper.from_array(axes)))
 
     @classmethod
     def check(cls, context, x, axes1, axes2) -> bool:
+        del context  # Unused
+        del x  # Unused
         if axes1.const_value is None or axes2.const_value is None:
             return False
 
