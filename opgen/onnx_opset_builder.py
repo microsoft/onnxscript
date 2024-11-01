@@ -9,6 +9,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Annotated, Any, Iterable, Optional, Set, TextIO
 
+import pygen as cg
 from onnx.defs import (
     AttributeProto,
     OpSchema,
@@ -16,8 +17,6 @@ from onnx.defs import (
     onnx_opset_version,
 )
 from onnx.helper import get_attribute_value
-
-import opgen.pygen as cg
 
 __all__ = [
     "OpsetId",
