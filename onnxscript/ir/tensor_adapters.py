@@ -28,6 +28,10 @@ Example::
 
 from __future__ import annotations
 
+__all__ = [
+    "TorchTensor",
+]
+
 import ctypes
 from typing import TYPE_CHECKING, Any
 
