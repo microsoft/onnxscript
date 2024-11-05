@@ -33,7 +33,7 @@ from __future__ import annotations
 
 __all__ = [
     "TorchTensor",
-    "SafeTensorsTensor",
+    "SafetensorsTensor",
 ]
 
 import ctypes
@@ -134,7 +134,7 @@ class TorchTensor(_core.Tensor):
         )
 
 
-class SafeTensorsTensor(_core.Tensor):
+class SafetensorsTensor(_core.Tensor):
     def __init__(
         self,
         path: str,
