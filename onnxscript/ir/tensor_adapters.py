@@ -166,8 +166,7 @@ class SafeTensorsTensor(_core.Tensor):
 
         with safetensors.safe_open(path, framework="numpy") as f:
             # The tensor is mmap'ed in memory so we might as well load it
-            # as a numpy array at initialization time since it does not take
-            # up any extra memory
+            # at initialization time since it does not take up any extra memory
             array = f.get_tensor(tensor_name)
 
         super().__init__(
