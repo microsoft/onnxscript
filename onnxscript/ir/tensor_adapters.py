@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any
 import numpy.typing as npt
 
 from onnxscript import ir
+from onnxscript.ir import _core
 
 if TYPE_CHECKING:
     import torch
@@ -115,3 +116,12 @@ class TorchTensor(ir.Tensor):
                 tensor.data_ptr()
             )
         )
+
+
+class SafeTensorsTensor(_core.TensorBase):
+    def __init__(self, path: str, tensor_name: str, name: str | None = None):
+        self.name = name
+        self._path = path
+        self._tensor_name = tensor_name
+
+    def
