@@ -25,6 +25,9 @@ Example::
 # pylint: disable=import-outside-toplevel
 
 # NOTE: DO NOT import any framework-specific modules here in the global namespace.
+# NOTE: We use ir.DataType instead of _enums.DataType to show users how they
+# should create custom tensor adapters. This is fine and will not create
+# circular imports because the ir.DataType's are not used in the global namespace.
 
 from __future__ import annotations
 
@@ -44,7 +47,7 @@ if TYPE_CHECKING:
     import torch
 
 
-class TorchTensor(ir.Tensor):
+class TorchTensor(_core.Tensor):
     def __init__(
         self,
         tensor: torch.Tensor,
@@ -130,7 +133,7 @@ class TorchTensor(ir.Tensor):
         )
 
 
-class SafeTensorsTensor(ir.Tensor):
+class SafeTensorsTensor(_core.Tensor):
     def __init__(
         self,
         path: str,
