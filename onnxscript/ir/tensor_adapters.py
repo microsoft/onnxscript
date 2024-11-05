@@ -33,12 +33,12 @@ __all__ = [
 ]
 
 import ctypes
-from typing import TYPE_CHECKING, Any, Mapping
+from typing import TYPE_CHECKING, Any
 
 import numpy.typing as npt
 
 from onnxscript import ir
-from onnxscript.ir import _core
+from onnxscript.ir import _core, _enums
 
 if TYPE_CHECKING:
     import torch
@@ -136,6 +136,9 @@ class SafeTensorsTensor(ir.Tensor):
         path: str,
         tensor_name: str,
         /,
+        dtype: _enums.DataType | None = None,
+        *,
+        shape: _core.Shape | None = None,
         name: str | None = None,
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
@@ -145,6 +148,10 @@ class SafeTensorsTensor(ir.Tensor):
         Args:
             path: The path to the SafeTensors file.
             tensor_name: The name of the tensor in the SafeTensors file.
+            dtype: The data type of the tensor. It can be specified if the value
+                is not of a standard NumPy dtype.
+            shape: The shape of the tensor. It can be specified if the value
+                is not of a standard NumPy dtype.
             name: The name of the ONNX tensor.
             doc_string: The documentation string for the tensor.
             metadata_props: The metadata properties for the tensor.
@@ -161,5 +168,10 @@ class SafeTensorsTensor(ir.Tensor):
             array = f.get_tensor(tensor_name)
 
         super().__init__(
-            array, name=name, doc_string=doc_string, metadata_props=metadata_props
+            array,
+            dtype=dtype,
+            shape=shape,
+            name=name,
+            doc_string=doc_string,
+            metadata_props=metadata_props,
         )
