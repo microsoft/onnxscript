@@ -18,6 +18,7 @@ disable = [
   "no-name-in-module",
   "redefined-builtin",              # TODO: should we avoid redefined-builtin?
   "too-few-public-methods",
+  "too-many-ancestors",
   "too-many-arguments",
   "too-many-branches",
   "too-many-instance-attributes",
