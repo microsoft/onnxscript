@@ -33,7 +33,7 @@ __all__ = [
 ]
 
 import ctypes
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Mapping
 
 import numpy.typing as npt
 
@@ -45,7 +45,13 @@ if TYPE_CHECKING:
 
 
 class TorchTensor(ir.Tensor):
-    def __init__(self, tensor: torch.Tensor, name: str | None = None):
+    def __init__(
+        self,
+        tensor: torch.Tensor,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
         # Pass the tensor as the raw data to ir.Tensor's constructor
         import torch
 
@@ -70,7 +76,13 @@ class TorchTensor(ir.Tensor):
             torch.uint32: ir.DataType.UINT32,
             torch.uint64: ir.DataType.UINT64,
         }
-        super().__init__(tensor, dtype=_TORCH_DTYPE_TO_ONNX[tensor.dtype], name=name)
+        super().__init__(
+            tensor,
+            dtype=_TORCH_DTYPE_TO_ONNX[tensor.dtype],
+            name=name,
+            doc_string=doc_string,
+            metadata_props=metadata_props,
+        )
 
     def numpy(self) -> npt.NDArray:
         import torch
@@ -118,10 +130,36 @@ class TorchTensor(ir.Tensor):
         )
 
 
-class SafeTensorsTensor(_core.TensorBase):
-    def __init__(self, path: str, tensor_name: str, name: str | None = None):
-        self.name = name
+class SafeTensorsTensor(ir.Tensor):
+    def __init__(
+        self,
+        path: str,
+        tensor_name: str,
+        /,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
+        """Create a tensor from a tensor stored in a SafeTensors file.
+
+        Args:
+            path: The path to the SafeTensors file.
+            tensor_name: The name of the tensor in the SafeTensors file.
+            name: The name of the ONNX tensor.
+            doc_string: The documentation string for the tensor.
+            metadata_props: The metadata properties for the tensor.
+        """
+        import safetensors
+
         self._path = path
         self._tensor_name = tensor_name
 
-    def
+        with safetensors.safe_open(path, framework="numpy") as f:
+            # The tensor is mmap'ed in memory so we might as well load it
+            # as a numpy array at initialization time since it does not take
+            # up any extra memory
+            array = f.get_tensor(tensor_name)
+
+        super().__init__(
+            array, name=name, doc_string=doc_string, metadata_props=metadata_props
+        )
