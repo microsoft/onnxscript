@@ -33,6 +33,7 @@ from __future__ import annotations
 
 __all__ = [
     "TorchTensor",
+    "SafeTensorsTensor",
 ]
 
 import ctypes
@@ -41,7 +42,7 @@ from typing import TYPE_CHECKING, Any
 import numpy.typing as npt
 
 from onnxscript import ir
-from onnxscript.ir import _core, _enums
+from onnxscript.ir import _core
 
 if TYPE_CHECKING:
     import torch
@@ -139,9 +140,9 @@ class SafeTensorsTensor(_core.Tensor):
         path: str,
         tensor_name: str,
         /,
-        dtype: _enums.DataType | None = None,
+        dtype: ir.DataType | None = None,
         *,
-        shape: _core.Shape | None = None,
+        shape: ir.Shape | None = None,
         name: str | None = None,
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
