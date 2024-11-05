@@ -135,6 +135,11 @@ class TorchTensor(_core.Tensor):
 
 
 class SafetensorsTensor(_core.Tensor):
+    """Adaptor for Hugging Face's [safetensors](https://github.com/huggingface/safetensors) library.
+
+    This adaptor allows you to load tensors from a safetensors file in a
+    memory-efficient way and use them in the ONNX IR. The tensor is memory-mapped.
+    """
     def __init__(
         self,
         path: str,
