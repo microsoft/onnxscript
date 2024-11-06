@@ -3,42 +3,38 @@
 from __future__ import annotations
 
 from onnxscript import ir
-
-### Adapters
-
-# Compatibility Adapter
-def adapter_compatible(op: ir.Node, target_opset):
-    op.version = target_opset
+from onnxscript.version_converter._adapter_lib import pick_adapter_set
 
 
-# Adapter to convert axis from an attribute to a node input
-def adapter_axis_attr_to_input(op: ir.Node, target_opset):
-    op.version = target_opset
-    assert 'axis' in op._attributes
-    axis_attr = op._attributes.pop("axis")
-    # Create an ir.Value obj with properties of the axis attribute
-    axis_input = ir.Value(
-        name=axis_attr.name,
-    )
-    # Add the ir.Value as inputs to the node and graph
-    op._inputs = op._inputs + (axis_input, )
-    op.graph._inputs = op.graph._inputs + [axis_input]
+class _VersionConverter:
+    def __init__(self, model: ir.Model) -> None:
+        self._functions = model.functions
+        self.model_version = model.opset_imports.get("")
+
+    def graph_version_convert(self, graph: ir.Graph, target_version: int) -> None:
+        if self.model_version == target_version:
+            # No conversion needed
+            return
+
+        # Iterate through all nodes in the graph
+        # Set node.version as the model_version
+        # TODO: Do this internally in IR?
+        for node in graph:
+            node.version = self.model_version
+
+        # Iterate from current model version -> target version
+        # Updating each node based on the correct adapter [ver->ver+1]
+        for opset_version in range(self.model_version, target_version):
+            for node in graph:
+                adapter_set = pick_adapter_set(opset_version)
+                if node.op_type in adapter_set:
+                    adapter_func = adapter_set[node.op_type]
+                    if adapter_func is not None:
+                        adapter_func(node)
+                    node.version = opset_version + 1
 
 
-### Op specific adapters
-
-# Adapter for GridSample 19 -> 20
-def adapter_gridsample_19_20(op: ir.Node, target_opset):
-    op.version = target_opset
-    for attr in op._attributes:
-        if attr == 'mode':
-            mode_value = op._attributes[attr].value
-            if mode_value == 'bilinear':
-                op._attributes[attr].value = 'linear'
-            elif mode_value == 'bicubic':
-                op._attributes[attr].value = 'cubic'
-
-
-# Adapter for Group 19 -> 20
-def adapter_groupnormalization_20_21(op: ir.Node, target_opset):
-    op.version = target_opset
+def version_convert(model: ir.Model, target_version: int) -> None:
+    """Convert the model to the specified ONNX opset version."""
+    version_converter = _VersionConverter(model)
+    version_converter.graph_version_convert(model.graph, target_version)

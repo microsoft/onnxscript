@@ -8,8 +8,7 @@ import onnx.checker
 import onnx.parser
 import onnx.shape_inference
 
-from onnxscript import ir
-from onnxscript.version_converter import convert_version
+from onnxscript import ir, version_converter
 
 
 class VersionConverter18to19Test(unittest.TestCase):
@@ -31,8 +30,8 @@ class VersionConverter18to19Test(unittest.TestCase):
         )
         model = ir.serde.deserialize_model(model_proto)
         target_version = 19
-        new_model = convert_version(model, target_version=target_version)
-        nodes = new_model.graph._nodes
+        version_converter.convert_version(model, target_version=target_version)
+        nodes = model.graph._nodes
 
         self.assertEqual(nodes[0].op_type, "Constant")
         self.assertEqual(nodes[0].version, 19)
@@ -59,8 +58,8 @@ class VersionConverter19to20Test(unittest.TestCase):
         )
         model = ir.serde.deserialize_model(model_proto)
         target_version = 20
-        new_model = convert_version(model, target_version=target_version)
-        nodes = new_model.graph._nodes
+        version_converter.convert_version(model, target_version=target_version)
+        nodes = model.graph._nodes
 
         self.assertEqual(nodes[0].op_type, "Constant")
         self.assertEqual(nodes[0].version, 19)
@@ -87,11 +86,11 @@ class VersionConverter19to20Test(unittest.TestCase):
         )
         model = ir.serde.deserialize_model(model_proto)
         self.assertEqual(model.graph._nodes[4].op_type, "GridSample")
-        self.assertEqual(model.graph._nodes[4]._attributes['mode'].value, 'bilinear')
+        self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "bilinear")
 
         target_version = 20
-        new_model = convert_version(model, target_version=target_version)
-        nodes = new_model.graph._nodes
+        version_converter.convert_version(model, target_version=target_version)
+        nodes = model.graph._nodes
 
         self.assertEqual(nodes[0].op_type, "Constant")
         self.assertEqual(nodes[0].version, 19)
@@ -99,7 +98,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(nodes[1].version, 19)
         self.assertEqual(nodes[4].op_type, "GridSample")
         self.assertEqual(nodes[4].version, 20)
-        self.assertEqual(model.graph._nodes[4]._attributes['mode'].value, 'linear')
+        self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "linear")
 
     def test_version_convert_gridsample_cubic(self):
         model_proto = onnx.parser.parse_model(
@@ -119,11 +118,11 @@ class VersionConverter19to20Test(unittest.TestCase):
         )
         model = ir.serde.deserialize_model(model_proto)
         self.assertEqual(model.graph._nodes[4].op_type, "GridSample")
-        self.assertEqual(model.graph._nodes[4]._attributes['mode'].value, 'bicubic')
+        self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "bicubic")
 
         target_version = 20
-        new_model = convert_version(model, target_version=target_version)
-        nodes = new_model.graph._nodes
+        version_converter.convert_version(model, target_version=target_version)
+        nodes = model.graph._nodes
 
         self.assertEqual(nodes[0].op_type, "Constant")
         self.assertEqual(nodes[0].version, 19)
@@ -131,7 +130,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(nodes[1].version, 19)
         self.assertEqual(nodes[4].op_type, "GridSample")
         self.assertEqual(nodes[4].version, 20)
-        self.assertEqual(model.graph._nodes[4]._attributes['mode'].value, 'cubic')
+        self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "cubic")
 
 
 if __name__ == "__main__":
