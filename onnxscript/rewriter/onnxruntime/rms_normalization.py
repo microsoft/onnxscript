@@ -4,25 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 import onnxscript.ir as ir
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter import _ir_utils, pattern
 
-def _get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
-    if val is None:
-        return None
-    const_value = val.const_value
-    if const_value is not None:
-        try:
-            return const_value.numpy()
-        except FileNotFoundError:
-            # External data is not available.
-            return None
-    return None
 
-def _get_scalar_value(val: ir.Value | None):
-    np_val = _get_numpy_value(val)
-    if np_val is not None and np_val.size == 1:
-        return np_val.item()
-    return None
 
 # Pattern to match against
 def rms_norm_pattern(op, x, scale, epsilon, compute_dtype, target_dtype):
@@ -38,7 +22,7 @@ def rms_norm_pattern(op, x, scale, epsilon, compute_dtype, target_dtype):
 
 # Replacement
 def simplified_layer_norm(op, x, scale, epsilon, compute_dtype, target_dtype):
-    epsilon_value = _get_scalar_value(epsilon)
+    epsilon_value = _ir_utils.get_singleton_value(epsilon)
     if not isinstance(epsilon_value, float):
         return None
     source_dtype = x.dtype

@@ -18,8 +18,8 @@ def rotate_half(op, x, start1, end1, start2, end2):
     # TODO: check if start1, end1, start2, end2 are valid
     return op.RotateHalf(x, _domain="local")
 
-def embed_pattern(op, x, cos, sin, dc1, dc2, dc3, dc4):
-    return x * cos + op.RotateHalf(x, dc1, dc2, dc3, dc4, _domain="local") * sin
+def embed_pattern(op, x, cos, sin):
+    return x * cos + op.RotateHalf(x, _domain="local") * sin
 
 def embed(op, x, cos, sin, **_):
     return op.Embed(x, _domain="local")
