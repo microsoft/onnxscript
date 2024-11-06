@@ -98,10 +98,63 @@ _ADAPTERS_20_21 = {
 }
 
 
+_ADAPTERS_21_22 = {
+    "EyeLike": None,
+    "RandomUniform": None,
+    "RandomNormal": None,
+    "RandomUniformLike": None,
+    "RandomNormalLike": None,
+    "Multinomial": None,
+    "Bernoulli": None,
+    "ThresholdedRelu": None,
+    "Selu": None,
+    "Elu": None,
+    "Mish": None,
+    "HardSigmoid": None,
+    "HardSwish": None,
+    "Softsign": None,
+    "Softplus": None,
+    "Sin": None,
+    "Cos": None,
+    "Tan": None,
+    "Asin": None,
+    "Acos": None,
+    "Atan": None,
+    "Sinh": None,
+    "Cosh": None,
+    "Asinh": None,
+    "Acosh": None,
+    "Atanh": None,
+    "Round": None,
+    "Det": None,
+    "NegativeLogLikelihoodLoss": None,
+    "AveragePool": None,
+    "MaxPool": None,
+    "MaxUnpool": None,
+    "LpPool": None,
+    "MaxRoiPool": None,
+    "Conv": None,
+    "ConvTranspose": None,
+    "DeformConv": None,
+    "GlobalAveragePool": None,
+    "GlobalMaxPool": None,
+    "GlobalLpPool": None,
+    "InstanceNormalization": None,
+    "LpNormalization": None,
+    "Dropout": None,
+    "RoiAlign": None,
+    "RNN": None,
+    "GRU": None,
+    "LSTM": None,
+    "GridSample": None,
+}
+
+
 _ADAPTER_SETS = {
     18: _ADAPTERS_18_19,
     19: _ADAPTERS_19_20,
     20: _ADAPTERS_20_21,
+    21: _ADAPTERS_21_22,
 }
 
 
