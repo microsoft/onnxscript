@@ -40,7 +40,9 @@ def adapter_gridsample_19_20(node: ir.Node):
 
 
 # Adapter for Group 19 -> 20
-def adapter_groupnormalization_20_21(node: ir.Node):
+def adapter_groupnormalization_20_21(op, node: ir.Node):
+    def groupnorm_rewrite_pattern():
+        pass
     pass
 
 

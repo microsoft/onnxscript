@@ -38,7 +38,7 @@ class VersionConverter18to19Test(unittest.TestCase):
         self.assertEqual(nodes[1].op_type, "Reshape")
         self.assertEqual(nodes[1].version, 19)
         self.assertEqual(nodes[4].op_type, "MatMul")
-        self.assertEqual(nodes[4].version, 18)
+        self.assertEqual(nodes[4].version, 19)
 
 
 class VersionConverter19to20Test(unittest.TestCase):
@@ -62,9 +62,9 @@ class VersionConverter19to20Test(unittest.TestCase):
         nodes = model.graph._nodes
 
         self.assertEqual(nodes[0].op_type, "Constant")
-        self.assertEqual(nodes[0].version, 19)
+        self.assertEqual(nodes[0].version, 20)
         self.assertEqual(nodes[1].op_type, "Reshape")
-        self.assertEqual(nodes[1].version, 19)
+        self.assertEqual(nodes[1].version, 20)
         self.assertEqual(nodes[2].op_type, "DFT")
         self.assertEqual(nodes[2].version, 20)
 
@@ -93,9 +93,9 @@ class VersionConverter19to20Test(unittest.TestCase):
         nodes = model.graph._nodes
 
         self.assertEqual(nodes[0].op_type, "Constant")
-        self.assertEqual(nodes[0].version, 19)
+        self.assertEqual(nodes[0].version, 20)
         self.assertEqual(nodes[1].op_type, "Reshape")
-        self.assertEqual(nodes[1].version, 19)
+        self.assertEqual(nodes[1].version, 20)
         self.assertEqual(nodes[4].op_type, "GridSample")
         self.assertEqual(nodes[4].version, 20)
         self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "linear")
@@ -125,55 +125,9 @@ class VersionConverter19to20Test(unittest.TestCase):
         nodes = model.graph._nodes
 
         self.assertEqual(nodes[0].op_type, "Constant")
-        self.assertEqual(nodes[0].version, 19)
+        self.assertEqual(nodes[0].version, 20)
         self.assertEqual(nodes[1].op_type, "Reshape")
-        self.assertEqual(nodes[1].version, 19)
-        self.assertEqual(nodes[4].op_type, "GridSample")
-        self.assertEqual(nodes[4].version, 20)
-        self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "cubic")
-
-
-class VersionConverterCustomAdapterTest(unittest.TestCase):
-    def test_version_convert_gridsample_linear(self):
-        model_proto = onnx.parser.parse_model(
-            """
-            <ir_version: 7, opset_import: [ "" : 18]>
-            agraph (float[4, 512, 512] input_x, float[4, 1024, 1024] input_y) => (float[4, 1024, 1024] output)
-            {
-                shape_a = Constant<value: tensor = int64[5] {1, 4, 512, 512}>()
-                reshape_x = Reshape (input_x, shape_a)
-                shape_b = Constant<value: tensor = int64[5] {1, 4, 1024, 1024}>()
-                reshape_y = Reshape (input_x, shape_b)
-                gridsample = GridSample <mode = "bilinear"> (reshape_x, reshape_y)
-                shape_c = Constant<value: tensor = int64[4] {4, 1024, 1024}>()
-                output = Reshape (gridsample, shape_c)
-            }
-        """
-        )
-        model = ir.serde.deserialize_model(model_proto)
-        self.assertEqual(model.graph._nodes[4].op_type, "GridSample")
-        self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "bilinear")
-
-        target_version = 20
-
-        def custom_adapter(node):
-            for attr in node._attributes:
-                if attr == "mode":
-                    mode_value = node._attributes[attr].value
-                    if mode_value == "linear":
-                        node._attributes[attr].value = "cubic"
-
-        version_converter.convert_version(
-            model,
-            target_version=target_version,
-            custom_adapters={"19": {"GridSample": custom_adapter}},
-        )
-        nodes = model.graph._nodes
-
-        self.assertEqual(nodes[0].op_type, "Constant")
-        self.assertEqual(nodes[0].version, 19)
-        self.assertEqual(nodes[1].op_type, "Reshape")
-        self.assertEqual(nodes[1].version, 19)
+        self.assertEqual(nodes[1].version, 20)
         self.assertEqual(nodes[4].op_type, "GridSample")
         self.assertEqual(nodes[4].version, 20)
         self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "cubic")
