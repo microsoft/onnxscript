@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 import onnx
 import onnx.reference
+import parameterized
 
 import onnxscript
 import onnxscript.onnx_types as ot
@@ -16,6 +17,16 @@ from onnxscript import ir
 from onnxscript.onnx_opset import opset18
 
 FLOAT = onnx.TensorProto.FLOAT
+
+
+@onnxscript.script()
+def cast_identity_model(x: ot.FLOAT["a", "b", "c"]) -> ot.FLOAT["a", "b", "c"]:  # noqa: F821, UP037
+    y = opset18.Cast(x, to=onnx.TensorProto.FLOAT)
+    return y
+
+
+def _make_model(*args, **kwargs) -> ir.Model:
+    return ir.serde.deserialize_model(onnx.helper.make_model(*args, **kwargs))
 
 
 class LlamaRuleSetsTest(unittest.TestCase):
@@ -53,294 +64,325 @@ class LlamaRuleSetsTest(unittest.TestCase):
         for a, b in zip(expected, got):
             np.testing.assert_allclose(a, b, atol=atol, rtol=rtol)
 
-    @classmethod
-    def _identity_models(cls):
-        models = [
-            onnx.helper.make_model(
-                onnx.helper.make_graph(
-                    [
-                        onnx.helper.make_node("Transpose", ["X"], ["Y"], perm=[0, 1, 2]),
-                    ],
-                    "name",
-                    [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None, None])],
-                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [None, None, None])],
+    @parameterized.parameterized.expand(
+        [
+            (
+                "no_op_transpose",
+                _make_model(
+                    onnx.helper.make_graph(
+                        [
+                            onnx.helper.make_node("Transpose", ["X"], ["Y"], perm=[0, 1, 2]),
+                        ],
+                        "name",
+                        [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None, None])],
+                        [onnx.helper.make_tensor_value_info("Y", FLOAT, [None, None, None])],
+                    ),
+                    opset_imports=[onnx.helper.make_opsetid("", 18)],
                 ),
-                opset_imports=[onnx.helper.make_opsetid("", 18)],
             ),
-            onnx.helper.make_model(
-                onnx.helper.make_graph(
-                    [
-                        onnx.helper.make_node("Mul", ["X", "one"], ["Y"]),
-                    ],
-                    "name",
-                    [onnx.helper.make_tensor_value_info("X", FLOAT, [None])],
-                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [None])],
-                    [
-                        onnx.numpy_helper.from_array(
-                            np.array([1], dtype=np.float32), name="one"
-                        )
-                    ],
+            (
+                "mul_by_one",
+                _make_model(
+                    onnx.helper.make_graph(
+                        [
+                            onnx.helper.make_node("Mul", ["X", "one"], ["Y"]),
+                        ],
+                        "name",
+                        [onnx.helper.make_tensor_value_info("X", FLOAT, [None])],
+                        [onnx.helper.make_tensor_value_info("Y", FLOAT, [None])],
+                        [
+                            onnx.numpy_helper.from_array(
+                                np.array([1], dtype=np.float32), name="one"
+                            )
+                        ],
+                    ),
+                    opset_imports=[onnx.helper.make_opsetid("", 18)],
                 ),
-                opset_imports=[onnx.helper.make_opsetid("", 18)],
             ),
-            onnx.helper.make_model(
-                onnx.helper.make_graph(
-                    [
-                        onnx.helper.make_node("Transpose", ["X"], ["xt"], perm=[1, 0]),
-                        onnx.helper.make_node("Transpose", ["xt"], ["Y"], perm=[1, 0]),
-                    ],
-                    "name",
-                    [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None])],
-                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [None, None])],
+            (
+                "canceled_out_transposes",
+                _make_model(
+                    onnx.helper.make_graph(
+                        [
+                            onnx.helper.make_node("Transpose", ["X"], ["xt"], perm=[1, 0]),
+                            onnx.helper.make_node("Transpose", ["xt"], ["Y"], perm=[1, 0]),
+                        ],
+                        "name",
+                        [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None])],
+                        [onnx.helper.make_tensor_value_info("Y", FLOAT, [None, None])],
+                    ),
+                    opset_imports=[onnx.helper.make_opsetid("", 18)],
                 ),
-                opset_imports=[onnx.helper.make_opsetid("", 18)],
-            ),
-        ]
-        return models
-
-    def test_llama_p0_rule_set_identity(self):
-        for model_proto in self._identity_models():
-            ir_model = ir.serde.deserialize_model(model_proto)
-            rule_set = llama_rule_sets.llama_p0_rule_set()
-            rule_set.apply_to_model(ir_model)
-            rewritten_model = ir.serde.serialize_model(ir_model)
-
-            self.assertEqual(["Identity"], [n.op_type for n in rewritten_model.graph.node])
-            self._check_model(model_proto, rewritten_model)
-
-    @classmethod
-    def _transpose_transpose_models(cls):
-        models = [
-            onnx.helper.make_model(
-                onnx.helper.make_graph(
-                    [
-                        onnx.helper.make_node("Transpose", ["X"], ["xt"], perm=[1, 2, 0]),
-                        onnx.helper.make_node("Transpose", ["xt"], ["Y"], perm=[1, 2, 0]),
-                    ],
-                    "name",
-                    [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None, None])],
-                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [None, None, None])],
-                ),
-                opset_imports=[onnx.helper.make_opsetid("", 18)],
             ),
         ]
-        return models
+    )
+    def test_llama_p0_rule_set_identity(self, _: str, model: ir.Model):
+        rule_set = llama_rule_sets.llama_p0_rule_set()
+        model_proto = ir.serde.serialize_model(model)
+        rule_set.apply_to_model(model)
+        rewritten_model = ir.serde.serialize_model(model)
 
-    def test_llama_p0_rule_set_transpose_transpose(self):
-        for model_proto in self._transpose_transpose_models():
-            ir_model = ir.serde.deserialize_model(model_proto)
-            rule_set = llama_rule_sets.llama_p0_rule_set()
-            rule_set.apply_to_model(ir_model)
-            rewritten_model = ir.serde.serialize_model(ir_model)
+        self.assertEqual(["Identity"], [n.op_type for n in model.graph])
+        self._check_model(model_proto, rewritten_model)
 
-            self.assertEqual(["Transpose"], [n.op_type for n in rewritten_model.graph.node])
-            self._check_model(model_proto, rewritten_model)
-
-    @classmethod
-    def _cast_cast_models(cls):
-        models = [
-            onnx.helper.make_model(
-                onnx.helper.make_graph(
-                    [
-                        onnx.helper.make_node(
-                            "Cast", ["X"], ["Xc"], to=onnx.TensorProto.FLOAT16
-                        ),
-                        onnx.helper.make_node(
-                            "Cast", ["Xc"], ["Y"], to=onnx.TensorProto.DOUBLE
-                        ),
-                    ],
-                    "name",
-                    [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None, None])],
-                    [
-                        onnx.helper.make_tensor_value_info(
-                            "Y", onnx.TensorProto.DOUBLE, [None, None, None]
-                        )
-                    ],
+    @parameterized.parameterized.expand(
+        [
+            (
+                "consecutive_transposes",
+                _make_model(
+                    onnx.helper.make_graph(
+                        [
+                            onnx.helper.make_node("Transpose", ["X"], ["xt"], perm=[1, 2, 0]),
+                            onnx.helper.make_node("Transpose", ["xt"], ["Y"], perm=[1, 2, 0]),
+                        ],
+                        "name",
+                        [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None, None])],
+                        [onnx.helper.make_tensor_value_info("Y", FLOAT, [None, None, None])],
+                    ),
+                    opset_imports=[onnx.helper.make_opsetid("", 18)],
                 ),
-                opset_imports=[onnx.helper.make_opsetid("", 18)],
             ),
         ]
-        return models
+    )
+    def test_llama_p0_rule_set_transpose_transpose(self, _: str, model: ir.Model):
+        rule_set = llama_rule_sets.llama_p0_rule_set()
+        model_proto = ir.serde.serialize_model(model)
+        rule_set.apply_to_model(model)
+        rewritten_model = ir.serde.serialize_model(model)
+        self.assertEqual(["Transpose"], [n.op_type for n in model.graph])
+        self._check_model(model_proto, rewritten_model)
 
-    def test_llama_p0_rule_set_cast_cast(self):
-        for model_proto in self._cast_cast_models():
-            ir_model = ir.serde.deserialize_model(model_proto)
-            rule_set = llama_rule_sets.llama_p0_rule_set()
-            rule_set.apply_to_model(ir_model)
-            rewritten_model = ir.serde.serialize_model(ir_model)
-
-            self.assertEqual(["Cast"], [n.op_type for n in rewritten_model.graph.node])
-            self._check_model(model_proto, rewritten_model, atol=1e-2)
-
-    @classmethod
-    def _cast_identity_models(cls):
-        @onnxscript.script()
-        def model(x: ot.FLOAT["a", "b", "c"]) -> ot.FLOAT["a", "b", "c"]:  # noqa: F821, UP037
-            y = opset18.Cast(x, to=onnx.TensorProto.FLOAT)
-            return y
-
-        return [model.to_model_proto()]
-
-    def test_llama_p0_rule_set_cast_identity(self):
-        for model_proto in self._cast_identity_models():
-            ir_model = ir.serde.deserialize_model(model_proto)
-            rule_set = llama_rule_sets.llama_p0_rule_set()
-            rule_set.apply_to_model(ir_model)
-            rewritten_model = ir.serde.serialize_model(ir_model)
-
-            self.assertEqual(["Identity"], [n.op_type for n in rewritten_model.graph.node])
-            self._check_model(model_proto, rewritten_model)
-
-    @classmethod
-    def _expand_identity_models(cls):
-        models = [
-            onnx.helper.make_model(
-                onnx.helper.make_graph(
-                    [
-                        onnx.helper.make_node("Expand", ["X", "shape"], ["Y"]),
-                    ],
-                    "name",
-                    [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 5])],
-                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [3, 4, 5])],
-                    [
-                        onnx.numpy_helper.from_array(
-                            np.array([3, 4, 5], dtype=np.int64), name="shape"
-                        )
-                    ],
+    @parameterized.parameterized.expand(
+        [
+            (
+                "double_casts",
+                _make_model(
+                    onnx.helper.make_graph(
+                        [
+                            onnx.helper.make_node(
+                                "Cast", ["X"], ["Xc"], to=onnx.TensorProto.FLOAT16
+                            ),
+                            onnx.helper.make_node(
+                                "Cast", ["Xc"], ["Y"], to=onnx.TensorProto.DOUBLE
+                            ),
+                        ],
+                        "name",
+                        [onnx.helper.make_tensor_value_info("X", FLOAT, [None, None, None])],
+                        [
+                            onnx.helper.make_tensor_value_info(
+                                "Y", onnx.TensorProto.DOUBLE, [None, None, None]
+                            )
+                        ],
+                    ),
+                    opset_imports=[onnx.helper.make_opsetid("", 18)],
                 ),
-                opset_imports=[onnx.helper.make_opsetid("", 18)],
             ),
         ]
-        return models
+    )
+    def test_llama_p0_rule_set_cast_cast(self, _: str, model: ir.Model):
+        rule_set = llama_rule_sets.llama_p0_rule_set()
+        model_proto = ir.serde.serialize_model(model)
+        rule_set.apply_to_model(model)
+        rewritten_model = ir.serde.serialize_model(model)
 
-    def test_llama_p0_rule_set_expand_identity(self):
-        for model_proto in self._expand_identity_models():
-            ir_model = ir.serde.deserialize_model(model_proto)
-            rule_set = llama_rule_sets.llama_p0_rule_set()
-            rule_set.apply_to_model(ir_model)
-            rewritten_model = ir.serde.serialize_model(ir_model)
+        self.assertEqual(["Cast"], [n.op_type for n in model.graph])
+        self._check_model(model_proto, rewritten_model, atol=1e-2)
 
-            self.assertEqual(["Identity"], [n.op_type for n in rewritten_model.graph.node])
-            self._check_model(model_proto, rewritten_model)
-
-    @classmethod
-    def _unsqueeze_unsqueeze_models(cls):
-        models = [
-            onnx.helper.make_model(
-                onnx.helper.make_graph(
-                    [
-                        onnx.helper.make_node("Unsqueeze", ["X", "axes1"], ["Xu"]),
-                        onnx.helper.make_node("Unsqueeze", ["Xu", "axes2"], ["Y"]),
-                    ],
-                    "name",
-                    [onnx.helper.make_tensor_value_info("X", FLOAT, [3])],
-                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [1, 3, 1])],
-                    [
-                        onnx.numpy_helper.from_array(
-                            np.array([1], dtype=np.int64), name="axes1"
-                        ),
-                        onnx.numpy_helper.from_array(
-                            np.array([0], dtype=np.int64), name="axes2"
-                        ),
-                    ],
-                ),
-                opset_imports=[onnx.helper.make_opsetid("", 18)],
-            ),
-            onnx.helper.make_model(
-                onnx.helper.make_graph(
-                    [
-                        onnx.helper.make_node("Unsqueeze", ["X", "axes1"], ["Xu"]),
-                        onnx.helper.make_node("Unsqueeze", ["Xu", "axes2"], ["Y"]),
-                    ],
-                    "name",
-                    [onnx.helper.make_tensor_value_info("X", FLOAT, [3])],
-                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [1, 3, 1])],
-                    [
-                        onnx.numpy_helper.from_array(
-                            np.array([0], dtype=np.int64), name="axes1"
-                        ),
-                        onnx.numpy_helper.from_array(
-                            np.array([1], dtype=np.int64), name="axes2"
-                        ),
-                    ],
-                ),
-                opset_imports=[onnx.helper.make_opsetid("", 18)],
+    @parameterized.parameterized.expand(
+        [
+            (
+                "cast_identity",
+                ir.serde.deserialize_model(cast_identity_model.to_model_proto()),
             ),
         ]
-        return models
+    )
+    def test_llama_p0_rule_set_cast_identity(self, _: str, model: ir.Model):
+        rule_set = llama_rule_sets.llama_p0_rule_set()
+        model_proto = ir.serde.serialize_model(model)
+        rule_set.apply_to_model(model)
+        rewritten_model = ir.serde.serialize_model(model)
 
-    def test_llama_p0_rule_set_unsqueeze_unsqueeze(self):
-        for model_proto in self._unsqueeze_unsqueeze_models():
-            ir_model = ir.serde.deserialize_model(model_proto)
-            rule_set = llama_rule_sets.llama_p0_rule_set()
-            rule_set.apply_to_model(ir_model)
-            rewritten_model = ir.serde.serialize_model(ir_model)
+        self.assertEqual(["Identity"], [n.op_type for n in model.graph])
+        self._check_model(model_proto, rewritten_model)
 
-            self.assertEqual(
-                ["Constant", "Unsqueeze"], [n.op_type for n in rewritten_model.graph.node]
-            )
-            self._check_model(model_proto, rewritten_model)
-
-    @classmethod
-    def _reshape_reshape_models(cls):
-        models = [
-            onnx.helper.make_model(
-                onnx.helper.make_graph(
-                    [
-                        onnx.helper.make_node("Reshape", ["X", "shape_"], ["Xu"]),
-                        onnx.helper.make_node("Reshape", ["Xu", "shape"], ["Y"]),
-                    ],
-                    "name",
-                    [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 5])],
-                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [5, 4, 3])],
-                    [
-                        onnx.numpy_helper.from_array(
-                            np.array([4, 5, 3], dtype=np.int64), name="shape_"
-                        ),
-                        onnx.numpy_helper.from_array(
-                            np.array([5, 4, 3], dtype=np.int64), name="shape"
-                        ),
-                    ],
+    @parameterized.parameterized.expand(
+        [
+            (
+                "normal_case",
+                _make_model(
+                    onnx.helper.make_graph(
+                        [
+                            onnx.helper.make_node("Expand", ["X", "shape"], ["Y"]),
+                        ],
+                        "name",
+                        [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 5])],
+                        [onnx.helper.make_tensor_value_info("Y", FLOAT, [3, 4, 5])],
+                        [
+                            onnx.numpy_helper.from_array(
+                                np.array([3, 4, 5], dtype=np.int64), name="shape"
+                            )
+                        ],
+                    ),
+                    opset_imports=[onnx.helper.make_opsetid("", 18)],
                 ),
-                opset_imports=[onnx.helper.make_opsetid("", 18)],
+                ("Identity",),
             ),
-            onnx.helper.make_model(
-                onnx.helper.make_graph(
-                    [
-                        onnx.helper.make_node("Reshape", ["X", "shape_"], ["Xu"]),
-                        onnx.helper.make_node("Reshape", ["Xu", "shape"], ["Y"]),
-                    ],
-                    "name",
-                    [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 5])],
-                    [onnx.helper.make_tensor_value_info("Y", FLOAT, [5, 4, 3])],
-                    [
-                        onnx.numpy_helper.from_array(
-                            np.array([-1], dtype=np.int64), name="shape_"
-                        ),
-                        onnx.numpy_helper.from_array(
-                            np.array([5, 4, 3], dtype=np.int64), name="shape"
-                        ),
-                    ],
+            (
+                "input_no_shape",
+                _make_model(
+                    onnx.helper.make_graph(
+                        [
+                            onnx.helper.make_node("Identity", ["X"], ["Y"]),
+                            onnx.helper.make_node("Expand", ["Y", "shape"], ["Z"]),
+                        ],
+                        "name",
+                        [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 5])],
+                        [onnx.helper.make_tensor_value_info("Z", FLOAT, [3, 4, 5])],
+                        [
+                            onnx.numpy_helper.from_array(
+                                np.array([3, 4, 5], dtype=np.int64), name="shape"
+                            )
+                        ],
+                    ),
+                    opset_imports=[onnx.helper.make_opsetid("", 18)],
                 ),
-                opset_imports=[onnx.helper.make_opsetid("", 18)],
+                ("Identity", "Expand"),
             ),
         ]
-        return models
+    )
+    def test_llama_p0_rule_set_expand_identity(
+        self, _: str, model: ir.Model, expected_nodes: tuple[str, ...]
+    ):
+        rule_set = llama_rule_sets.llama_p0_rule_set()
+        model_proto = ir.serde.serialize_model(model)
+        rule_set.apply_to_model(model)
+        rewritten_model = ir.serde.serialize_model(model)
 
-    def test_llama_p0_rule_set_reshape_reshape(self):
-        for model_proto in self._reshape_reshape_models():
-            ir_model = ir.serde.deserialize_model(model_proto)
-            rule_set = llama_rule_sets.llama_p0_rule_set()
-            rule_set.apply_to_model(ir_model)
-            rewritten_model = ir.serde.serialize_model(ir_model)
+        self.assertEqual(tuple(n.op_type for n in model.graph), expected_nodes)
+        self._check_model(model_proto, rewritten_model)
 
-            self.assertEqual(["Reshape"], [n.op_type for n in rewritten_model.graph.node])
-            self._check_model(model_proto, rewritten_model)
+    @parameterized.parameterized.expand(
+        [
+            (
+                "double_unsqueezes_1",
+                _make_model(
+                    onnx.helper.make_graph(
+                        [
+                            onnx.helper.make_node("Unsqueeze", ["X", "axes1"], ["Xu"]),
+                            onnx.helper.make_node("Unsqueeze", ["Xu", "axes2"], ["Y"]),
+                        ],
+                        "name",
+                        [onnx.helper.make_tensor_value_info("X", FLOAT, [3])],
+                        [onnx.helper.make_tensor_value_info("Y", FLOAT, [1, 3, 1])],
+                        [
+                            onnx.numpy_helper.from_array(
+                                np.array([1], dtype=np.int64), name="axes1"
+                            ),
+                            onnx.numpy_helper.from_array(
+                                np.array([0], dtype=np.int64), name="axes2"
+                            ),
+                        ],
+                    ),
+                    opset_imports=[onnx.helper.make_opsetid("", 18)],
+                ),
+            ),
+            (
+                "double_unsqueezes_2",
+                _make_model(
+                    onnx.helper.make_graph(
+                        [
+                            onnx.helper.make_node("Unsqueeze", ["X", "axes1"], ["Xu"]),
+                            onnx.helper.make_node("Unsqueeze", ["Xu", "axes2"], ["Y"]),
+                        ],
+                        "name",
+                        [onnx.helper.make_tensor_value_info("X", FLOAT, [3])],
+                        [onnx.helper.make_tensor_value_info("Y", FLOAT, [1, 3, 1])],
+                        [
+                            onnx.numpy_helper.from_array(
+                                np.array([0], dtype=np.int64), name="axes1"
+                            ),
+                            onnx.numpy_helper.from_array(
+                                np.array([1], dtype=np.int64), name="axes2"
+                            ),
+                        ],
+                    ),
+                    opset_imports=[onnx.helper.make_opsetid("", 18)],
+                ),
+            ),
+        ]
+    )
+    def test_llama_p0_rule_set_unsqueeze_unsqueeze(self, _: str, model: ir.Model):
+        rule_set = llama_rule_sets.llama_p0_rule_set()
+        model_proto = ir.serde.serialize_model(model)
+        rule_set.apply_to_model(model)
+        rewritten_model = ir.serde.serialize_model(model)
+
+        self.assertEqual(["Constant", "Unsqueeze"], [n.op_type for n in model.graph])
+        self._check_model(model_proto, rewritten_model)
+
+    @parameterized.parameterized.expand(
+        [
+            (
+                "double_reshape_1",
+                _make_model(
+                    onnx.helper.make_graph(
+                        [
+                            onnx.helper.make_node("Reshape", ["X", "shape_"], ["Xu"]),
+                            onnx.helper.make_node("Reshape", ["Xu", "shape"], ["Y"]),
+                        ],
+                        "name",
+                        [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 5])],
+                        [onnx.helper.make_tensor_value_info("Y", FLOAT, [5, 4, 3])],
+                        [
+                            onnx.numpy_helper.from_array(
+                                np.array([4, 5, 3], dtype=np.int64), name="shape_"
+                            ),
+                            onnx.numpy_helper.from_array(
+                                np.array([5, 4, 3], dtype=np.int64), name="shape"
+                            ),
+                        ],
+                    ),
+                    opset_imports=[onnx.helper.make_opsetid("", 18)],
+                ),
+            ),
+            (
+                "double_reshape_2",
+                _make_model(
+                    onnx.helper.make_graph(
+                        [
+                            onnx.helper.make_node("Reshape", ["X", "shape_"], ["Xu"]),
+                            onnx.helper.make_node("Reshape", ["Xu", "shape"], ["Y"]),
+                        ],
+                        "name",
+                        [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 5])],
+                        [onnx.helper.make_tensor_value_info("Y", FLOAT, [5, 4, 3])],
+                        [
+                            onnx.numpy_helper.from_array(
+                                np.array([-1], dtype=np.int64), name="shape_"
+                            ),
+                            onnx.numpy_helper.from_array(
+                                np.array([5, 4, 3], dtype=np.int64), name="shape"
+                            ),
+                        ],
+                    ),
+                    opset_imports=[onnx.helper.make_opsetid("", 18)],
+                ),
+            ),
+        ]
+    )
+    def test_llama_p0_rule_set_reshape_reshape(self, _: str, model: ir.Model):
+        rule_set = llama_rule_sets.llama_p0_rule_set()
+        model_proto = ir.serde.serialize_model(model)
+        rule_set.apply_to_model(model)
+        rewritten_model = ir.serde.serialize_model(model)
+
+        self.assertEqual(["Reshape"], [n.op_type for n in model.graph])
+        self._check_model(model_proto, rewritten_model)
 
     @classmethod
     def _slides_split_models(cls):
         models = [
-            onnx.helper.make_model(
+            _make_model(
                 onnx.helper.make_graph(
                     [
                         onnx.helper.make_node(
