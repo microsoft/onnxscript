@@ -20,4 +20,19 @@ def sdpa(op, query, key_transposed, value, query_scale, key_scale, mask):
     # check if query_scale and key_scale are scalars == sqrt(sqrt(dimsize))
     return op.SDPA(query, key_transposed, value, query_scale, key_scale, mask, _domain="local")
 
+def sdpa_pattern2(op, query, key_transposed, value, scale):
+    attn_score = op.MatMul(query, key_transposed)
+    masked_score = op.Div(attn_score, scale)
+    attn_weight = op.Softmax(masked_score, axis=-1)
+    attn_output = op.MatMul(attn_weight, value)
+    return attn_output
+
+def sdpa2(op, query, key_transposed, value, scale):
+    # TODO
+    # check if scale == (sqrt(dimsize))
+    return op.SDPA2(query, key_transposed, value, scale, _domain="local")
+
 rule = pattern.RewriteRule(sdpa_pattern, sdpa)
+rule2 = pattern.RewriteRule(sdpa_pattern2, sdpa2)
+
+rules = pattern.RewriteRuleSet([rule, rule2])

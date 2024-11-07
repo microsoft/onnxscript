@@ -292,20 +292,30 @@ def _get_int_attribute(node: ir.Node, name: str, default: int | None = None) -> 
     return default
 
 
-# TODO(rama): The following should not be necessary. Generic incremental shape-inference
-# should handle this. This essentially implements type/shape-inference for Cast op.
+
 @register("Cast")
 def cast(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input = _get_input(node, 0)
     output = _get_output(node, 0)
-    if input is not None and output is not None:
-        input_shape = input.shape
-        if input_shape is not None:
-            output.shape = input_shape.copy()
-    if output is not None:
-        output_dtype = _get_int_attribute(node, "to", None)
-        if output_dtype is not None:
-            output.type = ir.TensorType(ir.DataType(output_dtype))
+    
+    if input is None or output is None:
+        return None
+    
+    # TODO(rama): Parts of the following logic (implementing type/shape inference
+    # for Cast op) should be unnecessary. Generic incremental shape-inference
+    # should handle this. Only the optimization to eliminate redundant Cast ops
+    # should be needed here.
+
+    input_shape = input.shape
+    if input_shape is not None:
+        output.shape = input_shape.copy()
+
+    input_dtype = _get_input_element_type(node, 0)
+    output_dtype = _get_int_attribute(node, "to", None)
+    if output_dtype is not None:
+        if input_dtype == output_dtype:
+            return op.Identity(input)
+        output.type = ir.TensorType(ir.DataType(output_dtype))
     return None
 
 

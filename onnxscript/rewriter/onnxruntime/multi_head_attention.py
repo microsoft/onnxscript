@@ -46,7 +46,7 @@ def multi_head_attention_pattern (op, input, query_weight, key_weight, value_wei
       attention_transposed = op.Transpose(attention, perm=[0, 2, 1, 3])
       # Reshape back to (B, S, D)
       attention_reshaped = op.Reshape(attention_transposed, _allow_other_inputs=True)
-      return attention_reshaped, value, key_rope
+      return attention_reshaped, key_rope, value
 
 def multi_head_attention(op, input, query_weight, key_weight, value_weight):
     # TODO: other checks and concatenation of weights
