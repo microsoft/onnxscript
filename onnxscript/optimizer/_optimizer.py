@@ -10,6 +10,7 @@ from onnxscript.optimizer._remove_unused import remove_unused_nodes
 from onnxscript.rewriter import (
     broadcast_to_matmul,
     cast_constant_of_shape,
+    collapse_slices,
     gemm_to_matmul_add,
     no_op,
 )
@@ -21,6 +22,7 @@ _DEFAULT_REWRITE_RULES = [
     *broadcast_to_matmul.rules.rules,
     gemm_to_matmul_add.rule,
     *cast_constant_of_shape.rules.rules,
+    *collapse_slices.rules.rules,
 ]
 
 

@@ -32,7 +32,7 @@ def dropout_inference(op, x):
 
 
 # Replacement
-def identity(op, x):
+def identity(op, x, **_):
     return op.Identity(x)
 
 

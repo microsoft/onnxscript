@@ -1002,7 +1002,6 @@ def aten_max_pool2d(
     return _aten_max_pool_onnx(self, kernel_shape, strides, pads, dilations, ceil_mode, 3)
 
 
-@torch_op("internal::max_pool", private=True, traceable=True)
 def _aten_max_pool_onnx(
     self: TFloatOrUInt8,
     kernel_shape: Sequence[int],
@@ -1134,7 +1133,6 @@ def aten_max_pool3d_with_indices(
     )
 
 
-@torch_op("internal::max_pool_with_indices", private=True, traceable=True)
 def _aten_max_pool_with_indices_onnx(
     self: TFloatOrUInt8,
     kernel_size: Sequence[int],
