@@ -136,5 +136,39 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "cubic")
 
 
+class VersionConverter20to21Test(unittest.TestCase):
+    def test_version_groupnorm(self):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[1, 4, 512, 512] input_x, float[2] scale, float[2] bias) => (float[4, 512, 512] output)
+            {
+                groupnorm = GroupNormalization <num_groups = 2> (input_x, scale, bias)
+                shape_c = Constant<value: tensor = int64[4] {4, 512, 512}>()
+                output = Reshape (groupnorm, shape_c)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        target_version = 21
+        version_converter.convert_version(model, target_version=target_version)
+        nodes = model.graph._nodes
+
+        self.assertEqual(nodes[3].op_type, "Reshape")
+        self.assertEqual(nodes[3].version, 21)
+        self.assertEqual(nodes[4].op_type, "Expand")
+        self.assertEqual(nodes[4].version, 21)
+        self.assertEqual(nodes[5].op_type, "Reshape")
+        self.assertEqual(nodes[5].version, 21)
+        self.assertEqual(nodes[6].op_type, "Reshape")
+        self.assertEqual(nodes[6].version, 21)
+        self.assertEqual(nodes[7].op_type, "Expand")
+        self.assertEqual(nodes[7].version, 21)
+        self.assertEqual(nodes[8].op_type, "Reshape")
+        self.assertEqual(nodes[8].version, 21)
+        self.assertEqual(nodes[9].op_type, "GroupNormalization")
+        self.assertEqual(nodes[9].version, 21)
+
+
 if __name__ == "__main__":
     unittest.main()
