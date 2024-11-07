@@ -159,8 +159,10 @@ class AdapterVersionChecker:
 
     def valid_for(self, opname: str, original_version: int, target_version: int) -> bool:
         """Returns True if this evaluator is applicable for the given version upgrade."""
-        adapter_set = _ADAPTER_SETS[tuple((original_version, target_version))]
-        if opname in adapter_set:
+        adapter_set = tuple((original_version, target_version))
+        if adapter_set not in _ADAPTER_SETS:
+            return False
+        if opname in _ADAPTER_SETS[adapter_set]:
             return True
         return False
 
@@ -396,15 +398,24 @@ class _VersionConverter:
         self.opset_imports = model.opset_imports
         model_version = model.opset_imports.get("")
 
-        # Iterate through all nodes in the graph
-        # Set node.version as the model_version
-        # TODO: Do this internally in IR?
-        for node in model.graph:
-            node.version = model_version
-
+        if self.target_version < model_version:
+            logger.warning(
+                "Target opset: %s less than %s, downstream version conversion not currently supported.",
+                self.target_version,
+                model_version,
+            )
+            return
         # Iterate from current model version -> target version
         # Updating each node based on the correct adapter [ver->ver+1]
         for opset_version in range(model_version, self.target_version):
+            if tuple((opset_version, opset_version + 1)) not in _ADAPTER_SETS:
+                logger.warning(
+                    "Conversion from opset: %s to target opset: %s not currently supported.",
+                    opset_version,
+                    opset_version + 1,
+                )
+                return
+
             self.visit_graph(model.graph, opset_version)
             for function in model.functions.values():
                 self.visit_function(function, opset_version)

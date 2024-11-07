@@ -11,6 +11,29 @@ import onnx.shape_inference
 from onnxscript import ir, version_converter
 
 
+class VersionConverter18to17Test(unittest.TestCase):
+    def test_version_convert_compatible(self):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[1, 4, 512, 512] input_x, float[1, 4, 512, 64] input_y) => (float[1, 4, 512, 64] output)
+            {
+                shape_a = Constant<value: tensor = int64[3] {4, 512, 512}>()
+                reshape_x = Reshape (input_x, shape_a)
+                shape_b = Constant<value: tensor = int64[3] {4, 512, 64}>()
+                reshape_y = Reshape (input_y, shape_b)
+                matmul = MatMul (reshape_x, reshape_y)
+                shape_c = Constant<value: tensor = int64[4] {1, 4, 512, 64}>()
+                output = Reshape (matmul, shape_c)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        target_version = 17
+        version_converter.convert_version(model, target_version=target_version)
+        nodes = model.graph._nodes
+
+
 class VersionConverter18to19Test(unittest.TestCase):
     def test_version_convert_compatible(self):
         model_proto = onnx.parser.parse_model(
@@ -168,6 +191,28 @@ class VersionConverter20to21Test(unittest.TestCase):
         self.assertEqual(nodes[8].version, 21)
         self.assertEqual(nodes[9].op_type, "GroupNormalization")
         self.assertEqual(nodes[9].version, 21)
+
+
+class VersionConverter23to24Test(unittest.TestCase):
+    def test_version_convert_compatible(self):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 23]>
+            agraph (float[1, 4, 512, 512] input_x, float[1, 4, 512, 64] input_y) => (float[1, 4, 512, 64] output)
+            {
+                shape_a = Constant<value: tensor = int64[3] {4, 512, 512}>()
+                reshape_x = Reshape (input_x, shape_a)
+                shape_b = Constant<value: tensor = int64[3] {4, 512, 64}>()
+                reshape_y = Reshape (input_y, shape_b)
+                matmul = MatMul (reshape_x, reshape_y)
+                shape_c = Constant<value: tensor = int64[4] {1, 4, 512, 64}>()
+                output = Reshape (matmul, shape_c)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        target_version = 24
+        version_converter.convert_version(model, target_version=target_version)
 
 
 if __name__ == "__main__":
