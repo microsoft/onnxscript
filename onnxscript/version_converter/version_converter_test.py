@@ -65,8 +65,11 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(nodes[0].version, 20)
         self.assertEqual(nodes[1].op_type, "Reshape")
         self.assertEqual(nodes[1].version, 20)
-        self.assertEqual(nodes[2].op_type, "DFT")
+        self.assertEqual(nodes[2].op_type, "Constant")
         self.assertEqual(nodes[2].version, 20)
+        self.assertEqual(nodes[3].op_type, "DFT")
+        self.assertEqual(nodes[3].version, 20)
+        self.assertEqual(len(nodes[3].inputs), 2)
 
     def test_version_convert_gridsample_linear(self):
         model_proto = onnx.parser.parse_model(
