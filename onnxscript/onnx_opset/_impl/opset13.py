@@ -1762,7 +1762,7 @@ class Opset13(Opset12):
         r"""[🌐 MatMul(13)](https://onnx.ai/onnx/operators/onnx__MatMul.html#matmul-13 "Online Documentation")
 
 
-        Matrix product that behaves like numpy.matmul: https://docs.scipy.org/doc/numpy-1.13.0/reference/generated/numpy.matmul.html
+        Matrix product that behaves like [numpy.matmul](https://numpy.org/doc/stable/reference/generated/numpy.matmul.html).
 
 
         Args:
