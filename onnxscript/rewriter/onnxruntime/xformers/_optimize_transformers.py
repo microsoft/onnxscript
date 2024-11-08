@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import onnxscript.ir as ir
-from onnxscript.rewriter.onnxruntime import attention, multi_head_attention, rms_normalization, rotary_embedding, skip_normalization
 from onnxscript.rewriter import no_op
 from onnxscript.optimizer import _constant_folding, remove_unused_nodes
 from onnxscript.rewriter.llama_rule_sets import ExpandIdentity, TransposeIdentity
+from onnxscript.rewriter.onnxruntime.xformers import attention, multi_head_attention, rms_normalization, rotary_embedding, skip_normalization
 import onnxscript.rewriter.pattern as pattern
 
 expand_rule = pattern.make_rewrite_rule_from_class(ExpandIdentity)

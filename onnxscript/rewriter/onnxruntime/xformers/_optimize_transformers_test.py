@@ -7,7 +7,7 @@ from transformers import LlamaConfig
 import transformers.models.llama.modeling_llama as modeling_llama
 import torch
 import onnxscript.optimizer
-from onnxscript.rewriter.onnxruntime import _optimize_transformers as optimize_transformers
+from onnxscript.rewriter.onnxruntime.xformers import _optimize_transformers as optimize_transformers
 
 # Create a LlamaConfig object with the desired parameters
 _config = LlamaConfig(
