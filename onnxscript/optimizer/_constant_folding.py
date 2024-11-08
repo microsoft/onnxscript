@@ -455,6 +455,25 @@ def dropout(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         return op.Identity(inputs[0])
     return None
 
+@register("Expand")
+def expand(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Replace an Expand node by Identity when applicable."""
+    if len(node.inputs) != 2:
+        return None
+    if (input := node.inputs[0]) is None:
+        return None
+    if (input_shape := input.shape) is None:
+        # Input shape is not known.
+        return None
+    if (expanded_shape := _get_numpy_value(node.inputs[1])) is None:
+        # Target shape is not known.
+        return None
+    if expanded_shape.ndim != 1:
+        # Target shape must be a 1D tensor. Erroneous model.
+        return None
+    if input_shape.dims == tuple(expanded_shape.tolist()):
+        return op.Identity(input)
+    return None
 
 @register("ConcatFromSequence")
 def concat_from_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
