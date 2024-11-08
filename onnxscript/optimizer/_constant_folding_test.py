@@ -417,6 +417,22 @@ func (float[1,3] x) => (float[1,3] return_val) {
         self.assertEqual(len(optimized.graph.node), 1)
         self.assertEqual(optimized.graph.node[0].op_type, "Identity")
 
+    def test_concat_identity(self):
+        if not self.using_ir:
+            return
+        model = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x) => (float[N] z)
+            {
+                z = Concat <axis=-1> (x)
+            }
+        """
+        )
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph.node), 1)
+        self.assertEqual(optimized.graph.node[0].op_type, "Identity")
+
 
 if __name__ == "__main__":
     unittest.main()
