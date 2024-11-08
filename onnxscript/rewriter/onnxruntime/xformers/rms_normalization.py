@@ -36,4 +36,4 @@ def simplified_layer_norm(op, x, scale, epsilon, compute_dtype, target_dtype):
     )
 
 
-rule = pattern.RewriteRule(rms_norm_pattern, simplified_layer_norm)
+rms_normalization_rules = pattern.RewriteRule(rms_norm_pattern, simplified_layer_norm)

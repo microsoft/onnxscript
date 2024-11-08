@@ -97,4 +97,4 @@ def multi_head_attention(
 rule = pattern.RewriteRule(multi_head_attention_pattern, multi_head_attention)
 rule2 = pattern.RewriteRule(multi_head_attention_pattern2, multi_head_attention)
 
-rules = pattern.RewriteRuleSet([rule, rule2])
+mha_rules = pattern.RewriteRuleSet([rule, rule2])

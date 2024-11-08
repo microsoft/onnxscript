@@ -449,5 +449,6 @@ func (float[1,3] x) => (float[1,3] return_val) {
         optimized = self._fold(model)
         self.assertEqual(optimized.graph.node[-1].op_type, "Identity")
 
+
 if __name__ == "__main__":
     unittest.main()

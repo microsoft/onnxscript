@@ -455,6 +455,7 @@ def dropout(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         return op.Identity(inputs[0])
     return None
 
+
 @register("Expand")
 def expand(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     """Replace an Expand node by Identity when applicable."""
@@ -474,6 +475,7 @@ def expand(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     if input_shape.dims == tuple(expanded_shape.tolist()):
         return op.Identity(input)
     return None
+
 
 @register("ConcatFromSequence")
 def concat_from_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:

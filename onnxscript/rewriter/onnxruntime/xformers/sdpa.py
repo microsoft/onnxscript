@@ -82,4 +82,4 @@ rule = pattern.RewriteRule(sdpa_pattern, sdpa)
 rule2 = pattern.RewriteRule(sdpa_pattern2, sdpa2)
 rule3 = pattern.RewriteRule(sdpa_pattern3, sdpa3)
 
-rules = pattern.RewriteRuleSet([rule, rule2, rule3])
+sdpa_rules = pattern.RewriteRuleSet([rule, rule2, rule3])

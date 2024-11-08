@@ -14,7 +14,11 @@ def rotate_half_pattern(op, x, start1, end1, start2, end2):
     return rotated_x
 
 
-def rotate_half(op, x, start1, end1, start2, end2):
+def embed_pattern(op, x, cos, sin, start1, end1, start2, end2):
+    return x * cos + rotate_half_pattern(op, x, start1, end1, start2, end2) * sin
+
+
+def embed(op, x, cos, sin, start1, end1, start2, end2):
     # Check that x is being split into two equal halves:
     start1_val = _ir_utils.get_singleton_value(start1)
     end1_val = _ir_utils.get_singleton_value(end1)
@@ -31,18 +35,8 @@ def rotate_half(op, x, start1, end1, start2, end2):
         and start2_val == half_dim_size
         and end2_val >= dim_size
     ):
-        return op.RotateHalf(x, _domain="local")
+        return op.Embed(x, cos, sin, _domain="local")
     return None
 
 
-def embed_pattern(op, x, cos, sin):
-    return x * cos + op.RotateHalf(x, _domain="local") * sin
-
-
-def embed(op, x, cos, sin, **_):
-    return op.Embed(x, cos, sin, _domain="local")
-
-
-rule = pattern.RewriteRule(rotate_half_pattern, rotate_half)
-
-embed_rule = pattern.RewriteRule(embed_pattern, embed)
+rotary_embedding_rules = pattern.RewriteRule(embed_pattern, embed)

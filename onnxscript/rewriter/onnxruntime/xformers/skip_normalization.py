@@ -31,6 +31,6 @@ def skip_normalization(op, input, skip, gamma, epsilon, stash_type):
     return normalized, skip_sum
 
 
-rule = pattern.RewriteRule(
+skip_normalization_rules = pattern.RewriteRule(
     skip_norm_pattern, skip_normalization, matcher=pattern.SimplePatternMatcher
 )
