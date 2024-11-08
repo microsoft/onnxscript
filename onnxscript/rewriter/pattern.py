@@ -225,6 +225,7 @@ class OpPatternBuilder:
         _version: int | None = None,
         _outputs: int | list[str | None] = 1,
         _allow_other_attributes: bool | None = None,
+        _allow_other_inputs: bool | None = None,
         **kwargs,
     ):
         if _version is not None:
@@ -249,7 +250,13 @@ class OpPatternBuilder:
         inputs = [_to_value_pattern(x) for x in args]
         attributes = {name: _to_attr_pattern(value) for (name, value) in kwargs.items()}
         node_pattern = NodePattern(
-            opset_pattern, self.op_name, inputs, attributes, _outputs, _allow_other_attributes
+            opset_pattern,
+            self.op_name,
+            inputs,
+            attributes,
+            _outputs,
+            allow_other_attributes=_allow_other_attributes,
+            allow_other_inputs=_allow_other_inputs,
         )
         self.pattern_builder.add_node(node_pattern)
         output_values = node_pattern.outputs
@@ -471,16 +478,22 @@ class NodePattern:
         inputs: Sequence[int | float | ValuePattern | None],
         attributes: dict[str, AttrPattern],
         outputs: Sequence[str | None],
+        *,
         allow_other_attributes: bool | None,
+        allow_other_inputs: bool | None,
     ):
         if allow_other_attributes is None:
             # Default behavior: allow other unmatched attributes in the node.
             allow_other_attributes = True
+        if allow_other_inputs is None:
+            # TODO(rama): Should we default to True? For now, we preserve the current behavior.
+            allow_other_inputs = False
         self.domain = domain
         self.op = StringConstantPattern(op) if isinstance(op, str) else op
         self.inputs = [_to_value_pattern(x) for x in inputs]
         self.attributes = attributes
         self.allow_other_attributes = allow_other_attributes
+        self.allow_other_inputs = allow_other_inputs
         # In the common case, domain and op are constants, which can be used to optimize matching.
         if isinstance(op, str) and isinstance(domain, StringConstantPattern):
             # TODO(rama): support overloaded operators.
@@ -557,7 +570,13 @@ class NodePattern:
             inputs = [inputs[1], inputs[0]]
         outputs = [value.name for value in self.outputs]
         copied = NodePattern(
-            self.domain, self.op, inputs, self.attributes, outputs, self.allow_other_attributes
+            self.domain,
+            self.op,
+            inputs,
+            self.attributes,
+            outputs,
+            allow_other_attributes=self.allow_other_attributes,
+            allow_other_inputs=self.allow_other_inputs,
         )
         node_map[self] = copied
         return copied
@@ -1022,10 +1041,16 @@ class SimplePatternMatcher(PatternMatcher):
         self._matched[pattern_node] = node
 
         # TODO: Revisit this to handle optional trailing inputs better.
-        if len(node.inputs) != len(pattern_node.inputs):
-            return self.fail(
-                "Input nums mismatch. {len(node.inputs)} vs {len(pattern_node.inputs)}"
-            )
+        if pattern_node.allow_other_inputs:
+            if len(node.inputs) < len(pattern_node.inputs):
+                return self.fail(
+                    f"Number of inputs ({len(node.inputs)}) is less than expected ({len(pattern_node.inputs)})"
+                )
+        else:
+            if len(node.inputs) != len(pattern_node.inputs):
+                return self.fail(
+                    f"Input nums mismatch. {len(node.inputs)} vs {len(pattern_node.inputs)}"
+                )
 
         for arg_value, arg_pattern in zip(node.inputs, pattern_node.inputs):
             # arg_pattern could be a Var, if it's the original arg.

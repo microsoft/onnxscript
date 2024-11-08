@@ -292,20 +292,29 @@ def _get_int_attribute(node: ir.Node, name: str, default: int | None = None) -> 
     return default
 
 
-# TODO(rama): The following should not be necessary. Generic incremental shape-inference
-# should handle this. This essentially implements type/shape-inference for Cast op.
 @register("Cast")
 def cast(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input = _get_input(node, 0)
     output = _get_output(node, 0)
-    if input is not None and output is not None:
-        input_shape = input.shape
-        if input_shape is not None:
-            output.shape = input_shape.copy()
-    if output is not None:
-        output_dtype = _get_int_attribute(node, "to", None)
-        if output_dtype is not None:
-            output.type = ir.TensorType(ir.DataType(output_dtype))
+
+    if input is None or output is None:
+        return None
+
+    # TODO(rama): Parts of the following logic (implementing type/shape inference
+    # for Cast op) should be unnecessary. Generic incremental shape-inference
+    # should handle this. Only the optimization to eliminate redundant Cast ops
+    # should be needed here.
+
+    input_shape = input.shape
+    if input_shape is not None:
+        output.shape = input_shape.copy()
+
+    input_dtype = _get_input_element_type(node, 0)
+    output_dtype = _get_int_attribute(node, "to", None)
+    if output_dtype is not None:
+        if input_dtype == output_dtype:
+            return op.Identity(input)
+        output.type = ir.TensorType(ir.DataType(output_dtype))
     return None
 
 
@@ -410,6 +419,40 @@ def sequence_construct(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     output = node.outputs[0]
     if output is not None:
         state.set_sym_value(output, list(node.inputs))
+    return None
+
+
+@register("Concat")
+def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Replace a Concat node with a single input by Identity"""
+    inputs = node.inputs
+    if len(inputs) == 1:
+        return op.Identity(inputs[0])
+    return None
+
+
+@register("Dropout", version=(12, None))
+def dropout(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Replace a Dropout by Identity when applicable."""
+    if len(node.outputs) != 1:
+        # If output mask is requested, optimization is more complex.
+        # TODO: handle this case. But unlikely to be needed in practice.
+        return None
+    inputs = node.inputs
+    if (len(inputs) <= 2) or inputs[2] is None:
+        # No training_mode specified:
+        return op.Identity(inputs[0])
+    if _get_bool_value(inputs[2]) is False:
+        # training_mode is False: dropout is not applied.
+        return op.Identity(inputs[0])
+    ratio = _get_numpy_value(inputs[1])
+    if ratio is None:
+        return None
+    if ratio.size != 1:  # Only scalar dropout ratio is supported.
+        return None
+    if ratio.item() == 0:
+        # dropout ratio is 0: dropout is not applied.
+        return op.Identity(inputs[0])
     return None
 
 
@@ -711,7 +754,7 @@ class ConstantFolder:
         if any(x is None for x in input_values):
             return None
 
-        if any(input.size > self._input_size_limit for input in input_values):  # type: ignore[union-attr]
+        if any(input.nbytes > self._input_size_limit for input in input_values):  # type: ignore[union-attr]
             if logger.isEnabledFor(logging.DEBUG):
                 input_sizes = [input.size for input in input_values]  # type: ignore[union-attr]
                 logger.debug(

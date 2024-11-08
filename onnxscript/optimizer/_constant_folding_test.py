@@ -394,6 +394,45 @@ func (float[1,3] x) => (float[1,3] return_val) {
         self.assertEqual(optimized.graph.node[6].op_type, "Concat")
         onnx.checker.check_model(optimized)
 
+    @parameterized.parameterized.expand(
+        [
+            ("output = Dropout(input)",),
+            ("output = Dropout(input, zero, true)",),
+            ("output = Dropout(input, half)",),
+            ("output = Dropout(input, half, false)",),
+        ]
+    )
+    def test_dropout_identity(self, dropout_node: str):
+        if not self.using_ir:
+            self.skipTest("New optimizations not supported for legacy optimizer")
+        model = onnx.parser.parse_model(f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] input) => (float[N] output)
+            <float zero = {{0.0}}, float half = {{0.5}}, bool true = {{1}}, bool false = {{0}}>
+            {{
+                {dropout_node}
+            }}
+        """)
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph.node), 1)
+        self.assertEqual(optimized.graph.node[0].op_type, "Identity")
+
+    def test_concat_identity(self):
+        if not self.using_ir:
+            self.skipTest("New optimizations not supported for legacy optimizer")
+        model = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x) => (float[N] z)
+            {
+                z = Concat <axis=-1> (x)
+            }
+        """
+        )
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph.node), 1)
+        self.assertEqual(optimized.graph.node[0].op_type, "Identity")
+
 
 if __name__ == "__main__":
     unittest.main()
