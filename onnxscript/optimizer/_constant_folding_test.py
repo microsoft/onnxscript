@@ -417,5 +417,6 @@ func (float[1,3] x) => (float[1,3] return_val) {
         self.assertEqual(len(optimized.graph.node), 1)
         self.assertEqual(optimized.graph.node[0].op_type, "Identity")
 
+
 if __name__ == "__main__":
     unittest.main()

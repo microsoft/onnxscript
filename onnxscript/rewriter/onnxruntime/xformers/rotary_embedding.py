@@ -2,9 +2,8 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import numpy as np
-import onnxscript.ir as ir
-from onnxscript.rewriter import pattern, _ir_utils
+from onnxscript.rewriter import _ir_utils, pattern
+
 
 def rotate_half_pattern(op, x, start1, end1, start2, end2):
     # Slice(input, starts, ends, axes, steps)
@@ -13,6 +12,7 @@ def rotate_half_pattern(op, x, start1, end1, start2, end2):
     minus_x2 = op.Neg(x2)
     rotated_x = op.Concat(minus_x2, x1, axis=-1)
     return rotated_x
+
 
 def rotate_half(op, x, start1, end1, start2, end2):
     # Check that x is being split into two equal halves:
@@ -25,15 +25,23 @@ def rotate_half(op, x, start1, end1, start2, end2):
         return None
     dim_size = x.shape[3]
     half_dim_size = dim_size // 2
-    if start1_val == 0 and end1_val == half_dim_size and start2_val == half_dim_size and end2_val >= dim_size:
+    if (
+        start1_val == 0
+        and end1_val == half_dim_size
+        and start2_val == half_dim_size
+        and end2_val >= dim_size
+    ):
         return op.RotateHalf(x, _domain="local")
     return None
+
 
 def embed_pattern(op, x, cos, sin):
     return x * cos + op.RotateHalf(x, _domain="local") * sin
 
+
 def embed(op, x, cos, sin, **_):
     return op.Embed(x, cos, sin, _domain="local")
+
 
 rule = pattern.RewriteRule(rotate_half_pattern, rotate_half)
 

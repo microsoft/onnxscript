@@ -2,9 +2,8 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import numpy as np
-import onnxscript.ir as ir
 from onnxscript.rewriter import pattern
+
 
 def skip_norm_pattern(op, input, skip, gamma, epsilon, stash_type):
     skip_sum = op.Add(input, skip)
@@ -14,8 +13,10 @@ def skip_norm_pattern(op, input, skip, gamma, epsilon, stash_type):
         axis=-1,
         epsilon=epsilon,
         stash_type=stash_type,
-        _domain="com.microsoft")
+        _domain="com.microsoft",
+    )
     return normalized, skip_sum
+
 
 def skip_normalization(op, input, skip, gamma, epsilon, stash_type):
     normalized, mean, inv_std_var, skip_sum = op.SkipSimplifiedLayerNormalization(
@@ -25,8 +26,11 @@ def skip_normalization(op, input, skip, gamma, epsilon, stash_type):
         epsilon=epsilon,
         stash_type=stash_type,
         _domain="com.microsoft",
-        _outputs=4
-        )
+        _outputs=4,
+    )
     return normalized, skip_sum
 
-rule = pattern.RewriteRule(skip_norm_pattern, skip_normalization, matcher=pattern.SimplePatternMatcher)
+
+rule = pattern.RewriteRule(
+    skip_norm_pattern, skip_normalization, matcher=pattern.SimplePatternMatcher
+)

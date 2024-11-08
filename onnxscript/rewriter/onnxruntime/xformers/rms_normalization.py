@@ -2,10 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import numpy as np
-import onnxscript.ir as ir
 from onnxscript.rewriter import _ir_utils, pattern
-
 
 
 # Pattern to match against
@@ -20,6 +17,7 @@ def rms_norm_pattern(op, x, scale, epsilon, compute_dtype, target_dtype):
     normalized_cast = op.Cast(normalized, to=target_dtype)
     return op.Mul(scale, normalized_cast)
 
+
 # Replacement
 def simplified_layer_norm(op, x, scale, epsilon, compute_dtype, target_dtype):
     epsilon_value = _ir_utils.get_singleton_value(epsilon)
@@ -28,13 +26,14 @@ def simplified_layer_norm(op, x, scale, epsilon, compute_dtype, target_dtype):
     source_dtype = x.dtype
     if source_dtype is None or source_dtype != target_dtype.value:
         return None
-    return op.SimplifiedLayerNormalization (
+    return op.SimplifiedLayerNormalization(
         x,
         scale,
-        axis=-1, 
+        axis=-1,
         epsilon=epsilon_value,
-        stash_type=compute_dtype.value,                                  
-        _domain="com.microsoft")
+        stash_type=compute_dtype.value,
+        _domain="com.microsoft",
+    )
 
 
 rule = pattern.RewriteRule(rms_norm_pattern, simplified_layer_norm)

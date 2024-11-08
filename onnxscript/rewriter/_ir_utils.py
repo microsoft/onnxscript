@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+
 import onnxscript.ir as ir
 from onnxscript.optimizer import basic_constant_propagation
 
@@ -12,6 +13,7 @@ def get_const_value(value: ir.Value) -> ir.TensorProtocol | None:
     if node is not None:
         basic_constant_propagation([node])
     return value.const_value
+
 
 def get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
     if val is None:
@@ -25,8 +27,9 @@ def get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
             return None
     return None
 
+
 def get_singleton_value(val: ir.Value | None):
-    '''Returns element of a single element tensor constant value, and None otherwise.'''
+    """Returns element of a single element tensor constant value, and None otherwise."""
     np_val = get_numpy_value(val)
     if np_val is not None and np_val.size == 1:
         return np_val.item()

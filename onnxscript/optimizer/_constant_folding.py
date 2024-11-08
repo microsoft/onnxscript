@@ -292,15 +292,14 @@ def _get_int_attribute(node: ir.Node, name: str, default: int | None = None) -> 
     return default
 
 
-
 @register("Cast")
 def cast(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input = _get_input(node, 0)
     output = _get_output(node, 0)
-    
+
     if input is None or output is None:
         return None
-    
+
     # TODO(rama): Parts of the following logic (implementing type/shape inference
     # for Cast op) should be unnecessary. Generic incremental shape-inference
     # should handle this. Only the optimization to eliminate redundant Cast ops
@@ -422,13 +421,15 @@ def sequence_construct(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         state.set_sym_value(output, list(node.inputs))
     return None
 
+
 @register("Concat")
 def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     """Replace a Concat node with a single input by Identity"""
     inputs = node.inputs
-    if (len(inputs) == 1):
+    if len(inputs) == 1:
         return op.Identity(inputs[0])
     return None
+
 
 @register("Dropout", version=(12, None))
 def dropout(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
@@ -447,12 +448,13 @@ def dropout(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     ratio = _get_numpy_value(inputs[1])
     if ratio is None:
         return None
-    if ratio.size != 1: # Only scalar dropout ratio is supported.
+    if ratio.size != 1:  # Only scalar dropout ratio is supported.
         return None
     if ratio.item() == 0:
         # dropout ratio is 0: dropout is not applied.
         return op.Identity(inputs[0])
     return None
+
 
 @register("ConcatFromSequence")
 def concat_from_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:

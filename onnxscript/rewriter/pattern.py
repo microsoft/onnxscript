@@ -250,7 +250,13 @@ class OpPatternBuilder:
         inputs = [_to_value_pattern(x) for x in args]
         attributes = {name: _to_attr_pattern(value) for (name, value) in kwargs.items()}
         node_pattern = NodePattern(
-            opset_pattern, self.op_name, inputs, attributes, _outputs, _allow_other_attributes, _allow_other_inputs
+            opset_pattern,
+            self.op_name,
+            inputs,
+            attributes,
+            _outputs,
+            _allow_other_attributes,
+            _allow_other_inputs,
         )
         self.pattern_builder.add_node(node_pattern)
         output_values = node_pattern.outputs
@@ -563,7 +569,13 @@ class NodePattern:
             inputs = [inputs[1], inputs[0]]
         outputs = [value.name for value in self.outputs]
         copied = NodePattern(
-            self.domain, self.op, inputs, self.attributes, outputs, self.allow_other_attributes, self.allow_other_inputs
+            self.domain,
+            self.op,
+            inputs,
+            self.attributes,
+            outputs,
+            self.allow_other_attributes,
+            self.allow_other_inputs,
         )
         node_map[self] = copied
         return copied

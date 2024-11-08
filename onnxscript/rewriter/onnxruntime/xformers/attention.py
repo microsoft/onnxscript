@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import math
-import numpy as np
-import onnxscript.ir as ir
-from onnxscript.rewriter import pattern, _ir_utils
+
+from onnxscript.rewriter import _ir_utils, pattern
+
 
 def sdpa_pattern(op, query, key_transposed, value, query_scale, key_scale, mask):
     scaled_query = op.Mul(query, query_scale)
@@ -15,6 +15,7 @@ def sdpa_pattern(op, query, key_transposed, value, query_scale, key_scale, mask)
     attn_weight = op.Softmax(masked_score, axis=-1)
     attn_output = op.MatMul(attn_weight, value)
     return attn_output
+
 
 def sdpa(op, query, key_transposed, value, query_scale, key_scale, mask):
     # Check if query_scale and key_scale are scalars == 1/sqrt(sqrt(dimsize))
@@ -40,6 +41,7 @@ def sdpa_pattern2(op, query, key_transposed, value, scale):
     attn_output = op.MatMul(attn_weight, value)
     return attn_output
 
+
 def valid_post_scale(scale, query) -> bool:
     # Checks if scale == (sqrt(dimsize))
     scale_value = _ir_utils.get_singleton_value(scale)
@@ -52,12 +54,14 @@ def valid_post_scale(scale, query) -> bool:
     dimsize = query.shape[-1]
     if not isinstance(dimsize, int) or not math.isclose(scaling_factor, dimsize, abs_tol=1e-3):
         return False
-    return True  
-    
+    return True
+
+
 def sdpa2(op, query, key_transposed, value, scale):
     if not valid_post_scale(scale, query):
         return None
     return op.SDPA(query, key_transposed, value, scale, _domain="local")
+
 
 def sdpa_pattern3(op, query, key_transposed, value, scale, mask):
     attn_score = op.MatMul(query, key_transposed)
@@ -67,10 +71,12 @@ def sdpa_pattern3(op, query, key_transposed, value, scale, mask):
     attn_output = op.MatMul(attn_weight, value)
     return attn_output
 
+
 def sdpa3(op, query, key_transposed, value, scale, mask):
     if not valid_post_scale(scale, query):
         return None
     return op.SDPA(query, key_transposed, value, scale, mask, _domain="local")
+
 
 rule = pattern.RewriteRule(sdpa_pattern, sdpa)
 rule2 = pattern.RewriteRule(sdpa_pattern2, sdpa2)
