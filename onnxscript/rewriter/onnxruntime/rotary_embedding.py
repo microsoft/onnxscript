@@ -22,7 +22,7 @@ def embed_pattern(op, x, cos, sin):
     return x * cos + op.RotateHalf(x, _domain="local") * sin
 
 def embed(op, x, cos, sin, **_):
-    return op.Embed(x, _domain="local")
+    return op.Embed(x, cos, sin, _domain="local")
 
 rule = pattern.RewriteRule(rotate_half_pattern, rotate_half)
 

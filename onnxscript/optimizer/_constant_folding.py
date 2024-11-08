@@ -422,6 +422,12 @@ def sequence_construct(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         state.set_sym_value(output, list(node.inputs))
     return None
 
+@register("Concat")
+def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    inputs = node.inputs
+    if (len(inputs) == 1):
+        return op.Identity(inputs[0])
+    return None
 
 @register("ConcatFromSequence")
 def concat_from_sequence(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
