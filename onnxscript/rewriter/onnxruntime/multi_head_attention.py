@@ -9,10 +9,17 @@ from onnxscript.rewriter import pattern
 """
 MultiHeadAttention:
 
+D: input embedding dimension
+H: number of heads
+d_h: head size
+usually, D = H * d_h
+
+thus, weights are usually of shape (D, D) and (D, D) and (D, D)
+
 for Q, K, V:
-   MatMul
-   Reshape to B, S, 32, 64
-   Transpose to B, 32, S, 64
+   MatMul (Input, W for Q, K, V) => B, S, D
+   Reshape to B, S, 32, 64 (that is, B, S, H, d_h)
+   Transpose to B, 32, S, 64 (that is, B, H, S, d_h)
 
 Here, 32 is the number of heads and 64 is the head size
 
