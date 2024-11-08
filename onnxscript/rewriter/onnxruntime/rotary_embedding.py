@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import onnxscript.ir as ir
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter import pattern, _ir_utils
 
 def rotate_half_pattern(op, x, start1, end1, start2, end2):
     # Slice(input, starts, ends, axes, steps)
@@ -15,8 +15,19 @@ def rotate_half_pattern(op, x, start1, end1, start2, end2):
     return rotated_x
 
 def rotate_half(op, x, start1, end1, start2, end2):
-    # TODO: check if start1, end1, start2, end2 are valid
-    return op.RotateHalf(x, _domain="local")
+    # Check that x is being split into two equal halves:
+    start1_val = _ir_utils.get_singleton_value(start1)
+    end1_val = _ir_utils.get_singleton_value(end1)
+    start2_val = _ir_utils.get_singleton_value(start2)
+    end2_val = _ir_utils.get_singleton_value(end2)
+
+    if x is None or x.shape is None or len(x.shape) != 4:
+        return None
+    dim_size = x.shape[3]
+    half_dim_size = dim_size // 2
+    if start1_val == 0 and end1_val == half_dim_size and start2_val == half_dim_size and end2_val >= dim_size:
+        return op.RotateHalf(x, _domain="local")
+    return None
 
 def embed_pattern(op, x, cos, sin):
     return x * cos + op.RotateHalf(x, _domain="local") * sin
