@@ -37,10 +37,13 @@ from onnxscript.onnx_opset._impl.opset17 import Opset17
 from onnxscript.onnx_opset._impl.opset18 import Opset18
 from onnxscript.onnx_opset._impl.opset19 import Opset19
 from onnxscript.onnx_opset._impl.opset20 import Opset20
+from onnxscript.onnx_opset._impl.opset21 import Opset21
+from onnxscript.onnx_opset._impl.opset22 import Opset22
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml1 import Opset_ai_onnx_ml1
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml2 import Opset_ai_onnx_ml2
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml3 import Opset_ai_onnx_ml3
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml4 import Opset_ai_onnx_ml4
+from onnxscript.onnx_opset._impl.opset_ai_onnx_ml5 import Opset_ai_onnx_ml5
 from onnxscript.onnx_opset._impl.opset_ai_onnx_preview_training1 import (
     Opset_ai_onnx_preview_training1,
 )
@@ -68,10 +71,13 @@ __all__ = [
     "opset18",
     "opset19",
     "opset20",
+    "opset21",
+    "opset22",
     "opset_ai_onnx_ml1",
     "opset_ai_onnx_ml2",
     "opset_ai_onnx_ml3",
     "opset_ai_onnx_ml4",
+    "opset_ai_onnx_ml5",
     "opset_ai_onnx_preview_training1",
 ]
 
@@ -102,10 +108,13 @@ opset17 = Opset17()
 opset18 = Opset18()
 opset19 = Opset19()
 opset20 = Opset20()
+opset21 = Opset21()
+opset22 = Opset22()
 opset_ai_onnx_ml1 = Opset_ai_onnx_ml1()
 opset_ai_onnx_ml2 = Opset_ai_onnx_ml2()
 opset_ai_onnx_ml3 = Opset_ai_onnx_ml3()
 opset_ai_onnx_ml4 = Opset_ai_onnx_ml4()
+opset_ai_onnx_ml5 = Opset_ai_onnx_ml5()
 opset_ai_onnx_preview_training1 = Opset_ai_onnx_preview_training1()
 all_opsets: Mapping[Tuple[str, int], Opset] = {
     (
@@ -189,6 +198,14 @@ all_opsets: Mapping[Tuple[str, int], Opset] = {
         20,
     ): opset20,
     (
+        "",
+        21,
+    ): opset21,
+    (
+        "",
+        22,
+    ): opset22,
+    (
         "ai.onnx.ml",
         1,
     ): opset_ai_onnx_ml1,
@@ -204,6 +221,10 @@ all_opsets: Mapping[Tuple[str, int], Opset] = {
         "ai.onnx.ml",
         4,
     ): opset_ai_onnx_ml4,
+    (
+        "ai.onnx.ml",
+        5,
+    ): opset_ai_onnx_ml5,
     (
         "ai.onnx.preview.training",
         1,

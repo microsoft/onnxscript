@@ -76,7 +76,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         # Use inserted initializers to avoid manually coding the large constants
-        indices = np.arange(112).reshape(112, 1)
+        indices = np.arange(112).reshape(112, 1).astype(np.int64)
         model = ir.serde.deserialize_model(model_proto)
         # from numpy to ir.Tensor
         indices_ir_tensor = ir.Tensor(

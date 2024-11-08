@@ -346,7 +346,7 @@ class Opset10(Opset9):
         r"""[🌐 MatMulInteger(10)](https://onnx.ai/onnx/operators/onnx__MatMulInteger.html#matmulinteger-10 "Online Documentation")
 
 
-        Matrix product that behaves like numpy.matmul: https://docs.scipy.org/doc/numpy-1.13.0/reference/generated/numpy.matmul.html.
+        Matrix product that behaves like [numpy.matmul](https://numpy.org/doc/stable/reference/generated/numpy.matmul.html).
         The production MUST never overflow. The accumulation may overflow if and only if in 32 bits.
 
 
@@ -749,7 +749,7 @@ class Opset10(Opset9):
         r"""[🌐 QLinearMatMul(10)](https://onnx.ai/onnx/operators/onnx__QLinearMatMul.html#qlinearmatmul-10 "Online Documentation")
 
 
-        Matrix product that behaves like numpy.matmul: https://docs.scipy.org/doc/numpy-1.13.0/reference/generated/numpy.matmul.html.
+        Matrix product that behaves like [numpy.matmul](https://numpy.org/doc/stable/reference/generated/numpy.matmul.html).
         It consumes two quantized input tensors, their scales and zero points, scale and zero point of output,
         and computes the quantized output. The quantization formula is y = saturate((x / y_scale) + y_zero_point).
         For (x / y_scale), it is rounding to nearest ties to even. Refer to https://en.wikipedia.org/wiki/Rounding for details.
@@ -1067,7 +1067,7 @@ class Opset10(Opset9):
 
 
         Produces a slice of the input tensor along multiple axes. Similar to numpy:
-        https://docs.scipy.org/doc/numpy/reference/arrays.indexing.html
+        https://numpy.org/doc/stable/reference/routines.indexing.html
         Slices uses `starts`, `ends`, `axes` and `steps` inputs to specify the start and end
         dimension and step for each axis in the list of axes, it uses this information to
         slice the input `data` tensor. If a negative value is passed for any of the

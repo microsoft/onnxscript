@@ -55,7 +55,7 @@ class CastCast(orp.RewriteRuleAsClass):
 
 
 class ExpandIdentity(orp.RewriteRuleAsClass):
-    """Replaces ``Expand(., shape)`` by ``Identity`` if possible."""
+    """Replaces ``Expand(..., shape)`` by ``Identity`` if possible."""
 
     @classmethod
     def pattern(cls, op, x, shape):
@@ -70,8 +70,10 @@ class ExpandIdentity(orp.RewriteRuleAsClass):
         if shape.const_value is None:
             # Shape is not a constant and cannot be guessed.
             return False
-        shape_x = x.shape
-        return shape_x.dims == tuple(shape.const_value.numpy().tolist())
+        if (x_shape := x.shape) is None:
+            # We don't know the shape of the input
+            return False
+        return x_shape.dims == tuple(shape.const_value.numpy().tolist())
 
 
 class ReshapeReshape(orp.RewriteRuleAsClass):
@@ -222,9 +224,7 @@ class TransposeTranspose(orp.RewriteRuleAsClass):
 
 
 class UnsqueezeUnsqueeze(orp.RewriteRuleAsClass):
-    """Replaces ``Unsqueeze(Unsqueeze(., axes1), axes2)``
-    with one Unsqueeze.
-    """
+    """Replaces ``Unsqueeze(Unsqueeze(., axes1), axes2)`` with one Unsqueeze."""
 
     @classmethod
     def pattern(cls, op, x, axes1, axes2):
@@ -239,22 +239,30 @@ class UnsqueezeUnsqueeze(orp.RewriteRuleAsClass):
 
     @classmethod
     def rewrite(cls, op, x: ir.Value, axes1: ir.Value, axes2: ir.Value):
-        v1 = axes1.const_value.numpy()  # type: ignore[union-attr]
-        v2 = axes2.const_value.numpy()  # type: ignore[union-attr]
-        if len(v1) != 1 or len(v2) != 1:
-            # Implemented later if needed.
-            return False
-        axes = cls._combine_axes(v1, v2)
+        assert axes1.const_value is not None
+        assert axes2.const_value is not None
+        axes = cls._combine_axes(axes1.const_value.numpy(), axes2.const_value.numpy())
         return op.Unsqueeze(x, op.Constant(value=onnx.numpy_helper.from_array(axes)))
 
     @classmethod
     def check(cls, context, x, axes1, axes2) -> bool:
+        del context  # Unused
+        del x  # Unused
         if axes1.const_value is None or axes2.const_value is None:
             return False
-        if axes1.const_value.numpy().min() < 0:
+
+        v1 = axes1.const_value.numpy()
+        v2 = axes2.const_value.numpy()
+        if not v1.shape or not v2.shape:
             return False
-        if axes2.const_value.numpy().min() < 0:
+        if v1.shape[0] != 1 or v2.shape[0] != 1:
+            # Implemented later if needed.
             return False
+        if v1.min() < 0:
+            return False
+        if v2.min() < 0:
+            return False
+
         return True
 
 
