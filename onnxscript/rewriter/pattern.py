@@ -255,8 +255,8 @@ class OpPatternBuilder:
             inputs,
             attributes,
             _outputs,
-            _allow_other_attributes,
-            _allow_other_inputs,
+            allow_other_attributes=_allow_other_attributes,
+            allow_other_inputs=_allow_other_inputs,
         )
         self.pattern_builder.add_node(node_pattern)
         output_values = node_pattern.outputs
@@ -478,21 +478,22 @@ class NodePattern:
         inputs: Sequence[int | float | ValuePattern | None],
         attributes: dict[str, AttrPattern],
         outputs: Sequence[str | None],
+        *,
         allow_other_attributes: bool | None,
-        _allow_other_inputs: bool | None,
+        allow_other_inputs: bool | None,
     ):
         if allow_other_attributes is None:
             # Default behavior: allow other unmatched attributes in the node.
             allow_other_attributes = True
-        if _allow_other_inputs is None:
+        if allow_other_inputs is None:
             # TODO(rama): Should we default to True? For now, we preserve the current behavior.
-            _allow_other_inputs = False
+            allow_other_inputs = False
         self.domain = domain
         self.op = StringConstantPattern(op) if isinstance(op, str) else op
         self.inputs = [_to_value_pattern(x) for x in inputs]
         self.attributes = attributes
         self.allow_other_attributes = allow_other_attributes
-        self.allow_other_inputs = _allow_other_inputs
+        self.allow_other_inputs = allow_other_inputs
         # In the common case, domain and op are constants, which can be used to optimize matching.
         if isinstance(op, str) and isinstance(domain, StringConstantPattern):
             # TODO(rama): support overloaded operators.
@@ -574,8 +575,8 @@ class NodePattern:
             inputs,
             self.attributes,
             outputs,
-            self.allow_other_attributes,
-            self.allow_other_inputs,
+            allow_other_attributes=self.allow_other_attributes,
+            allow_other_inputs=self.allow_other_inputs,
         )
         node_map[self] = copied
         return copied
