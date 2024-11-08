@@ -424,8 +424,33 @@ def sequence_construct(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
 
 @register("Concat")
 def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Replace a Concat node with a single input by Identity"""
     inputs = node.inputs
     if (len(inputs) == 1):
+        return op.Identity(inputs[0])
+    return None
+
+@register("Dropout", version=(12, None))
+def dropout(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Replace a Dropout by Identity when applicable."""
+    if len(node.outputs) != 1:
+        # If output mask is requested, optimization is more complex.
+        # TODO: handle this case. But unlikely to be needed in practice.
+        return None
+    inputs = node.inputs
+    if (len(inputs) <= 2) or inputs[2] is None:
+        # No training_mode specified:
+        return op.Identity(inputs[0])
+    if _get_bool_value(inputs[2]) is False:
+        # training_mode is False: dropout is not applied.
+        return op.Identity(inputs[0])
+    ratio = _get_numpy_value(inputs[1])
+    if ratio is None:
+        return None
+    if ratio.size != 1: # Only scalar dropout ratio is supported.
+        return None
+    if ratio.item() == 0:
+        # dropout ratio is 0: dropout is not applied.
         return op.Identity(inputs[0])
     return None
 
