@@ -404,7 +404,7 @@ func (float[1,3] x) => (float[1,3] return_val) {
     )
     def test_dropout_identity(self, dropout_node: str):
         if not self.using_ir:
-            return
+            self.skipTest("New optimizations not supported for legacy optimizer")
         model = onnx.parser.parse_model(f"""
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[N] input) => (float[N] output)
@@ -419,7 +419,7 @@ func (float[1,3] x) => (float[1,3] return_val) {
 
     def test_concat_identity(self):
         if not self.using_ir:
-            return
+            self.skipTest("New optimizations not supported for legacy optimizer")
         model = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
