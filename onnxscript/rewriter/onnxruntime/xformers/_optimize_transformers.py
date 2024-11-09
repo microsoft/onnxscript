@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import onnxscript.ir as ir
-from onnxscript.optimizer import _constant_folding, remove_unused_nodes
+from onnxscript.optimizer import fold_constants_ir, remove_unused_nodes
 from onnxscript.rewriter.onnxruntime.xformers import (
     mha_rules,
     rms_normalization_rules,
@@ -18,15 +18,13 @@ def optimize(irmodel: ir.Model, verbose: int = 0) -> None:
         count = rule.apply_to_model(irmodel, verbose=verbose)
         print(f"{rulename} count: {count}")
 
-    _constant_folding.fold_constants(
-        irmodel, input_size_limit=5120000 * 4, output_size_limit=5120000 * 4
-    )
+    fold_constants_ir(irmodel, input_size_limit=5120000 * 4, output_size_limit=5120000 * 4)
     remove_unused_nodes(irmodel)
 
     apply("RMS Normalization", rms_normalization_rules)
     apply("Skip Normalization", skip_normalization_rules)
 
-    _constant_folding.fold_constants(irmodel)
+    fold_constants_ir(irmodel)
     remove_unused_nodes(irmodel)
 
     apply("SDPA-Attention", sdpa_rules)
