@@ -86,13 +86,13 @@ class TestOptimizeTransformers(unittest.TestCase):
 
     def test_sdpa_attention(self):
         model = _get_model(modeling_llama.LlamaSdpaAttention, with_mask=False)
-        optimize_transformers.optimize(model, verbose=10)
+        optimize_transformers.optimize(model)
         op_types = [n.op_type for n in model.graph]
         self.assertIn("MultiHeadAttention", op_types)
 
     def test_masked_sdpa_attention(self):
         model = _get_model(modeling_llama.LlamaSdpaAttention, with_mask=True)
-        optimize_transformers.optimize(model, verbose=10)
+        optimize_transformers.optimize(model)
         op_types = [n.op_type for n in model.graph]
         self.assertIn("MultiHeadAttention", op_types)
 

@@ -13,6 +13,7 @@ from typing import Any, Callable, Iterable, Sequence, Union
 
 import numpy as np
 import onnx
+import onnx.helper
 import onnx.reference.ops
 
 import onnxscript.ir as ir
@@ -434,17 +435,25 @@ def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
 @register("Dropout", version=(12, None))
 def dropout(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     """Replace a Dropout by Identity when applicable."""
-    if len(node.outputs) != 1:
-        # If output mask is requested, optimization is more complex.
-        # TODO: handle this case. But unlikely to be needed in practice.
-        return None
+
+    def optimized_dropout():
+        input = node.inputs[0]
+        output = op.Identity(input)
+        if len(node.outputs) == 1:
+            return output
+        else:
+            true_tensor = onnx.helper.make_tensor("true", onnx.TensorProto.BOOL, [1], [True])
+            input_shape = op.Shape(input)
+            mask = op.ConstantOfShape(input_shape, value=true_tensor)
+            return output, mask
+
     inputs = node.inputs
     if (len(inputs) <= 2) or inputs[2] is None:
         # No training_mode specified:
-        return op.Identity(inputs[0])
+        return optimized_dropout()
     if _get_bool_value(inputs[2]) is False:
         # training_mode is False: dropout is not applied.
-        return op.Identity(inputs[0])
+        return optimized_dropout()
     ratio = _get_numpy_value(inputs[1])
     if ratio is None:
         return None
@@ -452,7 +461,7 @@ def dropout(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         return None
     if ratio.item() == 0:
         # dropout ratio is 0: dropout is not applied.
-        return op.Identity(inputs[0])
+        return optimized_dropout()
     return None
 
 
