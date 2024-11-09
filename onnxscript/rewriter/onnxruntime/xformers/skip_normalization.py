@@ -5,7 +5,7 @@ from __future__ import annotations
 from onnxscript.rewriter import pattern
 
 
-def skip_norm_pattern(op, input, skip, gamma, epsilon, stash_type):
+def _skip_norm_pattern(op, input, skip, gamma, epsilon, stash_type):
     skip_sum = op.Add(input, skip)
     normalized = op.SimplifiedLayerNormalization(
         skip_sum,
@@ -18,7 +18,7 @@ def skip_norm_pattern(op, input, skip, gamma, epsilon, stash_type):
     return normalized, skip_sum
 
 
-def skip_normalization(op, input, skip, gamma, epsilon, stash_type):
+def _skip_normalization(op, input, skip, gamma, epsilon, stash_type):
     normalized, mean, inv_std_var, skip_sum = op.SkipSimplifiedLayerNormalization(
         input,
         skip,
@@ -31,6 +31,8 @@ def skip_normalization(op, input, skip, gamma, epsilon, stash_type):
     return normalized, skip_sum
 
 
-skip_normalization_rules = pattern.RewriteRule(
-    skip_norm_pattern, skip_normalization, matcher=pattern.SimplePatternMatcher
+_rule = pattern.RewriteRule(
+    _skip_norm_pattern, _skip_normalization, matcher=pattern.SimplePatternMatcher
 )
+
+skip_normalization_rules = pattern.RewriteRuleSet([_rule])
