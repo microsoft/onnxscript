@@ -2718,15 +2718,13 @@ class Attr(_protocols.AttributeProtocol, _display.PrettyPrintable):
     # Well typed getters
     def as_float(self) -> float:
         """Get the attribute value as a float."""
-        if not isinstance(self.value, (int, float)):
-            raise TypeError(f"Value of attribute '{self!r}' is not a float.")
+        # Do not use isinstance check because it may prevent np.float32 etc. from being used
         return float(self.value)
 
     def as_int(self) -> int:
         """Get the attribute value as an int."""
-        if not isinstance(self.value, int):
-            raise TypeError(f"Value of attribute '{self!r}' is not an int.")
-        return self.value
+        # Do not use isinstance check because it may prevent np.int32 etc. from being used
+        return int(self.value)
 
     def as_string(self) -> str:
         """Get the attribute value as a string."""
@@ -2750,19 +2748,15 @@ class Attr(_protocols.AttributeProtocol, _display.PrettyPrintable):
         """Get the attribute value as a sequence of floats."""
         if not isinstance(self.value, Sequence):
             raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
-        if onnxscript.DEBUG:
-            if not all(isinstance(x, (int, float)) for x in self.value):
-                raise TypeError(f"Value of attribute '{self!r}' is not a Sequence of floats.")
+        # Do not use isinstance check on elements because it may prevent np.int32 etc. from being used
         # Create a copy of the list to prevent mutation
-        return list(self.value)
+        return [float(v) for v in self.value]
 
     def as_ints(self) -> Sequence[int]:
         """Get the attribute value as a sequence of ints."""
         if not isinstance(self.value, Sequence):
             raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
-        if onnxscript.DEBUG:
-            if not all(isinstance(x, int) for x in self.value):
-                raise TypeError(f"Value of attribute '{self!r}' is not a Sequence of ints.")
+        # Do not use isinstance check on elements because it may prevent np.int32 etc. from being used
         # Create a copy of the list to prevent mutation
         return list(self.value)
 
