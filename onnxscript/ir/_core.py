@@ -2715,6 +2715,87 @@ class Attr(_protocols.AttributeProtocol, _display.PrettyPrintable):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name!r}, {self.type!r}, {self.value!r})"
 
+    # Well typed getters
+    def as_float(self) -> float:
+        """Get the attribute value as a float."""
+        if not isinstance(self.value, (int, float)):
+            raise TypeError(f"Value of attribute '{self!r}' is not a float.")
+        return float(self.value)
+
+    def as_int(self) -> int:
+        """Get the attribute value as an int."""
+        if not isinstance(self.value, int):
+            raise TypeError(f"Value of attribute '{self!r}' is not an int.")
+        return self.value
+
+    def as_string(self) -> str:
+        """Get the attribute value as a string."""
+        if not isinstance(self.value, str):
+            raise TypeError(f"Value of attribute '{self!r}' is not a string.")
+        return self.value
+
+    def as_tensor(self) -> _protocols.TensorProtocol:
+        """Get the attribute value as a tensor."""
+        if not isinstance(self.value, _protocols.TensorProtocol):
+            raise TypeError(f"Value of attribute '{self!r}' is not a tensor.")
+        return self.value
+
+    def as_graph(self) -> Graph:
+        """Get the attribute value as a graph."""
+        if not isinstance(self.value, Graph):
+            raise TypeError(f"Value of attribute '{self!r}' is not a graph.")
+        return self.value
+
+    def as_floats(self) -> Sequence[float]:
+        """Get the attribute value as a sequence of floats."""
+        if not isinstance(self.value, Sequence):
+            raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
+        if onnxscript.DEBUG:
+            if not all(isinstance(x, (int, float)) for x in self.value):
+                raise TypeError(f"Value of attribute '{self!r}' is not a Sequence of floats.")
+        # Create a copy of the list to prevent mutation
+        return list(self.value)
+
+    def as_ints(self) -> Sequence[int]:
+        """Get the attribute value as a sequence of ints."""
+        if not isinstance(self.value, Sequence):
+            raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
+        if onnxscript.DEBUG:
+            if not all(isinstance(x, int) for x in self.value):
+                raise TypeError(f"Value of attribute '{self!r}' is not a Sequence of ints.")
+        # Create a copy of the list to prevent mutation
+        return list(self.value)
+
+    def as_strings(self) -> Sequence[str]:
+        """Get the attribute value as a sequence of strings."""
+        if not isinstance(self.value, Sequence):
+            raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
+        if onnxscript.DEBUG:
+            if not all(isinstance(x, str) for x in self.value):
+                raise TypeError(f"Value of attribute '{self!r}' is not a Sequence of strings.")
+        # Create a copy of the list to prevent mutation
+        return list(self.value)
+
+    def as_tensors(self) -> Sequence[_protocols.TensorProtocol]:
+        """Get the attribute value as a sequence of tensors."""
+        if not isinstance(self.value, Sequence):
+            raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
+        if onnxscript.DEBUG:
+            if not all(isinstance(x, _protocols.TensorProtocol) for x in self.value):
+                raise TypeError(f"Value of attribute '{self!r}' is not a Sequence of tensors.")
+        # Create a copy of the list to prevent mutation
+        return list(self.value)
+
+    def as_graphs(self) -> Sequence[Graph]:
+        """Get the attribute value as a sequence of graphs."""
+        if not isinstance(self.value, Sequence):
+            raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
+        if onnxscript.DEBUG:
+            if not all(isinstance(x, Graph) for x in self.value):
+                raise TypeError(f"Value of attribute '{self!r}' is not a Sequence of graphs.")
+        # Create a copy of the list to prevent mutation
+        return list(self.value)
+
 
 # NOTE: The following functions are just for convenience
 def AttrFloat32(name: str, value: float, doc_string: str | None = None) -> Attr:
