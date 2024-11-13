@@ -843,6 +843,30 @@ class GraphTest(unittest.TestCase):
         self.assertEqual(tuple(graph), (sub_node, identity_node))
         self.assertEqual(add_node.inputs, (None, None))
 
+    def test_register_initializer(self):
+        self.v1.const_value = ir.tensor([1, 2, 3])
+        self.graph.register_initializer(self.v1)
+        self.assertEqual(self.graph.initializers, {self.v1.name: self.v1})
+
+    def test_register_initializer_raises_when_value_is_not_constant(self):
+        with self.assertRaises(ValueError):
+            self.graph.register_initializer(self.v0)
+
+    def test_register_initializer_raises_when_a_different_value_is_already_registered(self):
+        self.v1.const_value = ir.tensor([1, 2, 3])
+        self.graph.register_initializer(self.v1)
+        # This is fine
+        self.graph.register_initializer(self.v1)
+        self.v0.name = "v1"
+        with self.assertRaisesRegex(ValueError, "already registered"):
+            # Registering a different value with the same name should raise
+            self.graph.register_initializer(self.v0)
+
+    def test_register_initializer_raises_when_value_does_not_have_a_name(self):
+        self.v1.name = None
+        with self.assertRaises(ValueError):
+            self.graph.register_initializer(self.v1)
+
     # TODO(justinchuby): Test graph mutation methods
 
     # Test topological sort.

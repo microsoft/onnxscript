@@ -1824,6 +1824,42 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def initializers(self) -> dict[str, Value]:
         return self._initializers
 
+    def register_initializer(self, value: Value) -> None:
+        """Register an initializer to the graph.
+
+        This is a convenience method to register an initializer to the graph with
+        checks.
+
+        Args:
+            value: The :class:`Value` to register as an initializer of the graph.
+                It must have its ``.const_value`` set.
+
+        Raises:
+            ValueError: If a value of the same name that is not this value
+                is already registered.
+            ValueError: If the value does not have a name.
+            ValueError: If the initializer is produced by a node.
+            ValueError: If the value does not have its ``.const_value`` set.
+        """
+        if value.name in self._initializers:
+            if self._initializers[value.name] is not value:
+                raise ValueError(
+                    f"Initializer '{value.name}' is already registered, but"
+                    " it is not the same object: existing={self._initializers[value.name]!r},"
+                    f" new={value!r}"
+                )
+        if not value.name:
+            raise ValueError(f"Initializer must have a name: {value!r}")
+        if value.producer() is not None:
+            raise ValueError(
+                f"Value '{value!r}' is produced by a node and cannot be an initializer."
+            )
+        if value.const_value is None:
+            raise ValueError(
+                f"Value '{value!r}' must have its const_value set to be an initializer."
+            )
+        self._initializers[value.name] = value
+
     @property
     def doc_string(self) -> str | None:
         return self._doc_string
