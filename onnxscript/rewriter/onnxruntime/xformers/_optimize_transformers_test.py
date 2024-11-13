@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+from parameterized import parameterized
 import unittest
 
 import torch
@@ -41,10 +42,6 @@ _config = LlamaConfig(
     vocab_size=49152,
 )
 
-# Create a LlamaAttention object with the desired parameters
-# model = modeling_llama.LlamaAttention(_config, 0)
-model = modeling_llama.LlamaSdpaAttention(_config, 0)
-
 # Dimensions for inputs:
 _batch_size = 1
 _seq_len = 10
@@ -66,33 +63,24 @@ def _get_model(llama_attention_class, with_mask: bool):
     else:
         inputs = (_hidden_states, None, _position_ids)
     exported = torch.onnx.export(model, inputs, dynamo=True)
+    # ORT Transformer optimizations are applied after basic optimization.
     onnxscript.optimizer.optimize(exported.model)
-    # optimize_transformers.basic_optimize(exported.model)
     return exported.model
 
 
 class TestOptimizeTransformers(unittest.TestCase):
-    def test_attention(self):
-        model = _get_model(modeling_llama.LlamaAttention, with_mask=False)
+    @parameterized.expand([
+        ("attention", modeling_llama.LlamaAttention, False),
+        ("masked_attention", modeling_llama.LlamaAttention, True),
+        ("sdpa_attention", modeling_llama.LlamaSdpaAttention, False),
+        ("masked_sdpa_attention", modeling_llama.LlamaSdpaAttention, True),
+    ])
+    def test_attention_optimization(self, name, attention_class, with_mask):
+        model = _get_model(attention_class, with_mask)
+        model.display()
+        print("======>")
         optimize_transformers.optimize(model)
-        op_types = [n.op_type for n in model.graph]
-        self.assertIn("MultiHeadAttention", op_types)
-
-    def test_masked_attention(self):
-        model = _get_model(modeling_llama.LlamaAttention, with_mask=True)
-        optimize_transformers.optimize(model)
-        op_types = [n.op_type for n in model.graph]
-        self.assertIn("MultiHeadAttention", op_types)
-
-    def test_sdpa_attention(self):
-        model = _get_model(modeling_llama.LlamaSdpaAttention, with_mask=False)
-        optimize_transformers.optimize(model)
-        op_types = [n.op_type for n in model.graph]
-        self.assertIn("MultiHeadAttention", op_types)
-
-    def test_masked_sdpa_attention(self):
-        model = _get_model(modeling_llama.LlamaSdpaAttention, with_mask=True)
-        optimize_transformers.optimize(model)
+        model.display()
         op_types = [n.op_type for n in model.graph]
         self.assertIn("MultiHeadAttention", op_types)
 

@@ -30,3 +30,5 @@ def optimize(irmodel: ir.Model, verbose: int = 0) -> None:
     apply("SDPA-Attention", sdpa_rules)
     apply("RotaryEmbedding", rotary_embedding_rules)
     apply("Multi-Head-Attention", mha_rules)
+
+    remove_unused_nodes(irmodel)
