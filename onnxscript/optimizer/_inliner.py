@@ -81,10 +81,10 @@ class _CopyReplace:
     def clone_attr(self, key: str, attr: ir.Attr | ir.RefAttr) -> ir.Attr | ir.RefAttr | None:
         if isinstance(attr, ir.Attr):
             if attr.type == ir.AttributeType.GRAPH:
-                graph = self.clone_graph(attr.value)
+                graph = self.clone_graph(attr.as_graph())
                 return ir.Attr(key, ir.AttributeType.GRAPH, graph, doc_string=attr.doc_string)
             elif attr.type == ir.AttributeType.GRAPHS:
-                graphs = [self.clone_graph(graph) for graph in attr.value]
+                graphs = [self.clone_graph(graph) for graph in attr.as_graphs()]
                 return ir.Attr(
                     key, ir.AttributeType.GRAPHS, graphs, doc_string=attr.doc_string
                 )
@@ -297,9 +297,9 @@ class _Inliner:
                     if not isinstance(attr, ir.Attr):
                         continue
                     if attr.type == ir.AttributeType.GRAPH:
-                        self.inline_calls_in(attr.value)
+                        self.inline_calls_in(attr.as_graph())
                     elif attr.type == ir.AttributeType.GRAPHS:
-                        for graph in attr.value:
+                        for graph in attr.as_graphs():
                             self.inline_calls_in(graph)
 
 

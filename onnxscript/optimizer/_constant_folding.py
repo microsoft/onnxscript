@@ -376,7 +376,7 @@ def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         if graph_attr.type != ir.AttributeType.GRAPH:
             return None
         assert isinstance(graph_attr, ir.Attr)
-        graph: ir.Graph = graph_attr.value
+        graph = graph_attr.as_graph()
         formal_outs = graph.outputs
         actual_outs = node.outputs
         renamings = {
@@ -801,10 +801,10 @@ class ConstantFolder:
     def visit_attribute(self, attr: ir.Attr | ir.RefAttr) -> None:
         if isinstance(attr, ir.Attr):
             if attr.type == ir.AttributeType.GRAPH:
-                self.visit_graph(attr.value)  # type: ignore[arg-type]
+                self.visit_graph(attr.as_graph())
             elif attr.type == ir.AttributeType.GRAPHS:
-                for graph in attr.value:
-                    self.visit_graph(graph)  # type: ignore[arg-type]
+                for graph in attr.as_graphs():
+                    self.visit_graph(graph)
 
     def visit_node(self, node: ir.Node, root: ir.Graph | ir.Function):
         replacement = self.process_node(node)

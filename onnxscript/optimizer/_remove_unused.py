@@ -75,9 +75,9 @@ def process_function_or_graph(function_or_graph: ir.Function | ir.Graph) -> int:
                 if not isinstance(attr, ir.Attr):
                     continue
                 if attr.type == ir.AttributeType.GRAPH:
-                    count += process_function_or_graph(attr.value)
+                    count += process_function_or_graph(attr.as_graph())
                 elif attr.type == ir.AttributeType.GRAPHS:
-                    for graph in attr.value:
+                    for graph in attr.as_graphs():
                         count += process_function_or_graph(graph)
     return count
 
