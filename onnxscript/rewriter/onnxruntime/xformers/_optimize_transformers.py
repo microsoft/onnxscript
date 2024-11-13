@@ -13,6 +13,10 @@ from onnxscript.rewriter.onnxruntime.xformers import (
 )
 
 
+def fuse_rotary_embedding(irmodel: ir.Model) -> None:
+    count = rotary_embedding_rules.apply_to_model(irmodel)
+    print(f"RotaryEmbedding count: {count}")
+
 def optimize(irmodel: ir.Model, verbose: int = 0) -> None:
     def apply(rulename: str, rule):
         count = rule.apply_to_model(irmodel, verbose=verbose)

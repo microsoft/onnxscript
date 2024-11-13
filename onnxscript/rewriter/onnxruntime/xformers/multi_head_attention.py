@@ -31,6 +31,7 @@ Finally, the output is transposed and reshaped back to (B, S, D) shape
 
 
 def _project_transpose_head(op, input, weight):
+    """Applied to each of Q, K, and V."""
     projected = op.MatMul(input, weight)
     # Reshape from (B, S, D) to (B, S, H, D/H)
     reshaped = op.Reshape(projected, _allow_other_inputs=True, _allow_other_attributes=True)
