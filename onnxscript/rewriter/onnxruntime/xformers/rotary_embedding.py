@@ -35,7 +35,7 @@ def _rotary_embedding(op, x, cos, sin, start1, end1, start2, end2):
         and start2_val == half_dim_size
         and end2_val >= dim_size
     ):
-        return op.RotaryEmbedding(x, cos, sin, _domain="local")
+        return op.RotaryEmbedding(x, cos, sin, interleaved=0, _domain="com.microsoft")
     return None
 
 

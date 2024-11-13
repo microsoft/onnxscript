@@ -139,6 +139,7 @@ class TestOptimizeTransformers(unittest.TestCase):
     @parameterized.expand(_test_case_tuples)
     def test_attention_optimization(self, test_data: _TestData):
         model = test_data.get_onnx_model()
+        # io.save(model, os.path.join(r"C:\repos\onnxscript\smy\Models", f"{test_data.name}.onnx"))
         # model.display()
         # print("======>")
         optimize_transformers.fuse_rotary_embedding(model)
