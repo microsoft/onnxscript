@@ -834,6 +834,8 @@ class ConstantFolder:
             self.replace_node(node, replacement, root)
 
     def visit_graph(self, graph: ir.Graph) -> None:
+        # Track inputs that have a const_value (which is really a default-value, and should not
+        # be used for constant-folding).
         self._state.push_initializer_inputs()
         for input in graph.inputs:
             if input.const_value is not None:
