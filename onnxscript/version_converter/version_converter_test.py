@@ -183,7 +183,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph.node(1).version, 20)
         self.assertEqual(model.graph.node(4).op_type, "GridSample")
         self.assertEqual(model.graph.node(4).version, 20)
-        self.assertEqual(model.graph.node(4)._attributes["mode"].value, "linear")
+        self.assertEqual(model.graph.node(4).attributes["mode"].value, "linear")
         self.assertEqual(model.graph.node(6).op_type, "DFT")
         self.assertEqual(model.graph.node(6).version, 20)
         self.assertEqual(len(model.graph.node(6).inputs), 2)

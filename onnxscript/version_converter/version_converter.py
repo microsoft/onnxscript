@@ -58,7 +58,7 @@ class AdapterRegistry:
         opname: str,
         original_version: int,
         up_conversion: bool = True,
-    ) -> Union[VersionAdapter, None]:
+    ) -> Union[AdapterFunction, None]:
         adapter = self.op_adapters.get((domain, opname, original_version, up_conversion), None)
         if adapter is not None:
             return adapter.function
@@ -222,7 +222,7 @@ class _VersionConverter:
             node.domain, node.op_type, opset_version, up_conversion
         )
         if adapter is None:
-            return
+            return None
         context = orp.RewriterContext()
         output = adapter(node, context)
         if output is not None:
@@ -279,9 +279,10 @@ class _VersionConverter:
             return None
 
         up_conversion = True
-        # TODO (shubhambhokare1) : Remove once down-conversion adapters are supoorted
         if self.target_version < model_version:
             up_conversion = False
+        # TODO (shubhambhokare1) : Remove once down-conversion adapters are supoorted
+        if up_conversion is False:
             logger.warning(
                 "Target opset: %s less than %s, downstream version conversion not currently handled.",
                 self.target_version,
