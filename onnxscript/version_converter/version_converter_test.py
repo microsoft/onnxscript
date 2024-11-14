@@ -31,7 +31,6 @@ class VersionConverter18to17Test(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         target_version = 17
         version_converter.convert_version(model, target_version=target_version)
-        nodes = model.graph._nodes
 
 
 class VersionConverter18to19Test(unittest.TestCase):
@@ -54,14 +53,13 @@ class VersionConverter18to19Test(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         target_version = 19
         version_converter.convert_version(model, target_version=target_version)
-        nodes = model.graph._nodes
 
-        self.assertEqual(nodes[0].op_type, "Constant")
-        self.assertEqual(nodes[0].version, 19)
-        self.assertEqual(nodes[1].op_type, "Reshape")
-        self.assertEqual(nodes[1].version, 19)
-        self.assertEqual(nodes[4].op_type, "MatMul")
-        self.assertEqual(nodes[4].version, 19)
+        self.assertEqual(model.graph.node(0).op_type, "Constant")
+        self.assertEqual(model.graph.node(0).version, 19)
+        self.assertEqual(model.graph.node(1).op_type, "Reshape")
+        self.assertEqual(model.graph.node(1).version, 19)
+        self.assertEqual(model.graph.node(4).op_type, "MatMul")
+        self.assertEqual(model.graph.node(4).version, 19)
 
 
 class VersionConverter19to20Test(unittest.TestCase):
@@ -82,17 +80,16 @@ class VersionConverter19to20Test(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         target_version = 20
         version_converter.convert_version(model, target_version=target_version)
-        nodes = model.graph._nodes
 
-        self.assertEqual(nodes[0].op_type, "Constant")
-        self.assertEqual(nodes[0].version, 20)
-        self.assertEqual(nodes[1].op_type, "Reshape")
-        self.assertEqual(nodes[1].version, 20)
-        self.assertEqual(nodes[2].op_type, "Constant")
-        self.assertEqual(nodes[2].version, 20)
-        self.assertEqual(nodes[3].op_type, "DFT")
-        self.assertEqual(nodes[3].version, 20)
-        self.assertEqual(len(nodes[3].inputs), 2)
+        self.assertEqual(model.graph.node(0).op_type, "Constant")
+        self.assertEqual(model.graph.node(0).version, 20)
+        self.assertEqual(model.graph.node(1).op_type, "Reshape")
+        self.assertEqual(model.graph.node(1).version, 20)
+        self.assertEqual(model.graph.node(2).op_type, "Constant")
+        self.assertEqual(model.graph.node(3).version, 20)
+        self.assertEqual(model.graph.node(3).op_type, "DFT")
+        self.assertEqual(model.graph.node(3).version, 20)
+        self.assertEqual(len(model.graph.node(3).inputs), 2)
 
     def test_version_convert_gridsample_linear(self):
         model_proto = onnx.parser.parse_model(
@@ -111,20 +108,19 @@ class VersionConverter19to20Test(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        self.assertEqual(model.graph._nodes[4].op_type, "GridSample")
-        self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "bilinear")
+        self.assertEqual(model.graph.node(4).op_type, "GridSample")
+        self.assertEqual(model.graph.node(4).attributes["mode"].value, "bilinear")
 
         target_version = 20
         version_converter.convert_version(model, target_version=target_version)
-        nodes = model.graph._nodes
 
-        self.assertEqual(nodes[0].op_type, "Constant")
-        self.assertEqual(nodes[0].version, 20)
-        self.assertEqual(nodes[1].op_type, "Reshape")
-        self.assertEqual(nodes[1].version, 20)
-        self.assertEqual(nodes[4].op_type, "GridSample")
-        self.assertEqual(nodes[4].version, 20)
-        self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "linear")
+        self.assertEqual(model.graph.node(0).op_type, "Constant")
+        self.assertEqual(model.graph.node(0).version, 20)
+        self.assertEqual(model.graph.node(1).op_type, "Reshape")
+        self.assertEqual(model.graph.node(1).version, 20)
+        self.assertEqual(model.graph.node(4).op_type, "GridSample")
+        self.assertEqual(model.graph.node(4).version, 20)
+        self.assertEqual(model.graph.node(4).attributes["mode"].value, "linear")
 
     def test_version_convert_gridsample_cubic(self):
         model_proto = onnx.parser.parse_model(
@@ -143,20 +139,19 @@ class VersionConverter19to20Test(unittest.TestCase):
         """
         )
         model = ir.serde.deserialize_model(model_proto)
-        self.assertEqual(model.graph._nodes[4].op_type, "GridSample")
-        self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "bicubic")
+        self.assertEqual(model.graph.node(4).op_type, "GridSample")
+        self.assertEqual(model.graph.node(4).attributes["mode"].value, "bicubic")
 
         target_version = 20
         version_converter.convert_version(model, target_version=target_version)
-        nodes = model.graph._nodes
 
-        self.assertEqual(nodes[0].op_type, "Constant")
-        self.assertEqual(nodes[0].version, 20)
-        self.assertEqual(nodes[1].op_type, "Reshape")
-        self.assertEqual(nodes[1].version, 20)
-        self.assertEqual(nodes[4].op_type, "GridSample")
-        self.assertEqual(nodes[4].version, 20)
-        self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "cubic")
+        self.assertEqual(model.graph.node(0).op_type, "Constant")
+        self.assertEqual(model.graph.node(0).version, 20)
+        self.assertEqual(model.graph.node(1).op_type, "Reshape")
+        self.assertEqual(model.graph.node(1).version, 20)
+        self.assertEqual(model.graph.node(4).op_type, "GridSample")
+        self.assertEqual(model.graph.node(4).version, 20)
+        self.assertEqual(model.graph.node(4).attributes["mode"].value, "cubic")
 
     def test_version_convert_inline(self):
         model_proto = onnx.parser.parse_model(
@@ -181,18 +176,17 @@ class VersionConverter19to20Test(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         target_version = 20
         version_converter.convert_version(model, target_version=target_version)
-        nodes = model.graph._nodes
 
-        self.assertEqual(nodes[0].op_type, "Constant")
-        self.assertEqual(nodes[0].version, 20)
-        self.assertEqual(nodes[1].op_type, "Reshape")
-        self.assertEqual(nodes[1].version, 20)
-        self.assertEqual(nodes[4].op_type, "GridSample")
-        self.assertEqual(nodes[4].version, 20)
-        self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "linear")
-        self.assertEqual(nodes[6].op_type, "DFT")
-        self.assertEqual(nodes[6].version, 20)
-        self.assertEqual(len(nodes[6].inputs), 2)
+        self.assertEqual(model.graph.node(0).op_type, "Constant")
+        self.assertEqual(model.graph.node(0).version, 20)
+        self.assertEqual(model.graph.node(1).op_type, "Reshape")
+        self.assertEqual(model.graph.node(1).version, 20)
+        self.assertEqual(model.graph.node(4).op_type, "GridSample")
+        self.assertEqual(model.graph.node(4).version, 20)
+        self.assertEqual(model.graph.node(4)._attributes["mode"].value, "linear")
+        self.assertEqual(model.graph.node(6).op_type, "DFT")
+        self.assertEqual(model.graph.node(6).version, 20)
+        self.assertEqual(len(model.graph.node(6).inputs), 2)
 
 
 class VersionConverter20to21Test(unittest.TestCase):
@@ -211,22 +205,21 @@ class VersionConverter20to21Test(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         target_version = 21
         version_converter.convert_version(model, target_version=target_version)
-        nodes = model.graph._nodes
 
-        self.assertEqual(nodes[3].op_type, "Reshape")
-        self.assertEqual(nodes[3].version, 21)
-        self.assertEqual(nodes[4].op_type, "Expand")
-        self.assertEqual(nodes[4].version, 21)
-        self.assertEqual(nodes[5].op_type, "Reshape")
-        self.assertEqual(nodes[5].version, 21)
-        self.assertEqual(nodes[6].op_type, "Reshape")
-        self.assertEqual(nodes[6].version, 21)
-        self.assertEqual(nodes[7].op_type, "Expand")
-        self.assertEqual(nodes[7].version, 21)
-        self.assertEqual(nodes[8].op_type, "Reshape")
-        self.assertEqual(nodes[8].version, 21)
-        self.assertEqual(nodes[9].op_type, "GroupNormalization")
-        self.assertEqual(nodes[9].version, 21)
+        self.assertEqual(model.graph.node(3).op_type, "Reshape")
+        self.assertEqual(model.graph.node(3).version, 21)
+        self.assertEqual(model.graph.node(4).op_type, "Expand")
+        self.assertEqual(model.graph.node(4).version, 21)
+        self.assertEqual(model.graph.node(5).op_type, "Reshape")
+        self.assertEqual(model.graph.node(5).version, 21)
+        self.assertEqual(model.graph.node(6).op_type, "Reshape")
+        self.assertEqual(model.graph.node(6).version, 21)
+        self.assertEqual(model.graph.node(7).op_type, "Expand")
+        self.assertEqual(model.graph.node(7).version, 21)
+        self.assertEqual(model.graph.node(8).op_type, "Reshape")
+        self.assertEqual(model.graph.node(8).version, 21)
+        self.assertEqual(model.graph.node(9).op_type, "GroupNormalization")
+        self.assertEqual(model.graph.node(9).version, 21)
 
 
 class VersionConverter23to24Test(unittest.TestCase):

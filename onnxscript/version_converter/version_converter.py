@@ -58,7 +58,7 @@ class AdapterRegistry:
         opname: str,
         original_version: int,
         up_conversion: bool = True,
-    ):
+    ) -> Union[VersionAdapter, None]:
         adapter = self.op_adapters.get((domain, opname, original_version, up_conversion), None)
         if adapter is not None:
             return adapter.function
@@ -165,11 +165,13 @@ def groupnormalization_20_21(node: ir.Node, op):
     x = _get_input(node, 0)
     scale = _get_input(node, 1)
     bias = _get_input(node, 2)
+    if x is None or scale is None or bias is None:
+        return None
 
     x_shape = x.shape
-    num_channels = x_shape[1]
     if x_shape is None:
         return None
+    num_channels = x_shape[1]
     if not isinstance(num_channels, int):
         return None
 
@@ -273,6 +275,8 @@ class _VersionConverter:
     def visit_model(self, model: ir.Model) -> None:
         self.opset_imports = model.opset_imports
         model_version = model.opset_imports.get("")
+        if model_version is None:
+            return None
 
         up_conversion = True
         # TODO (shubhambhokare1) : Remove once down-conversion adapters are supoorted
@@ -283,7 +287,7 @@ class _VersionConverter:
                 self.target_version,
                 model_version,
             )
-            return
+            return None
         # Iterate from current model version -> target version
         # Updating each node based on the correct adapter
         # Up-conversion [ver->ver+1] or down-conversion [ver->ver-1]
@@ -294,7 +298,7 @@ class _VersionConverter:
                     opset_version,
                     opset_version + 1,
                 )
-                return
+                return None
 
             self.visit_graph(model.graph, opset_version, up_conversion)
 
