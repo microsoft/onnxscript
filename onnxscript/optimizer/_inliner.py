@@ -236,9 +236,8 @@ class _Inliner:
 
         # Identify call-stack for node, used to generate unique names.
         call_stack = self.node_context.get(node, [])
-        call_stack.append(call_site_id)
 
-        cloner = _CopyReplace(self, attributes, value_map, node.metadata_props, call_stack)
+        cloner = _CopyReplace(self, attributes, value_map, node.metadata_props, call_stack + [call_site_id])
 
         # iterate over the nodes in the function, creating a copy of each node
         # and replacing inputs with the corresponding values in the value map.
