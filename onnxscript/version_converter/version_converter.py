@@ -15,118 +15,7 @@ from onnxscript import ir
 logger = logging.getLogger(__name__)
 
 
-_ADAPTERS_18_19 = {
-    "Equal",
-    "AveragePool",
-    "Cast",
-    "CastLike",
-    "Constant",
-    "DequantizeLinear",
-    "Identity",
-    "If",
-    "Loop",
-    "Pad",
-    "QuantizeLinear",
-    "Reshape",
-    "Scan",
-    "Shape",
-    "Size",
-}
-
-
-_ADAPTERS_19_20 = {
-    "DFT",
-    "ConstantOfShape",
-    "IsInf",
-    "IsNan",
-    "ReduceMax",
-    "ReduceMin",
-    "GridSample",
-}
-
-
-_ADAPTERS_20_21 = {
-    "Cast",
-    "CastLike",
-    "Constant",
-    "ConstantOfShape",
-    "DequantizeLinear",
-    "Flatten",
-    "GroupNormalization",
-    "Identity",
-    "If",
-    "Loop",
-    "Pad",
-    "QLinearMatmul",
-    "QuantizeLinear",
-    "Reshape",
-    "Scan",
-    "Shape",
-    "Size",
-    "Squeeze",
-    "Transpose",
-    "Unsqueeze",
-}
-
-
-_ADAPTERS_21_22 = {
-    "EyeLike",
-    "RandomUniform",
-    "RandomNormal",
-    "RandomUniformLike",
-    "RandomNormalLike",
-    "Multinomial",
-    "Bernoulli",
-    "ThresholdedRelu",
-    "Selu",
-    "Elu",
-    "Mish",
-    "HardSigmoid",
-    "HardSwish",
-    "Softsign",
-    "Softplus",
-    "Sin",
-    "Cos",
-    "Tan",
-    "Asin",
-    "Acos",
-    "Atan",
-    "Sinh",
-    "Cosh",
-    "Asinh",
-    "Acosh",
-    "Atanh",
-    "Round",
-    "Det",
-    "NegativeLogLikelihoodLoss",
-    "AveragePool",
-    "MaxPool",
-    "MaxUnpool",
-    "LpPool",
-    "MaxRoiPool",
-    "Conv",
-    "ConvTranspose",
-    "DeformConv",
-    "GlobalAveragePool",
-    "GlobalMaxPool",
-    "GlobalLpPool",
-    "InstanceNormalization",
-    "LpNormalization",
-    "Dropout",
-    "RoiAlign",
-    "RNN",
-    "GRU",
-    "LSTM",
-    "GridSample",
-}
-
-
-_ADAPTER_SETS = {
-    (18, 19): _ADAPTERS_18_19,
-    (19, 20): _ADAPTERS_19_20,
-    (20, 21): _ADAPTERS_20_21,
-    (21, 22): _ADAPTERS_21_22,
-}
+CURRENT_MAX_ONNX_OPSET = 23
 
 
 @dataclasses.dataclass
@@ -137,70 +26,51 @@ class Replacement:
     new_nodes: Sequence[ir.Node]
 
 
-# A partial-evaluator function takes a node, a RewriterContext, OptimizerState and returns
-# a Replacement for the node or None (if no replacement is needed). It may also return just
-# the ir.Value or ir.Values to replace the output values of the node, when the new nodes
-# can be inferred from the RewriterContext used to build the new nodes.
+# A version-adapter function takes a node, a RewriterContext and returns
+# a Replacement for the node or None (if no replacement is needed).
 
 ReturnValue = Union[Replacement, Sequence[ir.Value], ir.Value, None]
 AdapterFunction = Callable[[ir.Node, orp.RewriterContext], ReturnValue]
 
 
 @dataclasses.dataclass
-class AdapterVersionChecker:
+class VersionAdapter:
     """A class that represents a version checker for a particular op.
 
-    It is applicable for a specific version upgrade (orignal_version -> target_version) of the op.
+    It is applicable for a specific version upgrade (orignal_version -> original_version + 1)
+    or downgrade (orignal_version -> original_version - 1)of the op.
     """
 
-    node_version: int | None
-    upgrade_version: int | None
+    node_version: int
+    up_conversion: bool
     function: AdapterFunction
-
-    def valid_for(self, opname: str, original_version: int, target_version: int) -> bool:
-        """Returns True if this evaluator is applicable for the given version upgrade."""
-        adapter_set = tuple((original_version, target_version))
-        if adapter_set not in _ADAPTER_SETS:
-            return False
-        if opname in _ADAPTER_SETS[adapter_set]:
-            return True
-        return False
 
 
 class AdapterRegistry:
     """A class that maintains a registry of adapters for ops."""
 
     def __init__(self):
-        self.op_adapters: dict[tuple[str, str], list[AdapterVersionChecker]] = {}
+        self.op_adapters: dict[tuple[str, str, int, bool], VersionAdapter] = {}
 
     def lookup_adapters(
-        self, domain: str, opname: str, original_version: int, target_version: int
+        self,
+        domain: str,
+        opname: str,
+        original_version: int,
+        up_conversion: bool = True,
     ):
-        adapter_list = self.op_adapters.get((domain, opname), [])
-        return [
-            adapter.function
-            for adapter in adapter_list
-            if adapter.valid_for(opname, original_version, target_version)
-        ]
+        adapter = self.op_adapters.get((domain, opname, original_version, up_conversion), None)
+        if adapter is not None:
+            return adapter.function
+        else:
+            return None
 
     def register(
-        self, opname: str, domain: str = "", node_version=None, upgrade_version=None
+        self, opname: str, domain: str = "", node_version=None, up_conversion=True
     ) -> Callable[[AdapterFunction], AdapterFunction]:
-        if (domain, opname) in self.op_adapters:
-            adapter_list = self.op_adapters[(domain, opname)]
-        else:
-            adapter_list = []
-            self.op_adapters[(domain, opname)] = adapter_list
-        if node_version is None or upgrade_version is None:
-            original_version = None
-            target_version = None
-        else:
-            original_version = node_version
-            target_version = upgrade_version
-
         def decorator(function: AdapterFunction) -> AdapterFunction:
-            adapter_list.append(
-                AdapterVersionChecker(original_version, target_version, function)
+            self.op_adapters[(domain, opname, node_version, up_conversion)] = VersionAdapter(
+                node_version, up_conversion, function
             )
             return function
 
@@ -257,7 +127,7 @@ def _get_str_attribute(node: ir.Node, name: str, default: str | None = None) -> 
 # Opset 19 -> 20
 
 
-@register("DFT", node_version=19, upgrade_version=20)
+@register("DFT", node_version=19, up_conversion=True)
 def dft_19_20(node: ir.Node, op):
     input = node.inputs[0]
     inverse = _get_int_attribute(node, "inverse", 0)
@@ -269,7 +139,7 @@ def dft_19_20(node: ir.Node, op):
     return None
 
 
-@register("GridSample", node_version=19, upgrade_version=20)
+@register("GridSample", node_version=19, up_conversion=True)
 def gridsample_19_20(node: ir.Node, op):
     x = node.inputs[0]
     grid = node.inputs[1]
@@ -290,7 +160,7 @@ def gridsample_19_20(node: ir.Node, op):
 # Opset 20 -> 21
 
 
-@register("GroupNormalization", node_version=20, upgrade_version=21)
+@register("GroupNormalization", node_version=20, up_conversion=True)
 def groupnormalization_20_21(node: ir.Node, op):
     x = _get_input(node, 0)
     scale = _get_input(node, 1)
@@ -343,22 +213,22 @@ class _VersionConverter:
     def __init__(self, target_version: int):
         self.target_version = target_version
 
-    def process_node(self, node: ir.Node, opset_version):
+    def process_node(self, node: ir.Node, opset_version, up_conversion: bool = True):
         if node.domain not in self.opset_imports:
             return None
-        op_adapters = registry.lookup_adapters(
-            node.domain, node.op_type, opset_version, opset_version + 1
+        adapter = registry.lookup_adapters(
+            node.domain, node.op_type, opset_version, up_conversion
         )
-        for adapter in op_adapters:
-            assert adapter
-            context = orp.RewriterContext()
-            output = adapter(node, context)
-            if output is not None:
-                if isinstance(output, Replacement):
-                    return output
-                if isinstance(output, ir.Value):
-                    output = [output]
-                return Replacement(output, context.nodes)
+        if adapter is None:
+            return
+        context = orp.RewriterContext()
+        output = adapter(node, context)
+        if output is not None:
+            if isinstance(output, Replacement):
+                return output
+            if isinstance(output, ir.Value):
+                output = [output]
+            return Replacement(output, context.nodes)
 
     def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function):
         logger.debug("Replacing node: %s::%s %s", node.domain, node.op_type, node.name)
@@ -367,48 +237,58 @@ class _VersionConverter:
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
 
-    def visit_attribute(self, attr: ir.Attr | ir.RefAttr, opset_version: int) -> None:
+    def visit_attribute(
+        self, attr: ir.Attr | ir.RefAttr, opset_version: int, up_conversion: bool = True
+    ) -> None:
         if isinstance(attr, ir.Attr):
             if attr.type == ir.AttributeType.GRAPH:
-                self.visit_graph(attr.value, opset_version)  # type: ignore[arg-type]
+                self.visit_graph(attr.value, opset_version, up_conversion)  # type: ignore[arg-type]
             elif attr.type == ir.AttributeType.GRAPHS:
                 for graph in attr.value:
-                    self.visit_graph(graph, opset_version)  # type: ignore[arg-type]
+                    self.visit_graph(graph, opset_version, up_conversion)  # type: ignore[arg-type]
 
-    def visit_node(self, node: ir.Node, root: ir.Graph | ir.Function, opset_version: int):
-        replacement = self.process_node(node, opset_version)
+    def visit_node(
+        self,
+        node: ir.Node,
+        root: ir.Graph | ir.Function,
+        opset_version: int,
+        up_conversion: bool = True,
+    ):
+        replacement = self.process_node(node, opset_version, up_conversion)
         if replacement is None:
             # No change. Process attributes.
             for attr in node.attributes.values():
-                self.visit_attribute(attr, opset_version)
+                self.visit_attribute(attr, opset_version, up_conversion)
             return None
         else:
             self.replace_node(node, replacement, root)
 
-    def visit_graph(self, graph: ir.Graph, opset_version: int) -> None:
+    def visit_graph(
+        self, graph: ir.Graph, opset_version: int, up_conversion: bool = True
+    ) -> None:
         for node in graph:
-            self.visit_node(node, graph, opset_version)
+            self.visit_node(node, graph, opset_version, up_conversion)
             node.version = self.target_version
-
-    def visit_function(self, function: ir.Function, opset_version: int) -> None:
-        for node in function:
-            self.visit_node(node, function, opset_version)
 
     def visit_model(self, model: ir.Model) -> None:
         self.opset_imports = model.opset_imports
         model_version = model.opset_imports.get("")
 
+        up_conversion = True
+        # TODO (shubhambhokare1) : Remove once down-conversion adapters are supoorted
         if self.target_version < model_version:
+            up_conversion = False
             logger.warning(
-                "Target opset: %s less than %s, downstream version conversion not currently supported.",
+                "Target opset: %s less than %s, downstream version conversion not currently handled.",
                 self.target_version,
                 model_version,
             )
             return
         # Iterate from current model version -> target version
-        # Updating each node based on the correct adapter [ver->ver+1]
+        # Updating each node based on the correct adapter
+        # Up-conversion [ver->ver+1] or down-conversion [ver->ver-1]
         for opset_version in range(model_version, self.target_version):
-            if tuple((opset_version, opset_version + 1)) not in _ADAPTER_SETS:
+            if up_conversion is True and opset_version == CURRENT_MAX_ONNX_OPSET:
                 logger.warning(
                     "Conversion from opset: %s to target opset: %s not currently supported.",
                     opset_version,
@@ -416,9 +296,7 @@ class _VersionConverter:
                 )
                 return
 
-            self.visit_graph(model.graph, opset_version)
-            for function in model.functions.values():
-                self.visit_function(function, opset_version)
+            self.visit_graph(model.graph, opset_version, up_conversion)
 
 
 def version_convert(model: ir.Model, target_version: int) -> None:

@@ -158,6 +158,42 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(nodes[4].version, 20)
         self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "cubic")
 
+    def test_version_convert_inline(self):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 8, opset_import: [ "" : 18]>
+            agraph (float[4, 512, 512] input_x, float[4, 1024, 1024] input_y) => (float[4, 257, 64, 2] output)
+            {
+                shape_a = Constant<value: tensor = int64[5] {1, 4, 512, 512}>()
+                reshape_x = Reshape (input_x, shape_a)
+                shape_b = Constant<value: tensor = int64[5] {1, 4, 1024, 1024}>()
+                reshape_y = Reshape (input_x, shape_b)
+                gridsample = GridSample <mode = "bilinear"> (reshape_x, reshape_y)
+                output = foo(gridsample)
+            }
+
+            <opset_import: [ "" : 18]>
+            foo (x) => (dft) {
+                dft = DFT <axis = 2, onesided = 1> (x)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        target_version = 20
+        version_converter.convert_version(model, target_version=target_version)
+        nodes = model.graph._nodes
+
+        self.assertEqual(nodes[0].op_type, "Constant")
+        self.assertEqual(nodes[0].version, 20)
+        self.assertEqual(nodes[1].op_type, "Reshape")
+        self.assertEqual(nodes[1].version, 20)
+        self.assertEqual(nodes[4].op_type, "GridSample")
+        self.assertEqual(nodes[4].version, 20)
+        self.assertEqual(model.graph._nodes[4]._attributes["mode"].value, "linear")
+        self.assertEqual(nodes[6].op_type, "DFT")
+        self.assertEqual(nodes[6].version, 20)
+        self.assertEqual(len(nodes[6].inputs), 2)
+
 
 class VersionConverter20to21Test(unittest.TestCase):
     def test_version_groupnorm(self):
