@@ -768,7 +768,7 @@ class ConstantFolder:
         if any(x is None for x in input_values):
             return None
 
-        if any(self._state.is_initializer_input(x) for x in node.inputs):
+        if any(self._state.is_initializer_input(x) for x in node.inputs):  # type: ignore[arg-type]
             return None
 
         if any(input.nbytes > self._input_size_limit for input in input_values):  # type: ignore[union-attr]
