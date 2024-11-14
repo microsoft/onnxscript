@@ -46,7 +46,6 @@ def _check_if_redundant_slice(
         logger.info("The value 'step' is not a scalar.")
         return False
 
-
     if steps_const.numpy().item() != 1:
         logger.info("The value 'step' is not 1.")
         return False
