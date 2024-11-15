@@ -434,6 +434,22 @@ func (float[1,3] x) => (float[1,3] return_val) {
         self.assertEqual(len(optimized.graph.node), 1)
         self.assertEqual(optimized.graph.node[0].op_type, "Identity")
 
+    def test_expand_identity(self):
+        if not self.using_ir:
+            self.skipTest("New optimizations not supported for legacy optimizer")
+        model = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[128, 256] x) => (float[128, 256] z)
+            {
+                shape = Constant <value_ints=[128, 256]> ()
+                z = Expand (x, shape)
+            }
+        """
+        )
+        optimized = self._fold(model)
+        self.assertEqual(optimized.graph.node[-1].op_type, "Identity")
+
 
 class FoldConstantsIrTest(unittest.TestCase):
     def _fold(self, model_text: str, onnx_shape_inference=False) -> ir.Model:

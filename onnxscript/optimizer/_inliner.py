@@ -305,6 +305,7 @@ class _Inliner:
 
 def inline(model: ir.Model) -> None:
     """Inline all function calls (recursively) in the model."""
-    inliner = _Inliner(model)
-    inliner.inline_calls_in(model.graph)
-    model.functions.clear()
+    if model.functions:
+        inliner = _Inliner(model)
+        inliner.inline_calls_in(model.graph)
+        model.functions.clear()
