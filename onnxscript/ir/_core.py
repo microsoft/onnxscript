@@ -32,11 +32,13 @@ from typing import (
     Iterator,
     OrderedDict,
     Sequence,
+    SupportsInt,
     Union,
 )
 
 import ml_dtypes
 import numpy as np
+from typing_extensions import TypeIs
 
 import onnxscript
 from onnxscript.ir import (
@@ -859,12 +861,37 @@ class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
         return f"{self.__class__.__name__}({self._value})"
 
 
+def _is_int_compatible(value: object) -> TypeIs[SupportsInt]:
+    """Return True if the value is int compatible."""
+    if isinstance(value, int):
+        return True
+    if hasattr(value, "__int__"):
+        # For performance reasons, we do not use isinstance(value, SupportsInt)
+        return True
+    return False
+
+
+def _maybe_convert_to_symbolic_dim(
+    dim: int | SupportsInt | SymbolicDim | str | None,
+) -> SymbolicDim | int:
+    """Convert the value to a SymbolicDim if it is not an int."""
+    if dim is None or isinstance(dim, str):
+        return SymbolicDim(dim)
+    if _is_int_compatible(dim):
+        return int(dim)
+    if isinstance(dim, SymbolicDim):
+        return dim
+    raise TypeError(
+        f"Expected int, str, None or SymbolicDim, but value {dim!r} has type '{type(dim)}'"
+    )
+
+
 class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
     __slots__ = ("_dims", "_frozen")
 
     def __init__(
         self,
-        dims: Iterable[int | SymbolicDim | str | None],
+        dims: Iterable[int | SupportsInt | SymbolicDim | str | None],
         /,
         denotations: Iterable[str | None] | None = None,
         frozen: bool = False,
@@ -885,8 +912,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
                 is useful when the shape is initialized by a Tensor.
         """
         self._dims: list[int | SymbolicDim] = [
-            SymbolicDim(dim) if not isinstance(dim, (int, SymbolicDim)) else dim
-            for dim in dims
+            _maybe_convert_to_symbolic_dim(dim) for dim in dims
         ]
         self._denotations: list[str | None] = (
             list(denotations) if denotations is not None else [None] * len(self._dims)
@@ -946,12 +972,8 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         """
         if self._frozen:
             raise TypeError("The shape is frozen and cannot be modified.")
-        if isinstance(value, str) or value is None:
-            value = SymbolicDim(value)
-        if not isinstance(value, (int, SymbolicDim)):
-            raise TypeError(f"Expected int, str, None or SymbolicDim, got '{type(value)}'")
 
-        self._dims[index] = value
+        self._dims[index] = _maybe_convert_to_symbolic_dim(value)
 
     def get_denotation(self, index: int) -> str | None:
         """Return the denotation of the dimension at the index.
@@ -986,7 +1008,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
     def __eq__(self, other: object) -> bool:
         """Return True if the shapes are equal.
 
-        Two shapes are eqaul if all their dimensions are equal.
+        Two shapes are equal if all their dimensions are equal.
         """
         if isinstance(other, Shape):
             return self._dims == other._dims
@@ -996,6 +1018,33 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
 
     def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
+
+    @typing.overload
+    def is_static(self, dim: int) -> bool:  # noqa: D418
+        """Return True if the dimension is static."""
+
+    @typing.overload
+    def is_static(self) -> bool:  # noqa: D418
+        """Return True if all dimensions are static."""
+
+    def is_static(self, dim=None) -> bool:
+        """Return True if the dimension is static. If dim is None, return True if all dimensions are static."""
+        if dim is None:
+            return all(isinstance(dim, int) for dim in self._dims)
+        return isinstance(self[dim], int)
+
+    @typing.overload
+    def is_dynamic(self, dim: int) -> bool:  # noqa: D418
+        """Return True if the dimension is dynamic."""
+
+    @typing.overload
+    def is_dynamic(self) -> bool:  # noqa: D418
+        """Return True if any dimension is dynamic."""
+
+    def is_dynamic(self, dim=None) -> bool:
+        if dim is None:
+            return not self.is_static()
+        return not self.is_static(dim)
 
 
 def _quoted(string: str) -> str:
