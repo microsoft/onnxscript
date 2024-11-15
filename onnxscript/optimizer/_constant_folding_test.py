@@ -395,61 +395,6 @@ func (float[1,3] x) => (float[1,3] return_val) {
         self.assertEqual(optimized.graph.node[6].op_type, "Concat")
         onnx.checker.check_model(optimized)
 
-    @parameterized.parameterized.expand(
-        [
-            ("output = Dropout(input)",),
-            ("output = Dropout(input, zero, true)",),
-            ("output = Dropout(input, half)",),
-            ("output = Dropout(input, half, false)",),
-        ]
-    )
-    def test_dropout_identity(self, dropout_node: str):
-        if not self.using_ir:
-            self.skipTest("New optimizations not supported for legacy optimizer")
-        model = onnx.parser.parse_model(f"""
-            <ir_version: 7, opset_import: [ "" : 17]>
-            agraph (float[N] input) => (float[N] output)
-            <float zero = {{0.0}}, float half = {{0.5}}, bool true = {{1}}, bool false = {{0}}>
-            {{
-                {dropout_node}
-            }}
-        """)
-        optimized = self._fold(model)
-        self.assertEqual(len(optimized.graph.node), 1)
-        self.assertEqual(optimized.graph.node[0].op_type, "Identity")
-
-    def test_concat_identity(self):
-        if not self.using_ir:
-            self.skipTest("New optimizations not supported for legacy optimizer")
-        model = onnx.parser.parse_model(
-            """
-            <ir_version: 7, opset_import: [ "" : 17]>
-            agraph (float[N] x) => (float[N] z)
-            {
-                z = Concat <axis=-1> (x)
-            }
-        """
-        )
-        optimized = self._fold(model)
-        self.assertEqual(len(optimized.graph.node), 1)
-        self.assertEqual(optimized.graph.node[0].op_type, "Identity")
-
-    def test_expand_identity(self):
-        if not self.using_ir:
-            self.skipTest("New optimizations not supported for legacy optimizer")
-        model = onnx.parser.parse_model(
-            """
-            <ir_version: 7, opset_import: [ "" : 17]>
-            agraph (float[128, 256] x) => (float[128, 256] z)
-            {
-                shape = Constant <value_ints=[128, 256]> ()
-                z = Expand (x, shape)
-            }
-        """
-        )
-        optimized = self._fold(model)
-        self.assertEqual(optimized.graph.node[-1].op_type, "Identity")
-
 
 class FoldConstantsIrTest(unittest.TestCase):
     def _fold(self, model_text: str, onnx_shape_inference=False) -> ir.Model:
@@ -472,6 +417,74 @@ class FoldConstantsIrTest(unittest.TestCase):
         optimized = self._fold(model_text)
         self.assertEqual(len(optimized.graph), 2)
         self.assertEqual(optimized.graph.node(0).op_type, "Add")
+
+    @parameterized.parameterized.expand(
+        [
+            ("output = Dropout(input)",),
+            ("output = Dropout(input, zero, true)",),
+            ("output = Dropout(input, half)",),
+            ("output = Dropout(input, half, false)",),
+        ]
+    )
+    def test_dropout_identity(self, dropout_node: str):
+        model = f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] input) => (float[N] output)
+            <float zero = {{0.0}}, float half = {{0.5}}, bool true = {{1}}, bool false = {{0}}>
+            {{
+                {dropout_node}
+            }}
+        """
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph), 1)
+        self.assertEqual(optimized.graph.node(0).op_type, "Identity")
+
+    @parameterized.parameterized.expand(
+        [
+            ("output, mask = Dropout(input)",),
+            ("output, mask = Dropout(input, zero, true)",),
+            ("output, mask = Dropout(input, half)",),
+            ("output, mask = Dropout(input, half, false)",),
+        ]
+    )
+    def test_dropout_identity_mask(self, dropout_node: str):
+        model = f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] input) => (float[N] output, bool[N] mask)
+            <float zero = {{0.0}}, float half = {{0.5}}, bool true = {{1}}, bool false = {{0}}>
+            {{
+                {dropout_node}
+            }}
+        """
+        optimized = self._fold(model)
+        nodes = list(optimized.graph)
+        self.assertEqual(len(nodes), 3)
+        ops = [node.op_type for node in nodes]
+        self.assertEqual(ops, ["Identity", "Shape", "ConstantOfShape"])
+
+    def test_concat_identity(self):
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x) => (float[N] z)
+            {
+                z = Concat <axis=-1> (x)
+            }
+        """
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph), 1)
+        self.assertEqual(optimized.graph.node(0).op_type, "Identity")
+
+    def test_expand_identity(self):
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[128, 256] x) => (float[128, 256] z)
+            {
+                shape = Constant <value_ints=[128, 256]> ()
+                z = Expand (x, shape)
+            }
+        """
+        optimized = self._fold(model)
+        self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
 
 
 if __name__ == "__main__":
