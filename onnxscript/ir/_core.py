@@ -871,6 +871,19 @@ def _is_int_compatible(value: object) -> TypeIs[SupportsInt]:
     return False
 
 
+def _maybe_convert_to_symbolic_dim(
+    dim: int | SupportsInt | SymbolicDim | str | None,
+) -> SymbolicDim | int:
+    """Convert the value to a SymbolicDim if it is not an int."""
+    if dim is None or isinstance(dim, str):
+        return SymbolicDim(dim)
+    if _is_int_compatible(dim):
+        return int(dim)
+    if isinstance(dim, SymbolicDim):
+        return dim
+    raise TypeError(f"Expected int, str, None or SymbolicDim, got '{type(dim)}'")
+
+
 class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
     __slots__ = ("_dims", "_frozen")
 
@@ -897,10 +910,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
                 is useful when the shape is initialized by a Tensor.
         """
         self._dims: list[int | SymbolicDim] = [
-            SymbolicDim(dim)
-            if not (isinstance(dim, SymbolicDim) or _is_int_compatible(dim))
-            else int(dim)
-            for dim in dims
+            _maybe_convert_to_symbolic_dim(dim) for dim in dims
         ]
         self._denotations: list[str | None] = (
             list(denotations) if denotations is not None else [None] * len(self._dims)
