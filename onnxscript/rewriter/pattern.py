@@ -1040,19 +1040,14 @@ class SimplePatternMatcher(PatternMatcher):
 
         self._matched[pattern_node] = node
 
-        # TODO: Revisit this to handle optional trailing inputs better.
-        if pattern_node.allow_other_inputs:
-            if len(node.inputs) < len(pattern_node.inputs):
-                return self.fail(
-                    f"Number of inputs ({len(node.inputs)}) is less than expected ({len(pattern_node.inputs)})"
-                )
-        else:
-            if len(node.inputs) != len(pattern_node.inputs):
-                return self.fail(
-                    f"Input nums mismatch. {len(node.inputs)} vs {len(pattern_node.inputs)}"
-                )
+        if len(node.inputs) > len(pattern_node.inputs) and not pattern_node.allow_other_inputs:
+            return self.fail(
+                f"Number of inputs ({len(node.inputs)}) is more than expected ({len(pattern_node.inputs)})"
+            )
 
-        for arg_value, arg_pattern in zip(node.inputs, pattern_node.inputs):
+        for arg_value, arg_pattern in itertools.zip_longest(
+            node.inputs, pattern_node.inputs, fillvalue=None
+        ):
             # arg_pattern could be a Var, if it's the original arg.
             if arg_pattern is None:
                 if arg_value is None:

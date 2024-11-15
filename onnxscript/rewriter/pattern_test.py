@@ -476,6 +476,38 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(model.graph.node(0).op_type, "ReplacedNone")
         self.assertEqual(model.graph.node(1).op_type, "ReplacedNotNone")
 
+    def test_match_trailing_optional_input(self):
+        def none_pattern(op, optional_input, x):
+            # match against a call to Original where the first input may or may not be None
+            return op.Original(x, optional_input)
+
+        def replacement(op, optional_input, x):
+            if optional_input is None:
+                return op.ReplacedNone(x)
+            return op.ReplacedNotNone(x)
+
+        rule = pattern.RewriteRule(none_pattern, replacement)
+
+        @script()
+        def test_model(x: FLOAT[1024]) -> FLOAT[1024]:
+            # Pattern should match following call (with optional_input == None)
+            t1 = op.Original(x, None)
+            # as well as this one (with optional_input != None)
+            z = op.Original(x, t1)
+            # as well as this one (with optional_input == None)
+            z = op.Original(x)
+            return z
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+
+        count = rule.apply_to_model(model)
+        self.assertEqual(count, 3)
+        self.assertEqual(len(model.graph), 3)
+        self.assertEqual(model.graph.node(0).op_type, "ReplacedNone")
+        self.assertEqual(model.graph.node(1).op_type, "ReplacedNotNone")
+        self.assertEqual(model.graph.node(2).op_type, "ReplacedNone")
+
 
 class PatternBuilderTest(unittest.TestCase):
     def test_pattern_builder_context(self):
