@@ -13,7 +13,6 @@ from typing import Any, Callable, Iterable, Sequence, Union
 
 import numpy as np
 import onnx
-import onnx.helper
 import onnx.reference.ops
 
 import onnxscript.ir as ir
@@ -456,7 +455,7 @@ def dropout(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         if len(node.outputs) == 1:
             return output
         else:
-            true_tensor = onnx.helper.make_tensor("true", onnx.TensorProto.BOOL, [1], [True])
+            true_tensor = ir.tensor([True])
             input_shape = op.Shape(input)
             mask = op.ConstantOfShape(input_shape, value=true_tensor)
             return output, mask
