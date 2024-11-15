@@ -28,6 +28,8 @@ def _rotary_embedding(op, x, cos, sin, start1, end1, start2, end2):
     if x is None or x.shape is None or len(x.shape) != 4:
         return None
     dim_size = x.shape[3]
+    if not isinstance(dim_size, int):
+        return None
     half_dim_size = dim_size // 2
     if (
         start1_val == 0
