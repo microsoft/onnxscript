@@ -997,12 +997,13 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
     def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
-    def is_concrete(self, dim: int) -> bool:
+    def is_static(self, dim: int) -> bool:
         # Raise if index error
         return isinstance(self[dim], int)
 
     def is_symbolic(self, dim: int) -> bool:
-        return not self.is_concrete(dim)
+        return not self.is_static(dim)
+
 
 def _quoted(string: str) -> str:
     """Return a quoted string.

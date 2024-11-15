@@ -637,6 +637,34 @@ class ShapeTest(unittest.TestCase):
         shape.set_denotation(0, "UPDATED")
         self.assertEqual(shape.get_denotation(0), "UPDATED")
 
+    def test_is_static(self):
+        dim_from_numpy = np.array([42]).shape[0]
+        np_int = np.int32(42)
+        shape = _core.Shape([42, "any string", dim_from_numpy, np_int])
+        self.assertTrue(shape.is_static(0))
+        self.assertFalse(shape.is_static(1))
+        self.assertTrue(shape.is_static(2))
+        self.assertTrue(shape.is_static(3))
+
+    def test_is_static_raises_when_index_out_of_range(self):
+        shape = _core.Shape([42])
+        with self.assertRaises(IndexError):
+            shape.is_static(1)
+
+    def test_is_symbolic(self):
+        dim_from_numpy = np.array([42]).shape[0]
+        np_int = np.int32(42)
+        shape = _core.Shape([42, "any string", dim_from_numpy, np_int])
+        self.assertFalse(shape.is_symbolic(0))
+        self.assertTrue(shape.is_symbolic(1))
+        self.assertFalse(shape.is_symbolic(2))
+        self.assertFalse(shape.is_symbolic(3))
+
+    def test_is_symbolic_raises_when_index_out_of_range(self):
+        shape = _core.Shape([42])
+        with self.assertRaises(IndexError):
+            shape.is_symbolic(1)
+
 
 class ValueTest(unittest.TestCase):
     def test_initialize(self):
