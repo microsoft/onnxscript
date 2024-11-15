@@ -31,9 +31,11 @@ from typing import (
     Iterable,
     Iterator,
     OrderedDict,
+    Protocol,
     Sequence,
     Union,
 )
+from typing_extensions import TypeIs
 
 import ml_dtypes
 import numpy as np
@@ -859,12 +861,28 @@ class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
         return f"{self.__class__.__name__}({self._value})"
 
 
+class _IntCompatible(Protocol):
+    """Objects that can be converted to an int."""
+
+    def __int__(self) -> int: ...
+
+
+def _is_int_compatible(value: object) -> TypeIs[int | _IntCompatible]:
+    """Return True if the value is int compatible."""
+    if isinstance(value, int):
+        return True
+    if hasattr(value, "__int__"):
+        # For performance reasons, we do not use isinstance(value, _IntCompatible)
+        return True
+    return False
+
+
 class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
     __slots__ = ("_dims", "_frozen")
 
     def __init__(
         self,
-        dims: Iterable[int | SymbolicDim | str | None],
+        dims: Iterable[int | _IntCompatible | SymbolicDim | str | None],
         /,
         denotations: Iterable[str | None] | None = None,
         frozen: bool = False,
@@ -885,7 +903,9 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
                 is useful when the shape is initialized by a Tensor.
         """
         self._dims: list[int | SymbolicDim] = [
-            SymbolicDim(dim) if not isinstance(dim, (int, SymbolicDim)) else dim
+            SymbolicDim(dim)
+            if not (isinstance(dim, SymbolicDim) or _is_int_compatible(dim))
+            else int(dim)
             for dim in dims
         ]
         self._denotations: list[str | None] = (
@@ -948,7 +968,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
             raise TypeError("The shape is frozen and cannot be modified.")
         if isinstance(value, str) or value is None:
             value = SymbolicDim(value)
-        if not isinstance(value, (int, SymbolicDim)):
+        if not isinstance(value, SymbolicDim) and not _is_int_compatible(value):
             raise TypeError(f"Expected int, str, None or SymbolicDim, got '{type(value)}'")
 
         self._dims[index] = value
@@ -986,7 +1006,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
     def __eq__(self, other: object) -> bool:
         """Return True if the shapes are equal.
 
-        Two shapes are eqaul if all their dimensions are equal.
+        Two shapes are equal if all their dimensions are equal.
         """
         if isinstance(other, Shape):
             return self._dims == other._dims
@@ -997,11 +1017,25 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
     def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
-    def is_static(self, dim: int) -> bool:
-        # Raise if index error
+    @typing.overload
+    def is_static(self, dim: int) -> bool: ...
+
+    @typing.overload
+    def is_static(self) -> bool: ...
+
+    def is_static(self, dim: int | None = None) -> bool:
+        """Return True if the dimension is static. If dim is None, return True if all dimensions are static."""
+        if dim is None:
+            return all(isinstance(dim, int) for dim in self._dims)
         return isinstance(self[dim], int)
 
-    def is_symbolic(self, dim: int) -> bool:
+    @typing.overload
+    def is_symbolic(self, dim: int) -> bool: ...
+
+    @typing.overload
+    def is_symbolic(self) -> bool: ...
+
+    def is_symbolic(self, dim: int | None = None) -> bool:
         return not self.is_static(dim)
 
 
