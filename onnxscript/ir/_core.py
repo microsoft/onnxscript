@@ -35,10 +35,10 @@ from typing import (
     Sequence,
     Union,
 )
-from typing_extensions import TypeIs
 
 import ml_dtypes
 import numpy as np
+from typing_extensions import TypeIs
 
 import onnxscript
 from onnxscript.ir import (
@@ -1018,24 +1018,28 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         return not self.__eq__(other)
 
     @typing.overload
-    def is_static(self, dim: int) -> bool: ...
+    def is_static(self, dim: int) -> bool:  # noqa: D418
+        """Return True if the dimension is static."""
 
     @typing.overload
-    def is_static(self) -> bool: ...
+    def is_static(self) -> bool:  # noqa: D418
+        """Return True if all dimensions are static."""
 
-    def is_static(self, dim: int | None = None) -> bool:
+    def is_static(self, dim=None) -> bool:
         """Return True if the dimension is static. If dim is None, return True if all dimensions are static."""
         if dim is None:
             return all(isinstance(dim, int) for dim in self._dims)
         return isinstance(self[dim], int)
 
     @typing.overload
-    def is_dynamic(self, dim: int) -> bool: ...
+    def is_dynamic(self, dim: int) -> bool:  # noqa: D418
+        """Return True if the dimension is dynamic."""
 
     @typing.overload
-    def is_dynamic(self) -> bool: ...
+    def is_dynamic(self) -> bool:  # noqa: D418
+        """Return True if any dimension is dynamic."""
 
-    def is_dynamic(self, dim: int | None = None) -> bool:
+    def is_dynamic(self, dim=None) -> bool:
         if dim is None:
             return not self.is_static()
         return not self.is_static(dim)
