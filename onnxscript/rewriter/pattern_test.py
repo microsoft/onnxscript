@@ -493,9 +493,9 @@ class RewriteRuleTest(unittest.TestCase):
             # Pattern should match following call (with optional_input == None)
             t1 = op.Original(x, None)
             # as well as this one (with optional_input != None)
-            z = op.Original(x, t1)
+            t2 = op.Original(x, t1)
             # as well as this one (with optional_input == None)
-            z = op.Original(x)
+            z = op.Original(t2)
             return z
 
         model_proto = test_model.to_model_proto()
