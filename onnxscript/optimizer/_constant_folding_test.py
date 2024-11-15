@@ -6,6 +6,7 @@ import onnx
 import parameterized
 import pytest
 
+import onnxscript.ir as ir
 import onnxscript.optimizer as optimizer
 from onnxscript.ir import serde
 from onnxscript.optimizer import _constant_folding
@@ -448,6 +449,29 @@ func (float[1,3] x) => (float[1,3] return_val) {
         )
         optimized = self._fold(model)
         self.assertEqual(optimized.graph.node[-1].op_type, "Identity")
+
+
+class FoldConstantsIrTest(unittest.TestCase):
+    def _fold(self, model_text: str, onnx_shape_inference=False) -> ir.Model:
+        model_proto = onnx.parser.parse_model(model_text)
+        model = serde.deserialize_model(model_proto)
+        _constant_folding.fold_constants(model, onnx_shape_inference=onnx_shape_inference)
+        optimizer.remove_unused_nodes(model)
+        return model
+
+    def test_initializer_input_not_folded(self):
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[N] x, float[1] c = {1.0} ) => (float[N] z)
+            {
+                # c is not a constant, and following should not be folded.
+                two_c = Add (c, c)
+                z = Mul (x, two_c)
+            }
+            """
+        optimized = self._fold(model_text)
+        self.assertEqual(len(optimized.graph), 2)
+        self.assertEqual(optimized.graph.node(0).op_type, "Add")
 
 
 if __name__ == "__main__":

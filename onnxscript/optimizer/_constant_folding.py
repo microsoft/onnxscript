@@ -138,6 +138,7 @@ class Replacement:
 class OptimizerState:
     def __init__(self):
         self._sym_value_map: dict[ir.Value, Any] = {}
+        self._initializer_inputs: list[set[ir.Value]] = []
 
     def get_sym_value(self, value: ir.Value | None) -> Any:
         if value is None:
@@ -146,6 +147,19 @@ class OptimizerState:
 
     def set_sym_value(self, value: ir.Value, sym_value: Any) -> None:
         self._sym_value_map[value] = sym_value
+
+    def push_initializer_inputs(self) -> None:
+        self._initializer_inputs.append(set())
+
+    def pop_initializer_inputs(self) -> None:
+        self._initializer_inputs.pop()
+
+    def add_initializer_input(self, value: ir.Value) -> None:
+        assert self._initializer_inputs
+        self._initializer_inputs[-1].add(value)
+
+    def is_initializer_input(self, value: ir.Value) -> bool:
+        return any(value in inputs for inputs in self._initializer_inputs)
 
 
 # The "partial evaluators" below are non-standard evaluators. They are used to perform
@@ -377,7 +391,7 @@ def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         if graph_attr.type != ir.AttributeType.GRAPH:
             return None
         assert isinstance(graph_attr, ir.Attr)
-        graph: ir.Graph = graph_attr.value
+        graph = graph_attr.as_graph()
         formal_outs = graph.outputs
         actual_outs = node.outputs
         renamings = {
@@ -784,6 +798,9 @@ class ConstantFolder:
         if any(x is None for x in input_values):
             return None
 
+        if any(self._state.is_initializer_input(x) for x in node.inputs):  # type: ignore[arg-type]
+            return None
+
         if any(input.nbytes > self._input_size_limit for input in input_values):  # type: ignore[union-attr]
             if logger.isEnabledFor(logging.DEBUG):
                 input_sizes = [input.size for input in input_values]  # type: ignore[union-attr]
@@ -831,10 +848,10 @@ class ConstantFolder:
     def visit_attribute(self, attr: ir.Attr | ir.RefAttr) -> None:
         if isinstance(attr, ir.Attr):
             if attr.type == ir.AttributeType.GRAPH:
-                self.visit_graph(attr.value)  # type: ignore[arg-type]
+                self.visit_graph(attr.as_graph())
             elif attr.type == ir.AttributeType.GRAPHS:
-                for graph in attr.value:
-                    self.visit_graph(graph)  # type: ignore[arg-type]
+                for graph in attr.as_graphs():
+                    self.visit_graph(graph)
 
     def visit_node(self, node: ir.Node, root: ir.Graph | ir.Function):
         replacement = self.process_node(node)
@@ -847,8 +864,17 @@ class ConstantFolder:
             self.replace_node(node, replacement, root)
 
     def visit_graph(self, graph: ir.Graph) -> None:
+        # Track inputs that have a const_value (which is really a default-value, and should not
+        # be used for constant-folding).
+        self._state.push_initializer_inputs()
+        for input in graph.inputs:
+            if input.const_value is not None:
+                self._state.add_initializer_input(input)
+
         for node in graph:
             self.visit_node(node, graph)
+
+        self._state.pop_initializer_inputs()
 
     def visit_function(self, function: ir.Function) -> None:
         for node in function:

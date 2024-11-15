@@ -1824,6 +1824,42 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def initializers(self) -> dict[str, Value]:
         return self._initializers
 
+    def register_initializer(self, value: Value) -> None:
+        """Register an initializer to the graph.
+
+        This is a convenience method to register an initializer to the graph with
+        checks.
+
+        Args:
+            value: The :class:`Value` to register as an initializer of the graph.
+                It must have its ``.const_value`` set.
+
+        Raises:
+            ValueError: If a value of the same name that is not this value
+                is already registered.
+            ValueError: If the value does not have a name.
+            ValueError: If the initializer is produced by a node.
+            ValueError: If the value does not have its ``.const_value`` set.
+        """
+        if value.name in self._initializers:
+            if self._initializers[value.name] is not value:
+                raise ValueError(
+                    f"Initializer '{value.name}' is already registered, but"
+                    " it is not the same object: existing={self._initializers[value.name]!r},"
+                    f" new={value!r}"
+                )
+        if not value.name:
+            raise ValueError(f"Initializer must have a name: {value!r}")
+        if value.producer() is not None:
+            raise ValueError(
+                f"Value '{value!r}' is produced by a node and cannot be an initializer."
+            )
+        if value.const_value is None:
+            raise ValueError(
+                f"Value '{value!r}' must have its const_value set to be an initializer."
+            )
+        self._initializers[value.name] = value
+
     @property
     def doc_string(self) -> str | None:
         return self._doc_string
@@ -2714,6 +2750,81 @@ class Attr(_protocols.AttributeProtocol, _display.PrettyPrintable):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name!r}, {self.type!r}, {self.value!r})"
+
+    # Well typed getters
+    def as_float(self) -> float:
+        """Get the attribute value as a float."""
+        # Do not use isinstance check because it may prevent np.float32 etc. from being used
+        return float(self.value)
+
+    def as_int(self) -> int:
+        """Get the attribute value as an int."""
+        # Do not use isinstance check because it may prevent np.int32 etc. from being used
+        return int(self.value)
+
+    def as_string(self) -> str:
+        """Get the attribute value as a string."""
+        if not isinstance(self.value, str):
+            raise TypeError(f"Value of attribute '{self!r}' is not a string.")
+        return self.value
+
+    def as_tensor(self) -> _protocols.TensorProtocol:
+        """Get the attribute value as a tensor."""
+        if not isinstance(self.value, _protocols.TensorProtocol):
+            raise TypeError(f"Value of attribute '{self!r}' is not a tensor.")
+        return self.value
+
+    def as_graph(self) -> Graph:
+        """Get the attribute value as a graph."""
+        if not isinstance(self.value, Graph):
+            raise TypeError(f"Value of attribute '{self!r}' is not a graph.")
+        return self.value
+
+    def as_floats(self) -> Sequence[float]:
+        """Get the attribute value as a sequence of floats."""
+        if not isinstance(self.value, Sequence):
+            raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
+        # Do not use isinstance check on elements because it may prevent np.int32 etc. from being used
+        # Create a copy of the list to prevent mutation
+        return [float(v) for v in self.value]
+
+    def as_ints(self) -> Sequence[int]:
+        """Get the attribute value as a sequence of ints."""
+        if not isinstance(self.value, Sequence):
+            raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
+        # Do not use isinstance check on elements because it may prevent np.int32 etc. from being used
+        # Create a copy of the list to prevent mutation
+        return list(self.value)
+
+    def as_strings(self) -> Sequence[str]:
+        """Get the attribute value as a sequence of strings."""
+        if not isinstance(self.value, Sequence):
+            raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
+        if onnxscript.DEBUG:
+            if not all(isinstance(x, str) for x in self.value):
+                raise TypeError(f"Value of attribute '{self!r}' is not a Sequence of strings.")
+        # Create a copy of the list to prevent mutation
+        return list(self.value)
+
+    def as_tensors(self) -> Sequence[_protocols.TensorProtocol]:
+        """Get the attribute value as a sequence of tensors."""
+        if not isinstance(self.value, Sequence):
+            raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
+        if onnxscript.DEBUG:
+            if not all(isinstance(x, _protocols.TensorProtocol) for x in self.value):
+                raise TypeError(f"Value of attribute '{self!r}' is not a Sequence of tensors.")
+        # Create a copy of the list to prevent mutation
+        return list(self.value)
+
+    def as_graphs(self) -> Sequence[Graph]:
+        """Get the attribute value as a sequence of graphs."""
+        if not isinstance(self.value, Sequence):
+            raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
+        if onnxscript.DEBUG:
+            if not all(isinstance(x, Graph) for x in self.value):
+                raise TypeError(f"Value of attribute '{self!r}' is not a Sequence of graphs.")
+        # Create a copy of the list to prevent mutation
+        return list(self.value)
 
 
 # NOTE: The following functions are just for convenience

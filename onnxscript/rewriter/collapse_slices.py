@@ -28,6 +28,10 @@ def _check_if_redundant_slice(
     axes_const = axes.const_value
     steps_const = steps.const_value
 
+    if starts_const is None or ends_const is None or axes_const is None or steps_const is None:
+        logger.info("The value 'start', 'end', 'axis', 'step' is not statically known.")
+        return False
+
     # Check if the values are scalar
     if starts_const.numpy().size != 1:  # type: ignore[union-attr]
         logger.info("The value 'start' is not a scalar.")
@@ -42,9 +46,6 @@ def _check_if_redundant_slice(
         logger.info("The value 'step' is not a scalar.")
         return False
 
-    if starts_const is None or ends_const is None or axes_const is None or steps_const is None:
-        logger.info("The value 'start', 'end', 'axis', 'step' is not statically known.")
-        return False
     if steps_const.numpy().item() != 1:
         logger.info("The value 'step' is not 1.")
         return False
