@@ -1040,14 +1040,19 @@ class SimplePatternMatcher(PatternMatcher):
 
         self._matched[pattern_node] = node
 
-        if len(node.inputs) > len(pattern_node.inputs) and not pattern_node.allow_other_inputs:
-            return self.fail(
-                f"Number of inputs ({len(node.inputs)}) is more than expected ({len(pattern_node.inputs)})"
-            )
+        if len(node.inputs) > len(pattern_node.inputs):
+            if pattern_node.allow_other_inputs:
+                # Ignore extraneous inputs
+                to_match = zip(node.inputs, pattern_node.inputs)
+            else:
+                return self.fail(
+                    f"Number of inputs ({len(node.inputs)}) is more than expected ({len(pattern_node.inputs)})"
+                )
+        else:
+            # Inputs are padded with Nones to match against pattern
+            to_match = itertools.zip_longest(node.inputs, pattern_node.inputs, fillvalue=None)
 
-        for arg_value, arg_pattern in itertools.zip_longest(
-            node.inputs, pattern_node.inputs, fillvalue=None
-        ):
+        for arg_value, arg_pattern in to_match:
             # arg_pattern could be a Var, if it's the original arg.
             if arg_pattern is None:
                 if arg_value is None:
