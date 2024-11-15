@@ -680,6 +680,16 @@ class ShapeTest(unittest.TestCase):
         with self.assertRaises(IndexError):
             shape.is_static(1)
 
+    def test_is_static_on_whole_shape(self):
+        shape = _core.Shape([42, "any string"])
+        self.assertFalse(shape.is_static())
+        shape = _core.Shape([42, 42])
+        self.assertTrue(shape.is_static())
+
+    def test_is_static_on_empty_shape(self):
+        shape = _core.Shape(())
+        self.assertTrue(shape.is_static())
+
     def test_is_dynamic(self):
         dim_from_numpy = np.array([42]).shape[0]
         np_int = np.int32(42)
@@ -704,16 +714,6 @@ class ShapeTest(unittest.TestCase):
     def test_is_dynamic_on_empty_shape(self):
         shape = _core.Shape(())
         self.assertFalse(shape.is_dynamic())
-
-    def test_is_static_on_whole_shape(self):
-        shape = _core.Shape([42, "any string"])
-        self.assertFalse(shape.is_static())
-        shape = _core.Shape([42, 42])
-        self.assertTrue(shape.is_static())
-
-    def test_is_static_on_empty_shape(self):
-        shape = _core.Shape(())
-        self.assertTrue(shape.is_static())
 
 
 class ValueTest(unittest.TestCase):
