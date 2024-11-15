@@ -972,12 +972,8 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         """
         if self._frozen:
             raise TypeError("The shape is frozen and cannot be modified.")
-        if isinstance(value, str) or value is None:
-            value = SymbolicDim(value)
-        if not isinstance(value, SymbolicDim) and not _is_int_compatible(value):
-            raise TypeError(f"Expected int, str, None or SymbolicDim, got '{type(value)}'")
 
-        self._dims[index] = value
+        self._dims[index] = _maybe_convert_to_symbolic_dim(value)
 
     def get_denotation(self, index: int) -> str | None:
         """Return the denotation of the dimension at the index.
