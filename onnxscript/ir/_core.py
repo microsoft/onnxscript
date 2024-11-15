@@ -881,7 +881,9 @@ def _maybe_convert_to_symbolic_dim(
         return int(dim)
     if isinstance(dim, SymbolicDim):
         return dim
-    raise TypeError(f"Expected int, str, None or SymbolicDim, got '{type(dim)}'")
+    raise TypeError(
+        f"Expected int, str, None or SymbolicDim, but value {dim!r} has type '{type(dim)}'"
+    )
 
 
 class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
