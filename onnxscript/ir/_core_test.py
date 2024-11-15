@@ -647,6 +647,10 @@ class ShapeTest(unittest.TestCase):
         else:
             self.assertEqual(dim, value)
 
+    def test_len(self):
+        shape = _core.Shape([42, "any string"])
+        self.assertEqual(len(shape), 2)
+
     def test_get_denotation(self):
         shape = _core.Shape([42], denotations=("DATA_CHANNEL",))
         self.assertEqual(shape.get_denotation(0), "DATA_CHANNEL")
@@ -710,10 +714,6 @@ class ShapeTest(unittest.TestCase):
     def test_is_static_on_empty_shape(self):
         shape = _core.Shape(())
         self.assertTrue(shape.is_static())
-
-    def test_len(self):
-        shape = _core.Shape([42, "any string"])
-        self.assertEqual(len(shape), 2)
 
 
 class ValueTest(unittest.TestCase):
