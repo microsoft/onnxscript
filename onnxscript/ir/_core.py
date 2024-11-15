@@ -31,8 +31,8 @@ from typing import (
     Iterable,
     Iterator,
     OrderedDict,
-    Protocol,
     Sequence,
+    SupportsInt,
     Union,
 )
 
@@ -861,18 +861,12 @@ class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
         return f"{self.__class__.__name__}({self._value})"
 
 
-class _IntCompatible(Protocol):
-    """Objects that can be converted to an int."""
-
-    def __int__(self) -> int: ...
-
-
-def _is_int_compatible(value: object) -> TypeIs[int | _IntCompatible]:
+def _is_int_compatible(value: object) -> TypeIs[SupportsInt]:
     """Return True if the value is int compatible."""
     if isinstance(value, int):
         return True
     if hasattr(value, "__int__"):
-        # For performance reasons, we do not use isinstance(value, _IntCompatible)
+        # For performance reasons, we do not use isinstance(value, SupportsInt)
         return True
     return False
 
@@ -882,7 +876,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
 
     def __init__(
         self,
-        dims: Iterable[int | _IntCompatible | SymbolicDim | str | None],
+        dims: Iterable[int | SupportsInt | SymbolicDim | str | None],
         /,
         denotations: Iterable[str | None] | None = None,
         frozen: bool = False,
