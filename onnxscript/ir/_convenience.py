@@ -20,7 +20,7 @@ from typing import Mapping, Sequence, Union
 import numpy as np
 import onnx
 
-from onnxscript.ir import _core, _enums, _protocols, serde
+from onnxscript.ir import _core, _enums, _protocols, serde, tensor_adapters
 
 if typing.TYPE_CHECKING:
     import numpy.typing as npt
@@ -321,6 +321,9 @@ def tensor(
         >>> tp_tensor = ir.tensor(onnx.helper.make_tensor("tensor", onnx.TensorProto.FLOAT, dims=[], vals=[0.5]))
         >>> tp_tensor.numpy()
         array(0.5, dtype=float32)
+        >>> import torch
+        >>> ir.tensor(torch.tensor([1.0, 2.0]), name="torch_tensor")
+        TorchTensor<FLOAT,[2]>(tensor([1., 2.]), name='torch_tensor')
 
     Args:
         value: The numpy array to create the tensor from.
@@ -353,22 +356,27 @@ def tensor(
                 f"The dtype must match the value when value is a TensorProto. dtype={dtype}, value.data_type={tensor_.dtype}"
                 "You do not have to specify the dtype when value is a TensorProto."
             )
+        return tensor_
+    elif str(type(value)) == "<class 'torch.Tensor'>":
+        # NOTE: We use str(type(...)) and do not import torch for type checking
+        # as it creates overhead during import
+        return tensor_adapters.TorchTensor(value, name=name, doc_string=doc_string)
     elif isinstance(value, (_protocols.DLPackCompatible, _protocols.ArrayCompatible)):
-        tensor_ = _core.Tensor(value, dtype=dtype, name=name, doc_string=name)
+        return _core.Tensor(value, dtype=dtype, name=name, doc_string=name)
+
+    # Plain Python object
+    if dtype is not None:
+        numpy_dtype = dtype.numpy()
     else:
-        if dtype is not None:
-            numpy_dtype = dtype.numpy()
-        else:
-            numpy_dtype = None
-        array = np.array(value, dtype=numpy_dtype)
-        tensor_ = _core.Tensor(
-            array,
-            dtype=dtype,
-            shape=_core.Shape(array.shape),
-            name=name,
-            doc_string=name,
-        )
-    return tensor_
+        numpy_dtype = None
+    array = np.array(value, dtype=numpy_dtype)
+    return _core.Tensor(
+        array,
+        dtype=dtype,
+        shape=_core.Shape(array.shape),
+        name=name,
+        doc_string=name,
+    )
 
 
 def create_value_mapping(graph: _core.Graph) -> dict[str, _core.Value]:
