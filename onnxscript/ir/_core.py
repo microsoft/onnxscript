@@ -1030,12 +1030,14 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         return isinstance(self[dim], int)
 
     @typing.overload
-    def is_symbolic(self, dim: int) -> bool: ...
+    def is_dynamic(self, dim: int) -> bool: ...
 
     @typing.overload
-    def is_symbolic(self) -> bool: ...
+    def is_dynamic(self) -> bool: ...
 
-    def is_symbolic(self, dim: int | None = None) -> bool:
+    def is_dynamic(self, dim: int | None = None) -> bool:
+        if dim is None:
+            return not self.is_static()
         return not self.is_static(dim)
 
 
