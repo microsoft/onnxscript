@@ -56,7 +56,7 @@ def _check_if_redundant_slice(
     # In case data.shape is not statically known, we still can tell the slice is redundant if ends is sys.maxsize
     if ends_const.numpy().item() == _INT64_MAX:
         return True
-    if data.shape is None:
+    if data.shape is None or not isinstance(data.shape[axes_const.numpy().item()], int):
         logger.info("The value 'data' shape is not statically known.")
         return False
     if ends_const.numpy().item() < data.shape[axes_const.numpy().item()]:
