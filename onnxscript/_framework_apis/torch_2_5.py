@@ -17,9 +17,11 @@ import os
 import pathlib
 from typing import Callable
 
-from onnxscript import ir, optimizer
+from onnxscript import ir, optimizer, version_converter
 from onnxscript.function_libs.torch_lib import registration
 from onnxscript.ir import _external_data
+
+ENABLE_VERSION_CONVERTER = 0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -51,18 +53,8 @@ def optimize(model: ir.Model) -> ir.Model:
 
 def convert_version(model: ir.Model, target_version: int) -> ir.Model:
     """Convert the model to the specified ONNX opset version."""
-    # model_version = model.opset_import.get("")
-    # if model_version == target_version:
-    #     # No conversion needed
-    #     return model
-
-    # # FIXME(justinchuby): version_converter does not support functions
-    # proto = ir.serde.serialize_model(model)
-    # proto = onnx.version_converter.convert_version(proto, target_version)
-    # return ir.serde.deserialize_model(proto)
-    # TODO(justinchuby): This function needs to be carefully implemented
-    # to handle large models. For now, we just return the model.
-    del target_version  # Unused
+    if ENABLE_VERSION_CONVERTER == 1:
+        version_converter.convert_version(model, target_version)
     return model
 
 

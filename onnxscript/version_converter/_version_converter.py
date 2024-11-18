@@ -5,10 +5,11 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import logging
-from typing import Callable, Sequence, Union
+from typing import Any, Callable, Sequence, Union
 
-import onnxscript.ir._convenience as _convenience
+import onnxscript.ir.convenience as ir_convenience
 import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
 
@@ -29,7 +30,7 @@ class Replacement:
 # A version-adapter function takes a node, a RewriterContext and returns
 # a Replacement for the node or None (if no replacement is needed).
 
-ReturnValue = Union[Replacement, Sequence[ir.Value], ir.Value, None]
+ReturnValue = Union[Sequence[ir.Value], ir.Value, None]
 AdapterFunction = Callable[[ir.Node, orp.RewriterContext], ReturnValue]
 
 
@@ -58,21 +59,26 @@ class AdapterRegistry:
         opname: str,
         original_version: int,
         up_conversion: bool = True,
-    ) -> Union[AdapterFunction, None]:
-        adapter = self.op_adapters.get((domain, opname, original_version, up_conversion), None)
+    ) -> AdapterFunction | None:
+        adapter = self.op_adapters.get((domain, opname, original_version, up_conversion))
         if adapter is not None:
             return adapter.function
-        else:
-            return None
+        return None
 
     def register(
         self, opname: str, domain: str = "", node_version=None, up_conversion=True
     ) -> Callable[[AdapterFunction], AdapterFunction]:
+        """Register an adapter based on the domain, operator type, node version and whether to upgrade/downgrade node version"""
+
         def decorator(function: AdapterFunction) -> AdapterFunction:
+            @functools.wraps(function)
+            def wrapped_function(*args, **kwargs):
+                return function(*args, **kwargs)
+
             self.op_adapters[(domain, opname, node_version, up_conversion)] = VersionAdapter(
                 node_version, up_conversion, function
             )
-            return function
+            return wrapped_function
 
         return decorator
 
@@ -85,12 +91,6 @@ register = registry.register
 def _get_input(node: ir.Node, index: int) -> ir.Value | None:
     if index < len(node.inputs):
         return node.inputs[index]
-    return None
-
-
-def _get_output(node: ir.Node, index: int) -> ir.Value | None:
-    if index < len(node.outputs):
-        return node.outputs[index]
     return None
 
 
@@ -215,9 +215,17 @@ class _VersionConverter:
     def __init__(self, target_version: int):
         self.target_version = target_version
 
-    def process_node(self, node: ir.Node, opset_version, up_conversion: bool = True):
+    def _upgrade_version(self, node: ir.Node, opset_version: int, up_conversion: bool) -> None:
+        if up_conversion is True:
+            node.version = opset_version + 1
+        else:
+            node.version = opset_version - 1
+
+    def process_node(self, node: ir.Node, opset_version: int, up_conversion: bool = True) -> Replacement | None:
         if node.domain not in self.opset_imports:
             return None
+        # node.version
+        # graph - 9, op - 20, to_graph-19
         adapter = registry.lookup_adapters(
             node.domain, node.op_type, opset_version, up_conversion
         )
@@ -226,16 +234,14 @@ class _VersionConverter:
         context = orp.RewriterContext()
         output = adapter(node, context)
         if output is not None:
-            if isinstance(output, Replacement):
-                return output
             if isinstance(output, ir.Value):
                 output = [output]
             return Replacement(output, context.nodes)
 
-    def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function):
+    def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function) -> None:
         logger.debug("Replacing node: %s::%s %s", node.domain, node.op_type, node.name)
 
-        _convenience.replace_nodes_and_values(
+        ir_convenience.replace_nodes_and_values(
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
 
@@ -255,7 +261,7 @@ class _VersionConverter:
         root: ir.Graph | ir.Function,
         opset_version: int,
         up_conversion: bool = True,
-    ):
+    ) -> None:
         replacement = self.process_node(node, opset_version, up_conversion)
         if replacement is None:
             # No change. Process attributes.
@@ -270,11 +276,17 @@ class _VersionConverter:
     ) -> None:
         for node in graph:
             self.visit_node(node, graph, opset_version, up_conversion)
-            node.version = self.target_version
+            self._upgrade_version(node, opset_version, up_conversion)
 
     def visit_model(self, model: ir.Model) -> None:
         self.opset_imports = model.opset_imports
-        model_version = model.opset_imports.get("")
+        for opset_import in self.opset_imports:
+            if opset_import == "":
+                model_version = model.opset_imports.get("")
+            elif opset_import == "ai.onnx":
+                model_version = model.opset_imports.get("ai.onnx")
+            else:
+                return None
         if model_version is None:
             return None
 
@@ -290,6 +302,7 @@ class _VersionConverter:
             )
             return None
         # Iterate from current model version -> target version
+        # Performance considerations: Each node in the graph is visited for every iteration of opset upgrade/downgrade
         # Updating each node based on the correct adapter
         # Up-conversion [ver->ver+1] or down-conversion [ver->ver-1]
         for opset_version in range(model_version, self.target_version):
@@ -304,7 +317,7 @@ class _VersionConverter:
             self.visit_graph(model.graph, opset_version, up_conversion)
 
 
-def version_convert(model: ir.Model, target_version: int) -> None:
+def convert_version(model: ir.Model, target_version: int) -> None:
     """Convert the model to the specified ONNX opset version."""
     version_converter = _VersionConverter(target_version=target_version)
     version_converter.visit_model(model)
