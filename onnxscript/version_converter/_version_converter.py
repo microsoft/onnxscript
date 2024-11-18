@@ -7,7 +7,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import logging
-from typing import Any, Callable, Sequence, Union
+from typing import Callable, Sequence, Union
 
 import onnxscript.ir.convenience as ir_convenience
 import onnxscript.rewriter.pattern as orp
@@ -224,8 +224,6 @@ class _VersionConverter:
     def process_node(self, node: ir.Node, opset_version: int, up_conversion: bool = True) -> Replacement | None:
         if node.domain not in self.opset_imports:
             return None
-        # node.version
-        # graph - 9, op - 20, to_graph-19
         adapter = registry.lookup_adapters(
             node.domain, node.op_type, opset_version, up_conversion
         )
@@ -237,6 +235,7 @@ class _VersionConverter:
             if isinstance(output, ir.Value):
                 output = [output]
             return Replacement(output, context.nodes)
+        return None
 
     def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function) -> None:
         logger.debug("Replacing node: %s::%s %s", node.domain, node.op_type, node.name)
