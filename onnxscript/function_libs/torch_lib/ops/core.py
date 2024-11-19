@@ -7106,7 +7106,7 @@ def aten_refine_names(self: TensorType, names: Sequence[str]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::remainder.Tensor", "aten::remainder.Scalar"))
+@torch_op(("aten::remainder.Tensor", "aten::remainder.Scalar"), traceable=True)
 def aten_remainder(self: TFloat, other: TFloat) -> TFloat:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
