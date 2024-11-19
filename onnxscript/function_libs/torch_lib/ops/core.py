@@ -3297,7 +3297,7 @@ def aten_eq(self: TTensor, other: TTensor) -> BOOL:
     return op.Equal(self, other)
 
 
-@torch_op("aten::equal")
+@torch_op("aten::equal", traceable=True)
 def aten_equal(self: TTensor, other: TTensor) -> BOOL:
     """equal(Tensor self, Tensor other) -> bool"""
 
@@ -3957,7 +3957,7 @@ def aten_hardshrink_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::heaviside")
+@torch_op("aten::heaviside", traceable=True)
 def aten_heaviside(self: TReal, values: TReal) -> TReal:
     """heaviside(Tensor self, Tensor values) -> Tensor"""
 
