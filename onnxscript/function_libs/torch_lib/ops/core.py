@@ -8017,9 +8017,9 @@ def aten_sub_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
 def aten_sum(self: TReal, dtype: int = -1) -> TReal:
     """sum(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
     if len(self.shape) == 0:
-        return op.Identity(self)
-
-    result = op.ReduceSum(self, keepdims=False)
+        result = op.Identity(self)
+    else:
+        result = op.ReduceSum(self, keepdims=False)
     if dtype != -1 and dtype is not None:
         result = op.Cast(result, to=dtype)
     return result
@@ -8031,9 +8031,8 @@ def aten_sum_dim_IntList(
 ) -> TReal:
     """sum.dim_IntList(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
     if len(self.shape) == 0:
-        return op.Identity(self)
-
-    if dim is None:
+        result = op.Identity(self)
+    elif dim is None:
         result = op.ReduceSum(self, keepdims=keepdim)
     else:
         dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
