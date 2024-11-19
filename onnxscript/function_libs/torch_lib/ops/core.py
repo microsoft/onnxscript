@@ -8014,7 +8014,7 @@ def aten_sub_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
 
 
 @torch_op("aten::sum", trace_only=True)
-def aten_sumt(self: TReal, dtype: int = -1) -> TReal:
+def aten_sum(self: TReal, dtype: int = -1) -> TReal:
     """sum(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
     result = op.ReduceSum(self, keepdims=keepdim)
     if dtype != -1 and dtype is not None:
