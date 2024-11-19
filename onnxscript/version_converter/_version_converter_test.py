@@ -286,6 +286,25 @@ class VersionConverter20to21Test(unittest.TestCase):
         self.assertEqual(model.graph.node(9).op_type, "GroupNormalization")
         self.assertEqual(model.graph.node(9).version, 21)
 
+    def test_version_groupnorm_no_bias(self):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 18]>
+            agraph (float[1, 4, 512, 512] input_x, float[2] scale) => (float[4, 512, 512] output)
+            {
+                groupnorm = GroupNormalization <num_groups = 2> (input_x, scale)
+                shape_c = Constant<value: tensor = int64[4] {4, 512, 512}>()
+                output = Reshape (groupnorm, shape_c)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        target_version = 21
+        version_converter.convert_version(model, target_version=target_version)
+
+        self.assertEqual(model.graph.node(0).op_type, "GroupNormalization")
+        self.assertEqual(model.graph.node(0).version, 20)
+
 
 class VersionConverter23to24Test(unittest.TestCase):
     def test_version_convert_compatible(self):

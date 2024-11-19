@@ -19,6 +19,10 @@ logger = logging.getLogger(__name__)
 CURRENT_MAX_ONNX_OPSET = 23
 
 
+class VersionConverterError(Exception):
+    """Raised when an node's version cannot be upgraded/downgraded successfully."""
+
+
 @dataclasses.dataclass
 class Replacement:
     """A replacement for a node in the graph."""
@@ -166,11 +170,11 @@ def groupnormalization_20_21(node: ir.Node, op):
     scale = _get_input(node, 1)
     bias = _get_input(node, 2)
     if x is None or scale is None or bias is None:
-        return None
+        raise VersionConverterError(f"Missing input for {node}")
 
     x_shape = x.shape
     if x_shape is None:
-        return None
+        raise VersionConverterError(f"Missing required shape for {x}")
     num_channels = x_shape[1]
     if not isinstance(num_channels, int):
         return None
@@ -184,7 +188,7 @@ def groupnormalization_20_21(node: ir.Node, op):
 
     num_groups = _get_int_attribute(node, "num_groups", None)
     if num_groups is None:
-        return None
+        raise VersionConverterError("Missing required attribute: num_groups")
     if (
         num_groups != num_channels
         and num_groups == scale_shape[0]
@@ -247,13 +251,13 @@ class _VersionConverter:
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
 
-    def visit_attribute(self, attr: ir.Attr | ir.RefAttr, up_conversion: bool = True) -> None:
+    def visit_attribute(self, attr: ir.Attr | ir.RefAttr) -> None:
         if isinstance(attr, ir.Attr):
             if attr.type == ir.AttributeType.GRAPH:
-                self.visit_graph(attr.value, up_conversion)  # type: ignore[arg-type]
+                self.visit_graph(attr.value)  # type: ignore[arg-type]
             elif attr.type == ir.AttributeType.GRAPHS:
                 for graph in attr.value:
-                    self.visit_graph(graph, up_conversion)  # type: ignore[arg-type]
+                    self.visit_graph(graph)  # type: ignore[arg-type]
 
     def visit_node(
         self,
@@ -266,13 +270,13 @@ class _VersionConverter:
         if replacement is None:
             # No change. Process attributes.
             for attr in node.attributes.values():
-                self.visit_attribute(attr, up_conversion)
+                self.visit_attribute(attr)
             return None
         else:
             self.replace_node(node, replacement, root)
         return None
 
-    def visit_graph(self, graph: ir.Graph, up_conversion: bool = True) -> None:
+    def visit_graph(self, graph: ir.Graph) -> None:
         for node in graph:
             if node.version is None:
                 node.version = self.model_version
@@ -280,6 +284,9 @@ class _VersionConverter:
             # and updating node based on the correct adapter
             # Up-conversion [ver->ver+1] or down-conversion [ver->ver-1]
             for opset_version in range(node.version, self.target_version):
+                up_conversion = True
+                if self.target_version < opset_version:
+                    up_conversion = False
                 if up_conversion is True and opset_version == CURRENT_MAX_ONNX_OPSET:
                     logger.warning(
                         "Conversion from opset: %s to target opset: %s not currently supported.",
@@ -287,8 +294,15 @@ class _VersionConverter:
                         opset_version + 1,
                     )
                     return None
-                self.visit_node(node, graph, opset_version, up_conversion)
-                self._upgrade_version(node, opset_version, up_conversion)
+                try:
+                    self.visit_node(node, graph, opset_version, up_conversion)
+                    self._upgrade_version(node, opset_version, up_conversion)
+                except VersionConverterError as e:
+                    logger.warning(
+                        "Skipping version conversion for node %s due to exception: %s",
+                        node.op_type,
+                        e,
+                    )
         return None
 
     def visit_model(self, model: ir.Model) -> None:
@@ -304,18 +318,16 @@ class _VersionConverter:
             return None
         self.model_version = model_version
 
-        up_conversion = True
-        if self.target_version < model_version:
-            up_conversion = False
         # TODO (shubhambhokare1) : Remove once down-conversion adapters are supoorted
-        if up_conversion is False:
+        if self.target_version < model_version:
             logger.warning(
                 "Target opset: %s less than %s, downstream version conversion not currently handled.",
                 self.target_version,
                 self.model_version,
             )
             return None
-        self.visit_graph(model.graph, up_conversion)
+
+        self.visit_graph(model.graph)
         return None
 
 
