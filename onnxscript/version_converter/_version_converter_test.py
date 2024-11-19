@@ -29,15 +29,19 @@ class ApapterCoverageTest(unittest.TestCase):
     def test_upstream_coverage(self):
         op_version_dict = self.get_all_unique_schema_versions()
         op_upgrades = []
-        for op_type in op_version_dict:
+        for op_type in op_version_dict:  # pylint: disable=consider-using-dict-items
             for opset_version in op_version_dict[op_type]:
                 op_upgrades.append((op_type, opset_version))
 
-        adapter_list = version_converter._version_converter.registry.op_adapters
-        for adapter_sig in adapter_list.keys():
+        adapter_list = version_converter._version_converter.registry.op_adapters  # pylint: disable=protected-access
+        for adapter_sig in adapter_list:
             adapter_info = list(adapter_sig)
-            domain, name, upgrade_version = adapter_info[0], adapter_info[1], adapter_info[2] + 1,
-            self.assertEqual(domain, '')
+            domain, name, upgrade_version = (
+                adapter_info[0],
+                adapter_info[1],
+                adapter_info[2] + 1
+            )
+            self.assertEqual(domain, "")
             self.assertIn((name, upgrade_version), op_upgrades)
 
     def test_version_convert_non_standard_onnx_domain(self):

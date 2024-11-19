@@ -221,7 +221,9 @@ class _VersionConverter:
         else:
             node.version = opset_version - 1
 
-    def process_node(self, node: ir.Node, opset_version: int, up_conversion: bool = True) -> Replacement | None:
+    def process_node(
+        self, node: ir.Node, opset_version: int, up_conversion: bool = True
+    ) -> Replacement | None:
         if node.domain not in self.opset_imports:
             return None
         adapter = registry.lookup_adapters(
@@ -269,6 +271,7 @@ class _VersionConverter:
             return None
         else:
             self.replace_node(node, replacement, root)
+        return None
 
     def visit_graph(
         self, graph: ir.Graph, opset_version: int, up_conversion: bool = True
@@ -312,8 +315,8 @@ class _VersionConverter:
                     opset_version + 1,
                 )
                 return None
-
             self.visit_graph(model.graph, opset_version, up_conversion)
+        return None
 
 
 def convert_version(model: ir.Model, target_version: int) -> None:
