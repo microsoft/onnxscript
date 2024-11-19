@@ -3760,7 +3760,7 @@ def aten_gcd(self: TensorType, other: TensorType) -> TensorType:
 
 @torch_op(
     ("aten::ge.Tensor", "aten::ge.Scalar", "aten::greater_equal.Tensor", "_operator::ge"),
-    traceable=True
+    traceable=True,
 )
 def aten_ge(self: TReal, other: TReal) -> BOOL:
     """ge.Tensor(Tensor self, Tensor other) -> Tensor"""
