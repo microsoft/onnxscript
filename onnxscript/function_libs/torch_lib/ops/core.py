@@ -3759,7 +3759,8 @@ def aten_gcd(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op(
-    ("aten::ge.Tensor", "aten::ge.Scalar", "aten::greater_equal.Tensor", "_operator::ge")
+    ("aten::ge.Tensor", "aten::ge.Scalar", "aten::greater_equal.Tensor", "_operator::ge"),
+    traceable=True
 )
 def aten_ge(self: TReal, other: TReal) -> BOOL:
     """ge.Tensor(Tensor self, Tensor other) -> Tensor"""
@@ -3768,7 +3769,8 @@ def aten_ge(self: TReal, other: TReal) -> BOOL:
 
 
 @torch_op(
-    ("aten::ge.Tensor", "aten::ge.Scalar", "aten::greater_equal.Tensor", "_operator::ge")
+    ("aten::ge.Tensor", "aten::ge.Scalar", "aten::greater_equal.Tensor", "_operator::ge"),
+    traceable=True,
 )
 def aten_ge_bool(self: BOOL, other: BOOL) -> BOOL:
     """ge.Tensor(Tensor self, Tensor other) -> Tensor"""
@@ -3904,14 +3906,14 @@ def aten_gru_cell(
     raise NotImplementedError()
 
 
-@torch_op(("aten::gt.Tensor", "aten::gt.Scalar", "aten::greater.Tensor", "_operator::gt"))
+@torch_op(("aten::gt.Tensor", "aten::gt.Scalar", "aten::greater.Tensor", "_operator::gt"), traceable=True)
 def aten_gt(self: TReal, other: TReal) -> BOOL:
     """gt.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.Greater(self, other)
 
 
-@torch_op(("aten::gt.Tensor", "aten::gt.Scalar", "aten::greater.Tensor", "_operator::gt"))
+@torch_op(("aten::gt.Tensor", "aten::gt.Scalar", "aten::greater.Tensor", "_operator::gt"), traceable=True)
 def aten_gt_bool(self: BOOL, other: BOOL) -> BOOL:
     """gt.Tensor(Tensor self, Tensor other) -> Tensor"""
     # self, other, self > other
@@ -4695,14 +4697,14 @@ def aten_ldexp(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::le.Tensor", "aten::le.Scalar", "aten::less_equal.Tensor", "_operator::le"))
+@torch_op(("aten::le.Tensor", "aten::le.Scalar", "aten::less_equal.Tensor", "_operator::le"), traceable=True)
 def aten_le(self: TReal, other: TReal) -> BOOL:
     """le.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.LessOrEqual(self, other)
 
 
-@torch_op(("aten::le.Tensor", "aten::le.Scalar", "aten::less_equal.Tensor", "_operator::le"))
+@torch_op(("aten::le.Tensor", "aten::le.Scalar", "aten::less_equal.Tensor", "_operator::le"), traceable=True)
 def aten_le_bool(self: BOOL, other: BOOL) -> BOOL:
     """le.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -5002,14 +5004,14 @@ def aten_lstm_mps_backward(
     raise NotImplementedError()
 
 
-@torch_op(("aten::lt.Tensor", "aten::lt.Scalar", "aten::less.Tensor", "_operator::lt"))
+@torch_op(("aten::lt.Tensor", "aten::lt.Scalar", "aten::less.Tensor", "_operator::lt"), traceable=True)
 def aten_lt(self: TReal, other: TReal) -> BOOL:
     """lt.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.Less(self, other)
 
 
-@torch_op(("aten::lt.Tensor", "aten::lt.Scalar", "aten::less.Tensor", "_operator::lt"))
+@torch_op(("aten::lt.Tensor", "aten::lt.Scalar", "aten::less.Tensor", "_operator::lt"), traceable=True)
 def aten_lt_bool(self: BOOL, other: BOOL) -> BOOL:
     """lt.Tensor(Tensor self, Tensor other) -> Tensor"""
 
