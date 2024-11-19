@@ -7119,7 +7119,9 @@ def aten_remainder(self: TFloat, other: TFloat) -> TFloat:
     return op.Sub(self, op.Mul(rounded_quotient, other))
 
 
-@torch_op(("aten::remainder.Tensor", "aten::remainder.Scalar", "_operator::mod"))
+@torch_op(
+    ("aten::remainder.Tensor", "aten::remainder.Scalar", "_operator::mod"), traceable=True
+)
 def aten_remainder_int(self: TInt, other: TInt) -> TInt:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
