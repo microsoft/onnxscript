@@ -5,6 +5,7 @@
 __all__ = [
     # Modules
     "serde",
+    "convenience",
     # IR classes
     "Tensor",
     "ExternalTensor",
@@ -77,7 +78,7 @@ __all__ = [
     "save",
 ]
 
-from onnxscript.ir import passes, serde, traversal
+from onnxscript.ir import convenience, passes, serde, traversal
 from onnxscript.ir._convenience import tensor
 from onnxscript.ir._core import (
     Attr,
