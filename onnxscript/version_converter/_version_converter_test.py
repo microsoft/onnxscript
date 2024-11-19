@@ -39,7 +39,7 @@ class ApapterCoverageTest(unittest.TestCase):
             domain, name, upgrade_version = (
                 adapter_info[0],
                 adapter_info[1],
-                adapter_info[2] + 1
+                adapter_info[2] + 1,
             )
             self.assertEqual(domain, "")
             self.assertIn((name, upgrade_version), op_upgrades)

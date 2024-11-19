@@ -211,6 +211,7 @@ def groupnormalization_20_21(node: ir.Node, op):
 
 class _VersionConverter:
     opset_imports: dict[str, int]
+    model_version: int
 
     def __init__(self, target_version: int):
         self.target_version = target_version
@@ -246,15 +247,13 @@ class _VersionConverter:
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
 
-    def visit_attribute(
-        self, attr: ir.Attr | ir.RefAttr, opset_version: int, up_conversion: bool = True
-    ) -> None:
+    def visit_attribute(self, attr: ir.Attr | ir.RefAttr, up_conversion: bool = True) -> None:
         if isinstance(attr, ir.Attr):
             if attr.type == ir.AttributeType.GRAPH:
-                self.visit_graph(attr.value, opset_version, up_conversion)  # type: ignore[arg-type]
+                self.visit_graph(attr.value, up_conversion)  # type: ignore[arg-type]
             elif attr.type == ir.AttributeType.GRAPHS:
                 for graph in attr.value:
-                    self.visit_graph(graph, opset_version, up_conversion)  # type: ignore[arg-type]
+                    self.visit_graph(graph, up_conversion)  # type: ignore[arg-type]
 
     def visit_node(
         self,
@@ -267,18 +266,30 @@ class _VersionConverter:
         if replacement is None:
             # No change. Process attributes.
             for attr in node.attributes.values():
-                self.visit_attribute(attr, opset_version, up_conversion)
+                self.visit_attribute(attr, up_conversion)
             return None
         else:
             self.replace_node(node, replacement, root)
         return None
 
-    def visit_graph(
-        self, graph: ir.Graph, opset_version: int, up_conversion: bool = True
-    ) -> None:
+    def visit_graph(self, graph: ir.Graph, up_conversion: bool = True) -> None:
         for node in graph:
-            self.visit_node(node, graph, opset_version, up_conversion)
-            self._upgrade_version(node, opset_version, up_conversion)
+            if node.version is None:
+                node.version = self.model_version
+            # Iterate each node from current node version -> target version
+            # and updating node based on the correct adapter
+            # Up-conversion [ver->ver+1] or down-conversion [ver->ver-1]
+            for opset_version in range(node.version, self.target_version):
+                if up_conversion is True and opset_version == CURRENT_MAX_ONNX_OPSET:
+                    logger.warning(
+                        "Conversion from opset: %s to target opset: %s not currently supported.",
+                        opset_version,
+                        opset_version + 1,
+                    )
+                    return None
+                self.visit_node(node, graph, opset_version, up_conversion)
+                self._upgrade_version(node, opset_version, up_conversion)
+        return None
 
     def visit_model(self, model: ir.Model) -> None:
         self.opset_imports = model.opset_imports
@@ -291,6 +302,7 @@ class _VersionConverter:
                 return None
         if model_version is None:
             return None
+        self.model_version = model_version
 
         up_conversion = True
         if self.target_version < model_version:
@@ -300,22 +312,10 @@ class _VersionConverter:
             logger.warning(
                 "Target opset: %s less than %s, downstream version conversion not currently handled.",
                 self.target_version,
-                model_version,
+                self.model_version,
             )
             return None
-        # Iterate from current model version -> target version
-        # Performance considerations: Each node in the graph is visited for every iteration of opset upgrade/downgrade
-        # Updating each node based on the correct adapter
-        # Up-conversion [ver->ver+1] or down-conversion [ver->ver-1]
-        for opset_version in range(model_version, self.target_version):
-            if up_conversion is True and opset_version == CURRENT_MAX_ONNX_OPSET:
-                logger.warning(
-                    "Conversion from opset: %s to target opset: %s not currently supported.",
-                    opset_version,
-                    opset_version + 1,
-                )
-                return None
-            self.visit_graph(model.graph, opset_version, up_conversion)
+        self.visit_graph(model.graph, up_conversion)
         return None
 
 
