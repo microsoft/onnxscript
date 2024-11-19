@@ -8019,47 +8019,21 @@ def aten_sum_dim_IntList(
 ) -> TReal:
     """sum(Tensor self, SymInt dim, bool keepdim, *, ScalarType? dtype=None) -> Tensor"""
 
-    # NOTE: trace_only because both if branches need to be the same type, but we have
-    # a cast in the if branch.
-
-    # TODO: Combine the overloads when OptionalHasElement() works
-    if dim is None:
-        result = _aten_sum_dim_none(self, keepdim=keepdim)
-    else:
-        result = _aten_sum_dim_onnx(self, dim, keepdim=keepdim)
+    self_is_scalar = IsScalar(self)
+    if self_is_scalar:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    if dim is None:    
+        result = op.ReduceSum(self, keepdims=keepdim)
+    else:    
+        dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        dim = op.Cast(dim, to=INT64.dtype)
+        result = op.ReduceSum(self, dim, keepdims=keepdim)
+    if self_is_scalar:
+        result = op.Squeeze(result)
 
     if dtype != -1:
         result = op.Cast(result, to=dtype)
 
-    return result
-
-
-@torch_op("aten::sum", private=True, traceable=True)
-def _aten_sum_dim_onnx(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
-    self_is_scalar = IsScalar(self)
-    if self_is_scalar:
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
-
-    if IsScalar(dim):
-        dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
-        dim = op.Cast(dim, to=INT64.dtype)
-    result = op.ReduceSum(self, dim, keepdims=keepdim)
-
-    if self_is_scalar:
-        result = op.Squeeze(result)
-    return result
-
-
-@torch_op("aten::sum", private=True)
-def _aten_sum_dim_none(self: TReal, keepdim: bool = False) -> TReal:
-    self_is_scalar = IsScalar(self)
-    if self_is_scalar:
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
-
-    result = op.ReduceSum(self, keepdims=keepdim)
-
-    if self_is_scalar:
-        result = op.Squeeze(result)
     return result
 
 
