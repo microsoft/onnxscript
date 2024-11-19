@@ -3273,7 +3273,7 @@ def aten_empty_quantized(
     raise NotImplementedError()
 
 
-@torch_op("aten::empty_strided")
+@torch_op("aten::empty_strided", traceable=True)
 def aten_empty_strided(
     size: INT64,
     stride: INT64,
@@ -3290,7 +3290,7 @@ def aten_empty_strided(
     return op.Expand(zero, size)
 
 
-@torch_op(("aten::eq", "aten::eq.Tensor", "aten::eq.Scalar", "_operator::eq"))
+@torch_op(("aten::eq", "aten::eq.Tensor", "aten::eq.Scalar", "_operator::eq"), traceable=True)
 def aten_eq(self: TTensor, other: TTensor) -> BOOL:
     """eq.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -6238,14 +6238,14 @@ def aten_native_norm(self: TensorType, p: float = 2.0) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::ne", "aten::ne.Scalar", "aten::ne.Tensor", "_operator::ne"))
+@torch_op(("aten::ne", "aten::ne.Scalar", "aten::ne.Tensor", "_operator::ne"), traceable=True)
 def aten_ne(self: TReal, other: TReal) -> BOOL:
     """ne.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.Not(op.Equal(self, other))
 
 
-@torch_op(("aten::neg", "_operator::neg"))
+@torch_op(("aten::neg", "_operator::neg"), traceable=True)
 def aten_neg(self: TReal) -> TReal:
     """neg(Tensor self) -> Tensor"""
 
@@ -7087,7 +7087,7 @@ def aten_real(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::reciprocal")
+@torch_op("aten::reciprocal", traceable=True)
 def aten_reciprocal(self: TFloat) -> TFloat:
     """reciprocal(Tensor self) -> Tensor"""
 
