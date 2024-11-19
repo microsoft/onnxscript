@@ -8028,17 +8028,15 @@ def aten_sum_dim_IntList(
 ) -> TReal:
     """sum.dim_IntList(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
 
-    self_is_scalar = IsScalar(self)
-    if self_is_scalar:
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    if len(self.shape) == 0:
+        return self
+
     if dim is None:
         result = op.ReduceSum(self, keepdims=keepdim)
     else:
         dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
         dim = op.Cast(dim, to=INT64.dtype)
         result = op.ReduceSum(self, dim, keepdims=keepdim)
-    if self_is_scalar:
-        result = op.Squeeze(result)
 
     if dtype != -1 and dtype is not None:
         result = op.Cast(result, to=dtype)
