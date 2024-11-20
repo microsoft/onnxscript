@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 CURRENT_MAX_ONNX_OPSET = 23
 
 
-class VersionConverterError(Exception):
+class VersionConverterError(RuntimeError):
     """Raised when an node's version cannot be upgraded/downgraded successfully."""
 
 
