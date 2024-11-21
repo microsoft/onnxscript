@@ -21,8 +21,6 @@ from onnxscript import ir, optimizer, version_converter
 from onnxscript.function_libs.torch_lib import registration
 from onnxscript.ir import _external_data
 
-ENABLE_VERSION_CONVERTER = 0
-
 
 @dataclasses.dataclass(frozen=True)
 class _OnnxFunctionMeta:
@@ -53,7 +51,9 @@ def optimize(model: ir.Model) -> ir.Model:
 
 def convert_version(model: ir.Model, target_version: int) -> ir.Model:
     """Convert the model to the specified ONNX opset version."""
-    if ENABLE_VERSION_CONVERTER == 1:
+    # Internal flag. Will go away.
+    enabled = os.getenv("TORCH_ONNX_ENABLE_VERSION_CONVERSION") == "1"
+    if enabled:
         version_converter.convert_version(model, target_version)
     return model
 
