@@ -275,7 +275,7 @@ class _VersionConverter:
             # Iterate each node from current node version -> target version
             # and updating node based on the correct adapter
             # Up-conversion [ver->ver+1] or down-conversion [ver->ver-1]
-            # TODO (shubhambhokare1) : Remove once down-conversion adapters are supoorted
+            # TODO(shubhambhokare1): Remove once down-conversion adapters are supoorted
             if self.target_version < node.version:
                 up_conversion = False
                 logger.warning(
