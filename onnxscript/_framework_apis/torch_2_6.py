@@ -34,6 +34,6 @@ def optimize(model: ir.Model) -> ir.Model:
 
 def torchlib_opset() -> Opset:
     """Return the default opset for torchlib."""
-    from onnxscript import opset18
+    from onnxscript import opset18  # pylint: disable=import-outside-toplevel
 
     return opset18
