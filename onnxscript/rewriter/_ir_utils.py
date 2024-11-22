@@ -8,6 +8,29 @@ import onnxscript.ir as ir
 from onnxscript.optimizer import basic_constant_propagation
 
 
+def display_slice(x: ir.Value | ir.Node, backward: bool = True, depth_limit: int = 5):
+    """Display the subgraph computing a given value or node upto a certain depth."""
+    slice = []
+    def visit(node: ir.Node, depth):
+        if node in slice:
+            return
+        slice.append(node)
+        if (depth < depth_limit):
+            if backward:
+                for inp in node.inputs:
+                    if inp is not None and inp.producer() is not None:
+                        visit(inp.producer(), depth + 1)
+            else:
+                for out in node.outputs:
+                    for consumer, _ in out.uses():
+                        visit(consumer, depth + 1)
+    if isinstance(x, ir.Node):
+        visit(x, 0)
+    elif isinstance(x, ir.Value) and x.producer() is not None:
+        visit(x.producer(), 0)
+    for node in reversed(slice):
+        node.display()
+
 def get_const_value(value: ir.Value) -> ir.TensorProtocol | None:
     node = value.producer()
     if node is not None:

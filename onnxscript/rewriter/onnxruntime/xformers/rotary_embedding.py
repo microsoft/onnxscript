@@ -29,6 +29,8 @@ def _rotary_embedding(op, x, cos, sin, start1, end1, start2, end2):
         return None
     dim_size = x.shape[3]
     if not isinstance(dim_size, int):
+        import onnxscript.rewriter._ir_utils as ir_utils
+        ir_utils.display_slice(x)
         return None
     half_dim_size = dim_size // 2
     if (
@@ -37,6 +39,10 @@ def _rotary_embedding(op, x, cos, sin, start1, end1, start2, end2):
         and start2_val == half_dim_size
         and end2_val >= dim_size
     ):
+        import onnxscript.rewriter._ir_utils as ir_utils
+        ir_utils.display_slice(cos)
+        ir_utils.display_slice(cos, backward=False)
+        ir_utils.display_slice(sin)
         return op.RotaryEmbedding(x, cos, sin, interleaved=0, _domain="com.microsoft")
     return None
 
