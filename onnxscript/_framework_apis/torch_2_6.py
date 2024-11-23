@@ -23,7 +23,7 @@ from onnxscript._framework_apis.torch_2_5 import (
 )
 
 if TYPE_CHECKING:
-    from onnxscript.values import Opset
+    from onnxscript.onnx_opset._impl.opset18 import Opset18
 
 
 def optimize(model: ir.Model) -> ir.Model:
@@ -32,8 +32,14 @@ def optimize(model: ir.Model) -> ir.Model:
     return model
 
 
-def torchlib_opset() -> Opset:
+def torchlib_opset() -> Opset18:
     """Return the default opset for torchlib."""
-    from onnxscript import opset18  # pylint: disable=import-outside-toplevel
+    import onnxscript  # pylint: disable=import-outside-toplevel
 
-    return opset18
+    return onnxscript.opset18  # type: ignore
+
+
+def torchlib_opset_version() -> int:
+    """Return the default opset version for torchlib."""
+
+    return torchlib_opset().version
