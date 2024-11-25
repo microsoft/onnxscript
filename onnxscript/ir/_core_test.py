@@ -520,6 +520,30 @@ class ShapeTest(unittest.TestCase):
         shape = _core.Shape([42])
         self.assertIsInstance(shape[0], int)
 
+    def test_str_dimensions_are_symbolic_dims(self):
+        shape = _core.Shape(["any string"])
+        self.assertIsInstance(shape[0], _core.SymbolicDim)
+
+    def test_none_dimensions_are_symbolic_dims(self):
+        shape = _core.Shape([None])
+        self.assertIsInstance(shape[0], _core.SymbolicDim)
+
+    def test_init_raises_when_dims_is_not_a_list(self):
+        with self.assertRaises(TypeError):
+            _core.Shape(42)
+
+    def test_init_converts_np_shape_to_tuple(self):
+        dims = np.array([42, 42])
+        shape = _core.Shape(dims)
+        self.assertEqual(shape.dims, tuple(dims))
+
+    def test_init_converts_np_int_to_python_int(self):
+        dims = [np.int32(42)]
+        shape = _core.Shape(dims)
+        self.assertIsInstance(shape[0], int)
+        self.assertNotIsInstance(shape[0], np.int32)
+        self.assertIsInstance(shape.dims[0], int)
+
     @parameterized.parameterized.expand(
         [
             ("empty", (), ()),
@@ -623,6 +647,10 @@ class ShapeTest(unittest.TestCase):
         else:
             self.assertEqual(dim, value)
 
+    def test_len(self):
+        shape = _core.Shape([42, "any string"])
+        self.assertEqual(len(shape), 2)
+
     def test_get_denotation(self):
         shape = _core.Shape([42], denotations=("DATA_CHANNEL",))
         self.assertEqual(shape.get_denotation(0), "DATA_CHANNEL")
@@ -636,6 +664,56 @@ class ShapeTest(unittest.TestCase):
         shape = _core.Shape([42], denotations=("DATA_CHANNEL",), frozen=True)
         shape.set_denotation(0, "UPDATED")
         self.assertEqual(shape.get_denotation(0), "UPDATED")
+
+    def test_is_static(self):
+        dim_from_numpy = np.array([42]).shape[0]
+        np_int = np.int32(42)
+        shape = _core.Shape([42, "any string", dim_from_numpy, np_int])
+        self.assertTrue(shape.is_static(0))
+        self.assertFalse(shape.is_static(1))
+        self.assertTrue(shape.is_static(2))
+        self.assertTrue(shape.is_static(3))
+        self.assertFalse(shape.is_static())
+
+    def test_is_static_raises_when_index_out_of_range(self):
+        shape = _core.Shape([42])
+        with self.assertRaises(IndexError):
+            shape.is_static(1)
+
+    def test_is_static_on_whole_shape(self):
+        shape = _core.Shape([42, "any string"])
+        self.assertFalse(shape.is_static())
+        shape = _core.Shape([42, 42])
+        self.assertTrue(shape.is_static())
+
+    def test_is_static_on_empty_shape(self):
+        shape = _core.Shape(())
+        self.assertTrue(shape.is_static())
+
+    def test_is_dynamic(self):
+        dim_from_numpy = np.array([42]).shape[0]
+        np_int = np.int32(42)
+        shape = _core.Shape([42, "any string", dim_from_numpy, np_int])
+        self.assertFalse(shape.is_dynamic(0))
+        self.assertTrue(shape.is_dynamic(1))
+        self.assertFalse(shape.is_dynamic(2))
+        self.assertFalse(shape.is_dynamic(3))
+        self.assertTrue(shape.is_dynamic())
+
+    def test_is_dynamic_raises_when_index_out_of_range(self):
+        shape = _core.Shape([42])
+        with self.assertRaises(IndexError):
+            shape.is_dynamic(1)
+
+    def test_is_dynamic_on_whole_shape(self):
+        shape = _core.Shape([42, "any string"])
+        self.assertTrue(shape.is_dynamic())
+        shape = _core.Shape([42, 42])
+        self.assertFalse(shape.is_dynamic())
+
+    def test_is_dynamic_on_empty_shape(self):
+        shape = _core.Shape(())
+        self.assertFalse(shape.is_dynamic())
 
 
 class ValueTest(unittest.TestCase):

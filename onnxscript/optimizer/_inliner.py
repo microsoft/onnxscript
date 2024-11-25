@@ -25,13 +25,14 @@ CallStack = List[CallSiteId]
 def _make_unique_name(name: str, callstack: CallStack, used_names: set[str]) -> str:
     """Generate a unique name from a name, calling-context, and set of used names.
 
-    When a value X in a function is inlined into a graph, we rename X by adding a prefix
-    representing the call-stack of the function. This should typically avoid name clashes.
-    If there is a name clash, even after this, we add a numeric suffix to the name to make
+    If there is a name clash, we add a numeric suffix to the name to make
     it unique. We use the same strategy to make node names unique.
+
+    TODO: We can use the callstack in generating a name for a value X in a function
+    that is inlined into a graph. This is not yet implemented. Using the full callstack
+    leads to very long and hard to read names. Some investigation is needed to find
+    a good naming strategy that will produce useful names for debugging.
     """
-    prefix = "_".join(callstack)
-    name = prefix + "_" + name
     candidate = name
     i = 1
     while candidate in used_names:
