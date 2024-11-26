@@ -141,6 +141,105 @@ class TestExportPhi3(unittest.TestCase):
         gradients = onnxscript.tools.training_helper.train_loop(compiled_model, *input_tensors)
         torch.testing.assert_close(expected_gradients[0], gradients[0], atol=1e-5, rtol=1e-5)
 
+    def test_get_phi3_model_from_config_large(self):
+        model, input_tensors_many, dynamic_shapes = (
+            onnxscript.tools.transformers_models.phi3.get_phi3_model_from_config(config="large")
+        )
+        self.assertIsNotNone(model)
+        self.assertIsInstance(input_tensors_many, list)
+        self.assertIsInstance(dynamic_shapes, dict)
+
+
+    def test_get_phi3_model_from_config_medium(self):
+        model, input_tensors_many, dynamic_shapes = (
+            onnxscript.tools.transformers_models.phi3.get_phi3_model_from_config(config="medium")
+        )
+        self.assertIsNotNone(model)
+        self.assertIsInstance(input_tensors_many, list)
+        self.assertIsInstance(dynamic_shapes, dict)
+
+
+    def test_get_phi3_model_no_mask(self):
+        model, input_tensors_many, dynamic_shapes = (
+            onnxscript.tools.transformers_models.phi3.get_phi3_model(with_mask=False)
+        )
+        input_tensors = input_tensors_many[0]
+        expected = model(*input_tensors)
+        self.assertIsNotNone(expected)
+
+
+    def test_get_phi3_model_unexpected_config(self):
+        with self.assertRaises(ValueError) as context:
+            onnxscript.tools.transformers_models.phi3.get_phi3_model_from_config(config="unexpected")
+        self.assertIn("Unexpected configuration", str(context.exception))
+
+
+    def test_has_phi3_import_error(self):
+        import sys
+        import builtins
+        original_import = builtins.__import__
+        
+        def mocked_import(name, *args):
+            if name == "transformers":
+                raise ImportError("No module named 'transformers'")
+            return original_import(name, *args)
+        
+        builtins.__import__ = mocked_import
+        try:
+            result = onnxscript.tools.transformers_models.phi3.has_phi3()
+            self.assertFalse(result)
+        finally:
+            builtins.__import__ = original_import
+
+
+    def test_prepare_config_and_inputs_num_choices_zero(self):
+        with self.assertRaises(AssertionError) as context:
+            onnxscript.tools.transformers_models.phi3._prepare_config_and_inputs(
+                batch_size=1,
+                seq_length=1,
+                vocab_size=10,
+                num_choices=0,
+                use_labels=True
+            )
+        self.assertIn("num_choices is null", str(context.exception))
+
+
+    def test_prepare_config_and_inputs_num_labels_zero(self):
+        with self.assertRaises(AssertionError) as context:
+            onnxscript.tools.transformers_models.phi3._prepare_config_and_inputs(
+                batch_size=1,
+                seq_length=1,
+                vocab_size=10,
+                num_labels=0,
+                use_labels=True
+            )
+        self.assertIn("num_labels is null", str(context.exception))
+
+
+    def test_prepare_config_and_inputs_type_sequence_label_size_zero(self):
+        with self.assertRaises(AssertionError) as context:
+            onnxscript.tools.transformers_models.phi3._prepare_config_and_inputs(
+                batch_size=1,
+                seq_length=1,
+                vocab_size=10,
+                type_sequence_label_size=0,
+                use_labels=True
+            )
+        self.assertIn("type_sequence_label_size is null", str(context.exception))
+
+
+    def test_prepare_config_and_inputs_type_vocab_size_zero(self):
+        with self.assertRaises(AssertionError) as context:
+            onnxscript.tools.transformers_models.phi3._prepare_config_and_inputs(
+                batch_size=1,
+                seq_length=1,
+                vocab_size=10,
+                type_vocab_size=0,
+                use_token_type_ids=True
+            )
+        self.assertIn("type_vocab_size is null", str(context.exception))
+
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

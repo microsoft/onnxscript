@@ -10,6 +10,7 @@ import torch
 
 import onnxscript.tools.memory_peak
 
+import multiprocessing
 
 class TestMemoryPeak(unittest.TestCase):
     @unittest.skipIf(sys.platform == "win32", reason="other test are failing")
@@ -51,6 +52,29 @@ class TestMemoryPeak(unittest.TestCase):
         self.assertIn("gpus", pres)
         self.assertLessEqual(pres["gpus"][0].end, pres["gpus"][0].max_peak)
         self.assertLessEqual(pres["gpus"][0].begin, pres["gpus"][0].max_peak)
+
+
+    def test_flatten_with_gpus_precise(self):
+        cpu_monitor = onnxscript.tools.memory_peak.Monitor()
+        gpu_monitor = onnxscript.tools.memory_peak.Monitor()
+        cpu_monitor.update(1000)
+        gpu_monitor.update(2000)
+        stats = {'cpu': [cpu_monitor], 'gpus': [gpu_monitor]}
+        flat_stats = onnxscript.tools.memory_peak.flatten(stats)
+        self.assertIn('gpu0_peak', flat_stats)
+        self.assertAlmostEqual(flat_stats['gpu0_peak'], 0.0019073486328125)
+
+
+    def test_memory_spy_start_handshake_failure(self):
+        original_pipe = multiprocessing.Pipe
+        def mock_pipe():
+            parent_conn, child_conn = original_pipe()
+            parent_conn.recv = lambda: -1  # Simulate handshake failure
+            return parent_conn, child_conn
+        multiprocessing.Pipe = mock_pipe
+        with self.assertRaises(RuntimeError):
+            onnxscript.tools.memory_peak.MemorySpy(os.getpid())
+        multiprocessing.Pipe = original_pipe
 
 
 if __name__ == "__main__":

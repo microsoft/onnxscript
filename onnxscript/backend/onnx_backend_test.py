@@ -8,6 +8,7 @@ import onnxruntime as ort
 
 from onnxscript.backend import onnx_backend
 
+import numpy as np
 
 def load_function(obj):
     return ort.InferenceSession(obj.SerializeToString(), providers=("CPUExecutionProvider",))
@@ -40,6 +41,12 @@ class TestOnnxBackEnd(unittest.TestCase):
             backend_test.run(load_function, run_function)
             done += 1
         self.assertEqual(done, 1)
+
+    def test_assert_almost_equal_string_with_floats(self):
+        expected = np.array([1.0, 2.0, 3.0])
+        value = np.array([1.0, 2.0, 3.0])
+        onnx_backend.assert_almost_equal_string(expected, value)
+
 
 
 if __name__ == "__main__":

@@ -77,5 +77,43 @@ class RecursiveGraphIteratorTest(unittest.TestCase):
         self.assertEqual(tuple(node.op_type for node in nodes), expected)
 
 
+    def test_recursive_graph_iterator_with_multiple_graphs(self):
+        graph_with_multiple_graphs = ir.Graph(
+            [],
+            [],
+            nodes=[
+                ir.Node(
+                    "",
+                    "Loop",
+                    [],
+                    attributes=[
+                        ir.AttrGraphs(
+                            "body_branches",
+                            [
+                                ir.Graph(
+                                    [],
+                                    [],
+                                    nodes=[ir.Node("", "Node7", []), ir.Node("", "Node8", [])],
+                                    name="body_graph_1",
+                                ),
+                                ir.Graph(
+                                    [],
+                                    [],
+                                    nodes=[ir.Node("", "Node9", []), ir.Node("", "Node10", [])],
+                                    name="body_graph_2",
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+            name="main_graph_with_multiple_graphs",
+        )
+        iterator = traversal.RecursiveGraphIterator(graph_with_multiple_graphs)
+        nodes = list(iterator)
+        expected = ("Loop", "Node7", "Node8", "Node9", "Node10")
+        self.assertEqual(tuple(node.op_type for node in nodes), expected)
+
+
 if __name__ == "__main__":
     unittest.main()

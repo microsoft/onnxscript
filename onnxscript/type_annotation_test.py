@@ -241,5 +241,35 @@ class TypeConversionFunctionsTest(unittest.TestCase):
         self.assertEqual(type_annotation.get_type_constraint_name(pytype), expected)
 
 
+    def test_pytype_to_attrtype_unsupported(self):
+        self.assertIsNone(type_annotation.pytype_to_attrtype(dict))
+
+
+    def test_pytype_to_attrtype_optional_and_list(self):
+        import onnx
+        self.assertEqual(type_annotation.pytype_to_attrtype(Optional[int]), onnx.AttributeProto.INT)
+        self.assertEqual(type_annotation.pytype_to_attrtype(Optional[float]), onnx.AttributeProto.FLOAT)
+        self.assertEqual(type_annotation.pytype_to_attrtype(List[int]), onnx.AttributeProto.INTS)
+        self.assertEqual(type_annotation.pytype_to_attrtype(List[float]), onnx.AttributeProto.FLOATS)
+
+
+    def test_is_value_type_unsupported_annotation(self):
+        with self.assertRaises(ValueError):
+            type_annotation.is_value_type(dict)
+
+
+    def test_base_type_is_bool(self):
+        self.assertTrue(type_annotation.base_type_is_bool(bool))
+        self.assertTrue(type_annotation.base_type_is_bool(Optional[bool]))
+        self.assertTrue(type_annotation.base_type_is_bool(Sequence[bool]))
+        self.assertFalse(type_annotation.base_type_is_bool(int))
+        self.assertFalse(type_annotation.base_type_is_bool(Optional[int]))
+
+
+    def test_onnx_attr_type_to_onnxscript_repr_unsupported_type(self):
+        with self.assertRaises(ValueError):
+            type_annotation.onnx_attr_type_to_onnxscript_repr(999)  # Assuming 999 is unsupported
+
+
 if __name__ == "__main__":
     unittest.main()

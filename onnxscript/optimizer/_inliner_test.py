@@ -206,6 +206,66 @@ class InlinerTest(unittest.TestCase):
         """
         self._check(input_model, expected_model)
 
+    def test_opset_mismatch_error(self):
+        input_model = """
+            <ir_version: 8, opset_import: [ "" : 17, "local" : 1 ]>
+            agraph (float[N] X) => (float[N] Y)
+            {
+                Y = local.foo (X)
+            }
+    
+            <opset_import: [ "" : 18, "local" : 1 ], domain: "local">
+            foo (x) => (y) {
+                y = Selu (x)
+            }
+        """
+        model_proto = parser.parse_model(input_model)
+        model_ir = ir.serde.deserialize_model(model_proto)
+        with self.assertRaises(ValueError) as context:
+            inline(model_ir)
+        self.assertIn("Opset mismatch", str(context.exception))
+
+
+    def test_input_mismatch_error(self):
+        input_model = """
+            <ir_version: 8, opset_import: [ "" : 17, "local" : 1 ]>
+            agraph (float[N] X, float[N] Z) => (float[N] Y)
+            {
+                Y = local.foo (X, Z)
+            }
+    
+            <opset_import: [ "" : 17, "local" : 1 ], domain: "local">
+            foo (x) => (y) {
+                y = Selu (x)
+            }
+        """
+        model_proto = parser.parse_model(input_model)
+        model_ir = ir.serde.deserialize_model(model_proto)
+        with self.assertRaises(ValueError) as context:
+            inline(model_ir)
+        self.assertIn("Input mismatch", str(context.exception))
+
+
+    def test_graph_attribute_parameter_error(self):
+        input_model = """
+            <ir_version: 8, opset_import: [ "" : 17, "local" : 1 ]>
+            agraph (float[N] X) => (float[N] Y)
+            {
+                Y = local.foo (X)
+            }
+    
+            <opset_import: [ "" : 17, "local" : 1 ], domain: "local">
+            foo <graph: graph> (x) => (y) {
+                y = Selu (x)
+            }
+        """
+        model_proto = parser.parse_model(input_model)
+        model_ir = ir.serde.deserialize_model(model_proto)
+        with self.assertRaises(ValueError) as context:
+            inline(model_ir)
+        self.assertIn("Inliner does not support graph attribute parameters to functions", str(context.exception))
+
+
 
 if __name__ == "__main__":
     unittest.main()

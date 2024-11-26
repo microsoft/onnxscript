@@ -557,5 +557,97 @@ class OffloadExternalTensorTest(unittest.TestCase):
                 self.assertEqual(tensor_data, expected_tensor_order[i])
 
 
+    def test_all_tensors_excludes_attributes(self):
+        attr_tensor_1 = ir.Tensor(
+            np.array([1.0], dtype=np.float32),
+            dtype=ir.DataType.FLOAT,
+            shape=ir.Shape([1]),
+            name="test_attr_tensor_1"
+        )
+        attr_tensor_2 = ir.Tensor(
+            np.array([2.0], dtype=np.float32),
+            dtype=ir.DataType.FLOAT,
+            shape=ir.Shape([1]),
+            name="test_attr_tensor_2"
+        )
+        node = ir.Node(
+            domain="",
+            op_type="TestOp",
+            inputs=[],
+            attributes=[
+                ir.Attr(name="attr_tensor", type=ir.AttributeType.TENSOR, value=attr_tensor_1),
+                ir.Attr(name="attr_tensors", type=ir.AttributeType.TENSORS, value=[attr_tensor_2])
+            ],
+            num_outputs=1
+        )
+        graph = ir.Graph(
+            inputs=[],
+            outputs=[],
+            initializers={},
+            nodes=[node],
+            name="test_graph"
+        )
+        tensors = list(_external_data._all_tensors(graph, include_attributes=False))
+        self.assertEqual(len(tensors), 0)
+
+
+    def test_all_tensors_with_various_attributes(self):
+        attr_tensor_1 = ir.Tensor(
+            np.array([1.0], dtype=np.float32),
+            dtype=ir.DataType.FLOAT,
+            shape=ir.Shape([1]),
+            name="test_attr_tensor_1"
+        )
+        attr_tensor_2 = ir.Tensor(
+            np.array([2.0], dtype=np.float32),
+            dtype=ir.DataType.FLOAT,
+            shape=ir.Shape([1]),
+            name="test_attr_tensor_2"
+        )
+        node = ir.Node(
+            domain="",
+            op_type="TestOp",
+            inputs=[],
+            attributes=[
+                ir.Attr(name="attr_tensor", type=ir.AttributeType.TENSOR, value=attr_tensor_1),
+                ir.Attr(name="attr_tensors", type=ir.AttributeType.TENSORS, value=[attr_tensor_2])
+            ],
+            num_outputs=1
+        )
+        graph = ir.Graph(
+            inputs=[],
+            outputs=[],
+            initializers={},
+            nodes=[node],
+            name="test_graph"
+        )
+        tensors = list(_external_data._all_tensors(graph, include_attributes=True))
+        self.assertEqual(len(tensors), 2)
+        self.assertEqual(tensors[0].name, "test_attr_tensor_1")
+        self.assertEqual(tensors[1].name, "test_attr_tensor_2")
+
+
+    def test_save_external_data_padding(self):
+        tensor_data = np.random.rand(1, 42).astype(np.float32)
+        tensor = ir.Tensor(
+            tensor_data,
+            dtype=ir.DataType.FLOAT,
+            shape=ir.Shape(tensor_data.shape),
+            name="test_tensor",
+        )
+        external_data_info = [
+            (tensor, _external_data._ExternalDataInfo("test_tensor", 100, tensor.nbytes))
+        ]
+        file_path = os.path.join(self.base_path, "test_external_data.bin")
+        
+        _external_data._save_external_data(external_data_info, file_path)
+        
+        with open(file_path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            file_size = f.tell()
+        
+        self.assertEqual(file_size, 100 + tensor.nbytes)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -80,5 +80,11 @@ class TorchTensorTest(unittest.TestCase):
         self.assertEqual(tensor.tobytes(), tensor.numpy().tobytes())
 
 
+    def test_array_conversion_with_dtype(self):
+        tensor = tensor_adapters.TorchTensor(torch.tensor([1.0], dtype=torch.float32))
+        np_array = tensor.__array__(dtype=np.float64)
+        self.assertEqual(np_array.dtype, np.float64)
+
+
 if __name__ == "__main__":
     unittest.main()

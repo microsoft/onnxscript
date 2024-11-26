@@ -10,6 +10,7 @@ import parameterized
 
 from onnxscript import ir
 from onnxscript.rewriter import broadcast_to_matmul
+import numpy as np
 
 
 def _infer_shapes(model: ir.Model) -> ir.Model:
@@ -391,6 +392,38 @@ class OneReshapeMatMulReshapeTest(unittest.TestCase):
         self.assertEqual(count, 1)
         # The constant nodes are not removed. They should be removed by a subsequent DCE in optimizer.
         self.assertEqual(len(model.graph), 3)
+
+
+    def test_input_b_shape_symbolic(self):
+        input_a = ir.Value(shape=ir.Shape([2, 3]))
+        input_b = ir.Value(shape=ir.Shape([3, ir.SymbolicDim("m")]))
+        shape_c = ir.Value(const_value=ir.Tensor(np.array([2, 4])))
+        result = broadcast_to_matmul.check_if_not_need_reshape(None, input_a, input_b, shape_c)
+        self.assertFalse(result)
+
+
+    def test_input_a_shape_symbolic(self):
+        input_a = ir.Value(shape=ir.Shape([ir.SymbolicDim("n"), 3]))
+        input_b = ir.Value(shape=ir.Shape([3, 4]))
+        shape_c = ir.Value(const_value=ir.Tensor(np.array([2, 4])))
+        result = broadcast_to_matmul.check_if_not_need_reshape(None, input_a, input_b, shape_c)
+        self.assertFalse(result)
+
+
+    def test_shape_c_tensor_multi_dimensional(self):
+        input_a = ir.Value(shape=ir.Shape([2, 3]))
+        input_b = ir.Value(shape=ir.Shape([3, 4]))
+        shape_c = ir.Value(const_value=ir.Tensor(np.array([[1, 2], [3, 4]])))
+        result = broadcast_to_matmul.check_if_not_need_reshape(None, input_a, input_b, shape_c)
+        self.assertFalse(result)
+
+
+    def test_shape_c_tensor_none(self):
+        input_a = ir.Value(shape=ir.Shape([2, 3]))
+        input_b = ir.Value(shape=ir.Shape([3, 4]))
+        shape_c = ir.Value(const_value=None)
+        result = broadcast_to_matmul.check_if_not_need_reshape(None, input_a, input_b, shape_c)
+        self.assertFalse(result)
 
 
 if __name__ == "__main__":

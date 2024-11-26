@@ -72,6 +72,26 @@ class AttributeTypeTest(unittest.TestCase):
         self.assertEqual(_enums.AttributeType.TYPE_PROTOS, onnx.AttributeProto.TYPE_PROTOS)
         self.assertEqual(_enums.AttributeType.UNDEFINED, onnx.AttributeProto.UNDEFINED)
 
+    def test_from_numpy_unsupported_dtype(self):
+        with self.assertRaises(TypeError):
+            _enums.DataType.from_numpy(np.dtype('datetime64'))
+
+
+    def test_numpy_unsupported_type(self):
+        with self.assertRaises(TypeError):
+            _enums.DataType.UNDEFINED.numpy()
+
+
+    def test_attribute_type_str(self):
+        self.assertEqual(str(_enums.AttributeType.FLOAT), "FLOAT")
+        self.assertEqual(str(_enums.AttributeType.INT), "INT")
+
+
+    def test_attribute_type_repr(self):
+        self.assertEqual(repr(_enums.AttributeType.FLOAT), "FLOAT")
+        self.assertEqual(repr(_enums.AttributeType.INT), "INT")
+
+
 
 if __name__ == "__main__":
     unittest.main()

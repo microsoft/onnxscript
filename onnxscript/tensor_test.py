@@ -148,5 +148,194 @@ class TestTensor(unittest.TestCase):
         self._check_values_and_shape(y, [0, 9], (2, 1))
 
 
+    def test_tensor_reverse_matmul(self):
+        x = tensor.Tensor(np.array([[1, 2], [3, 4]]))
+        y = tensor.Tensor(np.array([[5, 6], [7, 8]]))
+        result = y @ x
+        expected = np.array([[23, 34], [31, 46]])
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_tensor_equality(self):
+        x = tensor.Tensor(np.array([1, 2, 3]))
+        y = tensor.Tensor(np.array([1, 2, 3]))
+        result = x == y
+        expected = np.array([True, True, True])
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_tensor_reverse_sub_with_tensor(self):
+        x = tensor.Tensor(np.array([1, 2, 3]))
+        y = tensor.Tensor(np.array([10, 20, 30]))
+        result = y - x
+        expected = np.array([9, 18, 27])
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_getitem_negative_step_slice(self):
+        data = np.array(range(12), dtype=np.int32).reshape(4, 3)
+        x = tensor.Tensor(data)
+        y = x[::-1]
+        expected = np.array([[9, 10, 11], [6, 7, 8], [3, 4, 5], [0, 1, 2]])
+        np.testing.assert_array_equal(y.value, expected)
+
+
+    def test_tensor_greater_than_or_equal(self):
+        x = tensor.Tensor(np.array([1, 2, 3]))
+        y = tensor.Tensor(np.array([2, 2, 2]))
+        result = x >= y
+        expected = np.array([False, True, True])
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_tensor_less_than_or_equal(self):
+        x = tensor.Tensor(np.array([1, 2, 3]))
+        y = tensor.Tensor(np.array([2, 2, 4]))
+        result = x <= y
+        expected = np.array([True, True, True])
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_tensor_reverse_sub(self):
+        x = tensor.Tensor(np.array([1, 2, 3]))
+        y = 10
+        result = y - x
+        expected = np.array([9, 8, 7])
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_tensor_greater_than(self):
+        x = tensor.Tensor(np.array([1, 2, 3]))
+        y = tensor.Tensor(np.array([0, 2, 2]))
+        result = x > y
+        expected = np.array([True, False, True])
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_tensor_less_than(self):
+        x = tensor.Tensor(np.array([1, 2, 3]))
+        y = tensor.Tensor(np.array([2, 2, 4]))
+        result = x < y
+        expected = np.array([True, False, True])
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_tensor_reverse_mul_with_tensor(self):
+        x = tensor.Tensor(np.array([1, 2, 3]))
+        y = tensor.Tensor(np.array([2, 3, 4]))
+        result = y * x
+        expected = np.array([2, 6, 12])
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_tensor_truediv(self):
+        x = tensor.Tensor(np.array([4.0, 9.0, 16.0]))
+        y = tensor.Tensor(np.array([2.0, 3.0, 4.0]))
+        result = x / y
+        expected = np.array([2.0, 3.0, 4.0])
+        np.testing.assert_array_almost_equal(result.value, expected)
+
+
+    def test_tensor_pow(self):
+        x = tensor.Tensor(np.array([1, 2, 3]))
+        y = tensor.Tensor(np.array([2, 3, 4]))
+        result = x ** y
+        expected = np.array([1, 8, 81])
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_tensor_or(self):
+        x = tensor.Tensor(np.array([True, False, True]))
+        y = tensor.Tensor(np.array([True, True, False]))
+        result = x | y
+        expected = np.array([True, True, True])
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_tensor_and(self):
+        x = tensor.Tensor(np.array([True, False, True]))
+        y = tensor.Tensor(np.array([True, True, False]))
+        result = x & y
+        expected = np.array([True, False, False])
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_tensor_reverse_mul(self):
+        x = tensor.Tensor(np.array([1, 2, 3]))
+        y = 2
+        result = y * x
+        expected = np.array([2, 4, 6])
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_tensor_reverse_add(self):
+        x = tensor.Tensor(np.array([1, 2, 3]))
+        y = 10
+        result = y + x
+        expected = np.array([11, 12, 13])
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_tensor_mod_integer(self):
+        x = tensor.Tensor(np.array([5, 6], dtype=np.int32))
+        y = tensor.Tensor(np.array([2, 2], dtype=np.int32))
+        result = x % y
+        expected = np.array([1, 0], dtype=np.int32)
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_tensor_negation(self):
+        x = tensor.Tensor(np.array([1, -2, 3]))
+        result = -x
+        expected = np.array([-1, 2, -3])
+        np.testing.assert_array_equal(result.value, expected)
+
+
+    def test_tensor_not_equal_scalar(self):
+        x = tensor.Tensor(np.array(1))
+        y = tensor.Tensor(np.array(2))
+        result = x != y
+        self.assertTrue(result.value)
+
+
+    def test_getitem_unexpected_index_type(self):
+        data = np.array([1, 2, 3])
+        x = tensor.Tensor(data)
+        with self.assertRaises(TypeError):
+            _ = x["invalid"]
+
+
+    def test_getitem_index_exceeds_rank(self):
+        data = np.array([[1, 2, 3], [4, 5, 6]])
+        x = tensor.Tensor(data)
+        with self.assertRaises(ValueError):
+            _ = x[0, 0, 0]
+
+
+    def test_tensor_mod_floating_point(self):
+        x = tensor.Tensor(np.array([5.5, 6.5], dtype=np.float32))
+        y = tensor.Tensor(np.array([2.0, 2.0], dtype=np.float32))
+        result = x % y
+        expected = np.array([1.5, 0.5], dtype=np.float32)
+        np.testing.assert_array_almost_equal(result.value, expected)
+
+
+    def test_getitem_opset_version_error(self):
+        data = np.array([1, 2, 3])
+        x = tensor.Tensor(data, opset=type('Opset', (object,), {'version': 12})())
+        with self.assertRaises(RuntimeError):
+            _ = x[0]
+
+
+    def test_tensor_repr(self):
+        x = tensor.Tensor(np.array([1, 2, 3]))
+        self.assertEqual(repr(x), "Tensor(array([1, 2, 3]))")
+
+
+    def test_tensor_initialization_with_invalid_type(self):
+        with self.assertRaises(TypeError):
+            tensor.Tensor([1, 2, 3])  # Not a numpy array
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -359,5 +359,21 @@ class OrtRuleSetsTest(unittest.TestCase):
             self._check_model(model_proto, rewritten_model, atol=1e-6)
 
 
+    def test_fused_matmul_div2_check_none_const_value(self):
+        class MockConst:
+            const_value = None
+    
+        result = fused_matmul_rule_sets.FusedMatMulDiv2.check(None, None, None, MockConst())
+        self.assertFalse(result)
+
+
+    def test_fused_matmul_div1_check_none_const_value(self):
+        class MockConst:
+            const_value = None
+    
+        result = fused_matmul_rule_sets.FusedMatMulDiv1.check(None, None, None, MockConst())
+        self.assertFalse(result)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -95,5 +95,29 @@ class Bfloat16ConversionTest(unittest.TestCase):
             )
 
 
+    def test_insert_cast_nodes_logs_warning_for_output_without_producer_or_index(self):
+        output_without_producer = ir.Value(name="output_without_producer")
+        output_without_producer.dtype = ir.DataType.BFLOAT16
+        output_without_producer._producer = None  # Ensure no producer
+        output_without_producer._index = None  # Ensure no index
+        with self.assertLogs(bfloat16_converter.logger, level='WARNING') as log:
+            bfloat16_converter._insert_cast_nodes_for_bfloat16_to_float16_to_outputs(output_without_producer)
+            self.assertTrue(any("has no producer or index" in message for message in log.output))
+
+
+    def test_convert_outputs_no_conversion_for_non_bfloat16(self):
+        output_value = ir.Input(name="output_value", shape=ir.Shape([2, 3, 4]))
+        output_value.dtype = ir.DataType.FLOAT
+        bfloat16_converter._convert_outputs_from_bfloat16_to_float16(output_value)
+        self.assertEqual(output_value.dtype, ir.DataType.FLOAT)
+
+
+    def test_convert_inputs_no_conversion_for_non_bfloat16(self):
+        input_value = ir.Input(name="input_value", shape=ir.Shape([2, 3, 4]))
+        input_value.dtype = ir.DataType.FLOAT
+        bfloat16_converter._convert_inputs_from_bfloat16_to_float16(input_value)
+        self.assertEqual(input_value.dtype, ir.DataType.FLOAT)
+
+
 if __name__ == "__main__":
     unittest.main()

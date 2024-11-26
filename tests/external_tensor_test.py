@@ -43,5 +43,53 @@ class TestConverter(unittest.TestCase):
             self.assertIn("external_tensor('bias', 1, [10], 'bias', length=40)", pymodel)
 
 
+    def test_onnx_type_to_onnxscript_repr_tensor_with_dim_params(self):
+        from onnxscript.onnx_types import onnx_type_to_onnxscript_repr
+        from onnx import TypeProto, TensorShapeProto
+        onnx_type = TypeProto()
+        onnx_type.tensor_type.elem_type = onnx.TensorProto.FLOAT
+        dim1 = onnx_type.tensor_type.shape.dim.add()
+        dim1.dim_param = 'dim1'
+        dim2 = onnx_type.tensor_type.shape.dim.add()
+        dim2.dim_param = 'dim2'
+        result = onnx_type_to_onnxscript_repr(onnx_type)
+        self.assertEqual(result, "FLOAT['dim1','dim2']")
+
+
+    def test_onnx_type_to_onnxscript_repr_tensor_unknown_rank(self):
+        from onnxscript.onnx_types import onnx_type_to_onnxscript_repr
+        from onnx import TypeProto
+        onnx_type = TypeProto()
+        onnx_type.tensor_type.elem_type = onnx.TensorProto.FLOAT
+        result = onnx_type_to_onnxscript_repr(onnx_type)
+        self.assertEqual(result, "FLOAT[...]")
+
+
+    def test_onnx_type_to_onnxscript_repr_not_implemented(self):
+        from onnxscript.onnx_types import onnx_type_to_onnxscript_repr
+        from onnx import TypeProto
+        unsupported_type = TypeProto()
+        with self.assertRaises(NotImplementedError):
+            onnx_type_to_onnxscript_repr(unsupported_type)
+
+
+    def test_class_getitem_shape_already_specified(self):
+        from onnxscript.onnx_types import FLOAT
+        with self.assertRaises(ValueError):
+            FLOAT[None][None]
+
+
+    def test_tensor_type_instantiation(self):
+        with self.assertRaises(NotImplementedError):
+            from onnxscript.onnx_types import TensorType
+            TensorType()
+
+
+    def test_check_dim_invalid_type(self):
+        with self.assertRaises(TypeError):
+            from onnxscript.onnx_types import _check_dim
+            _check_dim(3.14)  # Invalid type, should raise TypeError
+
+
 if __name__ == "__main__":
     unittest.main()

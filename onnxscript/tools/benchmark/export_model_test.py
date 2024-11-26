@@ -201,5 +201,31 @@ class BenchmarkTest(unittest.TestCase):
         self.assertIn(":repeat_time,", out)
 
 
+    @unittest.skipIf(not has_transformers(), reason="transformers missing")
+    def test_export_model_with_dynamic_shapes(self):
+        args = [
+            "--verbose",
+            "1",
+            "--config",
+            "medium",
+            "--dtype",
+            "float32",
+            "--device",
+            "cpu",
+            "--exporter",
+            "eager",
+            "--model",
+            "phi",
+            "--dynamic",
+            "1",
+        ]
+        f = io.StringIO()
+        with contextlib.redirect_stdout(f):
+            onnxscript.tools.benchmark.export_model.main(args)
+    
+        out = f.getvalue()
+        self.assertIn("dynamic_shapes=", out)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

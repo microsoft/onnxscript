@@ -106,5 +106,52 @@ class TestExportPhi(unittest.TestCase):
         torch.testing.assert_close(expected_gradients[0], gradients[0], atol=1e-5, rtol=1e-5)
 
 
+    def test_get_phi_model_from_config_unexpected_config(self):
+        with self.assertRaises(ValueError) as context:
+            onnxscript.tools.transformers_models.phi.get_phi_model_from_config(config="unexpected")
+        self.assertIn("Unexpected configuration", str(context.exception))
+
+
+    def test_get_phi_model_no_mask(self):
+        model, input_tensors_many, dynamic_shapes = onnxscript.tools.transformers_models.phi.get_phi_model(with_mask=False)
+        input_tensors = input_tensors_many[0]
+        expected = model(*input_tensors)
+        self.assertIsNotNone(expected)
+        self.assertEqual(len(input_tensors), 1)
+
+
+    def test_prepare_config_and_inputs_with_token_type_ids_and_labels(self):
+        batch_size = 2
+        seq_length = 3
+        vocab_size = 10
+        type_sequence_label_size = 2
+        type_vocab_size = 5
+        num_labels = 3
+        num_choices = 4
+        use_input_mask = True
+        use_token_type_ids = True
+        use_labels = True
+    
+        result = onnxscript.tools.transformers_models.phi._prepare_config_and_inputs(
+            batch_size,
+            seq_length,
+            vocab_size,
+            type_sequence_label_size,
+            type_vocab_size,
+            num_labels,
+            num_choices,
+            use_input_mask,
+            use_token_type_ids,
+            use_labels,
+        )
+    
+        input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels = result
+    
+        self.assertIsNotNone(token_type_ids)
+        self.assertIsNotNone(sequence_labels)
+        self.assertIsNotNone(token_labels)
+        self.assertIsNotNone(choice_labels)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
