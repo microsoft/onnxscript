@@ -138,6 +138,78 @@ class TestExportLlama(unittest.TestCase):
         gradients = onnxscript.tools.training_helper.train_loop(compiled_model, *input_tensors)
         torch.testing.assert_close(expected_gradients[0], gradients[0], atol=1.0e-5, rtol=1e-5)
 
+    def test_llama_model_from_config_small(self):
+        model, input_tensors_many, _ = (
+            onnxscript.tools.transformers_models.llama.get_llama_model_from_config(config="small")
+        )
+        input_tensors = input_tensors_many[0]
+        expected = model(*input_tensors)
+        try:
+            proto = onnxscript.tools.transformers_models.export_to_onnx(model, *input_tensors)
+        except torch._export.verifier.SpecViolationError as e:
+            if "Node.meta _enter_autocast is missing val field." in str(e):
+                raise unittest.SkipTest(str(e))
+            raise
+        names = [i.name for i in proto.graph.input]
+        np_input_tensors = [x.numpy() for x in input_tensors]
+        feeds = dict(zip(names, np_input_tensors))
+        sess = onnxruntime.InferenceSession(
+            proto.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+        results = sess.run(None, feeds)
+        np.testing.assert_allclose(expected[0].detach().numpy(), results[0], atol=1e-5)
+
+
+    def test_llama_model_from_config_medium(self):
+        model, input_tensors_many, _ = (
+            onnxscript.tools.transformers_models.llama.get_llama_model_from_config(config="medium")
+        )
+        input_tensors = input_tensors_many[0]
+        expected = model(*input_tensors)
+        try:
+            proto = onnxscript.tools.transformers_models.export_to_onnx(model, *input_tensors)
+        except torch._export.verifier.SpecViolationError as e:
+            if "Node.meta _enter_autocast is missing val field." in str(e):
+                raise unittest.SkipTest(str(e))
+            raise
+        names = [i.name for i in proto.graph.input]
+        np_input_tensors = [x.numpy() for x in input_tensors]
+        feeds = dict(zip(names, np_input_tensors))
+        sess = onnxruntime.InferenceSession(
+            proto.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+        results = sess.run(None, feeds)
+        np.testing.assert_allclose(expected[0].detach().numpy(), results[0], atol=1e-5)
+
+
+    def test_llama_model_from_config_unexpected_config(self):
+        with self.assertRaises(ValueError) as context:
+            onnxscript.tools.transformers_models.llama.get_llama_model_from_config(config="unexpected")
+        self.assertIn("Unexpected configuration", str(context.exception))
+
+
+    def test_llama_model_without_mask(self):
+        model, input_tensors_many, _ = (
+            onnxscript.tools.transformers_models.llama.get_llama_model(with_mask=False)
+        )
+        input_tensors = input_tensors_many[0]
+        expected = model(*input_tensors)
+        try:
+            proto = onnxscript.tools.transformers_models.export_to_onnx(model, *input_tensors)
+        except torch._export.verifier.SpecViolationError as e:
+            if "Node.meta _enter_autocast is missing val field." in str(e):
+                raise unittest.SkipTest(str(e))
+            raise
+        names = [i.name for i in proto.graph.input]
+        np_input_tensors = [x.numpy() for x in input_tensors]
+        feeds = dict(zip(names, np_input_tensors))
+        sess = onnxruntime.InferenceSession(
+            proto.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
+        results = sess.run(None, feeds)
+        np.testing.assert_allclose(expected[0].detach().numpy(), results[0], atol=1e-5)
+
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

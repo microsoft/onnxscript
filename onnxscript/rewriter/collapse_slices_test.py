@@ -114,3 +114,151 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
 
         input = np.random.rand(112, 16, 512).astype(np.float32)
         testing.assert_numerically_equal(original_model_proto, model, (input, input))
+
+    def test_check_if_redundant_scatternd_logs_when_indices_not_referring_to_whole_data(self):
+        data = ir.Value(shape=ir.Shape([112, 16, 512]))
+        updates = ir.Value(shape=ir.Shape([112, 16, 512]))
+        indices = ir.Value(const_value=ir.Tensor(np.array([[0], [1], [2]])))
+        
+        with self.assertLogs(collapse_slices.logger, level='INFO') as log:
+            result = collapse_slices._check_if_redundant_scatternd(None, data, indices, updates)
+            self.assertFalse(result)
+            self.assertIn("The 'indices' is not referring to the whole data.", log.output[0])
+
+
+    def test_check_if_redundant_scatternd_logs_when_updates_shape_not_statically_known(self):
+        data = ir.Value(shape=ir.Shape([112, 16, 512]))
+        updates = ir.Value(shape=None)
+        indices = ir.Value(const_value=ir.Tensor(np.arange(112).reshape(112, 1).astype(np.int64)))
+        
+        with self.assertLogs(collapse_slices.logger, level='INFO') as log:
+            result = collapse_slices._check_if_redundant_scatternd(None, data, indices, updates)
+            self.assertFalse(result)
+            self.assertIn("The value 'updates' shape is not statically known.", log.output[0])
+
+
+    def test_check_if_redundant_scatternd_logs_when_data_shape_not_statically_known(self):
+        data = ir.Value(shape=None)
+        updates = ir.Value(shape=ir.Shape([112, 16, 512]))
+        indices = ir.Value(const_value=ir.Tensor(np.arange(112).reshape(112, 1).astype(np.int64)))
+        
+        with self.assertLogs(collapse_slices.logger, level='INFO') as log:
+            result = collapse_slices._check_if_redundant_scatternd(None, data, indices, updates)
+            self.assertFalse(result)
+            self.assertIn("The value 'data' shape is not statically known.", log.output[0])
+
+
+    def test_check_if_redundant_slice_logs_when_start_not_zero(self):
+        data = ir.Value(shape=ir.Shape([512, 16, 112]))
+        starts = ir.Value(const_value=ir.Tensor(np.array([1])))
+        ends = ir.Value(const_value=ir.Tensor(np.array([9999])))
+        axes = ir.Value(const_value=ir.Tensor(np.array([0])))
+        steps = ir.Value(const_value=ir.Tensor(np.array([1])))
+        
+        with self.assertLogs(collapse_slices.logger, level='INFO') as log:
+            result = collapse_slices._check_if_redundant_slice(None, data, starts, ends, axes, steps)
+            self.assertFalse(result)
+            self.assertIn("The value 'start' is not 0.", log.output[0])
+
+
+    def test_check_if_redundant_slice_logs_when_step_not_one(self):
+        data = ir.Value(shape=ir.Shape([512, 16, 112]))
+        starts = ir.Value(const_value=ir.Tensor(np.array([0])))
+        ends = ir.Value(const_value=ir.Tensor(np.array([9999])))
+        axes = ir.Value(const_value=ir.Tensor(np.array([0])))
+        steps = ir.Value(const_value=ir.Tensor(np.array([2])))
+        
+        with self.assertLogs(collapse_slices.logger, level='INFO') as log:
+            result = collapse_slices._check_if_redundant_slice(None, data, starts, ends, axes, steps)
+            self.assertFalse(result)
+            self.assertIn("The value 'step' is not 1.", log.output[0])
+
+
+    def test_check_if_redundant_slice_logs_when_step_not_scalar(self):
+        data = ir.Value(shape=ir.Shape([512, 16, 112]))
+        starts = ir.Value(const_value=ir.Tensor(np.array([0])))
+        ends = ir.Value(const_value=ir.Tensor(np.array([9999])))
+        axes = ir.Value(const_value=ir.Tensor(np.array([0])))
+        steps = ir.Value(const_value=ir.Tensor(np.array([1, 2])))
+        
+        with self.assertLogs(collapse_slices.logger, level='INFO') as log:
+            result = collapse_slices._check_if_redundant_slice(None, data, starts, ends, axes, steps)
+            self.assertFalse(result)
+            self.assertIn("The value 'step' is not a scalar.", log.output[0])
+
+
+    def test_check_if_redundant_slice_logs_when_axis_not_scalar(self):
+        data = ir.Value(shape=ir.Shape([512, 16, 112]))
+        starts = ir.Value(const_value=ir.Tensor(np.array([0])))
+        ends = ir.Value(const_value=ir.Tensor(np.array([9999])))
+        axes = ir.Value(const_value=ir.Tensor(np.array([0, 1])))
+        steps = ir.Value(const_value=ir.Tensor(np.array([1])))
+        
+        with self.assertLogs(collapse_slices.logger, level='INFO') as log:
+            result = collapse_slices._check_if_redundant_slice(None, data, starts, ends, axes, steps)
+            self.assertFalse(result)
+            self.assertIn("The value 'axis' is not a scalar.", log.output[0])
+
+
+    def test_check_if_redundant_slice_logs_when_end_not_scalar(self):
+        data = ir.Value(shape=ir.Shape([512, 16, 112]))
+        starts = ir.Value(const_value=ir.Tensor(np.array([0])))
+        ends = ir.Value(const_value=ir.Tensor(np.array([9999, 10000])))
+        axes = ir.Value(const_value=ir.Tensor(np.array([0])))
+        steps = ir.Value(const_value=ir.Tensor(np.array([1])))
+        
+        with self.assertLogs(collapse_slices.logger, level='INFO') as log:
+            result = collapse_slices._check_if_redundant_slice(None, data, starts, ends, axes, steps)
+            self.assertFalse(result)
+            self.assertIn("The value 'end' is not a scalar.", log.output[0])
+
+
+    def test_check_if_redundant_scatternd_logs_when_shapes_different(self):
+        data = ir.Value(shape=ir.Shape([112, 16, 512]))
+        updates = ir.Value(shape=ir.Shape([112, 16, 256]))
+        indices = ir.Value(const_value=ir.Tensor(np.arange(112).reshape(112, 1).astype(np.int64)))
+        
+        with self.assertLogs(collapse_slices.logger, level='INFO') as log:
+            result = collapse_slices._check_if_redundant_scatternd(None, data, indices, updates)
+            self.assertFalse(result)
+            self.assertIn("The shape of 'data' and 'updates' are different.", log.output[0])
+
+
+    def test_check_if_redundant_slice_logs_when_end_less_than_shape(self):
+        data = ir.Value(shape=ir.Shape([512, 16, 112]))
+        starts = ir.Value(const_value=ir.Tensor(np.array([0])))
+        ends = ir.Value(const_value=ir.Tensor(np.array([100])))
+        axes = ir.Value(const_value=ir.Tensor(np.array([0])))
+        steps = ir.Value(const_value=ir.Tensor(np.array([1])))
+        
+        with self.assertLogs(collapse_slices.logger, level='INFO') as log:
+            result = collapse_slices._check_if_redundant_slice(None, data, starts, ends, axes, steps)
+            self.assertFalse(result)
+            self.assertIn("The value 'end' is less than the shape of the specified axis.", log.output[0])
+
+
+    def test_check_if_redundant_slice_logs_when_start_not_scalar(self):
+        data = ir.Value(shape=ir.Shape([512, 16, 112]))
+        starts = ir.Value(const_value=ir.Tensor(np.array([0, 1])))
+        ends = ir.Value(const_value=ir.Tensor(np.array([9999])))
+        axes = ir.Value(const_value=ir.Tensor(np.array([0])))
+        steps = ir.Value(const_value=ir.Tensor(np.array([1])))
+        
+        with self.assertLogs(collapse_slices.logger, level='INFO') as log:
+            result = collapse_slices._check_if_redundant_slice(None, data, starts, ends, axes, steps)
+            self.assertFalse(result)
+            self.assertIn("The value 'start' is not a scalar.", log.output[0])
+
+
+    def test_check_if_redundant_slice_logs_when_values_not_statically_known(self):
+        data = ir.Value(shape=ir.Shape([512, 16, 112]))
+        starts = ir.Value()
+        ends = ir.Value()
+        axes = ir.Value()
+        steps = ir.Value()
+        
+        with self.assertLogs(collapse_slices.logger, level='INFO') as log:
+            result = collapse_slices._check_if_redundant_slice(None, data, starts, ends, axes, steps)
+            self.assertFalse(result)
+            self.assertIn("The value 'start', 'end', 'axis', 'step' is not statically known.", log.output[0])
+

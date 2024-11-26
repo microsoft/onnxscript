@@ -140,6 +140,66 @@ class TestExportMistral(unittest.TestCase):
         gradients = onnxscript.tools.training_helper.train_loop(compiled_model, *input_tensors)
         torch.testing.assert_close(expected_gradients[0], gradients[0], atol=1e-5, rtol=1e-5)
 
+    def test_get_mistral_model_from_config_medium(self):
+        model, input_tensors_many, dynamic_shapes = onnxscript.tools.transformers_models.mistral.get_mistral_model_from_config(config="medium")
+        input_tensors = input_tensors_many[0]
+        self.assertIsInstance(model, torch.nn.Module)
+        self.assertIsInstance(input_tensors, tuple)
+        self.assertIsInstance(dynamic_shapes, dict)
+
+
+    def test_get_mistral_model_without_mask_output(self):
+        model, input_tensors_many, _ = onnxscript.tools.transformers_models.mistral.get_mistral_model(with_mask=False)
+        input_tensors = input_tensors_many[0]
+        expected = model(*input_tensors)
+        self.assertIsInstance(expected, tuple)
+        self.assertGreater(len(expected), 0)
+
+
+    def test_get_mistral_model_from_config_invalid_config(self):
+        with self.assertRaises(ValueError) as context:
+            onnxscript.tools.transformers_models.mistral.get_mistral_model_from_config(config="invalid")
+        self.assertIn("Unexpected configuration", str(context.exception))
+
+
+    def test_get_mistral_model_without_mask(self):
+        model, input_tensors_many, dynamic_shapes = onnxscript.tools.transformers_models.mistral.get_mistral_model(with_mask=False)
+        input_tensors = input_tensors_many[0]
+        self.assertEqual(len(input_tensors), 1)  # Only input_ids should be present
+        self.assertIsInstance(model, torch.nn.Module)
+        self.assertIsInstance(dynamic_shapes, dict)
+
+
+    def test_prepare_config_and_inputs_with_labels(self):
+        batch_size = 2
+        seq_length = 3
+        vocab_size = 10
+        type_sequence_label_size = 2
+        num_labels = 3
+        num_choices = 4
+        _, _, _, sequence_labels, token_labels, choice_labels = onnxscript.tools.transformers_models.mistral._prepare_config_and_inputs(
+            batch_size, seq_length, vocab_size, use_labels=True, type_sequence_label_size=type_sequence_label_size, num_labels=num_labels, num_choices=num_choices
+        )
+        self.assertIsNotNone(sequence_labels)
+        self.assertEqual(sequence_labels.shape, (batch_size,))
+        self.assertIsNotNone(token_labels)
+        self.assertEqual(token_labels.shape, (batch_size, seq_length))
+        self.assertIsNotNone(choice_labels)
+        self.assertEqual(choice_labels.shape, (batch_size,))
+
+
+    def test_prepare_config_and_inputs_with_token_type_ids(self):
+        batch_size = 2
+        seq_length = 3
+        vocab_size = 10
+        type_vocab_size = 5
+        input_ids, token_type_ids, _, _, _, _ = onnxscript.tools.transformers_models.mistral._prepare_config_and_inputs(
+            batch_size, seq_length, vocab_size, use_token_type_ids=True, type_vocab_size=type_vocab_size
+        )
+        self.assertIsNotNone(token_type_ids)
+        self.assertEqual(token_type_ids.shape, (batch_size, seq_length))
+
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -603,5 +603,37 @@ class GenericPatternTest(unittest.TestCase):
         self.assertEqual(list(att.ints), [2, 0, 1])
 
 
+
+    def test_enumerate_matches_with_node(self):
+        def match_pattern(op, x):
+            return op.Add(x, x)
+    
+        def apply_pattern(op, x, **_):
+            return op.Add(x, x)
+    
+        pattern = generic_pattern.orp._to_graph_pattern(match_pattern)
+        matcher = generic_pattern.GenericPatternMatcher(pattern)
+    
+        model = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                [
+                    onnx.helper.make_node("Add", ["x", "x"], ["y"]),
+                ],
+                "dummy",
+                [onnx.helper.make_tensor_value_info("x", FLOAT, [None, None])],
+                [onnx.helper.make_tensor_value_info("y", FLOAT, [None, None])],
+            ),
+            opset_imports=[onnx.helper.make_opsetid("", 18)],
+            ir_version=9,
+        )
+        onnx.checker.check_model(model)
+    
+        model = onnx.shape_inference.infer_shapes(model)
+        ir_model = ir.serde.deserialize_model(model)
+    
+        matches = list(matcher.enumerate_matches(ir_model, ir_model.graph, ir_model.graph[0]))
+    
+        self.assertEqual(len(matches), 1)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

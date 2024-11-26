@@ -217,5 +217,33 @@ non_foldable <axis>(x, y) => (return_val)
         self.assertEqual(len(model.functions), 1)
 
 
+    def test_inline_function_with_fewer_inputs(self):
+        model = onnx.parser.parse_model(
+            """
+            <
+               ir_version: 8,
+               opset_import: ["this" : 1, "" : 18]
+            >
+            func ( x,  y) => ( return_val) {
+               tmp = this.foldable (x)
+               return_val = Add (tmp, y)
+            }
+            <
+              domain: "this",
+              opset_import: ["" : 18]
+            >
+            foldable (x, y) => (return_val)
+            {
+               return_val = Identity (x)
+            }
+            """
+        )
+    
+        _simple_function_folding.inline_simple_functions(model)
+        model = _remove_unused_function.remove_unused_functions(model)
+    
+        self.assertEqual(len(model.functions), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
