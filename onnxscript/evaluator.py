@@ -376,6 +376,8 @@ def _onnxscript_to_numpy_value(v):
         return v
     if isinstance(v, np.ndarray):
         return v
+    if isinstance(v, np.number):
+        return np.array(v)
     raise TypeError(
         f"Unexpected onnxscript value type '{type(v)}'."
         "Valid value types are 'Tensor | list[Tensor] | None | np.ndarray | list[np.ndarray]'"
