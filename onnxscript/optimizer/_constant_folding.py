@@ -13,7 +13,6 @@ from typing import Any, Callable, Iterable, Sequence, Union
 
 import numpy as np
 import onnx
-import onnx.helper
 import onnx.reference.ops
 
 import onnxscript.ir as ir
