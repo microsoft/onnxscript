@@ -64,6 +64,7 @@ class TestIssues2024(testutils.TestBase):
         got = sess.run(None, feeds)
 
         def conv_np(a1, a2, a3, a4, a5, a6):
+            del a3
             const = const_term
             # Define constants
             coeff1 = h1
