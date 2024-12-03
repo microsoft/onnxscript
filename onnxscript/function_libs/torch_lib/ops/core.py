@@ -4391,7 +4391,10 @@ def aten_instance_norm(
     ), "running_mean and running_var must be provided when use_input_stats is False"
 
     batch_size = op.Shape(input, start=0, end=1)
-    bn_input = op.Reshape(input, op.Concat([1, -1], op.Shape(input, start=2), axis=0))
+    bn_input = op.Reshape(
+        input,
+        op.Concat(op.Constant(value_ints=[1, -1]), op.Shape(input, start=2), axis=0),
+    )
     weight = op.Tile(weight, batch_size)
     bias = op.Tile(bias, batch_size)
     running_mean = op.Tile(running_mean, batch_size)
@@ -5225,9 +5228,8 @@ def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     if IsScalar(self):
         result = self
     else:
-        if IsScalar(dim):
-            dim = op.Unsqueeze(dim, axes=0)
-        result = op.ReduceMean(self, dim, keepdims=keepdim)
+        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        result = op.ReduceMean(self, dims, keepdims=keepdim)
     return result
 
 
