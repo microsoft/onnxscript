@@ -20,7 +20,7 @@ def display_slice(x: ir.Value | ir.Node, backward: bool = True, depth_limit: int
             if backward:
                 for inp in node.inputs:
                     if inp is not None and inp.producer() is not None:
-                        visit(inp.producer(), depth + 1)
+                        visit(inp.producer(), depth + 1)  # type: ignore[arg-type]
             else:
                 for out in node.outputs:
                     for consumer, _ in out.uses():
@@ -29,7 +29,7 @@ def display_slice(x: ir.Value | ir.Node, backward: bool = True, depth_limit: int
     if isinstance(x, ir.Node):
         visit(x, 0)
     elif isinstance(x, ir.Value) and x.producer() is not None:
-        visit(x.producer(), 0)
+        visit(x.producer(), 0)  # type: ignore[arg-type]
     if slice:
         graph = slice[0].graph
         if graph:
