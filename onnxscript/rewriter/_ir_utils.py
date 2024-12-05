@@ -26,10 +26,18 @@ def display_slice(x: ir.Value | ir.Node, backward: bool = True, depth_limit: int
                         visit(consumer, depth + 1)
     if isinstance(x, ir.Node):
         visit(x, 0)
-    elif isinstance(x, ir.Value) and x.producer() is not None:
-        visit(x.producer(), 0)
-    for node in reversed(slice):
-        node.display()
+    elif isinstance(x, ir.Value):
+        if backward and x.producer() is not None:
+            visit(x.producer(), 0)
+        elif not backward:
+            for consumer, _ in x.uses():
+                visit(consumer, 0)
+    if slice:
+        graph = slice[0].graph
+        if graph:
+            for n in graph:
+                if n in slice:
+                    n.display()
 
 def get_const_value(value: ir.Value) -> ir.TensorProtocol | None:
     node = value.producer()

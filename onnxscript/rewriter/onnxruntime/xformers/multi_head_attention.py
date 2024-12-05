@@ -32,9 +32,12 @@ Finally, the output is transposed and reshaped back to (B, S, D) shape
 
 def _project_transpose_head(op, input, weight):
     """Applied to each of Q, K, and V."""
-    projected = op.MatMul(input, weight)
+    input_2d = op.Reshape(input, _allow_other_inputs=True, _allow_other_attributes=True)
+    projected = op.MatMul(input_2d, weight)
+    # Reshape into 3D tensor (B, S, D)
+    reshaped_3d = op.Reshape(projected, _allow_other_inputs=True, _allow_other_attributes=True)
     # Reshape from (B, S, D) to (B, S, H, D/H)
-    reshaped = op.Reshape(projected, _allow_other_inputs=True, _allow_other_attributes=True)
+    reshaped = op.Reshape(reshaped_3d, _allow_other_inputs=True, _allow_other_attributes=True)
     # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
     transposed = op.Transpose(reshaped, perm=[0, 2, 1, 3])
     return transposed

@@ -1319,8 +1319,8 @@ class RewriteRule:
         verbose = verbose if verbose is not None else self._verbose
         match = self._matcher.match(model, graph_or_function, node, verbose=verbose)
         if match:
-            for n in reversed(match.nodes):
-                n.display()
+            # for n in reversed(match.nodes):
+            #     n.display()
             context = None  # TODO(rama)
             if not self._condition_function(context, **match.bindings):
                 return None
