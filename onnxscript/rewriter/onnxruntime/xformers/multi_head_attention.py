@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+import onnxscript.ir as ir
 from onnxscript.rewriter import pattern
 
 """
@@ -30,38 +31,49 @@ Finally, the output is transposed and reshaped back to (B, S, D) shape
 """
 
 
-def _project_transpose_head(op, input, weight):
+def _project_transpose_head(op, input, weight, reshape_var: str):
     """Applied to each of Q, K, and V."""
     # input_2d = op.Reshape(input, _allow_other_inputs=True, _allow_other_attributes=True)
     projected = op.MatMul(input, weight)
     # Reshape into 3D tensor (B, S, D)
     # reshaped_3d = op.Reshape(projected, _allow_other_inputs=True, _allow_other_attributes=True)
     # Reshape from (B, S, D) to (B, S, H, D/H)
-    reshaped = op.Reshape(projected, _allow_other_inputs=True, _allow_other_attributes=True)
+    reshaped = op.Reshape(projected, _allow_other_inputs=True, _allow_other_attributes=True, _outputs=[reshape_var])
     # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
     transposed = op.Transpose(reshaped, perm=[0, 2, 1, 3])
     return transposed
 
 
 def _multi_head_attention_pattern(op, input, query_weight, key_weight, value_weight, cos, sin):
-    query = _project_transpose_head(op, input, query_weight)
+    query = _project_transpose_head(op, input, query_weight, "query_mm_reshaped")
     query_rope = op.RotaryEmbedding(query, cos, sin, _domain="local")
-    key = _project_transpose_head(op, input, key_weight)
+    key = _project_transpose_head(op, input, key_weight, "key_mm_reshaped")
     key_rope = op.RotaryEmbedding(key, cos, sin, _domain="local")
     # Transpose last two axes of key_rope to compute dot-product via matmul.
-    key_reshaped = op.Reshape(key_rope, _allow_other_inputs=True)
+    key_reshaped = op.Reshape(key_rope, _allow_other_inputs=True, _outputs=["key_reshaped"])
     key_reshaped_transposed = op.Transpose(key_reshaped)
-    key_transposed = op.Reshape(key_reshaped_transposed, _allow_other_inputs=True)
-    value = _project_transpose_head(op, input, value_weight)
+    key_transposed = op.Reshape(key_reshaped_transposed, _allow_other_inputs=True, _outputs=["key_transposed"])
+    value = _project_transpose_head(op, input, value_weight, "value_mm_reshaped")
     attention = op.SDPA(
         query_rope, key_transposed, value, _allow_other_inputs=True, _domain="local"
     )
     # Transpose back to (B, S, H, D/H)
     attention_transposed = op.Transpose(attention, perm=[0, 2, 1, 3])
     # Reshape back to (B, S, D)
-    attention_reshaped = op.Reshape(attention_transposed, _allow_other_inputs=True)
+    attention_reshaped = op.Reshape(attention_transposed, _allow_other_inputs=True, _outputs=["attention_reshaped"])
     return attention_reshaped, key_rope, value
 
+def _check_shape(reshaped_value: ir.Value):
+    print(reshaped_value.shape)
+
+def _mha_validation(op, query_mm_reshaped, key_mm_reshaped, value_mm_reshaped, key_reshaped, key_transposed, attention_reshaped, **_):
+    _check_shape(query_mm_reshaped)
+    _check_shape(key_mm_reshaped)
+    _check_shape(value_mm_reshaped)
+    _check_shape(key_reshaped)
+    _check_shape(key_transposed)
+    _check_shape(attention_reshaped)
+    return True
 
 def _multi_head_attention_pattern2(
     op, input, query_weight, key_weight, value_weight, cos, sin
@@ -94,6 +106,7 @@ def _multi_head_attention(
     value_weight,
     cos,
     sin,
+    **_
 ):
     # TODO: other checks and concatenation of weights
     return op.MultiHeadAttention(
@@ -101,7 +114,9 @@ def _multi_head_attention(
     )
 
 
-_rule1 = pattern.RewriteRule(_multi_head_attention_pattern, _multi_head_attention)
-_rule2 = pattern.RewriteRule(_multi_head_attention_pattern2, _multi_head_attention)
+_rule1 = pattern.RewriteRule(_multi_head_attention_pattern, _multi_head_attention, _mha_validation)
 
-mha_rules = pattern.RewriteRuleSet([_rule1, _rule2])
+# TODO: _rule2 validation conditions
+# _rule2 = pattern.RewriteRule(_multi_head_attention_pattern2, _multi_head_attention)
+
+mha_rules = pattern.RewriteRuleSet([_rule1])
