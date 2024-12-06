@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+from typing import Iterable
 import onnxscript.ir as ir
 from onnxscript.rewriter import pattern
 
@@ -63,16 +64,34 @@ def _multi_head_attention_pattern(op, input, query_weight, key_weight, value_wei
     attention_reshaped = op.Reshape(attention_transposed, _allow_other_inputs=True, _outputs=["attention_reshaped"])
     return attention_reshaped, key_rope, value
 
-def _check_shape(reshaped_value: ir.Value):
-    print(reshaped_value.shape)
+def _check_shape(bindings: dict[str, int], val: ir.Value, shape: Iterable[str]) -> bool:
+    if val.shape is None:
+        return False
+    if val.shape.rank() != len(shape):
+        return False
+    for actual, expected in zip(val.shape, shape):
+        if expected not in bindings:
+            bindings[expected] = actual
+        elif actual != bindings[expected]:
+            return False
+    return True
 
 def _mha_validation(op, query_mm_reshaped, key_mm_reshaped, value_mm_reshaped, key_reshaped, key_transposed, attention_reshaped, **_):
-    _check_shape(query_mm_reshaped)
-    _check_shape(key_mm_reshaped)
-    _check_shape(value_mm_reshaped)
-    _check_shape(key_reshaped)
-    _check_shape(key_transposed)
-    _check_shape(attention_reshaped)
+    bindings : dict[str, int] = {}
+    check = (
+        _check_shape(bindings, query_mm_reshaped, ["B", "S", "H", "d_h"]) and
+        _check_shape(bindings, key_mm_reshaped, ["B", "S", "H", "d_h"]) and
+        _check_shape(bindings, value_mm_reshaped, ["B", "S", "H", "d_h"]) and
+        _check_shape(bindings, key_reshaped, ["B*H", "S", "d_h"]) and
+        _check_shape(bindings, key_transposed, ["B", "H", "d_h", "S"]) and
+        _check_shape(bindings, attention_reshaped, ["B", "S", "H*d_h"])
+    )
+    if not check:
+        return False
+    if bindings["B"] * bindings["H"] != bindings["B*H"]:
+        return False
+    if bindings["H"] * bindings["d_h"] != bindings["H*d_h"]:
+        return False
     return True
 
 def _multi_head_attention_pattern2(
