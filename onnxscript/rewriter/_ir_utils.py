@@ -8,8 +8,8 @@ import onnxscript.ir as ir
 from onnxscript.optimizer import basic_constant_propagation
 
 
-def display_slice(x: ir.Value | ir.Node, backward: bool = True, depth_limit: int = 5):
-    """Display the subgraph computing a given value or node upto a certain depth."""
+def display_slice(x: ir.Value | ir.Node, backward: bool = True, depth_limit: int = 5) -> None:
+    """Display the (backward or forward) subgraph from a given value or node upto a certain depth."""
     slice = []
 
     def visit(node: ir.Node, depth):
@@ -51,6 +51,14 @@ def get_const_value(value: ir.Value) -> ir.TensorProtocol | None:
 
 
 def get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
+    """Convenience wrapper to get (optional) numpy value from an optional IR Value.
+    
+    This is intended for use in optimizations/rewriting. Note that this does not
+    yet handle the distinction between inputs with default values (values that are
+    both graph inputs and graph initializers), which should not be treated as a
+    constant, and true constant values. The caller should make the distinction, as
+    a value does not contain enough information to determine this. (TODO)
+    """
     if val is None:
         return None
     const_value = val.const_value
