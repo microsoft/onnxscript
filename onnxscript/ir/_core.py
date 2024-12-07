@@ -1217,7 +1217,10 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             + ", ".join(
                 [
                     (
-                        f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}"
+                        (str(x.const_value.numpy().tolist())
+                         if (x.const_value and x.const_value.size <= 5)
+                         else f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}"
+                        )
                         if x is not None
                         else "None"
                     )
@@ -1390,6 +1393,11 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         if self.doc_string:
             print(f"Doc: {self.doc_string}")
         super().display(page=page)
+        if len(self.outputs) == 1:
+            const_value = self.outputs[0].const_value
+            if const_value and const_value.size <= 5:
+                vals = const_value.numpy().tolist()
+                print(f"Value: {vals}")
 
 
 class _TensorTypeBase(_protocols.TypeProtocol, _display.PrettyPrintable, Hashable):
