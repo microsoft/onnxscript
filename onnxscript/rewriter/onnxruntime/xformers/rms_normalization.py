@@ -18,6 +18,7 @@ def _rms_norm_pattern(op, x, scale, epsilon, compute_dtype, target_dtype):
     normalized_cast = op.Cast(normalized, to=target_dtype)
     return op.Mul(scale, normalized_cast)
 
+
 # Replacement
 def _simplified_layer_norm(op, x, scale, epsilon, compute_dtype, target_dtype):
     epsilon_value = _ir_utils.get_singleton_value(epsilon)
@@ -33,6 +34,7 @@ def _simplified_layer_norm(op, x, scale, epsilon, compute_dtype, target_dtype):
         epsilon=epsilon_value,
         stash_type=compute_dtype.value,
     )
+
 
 _rule = pattern.RewriteRule(_rms_norm_pattern, _simplified_layer_norm)
 
@@ -51,6 +53,7 @@ def _rms_norm_pattern_no_cast(op, x, scale, epsilon):
     normalized_cast = normalized
     return op.Mul(scale, normalized_cast)
 
+
 # Replacement
 def _simplified_layer_norm_no_cast(op, x, scale, epsilon):
     epsilon_value = _ir_utils.get_singleton_value(epsilon)
@@ -67,9 +70,11 @@ def _simplified_layer_norm_no_cast(op, x, scale, epsilon):
         stash_type=source_dtype.value,
     )
 
+
 _rule_no_cast = pattern.RewriteRule(_rms_norm_pattern_no_cast, _simplified_layer_norm_no_cast)
 
 rms_normalization_rules = pattern.RewriteRuleSet([_rule, _rule_no_cast])
+
 
 def fuse_rms_normalization(model: ir.Model) -> None:
     count = rms_normalization_rules.apply_to_model(model)

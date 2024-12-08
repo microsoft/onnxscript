@@ -66,7 +66,9 @@ class _SmollmTestData:
         model = self.get_torch_model()
         inputs = self.get_inputs()
         input_names = ["input" + str(i) for i in range(len(inputs)) if inputs[i] is not None]
-        exported = torch.onnx.export(model, inputs, input_names=input_names, dynamo=True, fallback=True)
+        exported = torch.onnx.export(
+            model, inputs, input_names=input_names, dynamo=True, fallback=True
+        )
         # ORT Transformer optimizations are applied after basic optimization.
         onnxscript.optimizer.optimize(exported.model)
         return exported.model
@@ -89,7 +91,9 @@ class _SmollmTestData:
 
     def get_ort_inputs(self):
         inputs = self.get_inputs()
-        return {f"input{i}": input.numpy() for i, input in enumerate(inputs) if input is not None}
+        return {
+            f"input{i}": input.numpy() for i, input in enumerate(inputs) if input is not None
+        }
 
 
 def _ort_check(model_name: str, model, inputs, expected_outputs, rtol=1e-2, atol=1e-2):
