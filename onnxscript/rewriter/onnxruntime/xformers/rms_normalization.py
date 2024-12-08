@@ -73,9 +73,10 @@ def _simplified_layer_norm_no_cast(op, x, scale, epsilon):
 
 _rule_no_cast = pattern.RewriteRule(_rms_norm_pattern_no_cast, _simplified_layer_norm_no_cast)
 
-rms_normalization_rules = pattern.RewriteRuleSet([_rule, _rule_no_cast])
+rms_normalization_rules = [_rule, _rule_no_cast]
+rms_normalization_ruleset = pattern.RewriteRuleSet(rms_normalization_rules)
 
 
 def fuse_rms_normalization(model: ir.Model) -> None:
-    count = rms_normalization_rules.apply_to_model(model)
+    count = rms_normalization_ruleset.apply_to_model(model)
     print(f"RMS Normalization count: {count}")
