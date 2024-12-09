@@ -1320,6 +1320,10 @@ class RewriteRule:
         match = self._matcher.match(model, graph_or_function, node, verbose=verbose)
         if match:
             context = None  # TODO(rama)
+            for var in self._target_pattern.inputs:
+                if var.name is not None:
+                    if var.name not in match.bindings:
+                        match.bindings[var.name] = None
             if not self._condition_function(context, **match.bindings):
                 return None
             replacement_subgraph = self._replacement_pattern.get_replacement(match)
