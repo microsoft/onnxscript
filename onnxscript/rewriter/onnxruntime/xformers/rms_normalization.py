@@ -27,20 +27,21 @@ float_types = [
 fp_float_types = [ir.DataType.FLOAT, ir.DataType.DOUBLE]
 
 
-class RmsNormFusion:
-    @classmethod
-    def rule(cls, *, cast_input: bool, cast_normalized: bool):
-        instance = cls(cast_input=cast_input, cast_normalized=cast_normalized)
-        return pattern.RewriteRule(instance.pattern, instance.rewrite, instance.check)
-
-    def __init__(self, *, cast_input: bool, cast_normalized: bool):
+class RmsNormFusion(pattern.RewriteRuleClassBase):
+    def __init__(self, name: str, *, cast_input: bool, cast_normalized: bool):
         """
         Args:
+            name: Name of the rule.
             cast_input: Whether to cast input to do the normalization in a different precision.
             cast_normalized: Whether to cast the normalized output to the target dtype (same as scale).
         """
+        self._name = name
         self._cast_input = cast_input
         self._cast_normalized = cast_normalized
+
+    @property
+    def name(self):
+        return self._name
 
     def pattern(self, op, x, scale, epsilon, compute_dtype, target_dtype):
         if self._cast_input:
@@ -84,70 +85,10 @@ class RmsNormFusion:
         )
 
 
-# # Pattern to match against
-# def _rms_norm_pattern(op, x, scale, epsilon, compute_dtype, target_dtype):
-#     x_cast = op.Cast(x, to=compute_dtype)
-#     x_square = op.Pow(x_cast, 2.0)
-#     mean_square = op.ReduceMean(x_square, [-1], keepdims=1, noop_with_empty_axes=0)
-#     mean_square_plus_epsilon = op.Add(mean_square, epsilon)
-#     rms = op.Sqrt(mean_square_plus_epsilon)
-#     reciprocal_rms = op.Reciprocal(rms)
-#     normalized = op.Mul(x_cast, reciprocal_rms)
-#     normalized_cast = op.Cast(normalized, to=target_dtype)
-#     return op.Mul(scale, normalized_cast)
-
-
-# # Replacement
-# def _simplified_layer_norm(op, x, scale, epsilon, compute_dtype, target_dtype):
-#     epsilon_value = _ir_utils.get_singleton_value(epsilon)
-#     if not isinstance(epsilon_value, float):
-#         return None
-#     source_dtype = x.dtype
-#     if source_dtype is None or source_dtype != target_dtype.value:
-#         return None
-#     return op.SimplifiedLayerNormalization(
-#         x,
-#         scale,
-#         axis=-1,
-#         epsilon=epsilon_value,
-#         stash_type=compute_dtype.value,
-#     )
-
-# # Pattern to match against
-# def _rms_norm_pattern_no_cast(op, x, scale, epsilon):
-#     # x_cast = op.Cast(x, to=compute_dtype)
-#     x_cast = x
-#     x_square = op.Pow(x_cast, 2.0)
-#     mean_square = op.ReduceMean(x_square, [-1], keepdims=1, noop_with_empty_axes=0)
-#     mean_square_plus_epsilon = op.Add(mean_square, epsilon)
-#     rms = op.Sqrt(mean_square_plus_epsilon)
-#     reciprocal_rms = op.Reciprocal(rms)
-#     normalized = op.Mul(x_cast, reciprocal_rms)
-#     # normalized_cast = op.Cast(normalized, to=target_dtype)
-#     normalized_cast = normalized
-#     return op.Mul(scale, normalized_cast)
-
-
-# Replacement
-# def _simplified_layer_norm_no_cast(op, x, scale, epsilon):
-#     epsilon_value = _ir_utils.get_singleton_value(epsilon)
-#     if not isinstance(epsilon_value, float):
-#         return None
-#     source_dtype = x.dtype
-#     if source_dtype is None:
-#         return None
-#     return op.SimplifiedLayerNormalization(
-#         x,
-#         scale,
-#         axis=-1,
-#         epsilon=epsilon_value,
-#         stash_type=source_dtype.value,
-#     )
-
-_rule_0 = RmsNormFusion.rule(cast_input=True, cast_normalized=True)
-_rule_1 = RmsNormFusion.rule(cast_input=False, cast_normalized=True)
-_rule_2 = RmsNormFusion.rule(cast_input=True, cast_normalized=False)
-_rule_3 = RmsNormFusion.rule(cast_input=False, cast_normalized=False)
+_rule_0 = RmsNormFusion.rule("RmsNorm-0", cast_input=True, cast_normalized=True)
+_rule_1 = RmsNormFusion.rule("RmsNorm-1", cast_input=False, cast_normalized=True)
+_rule_2 = RmsNormFusion.rule("RmsNorm-2", cast_input=True, cast_normalized=False)
+_rule_3 = RmsNormFusion.rule("RmsNorm-3", cast_input=False, cast_normalized=False)
 
 rms_normalization_rules = [_rule_0, _rule_1, _rule_2, _rule_3]
 rms_normalization_ruleset = pattern.RewriteRuleSet(rms_normalization_rules)

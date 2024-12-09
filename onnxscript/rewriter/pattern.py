@@ -1432,6 +1432,32 @@ def make_rewrite_rule_from_class(
     )
 
 
+# Variation of RewriteRuleAsClass that is based on instance methods instead of class methods.
+# Useful to implement a family of rules to support pattern variations.
+# TODO: cleanup the naming conventions for these inter-related classes.
+class RewriteRuleClassBase:
+    @classmethod
+    def rule(cls, *args, **kwargs):
+        instance = cls(*args, **kwargs)
+        return RewriteRule(
+            instance.pattern, instance.rewrite, instance.check, name=instance.name
+        )
+
+    @property
+    def name(self):
+        """Default implementation of name property."""
+        return self.__class__.__name__
+
+    def pattern(self, op, *args, **kwargs):
+        raise NotImplementedError("Method 'pattern' must be implemented by derived class.")
+
+    def check(self, op, *args, **kwargs):
+        raise NotImplementedError("Method 'check' must be implemented by derived class.")
+
+    def rewrite(self, op, *args, **kwargs):
+        raise NotImplementedError("Method 'rewrite' must be implemented by derived class.")
+
+
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
         if commute:
