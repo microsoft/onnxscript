@@ -21,7 +21,7 @@ def _skip_norm_pattern(op, input, skip, gamma, epsilon, stash_type):
 def _skip_normalization(op, input, skip, gamma, epsilon, stash_type):
     if stash_type.value != 1:  # FLOAT type
         return None
-    normalized, mean, inv_std_var, skip_sum = op.SkipSimplifiedLayerNormalization(
+    normalized, _mean, _inv_std_var, skip_sum = op.SkipSimplifiedLayerNormalization(
         input,
         skip,
         gamma,
