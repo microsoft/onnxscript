@@ -8861,7 +8861,6 @@ def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
 
 @torch_op(
     (
-        "aten::where",
         "aten::where.Scalar",
         "aten::where.ScalarSelf",
         "aten::where.ScalarOther",
