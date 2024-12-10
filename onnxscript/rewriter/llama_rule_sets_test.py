@@ -430,5 +430,35 @@ class LlamaRuleSetsTest(unittest.TestCase):
             self._check_model(model_proto, rewritten_model)
 
 
+    def test_reshape_reshape_non_positive_values(self):
+        model = _make_model(
+            onnx.helper.make_graph(
+                [
+                    onnx.helper.make_node("Reshape", ["X", "shape_"], ["Xu"]),
+                    onnx.helper.make_node("Reshape", ["Xu", "shape"], ["Y"]),
+                ],
+                "name",
+                [onnx.helper.make_tensor_value_info("X", FLOAT, [3, 4, 5])],
+                [onnx.helper.make_tensor_value_info("Y", FLOAT, [5, 4, 3])],
+                [
+                    onnx.numpy_helper.from_array(
+                        np.array([4, 5, 3], dtype=np.int64), name="shape_"
+                    ),
+                    onnx.numpy_helper.from_array(
+                        np.array([-5, 4, 3], dtype=np.int64), name="shape"
+                    ),
+                ],
+            ),
+            opset_imports=[onnx.helper.make_opsetid("", 18)],
+        )
+        rule_set = llama_rule_sets.llama_p0_rule_set()
+        model_proto = ir.serde.serialize_model(model)
+        rule_set.apply_to_model(model)
+        rewritten_model = ir.serde.serialize_model(model)
+    
+        self.assertNotEqual(["Reshape"], [n.op_type for n in model.graph])
+        self._check_model(model_proto, rewritten_model)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

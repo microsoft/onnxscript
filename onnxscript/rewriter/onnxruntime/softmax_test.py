@@ -89,6 +89,13 @@ class SoftmaxUpcastRemovalTest(unittest.TestCase):
             len([node.op_type for node in model.graph if node.op_type == "Cast"]), 2
         )
 
+    def test_check_if_fp16_input_logs_warning_when_input_is_none(self):
+        with self.assertLogs('onnxscript.rewriter.onnxruntime.softmax', level='WARNING') as log:
+            result = softmax.check_if_fp16_input(None, None)
+            self.assertFalse(result)
+            self.assertIn("Cannot perform softmax upcast removal", log.output[0])
+
+
 
 if __name__ == "__main__":
     unittest.main()
