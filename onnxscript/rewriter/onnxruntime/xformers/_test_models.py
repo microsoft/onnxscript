@@ -70,8 +70,9 @@ class _SmollmTestData:
             model, inputs, input_names=input_names, dynamo=True, fallback=True
         )
         # ORT Transformer optimizations are applied after basic optimization.
-        onnxscript.optimizer.optimize(exported.model)  # type: ignore[union-attr]
-        return exported.model
+        exported_model = exported.model  # type: ignore[union-attr]
+        onnxscript.optimizer.optimize(exported_model)
+        return exported_model
 
     def get_inputs(self):
         if not hasattr(self, "_inputs"):
