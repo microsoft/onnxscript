@@ -15,23 +15,49 @@ from onnxscript.onnx_opset import opset18
 from onnxscript.onnx_types import FLOAT, INT64
 
 
-def make_model(input_layernorm_weight_0, post_attention_layernorm_weight0, norm_weight, head_weight, self_attn_q_proj_weight0, self_attn_k_proj_weight0, self_attn_v_proj_weight0, self_attn_o_proj_weight0, mlp_gate_proj_weight0, mlp_up_proj_weight0, mlp_down_proj_weight0):
+def make_model(
+    input_layernorm_weight_0,
+    post_attention_layernorm_weight0,
+    norm_weight,
+    head_weight,
+    self_attn_q_proj_weight0,
+    self_attn_k_proj_weight0,
+    self_attn_v_proj_weight0,
+    self_attn_o_proj_weight0,
+    mlp_gate_proj_weight0,
+    mlp_up_proj_weight0,
+    mlp_down_proj_weight0,
+):
     @script()
-    def main_graph(input0: INT64[1,10], input1: FLOAT[1,10], input2: INT64[1,10]) -> (FLOAT[1,10,49152], FLOAT[1,32,10,64], FLOAT[1,32,10,64]):
-        model_layers_0_input_layernorm_weight = opset18.Constant(value=input_layernorm_weight_0)
-        model_layers_0_post_attention_layernorm_weight = opset18.Constant(value=post_attention_layernorm_weight0)
+    def main_graph(
+        input0: INT64[1, 10], input1: FLOAT[1, 10], input2: INT64[1, 10]
+    ) -> (FLOAT[1, 10, 49152], FLOAT[1, 32, 10, 64], FLOAT[1, 32, 10, 64]):
+        model_layers_0_input_layernorm_weight = opset18.Constant(
+            value=input_layernorm_weight_0
+        )
+        model_layers_0_post_attention_layernorm_weight = opset18.Constant(
+            value=post_attention_layernorm_weight0
+        )
         model_norm_weight = opset18.Constant(value=norm_weight)
         lm_head_weight = opset18.Constant(value=head_weight)
-        model_layers_0_self_attn_q_proj_weight = opset18.Constant(value=self_attn_q_proj_weight0)
-        model_layers_0_self_attn_k_proj_weight = opset18.Constant(value=self_attn_k_proj_weight0)
-        model_layers_0_self_attn_v_proj_weight = opset18.Constant(value=self_attn_v_proj_weight0)
-        model_layers_0_self_attn_o_proj_weight = opset18.Constant(value=self_attn_o_proj_weight0)
+        model_layers_0_self_attn_q_proj_weight = opset18.Constant(
+            value=self_attn_q_proj_weight0
+        )
+        model_layers_0_self_attn_k_proj_weight = opset18.Constant(
+            value=self_attn_k_proj_weight0
+        )
+        model_layers_0_self_attn_v_proj_weight = opset18.Constant(
+            value=self_attn_v_proj_weight0
+        )
+        model_layers_0_self_attn_o_proj_weight = opset18.Constant(
+            value=self_attn_o_proj_weight0
+        )
         model_layers_0_mlp_gate_proj_weight = opset18.Constant(value=mlp_gate_proj_weight0)
         model_layers_0_mlp_up_proj_weight = opset18.Constant(value=mlp_up_proj_weight0)
         model_layers_0_mlp_down_proj_weight = opset18.Constant(value=mlp_down_proj_weight0)
 
         embedding = opset18.Gather(lm_head_weight, input0, axis=0)
-        minus_inf_10x10 = opset18.ConstantOfShape([10, 10], [-3.4028234663852886e+38])
+        minus_inf_10x10 = opset18.ConstantOfShape([10, 10], [-3.4028234663852886e38])
         mask_10x10 = opset18.Trilu(minus_inf_10x10, 1)
         slice_5 = opset18.Reshape(mask_10x10, [1, 1, 10, 10])
         unsqueeze_2 = opset18.Unsqueeze(input1, 1)
@@ -39,14 +65,54 @@ def make_model(input_layernorm_weight_0, post_attention_layernorm_weight0, norm_
         add = slice_5 + unsqueeze_3
         eq = add == 0.0
         slice_10 = slice_5
-        masked_fill = opset18.Where(eq, -3.4028235e+38, slice_10)
+        masked_fill = opset18.Where(eq, -3.4028235e38, slice_10)
         val_179 = opset18.Transpose(masked_fill, perm=[2, 1, 0, 3])
         slice_scatter = opset18.Transpose(val_179, perm=[2, 1, 0, 3])
         val_191 = opset18.Transpose(slice_scatter, perm=[1, 0, 2, 3])
         slice_scatter_1 = opset18.Transpose(val_191, perm=[1, 0, 2, 3])
         unsqueeze_6 = opset18.Unsqueeze(input2, 1)
         _to_copy_1 = opset18.Cast(unsqueeze_6, to=1)
-        view_1 = opset18.Constant(value=make_tensor("value", 1, dims=[1, 32, 1], vals=[1.0, 0.7498942017555237, 0.5623413324356079, 0.4216965138912201, 0.3162277638912201, 0.23713736236095428, 0.17782793939113617, 0.1333521455526352, 0.10000000149011612, 0.07498941570520401, 0.05623412877321243, 0.04216964915394783, 0.03162277862429619, 0.0237137358635664, 0.017782794311642647, 0.01333521492779255, 0.009999999776482582, 0.007498942315578461, 0.005623413249850273, 0.0042169648222625256, 0.003162277862429619, 0.0023713738191872835, 0.0017782794311642647, 0.0013335214462131262, 0.0010000000474974513, 0.0007498941849917173, 0.000562341301701963, 0.00042169648804701865, 0.0003162277862429619, 0.0002371373848291114, 0.00017782794020604342, 0.0001333521504420787]))
+        view_1 = opset18.Constant(
+            value=make_tensor(
+                "value",
+                1,
+                dims=[1, 32, 1],
+                vals=[
+                    1.0,
+                    0.7498942017555237,
+                    0.5623413324356079,
+                    0.4216965138912201,
+                    0.3162277638912201,
+                    0.23713736236095428,
+                    0.17782793939113617,
+                    0.1333521455526352,
+                    0.10000000149011612,
+                    0.07498941570520401,
+                    0.05623412877321243,
+                    0.04216964915394783,
+                    0.03162277862429619,
+                    0.0237137358635664,
+                    0.017782794311642647,
+                    0.01333521492779255,
+                    0.009999999776482582,
+                    0.007498942315578461,
+                    0.005623413249850273,
+                    0.0042169648222625256,
+                    0.003162277862429619,
+                    0.0023713738191872835,
+                    0.0017782794311642647,
+                    0.0013335214462131262,
+                    0.0010000000474974513,
+                    0.0007498941849917173,
+                    0.000562341301701963,
+                    0.00042169648804701865,
+                    0.0003162277862429619,
+                    0.0002371373848291114,
+                    0.00017782794020604342,
+                    0.0001333521504420787,
+                ],
+            )
+        )
         view_2 = opset18.Reshape(_to_copy_1, [1, 1, 10], allowzero=0)
         bmm = view_1 @ view_2
         view_3 = opset18.Reshape(bmm, [1, 32, 10], allowzero=0)
@@ -54,7 +120,7 @@ def make_model(input_layernorm_weight_0, post_attention_layernorm_weight0, norm_
         cat = opset18.Concat(transpose, transpose, axis=-1)
         cos = opset18.Cos(cat)
         sin = opset18.Sin(cat)
-        pow_1 = embedding ** 2.0
+        pow_1 = embedding**2.0
         mean = opset18.ReduceMean(pow_1, [-1], keepdims=1, noop_with_empty_axes=0)
         add_1 = mean + 1e-05
         val_244 = opset18.Sqrt(add_1)
@@ -107,7 +173,7 @@ def make_model(input_layernorm_weight_0, post_attention_layernorm_weight0, norm_
         t_3 = opset18.Transpose(model_layers_0_self_attn_o_proj_weight, perm=[1, 0])
         view_15 = view_13 @ t_3
         add_4 = embedding + view_15
-        pow_2 = add_4 ** 2.0
+        pow_2 = add_4**2.0
         mean_1 = opset18.ReduceMean(pow_2, [-1], keepdims=1, noop_with_empty_axes=0)
         add_5 = mean_1 + 1e-05
         val_379 = opset18.Sqrt(add_5)
@@ -124,7 +190,7 @@ def make_model(input_layernorm_weight_0, post_attention_layernorm_weight0, norm_
         t_6 = opset18.Transpose(model_layers_0_mlp_down_proj_weight, perm=[1, 0])
         view_21 = mul_11 @ t_6
         add_6 = add_4 + view_21
-        pow_3 = add_6 ** 2.0
+        pow_3 = add_6**2.0
         mean_2 = opset18.ReduceMean(pow_3, [-1], keepdims=1, noop_with_empty_axes=0)
         add_7 = mean_2 + 1e-05
         val_391 = opset18.Sqrt(add_7)
@@ -152,8 +218,21 @@ def make_model_with_random_weights():
     mlp_gate_proj_weight0 = numpy.random.rand(8192, 2048).astype(numpy.float32)
     mlp_up_proj_weight0 = numpy.random.rand(8192, 2048).astype(numpy.float32)
     mlp_down_proj_weight0 = numpy.random.rand(2048, 8192).astype(numpy.float32)
-    model = make_model(input_layernorm_weight_0, post_attention_layernorm_weight0, norm_weight, head_weight, self_attn_q_proj_weight0, self_attn_k_proj_weight0, self_attn_v_proj_weight0, self_attn_o_proj_weight0, mlp_gate_proj_weight0, mlp_up_proj_weight0, mlp_down_proj_weight0)
+    model = make_model(
+        input_layernorm_weight_0,
+        post_attention_layernorm_weight0,
+        norm_weight,
+        head_weight,
+        self_attn_q_proj_weight0,
+        self_attn_k_proj_weight0,
+        self_attn_v_proj_weight0,
+        self_attn_o_proj_weight0,
+        mlp_gate_proj_weight0,
+        mlp_up_proj_weight0,
+        mlp_down_proj_weight0,
+    )
     return model
+
 
 class _SmollmTestData:
     def get_onnx_model(self):
