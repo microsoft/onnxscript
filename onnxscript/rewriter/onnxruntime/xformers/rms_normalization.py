@@ -95,5 +95,5 @@ rms_normalization_ruleset = pattern.RewriteRuleSet(rms_normalization_rules)
 
 
 def fuse_rms_normalization(model: ir.Model) -> None:
-    count = rms_normalization_ruleset.apply_to_model(model)
+    count = rms_normalization_ruleset.apply_to_model(model, verbose=5)
     print(f"RMS Normalization count: {count}")

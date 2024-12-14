@@ -11,6 +11,7 @@ import torch
 import transformers
 from transformers import LlamaConfig
 
+import onnxscript.ir as ir
 import onnxscript.ir._io as io
 import onnxscript.optimizer
 
@@ -62,7 +63,7 @@ class _SmollmTestData:
             self._torch_model = model
         return self._torch_model
 
-    def get_onnx_model(self):
+    def get_onnx_model(self) -> ir.Model:
         model = self.get_torch_model()
         inputs = self.get_inputs()
         input_names = ["input" + str(i) for i in range(len(inputs)) if inputs[i] is not None]
