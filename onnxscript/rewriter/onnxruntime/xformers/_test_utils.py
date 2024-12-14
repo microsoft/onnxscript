@@ -2,13 +2,16 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import onnx
 import os
 import tempfile
+
 import numpy as np
+import onnx
 import onnxruntime
+
 import onnxscript.ir as ir
 import onnxscript.ir._io as io
+
 
 def _save(model, modelpath):
     if isinstance(model, onnx.ModelProto):

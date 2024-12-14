@@ -8,11 +8,11 @@ This is an onnxscript version of the model.
 
 import numpy
 from onnx.helper import make_tensor
-from onnxscript import script
-import onnxscript.ir as ir
-from onnxscript.onnx_types import FLOAT, INT64
-from onnxscript.onnx_opset import opset18
 
+import onnxscript.ir as ir
+from onnxscript import script
+from onnxscript.onnx_opset import opset18
+from onnxscript.onnx_types import FLOAT, INT64
 
 
 def make_model(input_layernorm_weight_0, post_attention_layernorm_weight0, norm_weight, head_weight, self_attn_q_proj_weight0, self_attn_k_proj_weight0, self_attn_v_proj_weight0, self_attn_o_proj_weight0, mlp_gate_proj_weight0, mlp_up_proj_weight0, mlp_down_proj_weight0):
