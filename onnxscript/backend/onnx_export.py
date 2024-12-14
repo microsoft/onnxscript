@@ -389,6 +389,7 @@ class Exporter:
                     text += f", offset={metadata.offset!r}"
                 if metadata.length:
                     text += f", length={metadata.length!r}"
+                text += ")"
                 attributes.append((at.name, text))
                 continue
             attributes.append((at.name, repr(value)))
