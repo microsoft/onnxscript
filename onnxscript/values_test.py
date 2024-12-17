@@ -103,6 +103,29 @@ class OnnxFunctionTest(unittest.TestCase):
         self.assertEqual(annotations["attr2"], float)
         self.assertEqual(annotations["attr3"], str)
 
+    def test_onnx_function_to_model_proto_with_required_attributes(self):
+        opset = values.Opset("test", 1)
+    
+        @onnxscript.script(default_opset=opset)
+        def function(input1, attr1: int):
+            return input1 + attr1
+    
+        with self.assertRaises(ValueError, msg="A function with required attributes cannot be exported as a model."):
+            function.to_model_proto()
+
+
+    def test_prepare_inputs_trims_none(self):
+        opset = values.Opset("test", 1)
+        inputs = [1, 2, None, None]
+        prepared_inputs = opset._prepare_inputs(None, *inputs)
+        self.assertEqual(prepared_inputs, [1, 2], "Opset._prepare_inputs should trim 'None' values from the end of the inputs list.")
+
+
+    def test_param_schema_is_attribute(self):
+        param_schema = values.ParamSchema(name="attr", is_input=False)
+        self.assertTrue(param_schema.is_attribute, "ParamSchema should identify non-input parameters as attributes.")
+
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -374,5 +374,75 @@ class DoublyLinkedSetTest(unittest.TestCase):
         self.assertEqual([elem.value for elem in other_linked_list], [42])
 
 
+    def test_doubly_linked_set_repr(self):
+        elems = [_TestElement(i) for i in range(3)]
+        linked_list = _linked_list.DoublyLinkedSet(elems)
+        self.assertEqual(repr(linked_list), "DoublyLinkedSet([_TestElement(0), _TestElement(1), _TestElement(2)])")
+
+
+    def test_insert_before_value_not_in_list(self):
+        linked_list = _linked_list.DoublyLinkedSet()
+        elem = _TestElement(0)
+        linked_list.append(elem)
+        with self.assertRaises(ValueError):
+            linked_list.insert_before(_TestElement(1), [_TestElement(2)])
+
+
+    def test_insert_one_after_none_value(self):
+        linked_list = _linked_list.DoublyLinkedSet()
+        elem = _TestElement(0)
+        linked_list.append(elem)
+        with self.assertRaises(TypeError):
+            linked_list._insert_one_after(linked_list._root.next, None)
+
+
+    def test_erase_already_erased_linkbox(self):
+        linked_list = _linked_list.DoublyLinkedSet()
+        elem = _TestElement(0)
+        box = _linked_list._LinkBox(linked_list, elem)
+        box.erase()
+        with self.assertRaises(ValueError):
+            box.erase()
+
+
+    def test_insert_after_value_not_in_list(self):
+        linked_list = _linked_list.DoublyLinkedSet()
+        elem = _TestElement(0)
+        linked_list.append(elem)
+        with self.assertRaises(ValueError):
+            linked_list.insert_after(_TestElement(1), [_TestElement(2)])
+
+
+    def test_insert_one_after_box_not_in_list(self):
+        linked_list = _linked_list.DoublyLinkedSet()
+        other_linked_list = _linked_list.DoublyLinkedSet()
+        elem = _TestElement(0)
+        other_elem = _TestElement(1)
+        linked_list.append(elem)
+        other_linked_list.append(other_elem)
+        with self.assertRaises(ValueError):
+            linked_list._insert_one_after(other_linked_list._root.next, _TestElement(2))
+
+
+    def test_iterator_element_not_in_list(self):
+        linked_list = _linked_list.DoublyLinkedSet()
+        other_linked_list = _linked_list.DoublyLinkedSet()
+        elem = _TestElement(0)
+        linked_list.append(elem)
+        other_elem = _TestElement(1)
+        other_linked_list.append(other_elem)
+        linked_list._root.next = other_linked_list._root.next  # Forcefully link an element from another list
+        with self.assertRaises(RuntimeError):
+            list(linked_list)
+
+
+    def test_linkbox_repr_erased(self):
+        linked_list = _linked_list.DoublyLinkedSet()
+        elem = _TestElement(0)
+        box = _linked_list._LinkBox(linked_list, elem)
+        box.erase()
+        self.assertEqual(repr(box), "_LinkBox(None, erased=True, prev=None, next=None)")
+
+
 if __name__ == "__main__":
     unittest.main()

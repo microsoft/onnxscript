@@ -7,6 +7,9 @@ import unittest
 import numpy as np
 
 from tests.common import testutils
+import unittest.mock
+import onnx
+import onnx
 
 
 class MHAParityTest(unittest.TestCase):
@@ -81,6 +84,120 @@ class AttnParityTest(unittest.TestCase):
             2,
             {("com.microsoft", "Attention", "")},
         )
+
+
+    @unittest.mock.patch('onnxruntime.InferenceSession')
+    @unittest.mock.patch('onnx.load')
+    @unittest.mock.patch('tests.common.testutils.evaluation_utils.load_test_data', return_value=({"input": np.array([1.0])}, [np.array([1.0, 2.0])]))
+    def test_onnxruntime_rewrite_output_shape_mismatch(self, mock_load_test_data, mock_load, mock_inference_session):
+        model = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                nodes=[
+                    onnx.helper.make_node("Add", ["X", "Y"], ["Z"], domain=""),
+                ],
+                name="test_graph",
+                inputs=[
+                    onnx.helper.make_tensor_value_info("X", onnx.TensorProto.FLOAT, [1]),
+                    onnx.helper.make_tensor_value_info("Y", onnx.TensorProto.FLOAT, [1]),
+                ],
+                outputs=[
+                    onnx.helper.make_tensor_value_info("Z", onnx.TensorProto.FLOAT, [1]),
+                ],
+            )
+        )
+        mock_load.return_value = model
+        mock_session = mock_inference_session.return_value
+        mock_session.run.return_value = [np.array([1.0])]
+        
+        with self.assertRaises(AssertionError):
+            testutils.test_onnxruntime_rewrite(
+                "dummy_model", 1, {("", "Add", "")}
+            )
+
+
+    def test_validate_method(self):
+        class MockFunction:
+            def to_function_proto(self):
+                return "function_proto"
+        
+        test_base = testutils.TestBase()
+        result = test_base.validate(MockFunction())
+        self.assertEqual(result, "function_proto")
+
+
+    @unittest.mock.patch('onnxruntime.InferenceSession')
+    @unittest.mock.patch('onnx.load')
+    @unittest.mock.patch('tests.common.testutils.evaluation_utils.load_test_data', return_value=({}, []))
+    def test_onnxruntime_rewrite_success(self, mock_load_test_data, mock_load, mock_inference_session):
+        model = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                nodes=[
+                    onnx.helper.make_node("Add", ["X", "Y"], ["Z"], domain=""),
+                    onnx.helper.make_node("Relu", ["Z"], ["W"], domain=""),
+                ],
+                name="test_graph",
+                inputs=[
+                    onnx.helper.make_tensor_value_info("X", onnx.TensorProto.FLOAT, [1]),
+                    onnx.helper.make_tensor_value_info("Y", onnx.TensorProto.FLOAT, [1]),
+                ],
+                outputs=[
+                    onnx.helper.make_tensor_value_info("W", onnx.TensorProto.FLOAT, [1]),
+                ],
+            )
+        )
+        mock_load.return_value = model
+        testutils.test_onnxruntime_rewrite(
+            "dummy_model", 1, {("", "Add", ""), ("", "Relu", "")}
+        )
+
+
+    @unittest.mock.patch('onnxruntime.InferenceSession')
+    @unittest.mock.patch('onnx.load')
+    @unittest.mock.patch('tests.common.testutils.evaluation_utils.load_test_data', return_value=({}, []))
+    def test_onnxruntime_rewrite_missing_optypes(self, mock_load_test_data, mock_load, mock_inference_session):
+        model = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                nodes=[
+                    onnx.helper.make_node("Add", ["X", "Y"], ["Z"], domain=""),
+                ],
+                name="test_graph",
+                inputs=[
+                    onnx.helper.make_tensor_value_info("X", onnx.TensorProto.FLOAT, [1]),
+                    onnx.helper.make_tensor_value_info("Y", onnx.TensorProto.FLOAT, [1]),
+                ],
+                outputs=[
+                    onnx.helper.make_tensor_value_info("Z", onnx.TensorProto.FLOAT, [1]),
+                ],
+            )
+        )
+        mock_load.return_value = model
+        with self.assertRaises(AssertionError):
+            testutils.test_onnxruntime_rewrite(
+                "dummy_model", 1, {("", "Relu", "")}
+            )
+
+
+    def test_op_type_analysis_visitor(self):
+        model = onnx.helper.make_model(
+            onnx.helper.make_graph(
+                nodes=[
+                    onnx.helper.make_node("Add", ["X", "Y"], ["Z"], domain=""),
+                    onnx.helper.make_node("Relu", ["Z"], ["W"], domain=""),
+                ],
+                name="test_graph",
+                inputs=[
+                    onnx.helper.make_tensor_value_info("X", onnx.TensorProto.FLOAT, [1]),
+                    onnx.helper.make_tensor_value_info("Y", onnx.TensorProto.FLOAT, [1]),
+                ],
+                outputs=[
+                    onnx.helper.make_tensor_value_info("W", onnx.TensorProto.FLOAT, [1]),
+                ],
+            )
+        )
+        visitor = testutils.OpTypeAnalysisVisitor()
+        visitor.visit_model(model)
+        expected_op_types = {("", "Add", ""), ("", "Relu", "")}
+        self.assertEqual(visitor.op_types, expected_op_types)
 
 
 if __name__ == "__main__":

@@ -289,6 +289,67 @@ class DeserializeGraphTest(unittest.TestCase):
         self.assertEqual(deserialized_graph[0].op_type, "Op_1")
         self.assertEqual(deserialized_graph[1].op_type, "Op_0")
 
+    def test_tensor_proto_tensor_string(self):
+        tensor_proto = onnx.helper.make_tensor(
+            "test_tensor", onnx.TensorProto.STRING, [3], [b"one", b"two", b"three"]
+        )
+        tensor = serde.TensorProtoTensor(tensor_proto)
+        expected_array = np.array([b"one", b"two", b"three"], dtype=object)
+        np.testing.assert_array_equal(tensor.numpy(), expected_array)
+
+
+    def test_serialize_function_without_default_attribute(self):
+        function = ir.Function(
+            domain="test_domain",
+            name="test_function",
+            graph=ir.Graph([], [], nodes=[]),
+            attributes=[ir.Attr("attr_without_default", ir.AttributeType.FLOAT, None)]
+        )
+        function_proto = serde.serialize_function(function)
+        self.assertIn("attr_without_default", function_proto.attribute)
+
+
+    def test_deserialize_graph_with_empty_input(self):
+        node_proto = onnx.helper.make_node(
+            "OpType",
+            inputs=["", "input_1"],
+            outputs=["output_1"],
+            name="test_node"
+        )
+        graph_proto = onnx.helper.make_graph(
+            nodes=[node_proto],
+            name="test_graph",
+            inputs=[],
+            outputs=[]
+        )
+        deserialized_graph = serde.deserialize_graph(graph_proto)
+        self.assertEqual(deserialized_graph[0].inputs[0], None)
+        self.assertEqual(deserialized_graph[0].inputs[1].name, "input_1")
+
+
+    def test_tensor_proto_tensor_external_data(self):
+        tensor_proto = onnx.helper.make_tensor(
+            "test_tensor", onnx.TensorProto.FLOAT, [1, 9], [-3.0, -1.0, -0.5, -0.0, +0.0, 0.5, 1.0, 42.0, 2.0]
+        )
+        tensor_proto.data_location = onnx.TensorProto.EXTERNAL
+        tensor = serde.TensorProtoTensor(tensor_proto)
+        with self.assertRaises(ValueError):
+            tensor.numpy()
+
+
+    def test_to_proto_unsupported_type(self):
+        class UnsupportedIRObject:
+            pass
+    
+        with self.assertRaises(NotImplementedError):
+            serde.to_proto(UnsupportedIRObject())
+
+
+    def test_from_proto_unsupported_type(self):
+        with self.assertRaises(NotImplementedError):
+            serde.from_proto(onnx.OperatorSetIdProto())
+
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -328,5 +328,19 @@ class VersionConverter23to24Test(unittest.TestCase):
         version_converter.convert_version(model, target_version=target_version)
 
 
+
+    def test_get_str_attribute_invalid_type(self):
+        node = ir.Node("", "TestOp", [])
+        node.attributes["test_attr"] = "not_an_attr_instance"
+        result = version_converter._version_converter._get_str_attribute(node, "test_attr")
+        self.assertIsNone(result)
+
+
+    def test_get_int_attribute_invalid_type(self):
+        node = ir.Node("", "TestOp", [])
+        node.attributes["test_attr"] = "not_an_attr_instance"
+        result = version_converter._version_converter._get_int_attribute(node, "test_attr")
+        self.assertIsNone(result)
+
 if __name__ == "__main__":
     unittest.main()
