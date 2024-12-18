@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Iterable
+
 import onnxscript.ir as ir
 from onnxscript.rewriter import pattern
 
@@ -39,7 +40,12 @@ def _project_transpose_head(op, input, weight, reshape_var: str):
     # Reshape into 3D tensor (B, S, D)
     # reshaped_3d = op.Reshape(projected, _allow_other_inputs=True, _allow_other_attributes=True)
     # Reshape from (B, S, D) to (B, S, H, D/H)
-    reshaped = op.Reshape(projected, _allow_other_inputs=True, _allow_other_attributes=True, _outputs=[reshape_var])
+    reshaped = op.Reshape(
+        projected,
+        _allow_other_inputs=True,
+        _allow_other_attributes=True,
+        _outputs=[reshape_var],
+    )
     # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
     transposed = op.Transpose(reshaped, perm=[0, 2, 1, 3])
     return transposed
@@ -53,7 +59,9 @@ def _multi_head_attention_pattern(op, input, query_weight, key_weight, value_wei
     # Transpose last two axes of key_rope to compute dot-product via matmul.
     key_reshaped = op.Reshape(key_rope, _allow_other_inputs=True, _outputs=["key_reshaped"])
     key_reshaped_transposed = op.Transpose(key_reshaped)
-    key_transposed = op.Reshape(key_reshaped_transposed, _allow_other_inputs=True, _outputs=["key_transposed"])
+    key_transposed = op.Reshape(
+        key_reshaped_transposed, _allow_other_inputs=True, _outputs=["key_transposed"]
+    )
     value = _project_transpose_head(op, input, value_weight, "value_mm_reshaped")
     attention = op.SDPA(
         query_rope, key_transposed, value, _allow_other_inputs=True, _domain="local"
@@ -61,8 +69,11 @@ def _multi_head_attention_pattern(op, input, query_weight, key_weight, value_wei
     # Transpose back to (B, S, H, D/H)
     attention_transposed = op.Transpose(attention, perm=[0, 2, 1, 3])
     # Reshape back to (B, S, D)
-    attention_reshaped = op.Reshape(attention_transposed, _allow_other_inputs=True, _outputs=["attention_reshaped"])
+    attention_reshaped = op.Reshape(
+        attention_transposed, _allow_other_inputs=True, _outputs=["attention_reshaped"]
+    )
     return attention_reshaped, key_rope, value
+
 
 def _check_shape(bindings: dict[str, int], val: ir.Value, shape: Iterable[str]) -> bool:
     if val.shape is None:
@@ -76,15 +87,25 @@ def _check_shape(bindings: dict[str, int], val: ir.Value, shape: Iterable[str]) 
             return False
     return True
 
-def _mha_validation(op, query_mm_reshaped, key_mm_reshaped, value_mm_reshaped, key_reshaped, key_transposed, attention_reshaped, **_):
-    bindings : dict[str, int] = {}
+
+def _mha_validation(
+    op,
+    query_mm_reshaped,
+    key_mm_reshaped,
+    value_mm_reshaped,
+    key_reshaped,
+    key_transposed,
+    attention_reshaped,
+    **_,
+):
+    bindings: dict[str, int] = {}
     check = (
-        _check_shape(bindings, query_mm_reshaped, ["B", "S", "H", "d_h"]) and
-        _check_shape(bindings, key_mm_reshaped, ["B", "S", "H", "d_h"]) and
-        _check_shape(bindings, value_mm_reshaped, ["B", "S", "H", "d_h"]) and
-        _check_shape(bindings, key_reshaped, ["B*H", "S", "d_h"]) and
-        _check_shape(bindings, key_transposed, ["B", "H", "d_h", "S"]) and
-        _check_shape(bindings, attention_reshaped, ["B", "S", "H*d_h"])
+        _check_shape(bindings, query_mm_reshaped, ["B", "S", "H", "d_h"])
+        and _check_shape(bindings, key_mm_reshaped, ["B", "S", "H", "d_h"])
+        and _check_shape(bindings, value_mm_reshaped, ["B", "S", "H", "d_h"])
+        and _check_shape(bindings, key_reshaped, ["B*H", "S", "d_h"])
+        and _check_shape(bindings, key_transposed, ["B", "H", "d_h", "S"])
+        and _check_shape(bindings, attention_reshaped, ["B", "S", "H*d_h"])
     )
     if not check:
         return False
@@ -93,6 +114,7 @@ def _mha_validation(op, query_mm_reshaped, key_mm_reshaped, value_mm_reshaped, k
     if bindings["H"] * bindings["d_h"] != bindings["H*d_h"]:
         return False
     return True
+
 
 def _multi_head_attention_pattern2(
     op, input, query_weight, key_weight, value_weight, cos, sin
@@ -117,23 +139,16 @@ def _multi_head_attention_pattern2(
     return attention_reshaped, key_rope, value
 
 
-def _multi_head_attention(
-    op,
-    input,
-    query_weight,
-    key_weight,
-    value_weight,
-    cos,
-    sin,
-    **_
-):
+def _multi_head_attention(op, input, query_weight, key_weight, value_weight, cos, sin, **_):
     # TODO: other checks and concatenation of weights
     return op.MultiHeadAttention(
         input, query_weight, key_weight, value_weight, cos, sin, _domain="local", _outputs=3
     )
 
 
-_rule1 = pattern.RewriteRule(_multi_head_attention_pattern, _multi_head_attention, _mha_validation)
+_rule1 = pattern.RewriteRule(
+    _multi_head_attention_pattern, _multi_head_attention, _mha_validation
+)
 
 # TODO: _rule2 validation conditions
 # _rule2 = pattern.RewriteRule(_multi_head_attention_pattern2, _multi_head_attention)

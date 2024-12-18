@@ -6,13 +6,16 @@ import math
 
 from onnxscript.rewriter import _ir_utils, pattern
 
+
 class SDPA(pattern.RewriteRuleClassBase):
     def __init__(self, name: str, *, use_mask: bool, pre_scale: bool):
-        self._name = name
+        super().__init__(name=name)
         self._use_mask = use_mask
         self._pre_scale = pre_scale
-    
-    def pattern(self, op, query, key_transposed, value, mask, query_scale, key_scale, qk_scale):
+
+    def pattern(
+        self, op, query, key_transposed, value, mask, query_scale, key_scale, qk_scale
+    ):
         if self.pre_scale:
             # Some implementations scale the query and key before computing the dot product
             query = op.Mul(query, query_scale)
@@ -35,7 +38,7 @@ class SDPA(pattern.RewriteRuleClassBase):
         if query is None or query.shape is None or len(query.shape) < 2:
             return False
         hidden_size = query.shape[-1]
-        if not isinstance(hidden_size, int) :
+        if not isinstance(hidden_size, int):
             return False
         expected_scaling_factor = math.sqrt(hidden_size)
 
@@ -52,12 +55,18 @@ class SDPA(pattern.RewriteRuleClassBase):
                 return False
 
         # check ranks/shapes
-        
+
         return True
 
     def rewrite(self, op, query, key_transposed, value, mask, **_):
-        return op.SDPA(query, key_transposed, value, mask, _domain="local")
+        return op.SDPA(query, key_transposed, value, mask, _domain="ai.onnxruntime.fusion")
+
 
 masked_pre_mul_sdpa_rule = SDPA.rule("masked_pre_mul_sdpa", use_mask=True, pre_scale=True)
 
-sdpa_rules = pattern.RewriteRuleSet([rule, rule2, rule3])
+sdpa_rules = pattern.RewriteRuleSet([masked_pre_mul_sdpa_rule])
+
+
+def fuse_sdpa(model: ir.Model) -> None:
+    count = sdpa_rules.apply_to_model(model)
+    print(f"SDPA count: {count}")
