@@ -5,6 +5,15 @@ from __future__ import annotations
 import onnxscript.ir as ir
 from onnxscript.rewriter import _ir_utils, pattern
 
+# Add first version of the RotaryEmbeddingFusion rule. This considers only one simple pattern
+# for full rotation without interleaving.
+# TODO(rama): Add pattern variations to handle other cases.
+
+# Note: This targets the new op being proposed to ONNX. This version does not exist in ORT yet,
+# so it can't be tested by running against ORT. Unfortunately, this is the new pattern out
+# of current version of transformers (not yet supported by ORT).
+
+
 def _rotate_half_pattern(op, x, start1, end1, start2, end2):
     # Slice(input, starts, ends, axes, steps)
     x1 = op.Slice(x, start1, end1, [3], [1])
@@ -13,8 +22,8 @@ def _rotate_half_pattern(op, x, start1, end1, start2, end2):
     rotated_x = op.Concat(minus_x2, x1, axis=-1)
     return rotated_x
 
-class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
 
+class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
     def pattern(self, op, x, cos, sin, start1, end1, start2, end2):
         return x * cos + _rotate_half_pattern(op, x, start1, end1, start2, end2) * sin
 
@@ -29,20 +38,20 @@ class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
 
         # Check that x is being split into two equal halves of size half_head_size
         return (
-            _ir_utils.is_singleton_value(start1, 0) and
-            _ir_utils.is_singleton_value(end1, half_head_size) and
-            _ir_utils.is_singleton_value(start2, half_head_size) and
-            _ir_utils.is_singleton_value(end2, lambda x: x >= head_size)
+            _ir_utils.is_singleton_value(start1, 0)
+            and _ir_utils.is_singleton_value(end1, half_head_size)
+            and _ir_utils.is_singleton_value(start2, half_head_size)
+            and _ir_utils.is_singleton_value(end2, lambda x: x >= head_size)
         )
 
     def rewrite(self, op, x, cos, sin, **_):
         return op.RotaryEmbedding(x, cos, sin, interleaved=0, _domain="ai.onnxruntime.fusion")
 
 
-
 _rule = RotaryEmbeddingFusion.rule()
 
 rotary_embedding_rules = pattern.RewriteRuleSet([_rule])
+
 
 def fuse_rotary_embedding(model: ir.Model) -> None:
     count = rotary_embedding_rules.apply_to_model(model)

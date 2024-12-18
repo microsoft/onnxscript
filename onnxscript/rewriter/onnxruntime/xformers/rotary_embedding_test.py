@@ -19,6 +19,5 @@ class TestRotaryEmbedding(unittest.TestCase):
         self.assertIn("RotaryEmbedding", op_types)
 
 
-
 if __name__ == "__main__":
     unittest.main()
