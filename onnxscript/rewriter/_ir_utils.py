@@ -2,6 +2,9 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+import math
+from typing import Callable
+
 import numpy as np
 
 import onnxscript.ir as ir
@@ -77,3 +80,19 @@ def get_singleton_value(val: ir.Value | None):
     if np_val is not None and np_val.size == 1:
         return np_val.item()
     return None
+
+
+def is_singleton_value(
+    val: ir.Value | None, expected: float | int | Callable, *, rtol: float | None = None
+) -> bool:
+    """Returns True if the value is a single element tensor with given value, and False otherwise."""
+    scalar = get_singleton_value(val)
+    if scalar is None:
+        return False
+    if isinstance(expected, Callable):
+        return expected(scalar)
+    if isinstance(expected, int):
+        return expected == scalar
+    # rtol must be specified for float comparison
+    assert rtol is not None
+    return math.isclose(scalar, expected, rtol=rtol)
