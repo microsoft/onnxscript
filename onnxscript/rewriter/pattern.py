@@ -1443,10 +1443,8 @@ class RewriteRuleClassBase:
             instance.pattern, instance.rewrite, instance.check, name=instance.name
         )
 
-    @property
-    def name(self):
-        """Default implementation of name property."""
-        return self.__class__.__name__
+    def __init__(self, name: str | None = None) -> None:
+        self.name = name or self.__class__.__name__
 
     def pattern(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'pattern' must be implemented by derived class.")
