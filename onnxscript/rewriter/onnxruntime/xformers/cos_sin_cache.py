@@ -49,7 +49,9 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         pos_id_range = np.arange(self._max_pos_id, dtype=np.float32).reshape(-1, 1)
         angles = np.matmul(pos_id_range, inv_freq_values)
         cos_value = np.cos(angles)
+        cos_value = np.concatenate([cos_value, cos_value], axis=-1)
         sin_value = np.sin(angles)
+        sin_value = np.concatenate([sin_value, sin_value], axis=-1)
         cos_2d = op.Constant(value=ir.tensor(cos_value))
         cos = op.Gather(cos_2d, position_ids, axis=0)
         sin_2d = op.Constant(value=ir.tensor(sin_value))
@@ -62,6 +64,7 @@ _rule = CosSinCacheFusion.rule("CosSinCache", 2048)
 cos_sin_cache_rules = pattern.RewriteRuleSet([_rule])
 
 
-def fuse_cos_sin_cache(model: ir.Model) -> None:
+def fuse_cos_sin_cache(model: ir.Model) -> int:
     count = cos_sin_cache_rules.apply_to_model(model)
     print(f"CosSinCache count: {count}")
+    return count

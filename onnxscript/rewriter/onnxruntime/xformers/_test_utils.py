@@ -23,7 +23,8 @@ def _save(model, modelpath):
 
 def ort_run(model_name: str, model, inputs):
     providers = ["CPUExecutionProvider"]
-    with tempfile.TemporaryDirectory() as temp_dir:
+    temp_dir = r"C:\Users\grama\OneDrive - Microsoft\0L-Torch\model\smollm-1L-debug"
+    with tempfile.TemporaryDirectory() as temp_dir2:
         model_path = os.path.join(temp_dir, f"{model_name}.onnx")
         io.save(model, model_path)
         # Run model
