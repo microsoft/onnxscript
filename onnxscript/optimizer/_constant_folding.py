@@ -305,6 +305,7 @@ def _get_int_attribute(node: ir.Node, name: str, default: int | None = None) -> 
         return None
     return default
 
+
 @register("Reshape")
 def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input = _get_input(node, 0)
@@ -325,6 +326,7 @@ def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         # No need to check for special values like -1, 0, etc. here
         return op.Identity(input)
     return None
+
 
 @register("Cast")
 def cast(node: ir.Node, op, state: OptimizerState) -> ReturnValue:

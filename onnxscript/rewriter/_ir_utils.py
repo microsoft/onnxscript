@@ -97,6 +97,7 @@ def is_singleton_value(
     assert rtol is not None
     return math.isclose(scalar, expected, rtol=rtol)
 
+
 def has_rank(value: ir.Value | None, rank: int) -> bool:
     """Returns True if the value is statically known to have the given rank, and False otherwise."""
     if value is None:
