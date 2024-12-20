@@ -23,10 +23,9 @@ def _save(model, modelpath):
 
 def ort_run(model_name: str, model, inputs):
     providers = ["CPUExecutionProvider"]
-    temp_dir = r"C:\Users\grama\OneDrive - Microsoft\0L-Torch\model\smollm-1L-debug"
-    with tempfile.TemporaryDirectory() as temp_dir2:
+    with tempfile.TemporaryDirectory() as temp_dir:
         model_path = os.path.join(temp_dir, f"{model_name}.onnx")
-        io.save(model, model_path)
+        _save(model, model_path)
         # Run model
         session = onnxruntime.InferenceSession(model_path, providers=providers)
         ort_outputs = session.run(None, inputs)

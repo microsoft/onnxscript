@@ -23,16 +23,19 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
     def __init__(self, name: str, max_pos_id: int):
         super().__init__(name)
         self._max_pos_id = max_pos_id
+        self.remove_nodes = False
 
-    def pattern(self, op, inv_freq, position_ids):
-        position_ids_expanded = op.Unsqueeze(position_ids, [1])
+    def pattern(self, op, x, inv_freq, position_ids):
+        position_ids_expanded = op.Unsqueeze(position_ids, 1)
         position_ids_expanded = op.Cast(position_ids_expanded, to=ir.DataType.FLOAT)
         freqs = op.MatMul(inv_freq, position_ids_expanded)
         freqs = op.Transpose(freqs, perm=[0, 2, 1])
         emb = op.Concat(freqs, freqs, axis=-1)
         cos = op.Cos(emb)
         sin = op.Sin(emb)
-        return cos, sin
+        cos_4d = op.Unsqueeze(cos, 1)  # convert
+        sin_4d = op.Unsqueeze(sin, 1)
+        return op.RotaryEmbedding(x, cos_4d, sin_4d, interleaved=0, _domain="ai.onnxruntime.fusion")
 
     def check(self, context, inv_freq, position_ids, **_):
         if not _ir_utils.has_rank(position_ids, 2):
@@ -44,7 +47,7 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
             return False
         return inv_freq_shape[0] == 1 and inv_freq_shape[2] == 1
 
-    def rewrite(self, op, inv_freq, position_ids, **_):
+    def rewrite(self, op, x, inv_freq, position_ids, **_):
         inv_freq_values = inv_freq.const_value.numpy().reshape(1, -1)
         pos_id_range = np.arange(self._max_pos_id, dtype=np.float32).reshape(-1, 1)
         angles = np.matmul(pos_id_range, inv_freq_values)
@@ -53,10 +56,10 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         sin_value = np.sin(angles)
         sin_value = np.concatenate([sin_value, sin_value], axis=-1)
         cos_2d = op.Constant(value=ir.tensor(cos_value))
-        cos = op.Gather(cos_2d, position_ids, axis=0)
+        # cos = op.Gather(cos_2d, position_ids, axis=0)
         sin_2d = op.Constant(value=ir.tensor(sin_value))
-        sin = op.Gather(sin_2d, position_ids, axis=0)
-        return cos, sin
+        # sin = op.Gather(sin_2d, position_ids, axis=0)
+        return op.RotaryEmbedding(x, cos_2d, sin_2d, position_ids, interleaved=0, _domain="ai.onnxruntime.fusion")
 
 
 _rule = CosSinCacheFusion.rule("CosSinCache", 2048)
