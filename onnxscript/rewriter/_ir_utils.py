@@ -96,3 +96,10 @@ def is_singleton_value(
     # rtol must be specified for float comparison
     assert rtol is not None
     return math.isclose(scalar, expected, rtol=rtol)
+
+def has_rank(value: ir.Value | None, rank: int) -> bool:
+    """Returns True if the value is statically known to have the given rank, and False otherwise."""
+    if value is None:
+        return False
+    shape = value.shape
+    return (shape is not None) and (shape.rank() == rank)
