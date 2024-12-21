@@ -28,8 +28,10 @@ class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
         return x * cos + _rotate_half_pattern(op, x, start1, end1, start2, end2) * sin
 
     def check(self, op, x, start1, end1, start2, end2, **_):
-        # x needs to be a 4D tensor with known last dimension size (== head_size)
+        # x needs to be a 4D tensor with known last dimension size (== head_size) and known second dimension (num_heads)
         if x is None or x.shape is None or len(x.shape) != 4:
+            return False
+        if not isinstance(x.shape[1], int):
             return False
         head_size = x.shape[3]
         if not isinstance(head_size, int):
@@ -45,7 +47,10 @@ class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
         )
 
     def rewrite(self, op, x, cos, sin, **_):
-        return op.RotaryEmbedding(x, cos, sin, interleaved=0, _domain="ai.onnxruntime.fusion")
+        num_heads = x.shape[1]
+        return op.RotaryEmbedding(
+            x, cos, sin, interleaved=0, num_heads=num_heads, _domain="ai.onnxruntime.fusion"
+        )
 
 
 _rule = RotaryEmbeddingFusion.rule()
@@ -53,6 +58,7 @@ _rule = RotaryEmbeddingFusion.rule()
 rotary_embedding_rules = pattern.RewriteRuleSet([_rule])
 
 
-def fuse_rotary_embedding(model: ir.Model) -> None:
+def fuse_rotary_embedding(model: ir.Model) -> int:
     count = rotary_embedding_rules.apply_to_model(model)
     print(f"Rotary Embedding count: {count}")
+    return count
