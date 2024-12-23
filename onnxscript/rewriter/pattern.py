@@ -1178,6 +1178,8 @@ class SimplePatternMatcher(PatternMatcher):
 
         Args:
             candidate: An iterable of nodes that will be matched against the pattern output nodes.
+            check_removable: If True, check that the matched nodes can be removed (that is, that
+                they are not used elsewhere in the graph).
         """
         match = self._match
         for pattern_node, node in zip(self.pattern.output_nodes, candidate):

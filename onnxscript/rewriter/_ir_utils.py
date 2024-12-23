@@ -95,7 +95,7 @@ def is_singleton_value(
         return expected == scalar
     # rtol must be specified for float comparison
     assert rtol is not None
-    return math.isclose(scalar, expected, rtol=rtol)
+    return math.isclose(scalar, expected, rel_tol=rtol)
 
 
 def has_rank(value: ir.Value | None, rank: int) -> bool:
