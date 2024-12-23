@@ -1457,9 +1457,9 @@ class RewriteRuleClassBase:
             remove_nodes=instance.remove_nodes,
         )
 
-    def __init__(self, name: str | None = None) -> None:
+    def __init__(self, name: str | None = None, remove_nodes: bool = True) -> None:
         self.name = name or self.__class__.__name__
-        self.remove_nodes = True
+        self.remove_nodes = remove_nodes
 
     def pattern(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'pattern' must be implemented by derived class.")

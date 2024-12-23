@@ -308,6 +308,7 @@ def _get_int_attribute(node: ir.Node, name: str, default: int | None = None) -> 
 
 @register("Reshape")
 def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Replace a Reshape node by Identity when applicable."""
     input = _get_input(node, 0)
     shape = _get_input(node, 1)
     if input is None or shape is None:

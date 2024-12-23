@@ -10,21 +10,37 @@ from onnxscript.rewriter import _ir_utils, pattern
 
 # Rewrite the computation of cos/sin cache into the form expected by ORT's custom ops.
 
+# We match against the following code pattern:
 # Original code (from transformers) for computing cos/sin cache for RoPE:
 # https://github.com/huggingface/transformers/blob/0ade1caa356dce6b70ef8293addeb0898f177206/src/transformers/models/llama/modeling_llama.py#L135
-# inv_freq_expanded = self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
 # position_ids_expanded = position_ids[:, None, :].float()
 # freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
 # emb = torch.cat((freqs, freqs), dim=-1)
 # cos = emb.cos()
 # sin = emb.sin()
+#
+# We rewrite this pattern into the following form:
+# inv_freq_values = inv_freq_expanded.reshape(1, -1)
+# pos_id_range = np.arange(max_pos_id, dtype=np.float32).reshape(-1, 1)
+# angles = np.matmul(pos_id_range, inv_freq_values)
+# cos_value = np.cos(angles)
+# sin_value = np.sin(angles)
+# cos_2d = op.Constant(value=ir.tensor(cos_value))
+# sin_2d = op.Constant(value=ir.tensor(sin_value))
+#
+# This produces cos/sin values in a form that can be used by ORT's custom ops.
+
+# TODO: To apply the pattern-rewrite, we need to know the maximum position id.
+# Need to find a way to get this information from the model or its config.
 
 
 class CosSinCacheFusion(pattern.RewriteRuleClassBase):
     def __init__(self, name: str, max_pos_id: int):
-        super().__init__(name)
+        # This pattern makes use of shared Cos/Sin values. So, we can't remove the
+        # matched nodes as part of the rewrite-step. We apply a separate final
+        # pass to remove unused nodes.
+        super().__init__(name, remove_nodes=False)
         self._max_pos_id = max_pos_id
-        self.remove_nodes = False
 
     def pattern(self, op, x, inv_freq, position_ids, interleaved, num_heads):
         position_ids_expanded = op.Unsqueeze(position_ids, 1)
@@ -60,13 +76,9 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         pos_id_range = np.arange(self._max_pos_id, dtype=np.float32).reshape(-1, 1)
         angles = np.matmul(pos_id_range, inv_freq_values)
         cos_value = np.cos(angles)
-        # cos_value = np.concatenate([cos_value, cos_value], axis=-1)
         sin_value = np.sin(angles)
-        # sin_value = np.concatenate([sin_value, sin_value], axis=-1)
         cos_2d = op.Constant(value=ir.tensor(cos_value))
-        # cos = op.Gather(cos_2d, position_ids, axis=0)
         sin_2d = op.Constant(value=ir.tensor(sin_value))
-        # sin = op.Gather(sin_2d, position_ids, axis=0)
         return op.RotaryEmbedding(
             x,
             position_ids,

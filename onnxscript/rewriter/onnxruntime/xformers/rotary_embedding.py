@@ -7,11 +7,11 @@ from onnxscript.rewriter import _ir_utils, pattern
 
 # Add first version of the RotaryEmbeddingFusion rule. This considers only one simple pattern
 # for full rotation without interleaving.
-# TODO(rama): Add pattern variations to handle other cases.
+# TODO(rama): Add pattern variations to handle other cases (interleaved, as well as partial rotation).
 
-# Note: This targets the new op being proposed to ONNX. This version does not exist in ORT yet,
-# so it can't be tested by running against ORT. Unfortunately, this is the new pattern out
-# of current version of transformers (not yet supported by ORT).
+# Note: This targets the new op being proposed to ONNX. This version does not exist in ORT yet.
+# so it can't be tested by running against ORT. See cos_sin_cache.py for a transformation that
+# rewrites the pattern into one that can be run against ORT.
 
 
 def _rotate_half_pattern(op, x, start1, end1, start2, end2):
