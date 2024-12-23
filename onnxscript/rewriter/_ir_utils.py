@@ -89,7 +89,7 @@ def is_singleton_value(
     scalar = get_singleton_value(val)
     if scalar is None:
         return False
-    if isinstance(expected, Callable):
+    if callable(expected):
         return expected(scalar)
     if isinstance(expected, int):
         return expected == scalar
