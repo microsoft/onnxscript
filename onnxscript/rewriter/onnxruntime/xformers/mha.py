@@ -130,54 +130,38 @@ def _mha_validation(
     return True
 
 
-def _multi_head_attention_pattern2(
-    op, input, query_weight, key_weight, value_weight, cos, sin
-):
-    """Variation of first pattern with Reshape omitted."""
-    query = _project_transpose_head(op, input, query_weight)
-    query_rope = op.RotaryEmbedding(query, cos, sin, _domain="local")
-    key = _project_transpose_head(op, input, key_weight)
-    key_rope = op.RotaryEmbedding(key, cos, sin, _domain="local")
-    # Transpose last two axes of key_rope to compute dot-product via matmul.
-    # Reshape omitted here.
-    key_transposed = op.Transpose(key_rope)
-    # Reshape omitted here
-    value = _project_transpose_head(op, input, value_weight)
-    attention = op.SDPA(
-        query_rope, key_transposed, value, _allow_other_inputs=True, _domain="local"
-    )
-    # Transpose back to (B, S, H, D/H)
-    attention_transposed = op.Transpose(attention, perm=[0, 2, 1, 3])
-    # Reshape back to (B, S, D)
-    attention_reshaped = op.Reshape(attention_transposed, _allow_other_inputs=True)
-    return attention_reshaped, key_rope, value
-
-
 def _multi_head_attention(
     op,
     input,
     query_weight,
     key_weight,
     value_weight,
+    mask,
     cos,
     sin,
     past_key,
     past_value,
     position_ids,
+    query_mm_reshaped,
     **_,
 ):
-    # TODO: other checks and concatenation of weights
+    num_heads = query_mm_reshaped.shape[2]
+    query = op.MatMul(input, query_weight)
+    query_rope = op.RotaryEmbedding(query, position_ids, cos, sin, _domain="com.microsoft")
+    key = op.MatMul(input, key_weight)
+    key_rope = op.RotaryEmbedding(key, position_ids, cos, sin, _domain="com.microsoft")
+    value = op.MatMul(input, value_weight)
     return op.MultiHeadAttention(
-        input,
-        query_weight,
-        key_weight,
-        value_weight,
-        cos,
-        sin,
+        query_rope,
+        key_rope,
+        value,
+        None,  # bias
+        None,  # key padding mask
+        mask,  # attention mask/bias
         past_key,
         past_value,
-        position_ids,
-        _domain="local",
+        num_heads=num_heads,
+        _domain="com.microsoft",
         _outputs=3,
     )
 
@@ -186,6 +170,28 @@ _rule1 = pattern.RewriteRule(
     _multi_head_attention_pattern,
     _multi_head_attention,  # , _mha_validation
 )
+
+# def _multi_head_attention_pattern2(
+#     op, input, query_weight, key_weight, value_weight, cos, sin
+# ):
+#     """Variation of first pattern with Reshape omitted."""
+#     query = _project_transpose_head(op, input, query_weight)
+#     query_rope = op.RotaryEmbedding(query, cos, sin, _domain="local")
+#     key = _project_transpose_head(op, input, key_weight)
+#     key_rope = op.RotaryEmbedding(key, cos, sin, _domain="local")
+#     # Transpose last two axes of key_rope to compute dot-product via matmul.
+#     # Reshape omitted here.
+#     key_transposed = op.Transpose(key_rope)
+#     # Reshape omitted here
+#     value = _project_transpose_head(op, input, value_weight)
+#     attention = op.SDPA(
+#         query_rope, key_transposed, value, _allow_other_inputs=True, _domain="local"
+#     )
+#     # Transpose back to (B, S, H, D/H)
+#     attention_transposed = op.Transpose(attention, perm=[0, 2, 1, 3])
+#     # Reshape back to (B, S, D)
+#     attention_reshaped = op.Reshape(attention_transposed, _allow_other_inputs=True)
+#     return attention_reshaped, key_rope, value
 
 # TODO: _rule2 validation conditions
 # _rule2 = pattern.RewriteRule(_multi_head_attention_pattern2, _multi_head_attention)
