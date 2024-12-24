@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+
 import onnxscript.ir as ir
 from onnxscript.rewriter import _ir_utils, pattern
 

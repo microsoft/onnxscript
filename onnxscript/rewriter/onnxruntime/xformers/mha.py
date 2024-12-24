@@ -51,11 +51,23 @@ def _project_transpose_head(op, input, weight, reshape_var: str):
     return transposed
 
 
-def _multi_head_attention_pattern(op, input, query_weight, key_weight, value_weight, mask, cos, sin, past_key, past_value, position_ids, cos2, sin2):
+def _multi_head_attention_pattern(
+    op,
+    input,
+    query_weight,
+    key_weight,
+    value_weight,
+    mask,
+    cos,
+    sin,
+    past_key,
+    past_value,
+    position_ids,
+):
     query = _project_transpose_head(op, input, query_weight, "query_mm_reshaped")
     query_rope = op.RotaryEmbedding(query, position_ids, cos, sin, _domain="com.microsoft")
     key = _project_transpose_head(op, input, key_weight, "key_mm_reshaped")
-    key_rope = op.RotaryEmbedding(key, position_ids, cos2, sin2, _domain="com.microsoft")
+    key_rope = op.RotaryEmbedding(key, position_ids, cos, sin, _domain="com.microsoft")
     key_rope = op.Concat(past_key, key_rope, axis=-2)
     # Transpose last two axes of key_rope to compute dot-product via matmul.
     key_reshaped = op.Reshape(key_rope, _allow_other_inputs=True, _outputs=["key_reshaped"])
@@ -141,21 +153,45 @@ def _multi_head_attention_pattern2(
     return attention_reshaped, key_rope, value
 
 
-def _multi_head_attention(op, input, query_weight, key_weight, value_weight, cos, sin, past_key, past_value, position_ids, **_):
+def _multi_head_attention(
+    op,
+    input,
+    query_weight,
+    key_weight,
+    value_weight,
+    cos,
+    sin,
+    past_key,
+    past_value,
+    position_ids,
+    **_,
+):
     # TODO: other checks and concatenation of weights
     return op.MultiHeadAttention(
-        input, query_weight, key_weight, value_weight, cos, sin, past_key, past_value, position_ids, _domain="local", _outputs=3
+        input,
+        query_weight,
+        key_weight,
+        value_weight,
+        cos,
+        sin,
+        past_key,
+        past_value,
+        position_ids,
+        _domain="local",
+        _outputs=3,
     )
 
 
 _rule1 = pattern.RewriteRule(
-    _multi_head_attention_pattern, _multi_head_attention  #, _mha_validation
+    _multi_head_attention_pattern,
+    _multi_head_attention,  # , _mha_validation
 )
 
 # TODO: _rule2 validation conditions
 # _rule2 = pattern.RewriteRule(_multi_head_attention_pattern2, _multi_head_attention)
 
 mha_rules = pattern.RewriteRuleSet([_rule1])
+
 
 def fuse_mha(model: ir.Model) -> int:
     count = mha_rules.apply_to_model(model)

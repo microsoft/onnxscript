@@ -1268,6 +1268,8 @@ class RewriteRule:
         verbose: int = 0,
         name: str | None = None,
         remove_nodes: bool = True,
+        graph_pre_visitor: Callable[[], None] | None = None,
+        graph_post_visitor: Callable[[], None] | None = None,
     ) -> None:
         """Create a rewrite rule.
 
@@ -1308,6 +1310,8 @@ class RewriteRule:
         self._verbose = verbose
         self.name = name
         self.remove_nodes = remove_nodes
+        self.graph_pre_visitor = graph_pre_visitor
+        self.graph_post_visitor = graph_post_visitor
 
     def __str__(self) -> str:
         if self.name:
@@ -1370,6 +1374,10 @@ class RewriteRule:
                 self._condition_function,
                 matcher_class(new_pattern),
                 self._verbose,
+                self.name,
+                self.remove_nodes,
+                self.graph_pre_visitor,
+                self.graph_post_visitor,
             )
 
         return [replace_pattern(p) for p in self._target_pattern.commute()]
@@ -1451,12 +1459,16 @@ class RewriteRuleClassBase:
     @classmethod
     def rule(cls, *args, **kwargs):
         instance = cls(*args, **kwargs)
+        setup = instance.setup if hasattr(instance, "setup") else None
+        cleanup = instance.cleanup if hasattr(instance, "cleanup") else None
         return RewriteRule(
             instance.pattern,
             instance.rewrite,
             instance.check,
             name=instance.name,
             remove_nodes=instance.remove_nodes,
+            graph_pre_visitor=setup,
+            graph_post_visitor=cleanup,
         )
 
     def __init__(self, name: str | None = None, remove_nodes: bool = True) -> None:
@@ -1491,6 +1503,8 @@ class RewriteRuleSet:
         # NOTE: Rules should be prioritized in the order they are added to the RewriteRuleSet.
         # And the graph is applied in order.
         for rule in self.rules:
+            if rule.graph_pre_visitor:
+                rule.graph_pre_visitor()
             for node in graph_or_function:
                 delta = rule.try_rewrite(model, graph_or_function, node, verbose=verbose)
                 if delta is None:
@@ -1510,6 +1524,8 @@ class RewriteRuleSet:
                     delta.new_outputs,
                 )
                 count += 1
+            if rule.graph_post_visitor:
+                rule.graph_post_visitor()
 
         return count
 
