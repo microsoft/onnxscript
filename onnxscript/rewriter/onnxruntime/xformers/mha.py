@@ -112,10 +112,10 @@ def _mha_validation(
     bindings: dict[str, int] = {}
     check = (
         _check_shape(bindings, query_mm_reshaped, ["B", "S", "H", "d_h"])
-        and _check_shape(bindings, key_mm_reshaped, ["B", "S", "H", "d_h"])
-        and _check_shape(bindings, value_mm_reshaped, ["B", "S", "H", "d_h"])
-        and _check_shape(bindings, key_reshaped, ["B*H", "S", "d_h"])
-        and _check_shape(bindings, key_transposed, ["B", "H", "d_h", "S"])
+        and _check_shape(bindings, key_mm_reshaped, ["B", "KVS", "H", "d_h"])
+        and _check_shape(bindings, value_mm_reshaped, ["B", "KVS", "H", "d_h"])
+        and _check_shape(bindings, key_reshaped, ["B*H", "TS", "d_h"])
+        and _check_shape(bindings, key_transposed, ["B", "H", "d_h", "TS"])
         and _check_shape(bindings, attention_reshaped, ["B", "S", "H*d_h"])
     )
     if not check:
@@ -167,7 +167,8 @@ def _multi_head_attention(
 
 _rule1 = pattern.RewriteRule(
     _multi_head_attention_pattern,
-    _multi_head_attention,  # , _mha_validation
+    _multi_head_attention,  
+    _mha_validation
 )
 
 
