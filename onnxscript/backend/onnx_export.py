@@ -730,21 +730,21 @@ class Exporter:
         indented_initializers_as_params = "\n".join(
            f"{_SINGLE_INDENT}{_SINGLE_INDENT}{x}," for x in init_names
         )
-        return """
+        return f"""
 def make_model(
-{initializers_as_params}):
+{initializers_as_params}
 ):
-    {script}
+{script}
 
-    model = {script_function_name}.to_model_proto()
-    return model
+{_SINGLE_INDENT}model = {script_function_name}.to_model_proto()
+{_SINGLE_INDENT}return model
 
 def make_model_with_random_weights():
 {random_initializer_values}
-   model = make_model(
+{_SINGLE_INDENT}model = make_model(
 {indented_initializers_as_params}
-   )
-   return model 
+{_SINGLE_INDENT})
+{_SINGLE_INDENT}return model 
 """
 
     def _import_onnx_types(
@@ -869,5 +869,5 @@ def export2python(
     if not isinstance(model_onnx, (ModelProto, FunctionProto)):
         raise TypeError(f"The function expects a ModelProto not {type(model_onnx)!r}.")
 
-    exporter = Exporter(rename, use_operators, inline_const)
+    exporter = Exporter(rename, use_operators, inline_const, skip_initializers)
     return exporter.export(model_onnx, function_name)
