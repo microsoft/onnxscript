@@ -35,10 +35,7 @@ Finally, the output is transposed and reshaped back to (B, S, D) shape
 
 def _project_transpose_head(op, input, weight, reshape_var: str):
     """Applied to each of Q, K, and V."""
-    # input_2d = op.Reshape(input, _allow_other_inputs=True, _allow_other_attributes=True)
     projected = op.MatMul(input, weight)
-    # Reshape into 3D tensor (B, S, D)
-    # reshaped_3d = op.Reshape(projected, _allow_other_inputs=True, _allow_other_attributes=True)
     # Reshape from (B, S, D) to (B, S, H, D/H)
     reshaped = op.Reshape(
         projected,
@@ -71,7 +68,7 @@ def _multi_head_attention_pattern(
     key_rope = op.Concat(past_key, key_rope, axis=-2)
     # Transpose last two axes of key_rope to compute dot-product via matmul.
     key_reshaped = op.Reshape(key_rope, _allow_other_inputs=True, _outputs=["key_reshaped"])
-    key_reshaped_transposed = op.Transpose(key_reshaped)
+    key_reshaped_transposed = op.Transpose(key_reshaped, perm=[0, 2, 1])
     key_transposed = op.Reshape(
         key_reshaped_transposed, _allow_other_inputs=True, _outputs=["key_transposed"]
     )
@@ -171,30 +168,6 @@ _rule1 = pattern.RewriteRule(
     _multi_head_attention,  # , _mha_validation
 )
 
-# def _multi_head_attention_pattern2(
-#     op, input, query_weight, key_weight, value_weight, cos, sin
-# ):
-#     """Variation of first pattern with Reshape omitted."""
-#     query = _project_transpose_head(op, input, query_weight)
-#     query_rope = op.RotaryEmbedding(query, cos, sin, _domain="local")
-#     key = _project_transpose_head(op, input, key_weight)
-#     key_rope = op.RotaryEmbedding(key, cos, sin, _domain="local")
-#     # Transpose last two axes of key_rope to compute dot-product via matmul.
-#     # Reshape omitted here.
-#     key_transposed = op.Transpose(key_rope)
-#     # Reshape omitted here
-#     value = _project_transpose_head(op, input, value_weight)
-#     attention = op.SDPA(
-#         query_rope, key_transposed, value, _allow_other_inputs=True, _domain="local"
-#     )
-#     # Transpose back to (B, S, H, D/H)
-#     attention_transposed = op.Transpose(attention, perm=[0, 2, 1, 3])
-#     # Reshape back to (B, S, D)
-#     attention_reshaped = op.Reshape(attention_transposed, _allow_other_inputs=True)
-#     return attention_reshaped, key_rope, value
-
-# TODO: _rule2 validation conditions
-# _rule2 = pattern.RewriteRule(_multi_head_attention_pattern2, _multi_head_attention)
 
 mha_rules = pattern.RewriteRuleSet([_rule1])
 

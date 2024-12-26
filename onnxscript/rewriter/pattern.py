@@ -536,10 +536,11 @@ class NodePattern:
         We check the domain, op_type, and attributes of the node, but not the inputs.
         """
         # TODO(rama): Ensure we handle "" and "onnx.ai" correctly.
-        if not self.domain.matches(node.domain):
-            return match.fail(f"Domain mismatch: expected {self.domain}, got {node.domain}.")
         if not self.op.matches(node.op_type):
             return match.fail(f"OpType mismatch: expected {self.op}, got {node.op_type}.")
+        if not self.domain.matches(node.domain):
+            return match.fail(f"Domain mismatch: expected {self.domain}, got {node.domain}.")
+
 
         for name, attr_pattern in self.attributes.items():
             attr_value = node.attributes.get(name)

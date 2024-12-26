@@ -68,6 +68,7 @@ masked_pre_mul_sdpa_rule = SDPA.rule("masked_pre_mul_sdpa", use_mask=True, pre_s
 sdpa_rules = pattern.RewriteRuleSet([masked_pre_mul_sdpa_rule])
 
 
-def fuse_sdpa(model: ir.Model) -> None:
+def fuse_sdpa(model: ir.Model) -> int:
     count = sdpa_rules.apply_to_model(model)
     print(f"SDPA count: {count}")
+    return count
