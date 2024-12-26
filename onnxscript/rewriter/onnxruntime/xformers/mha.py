@@ -148,13 +148,15 @@ def _multi_head_attention(
     key = op.MatMul(input, key_weight)
     key_rope = op.RotaryEmbedding(key, position_ids, cos, sin, _domain="com.microsoft")
     value = op.MatMul(input, value_weight)
+    tiling_factor = op.Constant(value_ints=[1, num_heads, 1, 1])
+    expanded_mask = op.Tile(mask, tiling_factor)
     return op.MultiHeadAttention(
         query_rope,
         key_rope,
         value,
         None,  # bias
         None,  # key padding mask
-        mask,  # attention mask/bias
+        expanded_mask,  # attention mask/bias
         past_key,
         past_value,
         num_heads=num_heads,

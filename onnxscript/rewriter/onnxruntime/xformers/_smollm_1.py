@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 
 """
-A one-layer SmolLM model test case.
+A one-layer SmolLM model test case, with inputs: input_ids, attention_mask, and position_ids.
 This is an onnxscript version of the model.
 """
 
@@ -234,7 +234,7 @@ def make_model_with_random_weights():
     return model
 
 
-class _SmollmTestData:
+class TestData:
     def get_onnx_model(self):
         if not hasattr(self, "_onnx_model"):
             model_proto = make_model_with_random_weights()
