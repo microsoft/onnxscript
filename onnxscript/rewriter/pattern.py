@@ -541,7 +541,6 @@ class NodePattern:
         if not self.domain.matches(node.domain):
             return match.fail(f"Domain mismatch: expected {self.domain}, got {node.domain}.")
 
-
         for name, attr_pattern in self.attributes.items():
             attr_value = node.attributes.get(name)
             if attr_value is None:

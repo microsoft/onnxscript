@@ -7,10 +7,11 @@ This is an onnxscript version of the model.
 """
 
 import numpy
-from onnxscript import script
+
 import onnxscript.ir as ir
-from onnxscript.onnx_types import FLOAT, INT64
+from onnxscript import script
 from onnxscript.onnx_opset import opset18
+from onnxscript.onnx_types import FLOAT, INT64
 
 
 def make_model(
@@ -28,11 +29,16 @@ def make_model(
     model_rotary_emb_inv_freq,
 ):
     @script()
-    def main_graph(input_ids: INT64[1,30], position_ids: INT64[1,30], past_key_values_0_0: FLOAT[1,32,16,64], past_key_values_0_1: FLOAT[1,32,16,64]) -> (FLOAT[1,30,49152], FLOAT[1,32,46,64], FLOAT[1,32,46,64]):
+    def main_graph(
+        input_ids: INT64[1, 30],
+        position_ids: INT64[1, 30],
+        past_key_values_0_0: FLOAT[1, 32, 16, 64],
+        past_key_values_0_1: FLOAT[1, 32, 16, 64],
+    ) -> (FLOAT[1, 30, 49152], FLOAT[1, 32, 46, 64], FLOAT[1, 32, 46, 64]):
         embedding = opset18.Gather(lm_head_weight, input_ids, axis=0)
         val_2 = opset18.CastLike(1.0, 46)
         arange = opset18.Range(16, 46, val_2)
-        val_5 = opset18.Cast(-3.4028235e+38, to=1)
+        val_5 = opset18.Cast(-3.4028235e38, to=1)
         val_7 = opset18.Cast([30, 47], to=7)
         full = opset18.Expand(val_5, val_7)
         diagonal__1 = opset18.Constant(value_int=1)
@@ -117,7 +123,7 @@ def make_model(
         _to_copy_5 = opset18.Cast(mul_2, to=1)
         _to_copy_6 = opset18.Cast(embedding, to=1)
         scalar_tensor_default = opset18.Cast(2, to=1)
-        pow_1 = _to_copy_6 ** scalar_tensor_default
+        pow_1 = _to_copy_6**scalar_tensor_default
         val_55 = opset18.Constant(value_ints=[-1])
         val_57 = opset18.Reshape([-1], val_55, allowzero=0)
         mean = opset18.ReduceMean(pow_1, val_57, keepdims=1, noop_with_empty_axes=0)
@@ -344,7 +350,7 @@ def make_model(
         add_3 = embedding + view_15
         _to_copy_8 = opset18.Cast(add_3, to=1)
         scalar_tensor_default_1 = opset18.Cast(2, to=1)
-        pow_2 = _to_copy_8 ** scalar_tensor_default_1
+        pow_2 = _to_copy_8**scalar_tensor_default_1
         val_224 = opset18.Constant(value_ints=[-1])
         val_225 = opset18.Reshape([-1], val_224, allowzero=0)
         mean_1 = opset18.ReduceMean(pow_2, val_225, keepdims=1, noop_with_empty_axes=0)
@@ -378,7 +384,7 @@ def make_model(
         add_5 = add_3 + view_21
         _to_copy_10 = opset18.Cast(add_5, to=1)
         scalar_tensor_default_2 = opset18.Cast(2, to=1)
-        pow_3 = _to_copy_10 ** scalar_tensor_default_2
+        pow_3 = _to_copy_10**scalar_tensor_default_2
         val_236 = opset18.Constant(value_ints=[-1])
         val_237 = opset18.Reshape([-1], val_236, allowzero=0)
         mean_2 = opset18.ReduceMean(pow_3, val_237, keepdims=1, noop_with_empty_axes=0)
@@ -400,18 +406,29 @@ def make_model(
     model = main_graph.to_model_proto()
     return model
 
+
 def make_model_with_random_weights():
     model_layers_0_input_layernorm_weight = numpy.random.rand(2048).astype(numpy.float32)
-    model_layers_0_post_attention_layernorm_weight = numpy.random.rand(2048).astype(numpy.float32)
+    model_layers_0_post_attention_layernorm_weight = numpy.random.rand(2048).astype(
+        numpy.float32
+    )
     model_norm_weight = numpy.random.rand(2048).astype(numpy.float32)
-    lm_head_weight = numpy.random.rand(49152,2048).astype(numpy.float32)
-    model_layers_0_self_attn_q_proj_weight = numpy.random.rand(2048,2048).astype(numpy.float32)
-    model_layers_0_self_attn_k_proj_weight = numpy.random.rand(2048,2048).astype(numpy.float32)
-    model_layers_0_self_attn_v_proj_weight = numpy.random.rand(2048,2048).astype(numpy.float32)
-    model_layers_0_self_attn_o_proj_weight = numpy.random.rand(2048,2048).astype(numpy.float32)
-    model_layers_0_mlp_gate_proj_weight = numpy.random.rand(8192,2048).astype(numpy.float32)
-    model_layers_0_mlp_up_proj_weight = numpy.random.rand(8192,2048).astype(numpy.float32)
-    model_layers_0_mlp_down_proj_weight = numpy.random.rand(2048,8192).astype(numpy.float32)
+    lm_head_weight = numpy.random.rand(49152, 2048).astype(numpy.float32)
+    model_layers_0_self_attn_q_proj_weight = numpy.random.rand(2048, 2048).astype(
+        numpy.float32
+    )
+    model_layers_0_self_attn_k_proj_weight = numpy.random.rand(2048, 2048).astype(
+        numpy.float32
+    )
+    model_layers_0_self_attn_v_proj_weight = numpy.random.rand(2048, 2048).astype(
+        numpy.float32
+    )
+    model_layers_0_self_attn_o_proj_weight = numpy.random.rand(2048, 2048).astype(
+        numpy.float32
+    )
+    model_layers_0_mlp_gate_proj_weight = numpy.random.rand(8192, 2048).astype(numpy.float32)
+    model_layers_0_mlp_up_proj_weight = numpy.random.rand(8192, 2048).astype(numpy.float32)
+    model_layers_0_mlp_down_proj_weight = numpy.random.rand(2048, 8192).astype(numpy.float32)
     model_rotary_emb_inv_freq = numpy.random.rand(32).astype(numpy.float32)
     model = make_model(
         model_layers_0_input_layernorm_weight,
@@ -427,7 +444,8 @@ def make_model_with_random_weights():
         model_layers_0_mlp_down_proj_weight,
         model_rotary_emb_inv_freq,
     )
-    return model 
+    return model
+
 
 class TestData:
     def get_onnx_model(self):
@@ -442,8 +460,8 @@ class TestData:
             inputs = {
                 "input_ids": numpy.random.randint(0, 49152, (1, 30)).astype(numpy.int64),
                 "position_ids": numpy.ones((1, 30), dtype=numpy.int64),
-                "past_key_values_0_0": numpy.random.rand(1,32,16,64).astype(numpy.float32),
-                "past_key_values_0_1": numpy.random.rand(1,32,16,64).astype(numpy.float32), 
+                "past_key_values_0_0": numpy.random.rand(1, 32, 16, 64).astype(numpy.float32),
+                "past_key_values_0_1": numpy.random.rand(1, 32, 16, 64).astype(numpy.float32),
             }
             self._ort_inputs = inputs
         return self._ort_inputs

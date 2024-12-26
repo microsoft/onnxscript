@@ -166,9 +166,7 @@ def _multi_head_attention(
 
 
 _rule1 = pattern.RewriteRule(
-    _multi_head_attention_pattern,
-    _multi_head_attention,  
-    _mha_validation
+    _multi_head_attention_pattern, _multi_head_attention, _mha_validation
 )
 
 
