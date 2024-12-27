@@ -71,7 +71,7 @@ def make_model(
         val_191 = opset18.Transpose(slice_scatter, perm=[1, 0, 2, 3])
         slice_scatter_1 = opset18.Transpose(val_191, perm=[1, 0, 2, 3])
         unsqueeze_6 = opset18.Unsqueeze(input2, 1)
-        _to_copy_1 = opset18.Cast(unsqueeze_6, to=1)
+        to_copy_1 = opset18.Cast(unsqueeze_6, to=1)
         view_1 = opset18.Constant(
             value=make_tensor(
                 "value",
@@ -113,7 +113,7 @@ def make_model(
                 ],
             )
         )
-        view_2 = opset18.Reshape(_to_copy_1, [1, 1, 10], allowzero=0)
+        view_2 = opset18.Reshape(to_copy_1, [1, 1, 10], allowzero=0)
         bmm = view_1 @ view_2
         view_3 = opset18.Reshape(bmm, [1, 32, 10], allowzero=0)
         transpose = opset18.Transpose(view_3, perm=[0, 2, 1])
@@ -199,8 +199,8 @@ def make_model(
         mul_13 = model_norm_weight * mul_12
         t_7 = opset18.Transpose(lm_head_weight, perm=[1, 0])
         view_23 = mul_13 @ t_7
-        _to_copy_12 = opset18.Identity(view_23)
-        return _to_copy_12, add_3, transpose_3
+        to_copy_12 = opset18.Identity(view_23)
+        return to_copy_12, add_3, transpose_3
 
     model = main_graph.to_model_proto()
     return model

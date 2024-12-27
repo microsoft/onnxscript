@@ -1071,7 +1071,7 @@ def _serialize_experimental_value_info_for_function_ir9_into(
 
     for input in function.inputs:
         if not input.name:
-            logging.warning(
+            logger.warning(
                 "Function '%s': Value name not set for function input: %s",
                 function_qualified_name,
                 input,
@@ -1084,7 +1084,7 @@ def _serialize_experimental_value_info_for_function_ir9_into(
     for node in function:
         for node_output in node.outputs:
             if not node_output.name:
-                logging.warning(
+                logger.warning(
                     "Function '%s': Value name not set for node output: %s",
                     function_qualified_name,
                     node_output,
