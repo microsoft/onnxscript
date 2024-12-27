@@ -32,7 +32,10 @@ def convert2script(
 ) -> None:
     model = onnx.load(input_file_name, load_external_data=False)
     python_code = onnxscript.proto2python(
-        model, use_operators=not verbose, inline_const=not verbose, skip_initializers=not initializers
+        model,
+        use_operators=not verbose,
+        inline_const=not verbose,
+        skip_initializers=not initializers,
     )
 
     # If output file name is not provided, use the input file name with .py extension
@@ -60,7 +63,7 @@ if __name__ == "__main__":
         "--initializers",
         action="store_true",
         help="Include initializers in the generated script",
-        default=False
+        default=False,
     )
 
     args = parser.parse_args()
