@@ -1044,6 +1044,7 @@ class SimplePatternMatcher(PatternMatcher):
         if self._verbose:
             print(f"Matched: {node.op_type}")
 
+        match.nodes.append(node)
         self._matched[pattern_node] = node
 
         # TODO: Revisit this to handle optional trailing inputs better.
@@ -1072,7 +1073,6 @@ class SimplePatternMatcher(PatternMatcher):
             if not self._bind_value(output_value_pattern, node.outputs[i]):
                 return False
 
-        match.nodes.append(node)
         return True
 
     def _bind_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
@@ -1608,16 +1608,19 @@ class MatchingTracer:
         best_matches.append(this_match)
 
     def report(self) -> None:
+        import onnxscript.rewriter._ir_utils as ir_utils
+        print("===")
         for rule, matches in self._log.items():
             if not matches:
                 continue
             print(f"Rule: {rule}")
             print(f"Best score: {matches[0].score()}")
             for match in matches:
-                print("===")
                 print(f"Status: {match.status}")
-                for n in match.match_result.nodes:
-                    n.display()
+                if match.status == MatchStatus.NO_MATCH:
+                    print("Graph matching failed: " + match.match_result.reason)
+
+                ir_utils.display_nodes(match.match_result.nodes)
                 print("===")
 
 

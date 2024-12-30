@@ -35,7 +35,7 @@ from onnxscript.rewriter import _ir_utils, pattern
 
 
 class CosSinCacheFusion(pattern.RewriteRuleClassBase):
-    def __init__(self, name: str, max_pos_id: int):
+    def __init__(self, name: str, max_pos_id: int, reshape: bool = False):
         # This pattern makes use of shared Cos/Sin values. So, we can't remove the
         # matched nodes as part of the rewrite-step. We apply a separate final
         # pass to remove unused nodes.
@@ -43,15 +43,21 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         self._max_pos_id = max_pos_id
         # map from inv_freq to (cos, sin) values for transformed graph
         self._inv_freq_cos_sin_cache: dict[ir.Value, tuple[ir.Value, ir.Value]] = {}
+        self._reshape = reshape
 
     def cleanup(self):
         self._inv_freq_cos_sin_cache.clear()
 
-    def pattern(self, op, x, inv_freq, position_ids, interleaved, num_heads):
-        position_ids_expanded = op.Unsqueeze(position_ids, 1)
+    def pattern(self, op, x, inv_freq, position_ids, interleaved, num_heads, freqs_3d_shape):
+        # B: batch size, S: sequence length, E: embedding dimension
+        # position_ids: [B, S]
+        # inv_freq: [1, E, 1]
+        position_ids_expanded = op.Unsqueeze(position_ids, 1)  # [B, S] => [B, 1, S]
         position_ids_expanded = op.Cast(position_ids_expanded, to=ir.DataType.FLOAT)
-        freqs = op.MatMul(inv_freq, position_ids_expanded)
-        freqs = op.Transpose(freqs, perm=[0, 2, 1])
+        freqs = op.MatMul(inv_freq, position_ids_expanded)  # [B, E, S]
+        if self._reshape:
+            freqs = op.Reshape(freqs, freqs_3d_shape)  # redundant reshape
+        freqs = op.Transpose(freqs, perm=[0, 2, 1])  # [B, S, E]
         emb = op.Concat(freqs, freqs, axis=-1)
         cos = op.Cos(emb)
         sin = op.Sin(emb)
@@ -72,7 +78,7 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         if not _ir_utils.has_rank(inv_freq, 3):
             return False
         inv_freq_shape = inv_freq.shape
-        if inv_freq.const_value is None:
+        if inv_freq.const_value is None:  # TODO: should this be inv_freq_shape?
             return False
         return inv_freq_shape[0] == 1 and inv_freq_shape[2] == 1
 
@@ -99,13 +105,13 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         )
 
 
-_rule = CosSinCacheFusion.rule("CosSinCache", 2048)
+_rule = CosSinCacheFusion.rule("CosSinCache", 2048, reshape=True)
 
 cos_sin_cache_rules = pattern.RewriteRuleSet([_rule])
 
 
 def fuse_cos_sin_cache(model: ir.Model) -> int:
-    count = cos_sin_cache_rules.apply_to_model(model)
+    count = cos_sin_cache_rules.apply_to_model(model, traceonly=True)
     print(f"CosSinCache count: {count}")
     remove_unused_nodes(model)
     return count
