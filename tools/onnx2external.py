@@ -10,7 +10,7 @@ import onnx.external_data_helper
 
 def convert2external(input_file_name: str) -> None:
     dir_name = os.path.dirname(input_file_name)
-    base_name, suffix = os.path.splitext(os.path.basename(input_file_name))
+    base_name, _suffix = os.path.splitext(os.path.basename(input_file_name))
     model = onnx.load(input_file_name)
     os.makedirs(os.path.join(dir_name, base_name), exist_ok=True)
     onnx.external_data_helper.convert_model_to_external_data(
