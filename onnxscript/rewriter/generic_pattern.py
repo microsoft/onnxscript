@@ -550,7 +550,10 @@ class GenericPatternMatcher(orp.PatternMatcher):
         model: ir.Model,
         graph_or_function: ir.Graph | ir.Function,
         node: ir.Node,
+        *,
         verbose: int = 0,
+        remove_nodes: bool = True,
+        tracer: orp.MatchingTracer | None = None,
     ) -> orp.MatchResult | None:
         del model
         del graph_or_function

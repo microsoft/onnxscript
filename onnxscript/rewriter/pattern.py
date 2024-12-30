@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import abc
+from collections import defaultdict
 import contextlib
 import dataclasses
+from enum import Enum
 import inspect
 import itertools
 import math
@@ -946,8 +948,10 @@ class PatternMatcher(abc.ABC):
         model: ir.Model,
         graph_or_function: ir.Graph | ir.Function,
         node: ir.Node,
+        *,
         verbose: int = 0,
         remove_nodes: bool = True,
+        tracer: MatchingTracer | None = None,
     ) -> MatchResult:
         """Match the pattern against the subgraph ending at the given node."""
 
@@ -1201,8 +1205,10 @@ class SimplePatternMatcher(PatternMatcher):
         model: ir.Model,
         graph_or_function: ir.Graph | ir.Function,
         node: ir.Node,
+        *,
         verbose: int = 0,
         remove_nodes: bool = True,
+        tracer: MatchingTracer | None = None,
     ) -> MatchResult:
         """Match the pattern against the subgraph ending at the given node.
 
@@ -1219,7 +1225,7 @@ class SimplePatternMatcher(PatternMatcher):
         matching in the presence of subgraphs (control-flow) can introduce some
         complications which require careful consideration.
         """
-
+        self._tracer = tracer
         if self.pattern.has_single_output_node:
             self._init_match(verbose)
             return self._match_single_output_node(
@@ -1315,18 +1321,17 @@ class RewriteRule:
         self.graph_post_visitor = graph_post_visitor
 
     def __str__(self) -> str:
-        if self.name:
-            return f"{self.__class__.__name__}(..., name={self.name!r})"
-        return (
-            f"{self.__class__.__name__}({self._target_pattern}, {self._replacement_pattern})"
-        )
+        return self.name if self.name else "Anonymous Rule"
+
 
     def try_rewrite(
         self,
         model: ir.Model,
         graph_or_function: ir.Graph | ir.Function,
         node: ir.Node,
+        *,
         verbose: int | None = None,
+        tracer: MatchingTracer | None = None,
     ) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
         if verbose and verbose > 2:
@@ -1342,9 +1347,13 @@ class RewriteRule:
                     if var.name not in match.bindings:
                         match.bindings[var.name] = None
             if not self._condition_function(context, **match.bindings):
+                if tracer:
+                    tracer.log(self, graph_or_function, node, match, MatchStatus.CONDITION_FAILED)
                 return None
             replacement_subgraph = self._replacement_pattern.get_replacement(match)
             if replacement_subgraph is None:
+                if tracer:
+                    tracer.log(self, graph_or_function, node, match, MatchStatus.REPLACEMENT_FAILED)
                 return None
             if len(replacement_subgraph.new_outputs) != self._target_pattern.num_outputs:
                 raise ValueError(
@@ -1354,7 +1363,11 @@ class RewriteRule:
             # TODO(rama): Remove the opset imports from deleted nodes?
             _update_opset_imports(graph_or_function, replacement_subgraph)
             _update_opset_imports(model.graph, replacement_subgraph)
+            if tracer:
+                tracer.log(self, graph_or_function, node, match, MatchStatus.SUCCESS)
             return replacement_subgraph
+        if tracer:
+            tracer.log(self, graph_or_function, node, match, MatchStatus.NO_MATCH)
         return None
 
     def apply_to_model(
@@ -1497,7 +1510,9 @@ class RewriteRuleSet:
         self,
         model: ir.Model,
         graph_or_function: ir.Graph | ir.Function,
+        *,
         verbose: int | None,
+        tracer: MatchingTracer | None = None,
     ) -> int:
         count = 0
 
@@ -1507,8 +1522,8 @@ class RewriteRuleSet:
             if rule.graph_pre_visitor:
                 rule.graph_pre_visitor()
             for node in graph_or_function:
-                delta = rule.try_rewrite(model, graph_or_function, node, verbose=verbose)
-                if delta is None:
+                delta = rule.try_rewrite(model, graph_or_function, node, verbose=verbose, tracer=tracer)
+                if delta is None or tracer is not None:
                     continue
                 assert isinstance(delta, ReplacementSubgraph)
                 # TODO: This does not yet handle the problem of determining the correct insertion point
@@ -1530,14 +1545,80 @@ class RewriteRuleSet:
 
         return count
 
-    def apply_to_model(self, model: ir.Model, verbose: int | None = None) -> int:
+    def apply_to_model(self, model: ir.Model, *, verbose: int | None = None, traceonly: bool = False) -> int:
         assert isinstance(model, ir.Model)
+        tracer = MatchingTracer() if traceonly else None
         onnxscript.optimizer.basic_constant_propagation(model.graph)
-        count = self._apply_to_graph_or_function(model, model.graph, verbose=verbose)
+        count = self._apply_to_graph_or_function(model, model.graph, verbose=verbose, tracer=tracer)
         for function in model.functions.values():
             onnxscript.optimizer.basic_constant_propagation(function)
-            count += self._apply_to_graph_or_function(model, function, verbose=verbose)
+            count += self._apply_to_graph_or_function(model, function, verbose=verbose, tracer=tracer)
+        if tracer:
+            tracer.report()
         return count
 
     def __iter__(self):
         yield from self.rules
+
+class MatchStatus(Enum):
+    """The status of a pattern-matching operation."""
+
+    NO_MATCH = 0  # No successful match found for entire pattern graph
+    CONDITION_FAILED = 1  # Subsequent validation check failed
+    REPLACEMENT_FAILED = 2  # Replacement subgraph could not be created
+    SUCCESS = 3  # A successful match was found
+
+@dataclasses.dataclass
+class MatchInfo:
+    """The status of a pattern-matching operation. An extension of MatchResult."""
+
+    match_result: MatchResult
+    node: ir.Node
+    container: ir.Graph | ir.Function
+    status: MatchStatus
+
+    def score(self) -> int:
+        """Return a score for the match."""
+        return len(self.match_result.nodes) + int(self.status.value) * 100
+
+class MatchingTracer:
+    """A debugging helper class to trace the matching of a pattern against a graph."""
+
+    def __init__(self) -> None:
+        self._log: dict[RewriteRule, list[MatchInfo]] = defaultdict(list)
+
+    def log(
+        self,
+        rule: RewriteRule,
+        container: ir.Graph | ir.Function,
+        node: ir.Node,
+        match_result: MatchResult,
+        status: MatchStatus,
+    ) -> None:
+        this_match = MatchInfo(match_result, node, container, status)
+        this_score = this_match.score()
+        if this_score == 0:
+            return
+        best_matches = self._log[rule]
+        if best_matches:
+            if this_score < best_matches[0].score():
+                return
+            if this_score > best_matches[0].score():
+                best_matches.clear()
+        best_matches.append(this_match)
+
+    def report(self) -> None:
+        for rule, matches in self._log.items():
+            if not matches:
+                continue
+            print(f"Rule: {rule}")
+            print(f"Best score: {matches[0].score()}")
+            for match in matches:
+                print("===")
+                print(f"Status: {match.status}")
+                for n in match.match_result.nodes:
+                    n.display()
+                print("===")
+
+
+ 

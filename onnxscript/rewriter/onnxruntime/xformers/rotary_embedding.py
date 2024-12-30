@@ -59,6 +59,6 @@ rotary_embedding_rules = pattern.RewriteRuleSet([_rule])
 
 
 def fuse_rotary_embedding(model: ir.Model) -> int:
-    count = rotary_embedding_rules.apply_to_model(model)
+    count = rotary_embedding_rules.apply_to_model(model, traceonly=True)
     print(f"Rotary Embedding count: {count}")
     return count
