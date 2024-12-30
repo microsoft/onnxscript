@@ -747,7 +747,7 @@ def make_model_with_random_weights():
 {__}model = make_model(
 {indented_initializers_as_params}
 {__})
-{__}return model 
+{__}return model
 """
 
     def _import_onnx_types(
