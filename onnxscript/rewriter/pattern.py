@@ -536,10 +536,10 @@ class NodePattern:
         We check the domain, op_type, and attributes of the node, but not the inputs.
         """
         # TODO(rama): Ensure we handle "" and "onnx.ai" correctly.
-        if not self.domain.matches(node.domain):
-            return match.fail(f"Domain mismatch: expected {self.domain}, got {node.domain}.")
         if not self.op.matches(node.op_type):
             return match.fail(f"OpType mismatch: expected {self.op}, got {node.op_type}.")
+        if not self.domain.matches(node.domain):
+            return match.fail(f"Domain mismatch: expected {self.domain}, got {node.domain}.")
 
         for name, attr_pattern in self.attributes.items():
             attr_value = node.attributes.get(name)
@@ -946,6 +946,7 @@ class PatternMatcher(abc.ABC):
         graph_or_function: ir.Graph | ir.Function,
         node: ir.Node,
         verbose: int = 0,
+        remove_nodes: bool = True,
     ) -> MatchResult:
         """Match the pattern against the subgraph ending at the given node."""
 
@@ -1144,6 +1145,7 @@ class SimplePatternMatcher(PatternMatcher):
         model: ir.Model,
         graph_or_function: ir.Graph | ir.Function,
         node: ir.Node,
+        check_removable: bool,
     ) -> MatchResult:
         del model
         del graph_or_function
@@ -1162,13 +1164,13 @@ class SimplePatternMatcher(PatternMatcher):
         output_values = self._get_output_values()
         if output_values is None:
             return match
-        if not _valid_to_replace(match.nodes, output_values):
+        if check_removable and not _valid_to_replace(match.nodes, output_values):
             return match.fail("Matched nodes have other uses preventing replacement.")
 
         match.outputs.extend(output_values)
         return match
 
-    def _multi_match(self, candidate: Iterable[ir.Node]) -> MatchResult:
+    def _multi_match(self, candidate: Iterable[ir.Node], check_removable: bool) -> MatchResult:
         """Find a match for a pattern with multiple output nodes.
 
         For a pattern with K output nodes, the input candidate should specify K nodes
@@ -1176,6 +1178,8 @@ class SimplePatternMatcher(PatternMatcher):
 
         Args:
             candidate: An iterable of nodes that will be matched against the pattern output nodes.
+            check_removable: If True, check that the matched nodes can be removed (that is, that
+                they are not used elsewhere in the graph).
         """
         match = self._match
         for pattern_node, node in zip(self.pattern.output_nodes, candidate):
@@ -1185,7 +1189,7 @@ class SimplePatternMatcher(PatternMatcher):
         if output_values is None:
             return match
 
-        if not _valid_to_replace(match.nodes, output_values):
+        if check_removable and not _valid_to_replace(match.nodes, output_values):
             return match.fail("Matched nodes have other uses preventing replacement.")
 
         match.outputs.extend(output_values)
@@ -1197,6 +1201,7 @@ class SimplePatternMatcher(PatternMatcher):
         graph_or_function: ir.Graph | ir.Function,
         node: ir.Node,
         verbose: int = 0,
+        remove_nodes: bool = True,
     ) -> MatchResult:
         """Match the pattern against the subgraph ending at the given node.
 
@@ -1216,7 +1221,9 @@ class SimplePatternMatcher(PatternMatcher):
 
         if self.pattern.has_single_output_node:
             self._init_match(verbose)
-            return self._match_single_output_node(model, graph_or_function, node)
+            return self._match_single_output_node(
+                model, graph_or_function, node, check_removable=remove_nodes
+            )
         else:
             # Note: This is a potentially expensive algorithm for matching patterns with
             # multiple output nodes. For patterns with N output nodes, we try all possible
@@ -1243,7 +1250,7 @@ class SimplePatternMatcher(PatternMatcher):
             match = None
             for combination in itertools.product(*candidates):
                 self._init_match(verbose)
-                match = self._multi_match(combination)
+                match = self._multi_match(combination, check_removable=remove_nodes)
                 if match:
                     return match
             if match is None:
@@ -1260,6 +1267,9 @@ class RewriteRule:
         matcher: PatternMatcher | Callable[[GraphPattern], PatternMatcher] | None = None,
         verbose: int = 0,
         name: str | None = None,
+        remove_nodes: bool = True,
+        graph_pre_visitor: Callable[[], None] | None = None,
+        graph_post_visitor: Callable[[], None] | None = None,
     ) -> None:
         """Create a rewrite rule.
 
@@ -1275,6 +1285,7 @@ class RewriteRule:
                 If not provided, a default matcher will be used.
             verbose: The verbosity level of the rule.
             name: An optional name for the pattern that will show up in verbose logging.
+            remove_nodes: If True, the matched nodes will be removed from the graph.
         """
 
         if not isinstance(target_pattern, GraphPattern):
@@ -1298,6 +1309,9 @@ class RewriteRule:
             self._matcher = matcher(self._target_pattern)
         self._verbose = verbose
         self.name = name
+        self.remove_nodes = remove_nodes
+        self.graph_pre_visitor = graph_pre_visitor
+        self.graph_post_visitor = graph_post_visitor
 
     def __str__(self) -> str:
         if self.name:
@@ -1317,7 +1331,9 @@ class RewriteRule:
         if verbose and verbose > 2:
             print(f"[try_rewrite] {self}")
         verbose = verbose if verbose is not None else self._verbose
-        match = self._matcher.match(model, graph_or_function, node, verbose=verbose)
+        match = self._matcher.match(
+            model, graph_or_function, node, verbose=verbose, remove_nodes=self.remove_nodes
+        )
         if match:
             context = None  # TODO(rama)
             for var in self._target_pattern.inputs:
@@ -1358,6 +1374,10 @@ class RewriteRule:
                 self._condition_function,
                 matcher_class(new_pattern),
                 self._verbose,
+                self.name,
+                self.remove_nodes,
+                self.graph_pre_visitor,
+                self.graph_post_visitor,
             )
 
         return [replace_pattern(p) for p in self._target_pattern.commute()]
@@ -1439,20 +1459,28 @@ class RewriteRuleClassBase:
     @classmethod
     def rule(cls, *args, **kwargs):
         instance = cls(*args, **kwargs)
+        setup = instance.setup if hasattr(instance, "setup") else None
+        cleanup = instance.cleanup if hasattr(instance, "cleanup") else None
         return RewriteRule(
-            instance.pattern, instance.rewrite, instance.check, name=instance.name
+            instance.pattern,
+            instance.rewrite,
+            instance.check,
+            name=instance.name,
+            remove_nodes=instance.remove_nodes,
+            graph_pre_visitor=setup,
+            graph_post_visitor=cleanup,
         )
 
-    @property
-    def name(self):
-        """Default implementation of name property."""
-        return self.__class__.__name__
+    def __init__(self, name: str | None = None, remove_nodes: bool = True) -> None:
+        self.name = name or self.__class__.__name__
+        self.remove_nodes = remove_nodes
 
     def pattern(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'pattern' must be implemented by derived class.")
 
     def check(self, op, *args, **kwargs):
-        raise NotImplementedError("Method 'check' must be implemented by derived class.")
+        # Default check function that always returns True.
+        return True
 
     def rewrite(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'rewrite' must be implemented by derived class.")
@@ -1475,6 +1503,8 @@ class RewriteRuleSet:
         # NOTE: Rules should be prioritized in the order they are added to the RewriteRuleSet.
         # And the graph is applied in order.
         for rule in self.rules:
+            if rule.graph_pre_visitor:
+                rule.graph_pre_visitor()
             for node in graph_or_function:
                 delta = rule.try_rewrite(model, graph_or_function, node, verbose=verbose)
                 if delta is None:
@@ -1488,12 +1518,14 @@ class RewriteRuleSet:
                 _convenience.replace_nodes_and_values(
                     graph_or_function,
                     node,
-                    delta.match.nodes,
+                    delta.match.nodes if rule.remove_nodes else [],
                     delta.new_nodes,
                     delta.match.outputs,
                     delta.new_outputs,
                 )
                 count += 1
+            if rule.graph_post_visitor:
+                rule.graph_post_visitor()
 
         return count
 
