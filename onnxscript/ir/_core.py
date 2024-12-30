@@ -1131,6 +1131,10 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         # very often. This way all mutations can be tracked.
         # If necessary, we can cache the inputs and outputs as tuples.
         self._inputs: tuple[Value | None, ...] = tuple(inputs)
+        if self._inputs and self._inputs[-1] and not isinstance(self._inputs[-1], (Value)):
+            raise TypeError(
+                f"{self.op_type} got unexpected positional argument, may be missed keyword"
+            )
         # Values belong to their defining nodes. The values list is immutable
         self._outputs: tuple[Value, ...] = self._create_outputs(num_outputs, outputs)
         attributes = tuple(attributes)
