@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import functools
+import typing
 
 __all__ = [
     # Tensors
@@ -121,16 +122,25 @@ def _unflatten_complex(
     return array[::2] + 1j * array[1::2]
 
 
-def from_proto(
-    proto: onnx.ModelProto
-    | onnx.GraphProto
-    | onnx.NodeProto
-    | onnx.TensorProto
-    | onnx.AttributeProto
-    | onnx.ValueInfoProto
-    | onnx.TypeProto
-    | onnx.FunctionProto,
-) -> Any:
+@typing.overload
+def from_proto(proto: onnx.ModelProto) -> _core.Model: ...
+@typing.overload
+def from_proto(proto: onnx.GraphProto) -> _core.Graph: ...
+@typing.overload
+def from_proto(proto: onnx.NodeProto) -> _core.Node: ...
+@typing.overload
+def from_proto(proto: onnx.TensorProto) -> _core.Tensor: ...
+@typing.overload
+def from_proto(proto: onnx.AttributeProto) -> _core.Attr: ...
+@typing.overload
+def from_proto(proto: onnx.ValueInfoProto) -> _core.Value: ...
+@typing.overload
+def from_proto(proto: onnx.TypeProto) -> _core.TypeAndShape: ...
+@typing.overload
+def from_proto(proto: onnx.FunctionProto) -> _core.Function: ...
+
+
+def from_proto(proto: object) -> object:
     """Deserialize an ONNX proto message to an IR object."""
     if isinstance(proto, onnx.ModelProto):
         return deserialize_model(proto)
