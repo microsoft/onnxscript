@@ -25,6 +25,7 @@ def display_nodes(nodes: list[ir.Node]) -> None:
             for node in nodes:
                 node.display()
 
+
 def display_slice(x: ir.Value | ir.Node, backward: bool = True, depth_limit: int = 5) -> None:
     """Display the (backward or forward) subgraph from a given value or node upto a certain depth."""
     slice = []

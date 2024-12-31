@@ -330,13 +330,15 @@ class MatchResult:
         self.outputs: list[ir.Value] = []
         # For a failed match, _reason is a string that describes the reason for the failure.
         self._reason: str = ""
+        self._failure_node: ir.Node | None = None
 
     def __bool__(self):
         return self._success
 
-    def fail(self, reason: str = "") -> MatchResult:
+    def fail(self, reason: str = "", node: ir.Node | None = None) -> MatchResult:
         self._success = False
         self._reason = reason
+        self._failure_node = node
         return self
 
     @property
@@ -539,18 +541,22 @@ class NodePattern:
         """
         # TODO(rama): Ensure we handle "" and "onnx.ai" correctly.
         if not self.op.matches(node.op_type):
-            return match.fail(f"OpType mismatch: expected {self.op}, got {node.op_type}.")
+            return match.fail(
+                f"OpType mismatch: expected {self.op}, got {node.op_type}.", node
+            )
         if not self.domain.matches(node.domain):
-            return match.fail(f"Domain mismatch: expected {self.domain}, got {node.domain}.")
-
+            return match.fail(
+                f"Domain mismatch: expected {self.domain}, got {node.domain}.", node
+            )
 
         for name, attr_pattern in self.attributes.items():
             attr_value = node.attributes.get(name)
             if attr_value is None:
-                return match.fail(f"Attribute {name} not found in node.")
+                return match.fail(f"Attribute {name} not found in node.", node)
             if not attr_pattern.matches(attr_value):
                 return match.fail(
-                    f"Attribute {name} mismatch: expected {attr_pattern}, got {attr_value}."
+                    f"Attribute {name} mismatch: expected {attr_pattern}, got {attr_value}.",
+                    node,
                 )
             if attr_pattern.name is not None:
                 if not match.bind(attr_pattern.name, attr_value):
@@ -560,7 +566,7 @@ class NodePattern:
             for name in node.attributes:
                 # TODO: Support matching default nodes for attributes.
                 if name not in self.attributes:
-                    return match.fail(f"Attribute {name} not expected in node.")
+                    return match.fail(f"Attribute {name} not expected in node.", node)
 
         return match
 
@@ -963,12 +969,12 @@ class SimplePatternMatcher(PatternMatcher):
     def __init__(self, pattern: GraphPattern) -> None:
         super().__init__(pattern)
 
-    def fail(self, reason: str) -> bool:
+    def fail(self, reason: str, node: ir.Node | None = None) -> bool:
         if self._verbose:
             if self._matched:  # Print only if at least one node successfully matched.
                 count = len(self._matched)
                 print(f"Match failed after {count} nodes: {reason}")
-        self._match.fail(reason)
+        self._match.fail(reason, node or self._current_node)
         return False
 
     def _match_constant(self, pattern_constant: Constant, value: ir.Value) -> bool:
@@ -1030,7 +1036,7 @@ class SimplePatternMatcher(PatternMatcher):
 
     def _match_node(self, pattern_node: NodePattern, node: ir.Node) -> bool:
         """Matches a pattern subgraph against subgraph rooted at node."""
-
+        self._current_node = node
         # Graph-matching: we do not allow the same pattern node to be matched against
         # different graph nodes.
         if pattern_node in self._matched:
@@ -1120,6 +1126,7 @@ class SimplePatternMatcher(PatternMatcher):
         self._verbose = verbose
         self._matched: dict[NodePattern, ir.Node] = {}
         self._match: MatchResult = MatchResult()
+        self._current_node: ir.Node | None = None
 
     def _get_output_values(self) -> list[ir.Value] | None:
         """Get values bound to the output variables of the pattern."""
@@ -1168,8 +1175,10 @@ class SimplePatternMatcher(PatternMatcher):
 
         output_values = self._get_output_values()
         if output_values is None:
+            # TODO(rama): Is this a valid (useful) case?
             return match
         if check_removable and not _valid_to_replace(match.nodes, output_values):
+            # TODO(rama): Match status should be updated to reflect failure reason.
             return match.fail("Matched nodes have other uses preventing replacement.")
 
         match.outputs.extend(output_values)
@@ -1323,7 +1332,6 @@ class RewriteRule:
     def __str__(self) -> str:
         return self.name if self.name else "Anonymous Rule"
 
-
     def try_rewrite(
         self,
         model: ir.Model,
@@ -1348,12 +1356,16 @@ class RewriteRule:
                         match.bindings[var.name] = None
             if not self._condition_function(context, **match.bindings):
                 if tracer:
-                    tracer.log(self, graph_or_function, node, match, MatchStatus.CONDITION_FAILED)
+                    tracer.log(
+                        self, graph_or_function, node, match, MatchStatus.CONDITION_FAILED
+                    )
                 return None
             replacement_subgraph = self._replacement_pattern.get_replacement(match)
             if replacement_subgraph is None:
                 if tracer:
-                    tracer.log(self, graph_or_function, node, match, MatchStatus.REPLACEMENT_FAILED)
+                    tracer.log(
+                        self, graph_or_function, node, match, MatchStatus.REPLACEMENT_FAILED
+                    )
                 return None
             if len(replacement_subgraph.new_outputs) != self._target_pattern.num_outputs:
                 raise ValueError(
@@ -1522,7 +1534,9 @@ class RewriteRuleSet:
             if rule.graph_pre_visitor:
                 rule.graph_pre_visitor()
             for node in graph_or_function:
-                delta = rule.try_rewrite(model, graph_or_function, node, verbose=verbose, tracer=tracer)
+                delta = rule.try_rewrite(
+                    model, graph_or_function, node, verbose=verbose, tracer=tracer
+                )
                 if delta is None or tracer is not None:
                     continue
                 assert isinstance(delta, ReplacementSubgraph)
@@ -1545,20 +1559,27 @@ class RewriteRuleSet:
 
         return count
 
-    def apply_to_model(self, model: ir.Model, *, verbose: int | None = None, traceonly: bool = False) -> int:
+    def apply_to_model(
+        self, model: ir.Model, *, verbose: int | None = None, traceonly: bool = False
+    ) -> int:
         assert isinstance(model, ir.Model)
         tracer = MatchingTracer() if traceonly else None
         onnxscript.optimizer.basic_constant_propagation(model.graph)
-        count = self._apply_to_graph_or_function(model, model.graph, verbose=verbose, tracer=tracer)
+        count = self._apply_to_graph_or_function(
+            model, model.graph, verbose=verbose, tracer=tracer
+        )
         for function in model.functions.values():
             onnxscript.optimizer.basic_constant_propagation(function)
-            count += self._apply_to_graph_or_function(model, function, verbose=verbose, tracer=tracer)
+            count += self._apply_to_graph_or_function(
+                model, function, verbose=verbose, tracer=tracer
+            )
         if tracer:
             tracer.report()
         return count
 
     def __iter__(self):
         yield from self.rules
+
 
 class MatchStatus(Enum):
     """The status of a pattern-matching operation."""
@@ -1567,6 +1588,7 @@ class MatchStatus(Enum):
     CONDITION_FAILED = 1  # Subsequent validation check failed
     REPLACEMENT_FAILED = 2  # Replacement subgraph could not be created
     SUCCESS = 3  # A successful match was found
+
 
 @dataclasses.dataclass
 class MatchInfo:
@@ -1580,6 +1602,7 @@ class MatchInfo:
     def score(self) -> int:
         """Return a score for the match."""
         return len(self.match_result.nodes) + int(self.status.value) * 100
+
 
 class MatchingTracer:
     """A debugging helper class to trace the matching of a pattern against a graph."""
@@ -1609,6 +1632,7 @@ class MatchingTracer:
 
     def report(self) -> None:
         import onnxscript.rewriter._ir_utils as ir_utils
+
         print("===")
         for rule, matches in self._log.items():
             if not matches:
@@ -1619,6 +1643,10 @@ class MatchingTracer:
                 print(f"Status: {match.status}")
                 if match.status == MatchStatus.NO_MATCH:
                     print("Graph matching failed: " + match.match_result.reason)
-
+                    node = match.match_result._failure_node
+                    if node:
+                        print("Failure at or around node:")
+                        node.display()
+                print("Partially matched nodes:")
                 ir_utils.display_nodes(match.match_result.nodes)
                 print("===")

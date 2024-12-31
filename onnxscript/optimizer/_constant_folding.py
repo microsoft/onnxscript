@@ -406,7 +406,7 @@ def shape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     shape_slice = shape[start:end]
     output = _get_output(node, 0)
     if output is not None:
-        state.set_sym_value(output, shape_slice)
+        state.set_sym_value(output, ir.Shape(shape_slice))
     if all(isinstance(d, int) for d in shape_slice):
         return op.Constant(value_ints=list(shape_slice))
     return None
@@ -705,6 +705,23 @@ def sequence_at(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     return None
 
 
+def _merge_shapes(shape1: ir.Shape, shape2: ir.Shape) -> ir.Shape:
+    def merge_dims(dim1, dim2):
+        if dim1 == dim2:
+            return dim1
+        if not isinstance(dim1, ir.SymbolicDim):
+            return dim1  # Prefer int value over symbolic dim
+        if not isinstance(dim2, ir.SymbolicDim):
+            return dim2
+        if dim1.value is None:
+            return dim2
+        return dim1
+
+    if len(shape1) != len(shape2):
+        raise ValueError("Shapes must have the same rank.")
+    return ir.Shape([merge_dims(dim1, dim2) for dim1, dim2 in zip(shape1, shape2)])
+
+
 class ConstantFolder:
     opset_imports: dict[str, int]
 
@@ -770,7 +787,10 @@ class ConstantFolder:
                     if output.name in output_types:
                         inferred_type = output_types[output.name]
                         # TODO: merge types, check for conflicts
-                        output.shape = ir.serde.deserialize_type_proto_for_shape(inferred_type)
+                        inferred_shape = ir.serde.deserialize_type_proto_for_shape(
+                            inferred_type
+                        )
+                        output.shape = _merge_shapes(output.shape, inferred_shape)
                         output.type = ir.serde.deserialize_type_proto_for_type(inferred_type)
             except Exception as e:
                 logger.debug(
