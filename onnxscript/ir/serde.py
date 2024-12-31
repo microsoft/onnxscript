@@ -60,7 +60,6 @@ __all__ = [
 import collections
 import logging
 import os
-import typing
 from typing import Any, Callable, List, Mapping, Sequence
 
 import numpy as np
@@ -138,6 +137,14 @@ def from_proto(proto: onnx.ValueInfoProto) -> _core.Value: ...
 def from_proto(proto: onnx.TypeProto) -> _core.TypeAndShape: ...
 @typing.overload
 def from_proto(proto: onnx.FunctionProto) -> _core.Function: ...
+@typing.overload
+def from_proto(
+    proto: onnx.TensorShapeProto.Dimension,
+) -> tuple[int | _core.SymbolicDim, str | None]: ...
+@typing.overload
+def from_proto(proto: Sequence[onnx.OperatorSetIdProto]) -> dict[str, int]: ...
+@typing.overload
+def from_proto(proto: Sequence[onnx.StringStringEntryProto]) -> dict[str, str]: ...
 
 
 def from_proto(proto: object) -> object:
@@ -161,6 +168,16 @@ def from_proto(proto: object) -> object:
         )
     if isinstance(proto, onnx.FunctionProto):
         return deserialize_function(proto)
+    if isinstance(proto, onnx.TensorShapeProto.Dimension):
+        return deserialize_dimension(proto)
+    if isinstance(proto, Sequence) and all(
+        isinstance(p, onnx.OperatorSetIdProto) for p in proto
+    ):
+        return deserialize_opset_import(proto)
+    if isinstance(proto, Sequence) and all(
+        isinstance(p, onnx.StringStringEntryProto) for p in proto
+    ):
+        return deserialize_metadata_props(proto)
     raise NotImplementedError(
         f"Deserialization of {type(proto)} in from_proto is not implemented. "
         "Use a specific ir.serde.deserialize* function instead."
