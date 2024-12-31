@@ -168,6 +168,14 @@ def from_proto(proto: object) -> object:
         )
     if isinstance(proto, onnx.FunctionProto):
         return deserialize_function(proto)
+    if isinstance(proto, onnx.TensorShapeProto):
+        dim_protos = proto.dim
+        deserialized_dim_denotations = [
+            deserialize_dimension(dim_proto) for dim_proto in dim_protos
+        ]
+        dims = [dim for dim, _ in deserialized_dim_denotations]
+        denotations = [denotation for _, denotation in deserialized_dim_denotations]
+        return _core.Shape(dims, denotations=denotations)
     if isinstance(proto, onnx.TensorShapeProto.Dimension):
         return deserialize_dimension(proto)
     if isinstance(proto, Sequence) and all(
