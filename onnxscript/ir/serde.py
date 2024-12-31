@@ -123,31 +123,31 @@ def _unflatten_complex(
 
 
 @typing.overload
-def from_proto(proto: onnx.ModelProto) -> _core.Model: ...
+def from_proto(proto: onnx.ModelProto) -> _core.Model: ...  # type: ignore[overload-overlap]
 @typing.overload
-def from_proto(proto: onnx.GraphProto) -> _core.Graph: ...
+def from_proto(proto: onnx.GraphProto) -> _core.Graph: ...  # type: ignore[overload-overlap]
 @typing.overload
-def from_proto(proto: onnx.NodeProto) -> _core.Node: ...
+def from_proto(proto: onnx.NodeProto) -> _core.Node: ...  # type: ignore[overload-overlap]
 @typing.overload
-def from_proto(proto: onnx.TensorProto) -> _protocols.TensorProtocol: ...
+def from_proto(proto: onnx.TensorProto) -> _protocols.TensorProtocol: ...  # type: ignore[overload-overlap]
 @typing.overload
-def from_proto(proto: onnx.AttributeProto) -> _core.Attr: ...
+def from_proto(proto: onnx.AttributeProto) -> _core.Attr: ...  # type: ignore[overload-overlap]
 @typing.overload
-def from_proto(proto: onnx.ValueInfoProto) -> _core.Value: ...
+def from_proto(proto: onnx.ValueInfoProto) -> _core.Value: ...  # type: ignore[overload-overlap]
 @typing.overload
-def from_proto(proto: onnx.TypeProto) -> _core.TypeAndShape: ...
+def from_proto(proto: onnx.TypeProto) -> _core.TypeAndShape: ...  # type: ignore[overload-overlap]
 @typing.overload
-def from_proto(proto: onnx.FunctionProto) -> _core.Function: ...
+def from_proto(proto: onnx.FunctionProto) -> _core.Function: ...  # type: ignore[overload-overlap]
 @typing.overload
-def from_proto(proto: onnx.TensorShapeProto) -> _core.Shape: ...
+def from_proto(proto: onnx.TensorShapeProto) -> _core.Shape: ...  # type: ignore[overload-overlap]
 @typing.overload
-def from_proto(
+def from_proto(  # type: ignore[overload-overlap]
     proto: onnx.TensorShapeProto.Dimension,
 ) -> tuple[int | _core.SymbolicDim, str | None]: ...
 @typing.overload
-def from_proto(proto: Sequence[onnx.OperatorSetIdProto]) -> dict[str, int]: ...
+def from_proto(proto: Sequence[onnx.OperatorSetIdProto]) -> dict[str, int]: ...  # type: ignore[overload-overlap]
 @typing.overload
-def from_proto(proto: Sequence[onnx.StringStringEntryProto]) -> dict[str, str]: ...
+def from_proto(proto: Sequence[onnx.StringStringEntryProto]) -> dict[str, str]: ...  # type: ignore[overload-overlap]
 
 
 def from_proto(proto: object) -> object:
@@ -190,25 +190,25 @@ def from_proto(proto: object) -> object:
 
 
 @typing.overload
-def to_proto(ir_object: _protocols.ModelProtocol) -> onnx.ModelProto: ...
+def to_proto(ir_object: _protocols.ModelProtocol) -> onnx.ModelProto: ...  # type: ignore[overload-overlap]
 @typing.overload
-def to_proto(ir_object: _protocols.GraphProtocol) -> onnx.GraphProto: ...
+def to_proto(ir_object: _protocols.GraphProtocol) -> onnx.GraphProto: ...  # type: ignore[overload-overlap]
 @typing.overload
-def to_proto(ir_object: _protocols.NodeProtocol) -> onnx.NodeProto: ...
+def to_proto(ir_object: _protocols.NodeProtocol) -> onnx.NodeProto: ...  # type: ignore[overload-overlap]
 @typing.overload
-def to_proto(ir_object: _protocols.TensorProtocol) -> onnx.TensorProto: ...
+def to_proto(ir_object: _protocols.TensorProtocol) -> onnx.TensorProto: ...  # type: ignore[overload-overlap]
 @typing.overload
-def to_proto(ir_object: _protocols.AttributeProtocol) -> onnx.AttributeProto: ...
+def to_proto(ir_object: _protocols.AttributeProtocol) -> onnx.AttributeProto: ...  # type: ignore[overload-overlap]
 @typing.overload
-def to_proto(ir_object: _protocols.ReferenceAttributeProtocol) -> onnx.AttributeProto: ...
+def to_proto(ir_object: _protocols.ReferenceAttributeProtocol) -> onnx.AttributeProto: ...  # type: ignore[overload-overlap]
 @typing.overload
-def to_proto(ir_object: _protocols.ValueProtocol) -> onnx.ValueInfoProto: ...
+def to_proto(ir_object: _protocols.ValueProtocol) -> onnx.ValueInfoProto: ...  # type: ignore[overload-overlap]
 @typing.overload
-def to_proto(ir_object: _protocols.TypeProtocol) -> onnx.TypeProto: ...
+def to_proto(ir_object: _protocols.TypeProtocol) -> onnx.TypeProto: ...  # type: ignore[overload-overlap]
 @typing.overload
-def to_proto(ir_object: _protocols.FunctionProtocol) -> onnx.FunctionProto: ...
+def to_proto(ir_object: _protocols.FunctionProtocol) -> onnx.FunctionProto: ...  # type: ignore[overload-overlap]
 @typing.overload
-def to_proto(ir_object: _protocols.GraphViewProtocol) -> onnx.GraphProto: ...
+def to_proto(ir_object: _protocols.GraphViewProtocol) -> onnx.GraphProto: ...  # type: ignore[overload-overlap]
 
 
 def to_proto(ir_object: object) -> object:
