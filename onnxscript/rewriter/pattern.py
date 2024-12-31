@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import abc
-from collections import defaultdict
 import contextlib
 import dataclasses
-from enum import Enum
 import inspect
 import itertools
 import math
+from collections import defaultdict
+from enum import Enum
 from typing import (
     Any,
     Callable,
@@ -1622,6 +1622,3 @@ class MatchingTracer:
 
                 ir_utils.display_nodes(match.match_result.nodes)
                 print("===")
-
-
- 

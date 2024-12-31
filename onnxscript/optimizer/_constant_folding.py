@@ -134,6 +134,13 @@ class Replacement:
     new_nodes: Sequence[ir.Node]
 
 
+# The optimizer tracks an optional symbolic value for each value in the model.
+# The symbolic value attached to a value X can be:
+# - another IR value Y (indicating that X is equal to Y)
+# - a list of IR values [Y1, Y2, ...] (indicating that X is a sequence of values Y1, Y2, ...)
+# - a Shape object (indicating that X is a shape value)
+
+
 class OptimizerState:
     def __init__(self):
         self._sym_value_map: dict[ir.Value, Any] = {}
@@ -159,6 +166,18 @@ class OptimizerState:
 
     def is_initializer_input(self, value: ir.Value) -> bool:
         return any(value in inputs for inputs in self._initializer_inputs)
+
+    def get_shape_value(self, value: ir.Value | None) -> ir.Shape | None:
+        const_value = _get_numpy_value(value, ir.DataType.INT64, size_limit=10)
+        if const_value is not None:
+            if const_value.ndim == 1:
+                return ir.Shape(const_value.tolist())
+            return None
+        sym_value = self.get_sym_value(value)
+        if isinstance(sym_value, ir.Shape):
+            return sym_value
+        # TODO use shape of value if available
+        return None
 
 
 # The "partial evaluators" below are non-standard evaluators. They are used to perform
@@ -236,11 +255,17 @@ registry: PartialEvaluatorRegistry = PartialEvaluatorRegistry()
 register = registry.register
 
 
-def _get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
+def _get_numpy_value(
+    val: ir.Value | None, dtype: ir.DataType | None = None, size_limit: int | None = None
+) -> np.ndarray | None:
     if val is None:
         return None
     const_value = val.const_value
     if const_value is not None:
+        if dtype is not None and const_value.dtype != dtype:
+            return None
+        if size_limit is not None and const_value.size > size_limit:
+            return None
         try:
             return const_value.numpy()
         except FileNotFoundError:
@@ -317,12 +342,12 @@ def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     if input_shape is None:
         return None
     input_shape_dims = list(input_shape.dims)
-    if any(not isinstance(dim, int) for dim in input_shape_dims):
+    if any(isinstance(dim, ir.SymbolicDim) and dim.value is None for dim in input_shape_dims):
         return None
-    shape_value = _get_numpy_value(shape)
+    shape_value = state.get_shape_value(shape)
     if shape_value is None:
         return None
-    target_shape_dims = shape_value.tolist()
+    target_shape_dims = list(shape_value.dims)
     if input_shape_dims == target_shape_dims:
         # No need to check for special values like -1, 0, etc. here
         return op.Identity(input)
@@ -379,6 +404,9 @@ def shape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     start = _get_int_attribute(node, "start", 0)
     end = _get_int_attribute(node, "end", None)
     shape_slice = shape[start:end]
+    output = _get_output(node, 0)
+    if output is not None:
+        state.set_sym_value(output, shape_slice)
     if all(isinstance(d, int) for d in shape_slice):
         return op.Constant(value_ints=list(shape_slice))
     return None
@@ -465,6 +493,19 @@ def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     inputs = node.inputs
     if len(inputs) == 1:
         return op.Identity(inputs[0])
+    # Track value of tensors that carry a shape value:
+    output = node.outputs[0]
+    if output is None:
+        return None
+    # Check axis attribute is 0
+    axis = _get_int_attribute(node, "axis", None)
+    if axis != 0:
+        return None
+    shapes = [state.get_shape_value(input) for input in inputs]
+    if any(shape is None for shape in shapes):
+        return None
+    concatenated = ir.Shape(dim for shape in shapes for dim in shape.dims)
+    state.set_sym_value(output, concatenated)
     return None
 
 

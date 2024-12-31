@@ -10,6 +10,7 @@ import numpy as np
 import onnxscript.ir as ir
 from onnxscript.optimizer import basic_constant_propagation
 
+
 def display_nodes(nodes: list[ir.Node]) -> None:
     """Display a list of nodes in the order they appear in the graph."""
     if nodes:
