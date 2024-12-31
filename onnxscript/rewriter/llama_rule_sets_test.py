@@ -309,6 +309,29 @@ class LlamaRuleSetsTest(unittest.TestCase):
                     opset_imports=[onnx.helper.make_opsetid("", 18)],
                 ),
             ),
+            (
+                "double_unsqueezes_3",
+                _make_model(
+                    onnx.helper.make_graph(
+                        [
+                            onnx.helper.make_node("Unsqueeze", ["X", "axes1"], ["Xu"]),
+                            onnx.helper.make_node("Unsqueeze", ["Xu", "axes2"], ["Y"]),
+                        ],
+                        "name",
+                        [onnx.helper.make_tensor_value_info("X", FLOAT, [3])],
+                        [onnx.helper.make_tensor_value_info("Y", FLOAT, [1, 3, 1])],
+                        [
+                            onnx.numpy_helper.from_array(
+                                np.array(0, dtype=np.int64), name="axes1"
+                            ),
+                            onnx.numpy_helper.from_array(
+                                np.array(1, dtype=np.int64), name="axes2"
+                            ),
+                        ],
+                    ),
+                    opset_imports=[onnx.helper.make_opsetid("", 18)],
+                ),
+            ),
         ]
     )
     def test_llama_p0_rule_set_unsqueeze_unsqueeze(self, _: str, model: ir.Model):

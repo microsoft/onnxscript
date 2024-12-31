@@ -254,10 +254,8 @@ def _embedding_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     """Remove arguments not present in the aten op signature."""
-    if "max_norm" in kwargs:
-        del kwargs["max_norm"]
-    if "norm_type" in kwargs:
-        del kwargs["norm_type"]
+    kwargs.pop("max_norm", None)
+    kwargs.pop("norm_type", None)
     return args, kwargs
 
 
@@ -265,8 +263,7 @@ def _empty_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     """Remove arguments not present in the aten op signature."""
-    if "requires_grad" in kwargs:
-        del kwargs["requires_grad"]
+    kwargs.pop("requires_grad", None)
     return args, kwargs
 
 
@@ -325,8 +322,7 @@ def _max_pool_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     # Remove return_indices argument because this op doesn't accept it
-    if "return_indices" in kwargs:
-        del kwargs["return_indices"]
+    kwargs.pop("return_indices", None)
     return args, kwargs
 
 
@@ -364,8 +360,7 @@ def _nll_loss_input_wrangler(
 def _nonzero_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    if "as_tuple" in kwargs:
-        del kwargs["as_tuple"]
+    kwargs.pop("as_tuple", None)
     return args, kwargs
 
 
@@ -421,8 +416,7 @@ def _roll_input_wrangler(
 def _scalar_tensor_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    if "requires_grad" in kwargs:
-        del kwargs["requires_grad"]
+    kwargs.pop("requires_grad", None)
     return args, kwargs
 
 

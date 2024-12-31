@@ -411,7 +411,7 @@ class ValuePattern:
     def name(self) -> str | None:
         return self._name
 
-    def producer(self) -> None | NodePattern:
+    def producer(self) -> NodePattern | None:
         return None
 
     def uses(self) -> Sequence[tuple[NodePattern, int]]:
@@ -1320,6 +1320,10 @@ class RewriteRule:
         match = self._matcher.match(model, graph_or_function, node, verbose=verbose)
         if match:
             context = None  # TODO(rama)
+            for var in self._target_pattern.inputs:
+                if var.name is not None:
+                    if var.name not in match.bindings:
+                        match.bindings[var.name] = None
             if not self._condition_function(context, **match.bindings):
                 return None
             replacement_subgraph = self._replacement_pattern.get_replacement(match)
@@ -1426,6 +1430,32 @@ def make_rewrite_rule_from_class(
         rule_class.check,
         name=rule_class.__name__,  # type: ignore[union-attr]
     )
+
+
+# Variation of RewriteRuleAsClass that is based on instance methods instead of class methods.
+# Useful to implement a family of rules to support pattern variations.
+# TODO: cleanup the naming conventions for these inter-related classes.
+class RewriteRuleClassBase:
+    @classmethod
+    def rule(cls, *args, **kwargs):
+        instance = cls(*args, **kwargs)
+        return RewriteRule(
+            instance.pattern, instance.rewrite, instance.check, name=instance.name
+        )
+
+    @property
+    def name(self):
+        """Default implementation of name property."""
+        return self.__class__.__name__
+
+    def pattern(self, op, *args, **kwargs):
+        raise NotImplementedError("Method 'pattern' must be implemented by derived class.")
+
+    def check(self, op, *args, **kwargs):
+        raise NotImplementedError("Method 'check' must be implemented by derived class.")
+
+    def rewrite(self, op, *args, **kwargs):
+        raise NotImplementedError("Method 'rewrite' must be implemented by derived class.")
 
 
 class RewriteRuleSet:
