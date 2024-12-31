@@ -189,18 +189,29 @@ def from_proto(proto: object) -> object:
     )
 
 
-def to_proto(
-    ir_object: _protocols.ModelProtocol
-    | _protocols.GraphProtocol
-    | _protocols.NodeProtocol
-    | _protocols.ValueProtocol
-    | _protocols.AttributeProtocol
-    | _protocols.ReferenceAttributeProtocol
-    | _protocols.TensorProtocol
-    | _protocols.TypeProtocol
-    | _protocols.GraphViewProtocol
-    | _protocols.FunctionProtocol,
-) -> Any:
+@typing.overload
+def to_proto(ir_object: _protocols.ModelProtocol) -> onnx.ModelProto: ...
+@typing.overload
+def to_proto(ir_object: _protocols.GraphProtocol) -> onnx.GraphProto: ...
+@typing.overload
+def to_proto(ir_object: _protocols.NodeProtocol) -> onnx.NodeProto: ...
+@typing.overload
+def to_proto(ir_object: _protocols.TensorProtocol) -> onnx.TensorProto: ...
+@typing.overload
+def to_proto(ir_object: _protocols.AttributeProtocol) -> onnx.AttributeProto: ...
+@typing.overload
+def to_proto(ir_object: _protocols.ReferenceAttributeProtocol) -> onnx.AttributeProto: ...
+@typing.overload
+def to_proto(ir_object: _protocols.ValueProtocol) -> onnx.ValueInfoProto: ...
+@typing.overload
+def to_proto(ir_object: _protocols.TypeProtocol) -> onnx.TypeProto: ...
+@typing.overload
+def to_proto(ir_object: _protocols.FunctionProtocol) -> onnx.FunctionProto: ...
+@typing.overload
+def to_proto(ir_object: _protocols.GraphViewProtocol) -> onnx.GraphProto: ...
+
+
+def to_proto(ir_object: object) -> object:
     """Serialize an IR object to a proto."""
     if isinstance(ir_object, _protocols.ModelProtocol):
         return serialize_model(ir_object)
