@@ -11,7 +11,7 @@ from onnxscript.ir import _convenience
 
 class ConvenienceTest(unittest.TestCase):
     def test_tensor_accepts_torch_tensor(self):
-        import torch as some_random_name
+        import torch as some_random_name  # pylint: disable=import-outside-toplevel
 
         torch_tensor = some_random_name.tensor([1, 2, 3])
         tensor = _convenience.tensor(torch_tensor)

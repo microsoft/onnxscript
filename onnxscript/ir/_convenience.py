@@ -360,7 +360,7 @@ def tensor(
     elif str(type(value)) == "<class 'torch.Tensor'>":
         # NOTE: We use str(type(...)) and do not import torch for type checking
         # as it creates overhead during import
-        return tensor_adapters.TorchTensor(value, name=name, doc_string=doc_string)
+        return tensor_adapters.TorchTensor(value, name=name, doc_string=doc_string)  # type: ignore[arg-type]
     elif isinstance(value, (_protocols.DLPackCompatible, _protocols.ArrayCompatible)):
         return _core.Tensor(value, dtype=dtype, name=name, doc_string=name)
 
