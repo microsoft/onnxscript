@@ -30,6 +30,7 @@ __all__ = [
     "deserialize_node",
     "deserialize_opset_import",
     "deserialize_tensor",
+    "deserialize_tensor_shape",
     "deserialize_type_proto_for_shape",
     "deserialize_type_proto_for_type",
     "deserialize_value_info_proto",
@@ -138,6 +139,8 @@ def from_proto(proto: onnx.TypeProto) -> _core.TypeAndShape: ...
 @typing.overload
 def from_proto(proto: onnx.FunctionProto) -> _core.Function: ...
 @typing.overload
+def from_proto(proto: onnx.TensorShapeProto) -> _core.Shape: ...
+@typing.overload
 def from_proto(
     proto: onnx.TensorShapeProto.Dimension,
 ) -> tuple[int | _core.SymbolicDim, str | None]: ...
@@ -169,13 +172,7 @@ def from_proto(proto: object) -> object:
     if isinstance(proto, onnx.FunctionProto):
         return deserialize_function(proto)
     if isinstance(proto, onnx.TensorShapeProto):
-        dim_protos = proto.dim
-        deserialized_dim_denotations = [
-            deserialize_dimension(dim_proto) for dim_proto in dim_protos
-        ]
-        dims = [dim for dim, _ in deserialized_dim_denotations]
-        denotations = [denotation for _, denotation in deserialized_dim_denotations]
-        return _core.Shape(dims, denotations=denotations)
+        return deserialize_tensor_shape(proto)
     if isinstance(proto, onnx.TensorShapeProto.Dimension):
         return deserialize_dimension(proto)
     if isinstance(proto, Sequence) and all(
@@ -701,28 +698,27 @@ def deserialize_value_info_proto(
 
 
 @_capture_errors(str)
+def deserialize_tensor_shape(proto: onnx.TensorShapeProto) -> _core.Shape:
+    # This logic handles when the shape is [] as well
+    dim_protos = proto.dim
+    deserialized_dim_denotations = [
+        deserialize_dimension(dim_proto) for dim_proto in dim_protos
+    ]
+    dims = [dim for dim, _ in deserialized_dim_denotations]
+    denotations = [denotation for _, denotation in deserialized_dim_denotations]
+    return _core.Shape(dims, denotations=denotations, frozen=True)
+
+
+@_capture_errors(str)
 def deserialize_type_proto_for_shape(proto: onnx.TypeProto) -> _core.Shape | None:
     if proto.HasField("tensor_type"):
         if (shape_proto := _get_field(proto.tensor_type, "shape")) is None:
             return None
-        # This logic handles when the shape is [] as well
-        dim_protos = shape_proto.dim
-        deserialized_dim_denotations = [
-            deserialize_dimension(dim_proto) for dim_proto in dim_protos
-        ]
-        dims = [dim for dim, _ in deserialized_dim_denotations]
-        denotations = [denotation for _, denotation in deserialized_dim_denotations]
-        return _core.Shape(dims, denotations=denotations, frozen=True)
+        return deserialize_tensor_shape(shape_proto)
     if proto.HasField("sparse_tensor_type"):
         if (shape_proto := _get_field(proto.sparse_tensor_type, "shape")) is None:
             return None
-        dim_protos = shape_proto.dim
-        deserialized_dim_denotations = [
-            deserialize_dimension(dim_proto) for dim_proto in dim_protos
-        ]
-        dims = [dim for dim, _ in deserialized_dim_denotations]
-        denotations = [denotation for _, denotation in deserialized_dim_denotations]
-        return _core.Shape(dims, denotations=denotations, frozen=True)
+        return deserialize_tensor_shape(shape_proto)
     if proto.HasField("sequence_type"):
         if (elem_type := _get_field(proto.sequence_type, "elem_type")) is None:
             return None
