@@ -38,13 +38,16 @@ from typing import TYPE_CHECKING, Any
 import numpy.typing as npt
 
 from onnxscript import ir
+from onnxscript.ir import _core
 
 if TYPE_CHECKING:
     import torch
 
 
-class TorchTensor(ir.Tensor):
-    def __init__(self, tensor: torch.Tensor, name: str | None = None):
+class TorchTensor(_core.Tensor):
+    def __init__(
+        self, tensor: torch.Tensor, name: str | None = None, doc_string: str | None = None
+    ):
         # Pass the tensor as the raw data to ir.Tensor's constructor
         import torch
 
@@ -69,7 +72,9 @@ class TorchTensor(ir.Tensor):
             torch.uint32: ir.DataType.UINT32,
             torch.uint64: ir.DataType.UINT64,
         }
-        super().__init__(tensor, dtype=_TORCH_DTYPE_TO_ONNX[tensor.dtype], name=name)
+        super().__init__(
+            tensor, dtype=_TORCH_DTYPE_TO_ONNX[tensor.dtype], name=name, doc_string=doc_string
+        )
 
     def numpy(self) -> npt.NDArray:
         import torch
