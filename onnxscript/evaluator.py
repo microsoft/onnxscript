@@ -290,16 +290,16 @@ class BaseEvaluator(Evaluator, abc.ABC):
         has_array = False
         for arg, param_schema in tagged_args:
             if param_schema.is_input:
-                adapted_arg, _has_array = _adapt_to_eager_mode(arg)
-                has_array = has_array or _has_array
+                adapted_arg, has_array_ = _adapt_to_eager_mode(arg)
+                has_array = has_array or has_array_
                 adapted_args.append(adapted_arg)
             else:
                 adapted_args.append(arg)
 
         for key, (arg, param_schema) in tagged_kwargs.items():
             if param_schema.is_input:
-                adapted_arg, _has_array = _adapt_to_eager_mode(arg)
-                has_array = has_array or _has_array
+                adapted_arg, has_array_ = _adapt_to_eager_mode(arg)
+                has_array = has_array or has_array_
                 adapted_kwargs[key] = adapted_arg
             else:
                 adapted_kwargs[key] = arg
