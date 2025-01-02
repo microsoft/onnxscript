@@ -54,12 +54,12 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         # inv_freq: [1, E, 1]
         position_ids_expanded = op.Unsqueeze(position_ids, 1)  # [B, S] => [B, 1, S]
         position_ids_expanded = op.Cast(position_ids_expanded, to=ir.DataType.FLOAT)
-        if self._reshape:
-            position_ids_expanded = op.Expand(position_ids_expanded, _allow_other_inputs=True)
-            position_ids_expanded = op.Reshape(position_ids_expanded, _allow_other_inputs=True)
+        # if self._reshape:
+        #     position_ids_expanded = op.Expand(position_ids_expanded, _allow_other_inputs=True)
+        #     position_ids_expanded = op.Reshape(position_ids_expanded, _allow_other_inputs=True)
         freqs = op.MatMul(inv_freq, position_ids_expanded)  # [B, E, S]
-        if self._reshape:
-            freqs = op.Reshape(freqs, freqs_3d_shape)  # redundant reshape
+        # if self._reshape:
+        #     freqs = op.Reshape(freqs, freqs_3d_shape)  # redundant reshape
         freqs = op.Transpose(freqs, perm=[0, 2, 1])  # [B, S, E]
         emb = op.Concat(freqs, freqs, axis=-1)
         cos = op.Cos(emb)
@@ -115,7 +115,7 @@ cos_sin_cache_rules = pattern.RewriteRuleSet([_rule])
 
 
 def fuse_cos_sin_cache(model: ir.Model) -> int:
-    count = cos_sin_cache_rules.apply_to_model(model, traceonly=True)
+    count = cos_sin_cache_rules.apply_to_model(model)
     print(f"CosSinCache count: {count}")
     remove_unused_nodes(model)
     return count

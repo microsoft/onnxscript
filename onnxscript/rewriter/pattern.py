@@ -1647,6 +1647,6 @@ class MatchingTracer:
                     if node:
                         print("Failure at or around node:")
                         node.display()
-                print("Partially matched nodes:")
+                print("Matched nodes:")
                 ir_utils.display_nodes(match.match_result.nodes)
                 print("===")

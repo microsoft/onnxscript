@@ -173,6 +173,6 @@ mha_rules = pattern.RewriteRuleSet([_rule1])
 
 
 def fuse_mha(model: ir.Model) -> int:
-    count = mha_rules.apply_to_model(model)
+    count = mha_rules.apply_to_model(model, traceonly=True)
     print(f"MHA count: {count}")
     return count

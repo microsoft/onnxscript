@@ -139,6 +139,11 @@ class Replacement:
 # - another IR value Y (indicating that X is equal to Y)
 # - a list of IR values [Y1, Y2, ...] (indicating that X is a sequence of values Y1, Y2, ...)
 # - a Shape object (indicating that X is a shape value)
+# A Shape object as a symbolic value indicates that the corresponding value is
+# 1-D (or 0-D) tensor of INT64 values. The values in this object may be constants
+# or symbolic dimension values (like "batch_size", "sequence_length", etc.).
+# Currently, we assume that symbolic dimensions are also guranteed to be non-negative.
+# TODO: Add support for negative symbolic dimensions.
 
 
 class OptimizerState:
@@ -255,6 +260,16 @@ registry: PartialEvaluatorRegistry = PartialEvaluatorRegistry()
 register = registry.register
 
 
+def _same_shape(shape1: ir.Shape, shape2: ir.Shape) -> bool:
+    # Comparison of shapes as tuples works except if any dimension is None
+    # (which represents an unknown dimension value). Thus, two shapes such
+    # as (Batch, 1024) and (Batch, 1024) are considered equal, but (None, 1024)
+    # and (None, 1024) are not considered equal.
+    if any(isinstance(dim, ir.SymbolicDim) and dim.value is None for dim in shape1):
+        return False
+    return shape1.dims == shape2.dims
+
+
 def _get_numpy_value(
     val: ir.Value | None, dtype: ir.DataType | None = None, size_limit: int | None = None
 ) -> np.ndarray | None:
@@ -329,6 +344,54 @@ def _get_int_attribute(node: ir.Node, name: str, default: int | None = None) -> 
         # For now, we just return None. We could raise an error too.
         return None
     return default
+
+
+@register("Abs")
+def abs(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Replace an Abs node by Identity when applicable.
+
+    Currently, addresses Abs applied to symbolic shapes.
+    """
+    input = _get_input(node, 0)
+    input_sym_value = state.get_shape_value(input)
+    if input_sym_value is None:
+        return None
+    if any(isinstance(d, int) and d < 0 for d in input_sym_value):
+        return None
+    # Abs applied to a symbolic shape of the form [1, 1, SequenceLength].
+    # We assume that SequenceLength is a non-negative integer.
+    # The Abs op is redundant in this case.
+    return op.Identity(input)
+
+
+@register("Gather")
+def gather(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Replace a Gather node by a constant when applicable.
+
+    Currently, handles the case of Gathering from a shape tensor.
+    """
+    input = _get_input(node, 0)
+    indices = _get_input(node, 1)
+    if input is None or indices is None:
+        return None
+    input_sym_value = state.get_shape_value(input)
+    if input_sym_value is None:
+        return None
+    axis = _get_int_attribute(node, "axis", None)
+    if axis != 0:
+        return None
+    indices_numpy_value = _get_numpy_value(indices)
+    if indices_numpy_value is None:
+        return None
+    if indices_numpy_value.ndim != 1:
+        return None
+    gathered = [input_sym_value[i] for i in indices_numpy_value]
+    output = _get_output(node, 0)
+    if output is not None:
+        state.set_sym_value(output, gathered)
+    if all(isinstance(d, int) for d in gathered):
+        return op.Constant(value_ints=gathered)
+    return None
 
 
 @register("Reshape")
@@ -554,7 +617,10 @@ def expand(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         return None
     if (expanded_shape := _get_numpy_value(node.inputs[1])) is None:
         # Target shape is not known.
-        return None
+        expanded_sym_shape = state.get_shape_value(node.inputs[1])
+        if expanded_sym_shape is None or not _same_shape(input_shape, expanded_sym_shape):
+            return None
+        return op.Identity(input)
     if expanded_shape.ndim != 1:
         # Target shape must be a 1D tensor. Erroneous model.
         return None
