@@ -242,10 +242,12 @@ def _get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
     const_value = val.const_value
     if const_value is not None:
         try:
-            return const_value.numpy()
+            array = const_value.numpy()
         except FileNotFoundError:
             # External data is not available.
             return None
+        assert isinstance(array, np.ndarray)
+        return array
     return None
 
 
@@ -255,14 +257,7 @@ def _get_bool_value(val: ir.Value | None) -> bool | None:
     value = _get_numpy_value(val)
     if value is None:
         return None
-    # TODO: cleanup following checks, which seem redundant. But need to also ensure
-    # the invariant when setting the value (and also use clearly defined representation
-    # types in evaluators, such a reference-evaluator).
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, np.bool_):
-        return bool(value)
-    if isinstance(value, np.ndarray) and value.size == 1 and value.dtype == bool:
+    if value.size == 1 and value.dtype is bool:
         return value.item(0)
     return None
 
