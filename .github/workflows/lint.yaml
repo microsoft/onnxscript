@@ -56,6 +56,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --upgrade setuptools
           python -m pip install -q -r requirements-dev.txt
+          # numpy 2.2 has some typing changes that break the mypy CI but it's otherwise fine
+          python -m pip install numpy<2.2
           # Install packages
           python -m pip install -e .
           lintrunner init
