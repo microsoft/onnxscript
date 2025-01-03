@@ -257,7 +257,7 @@ def _get_bool_value(val: ir.Value | None) -> bool | None:
     value = _get_numpy_value(val)
     if value is None:
         return None
-    if value.size == 1 and value.dtype is bool:
+    if value.size == 1 and value.dtype == np.bool_:
         return value.item(0)
     return None
 
