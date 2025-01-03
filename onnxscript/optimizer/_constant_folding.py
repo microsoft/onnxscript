@@ -16,7 +16,6 @@ import onnx
 import onnx.reference.ops
 
 import onnxscript.ir as ir
-import onnxscript.ir._convenience as _convenience
 import onnxscript.rewriter.pattern as orp
 import onnxscript.utils.utils as utils
 
