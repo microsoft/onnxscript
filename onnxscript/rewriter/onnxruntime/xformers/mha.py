@@ -32,10 +32,18 @@ The dot-product attention is then computed using SDPA
 Finally, the output is transposed and reshaped back to (B, S, D) shape
 """
 
+_use_2d_matmul = True
+
 
 def _project_transpose_head(op, input, weight, reshape_var: str):
-    """Applied to each of Q, K, and V."""
+    """Applied to generate each of Q, K, and V from input."""
+    if _use_2d_matmul:
+        # Convert batched input of shape (B, S, D) to 2D input (B*S, D)
+        input = op.Reshape(input, _allow_other_inputs=True)
     projected = op.MatMul(input, weight)
+    if _use_2d_matmul:
+        # Convert 2D output back to batched output of shape (B, S, D)
+        projected = op.Reshape(projected, _allow_other_inputs=True)
     # Reshape from (B, S, D) to (B, S, H, D/H)
     reshaped = op.Reshape(
         projected,
@@ -173,6 +181,6 @@ mha_rules = pattern.RewriteRuleSet([_rule1])
 
 
 def fuse_mha(model: ir.Model) -> int:
-    count = mha_rules.apply_to_model(model, traceonly=True)
+    count = mha_rules.apply_to_model(model)
     print(f"MHA count: {count}")
     return count
