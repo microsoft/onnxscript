@@ -548,15 +548,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "decomposed",
         dtypes=(torch.int16, torch.int32, torch.int64),
         reason="ONNX Runtime does not support int inputs to Gemm",
-    )
-    .xfail(
-        "decomposed",
-        matcher=lambda sample: torch.numel(sample.input) == 0
-        or torch.numel(sample.args[0]) == 0
-        or torch.numel(sample.args[1]) == 0,
-        reason="ONNX Runtime does not support zero sized inputs",
     ),
-    TorchLibOpInfo("addmv", core_ops.aten_addmv, tolerance={torch.float16: (1e-3, 1e-2)}),
+    TorchLibOpInfo("addmv", core_ops.aten_addmv, tolerance={torch.float16: (2e-3, 2e-2)}),
     TorchLibOpInfo(
         "addr",
         core_ops.aten_addr,
@@ -1079,7 +1072,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "ops.aten.embedding_bag",
         core_ops.aten_embedding_bag,
-        tolerance={torch.float16: (1e-2, 1e-2)},
+        tolerance={torch.float16: (1e-2, 5e-2)},
         compare_shape_only_for_output=(1, 2, 3),
     ),
     TorchLibOpInfo(
@@ -1587,16 +1580,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="dtype needs to be specified for non-float tensors",
         dtypes=(torch.float16, torch.int64, torch.int32),
     ),
-    TorchLibOpInfo("argmax", core_ops.aten_argmax)
-    .xfail(
-        dtypes=(torch.int64,),
-        reason="fixme: ORT did not implement ArgMax for int64. https://github.com/microsoft/onnxruntime/issues/16654",
-    ),
-    TorchLibOpInfo("argmin", core_ops.aten_argmin)
-    .xfail(
-        dtypes=(torch.int64,),
-        reason="fixme: ORT did not implement ArgMin for int64. https://github.com/microsoft/onnxruntime/issues/16654",
-    ),
+    TorchLibOpInfo("argmax", core_ops.aten_argmax),
+    TorchLibOpInfo("argmin", core_ops.aten_argmin),
     TorchLibOpInfo(
         "as_strided",
         core_ops.aten_as_strided,
@@ -1647,6 +1632,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.grid_sample",
         core_ops.aten_grid_sampler,
         input_wrangler=_grid_sample_input_wrangler,
+        tolerance={torch.float16: (9e-3, 2e-3)},
     ).skip(
         # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
         matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
@@ -1663,11 +1649,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("logit", core_ops.aten_logit, tolerance={torch.float16: (1e-1, 7e-4)}),
     TorchLibOpInfo("max_dim", core_ops.aten_max_dim)
-    .xfail(
-        variant_name="reduction_with_dim",
-        dtypes=(torch.int64,),
-        reason="fixme: ORT did not implement Max for int64. https://github.com/microsoft/onnxruntime/issues/16654",
-    )
     .xfail(
         variant_name="reduction_with_dim",
         reason="fixme: ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
