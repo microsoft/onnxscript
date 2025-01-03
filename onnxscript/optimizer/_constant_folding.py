@@ -711,10 +711,6 @@ class ConstantFolder:
                 )
 
     def new_constant(self, irvalue: ir.Value, value):
-        # TODO(rama): Why do we need the conversion below?
-        if isinstance(value, (int, float, np.ScalarType)):
-            value = np.array(value)
-
         if not isinstance(value, np.ndarray):
             # ONNX does not have a way to represent non-tensor constants, eg. a sequence.
             # So, a constant-value of type sequence is not folded, but it can be used
@@ -726,7 +722,9 @@ class ConstantFolder:
             )
             return None
 
-        irvalue.const_value = _convenience.tensor(value)
+        tensor = ir.tensor(value)
+        tensor.name = irvalue.name
+        irvalue.const_value = tensor
 
         if value.nbytes > self._output_size_limit:
             logger.info(
@@ -736,8 +734,6 @@ class ConstantFolder:
             )
             return None
 
-        tensor = onnx.numpy_helper.from_array(value, irvalue.name)
-
         logger.debug(
             "New constant for value %s dtype: %s shape: %s",
             irvalue.name,
@@ -745,8 +741,13 @@ class ConstantFolder:
             value.shape,
         )
 
-        attributes = _convenience.convert_attributes({"value": tensor})
-        node = ir.Node("", "Constant", inputs=[], attributes=attributes, num_outputs=1)
+        node = ir.Node(
+            "",
+            "Constant",
+            inputs=[],
+            attributes=ir.convenience.convert_attributes({"value": tensor}),
+            num_outputs=1,
+        )
         return node
 
     def process_node(self, node: ir.Node):
@@ -832,7 +833,7 @@ class ConstantFolder:
     def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function):
         logger.debug("Replacing node: %s::%s %s", node.domain, node.op_type, node.name)
 
-        _convenience.replace_nodes_and_values(
+        ir.convenience.replace_nodes_and_values(
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
 
