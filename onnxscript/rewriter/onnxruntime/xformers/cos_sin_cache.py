@@ -113,9 +113,13 @@ _rule = CosSinCacheFusion.rule("CosSinCache", 2048, reshape=True)
 
 cos_sin_cache_rules = pattern.RewriteRuleSet([_rule])
 
+debug: bool = True
 
 def fuse_cos_sin_cache(model: ir.Model) -> int:
     count = cos_sin_cache_rules.apply_to_model(model)
-    print(f"CosSinCache count: {count}")
-    remove_unused_nodes(model)
+    if count == 0 and debug:
+        cos_sin_cache_rules.apply_to_model(model, traceonly=True)
+    else:
+        print(f"CosSinCache count: {count}")
+        remove_unused_nodes(model)
     return count
