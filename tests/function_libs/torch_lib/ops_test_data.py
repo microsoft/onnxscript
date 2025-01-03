@@ -706,11 +706,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("bmm", core_ops.aten_bmm),
     TorchLibOpInfo("broadcast_to", core_ops.aten_broadcast_to),
     TorchLibOpInfo("cat", core_ops.aten_cat).skip(
-        matcher=lambda sample: sample.input[0].equal(torch.tensor([]).to(sample.input[0].device)),
+        matcher=lambda sample: sample.input[0].equal(
+            torch.tensor([]).to(sample.input[0].device)
+        ),
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
     TorchLibOpInfo("cat", core_ops.aten_cat_complex, complex=True).skip(
-        matcher=lambda sample: sample.input[0].equal(torch.tensor([]).to(sample.input[0].device)),
+        matcher=lambda sample: sample.input[0].equal(
+            torch.tensor([]).to(sample.input[0].device)
+        ),
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
     TorchLibOpInfo("ceil", core_ops.aten_ceil),
@@ -750,11 +754,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("clone", core_ops.aten_clone),
     TorchLibOpInfo("complex", core_ops.aten_complex),
     TorchLibOpInfo("concat", core_ops.aten_cat).skip(
-        matcher=lambda sample: sample.input[0].equal(torch.tensor([]).to(sample.input[0].device)),
+        matcher=lambda sample: sample.input[0].equal(
+            torch.tensor([]).to(sample.input[0].device)
+        ),
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
     TorchLibOpInfo("concatenate", core_ops.aten_cat).skip(
-        matcher=lambda sample: sample.input[0].equal(torch.tensor([]).to(sample.input[0].device)),
+        matcher=lambda sample: sample.input[0].equal(
+            torch.tensor([]).to(sample.input[0].device)
+        ),
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
     TorchLibOpInfo("conj", core_ops.aten_conj),
