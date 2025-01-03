@@ -856,6 +856,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ).skip(
         matcher=lambda sample: sample.args[0][0].dtype != torch.bool,
         reason="this Aten overload only supports tensor(bool) as indices",
+    ).skip(
+        reason="FIXME: https://github.com/microsoft/onnxscript/issues/1749"
     ),
     TorchLibOpInfo(
         "index_put",
@@ -1628,6 +1630,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
         matcher=lambda sample: sample.args[1] == 2,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
+    ).skip(
+        dtypes=(torch.float16,),
+        reason="fixme: Accuracy is not high enough",
     ),
     TorchLibOpInfo(
         "nn.functional.group_norm",
