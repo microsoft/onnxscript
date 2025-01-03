@@ -55,7 +55,7 @@ def check_if_not_need_reshape(
         return False
     input_a_shape = input_a_shape.numpy()  # type: ignore[assignment]
     input_b_shape = input_b_shape.numpy()  # type: ignore[assignment]
-    shape_c = shape_c_tensor.numpy().tolist()
+    shape_c = shape_c_tensor.numpy().tolist()  # type: ignore[assignment]
 
     a_rank = len(input_a_shape)
     b_rank = len(input_b_shape)

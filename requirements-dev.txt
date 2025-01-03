@@ -1,5 +1,5 @@
 setuptools>=61.0.0
-numpy<2.0
+numpy
 onnx-weekly>=1.17.0.dev20240325
 onnxruntime>=1.17.0
 typing_extensions
@@ -30,8 +30,8 @@ pytest-subtests
 pytest-xdist
 pytest!=7.1.0
 pyyaml
-torch>=2.1
-torchvision>=0.16.0
+torch>=2.3
+torchvision>=0.18.0
 transformers>=4.37.2
 
 # Lint
