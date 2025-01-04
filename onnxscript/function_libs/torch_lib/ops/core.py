@@ -8278,14 +8278,9 @@ def aten_topk(
 ) -> Tuple[TReal, INT64]:
     """topk(Tensor self, int k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)"""
 
-    self_is_scalar = IsScalar(self)
-    if self_is_scalar:
-        self = op.Unsqueeze(self, [0])
+    # We do not handle scalar inputs for topk
     k = op.Constant(value_ints=[k])
     values, indices = op.TopK(self, k, axis=dim, largest=largest, sorted=sorted)
-    if self_is_scalar:
-        values = op.Squeeze(values, [0])
-        indices = op.Squeeze(indices, [0])
     return values, indices
 
 
