@@ -115,6 +115,7 @@ cos_sin_cache_rules = pattern.RewriteRuleSet([_rule])
 
 debug: bool = True
 
+
 def fuse_cos_sin_cache(model: ir.Model) -> int:
     count = cos_sin_cache_rules.apply_to_model(model)
     if count == 0 and debug:
