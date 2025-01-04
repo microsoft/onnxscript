@@ -8279,8 +8279,7 @@ def aten_topk(
     """topk(Tensor self, int k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)"""
 
     # We do not handle scalar inputs for topk
-    k = op.Constant(value_ints=[k])
-    values, indices = op.TopK(self, k, axis=dim, largest=largest, sorted=sorted)
+    values, indices = op.TopK(self, [k], axis=dim, largest=largest, sorted=sorted)
     return values, indices
 
 

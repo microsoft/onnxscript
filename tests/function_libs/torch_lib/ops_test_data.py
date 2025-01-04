@@ -1479,7 +1479,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         matcher=lambda sample: len(sample.input.shape) == 0 or sample.input.numel() == 0,
-        reason="scalar inputs or empty inputs are not handled"
+        reason="scalar inputs or empty inputs are not handled",
     ),
     TorchLibOpInfo("tril", core_ops.aten_tril).xfail(
         dtypes=(torch.int32,),
