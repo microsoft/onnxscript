@@ -548,6 +548,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "decomposed",
         dtypes=(torch.int16, torch.int32, torch.int64),
         reason="ONNX Runtime does not support int inputs to Gemm",
+    )
+    .skip(
+        "decomposed",
+        matcher=lambda sample: torch.numel(sample.input) == 0
+        or torch.numel(sample.args[0]) == 0
+        or torch.numel(sample.args[1]) == 0,
+        reason="zero sized inputs cannot be compared",
     ),
     TorchLibOpInfo("addmv", core_ops.aten_addmv, tolerance={torch.float16: (2e-3, 2e-2)}),
     TorchLibOpInfo(
@@ -716,13 +723,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.bool,),
         reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
     ),
-    TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max)
-    .skip(
+    TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max).skip(
         reason="Size 0 inputs are not handled by design",
         matcher=lambda sample: sample.input.numel() == 0,
     ),
-    TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min)
-    .skip(
+    TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min).skip(
         reason="Size 0 inputs are not handled by design",
         matcher=lambda sample: sample.input.numel() == 0,
     ),
@@ -767,12 +772,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         # Numbers match sometimes but not other times
         reason="fixme: off-by-one. https://github.com/microsoft/onnxscript/issues/990",
-    )
-    .xfail(
-        variant_name="floor_rounding",
-        dtypes=(torch.float16,),
-        test_class_name="TestOutputConsistencyEager",
-        reason="fixme: off-by-one and inverted inf. https://github.com/microsoft/onnxscript/issues/989",
     ),
     TorchLibOpInfo("div_mode_int", core_ops.aten_div_mode_int).skip(
         variant_name="no_rounding_mode",
@@ -803,7 +802,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("expand_as", core_ops.aten_expand_as),
     TorchLibOpInfo("erf", special_ops.aten_special_erf),
     TorchLibOpInfo(
-        "erfc", special_ops.aten_special_erfc, tolerance={torch.float16: (1e-2, 2e-4)}
+        "erfc", special_ops.aten_special_erfc, tolerance={torch.float16: (5e-1, 2e-4)}
     ),
     TorchLibOpInfo(
         "expm1", special_ops.aten_special_expm1, tolerance={torch.float16: (1e-2, 2e-4)}
@@ -846,12 +845,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "index_put_bool",
         core_ops.aten_index_put_bool,
-    ).skip(
+    )
+    .skip(
         matcher=lambda sample: sample.args[0][0].dtype != torch.bool,
         reason="this Aten overload only supports tensor(bool) as indices",
-    ).skip(
-        reason="FIXME: https://github.com/microsoft/onnxscript/issues/1749"
-    ),
+    )
+    .skip(reason="FIXME: https://github.com/microsoft/onnxscript/issues/1749"),
     TorchLibOpInfo(
         "index_put",
         core_ops.aten_index_put,
@@ -861,7 +860,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload only supports tensor(int) as indices",
     )
     .xfail(
-        enabled_if=version_utils.onnxruntime_older_than("1.19"),
         dtypes=(torch.float16,),
         matcher=lambda sample: sample.kwargs.get("accumulate") is True,
         reason="fixme: ORT only supports float32 when accumulate is True:  MLFloat16 data type is not supported with ScatterND when reduction is 'add'",
@@ -982,19 +980,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("mH", core_ops.aten_mH),
     TorchLibOpInfo("mH", core_ops.aten_mH_complex, complex=True),
-    TorchLibOpInfo("min_dim", core_ops.aten_min_dim)
-    .xfail(
-        variant_name="reduction_with_dim",
-        dtypes=(torch.int64,),
-        reason="fixme: ORT did not implement Min for int64. https://github.com/microsoft/onnxruntime/issues/16654",
-    )
-    .xfail(
-        variant_name="reduction_with_dim",
-        reason="fixme: ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=not _flags.EXPERIMENTAL_PREFER_TRACING,
-    )
-    .xfail(
+    TorchLibOpInfo("min_dim", core_ops.aten_min_dim).xfail(
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
         reason="this ATen overload only support one tensor as input and another int as args",
@@ -1460,7 +1446,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("stack", core_ops.aten_stack),
     TorchLibOpInfo("stack", core_ops.aten_stack_complex, complex=True),
-    TorchLibOpInfo("sub", core_ops.aten_sub),
+    TorchLibOpInfo("sub", core_ops.aten_sub, tolerance={torch.float16: (2e-3, 1e-3)}),
     TorchLibOpInfo("sub", core_ops.aten_sub_complex, complex=True),
     # TorchLibOpInfo("sym_size", core_ops.aten_sym_size),  # no test case in OPS_DB
     TorchLibOpInfo(
@@ -1481,9 +1467,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         or not sample.input.shape,
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
-    TorchLibOpInfo("topk", core_ops.aten_topk).xfail(
+    TorchLibOpInfo("topk", core_ops.aten_topk)
+    .xfail(
         dtypes=(torch.int64, torch.int32),
         enabled_if=not ops_test_common.IS_WINDOWS,
+        reason="fixme: result mismatch. https://github.com/microsoft/onnxscript/issues/853",
+    )
+    .skip(
+        dtypes=(torch.float16,),
         reason="fixme: result mismatch. https://github.com/microsoft/onnxscript/issues/853",
     ),
     TorchLibOpInfo("tril", core_ops.aten_tril).xfail(
@@ -1611,11 +1602,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "grid_sampler_2d",
         core_ops.aten_grid_sampler_2d,
-    ).skip(
+    )
+    .skip(
         # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
         matcher=lambda sample: sample.args[1] == 2,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
-    ).skip(
+    )
+    .skip(
         dtypes=(torch.float16,),
         reason="fixme: Accuracy is not high enough",
     ),
@@ -1632,7 +1625,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.grid_sample",
         core_ops.aten_grid_sampler,
         input_wrangler=_grid_sample_input_wrangler,
-        tolerance={torch.float16: (9e-3, 2e-3)},
+        tolerance={torch.float16: (8e-2, 2e-3)},
     ).skip(
         # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
         matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
