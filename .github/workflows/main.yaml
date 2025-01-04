@@ -31,7 +31,6 @@ jobs:
           - py311-torch-nightly
           - py311-onnx-weekly
           - py311-ort-nightly
-          - py311-experimental-torchlib-tracing
           - py310
         include:
           - name: py312
