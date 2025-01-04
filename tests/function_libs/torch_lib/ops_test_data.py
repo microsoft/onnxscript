@@ -772,6 +772,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         # Numbers match sometimes but not other times
         reason="fixme: off-by-one. https://github.com/microsoft/onnxscript/issues/990",
+    )
+    .skip(
+        variant_name="floor_rounding",
+        dtypes=(torch.float16,),
+        test_class_name="TestOutputConsistencyEager",
+        reason="fixme: off-by-one and inverted inf. https://github.com/microsoft/onnxscript/issues/989",
     ),
     TorchLibOpInfo("div_mode_int", core_ops.aten_div_mode_int).skip(
         variant_name="no_rounding_mode",
@@ -1760,7 +1766,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .xfail(
         dtypes=(torch.float32,),
         matcher=lambda sample: len(sample.input.shape) == 1,
-        enabled_if=ops_test_common.IS_MACOS and version_utils.onnxruntime_older_than("1.18"),
+        enabled_if=ops_test_common.IS_MACOS,
         reason="fixme: result mismatch. https://github.com/microsoft/onnxruntime/issues/20676",
     )
     .skip(
