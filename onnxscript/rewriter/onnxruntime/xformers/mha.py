@@ -51,7 +51,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         super().__init__(name)
         self._use_2d_matmul = use_2d_matmul
 
-    def _project_transpose_head(self, op, input, weight, reshape_var: str):
+    def _compute_QKV(self, op, input, weight, reshape_var: str):
         """Applied to generate each of Q, K, and V from input."""
         if self._use_2d_matmul:
             # Convert batched input of shape (B, S, D) to 2D input (B*S, D)
@@ -78,6 +78,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         query_weight,
         key_weight,
         value_weight,
+        qkv_weight,
         mask,
         cos,
         sin,
@@ -85,9 +86,9 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         past_value,
         position_ids,
     ):
-        query = self._project_transpose_head(op, input, query_weight, "query_mm_reshaped")
-        key = self._project_transpose_head(op, input, key_weight, "key_mm_reshaped")
-        value = self._project_transpose_head(op, input, value_weight, "value_mm_reshaped")
+        query = self._compute_QKV(op, input, query_weight, "query_mm_reshaped")
+        key = self._compute_QKV(op, input, key_weight, "key_mm_reshaped")
+        value = self._compute_QKV(op, input, value_weight, "value_mm_reshaped")
 
         query_rope = op.RotaryEmbedding(query, position_ids, cos, sin, _domain="com.microsoft")
 
@@ -161,10 +162,12 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
     ):
         num_heads = query_mm_reshaped.shape[2]
         query = op.MatMul(input, query_weight)
-        query_rope = op.RotaryEmbedding(query, position_ids, cos, sin, _domain="com.microsoft")
         key = op.MatMul(input, key_weight)
-        key_rope = op.RotaryEmbedding(key, position_ids, cos, sin, _domain="com.microsoft")
         value = op.MatMul(input, value_weight)
+
+        query_rope = op.RotaryEmbedding(query, position_ids, cos, sin, _domain="com.microsoft")
+        key_rope = op.RotaryEmbedding(key, position_ids, cos, sin, _domain="com.microsoft")
+
         return op.MultiHeadAttention(
             query_rope,
             key_rope,
