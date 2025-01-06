@@ -3942,6 +3942,10 @@ def aten_hamming_window(
 
     if dtype is None or dtype == -1:
         dtype = 1
+    # ONNX uses different alpha/beta values for the Hamming window
+    # Whereas PyTorch uses alpha=0.54, beta=0.46, ONNX uses
+    # alpha=0.543478, beta=0.456522. This causes a slight difference
+    # in the output values, but we still uses the HammingWindow op for performance.
     return op.HammingWindow(window_length, output_datatype=dtype)
 
 
