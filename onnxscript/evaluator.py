@@ -387,8 +387,10 @@ def _numpy_to_onnxscript_value(
 ):
     """Converts an ORT encoding of an ONNX value into the encoding used by onnxscript."""
     if isinstance(v, np.ndarray):
-        return tensor.Tensor(v)
-    if np.issctype(type(v)):  # noqa: NPY201
+        # ORT may reuse buffers when the output numpy array is provided back as input.
+        # We need to make a copy to ensure that the tensor is not modified in-place.
+        return tensor.Tensor(v.copy())
+    if issubclass(type(v), np.generic):
         # Numpy scalar types that are not ndarray
         # https://numpy.org/doc/stable/reference/arrays.scalars.html
         return tensor.Tensor(np.array(v))
