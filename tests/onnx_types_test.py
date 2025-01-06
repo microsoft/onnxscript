@@ -13,7 +13,7 @@ import unittest
 
 from parameterized import parameterized
 
-from onnxscript.onnx_types import DOUBLE, FLOAT, DType, TensorType, tensor_type_registry
+from onnxscript.onnx_types import DOUBLE, FLOAT, TensorType, tensor_type_registry
 
 
 class TestOnnxTypes(unittest.TestCase):
@@ -26,7 +26,7 @@ class TestOnnxTypes(unittest.TestCase):
             FLOAT[...]()
 
     @parameterized.expand(tensor_type_registry.items())
-    def test_type_properties(self, dtype: DType, tensor_type: type[TensorType]):
+    def test_type_properties(self, dtype: int, tensor_type: type[TensorType]):
         self.assertEqual(tensor_type.dtype, dtype)
         self.assertIsNone(tensor_type.shape)
         self.assertEqual(tensor_type[...].shape, ...)  # type: ignore[index]
@@ -35,7 +35,7 @@ class TestOnnxTypes(unittest.TestCase):
         self.assertEqual(tensor_type[1, 2, 3].dtype, dtype)  # type: ignore[index]
 
     @parameterized.expand([(dtype,) for dtype in tensor_type_registry])
-    def test_dtype_bound_to_subclass(self, dtype: DType):
+    def test_dtype_bound_to_subclass(self, dtype: int):
         with self.assertRaises(ValueError):
             type(f"InvalidTensorTypeSubclass_{dtype}", (TensorType,), {}, dtype=dtype)
 

@@ -16,7 +16,6 @@ import onnx
 import onnx.reference.ops
 
 import onnxscript.ir as ir
-import onnxscript.ir._convenience as _convenience
 import onnxscript.rewriter.pattern as orp
 import onnxscript.utils.utils as utils
 
@@ -137,6 +136,7 @@ class Replacement:
 class OptimizerState:
     def __init__(self):
         self._sym_value_map: dict[ir.Value, Any] = {}
+        self._initializer_inputs: list[set[ir.Value]] = []
 
     def get_sym_value(self, value: ir.Value | None) -> Any:
         if value is None:
@@ -145,6 +145,19 @@ class OptimizerState:
 
     def set_sym_value(self, value: ir.Value, sym_value: Any) -> None:
         self._sym_value_map[value] = sym_value
+
+    def push_initializer_inputs(self) -> None:
+        self._initializer_inputs.append(set())
+
+    def pop_initializer_inputs(self) -> None:
+        self._initializer_inputs.pop()
+
+    def add_initializer_input(self, value: ir.Value) -> None:
+        assert self._initializer_inputs
+        self._initializer_inputs[-1].add(value)
+
+    def is_initializer_input(self, value: ir.Value) -> bool:
+        return any(value in inputs for inputs in self._initializer_inputs)
 
 
 # The "partial evaluators" below are non-standard evaluators. They are used to perform
@@ -228,10 +241,12 @@ def _get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
     const_value = val.const_value
     if const_value is not None:
         try:
-            return const_value.numpy()
+            array = const_value.numpy()
         except FileNotFoundError:
             # External data is not available.
             return None
+        assert isinstance(array, np.ndarray)
+        return array
     return None
 
 
@@ -241,14 +256,7 @@ def _get_bool_value(val: ir.Value | None) -> bool | None:
     value = _get_numpy_value(val)
     if value is None:
         return None
-    # TODO: cleanup following checks, which seem redundant. But need to also ensure
-    # the invariant when setting the value (and also use clearly defined representation
-    # types in evaluators, such a reference-evaluator).
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, np.bool_):
-        return bool(value)
-    if isinstance(value, np.ndarray) and value.size == 1 and value.dtype == bool:
+    if value.size == 1 and value.dtype == np.bool_:
         return value.item(0)
     return None
 
@@ -292,20 +300,29 @@ def _get_int_attribute(node: ir.Node, name: str, default: int | None = None) -> 
     return default
 
 
-# TODO(rama): The following should not be necessary. Generic incremental shape-inference
-# should handle this. This essentially implements type/shape-inference for Cast op.
 @register("Cast")
 def cast(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input = _get_input(node, 0)
     output = _get_output(node, 0)
-    if input is not None and output is not None:
-        input_shape = input.shape
-        if input_shape is not None:
-            output.shape = input_shape.copy()
-    if output is not None:
-        output_dtype = _get_int_attribute(node, "to", None)
-        if output_dtype is not None:
-            output.type = ir.TensorType(ir.DataType(output_dtype))
+
+    if input is None or output is None:
+        return None
+
+    # TODO(rama): Parts of the following logic (implementing type/shape inference
+    # for Cast op) should be unnecessary. Generic incremental shape-inference
+    # should handle this. Only the optimization to eliminate redundant Cast ops
+    # should be needed here.
+
+    input_shape = input.shape
+    if input_shape is not None:
+        output.shape = input_shape.copy()
+
+    input_dtype = _get_input_element_type(node, 0)
+    output_dtype = _get_int_attribute(node, "to", None)
+    if output_dtype is not None:
+        if input_dtype == output_dtype:
+            return op.Identity(input)
+        output.type = ir.TensorType(ir.DataType(output_dtype))
     return None
 
 
@@ -367,7 +384,7 @@ def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         if graph_attr.type != ir.AttributeType.GRAPH:
             return None
         assert isinstance(graph_attr, ir.Attr)
-        graph: ir.Graph = graph_attr.value
+        graph = graph_attr.as_graph()
         formal_outs = graph.outputs
         actual_outs = node.outputs
         renamings = {
@@ -410,6 +427,69 @@ def sequence_construct(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     output = node.outputs[0]
     if output is not None:
         state.set_sym_value(output, list(node.inputs))
+    return None
+
+
+@register("Concat")
+def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Replace a Concat node with a single input by Identity"""
+    inputs = node.inputs
+    if len(inputs) == 1:
+        return op.Identity(inputs[0])
+    return None
+
+
+@register("Dropout", version=(12, None))
+def dropout(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Replace a Dropout by Identity when applicable."""
+
+    def optimized_dropout():
+        input = node.inputs[0]
+        output = op.Identity(input)
+        if len(node.outputs) == 1:
+            return output
+        else:
+            true_tensor = ir.tensor([True])
+            input_shape = op.Shape(input)
+            mask = op.ConstantOfShape(input_shape, value=true_tensor)
+            return output, mask
+
+    inputs = node.inputs
+    if (len(inputs) <= 2) or inputs[2] is None:
+        # No training_mode specified:
+        return optimized_dropout()
+    if _get_bool_value(inputs[2]) is False:
+        # training_mode is False: dropout is not applied.
+        return optimized_dropout()
+    ratio = _get_numpy_value(inputs[1])
+    if ratio is None:
+        return None
+    if ratio.size != 1:  # Only scalar dropout ratio is supported.
+        return None
+    if ratio.item() == 0:
+        # dropout ratio is 0: dropout is not applied.
+        return optimized_dropout()
+    return None
+
+
+@register("Expand")
+def expand(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Replace an Expand node by Identity when applicable."""
+    if len(node.inputs) != 2:
+        return None
+    if (input := node.inputs[0]) is None:
+        return None
+    if (input_shape := input.shape) is None:
+        # Input shape is not known.
+        return None
+    if (expanded_shape := _get_numpy_value(node.inputs[1])) is None:
+        # Target shape is not known.
+        return None
+    if expanded_shape.ndim != 1:
+        # Target shape must be a 1D tensor. Erroneous model.
+        return None
+    if input_shape.dims == tuple(expanded_shape.tolist()):
+        return op.Identity(input)
     return None
 
 
@@ -630,10 +710,6 @@ class ConstantFolder:
                 )
 
     def new_constant(self, irvalue: ir.Value, value):
-        # TODO(rama): Why do we need the conversion below?
-        if isinstance(value, (int, float, np.ScalarType)):
-            value = np.array(value)
-
         if not isinstance(value, np.ndarray):
             # ONNX does not have a way to represent non-tensor constants, eg. a sequence.
             # So, a constant-value of type sequence is not folded, but it can be used
@@ -645,7 +721,9 @@ class ConstantFolder:
             )
             return None
 
-        irvalue.const_value = _convenience.tensor(value)
+        tensor = ir.tensor(value)
+        tensor.name = irvalue.name
+        irvalue.const_value = tensor
 
         if value.nbytes > self._output_size_limit:
             logger.info(
@@ -655,8 +733,6 @@ class ConstantFolder:
             )
             return None
 
-        tensor = onnx.numpy_helper.from_array(value, irvalue.name)
-
         logger.debug(
             "New constant for value %s dtype: %s shape: %s",
             irvalue.name,
@@ -664,8 +740,13 @@ class ConstantFolder:
             value.shape,
         )
 
-        attributes = _convenience.convert_attributes({"value": tensor})
-        node = ir.Node("", "Constant", inputs=[], attributes=attributes, num_outputs=1)
+        node = ir.Node(
+            "",
+            "Constant",
+            inputs=[],
+            attributes=ir.convenience.convert_attributes({"value": tensor}),
+            num_outputs=1,
+        )
         return node
 
     def process_node(self, node: ir.Node):
@@ -711,7 +792,10 @@ class ConstantFolder:
         if any(x is None for x in input_values):
             return None
 
-        if any(input.size > self._input_size_limit for input in input_values):  # type: ignore[union-attr]
+        if any(self._state.is_initializer_input(x) for x in node.inputs):  # type: ignore[arg-type]
+            return None
+
+        if any(input.nbytes > self._input_size_limit for input in input_values):  # type: ignore[union-attr]
             if logger.isEnabledFor(logging.DEBUG):
                 input_sizes = [input.size for input in input_values]  # type: ignore[union-attr]
                 logger.debug(
@@ -748,7 +832,7 @@ class ConstantFolder:
     def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function):
         logger.debug("Replacing node: %s::%s %s", node.domain, node.op_type, node.name)
 
-        _convenience.replace_nodes_and_values(
+        ir.convenience.replace_nodes_and_values(
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
 
@@ -758,10 +842,10 @@ class ConstantFolder:
     def visit_attribute(self, attr: ir.Attr | ir.RefAttr) -> None:
         if isinstance(attr, ir.Attr):
             if attr.type == ir.AttributeType.GRAPH:
-                self.visit_graph(attr.value)  # type: ignore[arg-type]
+                self.visit_graph(attr.as_graph())
             elif attr.type == ir.AttributeType.GRAPHS:
-                for graph in attr.value:
-                    self.visit_graph(graph)  # type: ignore[arg-type]
+                for graph in attr.as_graphs():
+                    self.visit_graph(graph)
 
     def visit_node(self, node: ir.Node, root: ir.Graph | ir.Function):
         replacement = self.process_node(node)
@@ -774,8 +858,17 @@ class ConstantFolder:
             self.replace_node(node, replacement, root)
 
     def visit_graph(self, graph: ir.Graph) -> None:
+        # Track inputs that have a const_value (which is really a default-value, and should not
+        # be used for constant-folding).
+        self._state.push_initializer_inputs()
+        for input in graph.inputs:
+            if input.const_value is not None:
+                self._state.add_initializer_input(input)
+
         for node in graph:
             self.visit_node(node, graph)
+
+        self._state.pop_initializer_inputs()
 
     def visit_function(self, function: ir.Function) -> None:
         for node in function:

@@ -65,6 +65,24 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             (np.random.rand(512, 16, 112).astype(np.float32),),
         )
 
+    def test_slice_pattern_is_not_matched_when_input_is_dynamic(self):
+        model_proto = onnx.parser.parse_model(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[L, M, N] data) => (float[L, M, N] output)
+            {{
+                starts = Constant<value: tensor = int64[1] {{0}}>()
+                ends = Constant<value: tensor = int64[1] {{{9}}}>()
+                axes = Constant<value: tensor = int64[1] {{0}}>()
+                steps = Constant<value: tensor = int64[1] {{1}}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }}
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = collapse_slices.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
     def test_scatternd_is_redundant_when_it_is_updating_the_whole_input_in_order(self):
         model_proto = onnx.parser.parse_model(
             """
@@ -76,7 +94,7 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         """
         )
         # Use inserted initializers to avoid manually coding the large constants
-        indices = np.arange(112).reshape(112, 1)
+        indices = np.arange(112).reshape(112, 1).astype(np.int64)
         model = ir.serde.deserialize_model(model_proto)
         # from numpy to ir.Tensor
         indices_ir_tensor = ir.Tensor(
