@@ -1505,7 +1505,7 @@ def aten_blackman_window(
 ) -> TensorType:
     """blackman_window(int window_length, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    if dtype is None:
+    if dtype is None or dtype == -1:
         dtype = 1
     return op.BlackmanWindow(window_length, output_datatype=dtype)
 
@@ -3933,14 +3933,14 @@ def aten_gt_bool(self: BOOL, other: BOOL) -> BOOL:
 @torch_op("aten::hamming_window", trace_only=True)
 def aten_hamming_window(
     window_length: int,
-    dtype: int = -1,
+    dtype: int = 1,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
 ) -> TensorType:
     """hamming_window(int window_length, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    if dtype is None:
+    if dtype is None or dtype == -1:
         dtype = 1
     return op.HammingWindow(window_length, output_datatype=dtype)
 
@@ -3948,14 +3948,14 @@ def aten_hamming_window(
 @torch_op("aten::hann_window", trace_only=True)
 def aten_hann_window(
     window_length: int,
-    dtype: int = -1,
+    dtype: int = 1,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
 ) -> TensorType:
     """hann_window(int window_length, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    if dtype is None:
+    if dtype is None or dtype == -1:
         dtype = 1
     return op.HannWindow(window_length, output_datatype=dtype)
 
