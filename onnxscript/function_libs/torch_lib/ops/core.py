@@ -1495,16 +1495,19 @@ def aten_bitwise_xor(self: TInt, other: TInt) -> TInt:
     return op.BitwiseXor(self, other)
 
 
+@torch_op("aten::blackman_window", trace_only=True)
 def aten_blackman_window(
     window_length: int,
-    dtype: int = -1,
+    dtype: int = 1,
     layout: str = "",
     device: str = "",
     pin_memory: bool = False,
 ) -> TensorType:
     """blackman_window(int window_length, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    return op.BlackmanWindow(window_length)
+    if dtype is None:
+        dtype = 1
+    return op.BlackmanWindow(window_length, output_datatype=dtype)
 
 
 def aten_block_diag(tensors: Sequence[TensorType]) -> TensorType:
@@ -3927,6 +3930,7 @@ def aten_gt_bool(self: BOOL, other: BOOL) -> BOOL:
     return op.And(self, op.Not(other))
 
 
+@torch_op("aten::hamming_window", trace_only=True)
 def aten_hamming_window(
     window_length: int,
     dtype: int = -1,
@@ -3936,9 +3940,12 @@ def aten_hamming_window(
 ) -> TensorType:
     """hamming_window(int window_length, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    return op.HammingWindow(window_length)
+    if dtype is None:
+        dtype = 1
+    return op.HammingWindow(window_length, output_datatype=dtype)
 
 
+@torch_op("aten::hann_window", trace_only=True)
 def aten_hann_window(
     window_length: int,
     dtype: int = -1,
@@ -3948,7 +3955,9 @@ def aten_hann_window(
 ) -> TensorType:
     """hann_window(int window_length, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    return op.HannWindow(window_length)
+    if dtype is None:
+        dtype = 1
+    return op.HannWindow(window_length, output_datatype=dtype)
 
 
 def aten_hardshrink(self: TensorType, lambd: float = 0.5) -> TensorType:
