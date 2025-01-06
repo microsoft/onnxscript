@@ -8085,7 +8085,7 @@ def aten_swapdims(self: TensorType, dim0: int, dim1: int) -> TensorType:
 @torch_op("aten::sym_size.int", trace_only=True)
 def aten_sym_size(self: TensorType, dim: int = 0) -> INT64:
     """sym_size.int(Tensor self, int dim) -> SymInt"""
-    return op.Shape(self, end=dim + 1, start=dim)
+    return op.Squeeze(op.Shape(self, end=dim + 1, start=dim))
 
 
 def aten_symeig(
@@ -8272,20 +8272,14 @@ def aten_to_sparse_csr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::topk", traceable=True)
+@torch_op("aten::topk", trace_only=True)
 def aten_topk(
-    self: TReal, k: INT64, dim: int = -1, largest: bool = True, sorted: bool = True
+    self: TReal, k: int, dim: int = -1, largest: bool = True, sorted: bool = True
 ) -> Tuple[TReal, INT64]:
     """topk(Tensor self, int k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)"""
 
-    self_is_scalar = IsScalar(self)
-    if self_is_scalar:
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-    k = op.Reshape(op.Cast(k, to=INT64.dtype), op.Constant(value_ints=[1]))
-    values, indices = op.TopK(self, k, axis=dim, largest=largest, sorted=sorted)
-    if self_is_scalar:
-        values = op.Squeeze(values, op.Constant(value_ints=[0]))
-        indices = op.Squeeze(indices, op.Constant(value_ints=[0]))
+    # We do not handle scalar inputs for topk
+    values, indices = op.TopK(self, [k], axis=dim, largest=largest, sorted=sorted)
     return values, indices
 
 
