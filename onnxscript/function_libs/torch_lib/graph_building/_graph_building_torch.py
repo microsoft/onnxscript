@@ -832,7 +832,7 @@ class TorchScriptGraph:
         existing_value_info = {info.name: info for info in onnx_model.graph.value_info}
 
         # Override value_info for top level graph inputs.
-        for input in self.torch_graph.inputs():
+        for input in self.torch_graph.inputs():  # pylint: disable=not-an-iterable
             if input not in self._value_to_tensor:
                 raise RuntimeError(f"Input '{input.debugName()}' has no type.")
             tensor = self._value_to_tensor[input]
@@ -847,7 +847,7 @@ class TorchScriptGraph:
                     break
 
         # Override value_info for top level graph outputs.
-        for output in self.torch_graph.outputs():
+        for output in self.torch_graph.outputs():  # pylint: disable=not-an-iterable
             if output not in self._value_to_tensor:
                 raise RuntimeError(f"Output '{output.debugName()}' has no type.")
             tensor = self._value_to_tensor[output]
