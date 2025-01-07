@@ -35,13 +35,9 @@ class RmsNormFusion(pattern.RewriteRuleClassBase):
             cast_input: Whether to cast input to do the normalization in a different precision.
             cast_normalized: Whether to cast the normalized output to the target dtype (same as scale).
         """
-        self._name = name
+        super().__init__(name=name)
         self._cast_input = cast_input
         self._cast_normalized = cast_normalized
-
-    @property
-    def name(self):
-        return self._name
 
     def pattern(self, op, x, scale, epsilon, compute_dtype, target_dtype):
         if self._cast_input:
@@ -95,5 +91,5 @@ rms_normalization_ruleset = pattern.RewriteRuleSet(rms_normalization_rules)
 
 
 def fuse_rms_normalization(model: ir.Model) -> None:
-    count = rms_normalization_ruleset.apply_to_model(model, verbose=5)
+    count = rms_normalization_ruleset.apply_to_model(model)
     print(f"RMS Normalization count: {count}")
