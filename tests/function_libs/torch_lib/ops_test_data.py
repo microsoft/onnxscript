@@ -695,6 +695,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("bitwise_right_shift_int64", core_ops.aten_bitwise_right_shift_int64),
     TorchLibOpInfo("bitwise_right_shift_int8", core_ops.aten_bitwise_right_shift_int8),
     TorchLibOpInfo("bitwise_xor", core_ops.aten_bitwise_xor),
+    TorchLibOpInfo("ops.aten.blackman_window", core_ops.aten_blackman_window),
     TorchLibOpInfo("bmm", core_ops.aten_bmm),
     TorchLibOpInfo("broadcast_to", core_ops.aten_broadcast_to),
     TorchLibOpInfo("cat", core_ops.aten_cat).skip(
@@ -1630,6 +1631,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
         reason="Using op.InstanceNormalization to simulate GroupNorm, which does not support 0-dim input",
     ),
+    TorchLibOpInfo(
+        "ops.aten.hamming_window",
+        core_ops.aten_hamming_window,
+        tolerance={torch.float32: (8e-2, 6e-3)},
+    ),
+    TorchLibOpInfo("ops.aten.hann_window", core_ops.aten_hann_window),
     TorchLibOpInfo("heaviside", core_ops.aten_heaviside),
     TorchLibOpInfo(
         "nn.functional.grid_sample",
