@@ -25,7 +25,7 @@ def ort_run(model_name: str, model, inputs):
     providers = ["CPUExecutionProvider"]
     with tempfile.TemporaryDirectory() as temp_dir:
         model_path = os.path.join(temp_dir, f"{model_name}.onnx")
-        io.save(model, model_path)
+        _save(model, model_path)
         # Run model
         session = onnxruntime.InferenceSession(model_path, providers=providers)
         ort_outputs = session.run(None, inputs)
