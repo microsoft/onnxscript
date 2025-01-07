@@ -61,7 +61,7 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
             _domain="ai.onnxruntime.fusion",
         )
 
-    def check(self, context, inv_freq, position_ids, **_):
+    def check(self, context, inv_freq, position_ids, **_) -> bool:
         if not _ir_utils.has_rank(position_ids, 2):
             return False
         if not _ir_utils.has_rank(inv_freq, 3):
