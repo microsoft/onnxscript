@@ -198,8 +198,8 @@ def plot(series, *, bin_edges=None, cfg=None):
     height = cfg.get("height", interval)
     ratio = height / interval if interval > 0 else 1
 
-    min2 = int(floor(minimum * ratio))
-    max2 = int(ceil(maximum * ratio))
+    min2 = floor(minimum * ratio)
+    max2 = ceil(maximum * ratio)
 
     def clamp(n):
         return min(max(n, minimum), maximum)

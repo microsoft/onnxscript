@@ -5,13 +5,21 @@ from __future__ import annotations
 import unittest
 
 import onnxscript.optimizer
+<<<<<<< HEAD
 from onnxscript.rewriter.onnxruntime.xformers._smollm_1 import TestData
+=======
+from onnxscript.rewriter.onnxruntime.xformers._smollm_1layer import _SmollmTestData
+>>>>>>> main
 from onnxscript.rewriter.onnxruntime.xformers.rotary_embedding import fuse_rotary_embedding
 
 
 class TestRotaryEmbedding(unittest.TestCase):
     def test_smollm(self):
+<<<<<<< HEAD
         smollm_test = TestData()
+=======
+        smollm_test = _SmollmTestData()
+>>>>>>> main
         model = smollm_test.get_onnx_model()
         onnxscript.optimizer.optimize(model)
         fuse_rotary_embedding(model)

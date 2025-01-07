@@ -1239,14 +1239,14 @@ class Converter:
                 if i != len(loop_stmt.body) - 1:
                     self.fail(s, "Instruction break must be the last one of the loop.")
 
-                _current_scope = self._current_scope()
-                if s.test.id not in _current_scope:
+                current_scope = self._current_scope()
+                if s.test.id not in current_scope:
                     self.fail(
                         loop_stmt,
                         f"Unable to find condition variable {s.test.id!r} in known "
-                        f"variables {list(_current_scope)!r}.",
+                        f"variables {list(current_scope)!r}.",
                     )
-                condition_name = _current_scope[s.test.id].value
+                condition_name = current_scope[s.test.id].value
                 operator_name = "Not"
                 continue
             self._translate_stmt(s)
@@ -1255,14 +1255,14 @@ class Converter:
 
         if cond_while is not None:
             # Loop while
-            _current_scope = self._current_scope()
-            if cond_while not in _current_scope:
+            current_scope = self._current_scope()
+            if cond_while not in current_scope:
                 self.fail(
                     loop_stmt,
                     f"Unable to find condition variable {cond_while!r} in known "
-                    f"variables {list(_current_scope)!r}.",
+                    f"variables {list(current_scope)!r}.",
                 )
-            o_cond_var = _current_scope[cond_while].value
+            o_cond_var = current_scope[cond_while].value
 
         self.emit(
             [o_cond_out],
