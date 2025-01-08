@@ -27,7 +27,7 @@ COMMON_TEST_DEPENDENCIES = (
     "pytest!=7.1.0",
     "pyyaml",
     "types-PyYAML",
-    "typing_extensions",
+    "typing_extensions>=4.10",
     "ml-dtypes",
 )
 ONNX = "onnx==1.17"
