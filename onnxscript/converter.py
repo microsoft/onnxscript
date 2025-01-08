@@ -800,6 +800,9 @@ class Converter:
         non_scalar_indices.extend(scalar_indices)
         if non_scalar_indices:
             last_axis, _ = non_scalar_indices[-1]
+        else:
+            # TODO(justinchuby): Clarify what last_axis should be when non_scalar_indices is False
+            last_axis = None
         for axis, index_expr in non_scalar_indices:
             index_value = self._translate_expr(index_expr)
             axis_attr = self._make_onnx_attr("axis", axis)
