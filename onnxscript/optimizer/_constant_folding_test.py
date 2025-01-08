@@ -500,5 +500,32 @@ class FoldConstantsIrTest(unittest.TestCase):
         optimized = self._fold(model)
         self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
 
+    def test_reshape_identity(self):
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[128, 256] x) => (float[128, 256] z)
+            {
+                shape = Constant <value_ints=[128, 256]> ()
+                z = Reshape (x, shape)
+            }
+        """
+        optimized = self._fold(model)
+        self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
+
+    def test_reshape_identity_symdim(self):
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[B, 256] x, float[B, 128] y) => (float[B, 256] z)
+            {
+                b = Shape <start=0, end=1> (y)
+                const_256 = Constant <value_ints=[256]> ()
+                shape = Concat <axis=0> (b, const_256)
+                z = Reshape (x, shape)
+            }
+        """
+        optimized = self._fold(model)
+        self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
+
+
 if __name__ == "__main__":
     unittest.main()
