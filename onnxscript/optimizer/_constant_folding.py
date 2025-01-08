@@ -382,7 +382,7 @@ def gather(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     gathered = [input_sym_value[i] for i in indices_numpy_value]
     output = _get_output(node, 0)
     if output is not None:
-        state.set_sym_value(output, gathered)
+        state.set_sym_value(output, ir.Shape(gathered))
     if all(isinstance(d, int) for d in gathered):
         return op.Constant(value_ints=gathered)
     return None
@@ -398,15 +398,16 @@ def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input_shape = input.shape
     if input_shape is None:
         return None
-    input_shape_dims = list(input_shape.dims)
-    if any(isinstance(dim, ir.SymbolicDim) and dim.value is None for dim in input_shape_dims):
-        return None
+    # input_shape_dims = list(input_shape.dims)
+    # if any(isinstance(dim, ir.SymbolicDim) and dim.value is None for dim in input_shape_dims):
+    #     return None
     shape_value = state.get_shape_value(shape)
     if shape_value is None:
         return None
-    target_shape_dims = list(shape_value.dims)
-    if input_shape_dims == target_shape_dims:
-        # No need to check for special values like -1, 0, etc. here
+    # target_shape_dims = list(shape_value.dims)
+    # if input_shape_dims == target_shape_dims:
+    # No need to check for special values like -1, 0, etc. here
+    if _same_shape(input_shape, shape_value):
         return op.Identity(input)
     return None
 

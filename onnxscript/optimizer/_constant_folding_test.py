@@ -500,6 +500,21 @@ class FoldConstantsIrTest(unittest.TestCase):
         optimized = self._fold(model)
         self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
 
+    def test_abs_symdim(self):
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[B, 256] x) => (float[B, 256] z)
+            {
+                b = Shape <start=0, end=1> (x)
+                const_256 = Constant <value_ints=[256]> ()
+                b_256 = Concat <axis=0> (b, const_256)
+                shape = Abs (b_256)
+                z = Expand (x, shape)
+            }
+        """
+        optimized = self._fold(model)
+        self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
+
     def test_reshape_identity(self):
         model = """
             <ir_version: 7, opset_import: [ "" : 17]>
@@ -518,6 +533,22 @@ class FoldConstantsIrTest(unittest.TestCase):
             agraph (float[B, 256] x, float[B, 128] y) => (float[B, 256] z)
             {
                 b = Shape <start=0, end=1> (y)
+                const_256 = Constant <value_ints=[256]> ()
+                shape = Concat <axis=0> (b, const_256)
+                z = Reshape (x, shape)
+            }
+        """
+        optimized = self._fold(model)
+        self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
+
+    def test_gather_symdim(self):
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[B, 256] x, float[B, 128] y) => (float[B, 256] z)
+            {
+                b_128 = Shape (y)
+                index_0 = Constant <value_ints=[0]> ()
+                b = Gather <axis=0> (b_128, index_0)
                 const_256 = Constant <value_ints=[256]> ()
                 shape = Concat <axis=0> (b, const_256)
                 z = Reshape (x, shape)
