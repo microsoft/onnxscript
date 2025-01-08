@@ -476,6 +476,72 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(model.graph.node(0).op_type, "ReplacedNone")
         self.assertEqual(model.graph.node(1).op_type, "ReplacedNotNone")
 
+    def test_graph_visitor(self):
+        class ReplaceFoo(pattern.RewriteRuleClassBase):
+            def __init__(self):
+                super().__init__()
+                self.replacement = None
+
+            def pattern(self, op):
+                return op.Foo()
+            
+            def rewrite(self, op):
+                if self.replacement is None:
+                    self.replacement = op.Bar()
+                return self.replacement
+        
+        rule = ReplaceFoo.rule()
+
+        @script()
+        def test_model(x: FLOAT[1024]) -> FLOAT[1024]:
+            # Pattern should match following call
+            t1 = op.Foo()
+            # as well as this one
+            t2 = op.Foo()
+            z = op.Add(t1, t2)
+            return z
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+
+        count = rule.apply_to_model(model)
+        self.assertEqual(count, 2)
+        self.assertEqual(len(model.graph), 2)
+        self.assertEqual(model.graph.node(0).op_type, "Bar")
+        self.assertEqual(model.graph.node(1).op_type, "Add")           
+
+    def test_debug_mode(self):
+        def source_pattern(op, x):
+            t1 = op.Abs(x)
+            t2 = op.Neg(t1)
+            t3 = op.Exp(t2)
+            return t3
+        
+        def replacement(op, x):
+            return op.Something(x)
+        
+        rule = pattern.RewriteRule(source_pattern, replacement)
+
+        @script()
+        def test_model(x: FLOAT[1024]) -> FLOAT[1024]:
+            a2 = op.Abs(x)  # match-1 fails here
+            a3 = op.Exp(a2) # match-1 starts here
+            b1 = op.Neg(x)  # match-2 fails here
+            b2 = op.Neg(b1) # match-2 (partially) succeeds here
+            b3 = op.Exp(b2) # match-2 starts here
+            return b3
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+
+        output_buffer = io.StringIO()
+        with contextlib.redirect_stdout(output_buffer):
+            count = rule.apply_to_model(model, debug=True)
+        captured_output = output_buffer.getvalue()
+
+        self.assertEqual(count, 0)
+        # Not a robust test. But test serves to ensure that debug mode is producing something.
+        self.assertIn("OpType mismatch: expected Abs, got Neg", captured_output)
 
 class PatternBuilderTest(unittest.TestCase):
     def test_pattern_builder_context(self):
