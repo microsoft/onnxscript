@@ -551,7 +551,12 @@ class GenericPatternMatcher(orp.PatternMatcher):
         graph_or_function: ir.Graph | ir.Function,
         node: ir.Node,
         verbose: int = 0,
+        remove_nodes: bool = True,
     ) -> orp.MatchResult | None:
+        if not remove_nodes:
+            raise NotImplementedError(
+                "remove_nodes=False is not implemented in GenericPatternMatcher"
+            )
         del model
         del graph_or_function
         self.verbose = verbose

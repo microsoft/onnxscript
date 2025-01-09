@@ -300,6 +300,29 @@ def _get_int_attribute(node: ir.Node, name: str, default: int | None = None) -> 
     return default
 
 
+@register("Reshape")
+def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
+    """Replace a Reshape node by Identity when applicable."""
+    input = _get_input(node, 0)
+    shape = _get_input(node, 1)
+    if input is None or shape is None:
+        return None
+    input_shape = input.shape
+    if input_shape is None:
+        return None
+    input_shape_dims = list(input_shape.dims)
+    if any(not isinstance(dim, int) for dim in input_shape_dims):
+        return None
+    shape_value = _get_numpy_value(shape)
+    if shape_value is None:
+        return None
+    target_shape_dims = shape_value.tolist()
+    if input_shape_dims == target_shape_dims:
+        # No need to check for special values like -1, 0, etc. here
+        return op.Identity(input)
+    return None
+
+
 @register("Cast")
 def cast(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input = _get_input(node, 0)

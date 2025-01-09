@@ -1495,10 +1495,19 @@ def aten_bitwise_xor(self: TInt, other: TInt) -> TInt:
     return op.BitwiseXor(self, other)
 
 
-def aten_blackman_window(window_length: int) -> TensorType:
+@torch_op("aten::blackman_window", trace_only=True)
+def aten_blackman_window(
+    window_length: int,
+    dtype: int = 1,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+) -> TensorType:
     """blackman_window(int window_length, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    if dtype is None or dtype == -1:
+        dtype = 1
+    return op.BlackmanWindow(window_length, output_datatype=dtype)
 
 
 def aten_block_diag(tensors: Sequence[TensorType]) -> TensorType:
@@ -3921,16 +3930,38 @@ def aten_gt_bool(self: BOOL, other: BOOL) -> BOOL:
     return op.And(self, op.Not(other))
 
 
-def aten_hamming_window(window_length: int) -> TensorType:
+@torch_op("aten::hamming_window", trace_only=True)
+def aten_hamming_window(
+    window_length: int,
+    dtype: int = 1,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+) -> TensorType:
     """hamming_window(int window_length, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    if dtype is None or dtype == -1:
+        dtype = 1
+    # ONNX uses different alpha/beta values for the Hamming window
+    # Whereas PyTorch uses alpha=0.54, beta=0.46, ONNX uses
+    # alpha=0.543478, beta=0.456522. This causes a slight difference
+    # in the output values, but we still uses the HammingWindow op for performance.
+    return op.HammingWindow(window_length, output_datatype=dtype)
 
 
-def aten_hann_window(window_length: int) -> TensorType:
+@torch_op("aten::hann_window", trace_only=True)
+def aten_hann_window(
+    window_length: int,
+    dtype: int = 1,
+    layout: str = "",
+    device: str = "",
+    pin_memory: bool = False,
+) -> TensorType:
     """hann_window(int window_length, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    if dtype is None or dtype == -1:
+        dtype = 1
+    return op.HannWindow(window_length, output_datatype=dtype)
 
 
 def aten_hardshrink(self: TensorType, lambd: float = 0.5) -> TensorType:
