@@ -766,7 +766,7 @@ def sequence_at(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     return None
 
 
-def _merge_shapes(shape1: ir.Shape, shape2: ir.Shape) -> ir.Shape:
+def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape | None:
     def merge_dims(dim1, dim2):
         if dim1 == dim2:
             return dim1
