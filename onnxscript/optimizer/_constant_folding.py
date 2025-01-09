@@ -568,7 +568,7 @@ def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     shapes = [state.get_shape_value(input) for input in inputs]
     if any(shape is None for shape in shapes):
         return None
-    concatenated = ir.Shape(dim for shape in shapes for dim in shape.dims)
+    concatenated = ir.Shape(dim for shape in shapes for dim in shape.dims)  # type: ignore[union-attr]
     state.set_sym_value(output, concatenated)
     return None
 
