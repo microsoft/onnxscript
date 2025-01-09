@@ -5,11 +5,11 @@ from __future__ import annotations
 import abc
 import contextlib
 import dataclasses
+import enum
 import inspect
 import itertools
 import math
 from collections import defaultdict
-from enum import IntEnum
 from typing import (
     Any,
     Callable,
@@ -330,6 +330,8 @@ class MatchResult:
         self.outputs: list[ir.Value] = []
         # For a failed match, _reason is a string that describes the reason for the failure.
         self._reason: str = ""
+        # Track the node that caused the failure.
+        # TODO: May be useful to extend this to be a collection of Nodes and Values.
         self._failure_node: ir.Node | None = None
 
     def __bool__(self):
@@ -1610,7 +1612,7 @@ class RewriteRuleSet:
         yield from self.rules
 
 
-class MatchStatus(IntEnum):
+class MatchStatus(enum.IntEnum):
     """The status of a pattern-matching operation."""
 
     NO_MATCH = 0  # No successful match found for entire pattern graph
