@@ -526,7 +526,7 @@ class RewriteRuleTest(unittest.TestCase):
         def test_model(x: FLOAT[1024]) -> FLOAT[1024]:
             a2 = op.Abs(x)  # match-1 fails here
             a3 = op.Exp(a2)  # match-1 starts here
-            b1 = op.Neg(x)  # match-2 fails here
+            b1 = op.Neg(a3)  # match-2 fails here
             b2 = op.Neg(b1)  # match-2 (partially) succeeds here
             b3 = op.Exp(b2)  # match-2 starts here
             return b3
