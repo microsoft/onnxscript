@@ -1935,6 +1935,16 @@ def sample_inputs_upsample_trilinear3d_vec(op_info, device, dtype, requires_grad
         )
 
 
+def sample_inputs_window_functions(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+    del device
+    del requires_grad
+
+    for window_length in [2, 3, 7, 10, 32]:
+        yield opinfo_core.SampleInput(window_length, kwargs=dict(dtype=dtype))
+
+
 class _TestParamsMaxPoolEmptyStrideBase:
     # Adapted from https://github.com/pytorch/pytorch/blob/d6d55f8590eab05d2536756fb4efcfb2d07eb81a/torch/testing/_internal/common_methods_invocations.py#L3203
     def __init__(self):
@@ -2038,6 +2048,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "ops.aten.blackman_window",
+        aten_name="blackman_window",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_window_functions,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "ops.aten.col2im",
         aten_name="col2im",
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
@@ -2114,6 +2131,20 @@ OP_DB: List[opinfo_core.OpInfo] = [
         # Create only positive inputs
         lhs_make_tensor_kwargs=dict(low=0),
         rhs_make_tensor_kwargs=dict(exclude_zero=True, low=0),
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.hamming_window",
+        aten_name="hamming_window",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_window_functions,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.hann_window",
+        aten_name="hann_window",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_window_functions,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.index.Tensor",

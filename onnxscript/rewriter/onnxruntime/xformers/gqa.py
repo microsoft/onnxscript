@@ -27,7 +27,6 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         super().__init__(name, remove_nodes=False)
         self._use_2d_matmul = use_2d_matmul
 
-
     def _compute_packed_QKV(self, op, input, weight):
         if self._use_2d_matmul:
             # Convert batched input of shape (B, S, D) to 2D input (B*S, D)
@@ -55,14 +54,14 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
             _allow_other_attributes=True,
             _outputs=["key_mm_reshaped"],
         )
-        key = op.Transpose(key_4d, perm=[0, 2, 1, 3])              
+        key = op.Transpose(key_4d, perm=[0, 2, 1, 3])
         value_4d = op.Reshape(
             value_3d,
             _allow_other_inputs=True,
             _allow_other_attributes=True,
             _outputs=["value_mm_reshaped"],
-        )   
-        value = op.Transpose(value_4d, perm=[0, 2, 1, 3])         
+        )
+        value = op.Transpose(value_4d, perm=[0, 2, 1, 3])
 
         return query, key, value
 
@@ -146,8 +145,8 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         qkv = op.MatMul(input, qkv_weight)
         return op.GroupQueryAttention(
             qkv,
-            None, # key
-            None, # value
+            None,  # key
+            None,  # value
             past_key,
             past_value,
             # seqlens_k,

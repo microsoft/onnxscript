@@ -16,7 +16,6 @@ import onnx
 import onnx.reference.ops
 
 import onnxscript.ir as ir
-import onnxscript.ir._convenience as _convenience
 import onnxscript.rewriter.pattern as orp
 import onnxscript.utils.utils as utils
 
@@ -142,7 +141,7 @@ class Replacement:
 # A Shape object as a symbolic value indicates that the corresponding value is
 # 1-D (or 0-D) tensor of INT64 values. The values in this object may be constants
 # or symbolic dimension values (like "batch_size", "sequence_length", etc.).
-# Currently, we assume that symbolic dimensions are also guranteed to be non-negative.
+# Currently, we assume that symbolic dimensions are also guaranteed to be non-negative.
 # TODO: Add support for negative symbolic dimensions.
 
 
@@ -273,6 +272,12 @@ def _same_shape(shape1: ir.Shape, shape2: ir.Shape) -> bool:
 def _get_numpy_value(
     val: ir.Value | None, dtype: ir.DataType | None = None, size_limit: int | None = None
 ) -> np.ndarray | None:
+    """Returns the numpy value of a constant value, if available.
+
+    It returns None if the value is not a constant value, or if the value is not of
+    the specified element dtype, or if the size of the value exceeds the specified
+    size_limit.
+    """
     if val is None:
         return None
     const_value = val.const_value
@@ -282,10 +287,12 @@ def _get_numpy_value(
         if size_limit is not None and const_value.size > size_limit:
             return None
         try:
-            return const_value.numpy()
+            array = const_value.numpy()
         except FileNotFoundError:
             # External data is not available.
             return None
+        assert isinstance(array, np.ndarray)
+        return array
     return None
 
 
@@ -295,14 +302,7 @@ def _get_bool_value(val: ir.Value | None) -> bool | None:
     value = _get_numpy_value(val)
     if value is None:
         return None
-    # TODO: cleanup following checks, which seem redundant. But need to also ensure
-    # the invariant when setting the value (and also use clearly defined representation
-    # types in evaluators, such a reference-evaluator).
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, np.bool_):
-        return bool(value)
-    if isinstance(value, np.ndarray) and value.size == 1 and value.dtype == bool:
+    if value.size == 1 and value.dtype == bool:
         return value.item(0)
     return None
 
@@ -388,7 +388,7 @@ def gather(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     gathered = [input_sym_value[i] for i in indices_numpy_value]
     output = _get_output(node, 0)
     if output is not None:
-        state.set_sym_value(output, gathered)
+        state.set_sym_value(output, ir.Shape(gathered))
     if all(isinstance(d, int) for d in gathered):
         return op.Constant(value_ints=gathered)
     return None
@@ -404,15 +404,16 @@ def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     input_shape = input.shape
     if input_shape is None:
         return None
-    input_shape_dims = list(input_shape.dims)
-    if any(isinstance(dim, ir.SymbolicDim) and dim.value is None for dim in input_shape_dims):
-        return None
+    # input_shape_dims = list(input_shape.dims)
+    # if any(isinstance(dim, ir.SymbolicDim) and dim.value is None for dim in input_shape_dims):
+    #     return None
     shape_value = state.get_shape_value(shape)
     if shape_value is None:
         return None
-    target_shape_dims = list(shape_value.dims)
-    if input_shape_dims == target_shape_dims:
-        # No need to check for special values like -1, 0, etc. here
+    # target_shape_dims = list(shape_value.dims)
+    # if input_shape_dims == target_shape_dims:
+    # No need to check for special values like -1, 0, etc. here
+    if _same_shape(input_shape, shape_value):
         return op.Identity(input)
     return None
 
@@ -567,7 +568,7 @@ def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     shapes = [state.get_shape_value(input) for input in inputs]
     if any(shape is None for shape in shapes):
         return None
-    concatenated = ir.Shape(dim for shape in shapes for dim in shape.dims)
+    concatenated = ir.Shape(dim for shape in shapes for dim in shape.dims)  # type: ignore[union-attr]
     state.set_sym_value(output, concatenated)
     return None
 
@@ -771,7 +772,7 @@ def sequence_at(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     return None
 
 
-def _merge_shapes(shape1: ir.Shape, shape2: ir.Shape) -> ir.Shape:
+def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape | None:
     def merge_dims(dim1, dim2):
         if dim1 == dim2:
             return dim1
@@ -783,6 +784,10 @@ def _merge_shapes(shape1: ir.Shape, shape2: ir.Shape) -> ir.Shape:
             return dim2
         return dim1
 
+    if shape1 is None:
+        return shape2
+    if shape2 is None:
+        return shape1
     if len(shape1) != len(shape2):
         raise ValueError("Shapes must have the same rank.")
     return ir.Shape([merge_dims(dim1, dim2) for dim1, dim2 in zip(shape1, shape2)])
@@ -866,10 +871,6 @@ class ConstantFolder:
                 )
 
     def new_constant(self, irvalue: ir.Value, value):
-        # TODO(rama): Why do we need the conversion below?
-        if isinstance(value, (int, float, np.ScalarType)):
-            value = np.array(value)
-
         if not isinstance(value, np.ndarray):
             # ONNX does not have a way to represent non-tensor constants, eg. a sequence.
             # So, a constant-value of type sequence is not folded, but it can be used
@@ -881,7 +882,9 @@ class ConstantFolder:
             )
             return None
 
-        irvalue.const_value = _convenience.tensor(value)
+        tensor = ir.tensor(value)
+        tensor.name = irvalue.name
+        irvalue.const_value = tensor
 
         if value.nbytes > self._output_size_limit:
             logger.info(
@@ -891,8 +894,6 @@ class ConstantFolder:
             )
             return None
 
-        tensor = onnx.numpy_helper.from_array(value, irvalue.name)
-
         logger.debug(
             "New constant for value %s dtype: %s shape: %s",
             irvalue.name,
@@ -900,7 +901,7 @@ class ConstantFolder:
             value.shape,
         )
 
-        attributes = _convenience.convert_attributes({"value": tensor})
+        attributes = ir.convenience.convert_attributes({"value": tensor})
         node = ir.Node("", "Constant", inputs=[], attributes=attributes, num_outputs=1)
         return node
 
@@ -987,7 +988,7 @@ class ConstantFolder:
     def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function):
         logger.debug("Replacing node: %s::%s %s", node.domain, node.op_type, node.name)
 
-        _convenience.replace_nodes_and_values(
+        ir.convenience.replace_nodes_and_values(
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
 

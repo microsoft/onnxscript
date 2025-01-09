@@ -258,7 +258,7 @@ def _get_func_schema_in_namespace(namespaces: List[_OpNamespace]) -> Dict[str, F
             # to "resize(Tensor a, SymInt[] shape) -> Tensor"
             if "!" in op_overload_packet.schema:
                 op_overload_packet.schema = re.sub(  # type: ignore[attr-defined]
-                    "[(][A-Za-z]![)]", "", op_overload_packet.schema
+                    r"[(][A-Za-z]![)]", "", op_overload_packet.schema
                 )
 
             # FIXME: remove below code if the issue below is fixed.
@@ -283,7 +283,7 @@ def main(args: argparse.Namespace) -> None:
         if module_name not in functions:
             functions[module_name] = {}
         if op_name in functions[module_name]:
-            logging.warning(
+            logging.warning(  # noqa: LOG015
                 "Duplicated function: %s, overload: %s",
                 op_name,
                 func_schema.name.overload_name,

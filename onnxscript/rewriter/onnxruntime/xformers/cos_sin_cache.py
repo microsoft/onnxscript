@@ -35,7 +35,15 @@ from onnxscript.rewriter import _ir_utils, pattern
 
 
 class CosSinCacheFusion(pattern.RewriteRuleClassBase):
-    def __init__(self, name: str, max_pos_id: int, *, cast: False, reshape: bool = False, const_freqs: bool = False):
+    def __init__(
+        self,
+        name: str,
+        max_pos_id: int,
+        *,
+        cast: False,
+        reshape: bool = False,
+        const_freqs: bool = False,
+    ):
         # This pattern makes use of shared Cos/Sin values. So, we can't remove the
         # matched nodes as part of the rewrite-step. We apply a separate final
         # pass to remove unused nodes.
@@ -87,7 +95,7 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
     def check(self, context, inv_freq, position_ids, freqs, **_):
         # TODO(rama): handle redundant reshape/expand
         if self._const_freqs:
-            return (freqs.const_value is not None) and _ir_utils.has_rank(freqs, 3)           
+            return (freqs.const_value is not None) and _ir_utils.has_rank(freqs, 3)
         if not _ir_utils.has_rank(position_ids, 2):
             return False
         if not _ir_utils.has_rank(inv_freq, 3):
@@ -97,7 +105,9 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
             return False
         return inv_freq_shape[0] == 1 and inv_freq_shape[2] == 1
 
-    def rewrite(self, op, x, inv_freq, position_ids, interleaved, num_heads, freqs, dtype, **_):
+    def rewrite(
+        self, op, x, inv_freq, position_ids, interleaved, num_heads, freqs, dtype, **_
+    ):
         if inv_freq in self._inv_freq_cos_sin_cache:
             cos_2d, sin_2d = self._inv_freq_cos_sin_cache[inv_freq]
         else:
@@ -132,6 +142,7 @@ _no_cast = CosSinCacheFusion.rule("CosSinCache", 2048, cast=False)
 cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _no_cast])
 
 debug: bool = True
+
 
 def fuse_cos_sin_cache(model: ir.Model) -> int:
     count = cos_sin_cache_rules.apply_to_model(model)

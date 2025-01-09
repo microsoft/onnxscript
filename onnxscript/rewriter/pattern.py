@@ -5,11 +5,11 @@ from __future__ import annotations
 import abc
 import contextlib
 import dataclasses
+import enum
 import inspect
 import itertools
 import math
 from collections import defaultdict
-from enum import Enum
 from typing import (
     Any,
     Callable,
@@ -330,6 +330,8 @@ class MatchResult:
         self.outputs: list[ir.Value] = []
         # For a failed match, _reason is a string that describes the reason for the failure.
         self._reason: str = ""
+        # Track the node that caused the failure.
+        # TODO: May be useful to extend this to be a collection of Nodes and Values.
         self._failure_node: ir.Node | None = None
 
     def __bool__(self):
@@ -415,7 +417,7 @@ class ValuePattern:
     def name(self) -> str | None:
         return self._name
 
-    def producer(self) -> None | NodePattern:
+    def producer(self) -> NodePattern | None:
         return None
 
     def uses(self) -> Sequence[tuple[NodePattern, int]]:
@@ -968,6 +970,7 @@ class PatternMatcher(abc.ABC):
 class SimplePatternMatcher(PatternMatcher):
     def __init__(self, pattern: GraphPattern) -> None:
         super().__init__(pattern)
+        self._current_node: ir.Node | None = None
 
     def fail(self, reason: str, node: ir.Node | None = None) -> bool:
         if self._verbose:
@@ -1126,7 +1129,7 @@ class SimplePatternMatcher(PatternMatcher):
         self._verbose = verbose
         self._matched: dict[NodePattern, ir.Node] = {}
         self._match: MatchResult = MatchResult()
-        self._current_node: ir.Node | None = None
+        self._current_node = None
 
     def _get_output_values(self) -> list[ir.Value] | None:
         """Get values bound to the output variables of the pattern."""
@@ -1302,6 +1305,10 @@ class RewriteRule:
             verbose: The verbosity level of the rule.
             name: An optional name for the pattern that will show up in verbose logging.
             remove_nodes: If True, the matched nodes will be removed from the graph.
+            graph_pre_visitor: A function that will be called before applying the
+                rewriting to the top-level graph or a function.
+            graph_post_visitor: A function that will be called after the rewriting
+                is complete for a graph or function.
         """
 
         if not isinstance(target_pattern, GraphPattern):
@@ -1383,11 +1390,18 @@ class RewriteRule:
         return None
 
     def apply_to_model(
-        self, model: ir.Model, *, commute: bool = False, verbose: int | None = None
+        self,
+        model: ir.Model,
+        *,
+        commute: bool = False,
+        verbose: int | None = None,
+        debug: bool = False,
     ):
         # A convenience method to apply the rule to a model. We use a RewriteRuleSet to
         # handle commutative rules.
-        return RewriteRuleSet([self], commute=commute).apply_to_model(model, verbose=verbose)
+        return RewriteRuleSet([self], commute=commute).apply_to_model(
+            model, verbose=verbose, debug=debug
+        )
 
     def commute(self) -> Sequence[RewriteRule]:
         def replace_pattern(new_pattern):
@@ -1526,6 +1540,18 @@ class RewriteRuleSet:
         verbose: int | None,
         tracer: MatchingTracer | None = None,
     ) -> int:
+        """
+        Apply the rewrite rules to the given graph or function.
+
+        Args:
+            model: The model to which the rewrite rules are applied.
+            graph_or_function: The graph or function to which the rewrite rules are applied.
+            verbose: The verbosity level. Defaults to None.
+            tracer: The tracer for debugging. Defaults to None.
+
+        Returns:
+            The number of rewrite rules applied.
+        """
         count = 0
 
         # NOTE: Rules should be prioritized in the order they are added to the RewriteRuleSet.
@@ -1560,10 +1586,22 @@ class RewriteRuleSet:
         return count
 
     def apply_to_model(
-        self, model: ir.Model, *, verbose: int | None = None, traceonly: bool = False
+        self, model: ir.Model, *, verbose: int | None = None, debug: bool = False
     ) -> int:
+        """Apply the rewrite rules in the set to the model.
+
+        Args:
+            model: The model to which the rewrite rules are applied.
+            verbose: The verbosity level of messages. Defaults to None.
+            debug: Whether to enable debugging. Defaults to False. In the
+                debug mode, no changes are made to the model, only a report is produced at
+                the end about the best matches found.
+
+        Returns:
+            The number of applications of rewrite rules.
+        """
         assert isinstance(model, ir.Model)
-        tracer = MatchingTracer() if traceonly else None
+        tracer = MatchingTracer() if debug else None
         onnxscript.optimizer.basic_constant_propagation(model.graph)
         count = self._apply_to_graph_or_function(
             model, model.graph, verbose=verbose, tracer=tracer
@@ -1581,7 +1619,7 @@ class RewriteRuleSet:
         yield from self.rules
 
 
-class MatchStatus(Enum):
+class MatchStatus(enum.IntEnum):
     """The status of a pattern-matching operation."""
 
     NO_MATCH = 0  # No successful match found for entire pattern graph
@@ -1595,7 +1633,7 @@ class MatchInfo:
     """The status of a pattern-matching operation. An extension of MatchResult."""
 
     match_result: MatchResult
-    node: ir.Node
+    root_node: ir.Node
     container: ir.Graph | ir.Function
     status: MatchStatus
 
@@ -1605,7 +1643,11 @@ class MatchInfo:
 
 
 class MatchingTracer:
-    """A debugging helper class to trace the matching of a pattern against a graph."""
+    """A debugging helper class to trace the matching of a pattern against a graph.
+
+    This is used to track the best matches found for each rule, and to report the
+    results at the end of the matching.
+    """
 
     def __init__(self) -> None:
         self._log: dict[RewriteRule, list[MatchInfo]] = defaultdict(list)
