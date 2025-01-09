@@ -141,7 +141,7 @@ class Replacement:
 # A Shape object as a symbolic value indicates that the corresponding value is
 # 1-D (or 0-D) tensor of INT64 values. The values in this object may be constants
 # or symbolic dimension values (like "batch_size", "sequence_length", etc.).
-# Currently, we assume that symbolic dimensions are also guranteed to be non-negative.
+# Currently, we assume that symbolic dimensions are also guaranteed to be non-negative.
 # TODO: Add support for negative symbolic dimensions.
 
 
