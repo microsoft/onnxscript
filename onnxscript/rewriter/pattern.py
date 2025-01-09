@@ -1389,11 +1389,18 @@ class RewriteRule:
         return None
 
     def apply_to_model(
-        self, model: ir.Model, *, commute: bool = False, verbose: int | None = None, debug: bool = False
+        self,
+        model: ir.Model,
+        *,
+        commute: bool = False,
+        verbose: int | None = None,
+        debug: bool = False,
     ):
         # A convenience method to apply the rule to a model. We use a RewriteRuleSet to
         # handle commutative rules.
-        return RewriteRuleSet([self], commute=commute).apply_to_model(model, verbose=verbose, debug=debug)
+        return RewriteRuleSet([self], commute=commute).apply_to_model(
+            model, verbose=verbose, debug=debug
+        )
 
     def commute(self) -> Sequence[RewriteRule]:
         def replace_pattern(new_pattern):
@@ -1583,14 +1590,14 @@ class RewriteRuleSet:
         """Apply the rewrite rules in the set to the model.
 
         Args:
-            model (ir.Model): The model to which the rewrite rules are applied.
-            verbose (int | None, optional): The verbosity level of messages. Defaults to None.
-            debug (bool, optional): Whether to enable debugging. Defaults to False. In the
+            model: The model to which the rewrite rules are applied.
+            verbose: The verbosity level of messages. Defaults to None.
+            debug: Whether to enable debugging. Defaults to False. In the
                 debug mode, no changes are made to the model, only a report is produced at
                 the end about the best matches found.
 
         Returns:
-            int: The number of rewrite rules applied.        
+            The number of applications of rewrite rules.
         """
         assert isinstance(model, ir.Model)
         tracer = MatchingTracer() if debug else None
@@ -1636,7 +1643,7 @@ class MatchInfo:
 
 class MatchingTracer:
     """A debugging helper class to trace the matching of a pattern against a graph.
-    
+
     This is used to track the best matches found for each rule, and to report the
     results at the end of the matching.
     """
