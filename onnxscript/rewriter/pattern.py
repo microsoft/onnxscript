@@ -1578,8 +1578,7 @@ class RewriteRuleSet:
     def apply_to_model(
         self, model: ir.Model, *, verbose: int | None = None, debug: bool = False
     ) -> int:
-        """
-        Apply the rewrite rules in the set to the model.
+        """Apply the rewrite rules in the set to the model.
 
         Args:
             model (ir.Model): The model to which the rewrite rules are applied.
