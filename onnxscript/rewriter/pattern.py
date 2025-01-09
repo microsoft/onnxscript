@@ -1536,13 +1536,13 @@ class RewriteRuleSet:
         Apply the rewrite rules to the given graph or function.
 
         Args:
-            model (ir.Model): The model to which the rewrite rules are applied.
-            graph_or_function (ir.Graph | ir.Function): The graph or function to which the rewrite rules are applied.
-            verbose (int | None, optional): The verbosity level. Defaults to None.
-            tracer (MatchingTracer | None, optional): The tracer for debugging. Defaults to None.
+            model: The model to which the rewrite rules are applied.
+            graph_or_function: The graph or function to which the rewrite rules are applied.
+            verbose: The verbosity level. Defaults to None.
+            tracer: The tracer for debugging. Defaults to None.
 
         Returns:
-            int: The number of rewrite rules applied.
+            The number of rewrite rules applied.
         """
         count = 0
 
@@ -1580,8 +1580,7 @@ class RewriteRuleSet:
     def apply_to_model(
         self, model: ir.Model, *, verbose: int | None = None, debug: bool = False
     ) -> int:
-        """
-        Apply the rewrite rules in the set to the model.
+        """Apply the rewrite rules in the set to the model.
 
         Args:
             model (ir.Model): The model to which the rewrite rules are applied.
