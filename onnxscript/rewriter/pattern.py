@@ -417,7 +417,7 @@ class ValuePattern:
     def name(self) -> str | None:
         return self._name
 
-    def producer(self) -> None | NodePattern:
+    def producer(self) -> NodePattern | None:
         return None
 
     def uses(self) -> Sequence[tuple[NodePattern, int]]:
@@ -970,6 +970,7 @@ class PatternMatcher(abc.ABC):
 class SimplePatternMatcher(PatternMatcher):
     def __init__(self, pattern: GraphPattern) -> None:
         super().__init__(pattern)
+        self._current_node: ir.Node | None = None
 
     def fail(self, reason: str, node: ir.Node | None = None) -> bool:
         if self._verbose:
@@ -1128,7 +1129,7 @@ class SimplePatternMatcher(PatternMatcher):
         self._verbose = verbose
         self._matched: dict[NodePattern, ir.Node] = {}
         self._match: MatchResult = MatchResult()
-        self._current_node: ir.Node | None = None
+        self._current_node = None
 
     def _get_output_values(self) -> list[ir.Value] | None:
         """Get values bound to the output variables of the pattern."""
