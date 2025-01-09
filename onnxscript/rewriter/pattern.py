@@ -1540,7 +1540,7 @@ class RewriteRuleSet:
             tracer: The tracer for debugging. Defaults to None.
 
         Returns:
-            int: The number of rewrite rules applied.
+            The number of rewrite rules applied.
         """
         count = 0
 
