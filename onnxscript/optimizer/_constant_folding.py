@@ -272,6 +272,12 @@ def _same_shape(shape1: ir.Shape, shape2: ir.Shape) -> bool:
 def _get_numpy_value(
     val: ir.Value | None, dtype: ir.DataType | None = None, size_limit: int | None = None
 ) -> np.ndarray | None:
+    """Returns the numpy value of a constant value, if available.
+
+    It returns None if the value is not a constant value, or if the value is not of
+    the specified element dtype, or if the size of the value exceeds the specified
+    size_limit.
+    """
     if val is None:
         return None
     const_value = val.const_value
