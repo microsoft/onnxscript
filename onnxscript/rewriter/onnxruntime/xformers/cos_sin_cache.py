@@ -147,7 +147,7 @@ debug: bool = True
 def fuse_cos_sin_cache(model: ir.Model) -> int:
     count = cos_sin_cache_rules.apply_to_model(model)
     if count == 0 and debug:
-        cos_sin_cache_rules.apply_to_model(model, traceonly=True)
+        cos_sin_cache_rules.apply_to_model(model, debug=True)
     else:
         print(f"CosSinCache count: {count}")
         remove_unused_nodes(model)
