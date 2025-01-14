@@ -41,6 +41,11 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         # pass to remove unused nodes.
         super().__init__(name, remove_nodes=False)
         self._max_pos_id = max_pos_id
+        # map from inv_freq to (cos, sin) values for transformed graph
+        self._inv_freq_cos_sin_cache: dict[ir.Value, tuple[ir.Value, ir.Value]] = {}
+
+    def cleanup(self):
+        self._inv_freq_cos_sin_cache.clear()
 
     def pattern(self, op, x, inv_freq, position_ids, interleaved, num_heads):
         position_ids_expanded = op.Unsqueeze(position_ids, 1)
@@ -72,13 +77,17 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         return inv_freq_shape[0] == 1 and inv_freq_shape[2] == 1
 
     def rewrite(self, op, x, inv_freq, position_ids, interleaved, num_heads, **_):
-        inv_freq_values = inv_freq.const_value.numpy().reshape(1, -1)
-        pos_id_range = np.arange(self._max_pos_id, dtype=np.float32).reshape(-1, 1)
-        angles = np.matmul(pos_id_range, inv_freq_values)
-        cos_value = np.cos(angles)
-        sin_value = np.sin(angles)
-        cos_2d = op.Constant(value=ir.tensor(cos_value))
-        sin_2d = op.Constant(value=ir.tensor(sin_value))
+        if inv_freq in self._inv_freq_cos_sin_cache:
+            cos_2d, sin_2d = self._inv_freq_cos_sin_cache[inv_freq]
+        else:
+            inv_freq_values = inv_freq.const_value.numpy().reshape(1, -1)
+            pos_id_range = np.arange(self._max_pos_id, dtype=np.float32).reshape(-1, 1)
+            angles = np.matmul(pos_id_range, inv_freq_values)
+            cos_value = np.cos(angles)
+            sin_value = np.sin(angles)
+            cos_2d = op.Constant(value=ir.tensor(cos_value))
+            sin_2d = op.Constant(value=ir.tensor(sin_value))
+            self._inv_freq_cos_sin_cache[inv_freq] = (cos_2d, sin_2d)
         return op.RotaryEmbedding(
             x,
             position_ids,
