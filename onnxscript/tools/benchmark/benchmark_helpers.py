@@ -224,16 +224,16 @@ def measure_discrepancies(
     rel_errs = []
     for torch_outputs_mixed_types, onnx_outputs in zip(expected, outputs):
         torch_outputs = _flatten(torch_outputs_mixed_types)
-        assert len(torch_outputs) == len(
-            onnx_outputs
-        ), f"Length mismatch {len(torch_outputs)} != {len(onnx_outputs)}"
+        assert len(torch_outputs) == len(onnx_outputs), (
+            f"Length mismatch {len(torch_outputs)} != {len(onnx_outputs)}"
+        )
         for torch_tensor, onnx_tensor in zip(torch_outputs, onnx_outputs):
-            assert (
-                torch_tensor.dtype == onnx_tensor.dtype
-            ), f"Type mismatch {torch_tensor.dtype} != {onnx_tensor.dtype}"
-            assert (
-                torch_tensor.shape == onnx_tensor.shape
-            ), f"Type mismatch {torch_tensor.shape} != {onnx_tensor.shape}"
+            assert torch_tensor.dtype == onnx_tensor.dtype, (
+                f"Type mismatch {torch_tensor.dtype} != {onnx_tensor.dtype}"
+            )
+            assert torch_tensor.shape == onnx_tensor.shape, (
+                f"Type mismatch {torch_tensor.shape} != {onnx_tensor.shape}"
+            )
             diff = torch_tensor - onnx_tensor
             abs_err = float(diff.abs().max())
             rel_err = float((diff.abs() / torch_tensor).max())
@@ -295,9 +295,9 @@ def common_export(
             dynamic_axes=dynamic_shapes,
         )
     elif exporter == "dynamo":
-        assert (
-            dynamic_shapes is None
-        ), f"dynamic_shapes={dynamic_shapes} is not implemented yet"
+        assert dynamic_shapes is None, (
+            f"dynamic_shapes={dynamic_shapes} is not implemented yet"
+        )
         with torch.no_grad():
             prog = torch.onnx.dynamo_export(model, *inputs)
         onnx.save(prog.model_proto, filename)

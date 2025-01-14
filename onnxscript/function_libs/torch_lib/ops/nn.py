@@ -1801,13 +1801,13 @@ def aten_scaled_dot_product_attention(
     L is the target sequence length, S is the source sequence length, and E is the embedding size.
     """
     # Use trace_only to handle optional inputs
-    assert (not is_causal) or (
-        is_causal and attn_mask is None
-    ), "is_causal and attn_mask cannot be set at the same time"
+    assert (not is_causal) or (is_causal and attn_mask is None), (
+        "is_causal and attn_mask cannot be set at the same time"
+    )
 
-    assert (
-        not enable_gqa
-    ), "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
+    assert not enable_gqa, (
+        "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
+    )
 
     # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     if scale is None:
@@ -2018,13 +2018,13 @@ def aten_scaled_dot_product_attention_bool_mask(
     L is the target sequence length, S is the source sequence length, and E is the embedding size.
     """
     # Use trace_only to handle optional inputs
-    assert (not is_causal) or (
-        is_causal and attn_mask is None
-    ), "is_causal and attn_mask cannot be set at the same time"
+    assert (not is_causal) or (is_causal and attn_mask is None), (
+        "is_causal and attn_mask cannot be set at the same time"
+    )
 
-    assert (
-        not enable_gqa
-    ), "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
+    assert not enable_gqa, (
+        "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
+    )
 
     if scale is None:
         scale = _attention_scale(query)

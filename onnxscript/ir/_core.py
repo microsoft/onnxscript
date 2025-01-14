@@ -388,9 +388,9 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if isinstance(self._raw, np.ndarray) or _compatible_with_numpy(self._raw):
             return self._raw.__array__(dtype)
-        assert _compatible_with_dlpack(
-            self._raw
-        ), f"Bug: Expected DLPack or Numpy compatible objects, got {type(self._raw)}"
+        assert _compatible_with_dlpack(self._raw), (
+            f"Bug: Expected DLPack or Numpy compatible objects, got {type(self._raw)}"
+        )
         return np.from_dlpack(self._raw)
 
     def __dlpack__(self, *, stream: Any = None) -> Any:
@@ -765,9 +765,9 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if isinstance(self._raw, np.ndarray):
             return self._raw
-        assert isinstance(
-            self._raw, Sequence
-        ), f"Bug: Expected a sequence, got {type(self._raw)}"
+        assert isinstance(self._raw, Sequence), (
+            f"Bug: Expected a sequence, got {type(self._raw)}"
+        )
         return np.array(self._raw, dtype=dtype).reshape(self.shape.numpy())
 
     def __dlpack__(self, *, stream: Any = None) -> Any:
@@ -2228,11 +2228,11 @@ def _graph_str(graph: Graph | GraphView) -> str:
         )
     signature = f"""\
 graph(
-    name={graph.name or 'anonymous_graph:' + str(id(graph))},
-    inputs=({textwrap.indent(inputs_text, ' ' * 8)}
+    name={graph.name or "anonymous_graph:" + str(id(graph))},
+    inputs=({textwrap.indent(inputs_text, " " * 8)}
     ),
-    outputs=({textwrap.indent(outputs_text, ' ' * 8)}
-    ),{textwrap.indent(initializers_text, ' ' * 4)}
+    outputs=({textwrap.indent(outputs_text, " " * 8)}
+    ),{textwrap.indent(initializers_text, " " * 4)}
 )"""
     node_count = len(graph)
     number_width = len(str(node_count))
@@ -2266,11 +2266,11 @@ def _graph_repr(graph: Graph | GraphView) -> str:
         )
     return f"""\
 {graph.__class__.__name__}(
-    name={graph.name or 'anonymous_graph:' + str(id(graph))!r},
-    inputs=({textwrap.indent(inputs_text, ' ' * 8)}
+    name={graph.name or "anonymous_graph:" + str(id(graph))!r},
+    inputs=({textwrap.indent(inputs_text, " " * 8)}
     ),
-    outputs=({textwrap.indent(outputs_text, ' ' * 8)}
-    ),{textwrap.indent(initializers_text, ' ' * 4)}
+    outputs=({textwrap.indent(outputs_text, " " * 8)}
+    ),{textwrap.indent(initializers_text, " " * 4)}
     len()={len(graph)}
 )"""
 
@@ -2484,7 +2484,7 @@ Model(
     domain={self.domain!r},
     model_version={self.model_version!r},
     functions={self.functions!r},
-    graph={textwrap.indent(repr(self.graph), ' ' * 4).strip()}
+    graph={textwrap.indent(repr(self.graph), " " * 4).strip()}
 )"""
 
 
@@ -2684,10 +2684,10 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
 >
 def {full_name}(
     inputs=(
-{textwrap.indent(inputs_text, ' ' * 8)}
-    ),{textwrap.indent(attributes_text, ' ' * 4)}
+{textwrap.indent(inputs_text, " " * 8)}
+    ),{textwrap.indent(attributes_text, " " * 4)}
     outputs=(
-{textwrap.indent(outputs_text, ' ' * 8)}
+{textwrap.indent(outputs_text, " " * 8)}
     ),
 )"""
         node_count = len(self)

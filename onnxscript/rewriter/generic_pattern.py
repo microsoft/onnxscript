@@ -36,21 +36,21 @@ class PatternMatchResult:
         self.matched_pattern_to_model_value: dict[orp.ValuePattern, ir.Value] = {}
 
         for graph_node, pattern_node in zip(model_nodes, pattern_nodes):
-            assert (
-                graph_node.op_identifier() == pattern_node.op_identifier()
-            ), f"Unexpected type mismatch {graph_node.op_identifier()!r} != {pattern_node.op_identifier()!r}"
-            assert len(graph_node.inputs) == len(
-                pattern_node.inputs
-            ), f"Unexpected number of inputs for type {graph_node.op_identifier()}"
+            assert graph_node.op_identifier() == pattern_node.op_identifier(), (
+                f"Unexpected type mismatch {graph_node.op_identifier()!r} != {pattern_node.op_identifier()!r}"
+            )
+            assert len(graph_node.inputs) == len(pattern_node.inputs), (
+                f"Unexpected number of inputs for type {graph_node.op_identifier()}"
+            )
             for a, b in zip(graph_node.inputs, pattern_node.inputs):
                 if b is None:
                     # optional input or not an interesting input
                     continue
                 self._bind(b, a)
 
-            assert len(graph_node.outputs) == len(
-                pattern_node.outputs
-            ), f"Unexpected number of outputs for type {graph_node.op_identifier()}"
+            assert len(graph_node.outputs) == len(pattern_node.outputs), (
+                f"Unexpected number of outputs for type {graph_node.op_identifier()}"
+            )
             for a, b in zip(graph_node.outputs, pattern_node.outputs):
                 self._bind(b, a)
 
@@ -494,8 +494,7 @@ class GenericPatternMatcher(orp.PatternMatcher):
         # 1. make assumptions and continue
         # 2. mark the node as incomplete matching, we could end up stuck anyway.
         raise NotImplementedError(
-            f"There are more than one option, this will be implemented later, "
-            f"ec={ec}, gc={gc}"
+            f"There are more than one option, this will be implemented later, ec={ec}, gc={gc}"
         )
 
     def _match_forward(
@@ -620,9 +619,9 @@ class GenericPatternMatcher(orp.PatternMatcher):
                 return result
 
             nodes_not_in_pattern = set(matched.keys()) - all_pattern_nodes
-            assert (
-                not nodes_not_in_pattern
-            ), f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"
+            assert not nodes_not_in_pattern, (
+                f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"
+            )
 
             result = self._match_forward(
                 node, matched, stack, next_graph_node, next_pattern_node
@@ -633,9 +632,9 @@ class GenericPatternMatcher(orp.PatternMatcher):
                 return result
 
             nodes_not_in_pattern = set(matched.keys()) - all_pattern_nodes
-            assert (
-                not nodes_not_in_pattern
-            ), f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"
+            assert not nodes_not_in_pattern, (
+                f"Some nodes are not part of the pattern: {nodes_not_in_pattern}"
+            )
 
             if self.verbose > 5:
                 self._debug["iteration"] = iteration

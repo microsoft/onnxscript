@@ -60,8 +60,7 @@ class QualOpName:
 
     def __repr__(self) -> str:
         return (
-            f"QualOpName(domain={self.domain!r}, "
-            f"version={self.version!r}, name={self.name!r})"
+            f"QualOpName(domain={self.domain!r}, version={self.version!r}, name={self.name!r})"
         )
 
     def __str__(self) -> str:
