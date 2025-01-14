@@ -25,11 +25,15 @@ Example::
 # pylint: disable=import-outside-toplevel
 
 # NOTE: DO NOT import any framework-specific modules here in the global namespace.
+# NOTE: We use ir.DataType instead of _enums.DataType to show users how they
+# should create custom tensor adapters. This is fine and will not create
+# circular imports because the ir.DataType's are not used in the global namespace.
 
 from __future__ import annotations
 
 __all__ = [
     "TorchTensor",
+    "SafetensorsTensor",
 ]
 
 import ctypes
@@ -46,8 +50,12 @@ if TYPE_CHECKING:
 
 class TorchTensor(_core.Tensor):
     def __init__(
-        self, tensor: torch.Tensor, name: str | None = None, doc_string: str | None = None
-    ):
+        self,
+        tensor: torch.Tensor,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
         # Pass the tensor as the raw data to ir.Tensor's constructor
         import torch
 
@@ -73,7 +81,11 @@ class TorchTensor(_core.Tensor):
             torch.uint64: ir.DataType.UINT64,
         }
         super().__init__(
-            tensor, dtype=_TORCH_DTYPE_TO_ONNX[tensor.dtype], name=name, doc_string=doc_string
+            tensor,
+            dtype=_TORCH_DTYPE_TO_ONNX[tensor.dtype],
+            name=name,
+            doc_string=doc_string,
+            metadata_props=metadata_props,
         )
 
     def numpy(self) -> npt.NDArray:
@@ -119,4 +131,55 @@ class TorchTensor(_core.Tensor):
             (ctypes.c_ubyte * tensor.element_size() * tensor.numel()).from_address(
                 tensor.data_ptr()
             )
+        )
+
+
+class SafetensorsTensor(_core.Tensor):
+    """Adaptor for Hugging Face's [safetensors](https://github.com/huggingface/safetensors) library.
+
+    This adaptor allows you to load tensors from a safetensors file in a
+    memory-efficient way and use them in the ONNX IR. The tensor is memory-mapped.
+    """
+    def __init__(
+        self,
+        path: str,
+        tensor_name: str,
+        /,
+        dtype: ir.DataType | None = None,
+        *,
+        shape: ir.Shape | None = None,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
+        """Create a tensor from a tensor stored in a SafeTensors file.
+
+        Args:
+            path: The path to the SafeTensors file.
+            tensor_name: The name of the tensor in the SafeTensors file.
+            dtype: The data type of the tensor. It can be specified if the value
+                is not of a standard NumPy dtype.
+            shape: The shape of the tensor. It can be specified if the value
+                is not of a standard NumPy dtype.
+            name: The name of the ONNX tensor.
+            doc_string: The documentation string for the tensor.
+            metadata_props: The metadata properties for the tensor.
+        """
+        import safetensors
+
+        self._path = path
+        self._tensor_name = tensor_name
+
+        with safetensors.safe_open(path, framework="numpy") as f:
+            # The tensor is mmap'ed in memory so we might as well load it
+            # at initialization time since it does not take up any extra memory
+            array = f.get_tensor(tensor_name)
+
+        super().__init__(
+            array,
+            dtype=dtype,
+            shape=shape,
+            name=name,
+            doc_string=doc_string,
+            metadata_props=metadata_props,
         )
