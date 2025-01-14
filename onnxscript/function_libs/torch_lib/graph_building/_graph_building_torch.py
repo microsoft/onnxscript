@@ -689,9 +689,9 @@ class TorchScriptGraph:
             return
         assert isinstance(unwrapped_outputs, Sequence)
         for ts_output in unwrapped_outputs:
-            assert isinstance(
-                ts_output, torch.Value
-            ), f"ts_output must be a torch.Value, not {type(ts_output)}"
+            assert isinstance(ts_output, torch.Value), (
+                f"ts_output must be a torch.Value, not {type(ts_output)}"
+            )
             self._torch_graph.registerOutput(ts_output)
         return
 
@@ -772,9 +772,9 @@ class TorchScriptGraph:
     ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
         graph_inputs = self.preprocess_inputs(onnx_inputs)
         for key, value in onnx_attributes.items():
-            assert not isinstance(
-                value, TorchScriptTensor
-            ), f"ONNX attribute must not be a TorchScriptTensor, got {key}: {value}."
+            assert not isinstance(value, TorchScriptTensor), (
+                f"ONNX attribute must not be a TorchScriptTensor, got {key}: {value}."
+            )
         result = _create_op_call_in_torch_graph(
             self._torch_graph,
             name,
@@ -816,9 +816,9 @@ class TorchScriptGraph:
                 sub_graph_name,
                 domain,
             )
-            assert (
-                name_domain not in function_proto_dict
-            ), f"Sub graph name already exists. {name_domain}"
+            assert name_domain not in function_proto_dict, (
+                f"Sub graph name already exists. {name_domain}"
+            )
             function_proto_dict[name_domain] = sub_torch_script_graph.to_function_proto(
                 opset_version, sub_graph_name
             )

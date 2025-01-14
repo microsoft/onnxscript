@@ -131,9 +131,9 @@ class DoublyLinkedSet(Sequence[T], Generic[T]):
             box = box.prev
 
     def __len__(self) -> int:
-        assert self._length == len(
-            self._value_ids_to_boxes
-        ), "Bug in the implementation: length mismatch"
+        assert self._length == len(self._value_ids_to_boxes), (
+            "Bug in the implementation: length mismatch"
+        )
         return self._length
 
     def __getitem__(self, index: int) -> T:

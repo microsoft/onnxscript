@@ -129,9 +129,9 @@ def extract_functions(name: str, content: str, test_folder: pathlib.Path):
     filename = str(test_folder / f"{name}.py")
     with open(filename, "w", encoding="utf-8") as f:
         f.write(content + "\n")
-    assert os.path.exists(
-        filename
-    ), f"{filename!r} ({os.path.abspath(filename)!r} does not exist."
+    assert os.path.exists(filename), (
+        f"{filename!r} ({os.path.abspath(filename)!r} does not exist."
+    )
     import_name = f"tests.{test_folder.parts[-1]}.{name}"
     try:
         mod = importlib.import_module(import_name)
