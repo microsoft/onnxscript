@@ -325,7 +325,7 @@ def make_model(
         val_201 = val_198 @ val_200
         val_202 = val_201 + slice_13
         val_203 = opset18.Softmax(val_202, axis=-1)
-        val_204, val_205 = opset18.Dropout(val_203, 0.0)
+        val_204, _unused = opset18.Dropout(val_203, 0.0)
         getitem = val_204 @ cat_4
         val_206 = opset18.Shape(add_1, start=0)
         val_209 = opset18.Slice(val_206, [0], [1])
