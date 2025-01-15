@@ -27,8 +27,7 @@ This is followed by a RotaryEmbedding pattern for Q and K
 
 The last two axes of the key-embedding are then swapped (using a Reshape/Transpose/Reshape sequence)
 
-The dot-product attention is then computed using SDPA
-    
+The dot-product attention is then computed using SDPA.
 Finally, the output is transposed and reshaped back to (B, S, D) shape
 """
 
