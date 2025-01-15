@@ -320,8 +320,7 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
             raise ValueError("Cannot convert UNDEFINED tensor to numpy array.")
         if self._proto.data_location == onnx.TensorProto.EXTERNAL:
             raise ValueError(
-                "Cannot convert external tensor to numpy array. "
-                "Use ir.ExternalTensor instead."
+                "Cannot convert external tensor to numpy array. Use ir.ExternalTensor instead."
             )
 
         if self._proto.HasField("raw_data"):

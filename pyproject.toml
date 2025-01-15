@@ -203,6 +203,7 @@ ignore = [
     "TRY003", # Messages can be constructed in the exception
     "UP006", # keep-runtime-typing
     "UP007", # keep-runtime-typing
+    "UP045", # TODO: Support new style type annotations
 ]
 ignore-init-module-imports = true
 

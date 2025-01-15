@@ -575,9 +575,9 @@ class NodePattern:
     def clone(self, node_map: dict[NodePattern, NodePattern], swap: bool) -> NodePattern:
         inputs = [(v.clone(node_map) if v is not None else None) for v in self.inputs]
         if swap:
-            assert (
-                len(inputs) == 2
-            ), "Internal error: commutative swap applies only to binary ops."
+            assert len(inputs) == 2, (
+                "Internal error: commutative swap applies only to binary ops."
+            )
             inputs = [inputs[1], inputs[0]]
         outputs = [value.name for value in self.outputs]
         copied = NodePattern(
