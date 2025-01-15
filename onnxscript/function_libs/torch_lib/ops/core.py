@@ -213,10 +213,15 @@ def aten_addcdiv(
     Performs the element-wise division of tensor1 by tensor2, multiplies the result
     by the scalar value and adds it to self.
     """
-    # FIXME: Int to float
+    # FIXME(justinchuby): Int to float promotion
     self, tensor1, tensor2 = _type_promotion.promote_types(op, [self, tensor1, tensor2])
+    quotient = op.Div(tensor1, tensor2)
+    if value == 1.0:
+        quotient_scaled = quotient
+    else:
+        quotient_scaled = op.Mul(quotient, op.CastLike(value, tensor1))
 
-    return op.Add(self, op.Mul(op.Div(tensor1, tensor2), value))
+    return op.Add(self, quotient_scaled)
 
 
 @torch_op("aten::addcmul", trace_only=True)
@@ -231,8 +236,11 @@ def aten_addcmul(
     self, tensor1, tensor2 = _type_promotion.promote_types(op, [self, tensor1, tensor2])
 
     # Follow the order in https://github.com/pytorch/pytorch/blob/29e3fddb082b5a14262a7246bc62381a55199d45/aten/src/ATen/native/cpu/PointwiseOpsKernel.cpp#L47
-    # TODO(#811): Understand fp16 accuracy issue
-    return op.Add(self, op.Mul(op.Mul(value, tensor1), tensor2))
+    if value == 1.0:
+        tensor_1_scaled = tensor1
+    else:
+        tensor_1_scaled = op.Mul(op.CastLike(value, tensor1), tensor1)
+    return op.Add(self, op.Mul(tensor_1_scaled, tensor2))
 
 
 @torch_op("aten::addmm", trace_only=True)
