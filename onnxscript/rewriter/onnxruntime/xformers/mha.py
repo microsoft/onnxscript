@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Sequence
 
 import onnxscript.ir as ir
 from onnxscript.rewriter import pattern
@@ -86,14 +86,14 @@ def _multi_head_attention_pattern(
     return attention_reshaped, key_rope, value
 
 
-def _check_shape(bindings: dict[str, int], val: ir.Value, shape: Iterable[str]) -> bool:
+def _check_shape(bindings: dict[str, int], val: ir.Value, shape: Sequence[str]) -> bool:
     if val.shape is None:
         return False
     if val.shape.rank() != len(shape):
         return False
     for actual, expected in zip(val.shape, shape):
         if expected not in bindings:
-            bindings[expected] = actual
+            bindings[expected] = actual  # type: ignore[assignment]
         elif actual != bindings[expected]:
             return False
     return True
