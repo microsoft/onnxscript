@@ -48,6 +48,7 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     TTensor2,
     TTensorOrString,
 )
+from onnxscript.function_libs.torch_lib import _type_promotion
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -160,9 +161,9 @@ def aten_acosh(self: TFloat) -> TFloat:
 
 
 @torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"), trace_only=True)
-def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
+def aten_add(self: TTensor, other: TTensor2, alpha: float = 1.0) -> TensorType:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
-    # TODO(microsoft/onnxruntime#15977): Improve fp16 precision
+    self, other = _type_promotion.promote_types(op, [self, other])
     if alpha != 1.0:
         alpha = op.CastLike(alpha, other)
         other = op.Mul(other, alpha)
@@ -175,6 +176,7 @@ def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
 def aten_add_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
+    # TODO(justinchuby): Type promotion for complex numbers
     return aten_add(self, other, alpha=alpha)
 
 
@@ -203,12 +205,14 @@ def aten_addbmm(
 
 
 @torch_op("aten::addcdiv")
-def aten_addcdiv(self: TFloat, tensor1: TFloat, tensor2: TFloat, value: float = 1.0) -> TFloat:
+def aten_addcdiv(self: TensorType, tensor1: TensorType, tensor2: TensorType, value: float = 1.0) -> TensorType:
     """addcdiv(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor
 
     Performs the element-wise division of tensor1 by tensor2, multiplies the result
     by the scalar value and adds it to self.
     """
+    # FIXME: Int to float
+    self, tensor1, tensor2 = _type_promotion.promote_types(op, [self, tensor1, tensor2])
 
     return op.Add(self, op.Mul(op.Div(tensor1, tensor2), value))
 
@@ -225,6 +229,7 @@ def aten_addcmul(
     Performs the element-wise multiplication of tensor1 by tensor2, multiplies the
     result by the scalar value and adds it to self.
     """
+    self, tensor1, tensor2 = _type_promotion.promote_types(op, [self, tensor1, tensor2])
 
     # Follow the order in https://github.com/pytorch/pytorch/blob/29e3fddb082b5a14262a7246bc62381a55199d45/aten/src/ATen/native/cpu/PointwiseOpsKernel.cpp#L47
     # TODO(#811): Understand fp16 accuracy issue
@@ -258,12 +263,13 @@ def aten_addmv(
 
 @torch_op("aten::addr", traceable=True)
 def aten_addr(
-    self: TReal, vec1: TReal, vec2: TReal, beta: float = 1.0, alpha: float = 1.0
-) -> TReal:
+    self: TensorType, vec1: TensorType, vec2: TensorType, beta: float = 1.0, alpha: float = 1.0
+) -> TensorType:
     """addr(Tensor self, Tensor vec1, Tensor vec2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
     Performs the outer-product of vectors vec1 and vec2 and adds it to the matrix input.
     """
+    self, vec1, vec2 = _type_promotion.promote_types(op, [self, vec1, vec2])
     vec1_shape = op.Constant(value_ints=[-1, 1])
     vec2_shape = op.Constant(value_ints=[1, -1])
     vec1_reshaped = op.Reshape(vec1, vec1_shape)

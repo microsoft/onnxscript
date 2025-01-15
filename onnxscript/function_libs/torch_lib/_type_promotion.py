@@ -58,7 +58,10 @@ def promote_types(op, values: Sequence[ir.Value]) -> Sequence[ir.Value]:
     results = []
     for value in values:
         if value.dtype != promoted:
-            results.append(op.Cast(value, to=promoted))
+            new_val = op.Cast(value, to=promoted)
+            new_val.dtype = promoted
+            new_val.shape = value.shape
+            results.append(new_val)
         else:
             results.append(value)
 
