@@ -204,7 +204,7 @@ def aten_addbmm(
     return op.Add(scaled_self, op.Mul(reduced_batches, alpha))
 
 
-@torch_op("aten::addcdiv")
+@torch_op("aten::addcdiv", trace_only=True)
 def aten_addcdiv(self: TensorType, tensor1: TensorType, tensor2: TensorType, value: float = 1.0) -> TensorType:
     """addcdiv(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor
 
@@ -217,7 +217,7 @@ def aten_addcdiv(self: TensorType, tensor1: TensorType, tensor2: TensorType, val
     return op.Add(self, op.Mul(op.Div(tensor1, tensor2), value))
 
 
-@torch_op("aten::addcmul")
+@torch_op("aten::addcmul", trace_only=True)
 def aten_addcmul(
     self: TReal,
     tensor1: TReal,
@@ -261,7 +261,7 @@ def aten_addmv(
     return op.Add(op.Mul(self, beta), op.Mul(op.MatMul(mat, vec), alpha))
 
 
-@torch_op("aten::addr", traceable=True)
+@torch_op("aten::addr", trace_only=True)
 def aten_addr(
     self: TensorType, vec1: TensorType, vec2: TensorType, beta: float = 1.0, alpha: float = 1.0
 ) -> TensorType:
