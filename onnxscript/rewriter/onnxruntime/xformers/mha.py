@@ -182,12 +182,16 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         )
 
 
-_rule1 = MultiHeadAttention.rule("MHA_2dmm", use_2d_matmul=True)
+_rule1 = MultiHeadAttention.rule("MHA_2dmm", use_2d_matmul=False)
 
 mha_rules = pattern.RewriteRuleSet([_rule1])
 
+debug: bool = True
 
 def fuse_mha(model: ir.Model) -> int:
     count = mha_rules.apply_to_model(model)
-    print(f"MHA count: {count}")
+    if count == 0 and debug:
+        mha_rules.apply_to_model(model, debug=True)
+    else:
+        print(f"MHA count: {count}")
     return count
