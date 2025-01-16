@@ -3048,9 +3048,9 @@ def aten_embedding_bag_padding_idx(
     We add default values for the attributes to accommodate _embedding_bag as well:
     _embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False, int padding_idx=-1)
     """
-    assert (
-        padding_idx is not None
-    ), "padding_idx must not be None. This is likely a dispatcher error"
+    assert padding_idx is not None, (
+        "padding_idx must not be None. This is likely a dispatcher error"
+    )
 
     if per_sample_weights is None:
         per_sample_weights = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(indices))
@@ -4417,9 +4417,9 @@ def aten_instance_norm(
     if use_input_stats:
         return op.InstanceNormalization(input, weight, bias, epsilon=eps)
 
-    assert (
-        running_mean is not None and running_var is not None
-    ), "running_mean and running_var must be provided when use_input_stats is False"
+    assert running_mean is not None and running_var is not None, (
+        "running_mean and running_var must be provided when use_input_stats is False"
+    )
 
     batch_size = op.Shape(input, start=0, end=1)
     bn_input = op.Reshape(

@@ -177,9 +177,9 @@ def add_decorate_info(
             # If the OpInfo doesn't exist and it is not enabled, we skip the OpInfo
             # because it could be an OpInfo that is in torch-nightly but not older versions.
             continue
-        assert (
-            opinfo is not None
-        ), f"Couldn't find OpInfo for {decorate_meta}. Did you need to specify variant_name?"
+        assert opinfo is not None, (
+            f"Couldn't find OpInfo for {decorate_meta}. Did you need to specify variant_name?"
+        )
         decorators = list(opinfo.decorators)
         new_decorator = opinfo_core.DecorateInfo(
             decorate_meta.decorator,
@@ -370,12 +370,7 @@ def _safe_ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]
 
 
 def _format_model_and_input_information(onnx_model, inputs):
-    return (
-        f"Inputs:\n"
-        f"{pprint.pformat(inputs)}\n"
-        f"Model:\n"
-        f"{onnx.printer.to_text(onnx_model)}"
-    )
+    return f"Inputs:\n{pprint.pformat(inputs)}\nModel:\n{onnx.printer.to_text(onnx_model)}"
 
 
 TORCH_DTYPE_TO_ONNX_STRING = {

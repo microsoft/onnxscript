@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Sequence
 
 import onnxscript.ir as ir
 from onnxscript.rewriter import pattern
@@ -27,20 +27,19 @@ This is followed by a RotaryEmbedding pattern for Q and K
 
 The last two axes of the key-embedding are then swapped (using a Reshape/Transpose/Reshape sequence)
 
-The dot-product attention is then computed using SDPA
-    
+The dot-product attention is then computed using SDPA.
 Finally, the output is transposed and reshaped back to (B, S, D) shape
 """
 
 
-def _check_shape(bindings: dict[str, int], val: ir.Value, shape: Iterable[str]) -> bool:
+def _check_shape(bindings: dict[str, int], val: ir.Value, shape: Sequence[str]) -> bool:
     if val.shape is None:
         return False
     if val.shape.rank() != len(shape):
         return False
     for actual, expected in zip(val.shape, shape):
         if expected not in bindings:
-            bindings[expected] = actual
+            bindings[expected] = actual  # type: ignore[assignment]
         elif actual != bindings[expected]:
             return False
     return True
