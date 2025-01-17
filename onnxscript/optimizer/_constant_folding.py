@@ -119,7 +119,11 @@ class ReferenceEvaluator:
         evaluator = self.get_evaluator(domain, op, version)
         if evaluator is None:
             return None
-        return evaluator(*args, **kwargs)
+        try:
+            return evaluator(*args, **kwargs)
+        except Exception as e:
+            logger.debug("Evaluation failed: %s", e)
+            return None
 
 
 _reference_evaluator = ReferenceEvaluator()
