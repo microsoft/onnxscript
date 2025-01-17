@@ -63,11 +63,11 @@ class TestEnd2End(unittest.TestCase):
             right_window: int,
         ) -> torch.Tensor:
             del device
-            return _index_put_failing_function(
-                x_len, start_idx, left_window, right_window
-            )
+            return _index_put_failing_function(x_len, start_idx, left_window, right_window)
 
-        def index_put_failing_function_shape(device, x_len, start_idx, left_window, right_window):
+        def index_put_failing_function_shape(
+            device, x_len, start_idx, left_window, right_window
+        ):
             del device
             del start_idx
             del left_window
