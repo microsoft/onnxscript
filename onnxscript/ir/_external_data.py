@@ -274,6 +274,9 @@ def to_external_data(
     Exsiting external tensors are loaded to memory if they are referring to the
     same file path as the destination path.
 
+    It should only replace the initializers in the model with external tensors
+    and not do any other modifications to the model.
+
     Args:
         model: Model to process.
         base_dir: Path the directory where the ONNX model file is.
