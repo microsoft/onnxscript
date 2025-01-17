@@ -4297,7 +4297,12 @@ def aten_index_put_bool(
     """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
 
     index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
+    # accumulate should be always False, True does not make sense.
+    return op.Where(index, values, self)
+
+    """
     # FIXME: ORT ArgMax fails on INT64 input even though ONNX allows it
+    index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
     index_int = op.Cast(index, to=INT32.dtype)
     # if all False, return op.Identity(self)
     if op.ReduceSum(index_int) == 0:
@@ -4327,6 +4332,7 @@ def aten_index_put_bool(
             result = op.ScatterElements(self, new_ind_t, values)
 
     return result
+    """
 
 
 def aten_index_reduce(
