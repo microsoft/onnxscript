@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-__all__ = ["set_base_dir"]
+__all__ = ["set_base_dir", "to_external_data", "convert_tensors_to_external"]
 
 import dataclasses
 import os
@@ -79,7 +79,7 @@ def set_base_dir(graph: _core.Graph | _core.GraphView, base_dir: str | os.PathLi
 
 
 def _external_tensor_to_memory_tensor(
-    tensor: _protocols.TensorProtocol
+    tensor: _protocols.TensorProtocol,
 ) -> _protocols.TensorProtocol:
     """Convert an external tensor to an in memory tensor.
 
@@ -95,9 +95,7 @@ def _external_tensor_to_memory_tensor(
         # Copy the data as the .numpy() call references data from a file whose data is eventually modified
         tensor_data = tensor.numpy().copy()
         tensor.release()
-        return _core.Tensor(
-            tensor_data, name=tensor.name, dtype=tensor.dtype
-        )
+        return _core.Tensor(tensor_data, name=tensor.name, dtype=tensor.dtype)
     return tensor
 
 
@@ -294,9 +292,7 @@ def to_external_data(
             tensors.append(value.const_value)
 
     external_tensors = convert_tensors_to_external(
-        tensors,
-        base_dir=base_dir,
-        relative_path=relative_path
+        tensors, base_dir=base_dir, relative_path=relative_path
     )
 
     for value, external_tensor in zip(model.graph.initializers.values(), external_tensors):

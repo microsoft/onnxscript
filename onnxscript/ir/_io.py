@@ -35,7 +35,12 @@ def load(path: str | os.PathLike, format: str | None = None) -> _core.Model:
     return model
 
 
-def save(model: _core.Model, path: str | os.PathLike, format: str | None = None) -> None:
+def save(
+    model: _core.Model,
+    path: str | os.PathLike,
+    format: str | None = None,
+    external_data: str | os.PathLike | None = None,
+) -> None:
     """Save an ONNX model to a file.
 
     Args:
@@ -43,8 +48,20 @@ def save(model: _core.Model, path: str | os.PathLike, format: str | None = None)
         path: The path to save the model to.
         format: The format of the file (e.g. protobuf, textproto, json, etc.).
             If None, the format is inferred from the file extension.
+        external_data: The relative path to save external data to. When specified,
+            all initializers in the model will be converted to external data and
+            saved to the specified directory. If None, all tensors will be saved unmodified.
+            That is, if a tensor in the model is already external, it will be saved
+            with the same external information; if the tensor is not external,
+            it will be serialized in the ONNX Proto message.
     """
+    if external_data is not None:
+        if os.path.isabs(external_data):
+            raise ValueError(
+                f"The external data path must be a relative to the ONNX file path, not '{external_data}'."
+            )
+        model = _external_data.to_external_data(model, os.path.dirname(path), external_data)
+
     proto = serde.serialize_model(model)
     onnx.save(proto, path, format=format)
     # TODO(justinchuby): Handle external data when the relative path has changed
-    # TODO(justinchuby): Handle off loading external data to disk when saving
