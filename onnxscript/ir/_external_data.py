@@ -78,34 +78,27 @@ def set_base_dir(graph: _core.Graph | _core.GraphView, base_dir: str | os.PathLi
             tensor.base_dir = base_dir
 
 
-def _load_external_data_file(
-    tensors: Sequence[_protocols.TensorProtocol],
-    base_path: str | os.PathLike,
-    relative_path: str | os.PathLike,
-) -> list[_protocols.TensorProtocol]:
-    """Load all external data that is at relative_path into memory for the provided model.
+def _external_tensor_to_memory_tensor(
+    tensor: _protocols.TensorProtocol
+) -> _protocols.TensorProtocol:
+    """Convert an external tensor to an in memory tensor.
 
     Args:
-        tensors: Tensors to be converted to external tensors. They can be external tensors themselves.
-        base_path: Path of base directory.
+        tensor: An external tensor to load.
+        base_dir: Path of base directory.
         relative_path: Path to which external data is to be stored, relative to the ONNX file.
 
     Returns:
-        A list of ir.Tensor values.
+        An ir.Tensor object with the data loaded into memory.
     """
-    updated_tensors: list[_protocols.TensorProtocol] = []
-    for tensor in tensors:
-        if isinstance(tensor, _core.ExternalTensor):
-            external_tensor = tensor
-            if os.path.samefile(tensor.path, os.path.join(base_path, relative_path)):
-                # Copy the data as the .numpy() call references data from a file whose data is eventually modified
-                tensor_data = external_tensor.numpy().copy()
-                external_tensor.release()
-                tensor = _core.Tensor(
-                    tensor_data, name=external_tensor.name, dtype=external_tensor.dtype
-                )
-        updated_tensors.append(tensor)
-    return updated_tensors
+    if isinstance(tensor, _core.ExternalTensor):
+        # Copy the data as the .numpy() call references data from a file whose data is eventually modified
+        tensor_data = tensor.numpy().copy()
+        tensor.release()
+        return _core.Tensor(
+            tensor_data, name=tensor.name, dtype=tensor.dtype
+        )
+    return tensor
 
 
 def _compute_new_offset(
@@ -177,14 +170,14 @@ def _save_external_data(
 
 def _convert_as_external_tensors(
     external_data_info: list[tuple[_protocols.TensorProtocol, _ExternalDataInfo]],
-    base_path: str | os.PathLike,
+    base_dir: str | os.PathLike,
     relative_path: str | os.PathLike,
 ) -> list[_core.ExternalTensor]:
     """Convert the tensors (stored within the values) written as external data to _core.ExternalTensor types.
 
     Args:
         external_data_info: A collection of external data information stored for each tensor to be written as external data.
-        base_path: Path of base directory.
+        base_dir: Path of base directory.
         relative_path: Path to which external data is to be stored, relative to the ONNX file.
 
     Returns:
@@ -200,7 +193,7 @@ def _convert_as_external_tensors(
             tensor.dtype,  # type: ignore[arg-type]
             shape=tensor.shape,  # type: ignore[arg-type]
             name=tensor.name,  # type: ignore[arg-type]
-            base_dir=os.path.normpath(base_path),
+            base_dir=os.path.normpath(base_dir),
         )
         external_tensors.append(external_tensor)
     return external_tensors
@@ -208,7 +201,7 @@ def _convert_as_external_tensors(
 
 def convert_tensors_to_external(
     tensors: Sequence[_protocols.TensorProtocol],
-    base_path: str | os.PathLike,
+    base_dir: str | os.PathLike,
     relative_path: str | os.PathLike,
 ) -> list[_core.ExternalTensor]:
     """Convert a sequence of any TensorProtocol tensors to external tensors.
@@ -218,42 +211,32 @@ def convert_tensors_to_external(
 
     Args:
         tensors: Tensors to be converted to external tensors. They can be external tensors themselves.
-        base_path: Path of base directory.
+        base_dir: Path of base directory.
         relative_path: Path to which external data is to be stored, relative to the ONNX file.
 
     Returns:
         A list of external tensors derived from a list of input tensors. The order
         should match the input tensor order.
     """
-    path = os.path.join(base_path, relative_path)
+    path = os.path.join(base_dir, relative_path)
     # Check if file path is valid, and create subsequent subdirectories within the path if they don't exist
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp_file_created = False
-    # Check if file exists. Load pre-existing external data if it does.
+
+    # Check if output path exists. Load pre-existing external data if it does.
     if os.path.exists(path):
         # Check if any tensor provided is using the destination file
-        tensors_to_load = []
+        new_tensors = []
         for tensor in tensors:
             if isinstance(tensor, _core.ExternalTensor) and os.path.samefile(
                 path, tensor.path
             ):
-                # FIXME(shubhambhokare1): If there is a non-initializer tensor that is referring to this file, that tensor is now invalid. This is a special case we are ok not handling right now.
-                file_used = True
-        if file_used:
-            if load_external_to_memory:
-                tensors = _load_external_data_file(tensors, base_path, relative_path)
+                # FIXME(shubhambhokare1): If there is a non-initializer tensor that
+                # is referring to this file, that tensor is now invalid.
+                # This is a special case we are ok not handling right now.
+                new_tensors.append(_external_tensor_to_memory_tensor(tensor))
             else:
-                tmp_path = os.path.join(base_path, "tmp")
-                os.makedirs(tmp_path, exist_ok=True)
-                # If exisiting external tensors are not loaded to memory, copy the external data to a temporary location
-                os.rename(path, os.path.join(tmp_path, relative_path))
-                tmp_file_created = True
-                for tensor in tensors:
-                    if (
-                        isinstance(tensor, _core.ExternalTensor)
-                        and tensor.location == relative_path
-                    ):
-                        tensor.base_dir = tmp_path
+                new_tensors.append(tensor)
+        tensors = new_tensors
 
     external_data_info: list[tuple[_protocols.TensorProtocol, _ExternalDataInfo]] = []
     # Sort all tensors based on tensor sizes, in order to avoid unneccesarry alignment.
@@ -270,7 +253,7 @@ def convert_tensors_to_external(
 
     # Convert initializers to ExternalTensors
     external_tensors = _convert_as_external_tensors(
-        external_data_info, base_path, relative_path
+        external_data_info, base_dir, relative_path
     )
     # Sort external_tensors based on original key order
     external_tensors = [
@@ -278,17 +261,12 @@ def convert_tensors_to_external(
         for i in sorted(range(len(external_tensors)), key=lambda i: sorted_indices[i])
     ]
 
-    # Clean-up temporary file if it is created
-    tmp_path = os.path.join(base_path, "tmp", relative_path)
-    if os.path.exists(tmp_path) and tmp_file_created:
-        os.remove(tmp_path)
-
     return external_tensors
 
 
 def to_external_data(
     model: _core.Model,
-    base_path: str | os.PathLike,
+    base_dir: str | os.PathLike,
     relative_path: str | os.PathLike,
 ) -> _core.Model:
     """Set all tensors with raw data as external data, into a single data file.
@@ -298,7 +276,7 @@ def to_external_data(
 
     Args:
         model: Model to process.
-        base_path: Path the directory where the ONNX model file is.
+        base_dir: Path the directory where the ONNX model file is.
         relative_path: Path to which external data is to be stored, relative to the ONNX file.
             E.g. "model.data"
 
@@ -317,7 +295,7 @@ def to_external_data(
 
     external_tensors = convert_tensors_to_external(
         tensors,
-        base_path=base_path,
+        base_dir=base_dir,
         relative_path=relative_path
     )
 
