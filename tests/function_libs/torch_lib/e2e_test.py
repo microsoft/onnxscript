@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 import unittest
 
 import onnx
@@ -9,27 +11,19 @@ from onnxscript._internal.version_utils import torch_older_than
 class TestEnd2End(unittest.TestCase):
     @unittest.skipIf(torch_older_than("2.6"), reason="fails to export")
     def test_adaptive_enc_mask(self):
-        def adaptive_enc_mask(x_len, chunk_start_idx, left_window=0, right_window=0):
-            # first idx of each chunk, such as [0,18,36,48].
-            chunk_start_idx = torch.Tensor(chunk_start_idx).long()
-            # append 0 to the beginning, so it becomes [0, 0, 18, 36, 48]
-            start_pad = torch.nn.functional.pad(chunk_start_idx, (1, 0))
-            # append x_len to the end, so it becomes [0,18,36,48, x_len]
-            end_pad = torch.nn.functional.pad(chunk_start_idx, (0, 1), value=x_len)
-            # seq_range size: [x_len, 1]
+        def adaptive_enc_mask(x_len, start_idx, left_window=0, right_window=0):
+            start_idx = torch.Tensor(start_idx).long()
+            start_pad = torch.nn.functional.pad(start_idx, (1, 0))
+            end_pad = torch.nn.functional.pad(start_idx, (0, 1), value=x_len)
             seq_range = torch.arange(0, x_len).unsqueeze(-1)
-            # idx size: [x_len]
             idx = ((seq_range < end_pad) & (seq_range >= start_pad)).nonzero()[:, 1]
-            # boundary size: [x_len]
-            # boundary = end_pad[idx]
-            # seq_range_expand size [x_len, x_len]
             seq_range_expand = torch.arange(0, x_len).unsqueeze(0).expand(x_len, -1)
             idx_left = idx - left_window
             idx_left[idx_left < 0] = 0
             boundary_left = start_pad[idx_left]
             mask_left = seq_range_expand >= boundary_left.unsqueeze(-1)
             idx_right = idx + right_window
-            idx_right[idx_right > len(chunk_start_idx)] = len(chunk_start_idx)
+            idx_right[idx_right > len(start_idx)] = len(start_idx)
             boundary_right = end_pad[idx_right]
             mask_right = seq_range_expand < boundary_right.unsqueeze(-1)
             return mask_left & mask_right
@@ -37,9 +31,9 @@ class TestEnd2End(unittest.TestCase):
         class MyModule(torch.nn.Module):
             def forward(self, X):
                 x_len = 10  # 368
-                chunk_start_idx = [4]
+                start_idx = [4]
                 left_window = 18
-                result = adaptive_enc_mask(x_len, chunk_start_idx, left_window, right_window=0)
+                result = adaptive_enc_mask(x_len, start_idx, left_window, right_window=0)
                 return X + torch.unsqueeze(result, -1)
 
         torch_model = MyModule()
