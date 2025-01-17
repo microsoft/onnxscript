@@ -1583,7 +1583,7 @@ class RewriteRuleSet:
                                 print(f"Initializer {initializer.name} already exists.")
                             continue
                     for initializer in delta.new_initializers:
-                        initializers[initializer.name] = initializer
+                        initializers[initializer.name] = initializer  # type: ignore[index]
                 # TODO: This does not yet handle the problem of determining the correct insertion point
                 # for inserted nodes in the case of patterns with multiple output-nodes. The following
                 # is sufficient for patterns with a single output-node "node", which can serve as the

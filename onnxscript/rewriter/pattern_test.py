@@ -547,7 +547,7 @@ class RewriteRuleTest(unittest.TestCase):
     def test_new_initializer(self):
         def source_pattern(op, x, y):
             return op.Gemm(x, op.Transpose(y))
-        
+
         def check(context, x, y):
             return y.const_value is not None
 
@@ -557,7 +557,7 @@ class RewriteRuleTest(unittest.TestCase):
             transposed = ir.tensor(tensor.numpy().T, name=name)
             initializer = op.initializer(transposed)
             return op.Gemm(x, initializer)
-        
+
         rule = pattern.RewriteRule(source_pattern, replacement, check)
 
         y_value = np.random.rand(8, 4).astype(np.float32)
@@ -565,7 +565,7 @@ class RewriteRuleTest(unittest.TestCase):
         def test_model(x: FLOAT[16, 8]) -> FLOAT[16, 4]:
             y = op.Constant(value=y_value)
             return op.Gemm(x, op.Transpose(y))
-        
+
         model_proto = test_model.to_model_proto()
         model = ir.serde.deserialize_model(model_proto)
         rule.apply_to_model(model)
