@@ -10,8 +10,8 @@ from onnxscript._internal.version_utils import torch_older_than
 
 class TestEnd2End(unittest.TestCase):
     @unittest.skipIf(torch_older_than("2.6"), reason="fails to export")
-    def test_adaptive_enc_mask(self):
-        def adaptive_enc_mask(x_len, start_idx, left_window=0, right_window=0):
+    def test_index_put_failing_function(self):
+        def index_put_failing_function(x_len, start_idx, left_window=0, right_window=0):
             start_idx = torch.Tensor(start_idx).long()
             start_pad = torch.nn.functional.pad(start_idx, (1, 0))
             end_pad = torch.nn.functional.pad(start_idx, (0, 1), value=x_len)
@@ -33,7 +33,7 @@ class TestEnd2End(unittest.TestCase):
                 x_len = 10  # 368
                 start_idx = [4]
                 left_window = 18
-                result = adaptive_enc_mask(x_len, start_idx, left_window, right_window=0)
+                result = index_put_failing_function(x_len, start_idx, left_window, right_window=0)
                 return X + torch.unsqueeze(result, -1)
 
         torch_model = MyModule()
@@ -42,9 +42,9 @@ class TestEnd2End(unittest.TestCase):
         expected = torch_model(*inputs)
 
         program = torch.onnx.export(torch_model, inputs, dynamo=True)
-        # program.save(r"test_adaptive_enc_mask_not_optimized.onnx")
+        # program.save(r"test_index_put_failing_function_not_optimized.onnx")
         program.optimize()
-        program.save(r"test_adaptive_enc_mask.onnx")
+        program.save(r"test_index_put_failing_function.onnx")
         ref = onnx.reference.ReferenceEvaluator(program.model_proto)
         got = ref.run(None, {"x": inputs[0].numpy()})
         torch.testing.assert_close(expected, torch.tensor(got[0]))
