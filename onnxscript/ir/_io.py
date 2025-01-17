@@ -73,13 +73,9 @@ def save(
             )
         base_dir = os.path.dirname(path)
 
-        # Filter out the uninitialized initializer values
-        initializer_values = [
-            v for v in model.graph.initializers.values() if v.const_value is not None
-        ]
-
         # Store the original initializer values so they can be restored if modify_model=False
-        tensors = [v.const_value for v in initializer_values]
+        initializer_values = tuple(model.graph.initializers.values())
+        tensors = [v.const_value for v in model.graph.initializers.values()]
 
         # Check that we are not overwriting the external data path that is currently
         # referenced by an initializer if we are not modifying the model
