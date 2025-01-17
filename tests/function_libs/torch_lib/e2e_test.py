@@ -53,6 +53,7 @@ class TestEnd2End(unittest.TestCase):
         got = ref.run(None, {"x": inputs[0].numpy()})
         torch.testing.assert_close(expected, torch.tensor(got[0]))
 
+    @unittest.skipIf(torch_older_than("2.6"), reason="no infer_schema")
     def test_register_custom_op(self):
         def index_put_failing_function(
             device: torch.device,
