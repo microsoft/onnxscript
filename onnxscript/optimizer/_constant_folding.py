@@ -122,7 +122,7 @@ class ReferenceEvaluator:
         try:
             return evaluator(*args, **kwargs)
         except Exception as e:
-            logger.debug("Evaluation failed: %s", e)
+            logger.warning("Evaluation failed: %s", e)
             return None
 
 
