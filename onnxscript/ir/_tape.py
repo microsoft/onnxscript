@@ -65,7 +65,10 @@ class Tape(Iterable[ir.Node]):
 
         return node.outputs
 
-    def initializer(self, name: str, tensor: ir.TensorProtocol) -> ir.Value:
+    def initializer(self, tensor: ir.TensorProtocol, name: str | None = None) -> ir.Value:
+        name = name or tensor.name
+        if name is None:
+            raise ValueError("Name must be provided for initializer.")
         value = ir.Value(name=name, shape=tensor.shape, type=ir.TensorType(tensor.dtype), const_value=tensor)
         self._initializers.append(value)
         return value
