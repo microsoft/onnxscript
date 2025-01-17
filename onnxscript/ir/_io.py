@@ -72,11 +72,17 @@ def save(
                 f"The external data path must be a relative to the ONNX file path, not '{external_data}'."
             )
         base_dir = os.path.dirname(path)
+
         # Filter out the uninitialized initializer values
         initializer_values = [
             v for v in model.graph.initializers.values() if v.const_value is not None
         ]
+
+        # Store the original initializer values so they can be restored if modify_model=False
         tensors = [v.const_value for v in initializer_values]
+
+        # Check that we are not overwriting the external data path that is currently
+        # referenced by an initializer if we are not modifying the model
         for value in initializer_values:
             tensor = value.const_value
             if isinstance(tensor, _core.ExternalTensor) and os.path.samefile(
@@ -89,8 +95,8 @@ def save(
                         "be invalid after the external data is overwritten. You can set modify_model=True, or "
                         "choose a different `external_data` path that is not currently referenced by the model."
                     )
-        model = _external_data.to_external_data(model, base_dir, external_data)
 
+        model = _external_data.to_external_data(model, base_dir, external_data)
         proto = serde.serialize_model(model)
         onnx.save(proto, path, format=format)
 
