@@ -210,18 +210,20 @@ def convert_tensors_to_external(
     tensors: Sequence[_protocols.TensorProtocol],
     base_path: str | os.PathLike,
     relative_path: str | os.PathLike,
-    load_external_to_memory: bool = False,
 ) -> list[_core.ExternalTensor]:
     """Convert a sequence of any TensorProtocol tensors to external tensors.
+
+    Exsiting external tensors are loaded to memory if they are referring to the
+    same file path as the destination path.
 
     Args:
         tensors: Tensors to be converted to external tensors. They can be external tensors themselves.
         base_path: Path of base directory.
         relative_path: Path to which external data is to be stored, relative to the ONNX file.
-        load_external_to_memory: If set to true, loads external tensors present in the same file path as destination path to memory.
 
     Returns:
-        A list of external tensors derived from a list of input tensors.
+        A list of external tensors derived from a list of input tensors. The order
+        should match the input tensor order.
     """
     path = os.path.join(base_path, relative_path)
     # Check if file path is valid, and create subsequent subdirectories within the path if they don't exist
@@ -229,8 +231,8 @@ def convert_tensors_to_external(
     tmp_file_created = False
     # Check if file exists. Load pre-existing external data if it does.
     if os.path.exists(path):
-        # Check if any tensor in the model is using the destination file
-        file_used = False
+        # Check if any tensor provided is using the destination file
+        tensors_to_load = []
         for tensor in tensors:
             if isinstance(tensor, _core.ExternalTensor) and os.path.samefile(
                 path, tensor.path
@@ -288,18 +290,20 @@ def to_external_data(
     model: _core.Model,
     base_path: str | os.PathLike,
     relative_path: str | os.PathLike,
-    load_external_to_memory: bool = False,
 ) -> _core.Model:
-    """Set all tensors with raw data as external data.
+    """Set all tensors with raw data as external data, into a single data file.
+
+    Exsiting external tensors are loaded to memory if they are referring to the
+    same file path as the destination path.
 
     Args:
         model: Model to process.
-        base_path: Path of base directory.
+        base_path: Path the directory where the ONNX model file is.
         relative_path: Path to which external data is to be stored, relative to the ONNX file.
-        load_external_to_memory: If set to true, loads external tensors present in the same file path as destination path to memory. Otherwise, the external tensors are appended to file.
+            E.g. "model.data"
 
     Returns:
-        An ir.Model with all tensors with raw data converted to external tensors.
+        An ir.Model with all intializer data converted to external tensors.
     """
 
     # Get all the tensors in the graph which are to be stored as external data.
@@ -313,9 +317,8 @@ def to_external_data(
 
     external_tensors = convert_tensors_to_external(
         tensors,
-        base_path,
-        relative_path,
-        load_external_to_memory=load_external_to_memory,
+        base_path=base_path,
+        relative_path=relative_path
     )
 
     for value, external_tensor in zip(model.graph.initializers.values(), external_tensors):
