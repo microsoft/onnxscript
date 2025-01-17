@@ -62,18 +62,23 @@ class TestEnd2End(unittest.TestCase):
             left_window: int,
             right_window: int,
         ) -> torch.Tensor:
+            del device
             return _index_put_failing_function(
                 x_len, start_idx, left_window, right_window
             )
 
         def index_put_failing_function_shape(device, x_len, start_idx, left_window, right_window):
+            del device
+            del start_idx
+            del left_window
+            del right_window
             return torch.empty((x_len, x_len), dtype=torch.bool).to(device)
 
         def register_custom_op(fct, fct_shape, namespace, fname):
             schema_str = torch.library.infer_schema(fct, mutates_args=())
             custom_def = torch.library.CustomOpDef(namespace, fname, schema_str, fct)
             custom_def.register_kernel("cpu")(fct)
-            custom_def._abstract_fn = fct_shape
+            custom_def._abstract_fn = fct_shape  # pylint: disable=protected-access
 
         register_custom_op(
             index_put_failing_function,
