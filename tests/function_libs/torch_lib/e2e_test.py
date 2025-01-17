@@ -1,11 +1,12 @@
 import unittest
 import onnx
 import torch
+from onnxscript._internal.version_utils import torch_older_than
 
 
 class TestEnd2End(unittest.TestCase):
+    @unittest.skipIf(torch_older_than("2.6"), reason="fails to export")
     def test_adaptive_enc_mask(self):
-
         def adaptive_enc_mask(x_len, chunk_start_idx, left_window=0, right_window=0):
             # first idx of each chunk, such as [0,18,36,48].
             chunk_start_idx = torch.Tensor(chunk_start_idx).long()
