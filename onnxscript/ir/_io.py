@@ -69,7 +69,7 @@ def save(
     if external_data is not None:
         if os.path.isabs(external_data):
             raise ValueError(
-                f"The external data path must be a relative to the ONNX file path, not '{external_data}'."
+                f"The external data path must be relative to the ONNX file path, not '{external_data}'."
             )
         base_dir = os.path.dirname(path)
 

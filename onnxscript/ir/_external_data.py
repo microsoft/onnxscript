@@ -206,7 +206,7 @@ def convert_tensors_to_external(
 ) -> list[_core.ExternalTensor]:
     """Convert a sequence of any TensorProtocol tensors to external tensors.
 
-    Exsiting external tensors are loaded to memory if they are referring to the
+    Existing external tensors are loaded to memory if they are referring to the
     same file path as the destination path.
 
     Args:
@@ -271,7 +271,7 @@ def to_external_data(
 ) -> _core.Model:
     """Set all tensors with raw data as external data, into a single data file.
 
-    Exsiting external tensors are loaded to memory if they are referring to the
+    Existing external tensors are loaded to memory if they are referring to the
     same file path as the destination path.
 
     It should only replace the initializers in the model with external tensors
@@ -284,7 +284,7 @@ def to_external_data(
             E.g. "model.data"
 
     Returns:
-        An ir.Model with all intializer data converted to external tensors.
+        An ir.Model with all initializer data converted to external tensors.
     """
 
     # Get all the tensors in the graph which are to be stored as external data.
