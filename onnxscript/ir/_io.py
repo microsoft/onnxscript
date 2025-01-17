@@ -63,8 +63,8 @@ def save(
 
     Raises:
         ValueError: If the external data path is an absolute path.
-        ValueError: If the external data path is currently referenced by an initializer and :param:`modify_model`
-            is set to False.
+        ValueError: If the external data path is currently referenced by an initializer
+            and :param:`modify_model` is set to False.
     """
     if external_data is not None:
         if os.path.isabs(external_data):
