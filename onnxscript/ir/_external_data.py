@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import typing
+
 __all__ = ["set_base_dir", "to_external_data", "convert_tensors_to_external"]
 
 import dataclasses
@@ -286,15 +288,19 @@ def to_external_data(
     # Iterate through all the tensors, and extract the external data information such as
     # name, offset and length.
     # TODO: Currently attributes not handled, eventually try to use _all_tensors to include attrs
-    tensors: list[_protocols.TensorProtocol] = []
-    for value in model.graph.initializers.values():
-        if value.const_value is not None:
-            tensors.append(value.const_value)
+    # Filter out the uninitialized initializer values
+    initializer_values = [
+        v for v in model.graph.initializers.values() if v.const_value is not None
+    ]
+    tensors = typing.cast(
+        list[_protocols.TensorProtocol], [v.const_value for v in initializer_values]
+    )
 
     external_tensors = convert_tensors_to_external(
         tensors, base_dir=base_dir, relative_path=relative_path
     )
 
-    for value, external_tensor in zip(model.graph.initializers.values(), external_tensors):
+    # Replace the initializer values with external tensors and save the model
+    for value, external_tensor in zip(initializer_values, external_tensors):
         value.const_value = external_tensor
     return model
