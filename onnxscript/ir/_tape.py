@@ -69,7 +69,8 @@ class Tape(Iterable[ir.Node]):
         name = name or tensor.name
         if name is None:
             raise ValueError("Name must be provided for initializer.")
-        value = ir.Value(name=name, shape=tensor.shape, type=ir.TensorType(tensor.dtype), const_value=tensor)
+        shape = ir.Shape((d if isinstance(d, int) else d.value) for d in tensor.shape.dims)
+        value = ir.Value(name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor)
         self._initializers.append(value)
         return value
 
