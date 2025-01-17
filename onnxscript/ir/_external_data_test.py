@@ -419,9 +419,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
 
     def test_mixed_external_data(self):
         model_with_external_data = _external_data.to_external_data(
-            self.model_with_mixed_external_data,
-            self.base_path,
-            self.external_data_name
+            self.model_with_mixed_external_data, self.base_path, self.external_data_name
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
         external_tensor2 = model_with_external_data.graph.initializers["tensor2"].const_value
