@@ -1,6 +1,8 @@
 import unittest
+
 import onnx
 import torch
+
 from onnxscript._internal.version_utils import torch_older_than
 
 
