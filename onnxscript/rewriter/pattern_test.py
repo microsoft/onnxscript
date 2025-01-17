@@ -3,9 +3,9 @@
 import contextlib
 import io
 import logging
-import numpy as np
 import unittest
 
+import numpy as np
 import onnx.checker
 import onnx.parser
 
@@ -561,6 +561,7 @@ class RewriteRuleTest(unittest.TestCase):
         rule = pattern.RewriteRule(source_pattern, replacement, check)
 
         y_value = np.random.rand(8, 4).astype(np.float32)
+
         @script()
         def test_model(x: FLOAT[16, 8]) -> FLOAT[16, 4]:
             y = op.Constant(value=y_value)

@@ -929,7 +929,9 @@ class ReplacementPatternFunction:
             return None  # Failed to create replacement subgraph
         if not isinstance(new_outputs, Sequence):
             new_outputs = [new_outputs]
-        return ReplacementSubgraph(match, new_outputs, context.nodes, context.initializers, context.used_opsets)
+        return ReplacementSubgraph(
+            match, new_outputs, context.nodes, context.initializers, context.used_opsets
+        )
 
 
 def _update_opset_imports(

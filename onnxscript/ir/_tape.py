@@ -70,9 +70,12 @@ class Tape(Iterable[ir.Node]):
         if name is None:
             raise ValueError("Name must be provided for initializer.")
         shape = ir.Shape((d if isinstance(d, int) else d.value) for d in tensor.shape.dims)
-        value = ir.Value(name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor)
+        value = ir.Value(
+            name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
+        )
         self._initializers.append(value)
         return value
+
 
 # A type representing the domains/versions used in creating nodes in IR.
 UsedOpsets = List[Tuple[str, Optional[int]]]
