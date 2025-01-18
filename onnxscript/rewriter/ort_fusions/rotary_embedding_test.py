@@ -5,8 +5,8 @@ from __future__ import annotations
 import unittest
 
 import onnxscript.optimizer
-from onnxscript.rewriter.onnxruntime.xformers._smollm_1 import TestData
-from onnxscript.rewriter.onnxruntime.xformers.rotary_embedding import fuse_rotary_embedding
+from onnxscript.rewriter.ort_fusions._smollm_1 import TestData
+from onnxscript.rewriter.ort_fusions.rotary_embedding import fuse_rotary_embedding
 
 
 class TestRotaryEmbedding(unittest.TestCase):
