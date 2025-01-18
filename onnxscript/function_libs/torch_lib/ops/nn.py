@@ -831,7 +831,7 @@ def aten_linear(input: TFloat, weight: TFloat, bias: TFloat | None = None) -> TF
 
     if len(input.shape) == 2:
         # Use Gemm for the rank 2 input
-        return op.Gemm(input, weight, transB=True)
+        return op.Gemm(input, weight, bias, transB=True)
     weight_transposed = op.Transpose(weight, perm=[1, 0])
     mul = op.MatMul(input, weight_transposed)
     if bias is None:
