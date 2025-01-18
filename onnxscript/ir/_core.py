@@ -1061,7 +1061,7 @@ class Usage(NamedTuple):
 
     Attributes:
         node: The node that uses the value.
-        index: The index of the value in the node.
+        index: The input index of the value in the node.
     """
 
     node: Node
