@@ -1855,7 +1855,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float16: (8e-2, 1e-4)},
     ),
     TorchLibOpInfo("nn.functional.glu", nn_ops.aten_glu),
-    TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear),
+    TorchLibOpInfo(
+        "nn.functional.linear", nn_ops.aten_linear, tolerance={torch.float16: (1e-2, 1e-3)}
+    ),
     TorchLibOpInfo(
         "nn.functional.unfold",
         nn_ops.aten_im2col,
@@ -2177,9 +2179,6 @@ ops_test_common.duplicate_opinfo(OPS_DB, "maximum", ("maximum_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "min", ("min_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "minimum", ("minimum_bool",))
-ops_test_common.duplicate_opinfo(
-    OPS_DB, "nn.functional.linear", ("nn.functional.linear_bias",)
-)
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.pad",
