@@ -227,8 +227,10 @@ def convert_tensors_to_external(
         # Check if any tensor provided is using the destination file
         new_tensors = []
         for tensor in tensors:
-            if isinstance(tensor, _core.ExternalTensor) and os.path.samefile(
-                path, tensor.path
+            if (
+                isinstance(tensor, _core.ExternalTensor)
+                and os.path.exists(tensor.path)
+                and os.path.samefile(path, tensor.path)
             ):
                 # FIXME(shubhambhokare1): If there is a non-initializer tensor that
                 # is referring to this file, that tensor is now invalid.

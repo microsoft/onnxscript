@@ -79,12 +79,15 @@ def save(
 
         # Check that we are not overwriting the external data path that is currently
         # referenced by an initializer if we are not modifying the model
-        for value in initializer_values:
-            tensor = value.const_value
-            if isinstance(tensor, _core.ExternalTensor) and os.path.samefile(
-                tensor.path, os.path.join(base_dir, external_data)
-            ):
-                if not modify_model:
+        external_path = os.path.join(base_dir, external_data)
+        if not modify_model and os.path.exists(external_path):
+            for value in initializer_values:
+                tensor = value.const_value
+                if (
+                    isinstance(tensor, _core.ExternalTensor)
+                    and os.path.exists(tensor.path)
+                    and os.path.samefile(tensor.path, external_path)
+                ):
                     raise ValueError(
                         f"The external data path is currently referenced by an initializer ('{value}'). "
                         "Model will be incorrect if modify_model=False, because the original reference will "
