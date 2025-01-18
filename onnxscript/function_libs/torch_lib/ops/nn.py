@@ -825,26 +825,17 @@ def aten_leaky_relu_backward(
     raise NotImplementedError()
 
 
-# NOTE: Do not register - We rely on PyTorch decomposition to aten_addmm (Gemm)
-def aten_linear(input: TFloat, weight: TFloat) -> TFloat:
+@torch_op("aten::linear", trace_only=True)
+def aten_linear(input: TFloat, weight: TFloat, bias: TFloat | None = None) -> TFloat:
     """linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor"""
 
-    # NOTE: The symbolic function in torch.onnx also uses Gemm in certain cases
-    # Optimizers may consider this path and replace it with Gemm
-    # We do not use Gemm here because input can have batch dimensions, which Gemm does not support
-    weight_transposed = op.Transpose(weight, perm=[1, 0])
-    return op.MatMul(input, weight_transposed)
-
-
-# NOTE: Do not register - We rely on PyTorch decomposition to aten_addmm (Gemm)
-def aten_linear_bias(input: TFloat, weight: TFloat, bias: TFloat) -> TFloat:
-    """linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor"""
-
-    # NOTE: The symbolic function in torch.onnx also uses Gemm in certain cases
-    # Optimizers may consider this path and replace it with Gemm
-    # We do not use Gemm here because input can have batch dimensions, which Gemm does not support
+    if len(input.shape) == 2:
+        # Use Gemm for the rank 2 input
+        return op.Gemm(input, weight, bias, transB=True)
     weight_transposed = op.Transpose(weight, perm=[1, 0])
     mul = op.MatMul(input, weight_transposed)
+    if bias is None:
+        return mul
     return op.Add(mul, bias)
 
 
