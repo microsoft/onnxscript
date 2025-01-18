@@ -30,6 +30,7 @@ from typing import (
     Hashable,
     Iterable,
     Iterator,
+    NamedTuple,
     OrderedDict,
     Sequence,
     SupportsInt,
@@ -1055,6 +1056,19 @@ def _quoted(string: str) -> str:
     return f'"{string}"'
 
 
+
+class Usage(NamedTuple):
+    """A usage of a value in a node.
+
+    Attributes:
+        node: The node that uses the value.
+        index: The index of the value in the node.
+    """
+
+    node: Node
+    index: int
+
+
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     """IR Node.
 
@@ -1292,6 +1306,31 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         raise AttributeError(
             "Directly mutating the input sequence is unsupported. Please use Node.replace_input_with() instead."
         )
+
+    def predecessors(self) -> Sequence[Node]:
+        """Return the predecessor nodes of the node, deduplicated."""
+        predecessors = []
+        seen = set()
+        for value in self.inputs:
+            if value is not None and (producer := value.producer()) is not None:
+                if producer in seen:
+                    continue
+                seen.add(producer)
+                predecessors.append(producer)
+        return predecessors
+
+    def successors(self) -> Sequence[Node]:
+        """Return the successor nodes of the node, deduplicated."""
+        successors = []
+        seen = set()
+        for value in self.outputs:
+            assert value is not None, "Bug: Output values are not expected to be None"
+            for usage in value.uses():
+                if usage.node in seen:
+                    continue
+                seen.add(usage.node)
+                successors.append(usage.node)
+        return successors
 
     def replace_input_with(self, index: int, value: Value | None) -> None:
         """Replace an input with a new value."""
@@ -1564,7 +1603,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # Use a collection of (Node, int) to store uses. This is needed
         # because a single use can use the same value multiple times.
         # Use a dictionary to preserve insertion order so that the visiting order is deterministic
-        self._uses: dict[tuple[Node, int], None] = {}
+        self._uses: dict[Usage, None] = {}
         self.doc_string = doc_string
 
     def __repr__(self) -> str:
@@ -1599,7 +1638,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         """The index of the output of the defining node."""
         return self._index
 
-    def uses(self) -> Collection[tuple[Node, int]]:
+    def uses(self) -> Collection[Usage]:
         """Return a set of uses of the value.
 
         The set contains tuples of ``(Node, index)`` where the index is the index of the input
@@ -1612,14 +1651,14 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._uses[(use, index)] = None
+        self._uses[Usage(use, index)] = None
 
     def _remove_usage(self, use: Node, index: int) -> None:
         """Remove a node from the uses of this value.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._uses.pop((use, index))
+        self._uses.pop(Usage(use, index))
 
     @property
     def name(self) -> str | None:
