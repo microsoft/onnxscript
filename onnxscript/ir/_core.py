@@ -1056,7 +1056,6 @@ def _quoted(string: str) -> str:
     return f'"{string}"'
 
 
-
 class Usage(NamedTuple):
     """A usage of a value in a node.
 
