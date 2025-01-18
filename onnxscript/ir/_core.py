@@ -1307,29 +1307,23 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         )
 
     def predecessors(self) -> Sequence[Node]:
-        """Return the predecessor nodes of the node, deduplicated."""
-        predecessors = []
-        seen = set()
+        """Return the predecessor nodes of the node, deduplicated, in a determinsitic order."""
+        # Use the ordered nature of a dictionary to deduplicate the nodes
+        predecessors = {}
         for value in self.inputs:
             if value is not None and (producer := value.producer()) is not None:
-                if producer in seen:
-                    continue
-                seen.add(producer)
-                predecessors.append(producer)
-        return predecessors
+                predecessors[producer] = None
+        return tuple(predecessors)
 
     def successors(self) -> Sequence[Node]:
-        """Return the successor nodes of the node, deduplicated."""
-        successors = []
-        seen = set()
+        """Return the successor nodes of the node, deduplicated, in a determinsitic order."""
+        # Use the ordered nature of a dictionary to deduplicate the nodes
+        successors = {}
         for value in self.outputs:
             assert value is not None, "Bug: Output values are not expected to be None"
             for usage in value.uses():
-                if usage.node in seen:
-                    continue
-                seen.add(usage.node)
-                successors.append(usage.node)
-        return successors
+                successors[usage.node] = None
+        return tuple(successors)
 
     def replace_input_with(self, index: int, value: Value | None) -> None:
         """Replace an input with a new value."""
