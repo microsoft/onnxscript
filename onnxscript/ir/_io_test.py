@@ -3,7 +3,14 @@ import tempfile
 import unittest
 
 from onnxscript import ir
-from onnxscript.ir import _core, _io
+from onnxscript.ir import _io
+
+
+def _create_simple_model():
+    tensor = ir.tensor([1.0], dtype=ir.DataType.FLOAT, name="X")
+    node = ir.Node("Identity", inputs=[tensor], outputs=["Y"])
+    graph = ir.graph([node], name="test_graph", outputs=[node.outputs[0]], initializers=[tensor])
+    return ir.model(graph)
 
 class TestIOFunctions(unittest.TestCase):
     def test_load(self):
