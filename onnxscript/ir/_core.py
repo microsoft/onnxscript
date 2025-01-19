@@ -1316,7 +1316,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         return tuple(predecessors)
 
     def successors(self) -> Sequence[Node]:
-        """Return the successor nodes of the node, deduplicated, in a determinsitic order."""
+        """Return the successor nodes of the node, deduplicated, in a deterministic order."""
         # Use the ordered nature of a dictionary to deduplicate the nodes
         successors: dict[Node, None] = {}
         for value in self.outputs:
