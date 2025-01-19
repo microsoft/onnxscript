@@ -1643,7 +1643,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         """
         # Create a tuple for the collection so that iteration on will will not
         # be affected when the usage changes during graph mutation.
-        # This addes a small overhead but is better a user experience than
+        # This adds a small overhead but is better a user experience than
         # having users call tuple().
         return tuple(self._uses)
 
