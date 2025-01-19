@@ -1061,11 +1061,11 @@ class Usage(NamedTuple):
 
     Attributes:
         node: The node that uses the value.
-        index: The input index of the value in the node.
+        idx: The input index of the value in the node.
     """
 
     node: Node
-    index: int
+    idx: int
 
 
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
