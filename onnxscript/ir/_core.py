@@ -1309,7 +1309,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     def predecessors(self) -> Sequence[Node]:
         """Return the predecessor nodes of the node, deduplicated, in a determinsitic order."""
         # Use the ordered nature of a dictionary to deduplicate the nodes
-        predecessors = {}
+        predecessors: dict[Node, None] = {}
         for value in self.inputs:
             if value is not None and (producer := value.producer()) is not None:
                 predecessors[producer] = None
@@ -1318,7 +1318,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     def successors(self) -> Sequence[Node]:
         """Return the successor nodes of the node, deduplicated, in a determinsitic order."""
         # Use the ordered nature of a dictionary to deduplicate the nodes
-        successors = {}
+        successors: dict[Node, None] = {}
         for value in self.outputs:
             assert value is not None, "Bug: Output values are not expected to be None"
             for usage in value.uses():
