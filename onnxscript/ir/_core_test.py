@@ -837,7 +837,7 @@ class NodeTest(unittest.TestCase):
 
     def test_predecessors_are_unique(self):
         # node_b has three inputs from node, but only one predecessor
-        self.assertEqual(self.node_b.predecessors(), self.node_a.predecessors())
+        self.assertEqual(self.node_b.predecessors(), (self.node,))
 
     def test_successors(self):
         self.assertEqual(self.node.successors(), (self.node_a, self.node_b))
