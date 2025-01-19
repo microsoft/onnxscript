@@ -1637,7 +1637,11 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         The set contains tuples of ``(Node, index)`` where the index is the index of the input
         of the node. For example, if ``node.inputs[1] == value``, then the use is ``(node, 1)``.
         """
-        return self._uses.keys()
+        # Create a tuple for the collection so that iteration on will will not
+        # be affected when the usage changes during graph mutation.
+        # This addes a small overhead but is better a user experience than
+        # having users call tuple().
+        return tuple(self._uses.keys())
 
     def _add_usage(self, use: Node, index: int) -> None:
         """Add a usage of this value.
