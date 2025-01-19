@@ -1627,6 +1627,10 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         """
         return self._producer
 
+    def consumers(self) -> Sequence[Node]:
+        """Return the nodes (deduplicated) that consume this value."""
+        return tuple({usage.node: None for usage in self._uses})
+
     def index(self) -> int | None:
         """The index of the output of the defining node."""
         return self._index
@@ -1641,7 +1645,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # be affected when the usage changes during graph mutation.
         # This addes a small overhead but is better a user experience than
         # having users call tuple().
-        return tuple(self._uses.keys())
+        return tuple(self._uses)
 
     def _add_usage(self, use: Node, index: int) -> None:
         """Add a usage of this value.
