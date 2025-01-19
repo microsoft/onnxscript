@@ -740,6 +740,8 @@ class NodeTest(unittest.TestCase):
         self.v0 = _core.Value()
         self.v1 = _core.Value()
         self.node = _core.Node("test", "TestOp", inputs=(self.v0, self.v1), num_outputs=3)
+        self.node_a = _core.Node("test", "TestOpA", inputs=self.node.outputs)
+        self.node_b = _core.Node("test", "TestOpB", inputs=self.node.outputs)
 
     def test_it_is_hashable(self):
         self.assertIsInstance(hash(self.node), int)
@@ -806,6 +808,9 @@ class NodeTest(unittest.TestCase):
             nodes=(self.node,),
         )
         self.assertIn(self.node, graph)
+
+    def test_predecessors(self):
+        self.assertEqual(self.node.predecessors(), ())
 
     # TODO(justinchuby): Test all methods
 
