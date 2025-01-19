@@ -740,7 +740,7 @@ class NodeTest(unittest.TestCase):
         self.v0 = _core.Value()
         self.v1 = _core.Value()
         self.node = _core.Node("test", "TestOp", inputs=(self.v0, self.v1), num_outputs=3)
-        self.node_a = _core.Node("test", "TestOpA", inputs=self.node.outputs)
+        self.node_a = _core.Node("test", "TestOpA", inputs=[self.node.outputs[0]])
         self.node_b = _core.Node("test", "TestOpB", inputs=self.node.outputs)
 
     def test_it_is_hashable(self):
@@ -811,6 +811,20 @@ class NodeTest(unittest.TestCase):
 
     def test_predecessors(self):
         self.assertEqual(self.node.predecessors(), ())
+        self.assertEqual(self.node_a.predecessors(), (self.node,))
+        self.assertEqual(self.node_b.predecessors(), (self.node,))
+
+    def test_predecessors_are_unique(self):
+        # node_b has three inputs from node, but only one predecessor
+        self.assertEqual(self.node_b.predecessors(), self.node_a.predecessors())
+
+    def test_successors(self):
+        self.assertEqual(self.node.successors(), (self.node_a, self.node_b))
+        self.assertEqual(self.node_a.successors(), ())
+        self.assertEqual(self.node_b.successors(), ())
+
+    def test_successors_are_unique(self):
+        self.assertEqual(self.node.successors(), (self.node_a, self.node_b))
 
     # TODO(justinchuby): Test all methods
 
