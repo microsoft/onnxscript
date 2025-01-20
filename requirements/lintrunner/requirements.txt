@@ -8,4 +8,4 @@ types-PyYAML==6.0.12.20241230
 # PYLINT
 pylint==3.3.3
 # EDITORCONFIG-CHECKER
-editorconfig-checker==3.0.3
+editorconfig-checker==3.1.2
