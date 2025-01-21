@@ -3611,7 +3611,7 @@ def aten_floor_divide(self: TFloat, other: TFloat) -> TFloat:
 
 
 @torch_op("_operator::floordiv", traceable=True)
-def operator_floordiv(self: TInt, other: TInt) -> FLOAT:
+def operator_floordiv(self: TInt, other: TInt) -> TInt:
     # We implement floor_divide only for positive inputs (using integer division)
     # because that is the usual intended case and is the most efficient.
     return op.Div(self, other)
