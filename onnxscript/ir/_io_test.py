@@ -76,8 +76,11 @@ class IOFunctionsTest(unittest.TestCase):
         self.assertIsInstance(model.graph.initializers["initializer_0"].const_value, ir.Tensor)
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "model.onnx")
-            external_data_path = "model.data"
-            _io.save(model, path, external_data=external_data_path)
+            external_data_file = "model.data"
+            _io.save(model, path, external_data=external_data_file)
+            self.assertTrue(os.path.exists(path))
+            external_data_path = os.path.join(tmpdir, external_data_file)
+            self.assertTrue(os.path.exists(external_data_path))
             loaded_model = _io.load(path)
 
             # The loaded model contains external data
@@ -103,8 +106,11 @@ class IOFunctionsTest(unittest.TestCase):
         self.assertIsInstance(model.graph.initializers["initializer_0"].const_value, ir.Tensor)
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "model.onnx")
-            external_data_path = "model.data"
-            _io.save(model, path, external_data=external_data_path, modify_model=True)
+            external_data_file = "model.data"
+            _io.save(model, path, external_data=external_data_file, modify_model=True)
+            self.assertTrue(os.path.exists(path))
+            external_data_path = os.path.join(tmpdir, external_data_file)
+            self.assertTrue(os.path.exists(external_data_path))
 
             # The original model is modified
             initializer_tensor = model.graph.initializers["initializer_0"].const_value
@@ -114,6 +120,22 @@ class IOFunctionsTest(unittest.TestCase):
             self.assertIsInstance(const_attr_tensor, ir.Tensor)
             np.testing.assert_array_equal(initializer_tensor.numpy(), np.array([0.0]))
             np.testing.assert_array_equal(const_attr_tensor.numpy(), np.array([1.0]))
+
+            # Release the mmap resource so that the os can remove the data file
+            initializer_tensor.release()
+
+        # Accessing the external tensor when the data file is deleted raises an error
+        self.assertFalse(os.path.exists(external_data_path))
+        with self.assertRaises(FileNotFoundError):
+            initializer_tensor.numpy()
+
+    def test_save_raise_when_external_data_is_not_relative_path(self):
+        model = _create_simple_model_with_initializers()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "model.onnx")
+            external_data_file = os.path.join(tmpdir, "model.data")
+            with self.assertRaises(ValueError):
+                _io.save(model, path, external_data=external_data_file)
 
 
 if __name__ == "__main__":
