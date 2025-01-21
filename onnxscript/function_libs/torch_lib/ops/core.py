@@ -2760,8 +2760,6 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
 
 @torch_op("_operator::truediv", traceable=True)
 def operator_truediv(self: TensorType, other: TensorType) -> FLOAT:
-    """div.Tensor(Tensor self, Tensor other) -> Tensor"""
-
     return op.Div(op.Cast(self, to=FLOAT.dtype), op.Cast(other, to=FLOAT.dtype))
 
 
