@@ -2763,7 +2763,6 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
 def operator_truediv_int(self: TInt, other: TInt) -> TFloat:
     """div.Tensor(Tensor self, Tensor other) -> Tensor"""
 
-    # Int inputs will be promoted to float by PyTorch
     return op.Div(op.Cast(self, to=FLOAT.dtype), op.Cast(other, to=FLOAT.dtype))
 
 
