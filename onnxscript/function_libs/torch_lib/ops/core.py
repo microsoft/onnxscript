@@ -169,9 +169,7 @@ def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     return op.Add(self, other)
 
 
-@torch_op(
-    ("aten::add.Tensor", "aten::add.Scalar"), trace_only=True, complex=True
-)
+@torch_op(("aten::add.Tensor", "aten::add.Scalar"), trace_only=True, complex=True)
 def aten_add_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
