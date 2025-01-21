@@ -30,6 +30,7 @@ from typing import (
     Hashable,
     Iterable,
     Iterator,
+    NamedTuple,
     OrderedDict,
     Sequence,
     SupportsInt,
@@ -1055,6 +1056,18 @@ def _quoted(string: str) -> str:
     return f'"{string}"'
 
 
+class Usage(NamedTuple):
+    """A usage of a value in a node.
+
+    Attributes:
+        node: The node that uses the value.
+        idx: The input index of the value in the node.
+    """
+
+    node: Node
+    idx: int
+
+
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     """IR Node.
 
@@ -1292,6 +1305,25 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         raise AttributeError(
             "Directly mutating the input sequence is unsupported. Please use Node.replace_input_with() instead."
         )
+
+    def predecessors(self) -> Sequence[Node]:
+        """Return the predecessor nodes of the node, deduplicated, in a deterministic order."""
+        # Use the ordered nature of a dictionary to deduplicate the nodes
+        predecessors: dict[Node, None] = {}
+        for value in self.inputs:
+            if value is not None and (producer := value.producer()) is not None:
+                predecessors[producer] = None
+        return tuple(predecessors)
+
+    def successors(self) -> Sequence[Node]:
+        """Return the successor nodes of the node, deduplicated, in a deterministic order."""
+        # Use the ordered nature of a dictionary to deduplicate the nodes
+        successors: dict[Node, None] = {}
+        for value in self.outputs:
+            assert value is not None, "Bug: Output values are not expected to be None"
+            for usage in value.uses():
+                successors[usage.node] = None
+        return tuple(successors)
 
     def replace_input_with(self, index: int, value: Value | None) -> None:
         """Replace an input with a new value."""
@@ -1564,7 +1596,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # Use a collection of (Node, int) to store uses. This is needed
         # because a single use can use the same value multiple times.
         # Use a dictionary to preserve insertion order so that the visiting order is deterministic
-        self._uses: dict[tuple[Node, int], None] = {}
+        self._uses: dict[Usage, None] = {}
         self.doc_string = doc_string
 
     def __repr__(self) -> str:
@@ -1595,31 +1627,39 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         """
         return self._producer
 
+    def consumers(self) -> Sequence[Node]:
+        """Return the nodes (deduplicated) that consume this value."""
+        return tuple({usage.node: None for usage in self._uses})
+
     def index(self) -> int | None:
         """The index of the output of the defining node."""
         return self._index
 
-    def uses(self) -> Collection[tuple[Node, int]]:
+    def uses(self) -> Collection[Usage]:
         """Return a set of uses of the value.
 
         The set contains tuples of ``(Node, index)`` where the index is the index of the input
         of the node. For example, if ``node.inputs[1] == value``, then the use is ``(node, 1)``.
         """
-        return self._uses.keys()
+        # Create a tuple for the collection so that iteration on will will not
+        # be affected when the usage changes during graph mutation.
+        # This adds a small overhead but is better a user experience than
+        # having users call tuple().
+        return tuple(self._uses)
 
     def _add_usage(self, use: Node, index: int) -> None:
         """Add a usage of this value.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._uses[(use, index)] = None
+        self._uses[Usage(use, index)] = None
 
     def _remove_usage(self, use: Node, index: int) -> None:
         """Remove a node from the uses of this value.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._uses.pop((use, index))
+        self._uses.pop(Usage(use, index))
 
     @property
     def name(self) -> str | None:
