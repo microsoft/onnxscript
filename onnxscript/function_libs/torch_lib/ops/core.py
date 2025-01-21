@@ -2766,7 +2766,7 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
         "_operator::truediv",
     )
 )
-def aten_div_int(self: TInt, other: TInt) -> TFloat:
+def operator_truediv_int(self: TInt, other: TInt) -> TFloat:
     """div.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     # Int inputs will be promoted to float by PyTorch
