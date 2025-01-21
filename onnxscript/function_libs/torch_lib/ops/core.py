@@ -169,9 +169,7 @@ def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     return op.Add(self, other)
 
 
-@torch_op(
-    ("aten::add.Tensor", "aten::add.Scalar", "_operator::add"), trace_only=True, complex=True
-)
+@torch_op(("aten::add.Tensor", "aten::add.Scalar"), trace_only=True, complex=True)
 def aten_add_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
@@ -2749,7 +2747,6 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2.0) -> TensorType
         "aten::divide.Scalar",
         "aten::true_divide.Tensor",
         "aten::true_divide.Scalar",
-        "_operator::truediv",
     )
 )
 def aten_div(self: TFloat, other: TFloat) -> TFloat:
@@ -2757,6 +2754,11 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
 
     # Int inputs will be promoted to float by PyTorch
     return op.Div(self, other)
+
+
+@torch_op("_operator::truediv", traceable=True)
+def operator_truediv(self: TensorType, other: TensorType) -> FLOAT:
+    return op.Div(op.Cast(self, to=FLOAT.dtype), op.Cast(other, to=FLOAT.dtype))
 
 
 @torch_op(
@@ -2767,7 +2769,6 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
         "aten::divide.Scalar",
         "aten::true_divide.Tensor",
         "aten::true_divide.Scalar",
-        "_operator::truediv",
     ),
     complex=True,
 )
@@ -3597,17 +3598,15 @@ def python_math_floor(self: TFloat) -> TInt:
     return op.Cast(floor, to=INT64.dtype)
 
 
-@torch_op(("aten::floor_divide", "_operator::floordiv"), traceable=True)
+@torch_op("aten::floor_divide", traceable=True)
 def aten_floor_divide(self: TFloat, other: TFloat) -> TFloat:
     """floor_divide(Tensor self, Tensor other) -> Tensor"""
 
     return op.Floor(op.Div(self, other))
 
 
-@torch_op(("aten::floor_divide", "_operator::floordiv"), traceable=True)
-def aten_floor_divide_int(self: TInt, other: TInt) -> TInt:
-    """floor_divide(Tensor self, Tensor other) -> Tensor"""
-
+@torch_op("_operator::floordiv", traceable=True)
+def operator_floordiv(self: INT64, other: INT64) -> INT64:
     # We implement floor_divide only for positive inputs (using integer division)
     # because that is the usual intended case and is the most efficient.
     return op.Div(self, other)
@@ -4940,7 +4939,6 @@ def aten_logical_not(self: BOOL) -> BOOL:
         "aten::bitwise_or.Scalar_Tensor",
         "aten::add.Tensor",
         "aten::add.Scalar",
-        "_operator::add",
     ),
     traceable=True,
 )
@@ -5658,7 +5656,7 @@ def aten_mul(self: TReal, other: TReal) -> TReal:
 
 
 @torch_op(
-    ("aten::mul", "aten::mul.Tensor", "_operator::mul", "aten::multiply.Tensor"),
+    ("aten::mul", "aten::mul.Tensor", "aten::multiply.Tensor"),
     traceable=True,
 )
 def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
@@ -5671,7 +5669,7 @@ def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
 
 
 @torch_op(
-    ("aten::mul", "aten::mul.Tensor", "_operator::mul", "aten::multiply.Tensor"),
+    ("aten::mul", "aten::mul.Tensor", "aten::multiply.Tensor"),
     traceable=True,
     complex=True,
 )
@@ -8044,7 +8042,6 @@ def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
         "aten::sub.Scalar",
         "aten::subtract.Tensor",
         "aten::subtract.Scalar",
-        "_operator::sub",
     ),
     trace_only=True,
     complex=True,
