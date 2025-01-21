@@ -2760,11 +2760,7 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
 
 
 @torch_op(
-    (
-        "aten::true_divide.Tensor",
-        "aten::true_divide.Scalar",
-        "_operator::truediv",
-    )
+    "_operator::truediv"
 )
 def operator_truediv_int(self: TInt, other: TInt) -> TFloat:
     """div.Tensor(Tensor self, Tensor other) -> Tensor"""
