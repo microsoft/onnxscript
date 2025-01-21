@@ -2761,6 +2761,20 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
 
 @torch_op(
     (
+        "aten::true_divide.Tensor",
+        "aten::true_divide.Scalar",
+        "_operator::truediv",
+    )
+)
+def aten_div_int(self: TInt, other: TInt) -> TFloat:
+    """div.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    # Int inputs will be promoted to float by PyTorch
+    return op.Div(op.Cast(self, to=FLOAT.dtype), op.Cast(other, to=FLOAT.dtype))
+
+
+@torch_op(
+    (
         "aten::div.Tensor",
         "aten::div.Scalar",
         "aten::divide.Tensor",
@@ -3605,12 +3619,12 @@ def aten_floor_divide(self: TFloat, other: TFloat) -> TFloat:
 
 
 @torch_op(("aten::floor_divide", "_operator::floordiv"), traceable=True)
-def aten_floor_divide_int(self: TInt, other: TInt) -> TInt:
+def aten_floor_divide_int(self: TInt, other: TInt) -> FLOAT:
     """floor_divide(Tensor self, Tensor other) -> Tensor"""
 
     # We implement floor_divide only for positive inputs (using integer division)
     # because that is the usual intended case and is the most efficient.
-    return op.Div(self, other)
+    return op.Div(op.Cast(self, to=FLOAT.dtype), op.Cast(other, to=FLOAT.dtype))
 
 
 def aten_fmax(self: TensorType, other: TensorType) -> TensorType:
