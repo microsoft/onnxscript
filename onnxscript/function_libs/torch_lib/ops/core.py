@@ -2759,9 +2759,7 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
     return op.Div(self, other)
 
 
-@torch_op(
-    "_operator::truediv"
-)
+@torch_op("_operator::truediv", traceable=True)
 def operator_truediv_int(self: TInt, other: TInt) -> TFloat:
     """div.Tensor(Tensor self, Tensor other) -> Tensor"""
 
