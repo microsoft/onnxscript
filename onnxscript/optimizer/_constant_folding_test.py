@@ -1,7 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+from __future__ import annotations
+
 import unittest
 
+import numpy as np
 import onnx
 import parameterized
 import pytest
@@ -397,10 +400,12 @@ func (float[1,3] x) => (float[1,3] return_val) {
 
 
 class FoldConstantsIrTest(unittest.TestCase):
-    def _fold(self, model_text: str, onnx_shape_inference=False) -> ir.Model:
-        model_proto = onnx.parser.parse_model(model_text)
-        model = serde.deserialize_model(model_proto)
-        _constant_folding.fold_constants(model, onnx_shape_inference=onnx_shape_inference)
+    def _fold(self, model: str | onnx.ModelProto | ir.Model, **kwargs) -> ir.Model:
+        if isinstance(model, str):
+            model = onnx.parser.parse_model(model)
+        if isinstance(model, onnx.ModelProto):
+            model = serde.deserialize_model(model)
+        _constant_folding.fold_constants(model, **kwargs)
         optimizer.remove_unused_nodes(model)
         return model
 
@@ -556,6 +561,32 @@ class FoldConstantsIrTest(unittest.TestCase):
         """
         optimized = self._fold(model)
         self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
+
+    def test_large_transpose(self):
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[M, 256] x) => (float[M, 512] z)
+            <float[1, 1] w = {1.0}> # placeholder for large initializer of shape [512, 256]
+            {
+                wt = Transpose (w)
+                z = MatMul (x, wt)
+            }
+        """
+        irmodel = serde.deserialize_model(onnx.parser.parse_model(model))
+        w = irmodel.graph.initializers["w"]
+        w.shape = ir.Shape([512, 256])
+        w.const_value = ir.tensor(np.random.random((512, 256)).astype(np.float32))
+
+        # Input size limit will prevent folding of Transpose op
+        optimized = self._fold(irmodel, input_size_limit=3 * 512 * 256)
+        ops = [node.op_type for node in optimized.graph]
+        self.assertEqual(ops, ["Transpose", "MatMul"])
+
+        # Input size limit will allow folding of Transpose op
+        # Since there is no increase in model-size, output-size is not a concern.
+        optimized = self._fold(irmodel, input_size_limit=4 * 512 * 256)
+        ops = [node.op_type for node in optimized.graph]
+        self.assertEqual(ops, ["Constant", "MatMul"])
 
 
 if __name__ == "__main__":

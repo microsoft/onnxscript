@@ -874,7 +874,8 @@ class ConstantFolder:
                     e,
                 )
 
-    def new_constant(self, irvalue: ir.Value, value):
+    def new_constant(self, node: ir.Node, value):
+        irvalue = node.outputs[0]
         if not isinstance(value, np.ndarray):
             # ONNX does not have a way to represent non-tensor constants, eg. a sequence.
             # So, a constant-value of type sequence is not folded, but it can be used
@@ -891,12 +892,22 @@ class ConstantFolder:
         irvalue.const_value = tensor
 
         if value.nbytes > self._output_size_limit:
-            logger.info(
-                "Skip storing constant folded nvalue %s due to large size %s.",
-                irvalue.name,
-                value.nbytes,
-            )
-            return None
+            # Handle examples like Transpose(weight) to be folded even if the size is large,
+            # as long as weight has no other uses. This won't increase model size.
+            removed_input_size = 0
+            for input in node.inputs:
+                if (input is not None) and (len(input.uses()) == 1):
+                    array = _get_numpy_value(input)
+                    if array is not None:
+                        removed_input_size += array.nbytes
+            increased_size = value.nbytes - removed_input_size
+            if increased_size > 0:
+                logger.info(
+                    "Skip storing constant folded nvalue %s due to large size %s.",
+                    irvalue.name,
+                    value.nbytes,
+                )
+                return None
 
         logger.debug(
             "New constant for value %s dtype: %s shape: %s",
@@ -979,7 +990,7 @@ class ConstantFolder:
         if outputs is None:
             return None
         if len(node.outputs) == 1 and not isinstance(outputs, (tuple, list)):
-            replacement = self.new_constant(node.outputs[0], outputs)
+            replacement = self.new_constant(node, outputs)
             if is_onnx_op(node, "ConstantOfShape") or replacement is None:
                 return None
             return Replacement(replacement.outputs, [replacement])
