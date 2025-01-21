@@ -67,9 +67,8 @@ def save_model_with_external_data(model: ir.Model, model_path: str | os.PathLike
     """Save the model with external data. The model is unchanged after saving."""
 
     # TODO(#1835): Decide if we want to externalize large attributes as well
-    tensors = [v.const_value for v in model.graph.initializers.values()]
-    for tensor in tensors:
-        if tensor is None:
+    for value in model.graph.initializers.values():
+        if value.const_value is None:
             raise ValueError(
                 "The model contains uninitialized initializer values. "
                 "Please make sure all initializer values are initialized."
