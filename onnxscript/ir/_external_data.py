@@ -16,6 +16,7 @@ import os
 from typing import Iterator, Sequence
 
 from onnxscript.ir import _core, _enums, _protocols, traversal
+from onnxscript.ir._polyfill import zip
 
 # Note: If needed in future, add these as parameters to the function calls
 # align_offset: Offset will always be page aligned and alloction granularity aligned for mmap support. This is done by padding previous tensor data with zeros keeping same length. Tensor data will be aligned if > align_threshold
@@ -163,7 +164,7 @@ def _write_external_data(
         "Number of tensors and external data infos should match"
     )
     with open(file_path, "wb") as data_file:
-        for tensor, tensor_info in zip(tensors, external_data_infos):
+        for tensor, tensor_info in zip(tensors, external_data_infos, strict=True):
             current_offset = tensor_info.offset
             assert tensor is not None
             raw_data = tensor.tobytes()
@@ -277,10 +278,9 @@ def convert_tensors_to_external(
     _write_external_data(sorted_tensors, external_data_infos, path)
 
     # Create external tensor objects
-    assert len(sorted_tensors) == len(external_data_infos)
     external_tensors: list[_core.ExternalTensor] = [
         _create_external_tensor(tensor, external_info, base_dir, relative_path)
-        for tensor, external_info in zip(sorted_tensors, external_data_infos)
+        for tensor, external_info in zip(sorted_tensors, external_data_infos, strict=True)
     ]
 
     # Sort external_tensors based on original key order. So that it can match the input tensor order
@@ -338,10 +338,12 @@ def to_external_data(
     )
 
     # Replace the initializer values with external tensors and save the model
-    assert len(initializers_to_become_external) == len(external_tensors)
-    assert len(initializers_to_load_to_memory) == len(memory_tensors)
-    for value, external_tensor in zip(initializers_to_become_external, external_tensors):
+    for value, external_tensor in zip(
+        initializers_to_become_external, external_tensors, strict=True
+    ):
         value.const_value = external_tensor
-    for value, memory_tensor in zip(initializers_to_load_to_memory, memory_tensors):
+    for value, memory_tensor in zip(
+        initializers_to_load_to_memory, memory_tensors, strict=True
+    ):
         value.const_value = memory_tensor
     return model

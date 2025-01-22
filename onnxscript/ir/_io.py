@@ -11,6 +11,7 @@ import os
 import onnx
 
 from onnxscript.ir import _core, _external_data, serde
+from onnxscript.ir._polyfill import zip
 
 
 def load(path: str | os.PathLike, format: str | None = None) -> _core.Model:
@@ -87,8 +88,7 @@ def save(
 
         finally:
             # Restore the original initializer values so the model is unchanged
-            assert len(initializer_values) == len(tensors)
-            for initializer, tensor in zip(initializer_values, tensors):
+            for initializer, tensor in zip(initializer_values, tensors, strict=True):
                 initializer.const_value = tensor
 
     else:
