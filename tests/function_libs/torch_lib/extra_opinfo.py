@@ -1377,6 +1377,8 @@ def sample_inputs__softmax(
 
 
 def sample_inputs_prims_std_var(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
     tensor_nd = functools.partial(
         opinfo_core.make_tensor,
         (S, S, S),
