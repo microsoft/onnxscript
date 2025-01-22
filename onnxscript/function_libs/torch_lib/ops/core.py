@@ -4262,7 +4262,7 @@ def aten_index_copy(
     raise NotImplementedError()
 
 
-@torch_op(("aten::index_put", "aten::_unsafe_index_put"))
+@torch_op(("aten::index_put", "aten::_unsafe_index_put"), trace_only=True)
 def aten_index_put(
     self: TReal,
     indices: Sequence[INT64],
@@ -4276,10 +4276,10 @@ def aten_index_put(
     """
 
     # TODO(justinchuby): Handle when indicies has more than one element
-    index = op.SequenceAt(indices, 0)
+    index = indices[0]
     new_index = op.Unsqueeze(index, [-1])
 
-    if op.Cast(accumulate, to=BOOL.dtype):
+    if accumulate:
         result = op.ScatterND(self, new_index, values, reduction="add")
     else:
         result = op.ScatterND(self, new_index, values)
@@ -4287,7 +4287,7 @@ def aten_index_put(
     return result
 
 
-@torch_op("aten::index_put")
+@torch_op("aten::index_put", trace_only=True)
 def aten_index_put_bool(
     self: TReal,
     indices: Sequence[BOOL],
@@ -4296,7 +4296,8 @@ def aten_index_put_bool(
 ) -> TReal:
     """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
 
-    index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
+    # TODO: Support indices with more than 1 elements
+    index = indices[0]
     # accumulate should be always False, True does not make sense but an assert would be great
     return op.Where(index, values, self)
 
