@@ -6,7 +6,7 @@ import sys
 from typing import Any, Sequence
 
 if sys.version_info >= (3, 10):
-    zip = zip
+    zip = zip  # pylint: disable=self-assigning-variable
 else:
     # zip(..., strict=True) was added in Python 3.10
     # TODO: Remove this polyfill when we drop support for Python 3.9
