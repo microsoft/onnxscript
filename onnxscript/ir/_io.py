@@ -40,6 +40,7 @@ def save(
     path: str | os.PathLike,
     format: str | None = None,
     external_data: str | os.PathLike | None = None,
+    size_threshold_bytes: int = 256,
     modify_model: bool = False,
 ) -> None:
     """Save an ONNX model to a file.
@@ -55,6 +56,8 @@ def save(
             That is, if a tensor in the model is already external, it will be saved
             with the same external information; if the tensor is not external,
             it will be serialized in the ONNX Proto message.
+        size_threshold_bytes: Save to external data if the tensor size in bytes is larger than this threshold.
+            Effective only when :param:`external_data` is set.
         modify_model: Whether to modify the model in place when :param:`external_data` is ``True``.
             If ``False``, the model will be kept unmodified after saving. If ``True``, the model's
             initializers will reference the newly created external data file.
@@ -95,7 +98,7 @@ def save(
                         "choose a different `external_data` path that is not currently referenced by the model."
                     )
 
-        model = _external_data.to_external_data(model, base_dir, external_data)
+        model = _external_data.to_external_data(model, base_dir, external_data, size_threshold_bytes=size_threshold_bytes)
         proto = serde.serialize_model(model)
         onnx.save(proto, path, format=format)
 
