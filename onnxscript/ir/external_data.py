@@ -17,7 +17,7 @@ import logging
 import os
 from typing import Iterator, Sequence
 
-from onnxscript.ir import _core, _enums, _protocols, traversal
+from onnxscript.ir import _core, _enums, _protocols, traversal as _traversal
 from onnxscript.ir._polyfill import zip
 
 # Note: If needed in future, add these as parameters to the function calls
@@ -67,7 +67,7 @@ def _all_tensors(
     if not include_attributes:
         return
     # Look at constant attributes in nodes
-    for node in traversal.RecursiveGraphIterator(graph):
+    for node in _traversal.RecursiveGraphIterator(graph):
         for attr in node.attributes.values():
             if isinstance(attr, _core.RefAttr):
                 continue
