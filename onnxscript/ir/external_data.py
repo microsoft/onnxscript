@@ -211,7 +211,7 @@ def _create_external_tensor(
 
 
 def convert_tensors_from_external(
-    tensors: Sequence[_core.ExternalTensor],
+    tensors: Sequence[_protocols.TensorProtocol],
 ) -> list[_protocols.TensorProtocol]:
     """Convert a sequence of external tensors to in-memory tensors.
 
