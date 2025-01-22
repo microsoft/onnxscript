@@ -17,7 +17,8 @@ import logging
 import os
 from typing import Iterator, Sequence
 
-from onnxscript.ir import _core, _enums, _protocols, traversal as _traversal
+from onnxscript.ir import _core, _enums, _protocols
+from onnxscript.ir import traversal as _traversal
 from onnxscript.ir._polyfill import zip
 
 # Note: If needed in future, add these as parameters to the function calls
