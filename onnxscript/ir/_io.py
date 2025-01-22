@@ -10,7 +10,7 @@ import os
 
 import onnx
 
-from onnxscript.ir import _core, _external_data, serde
+from onnxscript.ir import _core, external_data, serde
 from onnxscript.ir._polyfill import zip
 
 
@@ -32,7 +32,7 @@ def load(path: str | os.PathLike, format: str | None = None) -> _core.Model:
     base_dir = os.path.dirname(path)
     # Set the base directory for external data to the directory of the ONNX file
     # so that relative paths are resolved correctly.
-    _external_data.set_base_dir(model.graph, base_dir)
+    external_data.set_base_dir(model.graph, base_dir)
     return model
 
 
@@ -80,7 +80,7 @@ def save(
         tensors = [v.const_value for v in model.graph.initializers.values()]
 
         try:
-            model = _external_data.to_external_data(
+            model = external_data.to_external_data(
                 model, base_dir, external_data, size_threshold_bytes=size_threshold_bytes
             )
             proto = serde.serialize_model(model)

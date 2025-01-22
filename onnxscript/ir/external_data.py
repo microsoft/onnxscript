@@ -14,6 +14,7 @@ __all__ = [
 import dataclasses
 import os
 from typing import Iterator, Sequence
+import logging
 
 from onnxscript.ir import _core, _enums, _protocols, traversal
 from onnxscript.ir._polyfill import zip
@@ -26,6 +27,8 @@ _ALIGN_THRESHOLD = 1048576  # 1MB
 # allocation_granularity: The allocation Granularity for mmap() support. Typically 64KB for Windows & 4KB for other OSes.
 _ALLOCATION_GRANULARITY = 65536  # 64KB
 
+
+logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class _ExternalDataInfo:
@@ -259,12 +262,19 @@ def convert_tensors_to_external(
                 # Mark the original external tensor as invalid because it is now pointing
                 # to a file that is going to be overwritten.
                 tensor.invalidate()
+                logger.warning(
+                    "External tensor %s is referring to the same file as the destination path. "
+                    "It has been invalidated because the data file is changed. To avoid this, "
+                    "save the external data to a different path or load the newly saved model back "
+                    "with ir.load().",
+                    tensor
+                )
             else:
                 new_tensors.append(tensor)
         tensors = new_tensors
 
     external_data_infos: list[_ExternalDataInfo] = []
-    # Sort all tensors based on tensor sizes, in order to avoid unneccesarry alignment.
+    # Sort all tensors based on tensor sizes, in order to avoid unnecessary alignment.
     # All the smaller tensors are written earlier and alignment is performed for the larger tensors.
     sorted_indices = sorted(range(len(tensors)), key=lambda i: tensors[i].nbytes)
     sorted_tensors = [tensors[i] for i in sorted_indices]
@@ -303,6 +313,12 @@ def to_external_data(
 
     It should only replace the initializers in the model with external tensors
     and not make any other modifications to the model.
+
+    If any existing external tensor
+    references the provided :param:`external_data` path, it will be invalidated
+    after the external data is overwritten. To obtain a valid model, use :func:`load`
+    to load the newly saved model, or provide a different external data path that
+    is not currently referenced by any tensors in the model.
 
     Args:
         model: Model to process.
