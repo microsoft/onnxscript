@@ -53,6 +53,7 @@ from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import fft as fft_ops
 from onnxscript.function_libs.torch_lib.ops import linalg as linalg_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
+from onnxscript.function_libs.torch_lib.ops import prims as prims_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
 from onnxscript.function_libs.torch_lib.ops import vision as vision_ops
 from tests.function_libs.torch_lib import extra_opinfo, ops_test_common
@@ -2134,6 +2135,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),  # Custom from extra_opinfo
     TorchLibOpInfo("transpose", core_ops.aten_transpose),
     TorchLibOpInfo("transpose", core_ops.aten_transpose_complex, complex=True),
+    TorchLibOpInfo(
+        "ops.prims.var.default", prims_ops.prims_var, tolerance={torch.float16: (1e-3, 5e-2)}
+    ),
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like),
     TorchLibOpInfo("torchvision.ops.nms", vision_ops.torchvision_nms),
 )
