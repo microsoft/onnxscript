@@ -6,15 +6,16 @@ from __future__ import annotations
 
 __all__ = [
     "set_base_dir",
-    "to_external_data",
+    "unload_from_model",
+    "load_to_model",
     "convert_tensors_to_external",
     "convert_tensors_from_external",
 ]
 
 import dataclasses
+import logging
 import os
 from typing import Iterator, Sequence
-import logging
 
 from onnxscript.ir import _core, _enums, _protocols, traversal
 from onnxscript.ir._polyfill import zip
@@ -29,6 +30,7 @@ _ALLOCATION_GRANULARITY = 65536  # 64KB
 
 
 logger = logging.getLogger(__name__)
+
 
 @dataclasses.dataclass
 class _ExternalDataInfo:
@@ -267,7 +269,7 @@ def convert_tensors_to_external(
                     "It has been invalidated because the data file is changed. To avoid this, "
                     "save the external data to a different path or load the newly saved model back "
                     "with ir.load().",
-                    tensor
+                    tensor,
                 )
             else:
                 new_tensors.append(tensor)
@@ -302,14 +304,37 @@ def convert_tensors_to_external(
     return external_tensors
 
 
-def to_external_data(
+def load_to_model(model: _core.Model) -> _core.Model:
+    """Convert all external model initializers to memory tensors in-place.
+
+    Args:
+        model: Model to process.
+    """
+    # TODO(justinchuby): Load attributes and initializers in subgraphs
+    values_to_convert = []
+    for value in model.graph.initializers.values():
+        if value.const_value is None:
+            # Filter out the uninitialized initializer values
+            continue
+        if isinstance(value.const_value, _core.ExternalTensor):
+            values_to_convert.append(value)
+    loaded_tensors = convert_tensors_from_external([v.const_value for v in values_to_convert])
+    for value, tensor in zip(values_to_convert, loaded_tensors, strict=True):
+        value.const_value = tensor
+
+    # Return the model because we may change the implementation to an out of place one
+    # to keep the input unchanged
+    return model
+
+
+def unload_from_model(
     model: _core.Model,
     base_dir: str | os.PathLike,
     relative_path: str | os.PathLike,
     *,
-    size_threshold_bytes: int,
+    size_threshold_bytes: int = 0,
 ) -> _core.Model:
-    """Convert all initializers equal or above size_threshold_bytes to external tensors and save data to a single data file.
+    """Convert all initializers equal or above size_threshold_bytes to external tensors in-place and save data to a single data file.
 
     It should only replace the initializers in the model with external tensors
     and not make any other modifications to the model.
@@ -362,4 +387,7 @@ def to_external_data(
         initializers_to_load_to_memory, memory_tensors, strict=True
     ):
         value.const_value = memory_tensor
+
+    # Return the model because we may change the implementation to an out of place one
+    # to keep the input unchanged
     return model

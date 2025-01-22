@@ -335,7 +335,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         return model
 
     def test_external_data_simple(self):
-        model_with_external_data = external_data.to_external_data(
+        model_with_external_data = external_data.unload_from_model(
             self.model, self.base_path, self.external_data_name
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
@@ -348,7 +348,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         self.assertEqual(external_tensor2.numpy().tobytes(), self.data_float16.tobytes())
 
     def test_same_path_external_data(self):
-        model_with_external_data = external_data.to_external_data(
+        model_with_external_data = external_data.unload_from_model(
             self.model_with_external_data_same_path,
             self.base_path,
             self.external_data_name,
@@ -368,7 +368,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         self.assertEqual(external_tensor3.numpy().tobytes(), self.data_other.tobytes())
 
     def test_external_data_diff_paths(self):
-        model_with_external_data = external_data.to_external_data(
+        model_with_external_data = external_data.unload_from_model(
             self.model_with_external_data_diff_path,
             self.base_path,
             self.external_data_name,
@@ -398,7 +398,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         self.assertEqual(external_tensor5.numpy().tobytes(), self.data_ext2_1.tobytes())
 
     def test_custom_tensor_in_initializers(self):
-        model_with_external_data = external_data.to_external_data(
+        model_with_external_data = external_data.unload_from_model(
             self.model_with_custom_tensor_class,
             self.base_path,
             self.external_data_name,
@@ -418,7 +418,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         self.assertEqual(external_tensor3.numpy().tobytes(), self.custom_data.tobytes())
 
     def test_mixed_external_data(self):
-        model_with_external_data = external_data.to_external_data(
+        model_with_external_data = external_data.unload_from_model(
             self.model_with_mixed_external_data, self.base_path, self.external_data_name
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
@@ -456,7 +456,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         self.assertEqual(external_tensor7.numpy().tobytes(), self.data_ext2_1.tobytes())
 
     def test_external_data_sorted(self):
-        model_with_external_data = external_data.to_external_data(
+        model_with_external_data = external_data.unload_from_model(
             self.model_with_mixed_external_data,
             self.base_path,
             self.external_data_name,
