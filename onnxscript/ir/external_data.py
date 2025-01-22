@@ -318,7 +318,9 @@ def load_to_model(model: _core.Model) -> _core.Model:
             continue
         if isinstance(value.const_value, _core.ExternalTensor):
             values_to_convert.append(value)
-    loaded_tensors = convert_tensors_from_external([v.const_value for v in values_to_convert])
+    loaded_tensors = convert_tensors_from_external(
+        [v.const_value for v in values_to_convert]  # type: ignore[misc]
+    )
     for value, tensor in zip(values_to_convert, loaded_tensors, strict=True):
         value.const_value = tensor
 
@@ -371,9 +373,11 @@ def unload_from_model(
 
     # Load to memory first, then convert to external tensors, because
     # the existing external tensors may be overwritten by the new external data
-    memory_tensors = convert_tensors_from_external(initializers_to_load_to_memory)
+    memory_tensors = convert_tensors_from_external(
+        [v.const_value for v in initializers_to_load_to_memory]  # type: ignore[misc]
+    )
     external_tensors = convert_tensors_to_external(
-        [v.const_value for v in initializers_to_become_external],
+        [v.const_value for v in initializers_to_become_external],  # type: ignore[misc]
         base_dir=base_dir,
         relative_path=relative_path,
     )
