@@ -22,12 +22,12 @@ import os
 import sys
 import textwrap
 import typing
+from collections.abc import Hashable
 from typing import (
     AbstractSet,
     Any,
     Collection,
     Generic,
-    Hashable,
     Iterable,
     Iterator,
     NamedTuple,
@@ -516,6 +516,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         "_metadata_props",
         "_offset",
         "_shape",
+        "_valid",
         "doc_string",
         "name",
         "raw",
@@ -568,6 +569,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         self.raw: mmap.mmap | None = None
         self._metadata_props = metadata_props
         self._metadata: _metadata.MetadataStore | None = None
+        self._valid = True
 
     @property
     def base_dir(self) -> str | os.PathLike:
@@ -609,6 +611,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         return self._shape
 
     def _load(self):
+        self._check_validity()
         assert self._array is None, "Bug: The array should be loaded only once."
         if self.size == 0:
             # When the size is 0, mmap is impossible and meaningless
@@ -647,6 +650,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             self._array = self._array.reshape(shape)
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
+        self._check_validity()
         if self._array is None:
             self._load()
         assert self._array is not None
@@ -675,6 +679,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
 
         The data will be memory mapped into memory and will not taken up physical memory space.
         """
+        self._check_validity()
         if self._array is None:
             self._load()
         assert self._array is not None
@@ -685,12 +690,33 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
 
         This will load the tensor into memory.
         """
+        self._check_validity()
         if self.raw is None:
             self._load()
         assert self.raw is not None
         offset = self._offset or 0
         length = self._length or self.nbytes
         return self.raw[offset : offset + length]
+
+    def valid(self) -> bool:
+        """Check if the tensor is valid.
+
+        The external tensor is valid if it has not been invalidated.
+        """
+        return self._valid
+
+    def _check_validity(self) -> None:
+        if not self.valid():
+            raise ValueError(
+                f"The external tensor '{self!r}' is invalidated. The data may be corrupted or deleted."
+            )
+
+    def invalidate(self) -> None:
+        """Invalidate the tensor.
+
+        The external tensor is invalidated when the data is known to be corrupted or deleted.
+        """
+        self._valid = False
 
     def release(self) -> None:
         """Delete all references to the memory buffer and close the memory-mapped file."""

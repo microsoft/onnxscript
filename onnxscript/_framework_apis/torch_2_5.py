@@ -19,7 +19,6 @@ from typing import Callable
 
 from onnxscript import ir, optimizer, version_converter
 from onnxscript.function_libs.torch_lib import registration
-from onnxscript.ir import _external_data
 
 
 @dataclasses.dataclass(frozen=True)
@@ -68,32 +67,16 @@ def save_model_with_external_data(model: ir.Model, model_path: str | os.PathLike
     """Save the model with external data. The model is unchanged after saving."""
 
     # TODO(#1835): Decide if we want to externalize large attributes as well
-    initializer_values = tuple(model.graph.initializers.values())
-    tensors = [v.const_value for v in initializer_values]
-    for tensor in tensors:
-        if tensor is None:
+    for value in model.graph.initializers.values():
+        if value.const_value is None:
             raise ValueError(
                 "The model contains uninitialized initializer values. "
                 "Please make sure all initializer values are initialized."
             )
     destination_path = pathlib.Path(model_path)
-    base_dir = destination_path.parent
     data_path = f"{destination_path.name}.data"
 
-    external_tensors = _external_data.convert_tensors_to_external(
-        tensors,  # type: ignore[arg-type]
-        base_dir,
-        data_path,
-    )
-
-    # Replace the initializer values with external tensors and save the model
-    for initializer, external_tensor in zip(initializer_values, external_tensors):
-        initializer.const_value = external_tensor
-    ir.save(model, model_path)
-
-    # Restore the original initializer values so the model is unchanged
-    for initializer, tensor in zip(initializer_values, tensors):
-        initializer.const_value = tensor
+    ir.save(model, model_path, external_data=data_path)
 
 
 def get_torchlib_ops() -> list[_OnnxFunctionMeta]:
