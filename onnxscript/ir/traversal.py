@@ -6,6 +6,7 @@ from __future__ import annotations
 
 __all__ = [
     "RecursiveGraphIterator",
+    "RecursiveValueIterator",
 ]
 
 from typing import Callable, Iterator, Reversible, Union
@@ -76,6 +77,73 @@ class RecursiveGraphIterator(Iterator[_core.Node], Reversible[_core.Node]):
 
     def __reversed__(self) -> Iterator[_core.Node]:
         return RecursiveGraphIterator(
+            self._graph,
+            recursive=self._recursive,
+            reverse=not self._reverse,
+        )
+
+
+class RecursiveValueIterator(Iterator[_core.Value], Reversible[_core.Value]):
+    def __init__(
+        self,
+        graph_like: GraphLike,
+        *,
+        reverse: bool = False,
+    ):
+        """Iterate over the values in the graph, recursively visiting subgraphs.
+
+        Args:
+            graph_like: The graph to traverse.
+            recursive: A callback that determines whether to recursively visit the subgraphs
+                contained in a node. If not provided, all nodes in subgraphs are visited.
+            reverse: Whether to iterate in reverse order.
+        """
+        self._graph = graph_like
+        self._reverse = reverse
+        self._iterator = self._recursive_value_iter(graph_like)
+
+    def __iter__(self) -> Self:
+        self._iterator = self._recursive_value_iter(self._graph)
+        return self
+
+    def __next__(self) -> _core.Value:
+        return next(self._iterator)
+
+    def _recursive_value_iter(
+        self, graph: _core.Graph | _core.Function | _core.GraphView
+    ) -> Iterator[_core.Value]:
+        for value in graph.inputs:
+            yield value
+        if isinstance(graph, (_core.Graph, _core.GraphView)):
+            for value in graph.initializers.values():
+                yield value
+        iterable = reversed(graph) if self._reverse else graph
+        for node in iterable:  # type: ignore[union-attr]
+            if self._recursive is not None and not self._recursive(node):
+                continue
+            yield from self._iterate_subgraphs(node)
+
+    def _iterate_subgraphs(self, node: _core.Node):
+        for attr in node.attributes.values():
+            if not isinstance(attr, _core.Attr):
+                continue
+            if attr.type == _enums.AttributeType.GRAPH:
+                yield from RecursiveGraphIterator(
+                    attr.value,
+                    recursive=self._recursive,
+                    reverse=self._reverse,
+                )
+            elif attr.type == _enums.AttributeType.GRAPHS:
+                graphs = reversed(attr.value) if self._reverse else attr.value
+                for graph in graphs:
+                    yield from RecursiveGraphIterator(
+                        graph,
+                        recursive=self._recursive,
+                        reverse=self._reverse,
+                    )
+
+    def __reversed__(self) -> Iterator[_core.Value]:
+        return RecursiveValueIterator(
             self._graph,
             recursive=self._recursive,
             reverse=not self._reverse,
