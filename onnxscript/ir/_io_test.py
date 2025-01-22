@@ -7,7 +7,6 @@ import tempfile
 import unittest
 
 import numpy as np
-import parameterized
 
 from onnxscript import ir
 from onnxscript.ir import _io
@@ -77,7 +76,7 @@ class IOFunctionsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "model.onnx")
             external_data_file = "model.data"
-            _io.save(model, path, external_data=external_data_file)
+            _io.save(model, path, external_data=external_data_file, size_threshold_bytes=0)
             self.assertTrue(os.path.exists(path))
             external_data_path = os.path.join(tmpdir, external_data_file)
             self.assertTrue(os.path.exists(external_data_path))
@@ -109,27 +108,35 @@ class IOFunctionsTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 _io.save(model, path, external_data=external_data_file)
 
-    def test_save_with_external_data_invalidates_obsolete_external_tensors(
-        self, _: str
-    ):
+    def test_save_with_external_data_invalidates_obsolete_external_tensors(self):
         model = _create_simple_model_with_initializers()
         self.assertIsInstance(model.graph.initializers["initializer_0"].const_value, ir.Tensor)
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "model.onnx")
             external_data_file = "model.data"
-            _io.save(model, path, external_data=external_data_file)
-            # The original model is modified
-            initializer_tensor = model.graph.initializers["initializer_0"].const_value
-            self.assertIsInstance(initializer_tensor, ir.ExternalTensor)
-
-            # Now if we create a different initializer and save that model with the same external data file
+            _io.save(model, path, external_data=external_data_file, size_threshold_bytes=0)
+            loaded_model = _io.load(path)
+            # Now if we load the model back, create a different initializer and save
+            # the model to the same external data file, the existing external tensor
+            # should be invalidated
             tensor_2 = ir.tensor([2.0], dtype=ir.DataType.FLOAT, name="initializer_2")
             initializer_2 = _create_initializer(tensor_2)
-            model.graph.initializers["initializer_2"] = initializer_2
-            with self.assertRaises(ValueError):
+            loaded_model.graph.initializers["initializer_2"] = initializer_2
+            _io.save(
+                loaded_model, path, external_data=external_data_file, size_threshold_bytes=0
+            )
+            initializer_0_tensor = loaded_model.graph.initializers["initializer_0"].const_value
+            self.assertIsInstance(initializer_0_tensor, ir.ExternalTensor)
+            self.assertFalse(initializer_0_tensor.valid())
+            with self.assertRaisesRegex(ValueError, "is invalidated"):
                 # The existing model has to be modified to use in memory tensors
-                # for the values to stay correct
-                _io.save(model, path, external_data=external_data_file)
+                # for the values to stay correct. Saving again should raise an error
+                _io.save(
+                    loaded_model,
+                    path,
+                    external_data=external_data_file,
+                    size_threshold_bytes=0,
+                )
 
 
 if __name__ == "__main__":

@@ -255,6 +255,9 @@ def convert_tensors_to_external(
                 # is referring to this file, that tensor is now invalid.
                 # This is a special case we are ok not handling right now.
                 new_tensors.append(_external_tensor_to_memory_tensor(tensor))
+                # Mark the original external tensor as invalid because it is now pointing
+                # to a file that is going to be overwritten.
+                tensor.invalidate()
             else:
                 new_tensors.append(tensor)
         tensors = new_tensors
@@ -312,7 +315,7 @@ def to_external_data(
         An ir.Model with all initializer data equal or above :param:`size_threshold_bytes`
         converted to external tensors.
     """
-    # In-memory or external tensors, if above the threshold, should be converted to or re-saved as external tensors
+    # In-memory or external tensors, if equal to or above the threshold, should be converted to or re-saved as external tensors
     initializers_to_become_external = []
     # Existing external tensors, if below the threshold, should be loaded to memory
     initializers_to_load_to_memory = []
@@ -321,16 +324,18 @@ def to_external_data(
             # Filter out the uninitialized initializer values
             continue
         if value.const_value.nbytes > size_threshold_bytes:
-            initializers_to_become_external.append(value.const_value)
+            initializers_to_become_external.append(value)
         elif isinstance(value.const_value, _core.ExternalTensor):
-            initializers_to_load_to_memory.append(value.const_value)
+            initializers_to_load_to_memory.append(value)
 
+    # Load to memory first, then convert to external tensors, because
+    # the existing external tensors may be overwritten by the new external data
+    memory_tensors = convert_tensors_from_external(initializers_to_load_to_memory)
     external_tensors = convert_tensors_to_external(
         [v.const_value for v in initializers_to_become_external],
         base_dir=base_dir,
         relative_path=relative_path,
     )
-    memory_tensors = convert_tensors_from_external(initializers_to_load_to_memory)
 
     # Replace the initializer values with external tensors and save the model
     assert len(initializers_to_become_external) == len(external_tensors)
