@@ -71,7 +71,7 @@ class IOFunctionsTest(unittest.TestCase):
         self.assertEqual(loaded_model.graph.outputs[0].name, "identity_0")
         self.assertEqual(loaded_model.graph.outputs[1].name, "const_0")
 
-    def test_save_with_external_data_modify_model_false_does_not_modify_model(self):
+    def test_save_with_external_data_does_not_modify_model(self):
         model = _create_simple_model_with_initializers()
         self.assertIsInstance(model.graph.initializers["initializer_0"].const_value, ir.Tensor)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -101,34 +101,6 @@ class IOFunctionsTest(unittest.TestCase):
         np.testing.assert_array_equal(initializer_tensor.numpy(), np.array([0.0]))
         np.testing.assert_array_equal(const_attr_tensor.numpy(), np.array([1.0]))
 
-    def test_save_with_external_data_modify_model(self):
-        model = _create_simple_model_with_initializers()
-        self.assertIsInstance(model.graph.initializers["initializer_0"].const_value, ir.Tensor)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "model.onnx")
-            external_data_file = "model.data"
-            _io.save(model, path, external_data=external_data_file, modify_model=True)
-            self.assertTrue(os.path.exists(path))
-            external_data_path = os.path.join(tmpdir, external_data_file)
-            self.assertTrue(os.path.exists(external_data_path))
-
-            # The original model is modified
-            initializer_tensor = model.graph.initializers["initializer_0"].const_value
-            self.assertIsInstance(initializer_tensor, ir.ExternalTensor)
-            # But the attribute is not externalized
-            const_attr_tensor = model.graph.node(1).attributes["value"].as_tensor()
-            self.assertIsInstance(const_attr_tensor, ir.Tensor)
-            np.testing.assert_array_equal(initializer_tensor.numpy(), np.array([0.0]))
-            np.testing.assert_array_equal(const_attr_tensor.numpy(), np.array([1.0]))
-
-            # Release the mmap resource so that the os can remove the data file
-            initializer_tensor.release()
-
-        # Accessing the external tensor when the data file is deleted raises an error
-        self.assertFalse(os.path.exists(external_data_path))
-        with self.assertRaises(FileNotFoundError):
-            initializer_tensor.numpy()
-
     def test_save_raise_when_external_data_is_not_relative_path(self):
         model = _create_simple_model_with_initializers()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -137,27 +109,15 @@ class IOFunctionsTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 _io.save(model, path, external_data=external_data_file)
 
-    @parameterized.parameterized.expand(
-        [
-            (
-                "modify_model",
-                True,
-            ),
-            (
-                "no_modify_model",
-                False,
-            ),
-        ]
-    )
-    def test_save_with_external_data_modify_model_true_loads_current_external_data(
-        self, _: str, modify_model: bool
+    def test_save_with_external_data_invalidates_obsolete_external_tensors(
+        self, _: str
     ):
         model = _create_simple_model_with_initializers()
         self.assertIsInstance(model.graph.initializers["initializer_0"].const_value, ir.Tensor)
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "model.onnx")
             external_data_file = "model.data"
-            _io.save(model, path, external_data=external_data_file, modify_model=True)
+            _io.save(model, path, external_data=external_data_file)
             # The original model is modified
             initializer_tensor = model.graph.initializers["initializer_0"].const_value
             self.assertIsInstance(initializer_tensor, ir.ExternalTensor)
@@ -166,27 +126,10 @@ class IOFunctionsTest(unittest.TestCase):
             tensor_2 = ir.tensor([2.0], dtype=ir.DataType.FLOAT, name="initializer_2")
             initializer_2 = _create_initializer(tensor_2)
             model.graph.initializers["initializer_2"] = initializer_2
-            if modify_model:
-                _io.save(model, path, external_data=external_data_file, modify_model=True)
-                # All the data is correctly saved
-                np.testing.assert_array_equal(initializer_tensor.numpy(), np.array([0.0]))
-                np.testing.assert_array_equal(tensor_2.numpy(), np.array([2.0]))
-                saved_model = _io.load(path)
-                loaded_initializer_tensor = saved_model.graph.initializers[
-                    "initializer_0"
-                ].const_value
-                self.assertIsInstance(loaded_initializer_tensor, ir.ExternalTensor)
-                loaded_tensor_2 = saved_model.graph.initializers["initializer_2"].const_value
-                self.assertIsInstance(loaded_tensor_2, ir.ExternalTensor)
-                np.testing.assert_array_equal(
-                    loaded_initializer_tensor.numpy(), np.array([0.0])
-                )
-                np.testing.assert_array_equal(loaded_tensor_2.numpy(), np.array([2.0]))
-            else:
-                with self.assertRaises(ValueError):
-                    # The existing model has to be modified to use in memory tensors
-                    # for the values to stay correct
-                    _io.save(model, path, external_data=external_data_file, modify_model=False)
+            with self.assertRaises(ValueError):
+                # The existing model has to be modified to use in memory tensors
+                # for the values to stay correct
+                _io.save(model, path, external_data=external_data_file)
 
 
 if __name__ == "__main__":

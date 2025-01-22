@@ -76,7 +76,7 @@ def save_model_with_external_data(model: ir.Model, model_path: str | os.PathLike
     destination_path = pathlib.Path(model_path)
     data_path = f"{destination_path.name}.data"
 
-    ir.save(model, model_path, external_data=data_path, modify_model=False)
+    ir.save(model, model_path, external_data=data_path)
 
 
 def get_torchlib_ops() -> list[_OnnxFunctionMeta]:

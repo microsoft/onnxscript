@@ -4,9 +4,12 @@
 
 from __future__ import annotations
 
-import typing
-
-__all__ = ["set_base_dir", "to_external_data", "convert_tensors_to_external"]
+__all__ = [
+    "set_base_dir",
+    "to_external_data",
+    "convert_tensors_to_external",
+    "convert_tensors_from_external",
+]
 
 import dataclasses
 import os
@@ -156,6 +159,9 @@ def _write_external_data(
         external_data_infos: External data information stored for each tensor to be written as external data.
         file_path: Location to which external data is to be stored.
     """
+    assert len(tensors) == len(external_data_infos), (
+        "Number of tensors and external data infos should match"
+    )
     with open(file_path, "wb") as data_file:
         for tensor, tensor_info in zip(tensors, external_data_infos):
             current_offset = tensor_info.offset
@@ -268,6 +274,7 @@ def convert_tensors_to_external(
     _write_external_data(sorted_tensors, external_data_infos, path)
 
     # Create external tensor objects
+    assert len(sorted_tensors) == len(external_data_infos)
     external_tensors: list[_core.ExternalTensor] = [
         _create_external_tensor(tensor, external_info, base_dir, relative_path)
         for tensor, external_info in zip(sorted_tensors, external_data_infos)
@@ -286,15 +293,13 @@ def to_external_data(
     model: _core.Model,
     base_dir: str | os.PathLike,
     relative_path: str | os.PathLike,
+    *,
     size_threshold_bytes: int,
 ) -> _core.Model:
-    """Set all tensors with raw data as external data, into a single data file.
-
-    Existing external tensors are loaded to memory if they are referring to the
-    same file path as the destination path.
+    """Convert all initializers equal or above size_threshold_bytes to external tensors and save data to a single data file.
 
     It should only replace the initializers in the model with external tensors
-    and not do any other modifications to the model.
+    and not make any other modifications to the model.
 
     Args:
         model: Model to process.
@@ -304,10 +309,9 @@ def to_external_data(
         size_threshold_bytes: Save to external data if the tensor size in bytes is larger than this threshold.
 
     Returns:
-        An ir.Model with all initializer data converted to external tensors.
+        An ir.Model with all initializer data equal or above :param:`size_threshold_bytes`
+        converted to external tensors.
     """
-    # TODO: Currently attributes not handled, eventually try to use _all_tensors to include attrs
-
     # In-memory or external tensors, if above the threshold, should be converted to or re-saved as external tensors
     initializers_to_become_external = []
     # Existing external tensors, if below the threshold, should be loaded to memory
@@ -321,13 +325,16 @@ def to_external_data(
         elif isinstance(value.const_value, _core.ExternalTensor):
             initializers_to_load_to_memory.append(value.const_value)
 
-
     external_tensors = convert_tensors_to_external(
-        [v.const_value for v in initializers_to_become_external], base_dir=base_dir, relative_path=relative_path
+        [v.const_value for v in initializers_to_become_external],
+        base_dir=base_dir,
+        relative_path=relative_path,
     )
     memory_tensors = convert_tensors_from_external(initializers_to_load_to_memory)
 
     # Replace the initializer values with external tensors and save the model
+    assert len(initializers_to_become_external) == len(external_tensors)
+    assert len(initializers_to_load_to_memory) == len(memory_tensors)
     for value, external_tensor in zip(initializers_to_become_external, external_tensors):
         value.const_value = external_tensor
     for value, memory_tensor in zip(initializers_to_load_to_memory, memory_tensors):

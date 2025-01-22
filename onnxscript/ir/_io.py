@@ -41,9 +41,14 @@ def save(
     format: str | None = None,
     external_data: str | os.PathLike | None = None,
     size_threshold_bytes: int = 256,
-    modify_model: bool = False,
 ) -> None:
     """Save an ONNX model to a file.
+
+    The model remains unchanged after the call. If any existing external tensor
+    references the provided :param:`external_data` path, it will be invalidated
+    after the external data is overwritten. To obtain a valid model, use :func:`load`
+    to load the newly saved model, or provide a different external data path that
+    is not currently referenced by any tensors in the model.
 
     Args:
         model: The model to save.
@@ -58,16 +63,9 @@ def save(
             it will be serialized in the ONNX Proto message.
         size_threshold_bytes: Save to external data if the tensor size in bytes is larger than this threshold.
             Effective only when :param:`external_data` is set.
-        modify_model: Whether to modify the model in place when :param:`external_data` is ``True``.
-            If ``False``, the model will be kept unmodified after saving. If ``True``, the model's
-            initializers will reference the newly created external data file.
-            If the external data path is currently referenced by an initializer in the model,
-            ``modify_model`` must be set to ``True`` to maintain model correctness.
 
     Raises:
         ValueError: If the external data path is an absolute path.
-        ValueError: If the external data path is currently referenced by an initializer
-            and :param:`modify_model` is set to False.
     """
     if external_data is not None:
         if os.path.isabs(external_data):
@@ -80,30 +78,16 @@ def save(
         initializer_values = tuple(model.graph.initializers.values())
         tensors = [v.const_value for v in model.graph.initializers.values()]
 
-        # Check that we are not overwriting the external data path that is currently
-        # referenced by an initializer if we are not modifying the model
-        external_path = os.path.join(base_dir, external_data)
-        if not modify_model and os.path.exists(external_path):
-            for value in initializer_values:
-                tensor = value.const_value
-                if (
-                    isinstance(tensor, _core.ExternalTensor)
-                    and os.path.exists(tensor.path)
-                    and os.path.samefile(tensor.path, external_path)
-                ):
-                    raise ValueError(
-                        f"The external data path is currently referenced by an initializer ('{value}'). "
-                        "Model will be incorrect if modify_model=False, because the original reference will "
-                        "be invalid after the external data is overwritten. You can set modify_model=True, or "
-                        "choose a different `external_data` path that is not currently referenced by the model."
-                    )
+        try:
+            model = _external_data.to_external_data(
+                model, base_dir, external_data, size_threshold_bytes=size_threshold_bytes
+            )
+            proto = serde.serialize_model(model)
+            onnx.save(proto, path, format=format)
 
-        model = _external_data.to_external_data(model, base_dir, external_data, size_threshold_bytes=size_threshold_bytes)
-        proto = serde.serialize_model(model)
-        onnx.save(proto, path, format=format)
-
-        if not modify_model:
+        finally:
             # Restore the original initializer values so the model is unchanged
+            assert len(initializer_values) == len(tensors)
             for initializer, tensor in zip(initializer_values, tensors):
                 initializer.const_value = tensor
 
