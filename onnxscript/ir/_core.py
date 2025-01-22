@@ -22,12 +22,12 @@ import os
 import sys
 import textwrap
 import typing
+from collections.abc import Hashable
 from typing import (
     AbstractSet,
     Any,
     Collection,
     Generic,
-    Hashable,
     Iterable,
     Iterator,
     NamedTuple,
