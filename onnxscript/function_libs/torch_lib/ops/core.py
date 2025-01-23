@@ -4299,12 +4299,13 @@ def aten_index_put_bool(
     index = indices[0]
     # accumulate should be always False, True does not make sense but an assert would be great
     # Reshape indices so it can be properly broadcasted
-    lself, lindex = len(self.shape), len(index.shape)
-    if lself > lindex:
-        shape = op.Shape(index)
-        append = op.Constant(value_ints=[1 for _ in range(lself - lindex)])
-        new_shape = op.Concat(shape, append, axis=0)
-        index = op.Reshape(index, new_shape)
+    self_rank = len(self.shape)
+    index_rank = len(index.shape)
+    if self_rank > index_rank:
+        index_shape = op.Shape(index)
+        padding = op.Constant(value_ints=[1 for _ in range(self_rank - index_rank)])
+        padded_shape = op.Concat(index_shape, padding, axis=0)
+        index = op.Reshape(index, padded_shape)
     return op.Where(index, values, self)
 
 
