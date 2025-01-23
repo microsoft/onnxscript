@@ -79,7 +79,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
       - name: Upload torchlib error reports
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Error reports (${{ matrix.name }}-${{ matrix.os }})
           path: error_reports
