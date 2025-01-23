@@ -28,7 +28,7 @@ in onnxruntime by running the inference sessions in a separate process.
 
 ## How to add a new operator test
 
-See _usage_ in [ops_test_data.py](./ops_test_data.py)
+See _usage_ in [`ops_test_data.py`](./ops_test_data.py)
 
 ## How to add custom OpInfo tests
 
@@ -36,7 +36,7 @@ Sometimes, there is no existing OpInfo that fits our need to test an operator. Y
 
 Follow the steps below to create new OpInfo tests:
 
-1. Use the implementation for `ops.aten.slice_scatter` as a reference (https://github.com/microsoft/onnxscript/blob/e67335101e4a06b8cc98cb4129935a9af5062c77/tests/function_libs/torch_lib/extra_opinfo.py#L2412-L2418) to declare an OpInfo in `tests/function_libs/torch_lib/extra_opinfo.py`
+1. Use the implementation for `ops.aten.slice_scatter` as a reference (https://github.com/microsoft/onnxscript/blob/e67335101e4a06b8cc98cb4129935a9af5062c77/tests/function_libs/torch_lib/extra_opinfo.py#L2412-L2418) to declare an OpInfo in [`extra_opinfo.py`](./extra_opinfo.py)
 
    ```py
     opinfo_core.OpInfo(
@@ -68,7 +68,7 @@ Follow the steps below to create new OpInfo tests:
    ```
 
    `input` is the first arg. The rest of the args are in `args`.
-3. Enable the test case in `tests/function_libs/torch_lib/ops_test_data.py`
+3. Enable the test case in [`ops_test_data.py`](./ops_test_data.py)
     1. Add a `TorchLibOpInfo` entry to the `TESTED_TORCHLIB_OPS` list. (For example https://github.com/microsoft/onnxscript/blob/e67335101e4a06b8cc98cb4129935a9af5062c77/tests/function_libs/torch_lib/ops_test_data.py#L2116)
 
     ```py
