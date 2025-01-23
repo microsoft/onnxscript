@@ -4261,7 +4261,7 @@ def aten_index_copy(
     raise NotImplementedError()
 
 
-@torch_op(("aten::index_put", "aten::_unsafe_index_put"))
+@torch_op(("aten::index_put", "aten::_unsafe_index_put"), trace_only=True)
 def aten_index_put(
     self: TReal,
     indices: Sequence[INT64],
@@ -4275,10 +4275,10 @@ def aten_index_put(
     """
 
     # TODO(justinchuby): Handle when indicies has more than one element
-    index = op.SequenceAt(indices, 0)
+    index = indices[0]
     new_index = op.Unsqueeze(index, [-1])
 
-    if op.Cast(accumulate, to=BOOL.dtype):
+    if accumulate:
         result = op.ScatterND(self, new_index, values, reduction="add")
     else:
         result = op.ScatterND(self, new_index, values)
@@ -4286,7 +4286,7 @@ def aten_index_put(
     return result
 
 
-@torch_op("aten::index_put")
+@torch_op("aten::index_put", trace_only=True)
 def aten_index_put_bool(
     self: TReal,
     indices: Sequence[BOOL],
@@ -4295,37 +4295,14 @@ def aten_index_put_bool(
 ) -> TReal:
     """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
 
-    index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
-    # FIXME: ORT ArgMax fails on INT64 input even though ONNX allows it
-    index_int = op.Cast(index, to=INT32.dtype)
-    # if all False, return op.Identity(self)
-    if op.ReduceSum(index_int) == 0:
-        result = self
-    else:
-        # change array([F,F,T,F,F]) to array([2])
-        index = op.ArgMax(index_int)  # assume index only have 1 True
-        # change array([2]) to array([2,2,2,2,2])
-        self_dim_1 = op.Shape(self, start=1, end=2)
-        index_dim_0 = op.Shape(index, start=0, end=1)
-        shape = op.Concat(self_dim_1, index_dim_0, axis=0)
-        new_ind = op.Expand(index, shape)
-        new_ind_t = op.Transpose(new_ind)
-
-        # values must have same rank with input(self)
-        if op.Size(op.Shape(values)) < op.Size(op.Shape(self)):  # type: ignore[operator]
-            values = op.Unsqueeze(values, op.Constant(value_ints=[0]))
-
-        if op.Cast(accumulate, to=BOOL.dtype):
-            zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
-            zeros = op.CastLike(zeros, values)
-            result = op.ScatterElements(zeros, new_ind_t, values)
-            # FIXME: type promotion
-            result = op.CastLike(result, self)
-            result = op.Add(result, self)
-        else:
-            result = op.ScatterElements(self, new_ind_t, values)
-
-    return result
+    index = indices[0]
+    # accumulate should be always False, True does not make sense but an assert would be great
+    # Reshape indices so it can be properly broadcasted
+    shape = [1] * len(self.shape)
+    shape[0] = -1
+    shape = op.Constant(value_ints=shape)
+    index = op.Reshape(index, shape)
+    return op.Where(index, values, self)
 
 
 def aten_index_reduce(
