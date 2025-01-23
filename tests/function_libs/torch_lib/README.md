@@ -7,13 +7,13 @@ Read more about them on https://github.com/pytorch/pytorch/blob/ce4a097bf769d753
 
 ```bash
 # All
-pytest onnxscript/tests/function_libs/torch_lib/ops_test.py
+python -m pytest onnxscript/tests/function_libs/torch_lib/ops_test.py
 
 # To run tests on a specific operator (e.g. torch.ceil):
-pytest onnxscript/tests/function_libs/torch_lib/ops_test.py -k ceil
+python -m pytest onnxscript/tests/function_libs/torch_lib/ops_test.py -k ceil
 
 # To run tests on a nn operator (e.g. nn.functional.scaled_dot_product_attention):
-pytest onnxscript/tests/function_libs/torch_lib/ops_test.py -k nn_functional_scaled_dot_product_attention
+python -m pytest onnxscript/tests/function_libs/torch_lib/ops_test.py -k nn_functional_scaled_dot_product_attention
 ```
 
 ### Environment variables
