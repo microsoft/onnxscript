@@ -4298,6 +4298,11 @@ def aten_index_put_bool(
     # TODO: Support indices with more than 1 elements
     index = indices[0]
     # accumulate should be always False, True does not make sense but an assert would be great
+    # Reshape indices so it can be properly broadcasted
+    shape = [1] * len(self.shape)
+    shape[0] = -1
+    shape = op.Constant(value_ints=shape)
+    index = op.Reshape(index, shape)
     return op.Where(index, values, self)
 
 
