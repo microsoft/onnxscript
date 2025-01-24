@@ -717,6 +717,13 @@ class ShapeTest(unittest.TestCase):
 
 
 class ValueTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.v0 = _core.Value(name="v0")
+        self.v1 = _core.Value(name="v1")
+        self.node = _core.Node(
+            "test", "TestOp", inputs=(self.v0, self.v1, self.v1), num_outputs=2
+        )
+
     def test_initialize(self):
         _ = _core.Value()
 
@@ -732,14 +739,30 @@ class ValueTest(unittest.TestCase):
         value.metadata_props["test"] = "any string"
         self.assertEqual(value.metadata_props["test"], "any string")
 
+    def test_producer(self):
+        self.assertEqual(self.v0.producer(), None)
+        self.assertEqual(self.v1.producer(), None)
+        self.assertEqual(self.node.outputs[0].producer(), self.node)
+        self.assertEqual(self.node.outputs[1].producer(), self.node)
+
+    def test_consumers(self):
+        self.assertEqual(self.v0.consumers(), (self.node,))
+        self.assertEqual(self.v1.consumers(), (self.node,))
+        self.assertEqual(self.node.outputs[0].consumers(), ())
+        self.assertEqual(self.node.outputs[1].consumers(), ())
+
     # TODO(justinchuby): Test all methods
 
 
 class NodeTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.v0 = _core.Value()
-        self.v1 = _core.Value()
-        self.node = _core.Node("test", "TestOp", inputs=(self.v0, self.v1), num_outputs=3)
+        self.v0 = _core.Value(name="v0")
+        self.v1 = _core.Value(name="v1")
+        self.node = _core.Node(
+            "test", "TestOp", inputs=(self.v0, self.v1, self.v1), num_outputs=3
+        )
+        self.node_a = _core.Node("test", "TestOpA", inputs=[self.node.outputs[0]])
+        self.node_b = _core.Node("test", "TestOpB", inputs=self.node.outputs)
 
     def test_it_is_hashable(self):
         self.assertIsInstance(hash(self.node), int)
@@ -748,7 +771,7 @@ class NodeTest(unittest.TestCase):
     def test_init_with_values(self):
         self.assertEqual(self.node.domain, "test")
         self.assertEqual(self.node.op_type, "TestOp")
-        self.assertEqual(self.node.inputs, (self.v0, self.v1))
+        self.assertEqual(self.node.inputs, (self.v0, self.v1, self.v1))
         self.assertEqual(len(self.node.outputs), 3)
         self.assertEqual(self.node.attributes, {})
 
@@ -806,6 +829,23 @@ class NodeTest(unittest.TestCase):
             nodes=(self.node,),
         )
         self.assertIn(self.node, graph)
+
+    def test_predecessors(self):
+        self.assertEqual(self.node.predecessors(), ())
+        self.assertEqual(self.node_a.predecessors(), (self.node,))
+        self.assertEqual(self.node_b.predecessors(), (self.node,))
+
+    def test_predecessors_are_unique(self):
+        # node_b has three inputs from node, but only one predecessor
+        self.assertEqual(self.node_b.predecessors(), (self.node,))
+
+    def test_successors(self):
+        self.assertEqual(self.node.successors(), (self.node_a, self.node_b))
+        self.assertEqual(self.node_a.successors(), ())
+        self.assertEqual(self.node_b.successors(), ())
+
+    def test_successors_are_unique(self):
+        self.assertEqual(self.node.successors(), (self.node_a, self.node_b))
 
     # TODO(justinchuby): Test all methods
 

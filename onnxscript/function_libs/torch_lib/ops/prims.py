@@ -800,6 +800,7 @@ def prims_uniform(
     raise NotImplementedError()
 
 
+@torch_op("prims::var", trace_only=True)
 def prims_var(
     inp: TensorType,
     dims: Optional[Sequence[int]],
@@ -808,7 +809,26 @@ def prims_var(
 ) -> TensorType:
     """var(Tensor inp, int[]? dims, *, int correction, ScalarType? output_dtype=None) -> Tensor"""
 
-    raise NotImplementedError()
+    if not dims:
+        # dims can be empty in practice. We just use a None so it is not added in the ONNX graph
+        dims = None
+    sub_mean = op.Sub(inp, op.ReduceMean(inp, dims, keepdims=True))
+    sqr_mean = op.Mul(sub_mean, sub_mean)
+    var = op.ReduceMean(sqr_mean, dims, keepdims=False)
+    # Adjust var according to correction value
+    if correction != 0:
+        inp_shape = op.Shape(inp)
+        dim_size = op.Gather(inp_shape, dims, axis=0)
+        numel_float = op.CastLike(op.ReduceProd(dim_size, keepdims=False), inp)
+        mul = op.Mul(var, numel_float)
+        # Subtract the correction value
+        sub = op.Sub(numel_float, op.CastLike(correction, inp))
+        var = op.Div(mul, sub)
+
+    if output_dtype is not None and output_dtype != -1:
+        var = op.Cast(var, to=output_dtype)
+
+    return var
 
 
 def prims_view_of(a: TensorType) -> TensorType:
