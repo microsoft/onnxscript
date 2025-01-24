@@ -1495,17 +1495,17 @@ def aten_pad_sequence(
     raise NotImplementedError()
 
 
-@torch_op("aten::reflection_pad1d")
-def aten_reflection_pad1d(self: TFloat, padding: INT64) -> TFloat:
+@torch_op("aten::reflection_pad1d", trace_only=True)
+def aten_reflection_pad1d(self: TFloat, padding: Sequence[INT64]) -> TFloat:
     """reflection_pad1d(Tensor self, SymInt[2] padding) -> Tensor"""
 
     # assert len(padding) == 2
     # Input of padding argument should be [x,y], need change to onnx format [0, x, 0, y]
-    start = op.Slice(padding, [0], [1], axes=[0])
-    end = op.Slice(padding, [1], [2], axes=[0])
-    padding_onnx = op.Concat(
-        op.Constant(value_ints=[0]), start, op.Constant(value_ints=[0]), end, axis=0
-    )
+    if len(self.shape) == 2:
+            padding_onnx = [0, padding[0], 0, padding[1]]
+    else:
+        assert len(self.shape) == 3
+        padding_onnx = [0, 0, padding[0], 0, 0, padding[1]]
     return op.Pad(self, padding_onnx, mode="reflect")
 
 
