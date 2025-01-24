@@ -12,7 +12,6 @@ from onnxscript.rewriter.ort_fusions import (
     # group_normalization_merge_silu,
     instance_to_group_normalization,
     softmax,
-    transformers,
 )
 from onnxscript.rewriter.ort_fusions._core import optimize_for_ort
 
