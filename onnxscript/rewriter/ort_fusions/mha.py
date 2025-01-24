@@ -188,6 +188,7 @@ mha_rules = pattern.RewriteRuleSet([_rule1])
 
 debug: bool = True
 
+
 def fuse_mha(model: ir.Model) -> int:
     count = mha_rules.apply_to_model(model)
     if count == 0 and debug:

@@ -5,10 +5,10 @@ from __future__ import annotations
 import unittest
 
 import onnxscript.optimizer
-from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
-from onnxscript.rewriter.ort_fusions.rotary_embedding import fuse_rotary_embedding
 from onnxscript.rewriter.ort_fusions._smollm_1 import TestData
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
+from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
+from onnxscript.rewriter.ort_fusions.rotary_embedding import fuse_rotary_embedding
 
 
 class TestCosSinCacheTransform(unittest.TestCase):

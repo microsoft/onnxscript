@@ -22,6 +22,7 @@ def fuse_xformers(model: ir.Model) -> None:
     fuse_mha(model)
     remove_unused_nodes(model)
 
+
 def optimize_for_ort(model: ir.Model) -> None:
     # TODO(rama): Include the other optimizations
     fuse_xformers(model)
