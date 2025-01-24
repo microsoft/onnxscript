@@ -64,8 +64,9 @@ class SDPA(pattern.RewriteRuleClassBase):
 
 
 masked_pre_mul_sdpa_rule = SDPA.rule("masked_pre_mul_sdpa", use_mask=True, pre_scale=True)
+masked_post_div_sdpa_rule = SDPA.rule("masked_post_div_sdpa", use_mask=True, pre_scale=False)
 
-sdpa_rules = pattern.RewriteRuleSet([masked_pre_mul_sdpa_rule])
+sdpa_rules = pattern.RewriteRuleSet([masked_pre_mul_sdpa_rule, masked_post_div_sdpa_rule])
 
 
 def fuse_sdpa(model: ir.Model) -> int:

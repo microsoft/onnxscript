@@ -5,9 +5,9 @@ from __future__ import annotations
 import unittest
 
 import onnxscript.optimizer
-import onnxscript.rewriter.onnxruntime.xformers as xformers
-from onnxscript.rewriter.onnxruntime.xformers._smollm_2 import TestData
-from onnxscript.rewriter.onnxruntime.xformers._test_utils import assert_allclose, ort_run
+import onnxscript.rewriter.ort_fusions._core as xformers
+from onnxscript.rewriter.ort_fusions._smollm_2 import TestData
+from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
 
 
 class TestMultiHeadAttention(unittest.TestCase):
