@@ -6,7 +6,7 @@ import onnx.parser
 import parameterized
 
 from onnxscript import ir
-from onnxscript.rewriter.onnxruntime import softmax
+from onnxscript.rewriter.ort_fusions import softmax
 
 
 class SoftmaxUpcastRemovalTest(unittest.TestCase):

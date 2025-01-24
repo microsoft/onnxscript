@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from onnxscript.rewriter import function_rule
+from onnxscript.rewriter.onnxruntime import function_rule
 from onnxscript.rewriter.onnxruntime.transformers import (
     biassplitgelu,
     fastgelu,
