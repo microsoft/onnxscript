@@ -1479,14 +1479,44 @@ def aten_one_hot(self: TensorType, num_classes: int = -1) -> TensorType:
     raise NotImplementedError()
 
 
+def _process_padding(padding: Sequence[INT64 | int], rank: int) -> INT64:
+    """Convert PyTorch padding for ONNX Pad."""
+    if all(isinstance(pad, int) for pad in padding):
+        paddings = padding
+        zeros = [0] * (rank * 2 - len(paddings))
+        paddings = [*paddings, *zeros]
+        paddings = paddings[-2::-2] + paddings[-1::-2]
+        return op.Constant(value_ints=paddings)
+    else:
+        paddings = [op.Reshape(pad, [-1]) for pad in padding]
+        # Create a series of 1d zero tensors
+        zero = op.Constant(value_ints=[0])
+        zeros = [zero] * (rank * 2 - len(paddings))
+        paddings = [*paddings, *zeros]
+        # Interleave the padding values
+        paddings = paddings[-2::-2] + paddings[-1::-2]
+        return op.Concat(paddings, axis=0)
+
+
+@torch_op("aten::pad", trace_only=True)
 def aten_pad(
-    self: TensorType, pad: INT64, mode: str = "constant", value: Optional[float] = None
+    self: TensorType,
+    pad: Sequence[INT64],
+    mode: str = "constant",
+    value: Optional[float] = None,
 ) -> TensorType:
     """pad(Tensor self, SymInt[] pad, str mode="constant", float? value=None) -> Tensor"""
 
-    # TODO(justinchuby): Implement this
-
-    raise NotImplementedError()
+    rank = len(self.shape)
+    paddings = _process_padding(pad, rank)
+    const_value = op.Constant(value_float=value) if value is not None else None
+    mode_mappings = {
+        "constant": "constant",
+        "reflect": "reflect",
+        "replicate": "edge",
+        "circular": "wrap",
+    }
+    return op.Pad(self, paddings, constant_value=const_value, mode=mode_mappings[mode])
 
 
 def aten_pad_sequence(
@@ -1504,8 +1534,7 @@ def aten_reflection_pad1d(self: TFloat, padding: Sequence[INT64]) -> TFloat:
     # assert len(padding) == 2
     # Input of padding argument should be [x,y], need change to onnx format [0, x, 0, y]
     rank = len(self.shape)
-    paddings = list(padding) + [0] * (rank * 2 - len(padding))
-    paddings = paddings[-2::-2] + paddings[-1::-2]
+    paddings = _process_padding(padding, rank)
     return op.Pad(self, paddings, mode="reflect")
 
 
@@ -1521,8 +1550,7 @@ def aten_reflection_pad1d_backward(
 def aten_reflection_pad2d(self: TTensor, padding: Sequence[INT64]) -> TTensor:
     """reflection_pad2d(Tensor self, SymInt[4] padding) -> Tensor"""
     rank = len(self.shape)
-    paddings = list(padding) + [0] * (rank * 2 - len(padding))
-    paddings = paddings[-2::-2] + paddings[-1::-2]
+    paddings = _process_padding(padding, rank)
     return op.Pad(self, paddings, mode="reflect")
 
 
@@ -1538,8 +1566,7 @@ def aten_reflection_pad2d_backward(
 def aten_reflection_pad3d(self: TensorType, padding: Sequence[INT64]) -> TensorType:
     """reflection_pad3d(Tensor self, SymInt[6] padding) -> Tensor"""
     rank = len(self.shape)
-    paddings = list(padding) + [0] * (rank * 2 - len(padding))
-    paddings = paddings[-2::-2] + paddings[-1::-2]
+    paddings = _process_padding(padding, rank)
     return op.Pad(self, paddings, mode="reflect")
 
 
@@ -1571,8 +1598,7 @@ def aten_replication_pad1d(self: TensorType, padding: Sequence[INT64]) -> Tensor
     """replication_pad1d(Tensor self, SymInt[2] padding) -> Tensor"""
 
     rank = len(self.shape)
-    paddings = list(padding) + [0] * (rank * 2 - len(padding))
-    paddings = paddings[-2::-2] + paddings[-1::-2]
+    paddings = _process_padding(padding, rank)
     return op.Pad(self, paddings, mode="edge")
 
 
@@ -1589,8 +1615,7 @@ def aten_replication_pad2d(self: TTensor, padding: Sequence[INT64]) -> TTensor:
     """replication_pad2d(Tensor self, SymInt[4] padding) -> Tensor"""
 
     rank = len(self.shape)
-    paddings = list(padding) + [0] * (rank * 2 - len(padding))
-    paddings = paddings[-2::-2] + paddings[-1::-2]
+    paddings = _process_padding(padding, rank)
     return op.Pad(self, paddings, mode="edge")
 
 
@@ -1607,8 +1632,7 @@ def aten_replication_pad3d(self: TTensor, padding: Sequence[INT64]) -> TTensor:
     """replication_pad3d(Tensor self, SymInt[6] padding) -> Tensor"""
 
     rank = len(self.shape)
-    paddings = list(padding) + [0] * (rank * 2 - len(padding))
-    paddings = paddings[-2::-2] + paddings[-1::-2]
+    paddings = _process_padding(padding, rank)
     return op.Pad(self, paddings, mode="edge")
 
 
