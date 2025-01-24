@@ -11,7 +11,7 @@ import onnx
 import onnx.external_data_helper
 
 from onnxscript import ir
-from onnxscript.ir import _external_data
+from onnxscript.ir import external_data
 
 
 class ExternalDataTest(unittest.TestCase):
@@ -51,7 +51,7 @@ class ExternalDataTest(unittest.TestCase):
         )
         model = ir.serde.deserialize_model(model_proto)
         expected_dir = "something_else"
-        _external_data.set_base_dir(model.graph, expected_dir)
+        external_data.set_base_dir(model.graph, expected_dir)
 
         initializer_tensor = model.graph.initializers["test_tensor"].const_value
         assert isinstance(initializer_tensor, ir.ExternalTensor)
@@ -67,7 +67,7 @@ class OffsetCalcTest(unittest.TestCase):
         # Tensor size > Align Threshold
         current_offset = 20000
         tensor_size = 1048
-        new_offset = _external_data._compute_new_offset(  # pylint: disable=protected-access
+        new_offset = external_data._compute_new_offset(  # pylint: disable=protected-access
             current_offset, tensor_size, align_offset=False
         )
         self.assertEqual(current_offset, new_offset)
@@ -76,7 +76,7 @@ class OffsetCalcTest(unittest.TestCase):
         # Tensor size < Align Threshold
         current_offset = 20000
         tensor_size = 1048
-        new_offset = _external_data._compute_new_offset(  # pylint: disable=protected-access
+        new_offset = external_data._compute_new_offset(  # pylint: disable=protected-access
             current_offset,
             tensor_size,
             align_threshold=1000,
@@ -87,7 +87,7 @@ class OffsetCalcTest(unittest.TestCase):
         # Tensor size > Align Threshold
         current_offset = 20000
         tensor_size = 1048
-        new_offset = _external_data._compute_new_offset(  # pylint: disable=protected-access
+        new_offset = external_data._compute_new_offset(  # pylint: disable=protected-access
             current_offset,
             tensor_size,
         )
@@ -97,12 +97,12 @@ class OffsetCalcTest(unittest.TestCase):
         # Tensor size > Align Threshold
         current_offset = 20000
         tensor_size = 1048577
-        new_offset_1 = _external_data._compute_new_offset(  # pylint: disable=protected-access
+        new_offset_1 = external_data._compute_new_offset(  # pylint: disable=protected-access
             current_offset,
             tensor_size,
             allocation_granularity=4000,
         )
-        new_offset_2 = _external_data._compute_new_offset(  # pylint: disable=protected-access
+        new_offset_2 = external_data._compute_new_offset(  # pylint: disable=protected-access
             current_offset,
             tensor_size,
         )
@@ -335,7 +335,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         return model
 
     def test_external_data_simple(self):
-        model_with_external_data = _external_data.to_external_data(
+        model_with_external_data = external_data.unload_from_model(
             self.model, self.base_path, self.external_data_name
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
@@ -347,29 +347,8 @@ class OffloadExternalTensorTest(unittest.TestCase):
         self.assertEqual(external_tensor.numpy().tobytes(), self.data.tobytes())
         self.assertEqual(external_tensor2.numpy().tobytes(), self.data_float16.tobytes())
 
-    def test_same_path_external_data_written_to_memory(self):
-        model_with_external_data = _external_data.to_external_data(
-            self.model_with_external_data_same_path,
-            self.base_path,
-            self.external_data_name,
-            load_external_to_memory=True,
-        )
-        external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
-        external_tensor2 = model_with_external_data.graph.initializers["tensor2"].const_value
-        external_tensor3 = model_with_external_data.graph.initializers[
-            "tensor_same_file"
-        ].const_value
-
-        self.assertEqual(external_tensor.numpy().tobytes(), self.data.tobytes())
-        self.assertEqual(external_tensor2.numpy().tobytes(), self.data_float16.tobytes())
-        self.assertEqual(external_tensor3.numpy().tobytes(), self.data_other.tobytes())
-        # Ensure repeated reads are consistent
-        self.assertEqual(external_tensor.numpy().tobytes(), self.data.tobytes())
-        self.assertEqual(external_tensor2.numpy().tobytes(), self.data_float16.tobytes())
-        self.assertEqual(external_tensor3.numpy().tobytes(), self.data_other.tobytes())
-
-    def test_same_path_external_data_written_to_disk(self):
-        model_with_external_data = _external_data.to_external_data(
+    def test_same_path_external_data(self):
+        model_with_external_data = external_data.unload_from_model(
             self.model_with_external_data_same_path,
             self.base_path,
             self.external_data_name,
@@ -389,7 +368,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         self.assertEqual(external_tensor3.numpy().tobytes(), self.data_other.tobytes())
 
     def test_external_data_diff_paths(self):
-        model_with_external_data = _external_data.to_external_data(
+        model_with_external_data = external_data.unload_from_model(
             self.model_with_external_data_diff_path,
             self.base_path,
             self.external_data_name,
@@ -419,7 +398,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         self.assertEqual(external_tensor5.numpy().tobytes(), self.data_ext2_1.tobytes())
 
     def test_custom_tensor_in_initializers(self):
-        model_with_external_data = _external_data.to_external_data(
+        model_with_external_data = external_data.unload_from_model(
             self.model_with_custom_tensor_class,
             self.base_path,
             self.external_data_name,
@@ -438,52 +417,9 @@ class OffloadExternalTensorTest(unittest.TestCase):
         self.assertEqual(external_tensor2.numpy().tobytes(), self.data_float16.tobytes())
         self.assertEqual(external_tensor3.numpy().tobytes(), self.custom_data.tobytes())
 
-    def test_mixed_external_data_to_disk(self):
-        model_with_external_data = _external_data.to_external_data(
-            self.model_with_mixed_external_data,
-            self.base_path,
-            self.external_data_name,
-        )
-        external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
-        external_tensor2 = model_with_external_data.graph.initializers["tensor2"].const_value
-        external_tensor3 = model_with_external_data.graph.initializers[
-            "tensor_same_file"
-        ].const_value
-        external_tensor4 = model_with_external_data.graph.initializers[
-            "custom_tensor"
-        ].const_value
-        external_tensor5 = model_with_external_data.graph.initializers[
-            "tensor_ext1_1"
-        ].const_value
-        external_tensor6 = model_with_external_data.graph.initializers[
-            "tensor_ext1_2"
-        ].const_value
-        external_tensor7 = model_with_external_data.graph.initializers[
-            "tensor_ext2_1"
-        ].const_value
-
-        self.assertEqual(external_tensor.numpy().tobytes(), self.data.tobytes())
-        self.assertEqual(external_tensor2.numpy().tobytes(), self.data_float16.tobytes())
-        self.assertEqual(external_tensor3.numpy().tobytes(), self.data_other.tobytes())
-        self.assertEqual(external_tensor4.numpy().tobytes(), self.custom_data.tobytes())
-        self.assertEqual(external_tensor5.numpy().tobytes(), self.data_ext1_1.tobytes())
-        self.assertEqual(external_tensor6.numpy().tobytes(), self.data_ext1_2.tobytes())
-        self.assertEqual(external_tensor7.numpy().tobytes(), self.data_ext2_1.tobytes())
-        # Ensure repeated reads are consistent
-        self.assertEqual(external_tensor.numpy().tobytes(), self.data.tobytes())
-        self.assertEqual(external_tensor2.numpy().tobytes(), self.data_float16.tobytes())
-        self.assertEqual(external_tensor3.numpy().tobytes(), self.data_other.tobytes())
-        self.assertEqual(external_tensor4.numpy().tobytes(), self.custom_data.tobytes())
-        self.assertEqual(external_tensor5.numpy().tobytes(), self.data_ext1_1.tobytes())
-        self.assertEqual(external_tensor6.numpy().tobytes(), self.data_ext1_2.tobytes())
-        self.assertEqual(external_tensor7.numpy().tobytes(), self.data_ext2_1.tobytes())
-
-    def test_mixed_external_data_to_memory(self):
-        model_with_external_data = _external_data.to_external_data(
-            self.model_with_mixed_external_data,
-            self.base_path,
-            self.external_data_name,
-            load_external_to_memory=True,
+    def test_mixed_external_data(self):
+        model_with_external_data = external_data.unload_from_model(
+            self.model_with_mixed_external_data, self.base_path, self.external_data_name
         )
         external_tensor = model_with_external_data.graph.initializers["tensor1"].const_value
         external_tensor2 = model_with_external_data.graph.initializers["tensor2"].const_value
@@ -520,7 +456,7 @@ class OffloadExternalTensorTest(unittest.TestCase):
         self.assertEqual(external_tensor7.numpy().tobytes(), self.data_ext2_1.tobytes())
 
     def test_external_data_sorted(self):
-        model_with_external_data = _external_data.to_external_data(
+        model_with_external_data = external_data.unload_from_model(
             self.model_with_mixed_external_data,
             self.base_path,
             self.external_data_name,
