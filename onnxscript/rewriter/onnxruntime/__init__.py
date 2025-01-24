@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import onnx
 
-from onnxscript.rewriter import function_rule, pattern
+from onnxscript.rewriter import pattern
 from onnxscript.rewriter import rewrite as _rewrite
 from onnxscript.rewriter.onnxruntime import (
+    function_rule,
     fused_matmul_rule_sets,
     group_normalization_merge_silu,
     instance_to_group_normalization,
