@@ -1481,6 +1481,7 @@ def aten_one_hot(self: TensorType, num_classes: int = -1) -> TensorType:
 
 def _process_padding(padding: Sequence[INT64 | int], rank: int) -> INT64:
     """Convert PyTorch padding for ONNX Pad."""
+    assert isinstance(padding, (list, tuple))
     if all(isinstance(pad, int) for pad in padding):
         paddings = padding
         zeros = [0] * (rank * 2 - len(paddings))
