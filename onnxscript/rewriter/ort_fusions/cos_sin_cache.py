@@ -40,7 +40,7 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         name: str,
         max_pos_id: int,
         *,
-        cast: False,
+        cast: bool = False,
         reshape: bool = False,
         const_freqs: bool = False,
     ):
