@@ -1484,6 +1484,8 @@ def aten_pad(
 ) -> TensorType:
     """pad(Tensor self, SymInt[] pad, str mode="constant", float? value=None) -> Tensor"""
 
+    # TODO(justinchuby): Implement this
+
     raise NotImplementedError()
 
 
@@ -1517,37 +1519,16 @@ def aten_reflection_pad1d_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::reflection_pad2d")
-def aten_reflection_pad2d(self: TTensor, padding: INT64) -> TTensor:
+@torch_op("aten::reflection_pad2d", trace_only=True)
+def aten_reflection_pad2d(self: TTensor, padding: Sequence[INT64]) -> TTensor:
     """reflection_pad2d(Tensor self, SymInt[4] padding) -> Tensor"""
     # Convert torch padding format to onnx padding format
     # Python code is:
-    # dim = len(self.shape)
-    # paddings = list(padding[:]) + [0] * (dim * 2 - len(padding))
-    # paddings = paddings[-2::-2] + paddings[-1::-2]
+    rank = len(self.shape)
+    paddings = list(padding) + [0] * (rank * 2 - len(padding))
+    paddings = paddings[-2::-2] + paddings[-1::-2]
 
-    neg_1 = op.Constant(value_ints=[-1])
-    zero = op.Constant(value_ints=[0])
-    # [0] * (rank * 2 - len(padding))
-    rank = Rank(self)
-    zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
-    zeros = op.Expand(zero, zero_count)
-    # list(padding[:]) + [0] * (dim * 2 - len(padding))
-    torch_paddings = op.Concat(padding, zeros, axis=0)
-    # paddings[-2::-2]
-    size_d = op.Size(torch_paddings)
-    steps = op.Constant(value_ints=[-2])
-    starts = steps
-    ends = op.Sub(starts, size_d)
-    odd_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
-    # paddings[-1::-2]
-    starts = neg_1
-    ends = op.Sub(starts, size_d)
-    even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
-    # paddings[-2::-2] + paddings[-1::-2]
-    onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
-
-    return op.Pad(self, onnx_padding, mode="reflect")
+    return op.Pad(self, paddings, mode="reflect")
 
 
 def aten_reflection_pad2d_backward(
@@ -1587,17 +1568,17 @@ def aten_relu6(self: TReal) -> TReal:
     return op.Min(op.Relu(self), six)
 
 
-@torch_op("aten::replication_pad1d")
+@torch_op("aten::replication_pad1d", trace_only=True)
 def aten_replication_pad1d(self: TensorType, padding: INT64) -> TensorType:
     """replication_pad1d(Tensor self, SymInt[2] padding) -> Tensor"""
 
     # assert len(padding) == 2
     # Input of padding argument should be [x,y], need change to onnx format [0, x, 0, y]
-    start = op.Slice(padding, [0], [1], axes=[0])
-    end = op.Slice(padding, [1], [2], axes=[0])
-    padding_onnx = op.Concat(
-        op.Constant(value_ints=[0]), start, op.Constant(value_ints=[0]), end, axis=0
-    )
+    if len(self.shape) == 2:
+            padding_onnx = [0, padding[0], 0, padding[1]]
+    else:
+        assert len(self.shape) == 3
+        padding_onnx = [0, 0, padding[0], 0, 0, padding[1]]
     return op.Pad(self, padding_onnx, mode="edge")
 
 
