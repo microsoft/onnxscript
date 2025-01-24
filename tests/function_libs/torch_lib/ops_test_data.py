@@ -1271,6 +1271,19 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("polar", core_ops.aten_polar),
     TorchLibOpInfo("pow", core_ops.aten_pow),
+    TorchLibOpInfo("prod", core_ops.aten_prod).skip(
+        matcher=lambda sample: sample.kwargs.get("dim") is not None
+        or sample.kwargs.get("keepdim") is not None
+        or sample.kwargs.get("dtype") != -1,
+        reason="this Aten overload only accept 1 inputs: self",
+    ),
+    TorchLibOpInfo("prod_dim_int", core_ops.aten_prod_dim_int).skip(
+        matcher=lambda sample: (
+            sample.kwargs.get("dim") is None and sample.kwargs.get("keepdim") is None
+        )
+        or sample.kwargs.get("dtype") != -1,
+        reason="this Aten overload can accept 3 inputs:(self, dim, keepdim)",
+    ),
     TorchLibOpInfo("nn.functional.prelu", core_ops.aten_prelu),
     TorchLibOpInfo("ops.aten.rand", core_ops.aten_rand, nondeterministic=True),
     TorchLibOpInfo("ops.aten.rand_like", core_ops.aten_rand_like, nondeterministic=True),
@@ -2203,6 +2216,7 @@ ops_test_common.duplicate_opinfo(
     OPS_DB, "ops.aten._log_softmax", ("ops.aten._log_softmax_half",)
 )
 ops_test_common.duplicate_opinfo(OPS_DB, "ops.aten._softmax", ("ops.aten._softmax_half",))
+ops_test_common.duplicate_opinfo(OPS_DB, "prod", ("prod_dim_int",))
 ops_test_common.duplicate_opinfo(OPS_DB, "round", ("round_decimals",))
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "view_as_complex", ("view_as_complex_copy",))
