@@ -1535,7 +1535,7 @@ def aten_reflection_pad2d_backward(
 
 
 @torch_op("aten::reflection_pad3d", trace_only=True)
-def aten_reflection_pad3d(self: TensorType, padding: INT64) -> TensorType:
+def aten_reflection_pad3d(self: TensorType, padding: Sequence[INT64]) -> TensorType:
     """reflection_pad3d(Tensor self, SymInt[6] padding) -> Tensor"""
     rank = len(self.shape)
     paddings = list(padding) + [0] * (rank * 2 - len(padding))
