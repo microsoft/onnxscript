@@ -1,10 +1,11 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """
 Generating a FunctionProto
 ==========================
 
 The example below shows how we can define Selu as a function in onnxscript.
 """
-
 
 # %%
 # First, import the ONNX opset used to define the function.
@@ -22,7 +23,7 @@ def Selu(X, alpha: float, gamma: float):
     neg = gammaX * (alphaX * op.Exp(X) - alphaX)
     pos = gammaX * X
     zero = op.CastLike(0, X)
-    return op.Where(X <= zero, neg, pos)
+    return op.Where(zero >= X, neg, pos)
 
 
 # %%
@@ -32,6 +33,6 @@ onnx_fun = Selu.to_function_proto()
 
 # %%
 # Let's see what the translated function looks like:
-from onnxscript.utils import proto2text  # noqa: E402
+import onnx  # noqa: E402
 
-print(proto2text(onnx_fun))
+print(onnx.printer.to_text(onnx_fun))

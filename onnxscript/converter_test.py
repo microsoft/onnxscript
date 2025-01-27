@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 
 import ast
 import inspect
@@ -10,12 +8,14 @@ import pathlib
 import sys
 import textwrap
 import types
+import typing
 import unittest
 import warnings
 
 import numpy as np
 import onnx
 import onnxruntime as ort
+import pytest
 from onnxruntime.capi.onnxruntime_pybind11_state import (
     Fail,
     InvalidArgument,
@@ -24,13 +24,17 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 
 import onnxscript
 import onnxscript.testing
-from onnxscript import FLOAT, INT64, converter, graph, script, tensor
+from onnxscript import BOOL, FLOAT, INT64, converter, graph, script, tensor
 from onnxscript.onnx_opset import opset11 as op11
 from onnxscript.onnx_opset import opset15 as op
-from onnxscript.tests.common import onnx_script_test_case, testutils
+from tests.common import onnx_script_test_case, testutils
 
 TEST_INPUT_DIR = pathlib.Path(__file__).parent / "tests" / "models"
 TEST_OUTPUT_DIR = TEST_INPUT_DIR / "testoutputs"
+
+
+def create_cpu_inference_session(model_bytes: bytes) -> ort.InferenceSession:
+    return ort.InferenceSession(model_bytes, providers=("CPUExecutionProvider",))
 
 
 class TestConverter(testutils.TestBase):
@@ -79,7 +83,7 @@ class TestConverter(testutils.TestBase):
                             fi.write(onnx.helper.printable_graph(fct))
                 if check_ort and (skip_check_ort is None or f.name not in skip_check_ort):
                     try:
-                        ort.InferenceSession(model.SerializeToString())
+                        create_cpu_inference_session(model.SerializeToString())
                     except (Fail, InvalidGraph, InvalidArgument) as e:
                         raise AssertionError(
                             f"onnxruntime cannot load function {f.name}\n--\n{model}"
@@ -126,7 +130,7 @@ class TestConverter(testutils.TestBase):
                     self.check_run(val.function, val.input, val.output[0])
 
     def test_eager_op(self):
-        from onnxscript.tests.models import eager_op
+        from tests.models import eager_op
 
         test_functions = self.validate_save(eager_op, check_ort=True)
 
@@ -134,7 +138,7 @@ class TestConverter(testutils.TestBase):
 
         onx = test_functions["eager_op"]
         self.assertIn('name: "fmod"', str(onx))
-        session = ort.InferenceSession(onx.SerializeToString())
+        session = create_cpu_inference_session(onx.SerializeToString())
         y = session.run(None, {"X": x})[0]
         self.assertEqual(y.tolist(), [0.0, 0.5, -0.5])
         # numpy fmod and operator % disagree on this example
@@ -142,7 +146,7 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(res.tolist(), [0.0, 0.5, -0.5])
 
         onx = test_functions["eager_abs"]
-        session = ort.InferenceSession(onx.SerializeToString())
+        session = create_cpu_inference_session(onx.SerializeToString())
         y = session.run(None, {"X": x})[0]
         self.assertEqual(y.tolist(), [1, 6, 3])
         res = eager_op.eager_abs(x)
@@ -155,7 +159,7 @@ class TestConverter(testutils.TestBase):
             def square(x):
                 return op.Mul(undefined, x)  # noqa: F821
 
-        self.assertIn("square:3", str(e.exception))
+        self.assertIn("Unbound name: undefined", str(e.exception))
 
     def test_model_generation(self):
         @script()
@@ -189,39 +193,39 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(output_value_info.type.tensor_type.elem_type, onnx.TensorProto.FLOAT)
 
     def test_onnxfns1(self):
-        from onnxscript.tests.models import onnxfns1
+        from tests.models import onnxfns1
 
         self.validate(onnxfns1)
 
     def test_onnxfns1A(self):
-        from onnxscript.tests.models import onnxfns1A
+        from tests.models import onnxfns1A
 
         self.validate(onnxfns1A)
 
     def test_ort_custom_ops(self):
-        from onnxscript.tests.functions import ort_custom_ops
+        from tests.functions import ort_custom_ops
 
         self.validate(ort_custom_ops)
 
     def test_unary_op(self):
-        from onnxscript.tests.models import m1
+        from tests.models import m1
 
         self.validate_save(m1)
 
     def test_subfunction_check_model(self):
-        from onnxscript.tests.models import subfunction
+        from tests.models import subfunction
 
         model = subfunction.MyElu.function_ir.to_model_proto(producer_name="p2o")
         model = onnx.shape_inference.infer_shapes(model)
         onnx.checker.check_model(model)
 
     def test_subfunction(self):
-        from onnxscript.tests.models import subfunction
+        from tests.models import subfunction
 
         self.validate_save(subfunction, check_ort=True)
 
     def test_if_models(self):
-        from onnxscript.tests.models import if_statement
+        from tests.models import if_statement
 
         self.validate_save(if_statement)
 
@@ -240,45 +244,48 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(proto.doc_string.strip(), "Combines ReduceSum, ReduceProd.")
 
     def test_signal(self):
-        from onnxscript.tests.models import signal_dft
+        from tests.models import signal_dft
 
         # shape_inference crashes on stft.
         self.validate_save(signal_dft, shape_inference=False)
 
     def test_multi(self):
-        from onnxscript.tests.models import multi
+        from tests.models import multi
 
         self.validate_save(multi, shape_inference=False)
 
     def test_dropout(self):
-        from onnxscript.tests.models import dropout
+        from tests.models import dropout
 
         self.validate_save(dropout, shape_inference=False)
 
     def test_attrref(self):
-        from onnxscript.tests.models import attrref
+        from tests.models import attrref
 
         self.validate_save(attrref, shape_inference=False)
 
     def test_renaming(self):
-        from onnxscript.tests.models import renaming
+        from tests.models import renaming
 
         self.validate_save(renaming, shape_inference=False)
 
-    @unittest.skip(reason="TypeError: val must be numeric not <class 'NoneType'>")
+    @pytest.mark.xfail(
+        strict=True,
+        reason="optional output is not yet implemented",
+    )
     def test_opt_output(self):
-        from onnxscript.tests.models import opt_output
+        from tests.models import opt_output
 
         self.validate_save(opt_output, shape_inference=False)
 
     def test_opt_input(self):
-        from onnxscript.tests.models import opt_input
+        from tests.models import opt_input
 
         self.validate_save(opt_input, shape_inference=False)
 
     @unittest.skip("A function with attributes cannot be exported as a model.")
     def test_onnxfns2(self):
-        from onnxscript.tests.models import onnxfns2
+        from tests.models import onnxfns2
 
         self.validate_save(onnxfns2, shape_inference=False)
 
@@ -292,7 +299,7 @@ class TestConverter(testutils.TestBase):
         self.validate_save(clipmax)
 
     def test_type_double(self):
-        from onnxscript.tests.models import type_double
+        from tests.models import type_double
 
         fcts = self.validate_save(type_double, check_ort=False)
         f = fcts["double_abs"]
@@ -311,17 +318,17 @@ class TestConverter(testutils.TestBase):
         self.validate_save(type_double, check_ort=True)
 
     def test_cast_like(self):
-        from onnxscript.tests.models import cast_like
+        from tests.models import cast_like
 
         self.validate_expansion(cast_like)
 
     def test_identity(self):
-        from onnxscript.tests.models import identity
+        from tests.models import identity
 
         self.validate_expansion(identity)
 
     def test_opset_import(self):
-        from onnxscript.tests.models import different_opset
+        from tests.models import different_opset
 
         fcts = self.validate_save(different_opset, shape_inference=False)
         s16 = str(fcts["shape_A"])
@@ -336,7 +343,7 @@ class TestConverter(testutils.TestBase):
         self.assertNotIn("version: 15", sdef)
 
     def test_sequences(self):
-        from onnxscript.tests.models import sequences
+        from tests.models import sequences
 
         test_functions = self.validate_save(sequences, check_ort=True)
 
@@ -347,7 +354,7 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(eager_mode.shape, (5, 3))
         self.assertEqual(eager_mode.dtype, np.float32)
 
-        session = ort.InferenceSession(f.SerializeToString())
+        session = create_cpu_inference_session(f.SerializeToString())
         result = session.run(None, {"A": A})[0]
         np.testing.assert_almost_equal(eager_mode, result)
 
@@ -358,12 +365,12 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(eager_mode.shape, (5, 3))
         self.assertEqual(eager_mode.dtype, np.float32)
 
-        session = ort.InferenceSession(f.SerializeToString())
+        session = create_cpu_inference_session(f.SerializeToString())
         result = session.run(None, {"A": A})[0]
         np.testing.assert_almost_equal(eager_mode, result)
 
     def test_loops_break(self):
-        from onnxscript.tests.models import loops_break
+        from tests.models import loops_break
 
         test_functions = self.validate_save(loops_break, check_ort=True)
         self.assertIn("loop1", test_functions)
@@ -372,7 +379,7 @@ class TestConverter(testutils.TestBase):
                 f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
         onx = test_functions["loop_range_cond"]
-        session = ort.InferenceSession(onx.SerializeToString())
+        session = create_cpu_inference_session(onx.SerializeToString())
         x = np.array([0, 1, 2], dtype=np.float32)
         y = session.run(None, {"A": x})[0]
         self.assertEqual(loops_break.loop_range_cond(x).tolist(), [0.0, 46.0, 92.0])
@@ -383,7 +390,7 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(y.tolist(), [0, 11, -22])
 
     def test_loops_while(self):
-        from onnxscript.tests.models import loops_while
+        from tests.models import loops_while
 
         test_functions = self.validate_save(loops_while, check_ort=True)
         self.assertIn("loop1", test_functions)
@@ -392,7 +399,7 @@ class TestConverter(testutils.TestBase):
                 f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
         onx = test_functions["loop_range_cond_only"]
-        session = ort.InferenceSession(onx.SerializeToString())
+        session = create_cpu_inference_session(onx.SerializeToString())
         x = np.array([0, 1, -2], dtype=np.float32)
         y = session.run(None, {"A": x})[0]
         self.assertEqual(y.tolist(), [0, 10, -20])
@@ -400,7 +407,7 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(res.tolist(), [0, 10, -20])
 
     def test_getitem(self):
-        from onnxscript.tests.models import getitem
+        from tests.models import getitem
 
         self.validate_save(getitem, check_ort=True, skip_check_ort=None)
         self.validate_run(getitem)
@@ -414,7 +421,7 @@ class TestConverter(testutils.TestBase):
             opset=op, global_names=global_names, source=source, default_opset=op
         )
         try:
-            cvt.top_level_stmt(f_ast)
+            cvt.translate_function_def(f_ast)
         except converter.TranslationError as e:
             if msg not in str(e):
                 raise AssertionError(f"Unable to find {msg!r} in {e!r} in\n{source}") from e
@@ -431,12 +438,12 @@ class TestConverter(testutils.TestBase):
             return r
 
         ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
-        self.check_failure(f1, f"Left term must be a tuple not <class '{ast_name}.Name'>")
+        self.check_failure(f1, f"Left term must be a tuple not '<class '{ast_name}.Name'>'")
 
     def check_run(self, onnxfn, inputs, expected_output):
         # Test by converting to model and running with ORT
         model = onnxfn.to_model_proto()
-        session = ort.InferenceSession(model.SerializeToString())
+        session = create_cpu_inference_session(model.SerializeToString())
         input_names = [x.name for x in model.graph.input]
         input_dict = dict(zip(input_names, inputs))
         output = session.run(None, input_dict)[0]
@@ -450,28 +457,28 @@ class TestConverter(testutils.TestBase):
         np.testing.assert_equal(output, expected_output)
 
     def test_graph_attr_scan(self):
-        from onnxscript.tests.models.graph_attr import cumulative_sum
+        from tests.models.graph_attr import cumulative_sum
 
         inputs = [np.array([1, 2, 3, 4, 5], dtype=np.int64)]
         expected_output = np.array([1, 3, 6, 10, 15], dtype=np.int64)
         self.check_run(cumulative_sum, inputs, expected_output)
 
     def test_graph_attr_loop(self):
-        from onnxscript.tests.models.graph_attr import sum_to
+        from tests.models.graph_attr import sum_to
 
         inputs = [np.array(6, dtype=np.int64)]
         expected_output = np.array([0, 1, 3, 6, 10, 15], dtype=np.int64)
         self.check_run(sum_to, inputs, expected_output)
 
     def test_graph_attr_loop_error(self):
-        from onnxscript.tests.models.graph_attr import sum_to_error
+        from tests.models.graph_attr import sum_to_error
 
         input = np.array(6, dtype=np.int64)
-        with self.assertRaisesRegex(ValueError, "@graph"):
+        with self.assertRaisesRegex(TypeError, "@graph"):
             sum_to_error(input)
 
     def test_loop_outer_scope(self):
-        from onnxscript.tests.models.graph_attr import loop_add
+        from tests.models.graph_attr import loop_add
 
         input_x = np.array([1, 2, 3], dtype=np.int64)
         input_m = np.array(3, dtype=np.int64)
@@ -495,7 +502,7 @@ class TestConverter(testutils.TestBase):
                 return op.DummyOp(body=inner)
 
     def test_attr(self):
-        from onnxscript.tests.functions import attr_test
+        from tests.functions import attr_test
 
         self.validate_run(attr_test)
 
@@ -579,6 +586,110 @@ class TestConverter(testutils.TestBase):
         # The converter should generate distinct names for the two outputs
         outputs = duplicate_output.to_function_proto().output
         self.assertNotEqual(outputs[0], outputs[1])
+
+    def test_bool_attr_promotion(self):
+        @script()
+        def if_then_else(flag: bool, Y, Z):
+            return op.Where(flag, Y, Z)
+
+        @script()
+        def if_then_else_expanded(flag: bool, Y, Z):
+            tmp1 = op.Constant(value_int=flag)
+            tmp2 = op.Cast(tmp1, to=BOOL.dtype)
+            return op.Where(tmp2, Y, Z)
+
+        onnxscript.testing.assert_isomorphic(if_then_else, if_then_else_expanded)
+
+    def test_bool_list_attr_promotion(self):
+        @script()
+        def if_then_else(flag: typing.List[bool], Y, Z):
+            return op.Where(flag, Y, Z)
+
+        @script()
+        def if_then_else_expanded(flag: typing.List[bool], Y, Z):
+            tmp1 = op.Constant(value_ints=flag)
+            tmp2 = op.Cast(tmp1, to=9)
+            return op.Where(tmp2, Y, Z)
+
+        onnxscript.testing.assert_isomorphic(if_then_else, if_then_else_expanded)
+
+    def test_empty_ints_attribute(self):
+        @script()
+        def empty_ints():
+            return op.Constant(value_ints=[])
+
+        expected = np.array([], dtype=np.int64)
+        self.check_run(empty_ints, [], expected)
+
+    def test_empty_floats_attribute(self):
+        @script()
+        def empty_floats():
+            return op.Constant(value_floats=[])
+
+        expected = np.array([], dtype=np.float32)
+        self.check_run(empty_floats, [], expected)
+
+    def test_int_as_tensor_attribute(self):
+        @script()
+        def int_as_tensor():
+            return op.Constant(value=17)
+
+        expected = np.array(17, dtype=np.int64)
+        self.check_run(int_as_tensor, [], expected)
+
+    def test_int_list_as_tensor_attribute(self):
+        @script()
+        def int_list_as_tensor():
+            return op.Constant(value=[13, 17])
+
+        expected = np.array([13, 17], dtype=np.int64).reshape((2,))
+        self.check_run(int_list_as_tensor, [], expected)
+
+    def test_float_as_tensor_attribute(self):
+        @script()
+        def float_as_tensor():
+            return op.Constant(value=17.0)
+
+        expected = np.array([17], dtype=np.float32).reshape(())
+        self.check_run(float_as_tensor, [], expected)
+
+    def test_float_list_as_tensor_attribute(self):
+        @script()
+        def float_list_as_tensor():
+            return op.Constant(value=[13.0, 17.0])
+
+        expected = np.array([13, 17], dtype=np.float32).reshape((2,))
+        self.check_run(float_list_as_tensor, [], expected)
+
+    def test_loop_inside_if(self):
+        @script(default_opset=op)
+        def sum(n: INT64) -> INT64:
+            sum = op.Constant(value=0)
+            if n > 0:
+                for i in range(n):
+                    sum = sum + i
+            return sum
+
+        self.check_run(sum, [np.array(5, dtype=np.int64)], np.array(10, dtype=np.int64))
+        self.check_run(sum, [np.array(-5, dtype=np.int64)], np.array(0, dtype=np.int64))
+
+    def test_function_opset_import(self):
+        """Test that model inherits opset version from the function."""
+        from onnxscript import opset19
+
+        @script()
+        def double(x):
+            return opset19.Add(x, x)
+
+        @script()
+        def model(x):
+            return double(x)
+
+        model_proto = model.to_model_proto()
+        onnx_opset_import = [opset for opset in model_proto.opset_import if opset.domain == ""]
+
+        self.assertEqual(len(onnx_opset_import), 1)
+        self.assertEqual(onnx_opset_import[0].version, 19)
 
 
 if __name__ == "__main__":

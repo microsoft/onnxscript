@@ -633,7 +633,7 @@ class Opset9(Opset8):
         r"""[🌐 MatMul(9)](https://onnx.ai/onnx/operators/onnx__MatMul.html#matmul-9 "Online Documentation")
 
 
-        Matrix product that behaves like numpy.matmul: https://docs.scipy.org/doc/numpy-1.13.0/reference/generated/numpy.matmul.html
+        Matrix product that behaves like [numpy.matmul](https://numpy.org/doc/stable/reference/generated/numpy.matmul.html).
 
 
         Args:
@@ -666,7 +666,7 @@ class Opset9(Opset8):
         MaxUnpool essentially computes the partial inverse of the MaxPool op.
          The input information to this op is typically the output information from a MaxPool op. The first
          input tensor X is the tensor that needs to be unpooled, which is typically the pooled tensor (first output)
-         from MaxPool. The second input tensor, I, contains the indices to the (locally maximal) elements corrsponding
+         from MaxPool. The second input tensor, I, contains the indices to the (locally maximal) elements corresponding
          to the elements in the first input tensor X. Input tensor I is typically the second output of the MaxPool op.
          The third (optional) input is a tensor that specifies the output size of the unpooling operation.
 
@@ -679,7 +679,7 @@ class Opset9(Opset8):
          known/predictable size.
 
         In addition to the inputs, MaxUnpool takes three attributes, namely kernel_shape, strides, and pads,
-         which define the exact unpooling op. The attributes typically have the same values as the corrsponding
+         which define the exact unpooling op. The attributes typically have the same values as the corresponding
          pooling op that the unpooling op is trying to invert.
 
 
@@ -747,7 +747,7 @@ class Opset9(Opset8):
         Args:
             X: Input tensor
 
-            axes: A list of integers, along which to reduce. The default is to caculate
+            axes: A list of integers, along which to reduce. The default is to calculate
                 along axes [0,2,3] for calculating mean and variance along each channel.
                 Two variables with the same C-coordinate are associated with the same
                 mean and variance.
@@ -907,7 +907,7 @@ class Opset9(Opset8):
         Args:
             X: (differentiable) Input tensor
 
-            slope: (differentiable) Slope tensor. The shape of slope can be smaller then
+            slope: (differentiable) Slope tensor. The shape of slope can be smaller than
                 first input X; if so, its shape must be unidirectional broadcastable to
                 X
         """

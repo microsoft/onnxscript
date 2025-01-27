@@ -6,7 +6,7 @@ on:
       - main
       - 'gh/**/base' # ghstack base branches
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event_name == 'workflow_dispatch' }}
@@ -20,7 +20,7 @@ jobs:
       pull-requests: write
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: misspell # Check spelling
         uses: reviewdog/action-misspell@v1
         with:
@@ -43,19 +43,20 @@ jobs:
     permissions:
       security-events: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           # Version range or exact version of Python to use, using SemVer's version range syntax. Reads from .python-version if unset.
           python-version: "3.10"
       - name: Install ONNXScript
         run: |
-          # The code is from azure-pipelines.yml
           # Install dependencies
           python -m pip install --upgrade pip
           python -m pip install --upgrade setuptools
-          python -m pip install -q -r requirements-dev.txt
+          python -m pip install -r requirements-dev.txt
+          # FIXME: numpy 2.2 has some typing changes that break the mypy CI but it's otherwise fine
+          python -m pip install "numpy<2.2"
           # Install packages
           python -m pip install -e .
           lintrunner init
@@ -73,10 +74,11 @@ jobs:
         run: |
           python -m lintrunner_adapters to-sarif lint.json lintrunner.sarif
       - name: Upload SARIF file
-        # Do not display on drafts to make reviewing easier
-        if: github.event.pull_request.draft == false
+        # Use always() to always upload SARIF even if lintrunner returns with error code
+        # To toggle linter comments in the files page, press `i` on the keyboard
+        if: always()
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           # Path to SARIF file relative to the root of the repository
           sarif_file: lintrunner.sarif

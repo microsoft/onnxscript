@@ -1,4 +1,7 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Function for manipulating input parameters of an Op or a OnnxFunction."""
+
 from __future__ import annotations
 
 import collections
@@ -61,8 +64,7 @@ def separate_input_attributes_from_arguments(
             else:
                 onnx_attributes[param.name] = kwargs[param.name]
         elif (
-            param.is_attribute
-            and param.default is not values._EmptyDefault  # pylint: disable=protected-access
+            param.is_attribute and param.default is not values._EmptyDefault  # pylint: disable=protected-access
         ):
             # User did not provide the attribute
             if fill_defaults:
@@ -129,3 +131,18 @@ def tag_arguments_with_param_schemas(
             raise TypeError(f"Required input/attribute '{param}' was not provided")
 
     return tagged_args, tagged_kwargs
+
+
+def turn_to_kwargs_to_avoid_ordering(
+    param_schemas: Sequence[values.ParamSchema],
+    inputs: list[Any],
+    attributes: dict[str, Any],
+) -> dict[str, Any]:
+    """Return the inputs and attributes to the order of the function signature."""
+    for idx, param in enumerate(param_schemas):
+        if param.name not in attributes:
+            if param.is_variadic_input:
+                attributes[param.name] = inputs[idx:]
+            elif inputs:
+                attributes[param.name] = inputs.pop(0)
+    return attributes

@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 
 
 import os
@@ -95,7 +93,7 @@ class OnnxBackendTest:
             elif isinstance(new_tensor, onnx.TensorProto):
                 t = onnx.numpy_helper.to_array(new_tensor)
             else:
-                raise RuntimeError(  # pragma: no cover
+                raise RuntimeError(  # noqa: TRY004
                     f"Unexpected type {type(new_tensor)!r} for {full!r}."
                 )
             res.append(t)
@@ -291,7 +289,7 @@ def enumerate_onnx_tests(series, fct_filter=None) -> Iterator[OnnxBackendTest]:
     sub = os.path.join(root, "data", series)
     if not os.path.exists(sub):
         raise FileNotFoundError(
-            "Unable to find series of tests in {root!r}, subfolders:\n"
+            f"Unable to find series of tests in {root!r}, subfolders:\n"
             + "\n".join(os.listdir(root))
         )
     tests = os.listdir(sub)

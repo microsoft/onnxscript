@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------
 
 """Generates the Prims signatures for the ONNX Prims operator set using torch.ops."""
+
 from __future__ import annotations
 
 import argparse
@@ -12,11 +13,8 @@ import logging
 import os
 import re
 import textwrap
-from pathlib import Path
 from typing import Any, Dict, List, Sequence
 
-import black
-import isort
 import torch
 import torchgen.gen
 import torchgen.model
@@ -125,6 +123,10 @@ def parse_default_value(arg: torchgen.model.Argument) -> Any:
 
     try:
         value = ast.literal_eval(default)
+    except ValueError:
+        # Treat it as a string.
+        return default.lower()
+    else:
         if isinstance(value, int):
             # Expand the value to a tuple if the type is a list.
             if isinstance(arg.type, torchgen.model.ListType):
@@ -132,9 +134,6 @@ def parse_default_value(arg: torchgen.model.Argument) -> Any:
                     return (value,) * arg.type.size
                 return (value,)
         return value
-    except ValueError:
-        # Treat it as a string.
-        return default.lower()
 
 
 def create_return_type(returns: Sequence[torchgen.model.Return]) -> cg.TypeRef:
@@ -259,7 +258,7 @@ def _get_func_schema_in_namespace(namespaces: List[_OpNamespace]) -> Dict[str, F
             # to "resize(Tensor a, SymInt[] shape) -> Tensor"
             if "!" in op_overload_packet.schema:
                 op_overload_packet.schema = re.sub(  # type: ignore[attr-defined]
-                    "[(][A-Za-z]![)]", "", op_overload_packet.schema
+                    r"[(][A-Za-z]![)]", "", op_overload_packet.schema
                 )
 
             # FIXME: remove below code if the issue below is fixed.
@@ -284,7 +283,7 @@ def main(args: argparse.Namespace) -> None:
         if module_name not in functions:
             functions[module_name] = {}
         if op_name in functions[module_name]:
-            logging.warning(
+            logging.warning(  # noqa: LOG015
                 "Duplicated function: %s, overload: %s",
                 op_name,
                 func_schema.name.overload_name,
@@ -319,15 +318,6 @@ def main(args: argparse.Namespace) -> None:
             )
             py_module.accept(cg.PythonWriter(f))
 
-    # Format the generated files so that they pass linting.
-    # line_length=95 is to match the lintrunner rules.
-    isort.file(output_path)
-    black.format_file_in_place(
-        Path(output_path),
-        fast=True,
-        mode=black.Mode(line_length=95),
-        write_back=black.WriteBack.YES,
-    )
     print("Done.")
 
 

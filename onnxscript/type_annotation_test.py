@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 
 import unittest
 from typing import Any, List, Optional, Sequence, TypeVar, Union
@@ -12,7 +10,7 @@ import onnxscript
 import onnxscript.testing
 from onnxscript import FLOAT, INT64, script, type_annotation
 from onnxscript.onnx_opset import opset15 as op
-from onnxscript.tests.common import testutils
+from tests.common import testutils
 
 
 class TypeAnnotationTest(testutils.TestBase):

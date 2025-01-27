@@ -1,0 +1,11 @@
+# Build the dev version of the package and publish to artifacts
+
+# To configure triggers, see https://github.com/microsoft/onnx-converters-private/wiki/ONNX-Script-release
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+variables:
+  CI: 'true'
+steps:
+  - template: _release-template.yml

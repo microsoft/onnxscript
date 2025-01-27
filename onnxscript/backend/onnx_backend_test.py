@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 
 import os
 import unittest
@@ -12,7 +10,7 @@ from onnxscript.backend import onnx_backend
 
 
 def load_function(obj):
-    return ort.InferenceSession(obj.SerializeToString())
+    return ort.InferenceSession(obj.SerializeToString(), providers=("CPUExecutionProvider",))
 
 
 def run_function(obj, *inputs):

@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 
 import os
 import subprocess
@@ -36,6 +34,9 @@ class TestDocumentationExample(unittest.TestCase):
         if tested == 0:
             raise RuntimeError(f"No example was tested in folder {folder}.")
 
+    @unittest.skipIf(
+        sys.platform != "linux", reason="No need to run the documentation on every OS."
+    )
     def test_documentation_examples(self):
         this = os.path.abspath(os.path.dirname(__file__))
         onxc = os.path.normpath(os.path.join(this, "..", ".."))
@@ -50,6 +51,7 @@ class TestDocumentationExample(unittest.TestCase):
 
         test("..", "..", "docs", "examples")
         test("..", "..", "docs", "tutorial", "examples")
+        test("..", "..", "docs", "tutorial", "rewriter", "examples")
 
 
 if __name__ == "__main__":

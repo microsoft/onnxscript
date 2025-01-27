@@ -6,5 +6,6 @@ include VERSION
 include MANIFEST.in
 
 # exclude from sdist
-exclude *.onnx
+recursive-exclude onnxscript *.onnx
+recursive-exclude onnxscript *_test.py
 prune */__pycache__

@@ -13,6 +13,7 @@ on:
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event_name == 'workflow_dispatch' }}
@@ -25,47 +26,63 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         name:
+          - py312
+          - py311
+          - py311-torch-nightly
+          - py311-onnx-weekly
+          - py311-ort-nightly
           - py310
-          - py39
-          - py38
-          - py310-torch-nightly
-          - py310-onnx-weekly
-          - py310-ort-nightly
         include:
+          - name: py312
+            python-version: "3.12"
+            nox-tag: test build
+          - name: py311
+            python-version: "3.11"
+            nox-tag: test
           - name: py310
             python-version: "3.10"
-            nox-tag: test build
-          - name: py39
-            python-version: "3.9"
             nox-tag: test
-          - name: py38
-            python-version: "3.8"
-            nox-tag: test
-          - name: py310-torch-nightly
-            python-version: "3.10"
+          - name: py311-torch-nightly
+            python-version: "3.11"
             nox-tag: test-torch-nightly
-          - name: py310-onnx-weekly
-            python-version: "3.10"
+          - name: py311-onnx-weekly
+            python-version: "3.11"
             nox-tag: test-onnx-weekly
-          - name: py310-ort-nightly
-            python-version: "3.10"
+          - name: py311-ort-nightly
+            python-version: "3.11"
             nox-tag: test-ort-nightly
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install nox
         run: python -m pip install nox
+      - name: Pull Test Data
+        run: git lfs pull
       - name: Run tests
-        run: nox -t ${{ matrix.nox-tag }} --forcecolor -- -v --cov=onnxscript --cov-report=xml --cov-append --cov-branch -n=auto
+        run: nox -t ${{ matrix.nox-tag }} --forcecolor -- --cov=onnxscript --cov-report=xml --cov-append --cov-branch -n=auto --junitxml junit.xml
         env:
-          CACHE_ORT_SESSIONS: "${{ matrix.os == 'windows-latest' && '0' || '1' }}"
           CATCH_ORT_SEGFAULT: "${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}"
+          CREATE_REPRODUCTION_REPORT: "${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}"
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+      - name: Upload torchlib error reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Error reports (${{ matrix.name }}-${{ matrix.os }})
+          path: error_reports
 
   build_docs:
     strategy:
@@ -74,9 +91,9 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
           cache: pip
@@ -98,9 +115,9 @@ jobs:
   update_readme:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
       - name: Update readme
         run: |
           python docs/update_readme.py

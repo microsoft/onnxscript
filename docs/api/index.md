@@ -1,9 +1,17 @@
 # API
 
+## Author Models
+
 ```{toctree}
 decorator
 opsets
 converter
-utils
 values
+```
+
+## Tests and Tools
+
+```{toctree}
+testing
+tools
 ```

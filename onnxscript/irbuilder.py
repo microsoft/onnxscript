@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 from __future__ import annotations
 
 import dataclasses
@@ -31,7 +29,7 @@ def _format(seq: Sequence[Any], prefix: str, sep: str, suffix: str, formatter=st
     return prefix + sep.join([formatter(x) for x in seq]) + suffix
 
 
-def select_ir_version(version: int, domain: str = ""):
+def select_ir_version(version: int, domain: str = "") -> int:
     """Selects a suitable ONNX ir_version for a given opset version."""
     if domain == "":
         domain = "ai.onnx"
@@ -70,7 +68,7 @@ class IRVar:
 
     def __init__(self, varname: str, typeinfo: IRTypeLike, sourceinfo: SourceInfo) -> None:
         if not isinstance(varname, str):
-            raise ValueError(f"varname must be a string not {type(varname)!r}.")
+            raise TypeError(f"varname must be a string not {type(varname)!r}.")
         self.name = varname
         self.info = sourceinfo
         self.typeinfo = typeinfo
@@ -173,8 +171,9 @@ class IRAttributeParameter:
                 "Attribute has no default value. Only attributes with default "
                 "values can be converted to AttributeProto."
             )
-        if version_utils.onnx_older_than("1.14.1"):
-            # Argument 'attr_type' was added after version 1.14.0.
+        if version_utils.onnx_older_than("1.15"):
+            # TODO(after 1.14 is deprecated): Remove this branch.
+            # Argument 'attr_type' was added after version 1.14.
             return helper.make_attribute(self.name, self.default_value)
         # pylint: disable=unexpected-keyword-arg
         return helper.make_attribute(self.name, self.default_value, attr_type=self.type)  # type: ignore[call-arg]
@@ -369,13 +368,19 @@ class IRFunction:
         for n in self.stmts:
             if n.callee.opset.domain not in opsets:
                 opsets[n.callee.opset.domain] = n.callee.opset.version
+
+        for proto in functions:
+            if proto.domain not in opsets:
+                opsets[proto.domain] = 1
+            # TODO(rama): Handle conflicts with appropriate error/warning message.
+            for opset in proto.opset_import:
+                if opset.domain not in opsets:
+                    opsets[opset.domain] = opset.version
+
         if "" not in opsets:
             # No operator is using the standard opset.
             # A default value is given.
             opsets[""] = onnx_opset_version()
-        for proto in functions:
-            if proto.domain not in opsets:
-                opsets[proto.domain] = 1
 
         if "ir_version" not in kwargs:
             kwargs["ir_version"] = select_ir_version(opsets[""])
@@ -467,7 +472,8 @@ class IRFunction:
             attributes=attribute_names,
             doc_string=self.docstring,
         )
-        if hasattr(onnx.FunctionProto, "attribute_proto"):
+        # In protobuf 4.x fields aren't defined as class attribute so it should check instance attribute instead
+        if hasattr(f, "attribute_proto"):
             f.attribute_proto.extend(
                 [attr.attr_proto for attr in self.attrs if attr.has_default]
             )
@@ -481,7 +487,7 @@ class IRBuilder:
     def __init__(self):
         self.functions = {}
 
-    def new_function(self, name: str, domain: str = "", register: bool = False):
+    def new_function(self, name: str, domain: str = "", register: bool = False) -> IRFunction:
         if register and (domain, name) in self.functions:
             raise RuntimeError(f"Function '{name}' already exists in domain '{domain}'.")
         function = IRFunction(name, domain)
@@ -523,8 +529,8 @@ class IRBuilder:
         var = IRVar(varname, typeinfo, sourceinfo)
         fn.append_output(var)
 
-    def make_attr(self, attrname: str, attrval: Any) -> IRAttributeValue:
-        return IRAttributeValue(helper.make_attribute(attrname, attrval))
+    def make_attr(self, attrproto: onnx.AttributeProto) -> IRAttributeValue:
+        return IRAttributeValue(attrproto)
 
     def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> IRAttributeValue:
         proto = onnx.AttributeProto()

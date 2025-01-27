@@ -9,39 +9,45 @@
 - All functions should not have the script() decorator. This is because
     we want to delay the compilation of the function.
 """
+
 from __future__ import annotations
 
 from typing import Optional, Sequence
 
 from onnxscript import INT64
+from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
-from onnxscript.function_libs.torch_lib.tensor_typing import TTensor
+from onnxscript.function_libs.torch_lib.tensor_typing import RealType, TTensor
 from onnxscript.onnx_opset import opset18 as op
-from onnxscript.onnx_types import TensorType
+from onnxscript.onnx_types import BOOL, TensorType
 
 
-def prims_abs(self: TensorType) -> TensorType:
+@torch_op("prims::abs", traceable=True)
+def prims_abs(self: TTensor) -> TTensor:
     """abs(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Abs(self)
 
 
+@torch_op("prims::acos", traceable=True)
 def prims_acos(self: TensorType) -> TensorType:
     """acos(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Acos(self)
 
 
+@torch_op("prims::acosh", traceable=True)
 def prims_acosh(self: TensorType) -> TensorType:
     """acosh(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Acosh(self)
 
 
-def prims_add(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("prims::add", traceable=True)
+def prims_add(self: TTensor, other: TTensor) -> TTensor:
     """add(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Add(self, other)
 
 
 def prims_amax(
@@ -76,22 +82,25 @@ def prims_as_strided_scatter(
     raise NotImplementedError()
 
 
-def prims_asin(self: TensorType) -> TensorType:
+@torch_op("prims::asin", traceable=True)
+def prims_asin(self: TTensor) -> TTensor:
     """asin(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Asin(self)
 
 
-def prims_asinh(self: TensorType) -> TensorType:
+@torch_op("prims::asinh", traceable=True)
+def prims_asinh(self: TTensor) -> TTensor:
     """asinh(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Asinh(self)
 
 
-def prims_atan(self: TensorType) -> TensorType:
+@torch_op("prims::atan", traceable=True)
+def prims_atan(self: TTensor) -> TTensor:
     """atan(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Atan(self)
 
 
 def prims_atan2(self: TensorType, other: TensorType) -> TensorType:
@@ -100,10 +109,11 @@ def prims_atan2(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def prims_atanh(self: TensorType) -> TensorType:
+@torch_op("prims::atanh", traceable=True)
+def prims_atanh(self: TTensor) -> TTensor:
     """atanh(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Atanh(self)
 
 
 def prims_bessel_i0(self: TensorType) -> TensorType:
@@ -186,10 +196,11 @@ def prims_cbrt(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def prims_ceil(self: TensorType) -> TensorType:
+@torch_op("prims::ceil", traceable=True)
+def prims_ceil(self: TTensor) -> TTensor:
     """ceil(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Ceil(self)
 
 
 def prims_clone(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
@@ -216,11 +227,13 @@ def prims_conj_physical(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("prims::convert_element_type")
-def prims_convert_element_type(a: TensorType, dtype: int) -> TensorType:
+@torch_op("prims::convert_element_type", trace_only=True)
+def prims_convert_element_type(a: RealType, dtype: int) -> RealType:
     """convert_element_type(Tensor a, ScalarType dtype) -> Tensor"""
 
-    return op.Cast(a, to=dtype)
+    # Set trace_only=True because different if branches return different dtypes
+    # which is not supported in an ONNX function
+    return common_ops.cast_to(a, dtype)
 
 
 def prims_copy_strided(a: TensorType, stride: INT64) -> TensorType:
@@ -235,16 +248,18 @@ def prims_copy_to(a: TensorType, b: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def prims_cos(self: TensorType) -> TensorType:
+@torch_op("prims::cos", traceable=True)
+def prims_cos(self: TTensor) -> TTensor:
     """cos(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Cos(self)
 
 
-def prims_cosh(self: TensorType) -> TensorType:
+@torch_op("prims::cosh", traceable=True)
+def prims_cosh(self: TTensor) -> TTensor:
     """cosh(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Cosh(self)
 
 
 @torch_op("prims::device_put")
@@ -264,10 +279,11 @@ def prims_digamma(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def prims_div(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("prims::div", traceable=True)
+def prims_div(self: TTensor, other: TTensor) -> TTensor:
     """div(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Div(self, other)
 
 
 def prims_empty(shape: INT64, dtype: int, device: str, requires_grad: bool) -> TensorType:
@@ -284,16 +300,18 @@ def prims_empty_strided(
     raise NotImplementedError()
 
 
-def prims_eq(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("prims::eq", traceable=True)
+def prims_eq(self: TTensor, other: TTensor) -> TTensor:
     """eq(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Equal(self, other)
 
 
-def prims_erf(self: TensorType) -> TensorType:
+@torch_op("prims::erf", traceable=True)
+def prims_erf(self: TTensor) -> TTensor:
     """erf(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Erf(self)
 
 
 def prims_erf_inv(self: TensorType) -> TensorType:
@@ -314,10 +332,11 @@ def prims_erfcx(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def prims_exp(self: TensorType) -> TensorType:
+@torch_op("prims::exp", traceable=True)
+def prims_exp(self: TTensor) -> TTensor:
     """exp(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Exp(self)
 
 
 def prims_exp2(self: TensorType) -> TensorType:
@@ -356,10 +375,11 @@ def prims_fill(self: TensorType, value: float) -> TensorType:
     raise NotImplementedError()
 
 
-def prims_floor(self: TensorType) -> TensorType:
+@torch_op("prims::floor", traceable=True)
+def prims_floor(self: TTensor) -> TTensor:
     """floor(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Floor(self)
 
 
 def prims_fmax(self: TensorType, other: TensorType) -> TensorType:
@@ -402,16 +422,18 @@ def prims_gcd(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def prims_ge(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("prims::ge", traceable=True)
+def prims_ge(self: TTensor, other: TTensor) -> TTensor:
     """ge(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.GreaterOrEqual(self, other)
 
 
-def prims_gt(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("prims::gt", traceable=True)
+def prims_gt(self: TTensor, other: TTensor) -> TTensor:
     """gt(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Greater(self, other)
 
 
 def prims_hypot(self: TensorType, other: TensorType) -> TensorType:
@@ -458,10 +480,11 @@ def prims_item(a: TensorType) -> float:
     raise NotImplementedError()
 
 
+@torch_op("prims::le", traceable=True)
 def prims_le(self: TensorType, other: TensorType) -> TensorType:
     """le(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.LessOrEqual(self, other)
 
 
 def prims_lgamma(self: TensorType) -> TensorType:
@@ -470,10 +493,11 @@ def prims_lgamma(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("prims::log", traceable=True)
 def prims_log(self: TensorType) -> TensorType:
     """log(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Log(self)
 
 
 def prims_log10(self: TensorType) -> TensorType:
@@ -494,10 +518,11 @@ def prims_log2(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("prims::lt", traceable=True)
 def prims_lt(self: TensorType, other: TensorType) -> TensorType:
     """lt(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Less(self, other)
 
 
 def prims_maximum(self: TensorType, other: TensorType) -> TensorType:
@@ -524,10 +549,11 @@ def prims_minium_value(dtype: int) -> float:
     raise NotImplementedError()
 
 
-def prims_mul(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("prims::mul", traceable=True)
+def prims_mul(self: TTensor, other: TTensor) -> TTensor:
     """mul(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Mul(self, other)
 
 
 def prims_ndtri(self: TensorType) -> TensorType:
@@ -536,16 +562,18 @@ def prims_ndtri(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def prims_ne(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("prims::ne", traceable=True)
+def prims_ne(self: TTensor, other: TTensor) -> TTensor:
     """ne(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Not(op.Equal(self, other))
 
 
-def prims_neg(self: TensorType) -> TensorType:
+@torch_op("prims::neg", traceable=True)
+def prims_neg(self: TTensor) -> TTensor:
     """neg(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Neg(self)
 
 
 def prims_nextafter(self: TensorType, other: TensorType) -> TensorType:
@@ -562,10 +590,11 @@ def prims_normal(
     raise NotImplementedError()
 
 
-def prims_pow(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("prims::pow", traceable=True)
+def prims_pow(self: TTensor, other: TTensor) -> TTensor:
     """pow(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Pow(self, other)
 
 
 def prims_prod(
@@ -594,16 +623,18 @@ def prims_remainder(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def prims_reshape(a: TensorType, shape: INT64) -> TensorType:
+@torch_op("prims::reshape", traceable=True)
+def prims_reshape(a: TTensor, shape: INT64) -> TTensor:
     """reshape(Tensor a, SymInt[] shape) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Reshape(a, shape)
 
 
+@torch_op("prims::resize", traceable=True)
 def prims_resize(a: TensorType, shape: INT64) -> TensorType:
     """resize(Tensor a, SymInt[] shape) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Expand(a, shape)
 
 
 def prims_rev(a: TensorType, dims: Sequence[int]) -> TensorType:
@@ -612,10 +643,11 @@ def prims_rev(a: TensorType, dims: Sequence[int]) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("prims::round", traceable=True)
 def prims_round(self: TensorType) -> TensorType:
     """round(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Round(self)
 
 
 def prims_rsqrt(self: TensorType) -> TensorType:
@@ -656,16 +688,18 @@ def prims_signbit(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def prims_sin(self: TensorType) -> TensorType:
+@torch_op("prims::sin", traceable=True)
+def prims_sin(self: TTensor) -> TTensor:
     """sin(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Sin(self)
 
 
-def prims_sinh(self: TensorType) -> TensorType:
+@torch_op("prims::sinh", traceable=True)
+def prims_sinh(self: TTensor) -> TTensor:
     """sinh(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Sinh(self)
 
 
 def prims_slice(
@@ -696,22 +730,25 @@ def prims_split_dim(a: TensorType, dim: int, outer_length: INT64) -> TensorType:
     raise NotImplementedError()
 
 
-def prims_sqrt(self: TensorType) -> TensorType:
+@torch_op("prims::sqrt", traceable=True)
+def prims_sqrt(self: TTensor) -> TTensor:
     """sqrt(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Sqrt(self)
 
 
-def prims_squeeze(a: TensorType, dimensions: Sequence[int]) -> TensorType:
+@torch_op("prims::squeeze", traceable=True)
+def prims_squeeze(a: TTensor, dimensions: Sequence[int]) -> TTensor:
     """squeeze(Tensor(a) a, int[] dimensions) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    return op.Squeeze(a, axes=dimensions)
 
 
-def prims_sub(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("prims::sub", traceable=True)
+def prims_sub(self: TTensor, other: TTensor) -> TTensor:
     """sub(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Sub(self, other)
 
 
 def prims_sum(
@@ -728,22 +765,25 @@ def prims_svd(A: TensorType, full_matrices: bool) -> tuple[TensorType, TensorTyp
     raise NotImplementedError()
 
 
-def prims_tan(self: TensorType) -> TensorType:
+@torch_op("prims::tan", traceable=True)
+def prims_tan(self: TTensor) -> TTensor:
     """tan(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Tan(self)
 
 
-def prims_tanh(self: TensorType) -> TensorType:
+@torch_op("prims::tanh", traceable=True)
+def prims_tanh(self: TTensor) -> TTensor:
     """tanh(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Tanh(self)
 
 
+@torch_op("prims::transpose", traceable=True)
 def prims_transpose(a: TensorType, permutation: Sequence[int]) -> TensorType:
     """transpose(Tensor(a) a, int[] permutation) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    return op.Transpose(a, perm=permutation)
 
 
 def prims_trunc(self: TensorType) -> TensorType:
@@ -760,6 +800,7 @@ def prims_uniform(
     raise NotImplementedError()
 
 
+@torch_op("prims::var", trace_only=True)
 def prims_var(
     inp: TensorType,
     dims: Optional[Sequence[int]],
@@ -768,7 +809,26 @@ def prims_var(
 ) -> TensorType:
     """var(Tensor inp, int[]? dims, *, int correction, ScalarType? output_dtype=None) -> Tensor"""
 
-    raise NotImplementedError()
+    if not dims:
+        # dims can be empty in practice. We just use a None so it is not added in the ONNX graph
+        dims = None
+    sub_mean = op.Sub(inp, op.ReduceMean(inp, dims, keepdims=True))
+    sqr_mean = op.Mul(sub_mean, sub_mean)
+    var = op.ReduceMean(sqr_mean, dims, keepdims=False)
+    # Adjust var according to correction value
+    if correction != 0:
+        inp_shape = op.Shape(inp)
+        dim_size = op.Gather(inp_shape, dims, axis=0)
+        numel_float = op.CastLike(op.ReduceProd(dim_size, keepdims=False), inp)
+        mul = op.Mul(var, numel_float)
+        # Subtract the correction value
+        sub = op.Sub(numel_float, op.CastLike(correction, inp))
+        var = op.Div(mul, sub)
+
+    if output_dtype is not None and output_dtype != -1:
+        var = op.Cast(var, to=output_dtype)
+
+    return var
 
 
 def prims_view_of(a: TensorType) -> TensorType:
@@ -777,10 +837,11 @@ def prims_view_of(a: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def prims_where(pred: TensorType, a: TensorType, b: TensorType) -> TensorType:
+@torch_op("prims::where", traceable=True)
+def prims_where(pred: BOOL, a: TTensor, b: TTensor) -> TTensor:
     """where(Tensor pred, Tensor a, Tensor b) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Where(pred, a, b)
 
 
 def prims_zeta(self: TensorType, other: TensorType) -> TensorType:

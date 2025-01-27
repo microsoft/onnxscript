@@ -941,7 +941,7 @@ class Opset7(Opset6):
         Args:
             X: Input tensor
 
-            slope: Slope tensor. The shape of slope can be smaller then first input X;
+            slope: Slope tensor. The shape of slope can be smaller than first input X;
                 if so, its shape must be unidirectional broadcastable to X
         """
 

@@ -367,7 +367,7 @@ class Constant(Expr):
         self._dispatch_visit(visitor.visit_constant)
 
 
-class ExprList(Expr, Generic[TExpr], ABC):
+class ExprList(Expr, ABC, Generic[TExpr]):
     class Roles:
         Elements = Role("ExprList.Elements")
 
@@ -588,17 +588,17 @@ class NoneTypeRef(BuiltinTypeRef):
 
 class BoolTypeRef(BuiltinTypeRef):
     def __init__(self):
-        super().__init__("bool", default_value=Constant(bool()))
+        super().__init__("bool", default_value=Constant(bool()))  # noqa: UP018
 
 
 class IntTypeRef(BuiltinTypeRef):
     def __init__(self):
-        super().__init__("int", default_value=Constant(int()))
+        super().__init__("int", default_value=Constant(int()))  # noqa: UP018
 
 
 class FloatTypeRef(BuiltinTypeRef):
     def __init__(self):
-        super().__init__("float", default_value=Constant(float()))
+        super().__init__("float", default_value=Constant(float()))  # noqa: UP018
 
 
 class ComplexTypeRef(BuiltinTypeRef):

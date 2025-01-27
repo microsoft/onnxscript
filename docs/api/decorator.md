@@ -1,5 +1,5 @@
 # Decorator
 
 ```{eval-rst}
-.. autofunction:: onnxscript.main.script
+.. autofunction:: onnxscript.script
 ```

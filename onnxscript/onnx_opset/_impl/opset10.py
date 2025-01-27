@@ -346,7 +346,7 @@ class Opset10(Opset9):
         r"""[🌐 MatMulInteger(10)](https://onnx.ai/onnx/operators/onnx__MatMulInteger.html#matmulinteger-10 "Online Documentation")
 
 
-        Matrix product that behaves like numpy.matmul: https://docs.scipy.org/doc/numpy-1.13.0/reference/generated/numpy.matmul.html.
+        Matrix product that behaves like [numpy.matmul](https://numpy.org/doc/stable/reference/generated/numpy.matmul.html).
         The production MUST never overflow. The accumulation may overflow if and only if in 32 bits.
 
 
@@ -749,7 +749,7 @@ class Opset10(Opset9):
         r"""[🌐 QLinearMatMul(10)](https://onnx.ai/onnx/operators/onnx__QLinearMatMul.html#qlinearmatmul-10 "Online Documentation")
 
 
-        Matrix product that behaves like numpy.matmul: https://docs.scipy.org/doc/numpy-1.13.0/reference/generated/numpy.matmul.html.
+        Matrix product that behaves like [numpy.matmul](https://numpy.org/doc/stable/reference/generated/numpy.matmul.html).
         It consumes two quantized input tensors, their scales and zero points, scale and zero point of output,
         and computes the quantized output. The quantization formula is y = saturate((x / y_scale) + y_zero_point).
         For (x / y_scale), it is rounding to nearest ties to even. Refer to https://en.wikipedia.org/wiki/Rounding for details.
@@ -1067,7 +1067,7 @@ class Opset10(Opset9):
 
 
         Produces a slice of the input tensor along multiple axes. Similar to numpy:
-        https://docs.scipy.org/doc/numpy/reference/arrays.indexing.html
+        https://numpy.org/doc/stable/reference/routines.indexing.html
         Slices uses `starts`, `ends`, `axes` and `steps` inputs to specify the start and end
         dimension and step for each axis in the list of axes, it uses this information to
         slice the input `data` tensor. If a negative value is passed for any of the
@@ -1202,10 +1202,10 @@ class Opset10(Opset9):
 
 
         Retrieve the top-K elements along a specified axis. Given an input tensor of
-        shape [a_1, a_2, ..., a_n, r] and integer argument k, return two outputs:
-          -Value tensor of shape [a_1, a_2, ..., a_{axis-1}, k, a_{axis+1}, ... a_n]
+        shape [a_0, a_1, ..., a_{n-1}] and integer argument k, return two outputs:
+          -Value tensor of shape [a_0, a_1, ..., a_{axis-1}, k, a_{axis+1}, ... a_{n-1}]
             which contains the values of the top k elements along the specified axis
-          -Index tensor of shape [a_1, a_2, ..., a_{axis-1}, k, a_{axis+1}, ... a_n] which
+          -Index tensor of shape [a_0, a_1, ..., a_{axis-1}, k, a_{axis+1}, ... a_{n-1}] which
            contains the indices of the top k elements (original indices from the input
            tensor).
 
@@ -1214,7 +1214,7 @@ class Opset10(Opset9):
 
 
         Args:
-            X: Tensor of shape [a_1, a_2, ..., a_n, r]
+            X: Tensor of shape [a_0, a_1, ..., a_{n-1}]
 
             K: A 1-D tensor containing a single positive value corresponding to the
                 number of top elements to retrieve

@@ -9,6 +9,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Annotated, Any, Iterable, Optional, Set, TextIO
 
+import pygen as cg
 from onnx.defs import (
     AttributeProto,
     OpSchema,
@@ -16,8 +17,6 @@ from onnx.defs import (
     onnx_opset_version,
 )
 from onnx.helper import get_attribute_value
-
-import opgen.pygen as cg
 
 __all__ = [
     "OpsetId",
@@ -61,8 +60,7 @@ class QualOpName:
 
     def __repr__(self) -> str:
         return (
-            f"QualOpName(domain={self.domain!r}, "
-            f"version={self.version!r}, name={self.name!r})"
+            f"QualOpName(domain={self.domain!r}, version={self.version!r}, name={self.name!r})"
         )
 
     def __str__(self) -> str:
@@ -346,7 +344,7 @@ class OpsetsBuilder:
             for existing_constraints in input_constraints, output_constraints:
                 if (existing := existing_constraints.get(constraint_name, None)) is not None:
                     if len(existing) != len(constraint_types):
-                        return False  #  differing number of constraints, can't be compatible
+                        return False  # differing number of constraints, can't be compatible
                     for a, b in zip(existing, constraint_types):
                         if str(a) != str(b):
                             return False  # a constrained type does not match
@@ -621,19 +619,19 @@ def parse_input_output_type(onnx_type: str) -> cg.TypeRef:
         )
 
     default_value_map = {
-        "BOOL": bool(),
-        "FLOAT": float(),
-        "FLOAT16": float(),
-        "BFLOAT16": float(),
-        "DOUBLE": float(),
-        "INT8": int(),
-        "INT16": int(),
-        "INT32": int(),
-        "INT64": int(),
-        "UINT8": int(),
-        "UINT16": int(),
-        "UINT32": int(),
-        "UINT64": int(),
+        "BOOL": bool(),  # noqa: UP018
+        "FLOAT": float(),  # noqa: UP018
+        "FLOAT16": float(),  # noqa: UP018
+        "BFLOAT16": float(),  # noqa: UP018
+        "DOUBLE": float(),  # noqa: UP018
+        "INT8": int(),  # noqa: UP018
+        "INT16": int(),  # noqa: UP018
+        "INT32": int(),  # noqa: UP018
+        "INT64": int(),  # noqa: UP018
+        "UINT8": int(),  # noqa: UP018
+        "UINT16": int(),  # noqa: UP018
+        "UINT32": int(),  # noqa: UP018
+        "UINT64": int(),  # noqa: UP018
         "COMPLEX64": complex(),
         "COMPLEX128": complex(),
     }
