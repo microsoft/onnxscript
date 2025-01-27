@@ -56,8 +56,10 @@ import onnx
 from onnx import helper as onnx_helper
 
 import onnxscript
+import onnxscript.ir.convenience
+import onnxscript.rewriter._ir_utils as _ir_utils
 from onnxscript import ir
-from onnxscript.rewriter import _ir_utils, function_rule
+from onnxscript.rewriter import function_rule
 
 logger = logging.getLogger(__name__)
 
@@ -102,16 +104,16 @@ class AttentionRewriteRule(function_rule.FunctionRewriteRule, abc.ABC):
             # Reference:
             # https://github.com/huggingface/diffusers/blob/ae05050db9d37d5af48a6cd0d6510a5ffb1c1cd4/src/diffusers/models/attention_processor.py#L1269
             reshape_nodes = [node for node in function if node.op_type == "Reshape"]
-            assert (
-                len(reshape_nodes) == 4
-            ), "Expected 3 Reshape nodes for Q, K and V, and 1 reshape node for output of scaled_dot_product_attention."
+            assert len(reshape_nodes) == 4, (
+                "Expected 3 Reshape nodes for Q, K and V, and 1 reshape node for output of scaled_dot_product_attention."
+            )
             for reshape_node in reshape_nodes:
                 constant_node = reshape_node.inputs[1].producer()
-                assert (
-                    constant_node.op_type == "Constant"
-                ), "Expected the second input to Reshape to be a Constant node."
-                value = _ir_utils.propagate_const_value(reshape_node.inputs[1])
-                constant_value = value.const_value
+                assert constant_node.op_type == "Constant", (
+                    "Expected the second input to Reshape to be a Constant node."
+                )
+                value = reshape_node.inputs[1]
+                constant_value = _ir_utils.get_const_value(value)
                 if constant_value is None:
                     raise function_rule.FunctionRewriteError(
                         "Failed to propagate constant value for Reshape node."

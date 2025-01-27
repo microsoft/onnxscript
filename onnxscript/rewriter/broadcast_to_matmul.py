@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from onnxscript import ir
-from onnxscript.rewriter import _ir_utils, pattern
+from onnxscript.rewriter import pattern
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +30,6 @@ def check_if_not_need_reshape(
 
     input_a_shape = input_a.shape
     input_b_shape = input_b.shape
-    # TODO: Get a helper func to get const_value
-    _ir_utils.propagate_const_value(shape_c)
     shape_c_tensor = shape_c.const_value
     if shape_c_tensor is None:
         logger.info("The value 'shape_c' is not statically known.")
@@ -57,7 +55,7 @@ def check_if_not_need_reshape(
         return False
     input_a_shape = input_a_shape.numpy()  # type: ignore[assignment]
     input_b_shape = input_b_shape.numpy()  # type: ignore[assignment]
-    shape_c = shape_c_tensor.numpy().tolist()
+    shape_c = shape_c_tensor.numpy().tolist()  # type: ignore[assignment]
 
     a_rank = len(input_a_shape)
     b_rank = len(input_b_shape)

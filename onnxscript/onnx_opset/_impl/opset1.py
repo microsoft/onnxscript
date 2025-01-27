@@ -2171,7 +2171,7 @@ class Opset1(Opset):
         r"""[🌐 MatMul(1)](https://onnx.ai/onnx/operators/onnx__MatMul.html#matmul-1 "Online Documentation")
 
 
-        Matrix product that behaves like numpy.matmul: https://docs.scipy.org/doc/numpy-1.13.0/reference/generated/numpy.matmul.html
+        Matrix product that behaves like [numpy.matmul](https://numpy.org/doc/stable/reference/generated/numpy.matmul.html).
 
 
         Args:
@@ -3538,7 +3538,7 @@ class Opset1(Opset):
 
 
         Produces a slice of the input tensor along multiple axes. Similar to numpy:
-        https://docs.scipy.org/doc/numpy/reference/arrays.indexing.html
+        https://numpy.org/doc/stable/reference/routines.indexing.html
         Slices uses `axes`, `starts` and `ends` attributes to specify the start and end
         dimension for each axis in the list of axes, it uses this information to
         slice the input `data` tensor. If a negative value is passed for any of the

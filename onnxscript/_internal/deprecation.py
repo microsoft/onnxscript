@@ -12,6 +12,12 @@ from typing import Callable, TypeVar
 T = TypeVar("T")
 
 
+@functools.lru_cache(maxsize=1024)
+def _warn_once(message: str):
+    """Issue a FutureWarning only once per message."""
+    warnings.warn(message, category=FutureWarning, stacklevel=3)
+
+
 def deprecated(since: str, removed_in: str, instructions: str) -> Callable[[T], T]:
     """Marks functions as deprecated.
 
@@ -30,12 +36,10 @@ def deprecated(since: str, removed_in: str, instructions: str) -> Callable[[T], 
     def decorator(function):
         @functools.wraps(function)
         def wrapper(*args, **kwargs):
-            warnings.warn(
+            _warn_once(
                 f"'{function.__module__}.{function.__qualname__}' "
                 f"is deprecated in version {since} and will be "
                 f"removed in {removed_in}. Please {instructions}.",
-                category=FutureWarning,
-                stacklevel=2,
             )
             return function(*args, **kwargs)
 

@@ -200,7 +200,7 @@ torch=={torch.__version__}"""
     )
 
     # Turn test name into a valid file name
-    markdown_file_name = f'{short_test_name.replace("/", "-").replace(":", "-")}-{str(time.time()).replace(".", "_")}.md'
+    markdown_file_name = f"{short_test_name.replace('/', '-').replace(':', '-')}-{str(time.time()).replace('.', '_')}.md"
     markdown_file_path = save_error_report(markdown_file_name, markdown)
     print(f"Created reproduction report at {markdown_file_path}")
 
@@ -247,7 +247,7 @@ def create_mismatch_report(
         error_stack=error_stack,
     )
 
-    markdown_file_name = f'mismatch-{short_test_name.replace("/", "-").replace(":", "-")}-{str(time.time()).replace(".", "_")}.md'
+    markdown_file_name = f"mismatch-{short_test_name.replace('/', '-').replace(':', '-')}-{str(time.time()).replace('.', '_')}.md"
     markdown_file_path = save_error_report(markdown_file_name, markdown)
     print(f"Created reproduction report at {markdown_file_path}")
 

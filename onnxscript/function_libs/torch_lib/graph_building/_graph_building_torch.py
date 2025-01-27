@@ -390,9 +390,6 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                 else:
                     # Python constants are scalars
                     return 0
-            elif function.traceable:
-                # Trace the function call instead of adding the function as a node
-                return function.function(*args, **kwargs)
 
         # args/kwargs are TorchScriptTensor/python built-in based
         param_schemas = function.param_schemas()
@@ -422,6 +419,15 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                 value, float
             ):
                 attributes[name] = (value,)
+        if function.traceable:
+            inputs = self._graph.preprocess_inputs(inputs)
+            inputs = _wrap_torch_value_to_tensor(inputs)  # type: ignore[assignment]
+            # The args and kwargs matters, as it's traced onnx function
+            kwargs = param_manipulation.turn_to_kwargs_to_avoid_ordering(
+                param_schemas, inputs, attributes
+            )
+            # Trace the function call instead of adding the function as a node
+            return function.function(**kwargs)
         return self._graph.add_function_call(function, inputs, attributes)
 
 
@@ -683,9 +689,9 @@ class TorchScriptGraph:
             return
         assert isinstance(unwrapped_outputs, Sequence)
         for ts_output in unwrapped_outputs:
-            assert isinstance(
-                ts_output, torch.Value
-            ), f"ts_output must be a torch.Value, not {type(ts_output)}"
+            assert isinstance(ts_output, torch.Value), (
+                f"ts_output must be a torch.Value, not {type(ts_output)}"
+            )
             self._torch_graph.registerOutput(ts_output)
         return
 
@@ -730,14 +736,7 @@ class TorchScriptGraph:
         value.setDebugName(_rename_intermediate_value(value.debugName()))
         return value
 
-    @runtime_typing.checked
-    def _add_torchscript_op_call(
-        self,
-        name: str,
-        onnx_inputs: Sequence[ValidInputType],
-        onnx_attributes: Mapping[str, ValidArgumentType],
-        n_outputs: int,
-    ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
+    def preprocess_inputs(self, onnx_inputs: Sequence[ValidInputType]) -> List[torch.Value]:
         unwrapped_inputs = _unwrap_tensors_to_torch_values(onnx_inputs)
         graph_inputs = []
         assert isinstance(unwrapped_inputs, Sequence)
@@ -761,10 +760,21 @@ class TorchScriptGraph:
                 graph_inputs.append(self._add_constant_to_graph(input))
             else:
                 graph_inputs.append(input)
+        return graph_inputs
+
+    @runtime_typing.checked
+    def _add_torchscript_op_call(
+        self,
+        name: str,
+        onnx_inputs: Sequence[ValidInputType],
+        onnx_attributes: Mapping[str, ValidArgumentType],
+        n_outputs: int,
+    ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
+        graph_inputs = self.preprocess_inputs(onnx_inputs)
         for key, value in onnx_attributes.items():
-            assert not isinstance(
-                value, TorchScriptTensor
-            ), f"ONNX attribute must not be a TorchScriptTensor, got {key}: {value}."
+            assert not isinstance(value, TorchScriptTensor), (
+                f"ONNX attribute must not be a TorchScriptTensor, got {key}: {value}."
+            )
         result = _create_op_call_in_torch_graph(
             self._torch_graph,
             name,
@@ -806,9 +816,9 @@ class TorchScriptGraph:
                 sub_graph_name,
                 domain,
             )
-            assert (
-                name_domain not in function_proto_dict
-            ), f"Sub graph name already exists. {name_domain}"
+            assert name_domain not in function_proto_dict, (
+                f"Sub graph name already exists. {name_domain}"
+            )
             function_proto_dict[name_domain] = sub_torch_script_graph.to_function_proto(
                 opset_version, sub_graph_name
             )
@@ -822,7 +832,7 @@ class TorchScriptGraph:
         existing_value_info = {info.name: info for info in onnx_model.graph.value_info}
 
         # Override value_info for top level graph inputs.
-        for input in self.torch_graph.inputs():
+        for input in self.torch_graph.inputs():  # pylint: disable=not-an-iterable
             if input not in self._value_to_tensor:
                 raise RuntimeError(f"Input '{input.debugName()}' has no type.")
             tensor = self._value_to_tensor[input]
@@ -837,7 +847,7 @@ class TorchScriptGraph:
                     break
 
         # Override value_info for top level graph outputs.
-        for output in self.torch_graph.outputs():
+        for output in self.torch_graph.outputs():  # pylint: disable=not-an-iterable
             if output not in self._value_to_tensor:
                 raise RuntimeError(f"Output '{output.debugName()}' has no type.")
             tensor = self._value_to_tensor[output]

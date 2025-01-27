@@ -336,9 +336,9 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
             tmp_model_path, providers=["CUDAExecutionProvider"]
         )
         outputs = sess.run(fetch_outputs, inputs)
-        assert (
-            len(outputs) == len(fetch_outputs)
-        ), f"Number of outputs mismatch. outputs: {len(outputs)}, fetch_outputs: {len(fetch_outputs)}"
+        assert len(outputs) == len(fetch_outputs), (
+            f"Number of outputs mismatch. outputs: {len(outputs)}, fetch_outputs: {len(fetch_outputs)}"
+        )
 
         self._named_values = dict(zip(fetch_outputs, outputs))  # type: ignore[arg-type]
         for inputs, outputs in target_function_meta.values():

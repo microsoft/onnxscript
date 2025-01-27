@@ -32,6 +32,8 @@ class DataTypeTest(unittest.TestCase):
         self.assertEqual(_enums.DataType.FLOAT8E5M2FNUZ, onnx.TensorProto.FLOAT8E5M2FNUZ)
         self.assertEqual(_enums.DataType.UINT4, onnx.TensorProto.UINT4)
         self.assertEqual(_enums.DataType.INT4, onnx.TensorProto.INT4)
+        if hasattr(onnx.TensorProto, "FLOAT4E2M1"):
+            self.assertEqual(_enums.DataType.FLOAT4E2M1, onnx.TensorProto.FLOAT4E2M1)
         self.assertEqual(_enums.DataType.UNDEFINED, onnx.TensorProto.UNDEFINED)
 
     def test_from_numpy_takes_np_dtype_and_returns_data_type(self):

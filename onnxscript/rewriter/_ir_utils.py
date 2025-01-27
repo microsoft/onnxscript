@@ -1,46 +1,111 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""This is a temporary utility to assist new IR while it's still under development."""
-
 from __future__ import annotations
 
-import typing
+import math
+from typing import Callable, Sequence
 
 import numpy as np
 
-from onnxscript import ir
+import onnxscript.ir as ir
+from onnxscript.optimizer import basic_constant_propagation
 
-GRAPH_OUTPUT_META_KEY = "pkg.onnxscript.rewriter.generic_pattern.graph_output"
+
+def display_nodes(nodes: Sequence[ir.Node]) -> None:
+    """Display a list of nodes in the order they appear in the graph."""
+    if nodes:
+        graph = nodes[0].graph
+        if graph:
+            # Display nodes in same order as in graph:
+            # Currently doesn't handle (control-flow) subgraphs
+            for node in graph:
+                if node in nodes:
+                    node.display()
+        else:
+            for node in nodes:
+                node.display()
 
 
-def propagate_const_value(ir_value: ir.Value) -> ir.Value:
-    """Temporary method to propagate a constant value to the IR value."""
-    node = ir_value.producer()
-    if node is None:
-        return ir_value
-    if node.op_type != "Constant":
-        return ir_value
-    attr_name, attr_value = next(iter(node.attributes.items()))
-    if attr_value is None or not isinstance(attr_value, ir.Attr):
-        return ir_value
+def display_slice(x: ir.Value | ir.Node, backward: bool = True, depth_limit: int = 5) -> None:
+    """Display the (backward or forward) subgraph from a given value or node upto a certain depth."""
+    slice = []
 
-    const_value: ir.TensorProtocol
-    if attr_name in {"value_float", "value_floats"}:
-        const_value = ir.Tensor(
-            np.array(attr_value.value, dtype=np.float32), name=ir_value.name
-        )
-    elif attr_name in {"value_int", "value_ints"}:
-        const_value = ir.Tensor(np.array(attr_value.value, dtype=np.int64), name=ir_value.name)
-    elif attr_name in {"value_string", "value_strings"}:
-        const_value = ir.StringTensor(
-            np.array(attr_value.value, dtype=np.bytes_), name=ir_value.name
-        )
-    elif attr_name == "value":
-        const_value = typing.cast(ir.TensorProtocol, attr_value.value)
-    else:
-        return ir_value
+    def visit(node: ir.Node, depth):
+        if node in slice:
+            return
+        slice.append(node)
+        if depth < depth_limit:
+            if backward:
+                for inp in node.inputs:
+                    if inp is not None and inp.producer() is not None:
+                        visit(inp.producer(), depth + 1)  # type: ignore[arg-type]
+            else:
+                for out in node.outputs:
+                    for consumer, _ in out.uses():
+                        visit(consumer, depth + 1)
 
-    ir_value.const_value = const_value
-    ir_value.shape = const_value.shape  # type: ignore
-    ir_value.dtype = const_value.dtype
-    return ir_value
+    if isinstance(x, ir.Node):
+        visit(x, 0)
+    elif isinstance(x, ir.Value) and x.producer() is not None:
+        visit(x.producer(), 0)  # type: ignore[arg-type]
+    display_nodes(slice)
+
+
+def get_const_value(value: ir.Value) -> ir.TensorProtocol | None:
+    node = value.producer()
+    if node is not None:
+        basic_constant_propagation([node])
+    return value.const_value
+
+
+def get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
+    """Convenience wrapper to get (optional) numpy value from an optional IR Value.
+
+    This is intended for use in optimizations/rewriting. Note that this does not
+    yet handle the distinction between inputs with default values (values that are
+    both graph inputs and graph initializers), which should not be treated as a
+    constant, and true constant values. The caller should make the distinction, as
+    a value does not contain enough information to determine this. (TODO)
+    """
+    if val is None:
+        return None
+    const_value = val.const_value
+    if const_value is not None:
+        try:
+            return const_value.numpy()
+        except FileNotFoundError:
+            # External data is not available.
+            return None
+    return None
+
+
+def get_singleton_value(val: ir.Value | None):
+    """Returns element of a single element tensor constant value, and None otherwise."""
+    np_val = get_numpy_value(val)
+    if np_val is not None and np_val.size == 1:
+        return np_val.item()
+    return None
+
+
+def is_singleton_value(
+    val: ir.Value | None, expected: float | int | Callable, *, rtol: float | None = None
+) -> bool:
+    """Returns True if the value is a single element tensor with given value, and False otherwise."""
+    scalar = get_singleton_value(val)
+    if scalar is None:
+        return False
+    if callable(expected):
+        return expected(scalar)
+    if isinstance(expected, int):
+        return expected == scalar
+    # rtol must be specified for float comparison
+    assert rtol is not None
+    return math.isclose(scalar, expected, rel_tol=rtol)
+
+
+def has_rank(value: ir.Value | None, rank: int) -> bool:
+    """Returns True if the value is statically known to have the given rank, and False otherwise."""
+    if value is None:
+        return False
+    shape = value.shape
+    return (shape is not None) and (shape.rank() == rank)

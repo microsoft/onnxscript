@@ -97,12 +97,12 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float{input_x_shape} input_x, float{input_y_shape} input_y) => (float{output_shape} output)
             {{
-                shape_a = Constant<value: tensor = int64[{len(shape_a)}] {{ {', '.join(str(i) for i in shape_a)} }}>()
+                shape_a = Constant<value: tensor = int64[{len(shape_a)}] {{ {", ".join(str(i) for i in shape_a)} }}>()
                 reshape_x = Reshape (input_x, shape_a)
-                shape_b = Constant<value: tensor = int64[{len(shape_b)}] {{ {', '.join(str(i) for i in shape_b)} }}>()
+                shape_b = Constant<value: tensor = int64[{len(shape_b)}] {{ {", ".join(str(i) for i in shape_b)} }}>()
                 reshape_y = Reshape (input_y, shape_b)
                 matmul = MatMul (reshape_x, reshape_y)
-                shape_c = Constant<value: tensor = int64[{len(shape_c)}] {{ {', '.join(str(i) for i in shape_c)} }}>()
+                shape_c = Constant<value: tensor = int64[{len(shape_c)}] {{ {", ".join(str(i) for i in shape_c)} }}>()
                 output = Reshape (matmul, shape_c)
             }}
             """

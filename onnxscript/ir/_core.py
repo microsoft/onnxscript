@@ -15,27 +15,31 @@ from __future__ import annotations
 import abc
 import contextlib
 import dataclasses
+import heapq
 import math
 import mmap
 import os
 import sys
 import textwrap
 import typing
+from collections.abc import Hashable
 from typing import (
     AbstractSet,
     Any,
     Collection,
     Generic,
-    Hashable,
     Iterable,
     Iterator,
+    NamedTuple,
     OrderedDict,
     Sequence,
+    SupportsInt,
     Union,
 )
 
 import ml_dtypes
 import numpy as np
+from typing_extensions import TypeIs
 
 import onnxscript
 from onnxscript.ir import (
@@ -69,6 +73,7 @@ _NON_NUMPY_NATIVE_TYPES = frozenset(
         _enums.DataType.FLOAT8E5M2FNUZ,
         _enums.DataType.INT4,
         _enums.DataType.UINT4,
+        _enums.DataType.FLOAT4E2M1,
     )
 )
 
@@ -181,7 +186,7 @@ def _check_numpy_representation_type(array: np.ndarray, dtype: _enums.DataType) 
     When the dtype is not one of the numpy native dtypes, the value needs need to be:
 
     - ``int8`` or ``uint8`` for int4, with the sign bit extended to 8 bits.
-    - ``uint8`` for uint4.
+    - ``uint8`` for uint4 or float4.
     - ``uint8`` for 8-bit data types.
     - ``uint16`` for bfloat16
 
@@ -211,6 +216,11 @@ def _check_numpy_representation_type(array: np.ndarray, dtype: _enums.DataType) 
             if array.dtype not in (np.uint8, ml_dtypes.uint4):
                 raise TypeError(
                     f"The numpy array dtype must be uint8 or or ml_dtypes.uint4 (not {array.dtype}) for IR data type {dtype}."
+                )
+        if dtype == _enums.DataType.FLOAT4E2M1:
+            if array.dtype not in (np.uint8, ml_dtypes.float4_e2m1fn):
+                raise TypeError(
+                    f"The numpy array dtype must be uint8 or ml_dtypes.float4_e2m1fn (not {array.dtype}) for IR data type {dtype}."
                 )
         return
 
@@ -255,6 +265,8 @@ def _maybe_view_np_array_with_ml_dtypes(
         return array.view(ml_dtypes.int4)
     if dtype == _enums.DataType.UINT4:
         return array.view(ml_dtypes.uint4)
+    if dtype == _enums.DataType.FLOAT4E2M1:
+        return array.view(ml_dtypes.float4_e2m1fn)
     return array
 
 
@@ -377,9 +389,9 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if isinstance(self._raw, np.ndarray) or _compatible_with_numpy(self._raw):
             return self._raw.__array__(dtype)
-        assert _compatible_with_dlpack(
-            self._raw
-        ), f"Bug: Expected DLPack or Numpy compatible objects, got {type(self._raw)}"
+        assert _compatible_with_dlpack(self._raw), (
+            f"Bug: Expected DLPack or Numpy compatible objects, got {type(self._raw)}"
+        )
         return np.from_dlpack(self._raw)
 
     def __dlpack__(self, *, stream: Any = None) -> Any:
@@ -430,7 +442,11 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         """
         # TODO(justinchuby): Support DLPack
         array = self.numpy()
-        if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
+        if self.dtype in {
+            _enums.DataType.INT4,
+            _enums.DataType.UINT4,
+            _enums.DataType.FLOAT4E2M1,
+        }:
             # Pack the array into int4
             array = _type_casting.pack_int4(array)
         else:
@@ -500,6 +516,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         "_metadata_props",
         "_offset",
         "_shape",
+        "_valid",
         "doc_string",
         "name",
         "raw",
@@ -552,6 +569,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         self.raw: mmap.mmap | None = None
         self._metadata_props = metadata_props
         self._metadata: _metadata.MetadataStore | None = None
+        self._valid = True
 
     @property
     def base_dir(self) -> str | os.PathLike:
@@ -593,6 +611,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         return self._shape
 
     def _load(self):
+        self._check_validity()
         assert self._array is None, "Bug: The array should be loaded only once."
         if self.size == 0:
             # When the size is 0, mmap is impossible and meaningless
@@ -608,7 +627,11 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             )
         # Handle the byte order correctly by always using little endian
         dt = np.dtype(self.dtype.numpy()).newbyteorder("<")
-        if self.dtype in {_enums.DataType.INT4, _enums.DataType.UINT4}:
+        if self.dtype in {
+            _enums.DataType.INT4,
+            _enums.DataType.UINT4,
+            _enums.DataType.FLOAT4E2M1,
+        }:
             # Use uint8 to read in the full byte. Otherwise ml_dtypes.int4 will clip the values
             dt = np.dtype(np.uint8).newbyteorder("<")
             count = self.size // 2 + self.size % 2
@@ -621,10 +644,13 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             self._array = _type_casting.unpack_int4(self._array, shape)
         elif self.dtype == _enums.DataType.UINT4:
             self._array = _type_casting.unpack_uint4(self._array, shape)
+        elif self.dtype == _enums.DataType.FLOAT4E2M1:
+            self._array = _type_casting.unpack_float4e2m1(self._array, shape)
         else:
             self._array = self._array.reshape(shape)
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
+        self._check_validity()
         if self._array is None:
             self._load()
         assert self._array is not None
@@ -653,6 +679,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
 
         The data will be memory mapped into memory and will not taken up physical memory space.
         """
+        self._check_validity()
         if self._array is None:
             self._load()
         assert self._array is not None
@@ -663,12 +690,40 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
 
         This will load the tensor into memory.
         """
+        self._check_validity()
         if self.raw is None:
             self._load()
         assert self.raw is not None
         offset = self._offset or 0
         length = self._length or self.nbytes
         return self.raw[offset : offset + length]
+
+    def valid(self) -> bool:
+        """Check if the tensor is valid.
+
+        The external tensor is valid if it has not been invalidated.
+        """
+        return self._valid
+
+    def _check_validity(self) -> None:
+        if not self.valid():
+            raise ValueError(
+                f"The external tensor '{self!r}' is invalidated. The data may be corrupted or deleted."
+            )
+
+    def invalidate(self) -> None:
+        """Invalidate the tensor.
+
+        The external tensor is invalidated when the data is known to be corrupted or deleted.
+        """
+        self._valid = False
+
+    def release(self) -> None:
+        """Delete all references to the memory buffer and close the memory-mapped file."""
+        self._array = None
+        if self.raw is not None:
+            self.raw.close()
+            self.raw = None
 
     @property
     def metadata_props(self) -> dict[str, str]:
@@ -737,9 +792,9 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if isinstance(self._raw, np.ndarray):
             return self._raw
-        assert isinstance(
-            self._raw, Sequence
-        ), f"Bug: Expected a sequence, got {type(self._raw)}"
+        assert isinstance(self._raw, Sequence), (
+            f"Bug: Expected a sequence, got {type(self._raw)}"
+        )
         return np.array(self._raw, dtype=dtype).reshape(self.shape.numpy())
 
     def __dlpack__(self, *, stream: Any = None) -> Any:
@@ -833,12 +888,37 @@ class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
         return f"{self.__class__.__name__}({self._value})"
 
 
+def _is_int_compatible(value: object) -> TypeIs[SupportsInt]:
+    """Return True if the value is int compatible."""
+    if isinstance(value, int):
+        return True
+    if hasattr(value, "__int__"):
+        # For performance reasons, we do not use isinstance(value, SupportsInt)
+        return True
+    return False
+
+
+def _maybe_convert_to_symbolic_dim(
+    dim: int | SupportsInt | SymbolicDim | str | None,
+) -> SymbolicDim | int:
+    """Convert the value to a SymbolicDim if it is not an int."""
+    if dim is None or isinstance(dim, str):
+        return SymbolicDim(dim)
+    if _is_int_compatible(dim):
+        return int(dim)
+    if isinstance(dim, SymbolicDim):
+        return dim
+    raise TypeError(
+        f"Expected int, str, None or SymbolicDim, but value {dim!r} has type '{type(dim)}'"
+    )
+
+
 class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
     __slots__ = ("_dims", "_frozen")
 
     def __init__(
         self,
-        dims: Iterable[int | SymbolicDim | str | None],
+        dims: Iterable[int | SupportsInt | SymbolicDim | str | None],
         /,
         denotations: Iterable[str | None] | None = None,
         frozen: bool = False,
@@ -859,8 +939,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
                 is useful when the shape is initialized by a Tensor.
         """
         self._dims: list[int | SymbolicDim] = [
-            SymbolicDim(dim) if not isinstance(dim, (int, SymbolicDim)) else dim
-            for dim in dims
+            _maybe_convert_to_symbolic_dim(dim) for dim in dims
         ]
         self._denotations: list[str | None] = (
             list(denotations) if denotations is not None else [None] * len(self._dims)
@@ -870,6 +949,10 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
                 "The number of denotations, when provided, must be equal to the number of dimensions."
             )
         self._frozen: bool = frozen
+
+    def copy(self):
+        """Return a copy of the shape."""
+        return Shape(self._dims, self._denotations, self._frozen)
 
     @property
     def dims(self) -> tuple[int | SymbolicDim, ...]:
@@ -916,12 +999,8 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         """
         if self._frozen:
             raise TypeError("The shape is frozen and cannot be modified.")
-        if isinstance(value, str) or value is None:
-            value = SymbolicDim(value)
-        if not isinstance(value, (int, SymbolicDim)):
-            raise TypeError(f"Expected int, str, None or SymbolicDim, got '{type(value)}'")
 
-        self._dims[index] = value
+        self._dims[index] = _maybe_convert_to_symbolic_dim(value)
 
     def get_denotation(self, index: int) -> str | None:
         """Return the denotation of the dimension at the index.
@@ -956,7 +1035,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
     def __eq__(self, other: object) -> bool:
         """Return True if the shapes are equal.
 
-        Two shapes are eqaul if all their dimensions are equal.
+        Two shapes are equal if all their dimensions are equal.
         """
         if isinstance(other, Shape):
             return self._dims == other._dims
@@ -967,6 +1046,33 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
     def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
+    @typing.overload
+    def is_static(self, dim: int) -> bool:  # noqa: D418
+        """Return True if the dimension is static."""
+
+    @typing.overload
+    def is_static(self) -> bool:  # noqa: D418
+        """Return True if all dimensions are static."""
+
+    def is_static(self, dim=None) -> bool:
+        """Return True if the dimension is static. If dim is None, return True if all dimensions are static."""
+        if dim is None:
+            return all(isinstance(dim, int) for dim in self._dims)
+        return isinstance(self[dim], int)
+
+    @typing.overload
+    def is_dynamic(self, dim: int) -> bool:  # noqa: D418
+        """Return True if the dimension is dynamic."""
+
+    @typing.overload
+    def is_dynamic(self) -> bool:  # noqa: D418
+        """Return True if any dimension is dynamic."""
+
+    def is_dynamic(self, dim=None) -> bool:
+        if dim is None:
+            return not self.is_static()
+        return not self.is_static(dim)
+
 
 def _quoted(string: str) -> str:
     """Return a quoted string.
@@ -974,6 +1080,18 @@ def _quoted(string: str) -> str:
     This function is used to quote value/node names in the IR for better readability.
     """
     return f'"{string}"'
+
+
+class Usage(NamedTuple):
+    """A usage of a value in a node.
+
+    Attributes:
+        node: The node that uses the value.
+        idx: The input index of the value in the node.
+    """
+
+    node: Node
+    idx: int
 
 
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
@@ -1213,6 +1331,25 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         raise AttributeError(
             "Directly mutating the input sequence is unsupported. Please use Node.replace_input_with() instead."
         )
+
+    def predecessors(self) -> Sequence[Node]:
+        """Return the predecessor nodes of the node, deduplicated, in a deterministic order."""
+        # Use the ordered nature of a dictionary to deduplicate the nodes
+        predecessors: dict[Node, None] = {}
+        for value in self.inputs:
+            if value is not None and (producer := value.producer()) is not None:
+                predecessors[producer] = None
+        return tuple(predecessors)
+
+    def successors(self) -> Sequence[Node]:
+        """Return the successor nodes of the node, deduplicated, in a deterministic order."""
+        # Use the ordered nature of a dictionary to deduplicate the nodes
+        successors: dict[Node, None] = {}
+        for value in self.outputs:
+            assert value is not None, "Bug: Output values are not expected to be None"
+            for usage in value.uses():
+                successors[usage.node] = None
+        return tuple(successors)
 
     def replace_input_with(self, index: int, value: Value | None) -> None:
         """Replace an input with a new value."""
@@ -1485,7 +1622,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # Use a collection of (Node, int) to store uses. This is needed
         # because a single use can use the same value multiple times.
         # Use a dictionary to preserve insertion order so that the visiting order is deterministic
-        self._uses: dict[tuple[Node, int], None] = {}
+        self._uses: dict[Usage, None] = {}
         self.doc_string = doc_string
 
     def __repr__(self) -> str:
@@ -1516,31 +1653,39 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         """
         return self._producer
 
+    def consumers(self) -> Sequence[Node]:
+        """Return the nodes (deduplicated) that consume this value."""
+        return tuple({usage.node: None for usage in self._uses})
+
     def index(self) -> int | None:
         """The index of the output of the defining node."""
         return self._index
 
-    def uses(self) -> Collection[tuple[Node, int]]:
+    def uses(self) -> Collection[Usage]:
         """Return a set of uses of the value.
 
         The set contains tuples of ``(Node, index)`` where the index is the index of the input
         of the node. For example, if ``node.inputs[1] == value``, then the use is ``(node, 1)``.
         """
-        return self._uses.keys()
+        # Create a tuple for the collection so that iteration on will will not
+        # be affected when the usage changes during graph mutation.
+        # This adds a small overhead but is better a user experience than
+        # having users call tuple().
+        return tuple(self._uses)
 
     def _add_usage(self, use: Node, index: int) -> None:
         """Add a usage of this value.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._uses[(use, index)] = None
+        self._uses[Usage(use, index)] = None
 
     def _remove_usage(self, use: Node, index: int) -> None:
         """Remove a node from the uses of this value.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._uses.pop((use, index))
+        self._uses.pop(Usage(use, index))
 
     @property
     def name(self) -> str | None:
@@ -1794,6 +1939,42 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def initializers(self) -> dict[str, Value]:
         return self._initializers
 
+    def register_initializer(self, value: Value) -> None:
+        """Register an initializer to the graph.
+
+        This is a convenience method to register an initializer to the graph with
+        checks.
+
+        Args:
+            value: The :class:`Value` to register as an initializer of the graph.
+                It must have its ``.const_value`` set.
+
+        Raises:
+            ValueError: If a value of the same name that is not this value
+                is already registered.
+            ValueError: If the value does not have a name.
+            ValueError: If the initializer is produced by a node.
+            ValueError: If the value does not have its ``.const_value`` set.
+        """
+        if value.name in self._initializers:
+            if self._initializers[value.name] is not value:
+                raise ValueError(
+                    f"Initializer '{value.name}' is already registered, but"
+                    " it is not the same object: existing={self._initializers[value.name]!r},"
+                    f" new={value!r}"
+                )
+        if not value.name:
+            raise ValueError(f"Initializer must have a name: {value!r}")
+        if value.producer() is not None:
+            raise ValueError(
+                f"Value '{value!r}' is produced by a node and cannot be an initializer."
+            )
+        if value.const_value is None:
+            raise ValueError(
+                f"Value '{value!r}' must have its const_value set to be an initializer."
+            )
+        self._initializers[value.name] = value
+
     @property
     def doc_string(self) -> str | None:
         return self._doc_string
@@ -1977,8 +2158,103 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self._nodes.insert_before(node, new_nodes)
 
     def sort(self) -> None:
-        """Topologically sort the nodes in the graph."""
-        raise NotImplementedError("Not implemented yet")
+        """Perform a topological sort of this graph and all subgraphs in O(#nodes + #values) time.
+
+        This sort is stable. It preserves the original order as much as possible.
+
+        Referece: https://github.com/madelson/MedallionTopologicalSort#stable-sort
+
+        Raises:
+            ValueError: If the graph contains a cycle, making topological sorting impossible.
+        """
+        # Obtain all nodes from the graph and its subgraphs for sorting
+        nodes = list(onnxscript.ir.traversal.RecursiveGraphIterator(self))
+        # Store the sorted nodes of each subgraph
+        sorted_nodes_by_graph: dict[Graph, list[Node]] = {
+            graph: [] for graph in {node.graph for node in nodes if node.graph is not None}
+        }
+        # TODO: Explain why we need to store direct predecessors and children and why
+        # we only need to store the direct ones
+
+        # The depth of a node is defined as the number of direct children it has
+        node_depth: dict[Node, int] = dict.fromkeys(nodes, 0)
+        # Direct predecessors of a node
+        node_predecessors: dict[Node, list[Node]] = {node: [] for node in nodes}
+        # Store the negative index of the nodes because heapq is a min heap and we
+        # want to pop the node with largest index value first, effectively turning
+        # it to a max heap
+        neg_node_index: dict[Node, int] = {node: -i for i, node in enumerate(nodes)}
+
+        def add_predecessor(child: Node, predecessor: Node | None) -> None:
+            """Add a predecessor of a node, and increment the depth of the predecessor."""
+            if predecessor is None:
+                return
+            node_predecessors[child].append(predecessor)
+            node_depth[predecessor] += 1
+
+        # 1. Build the direct predecessors of each node and the depth of each node
+        # for sorting topolocally using Kahn's algorithm.
+        # Note that when a node contains graph attributes (aka. has subgraphs),
+        # we consider all nodes in the subgraphs *predecessors* of this node. This
+        # way we ensure the implicit dependencies of the subgraphs are captured
+        # as predecessors of the node.
+        for node in nodes:
+            # All producers of input values are considered as direct predecessors.
+            for input_value in node.inputs:
+                if input_value is None:
+                    continue
+                predecessor_node = input_value.producer()
+                add_predecessor(node, predecessor_node)
+            # All nodes in attribute graphs are considered as direct predecessors.
+            for attr in node.attributes.values():
+                if not isinstance(attr, Attr):
+                    continue
+                # A nice thing about this algorithm is that we only need to record
+                # direct predecessors. This continues to be true even with subgraphs.
+                # When a node in a subgraph (a) contains its own subgraphs (b), the
+                # node in subgraphs (b) are guranteed to appear before the node
+                # in (a).
+                if attr.type == _enums.AttributeType.GRAPH:
+                    for predecessor_node in attr.value:
+                        add_predecessor(node, predecessor_node)
+                elif attr.type == _enums.AttributeType.GRAPHS:
+                    for attribute_graph in attr.value:
+                        for predecessor_node in attribute_graph:
+                            add_predecessor(node, predecessor_node)
+
+        # 2. Priority Queue: Track nodes with zero direct children in a priority queue,
+        # using NEGATIVE original index for ordering.
+        # This ensures nodes appearing LATER in the original order are processed EARLIER.
+        # We get REVERSED topological order of each subgraph.
+        priority_queue: list[tuple[int, Node]] = [
+            (neg_node_index[node], node) for node in nodes if node_depth[node] == 0
+        ]
+        heapq.heapify(priority_queue)
+
+        # 3. Topological Sort:
+        num_of_sorted_nodes = 0
+        while priority_queue:
+            # Pop the node with the most negative index and add it to the sorted nodes by subgraph.
+            _, current_node = heapq.heappop(priority_queue)
+            assert current_node.graph is not None
+            sorted_nodes_by_graph[current_node.graph].append(current_node)
+            num_of_sorted_nodes += 1
+            # Decrement the depth of its predecessors. If any predecessor node has zero direct children, push it into the queue.
+            for predecessor_node in node_predecessors[current_node]:
+                node_depth[predecessor_node] -= 1
+                if node_depth[predecessor_node] == 0:
+                    heapq.heappush(
+                        priority_queue, (neg_node_index[predecessor_node], predecessor_node)
+                    )
+
+        # 4. Cycle Check: Ensure all nodes are processed. If not, raise a ValueError indicating a cycle.
+        if num_of_sorted_nodes != len(nodes):
+            raise ValueError("Graph contains a cycle, topological sort is not possible.")
+
+        # 5. Reverse: Reverse the sorted nodes of each subgraph to get the topological order.
+        for graph, sorted_nodes in sorted_nodes_by_graph.items():
+            # The graph container ensures all the nodes are unique so we can safely extend
+            graph.extend(reversed(sorted_nodes))
 
     # End of mutation methods
 
@@ -2018,11 +2294,11 @@ def _graph_str(graph: Graph | GraphView) -> str:
         )
     signature = f"""\
 graph(
-    name={graph.name or 'anonymous_graph:' + str(id(graph))},
-    inputs=({textwrap.indent(inputs_text, ' ' * 8)}
+    name={graph.name or "anonymous_graph:" + str(id(graph))},
+    inputs=({textwrap.indent(inputs_text, " " * 8)}
     ),
-    outputs=({textwrap.indent(outputs_text, ' ' * 8)}
-    ),{textwrap.indent(initializers_text, ' ' * 4)}
+    outputs=({textwrap.indent(outputs_text, " " * 8)}
+    ),{textwrap.indent(initializers_text, " " * 4)}
 )"""
     node_count = len(graph)
     number_width = len(str(node_count))
@@ -2056,11 +2332,11 @@ def _graph_repr(graph: Graph | GraphView) -> str:
         )
     return f"""\
 {graph.__class__.__name__}(
-    name={graph.name or 'anonymous_graph:' + str(id(graph))!r},
-    inputs=({textwrap.indent(inputs_text, ' ' * 8)}
+    name={graph.name or "anonymous_graph:" + str(id(graph))!r},
+    inputs=({textwrap.indent(inputs_text, " " * 8)}
     ),
-    outputs=({textwrap.indent(outputs_text, ' ' * 8)}
-    ),{textwrap.indent(initializers_text, ' ' * 4)}
+    outputs=({textwrap.indent(outputs_text, " " * 8)}
+    ),{textwrap.indent(initializers_text, " " * 4)}
     len()={len(graph)}
 )"""
 
@@ -2261,8 +2537,8 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
     model_version={self.model_version!r},
 >"""
         graph_text = str(self.graph)
-        functions_text = ",\n\n".join(str(func) for func in self.functions.values())
-        return f"{signature}\n{graph_text}" + f"\n\n{functions_text}" * len(self.functions)
+        functions_text = "\n\n".join(str(func) for func in self.functions.values())
+        return f"{signature}\n{graph_text}" + f"\n\n{functions_text}"
 
     def __repr__(self) -> str:
         return f"""\
@@ -2274,7 +2550,7 @@ Model(
     domain={self.domain!r},
     model_version={self.model_version!r},
     functions={self.functions!r},
-    graph={textwrap.indent(repr(self.graph), ' ' * 4).strip()}
+    graph={textwrap.indent(repr(self.graph), " " * 4).strip()}
 )"""
 
 
@@ -2451,7 +2727,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         self._graph.insert_before(node, new_nodes)
 
     def sort(self) -> None:
-        """Topologically sort the nodes in the function."""
+        """Perform a topological sort of this graph and all subgraphs in O(#nodes + #values) time."""
         self._graph.sort()
 
     # End of mutation methods
@@ -2474,10 +2750,10 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
 >
 def {full_name}(
     inputs=(
-{textwrap.indent(inputs_text, ' ' * 8)}
-    ),{textwrap.indent(attributes_text, ' ' * 4)}
+{textwrap.indent(inputs_text, " " * 8)}
+    ),{textwrap.indent(attributes_text, " " * 4)}
     outputs=(
-{textwrap.indent(outputs_text, ' ' * 8)}
+{textwrap.indent(outputs_text, " " * 8)}
     ),
 )"""
         node_count = len(self)
@@ -2589,6 +2865,81 @@ class Attr(_protocols.AttributeProtocol, _display.PrettyPrintable):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name!r}, {self.type!r}, {self.value!r})"
+
+    # Well typed getters
+    def as_float(self) -> float:
+        """Get the attribute value as a float."""
+        # Do not use isinstance check because it may prevent np.float32 etc. from being used
+        return float(self.value)
+
+    def as_int(self) -> int:
+        """Get the attribute value as an int."""
+        # Do not use isinstance check because it may prevent np.int32 etc. from being used
+        return int(self.value)
+
+    def as_string(self) -> str:
+        """Get the attribute value as a string."""
+        if not isinstance(self.value, str):
+            raise TypeError(f"Value of attribute '{self!r}' is not a string.")
+        return self.value
+
+    def as_tensor(self) -> _protocols.TensorProtocol:
+        """Get the attribute value as a tensor."""
+        if not isinstance(self.value, _protocols.TensorProtocol):
+            raise TypeError(f"Value of attribute '{self!r}' is not a tensor.")
+        return self.value
+
+    def as_graph(self) -> Graph:
+        """Get the attribute value as a graph."""
+        if not isinstance(self.value, Graph):
+            raise TypeError(f"Value of attribute '{self!r}' is not a graph.")
+        return self.value
+
+    def as_floats(self) -> Sequence[float]:
+        """Get the attribute value as a sequence of floats."""
+        if not isinstance(self.value, Sequence):
+            raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
+        # Do not use isinstance check on elements because it may prevent np.int32 etc. from being used
+        # Create a copy of the list to prevent mutation
+        return [float(v) for v in self.value]
+
+    def as_ints(self) -> Sequence[int]:
+        """Get the attribute value as a sequence of ints."""
+        if not isinstance(self.value, Sequence):
+            raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
+        # Do not use isinstance check on elements because it may prevent np.int32 etc. from being used
+        # Create a copy of the list to prevent mutation
+        return list(self.value)
+
+    def as_strings(self) -> Sequence[str]:
+        """Get the attribute value as a sequence of strings."""
+        if not isinstance(self.value, Sequence):
+            raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
+        if onnxscript.DEBUG:
+            if not all(isinstance(x, str) for x in self.value):
+                raise TypeError(f"Value of attribute '{self!r}' is not a Sequence of strings.")
+        # Create a copy of the list to prevent mutation
+        return list(self.value)
+
+    def as_tensors(self) -> Sequence[_protocols.TensorProtocol]:
+        """Get the attribute value as a sequence of tensors."""
+        if not isinstance(self.value, Sequence):
+            raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
+        if onnxscript.DEBUG:
+            if not all(isinstance(x, _protocols.TensorProtocol) for x in self.value):
+                raise TypeError(f"Value of attribute '{self!r}' is not a Sequence of tensors.")
+        # Create a copy of the list to prevent mutation
+        return list(self.value)
+
+    def as_graphs(self) -> Sequence[Graph]:
+        """Get the attribute value as a sequence of graphs."""
+        if not isinstance(self.value, Sequence):
+            raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
+        if onnxscript.DEBUG:
+            if not all(isinstance(x, Graph) for x in self.value):
+                raise TypeError(f"Value of attribute '{self!r}' is not a Sequence of graphs.")
+        # Create a copy of the list to prevent mutation
+        return list(self.value)
 
 
 # NOTE: The following functions are just for convenience
