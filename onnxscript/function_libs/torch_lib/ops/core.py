@@ -170,9 +170,7 @@ def aten_add(self: TTensor, other: TTensor2, alpha: float = 1.0) -> TensorType:
     return op.Add(self, other)
 
 
-@torch_op(
-    ("aten::add.Tensor", "aten::add.Scalar", "_operator::add"), trace_only=True, complex=True
-)
+@torch_op(("aten::add.Tensor", "aten::add.Scalar"), trace_only=True, complex=True)
 def aten_add_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
@@ -2762,7 +2760,6 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2.0) -> TensorType
         "aten::divide.Scalar",
         "aten::true_divide.Tensor",
         "aten::true_divide.Scalar",
-        "_operator::truediv",
     )
 )
 def aten_div(self: TFloat, other: TFloat) -> TFloat:
@@ -2770,6 +2767,11 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
 
     # Int inputs will be promoted to float by PyTorch
     return op.Div(self, other)
+
+
+@torch_op("_operator::truediv", traceable=True)
+def operator_truediv(self: TensorType, other: TensorType) -> FLOAT:
+    return op.Div(op.Cast(self, to=FLOAT.dtype), op.Cast(other, to=FLOAT.dtype))
 
 
 @torch_op(
@@ -2780,7 +2782,6 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
         "aten::divide.Scalar",
         "aten::true_divide.Tensor",
         "aten::true_divide.Scalar",
-        "_operator::truediv",
     ),
     complex=True,
 )
@@ -3610,17 +3611,15 @@ def python_math_floor(self: TFloat) -> TInt:
     return op.Cast(floor, to=INT64.dtype)
 
 
-@torch_op(("aten::floor_divide", "_operator::floordiv"), traceable=True)
+@torch_op("aten::floor_divide", traceable=True)
 def aten_floor_divide(self: TFloat, other: TFloat) -> TFloat:
     """floor_divide(Tensor self, Tensor other) -> Tensor"""
 
     return op.Floor(op.Div(self, other))
 
 
-@torch_op(("aten::floor_divide", "_operator::floordiv"), traceable=True)
-def aten_floor_divide_int(self: TInt, other: TInt) -> TInt:
-    """floor_divide(Tensor self, Tensor other) -> Tensor"""
-
+@torch_op("_operator::floordiv", traceable=True)
+def operator_floordiv(self: INT64, other: INT64) -> INT64:
     # We implement floor_divide only for positive inputs (using integer division)
     # because that is the usual intended case and is the most efficient.
     return op.Div(self, other)
@@ -4275,7 +4274,7 @@ def aten_index_copy(
     raise NotImplementedError()
 
 
-@torch_op(("aten::index_put", "aten::_unsafe_index_put"))
+@torch_op(("aten::index_put", "aten::_unsafe_index_put"), trace_only=True)
 def aten_index_put(
     self: TReal,
     indices: Sequence[INT64],
@@ -4289,10 +4288,10 @@ def aten_index_put(
     """
 
     # TODO(justinchuby): Handle when indicies has more than one element
-    index = op.SequenceAt(indices, 0)
+    index = indices[0]
     new_index = op.Unsqueeze(index, [-1])
 
-    if op.Cast(accumulate, to=BOOL.dtype):
+    if accumulate:
         result = op.ScatterND(self, new_index, values, reduction="add")
     else:
         result = op.ScatterND(self, new_index, values)
@@ -4300,7 +4299,7 @@ def aten_index_put(
     return result
 
 
-@torch_op("aten::index_put")
+@torch_op("aten::index_put", trace_only=True)
 def aten_index_put_bool(
     self: TReal,
     indices: Sequence[BOOL],
@@ -4309,37 +4308,18 @@ def aten_index_put_bool(
 ) -> TReal:
     """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
 
-    index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
-    # FIXME: ORT ArgMax fails on INT64 input even though ONNX allows it
-    index_int = op.Cast(index, to=INT32.dtype)
-    # if all False, return op.Identity(self)
-    if op.ReduceSum(index_int) == 0:
-        result = self
-    else:
-        # change array([F,F,T,F,F]) to array([2])
-        index = op.ArgMax(index_int)  # assume index only have 1 True
-        # change array([2]) to array([2,2,2,2,2])
-        self_dim_1 = op.Shape(self, start=1, end=2)
-        index_dim_0 = op.Shape(index, start=0, end=1)
-        shape = op.Concat(self_dim_1, index_dim_0, axis=0)
-        new_ind = op.Expand(index, shape)
-        new_ind_t = op.Transpose(new_ind)
-
-        # values must have same rank with input(self)
-        if op.Size(op.Shape(values)) < op.Size(op.Shape(self)):  # type: ignore[operator]
-            values = op.Unsqueeze(values, op.Constant(value_ints=[0]))
-
-        if op.Cast(accumulate, to=BOOL.dtype):
-            zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
-            zeros = op.CastLike(zeros, values)
-            result = op.ScatterElements(zeros, new_ind_t, values)
-            # FIXME: type promotion
-            result = op.CastLike(result, self)
-            result = op.Add(result, self)
-        else:
-            result = op.ScatterElements(self, new_ind_t, values)
-
-    return result
+    # TODO: Support indices with more than 1 elements
+    index = indices[0]
+    # accumulate should be always False, True does not make sense but an assert would be great
+    # Reshape indices so it can be properly broadcasted
+    self_rank = len(self.shape)
+    index_rank = len(index.shape)
+    if self_rank > index_rank:
+        index_shape = op.Shape(index)
+        padding = op.Constant(value_ints=[1 for _ in range(self_rank - index_rank)])
+        padded_shape = op.Concat(index_shape, padding, axis=0)
+        index = op.Reshape(index, padded_shape)
+    return op.Where(index, values, self)
 
 
 def aten_index_reduce(
@@ -4953,7 +4933,6 @@ def aten_logical_not(self: BOOL) -> BOOL:
         "aten::bitwise_or.Scalar_Tensor",
         "aten::add.Tensor",
         "aten::add.Scalar",
-        "_operator::add",
     ),
     traceable=True,
 )
@@ -5671,7 +5650,7 @@ def aten_mul(self: TReal, other: TReal) -> TReal:
 
 
 @torch_op(
-    ("aten::mul", "aten::mul.Tensor", "_operator::mul", "aten::multiply.Tensor"),
+    ("aten::mul", "aten::mul.Tensor", "aten::multiply.Tensor"),
     traceable=True,
 )
 def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
@@ -5684,7 +5663,7 @@ def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
 
 
 @torch_op(
-    ("aten::mul", "aten::mul.Tensor", "_operator::mul", "aten::multiply.Tensor"),
+    ("aten::mul", "aten::mul.Tensor", "aten::multiply.Tensor"),
     traceable=True,
     complex=True,
 )
@@ -6716,11 +6695,21 @@ def aten_prelu_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::prod.dim_int", trace_only=True)
-def aten_prod(self: TReal, dim: int, keepdim: bool = False) -> TReal:
+@torch_op("aten::prod", trace_only=True)
+def aten_prod(self: TReal, dtype: int = -1) -> TReal:
     """prod(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
 
-    # Todo: add test for this function later
+    if dtype != -1 and dtype is not None:
+        self = op.Cast(self, to=dtype)
+    return op.ReduceProd(self)
+
+
+@torch_op("aten::prod.dim_int", trace_only=True)
+def aten_prod_dim_int(self: TReal, dim: int, keepdim: bool = False, dtype: int = -1) -> TReal:
+    """prod.dim_int(Tensor self, int dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
+
+    if dtype != -1 and dtype is not None:
+        self = op.Cast(self, to=dtype)
     return op.ReduceProd(self, axes=[dim], keepdims=keepdim)
 
 
@@ -8057,7 +8046,6 @@ def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
         "aten::sub.Scalar",
         "aten::subtract.Tensor",
         "aten::subtract.Scalar",
-        "_operator::sub",
     ),
     trace_only=True,
     complex=True,

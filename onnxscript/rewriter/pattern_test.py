@@ -5,6 +5,7 @@ import io
 import logging
 import unittest
 
+import numpy as np
 import onnx.checker
 import onnx.parser
 
@@ -542,6 +543,39 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(count, 0)
         # Not a robust test. But test serves to ensure that debug mode is producing something.
         self.assertIn("OpType mismatch: expected Abs, got Neg", captured_output)
+
+    def test_new_initializer(self):
+        def source_pattern(op, x, y):
+            return op.Gemm(x, op.Transpose(y))
+
+        def check(context, x, y):
+            return y.const_value is not None
+
+        def replacement(op, x, y):
+            tensor = y.const_value
+            name = y.name + "_transposed"
+            transposed = ir.tensor(tensor.numpy().T, name=name)
+            initializer = op.initializer(transposed)
+            return op.Gemm(x, initializer)
+
+        rule = pattern.RewriteRule(source_pattern, replacement, check)
+
+        y_value = np.random.rand(8, 4).astype(np.float32)
+
+        @script()
+        def test_model(x: FLOAT[16, 8]) -> FLOAT[16, 4]:
+            y = op.Constant(value=y_value)
+            return op.Gemm(x, op.Transpose(y))
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        rule.apply_to_model(model)
+        self.assertEqual(len(model.graph.initializers), 1)
+        last_node = model.graph[-1]
+        self.assertEqual(len(last_node.inputs), 2)
+        init_name = last_node.inputs[1].name
+        self.assertIn(init_name, model.graph.initializers)
+        self.assertIs(last_node.inputs[1], model.graph.initializers[init_name])
 
 
 class PatternBuilderTest(unittest.TestCase):
