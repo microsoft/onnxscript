@@ -161,7 +161,7 @@ def aten_acosh(self: TFloat) -> TFloat:
 
 
 @torch_op(("aten::add.Tensor", "aten::add.Scalar", "_operator::add"), trace_only=True)
-def aten_add(self: TTensor, other: TTensor2, alpha: float = 1.0) -> TensorType:
+def aten_add(self: TensorType, other: TensorType, alpha: float = 1.0) -> TensorType:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
     self, other = _type_promotion.promote_types(op, [self, other])
     if alpha != 1.0:
@@ -171,10 +171,10 @@ def aten_add(self: TTensor, other: TTensor2, alpha: float = 1.0) -> TensorType:
 
 
 @torch_op(("aten::add.Tensor", "aten::add.Scalar"), trace_only=True, complex=True)
-def aten_add_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
+def aten_add_complex(self: TensorType, other: TensorType, alpha: float = 1.0) -> TensorType:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
-    # TODO(justinchuby): Type promotion for complex numbers
+    self, other = _type_promotion.promote_types(op, [self, other])
     return aten_add(self, other, alpha=alpha)
 
 
