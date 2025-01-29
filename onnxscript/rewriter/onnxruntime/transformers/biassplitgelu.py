@@ -6,7 +6,7 @@ import logging
 
 import onnxscript
 from onnxscript import ir
-from onnxscript.rewriter import function_rule
+from onnxscript.rewriter.onnxruntime import function_rule
 
 logger = logging.getLogger(__name__)
 
