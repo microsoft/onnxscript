@@ -17,12 +17,14 @@ fold_constants_ir = constant_folding.fold_constants
 
 def optimize(model: ir.Model | onnx.ModelProto, *args, **kwargs) -> ir.Model | onnx.ModelProto:
     if isinstance(model, ir.Model):
-        return optimize_ir(model, *args, **kwargs)
+        # In that case, this is done inplace.
+        optimize_ir(model, *args, **kwargs)
+        return model
     else:
         return legacy_optimizer.optimize(model, *args, **kwargs)
 
 
-def fold_constants(model: ir.Model | onnx.ModelProto, *args, **kwargs) -> ir.Model | onnx.ModelProto:
+def fold_constants(model: ir.Model | onnx.ModelProto, *args, **kwargs) -> bool
     if isinstance(model, ir.Model):
         return constant_folding.fold_constants(model, *args, **kwargs)
     else:
