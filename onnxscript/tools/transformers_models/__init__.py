@@ -44,7 +44,7 @@ def export_to_onnx(
     assert prog is not None
     model_proto = prog.model_proto
     if optimize:
-        model_proto = onnxscript.optimizer.optimize(
+        model_proto = onnxscript.optimizer.optimize(  # type: ignore[assignment]
             model_proto,
             num_iterations=2,
             onnx_shape_inference=True,

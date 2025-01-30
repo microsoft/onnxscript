@@ -450,7 +450,7 @@ def optimize_model_proto(
         begin = time.perf_counter()
 
         if value == "optimize":
-            model_proto = onnxscript.optimizer.optimize(
+            model_proto = onnxscript.optimizer.optimize(  # type: ignore[assignment]
                 model_proto,
                 num_iterations=2,
                 onnx_shape_inference=False,
