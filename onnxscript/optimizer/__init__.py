@@ -24,7 +24,7 @@ def optimize(model: ir.Model | onnx.ModelProto, *args, **kwargs) -> ir.Model | o
         return legacy_optimizer.optimize(model, *args, **kwargs)
 
 
-def fold_constants(model: ir.Model | onnx.ModelProto, *args, **kwargs) -> bool
+def fold_constants(model: ir.Model | onnx.ModelProto, *args, **kwargs) -> bool:
     if isinstance(model, ir.Model):
         return constant_folding.fold_constants(model, *args, **kwargs)
     else:
