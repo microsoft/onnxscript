@@ -7872,7 +7872,7 @@ def aten_squeeze(self: TTensor) -> TTensor:
 def aten_squeeze_dim(self: TTensor, dim: int) -> TTensor:
     if len(self.shape) == 0:
         return self
-    return op.Squeeze(self, op.Constant(value_ints=[dim]))
+    return op.Squeeze(self, [dim])
 
 
 @torch_op("aten::squeeze.dim", complex=True, trace_only=True)
