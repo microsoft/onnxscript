@@ -7256,7 +7256,7 @@ def aten_rnn_tanh_cell(
 
 
 @torch_op("aten::roll", trace_only=True)
-def aten_roll(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor:
+def aten_roll(self: TTensor, shifts: Sequence[int], dims: Sequence[int] = ()) -> TTensor:
     """roll(Tensor self, int[1] shifts, int[1] dims=[]) -> Tensor"""
 
     self_rank = len(self.shape)
@@ -7279,7 +7279,7 @@ def aten_roll(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor
 
 
 @torch_op("aten::roll", trace_only=True, complex=True)
-def aten_roll_complex(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor:
+def aten_roll_complex(self: TTensor, shifts: Sequence[int], dims: Sequence[int] = ()) -> TTensor:
     """roll(Tensor self, int[1] shifts, int[1] dims=[]) -> Tensor"""
 
     self_rank = len(self.shape)
