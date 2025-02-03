@@ -838,8 +838,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_full_like,
     ),
     TorchLibOpInfo("gather", core_ops.aten_gather).skip(
-        enabled_if=not version_utils.torch_older_than("2.4"),
-        reason="latest torch-nightly fails",
+        matcher=lambda sample: sample.input.numel() == 0 or sample.args[1].numel() == 0,
+        reason="fixme: ORT does not support empty tensors as input",
     ),
     TorchLibOpInfo("ge", core_ops.aten_ge),
     TorchLibOpInfo("ge_bool", core_ops.aten_ge_bool),
