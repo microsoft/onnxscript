@@ -31,6 +31,7 @@ from onnxscript import (
     UINT32,
     UINT64,
     graph,
+    ir,
 )
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
@@ -6652,11 +6653,13 @@ def aten_positive(self: TensorType) -> TensorType:
         "aten::pow.Tensor_Scalar",
         "_operator::pow",
     ),
-    traceable=True,
+    trace_only=True,
 )
 def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     """pow(Tensor self, Tensor exponent) -> Tensor"""
 
+    if isinstance(self, (int, float)) and hasattr(exponent, "dtype"):
+        return op.Pow(op.Cast(self, to=exponent.dtype), exponent)
     return op.Pow(self, exponent)
 
 
