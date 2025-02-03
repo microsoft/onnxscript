@@ -54,7 +54,6 @@ from onnxscript.onnx_types import TensorType
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
-IsScalar = common_ops.IsScalar
 Rank = common_ops.Rank
 
 
@@ -2844,7 +2843,7 @@ def aten_dot(self: TFloat, tensor: TFloat) -> TFloat:
 def aten_dropout(input: TFloat, p: FLOAT, train: BOOL) -> TFloat:
     """dropout(Tensor input, float p, bool train) -> Tensor"""
 
-    if IsScalar(input):
+    if len(input.shape) == 0:
         input = op.Reshape(input, op.Constant(value_ints=[-1]))
         result, _ = op.Dropout(input, p, train)
         result = op.Squeeze(result)
