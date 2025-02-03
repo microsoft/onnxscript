@@ -351,15 +351,11 @@ def aten_all(self: TTensor) -> BOOL:
 def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     """all.dim(Tensor self, int dim, bool keepdim=False) -> Tensor"""
 
-    if len(self.shape) == 0:
-        result = op.Cast(self, to=BOOL.dtype)
-    else:
-        self_bool = op.Cast(self, to=BOOL.dtype)
-        self_int = op.Cast(self_bool, to=INT64.dtype)
-        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
-        all_true = op.ReduceMin(self_int, dims, keepdims=keepdim)
-        result = op.Cast(all_true, to=BOOL.dtype)
-    return result
+    self_bool = op.Cast(self, to=BOOL.dtype)
+    self_int = op.Cast(self_bool, to=INT64.dtype)
+    dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+    all_true = op.ReduceMin(self_int, dims, keepdims=keepdim)
+    return op.Cast(all_true, to=BOOL.dtype)
 
 
 @torch_op("aten::all.dims", trace_only=True)
@@ -367,19 +363,17 @@ def aten_all_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False)
     """all.dims(Tensor self, int[]? dim=None, bool keepdim=False) -> Tensor"""
 
     if not dim:
-        return aten_all_dims_no_dim(self, keepdim)
+        return _aten_all_dims_no_dim(self, keepdim)
     for d in dim:
         self = aten_all_dim(self, d, keepdim=True)
     if not keepdim:
         self = op.Squeeze(self, list(dim))
-    return op.Identity(self)
+    return self
 
 
 @torch_op("aten::all.dims", trace_only=True)
-def aten_all_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
+def _aten_all_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
     """all.dims(Tensor self, int[]? dim=None, bool keepdim=False) -> Tensor"""
-
-    # dim is None and thus not supplied
 
     if len(self.shape) == 0:
         result = op.Cast(self, to=BOOL.dtype)
@@ -474,17 +468,13 @@ def aten_any(self: TTensor) -> BOOL:
 def aten_any_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     """any.dim(Tensor self, int dim, bool keepdim=False) -> Tensor"""
 
-    if len(self.shape) == 0:
-        result = op.Cast(self, to=BOOL.dtype)
-    else:
-        self_bool = op.Cast(self, to=BOOL.dtype)
-        # op.ReduceMax() in the next step cannot process BOOL inputs, so convert to INT64
-        self_int = op.Cast(self_bool, to=INT64.dtype)
-        # Change dim from int to INT64[1]
-        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
-        any_true = op.ReduceMax(self_int, dims, keepdims=keepdim)
-        result = op.Cast(any_true, to=BOOL.dtype)
-    return result
+    self_bool = op.Cast(self, to=BOOL.dtype)
+    # op.ReduceMax() in the next step cannot process BOOL inputs, so convert to INT64
+    self_int = op.Cast(self_bool, to=INT64.dtype)
+    # Change dim from int to INT64[1]
+    dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+    any_true = op.ReduceMax(self_int, dims, keepdims=keepdim)
+    return op.Cast(any_true, to=BOOL.dtype)
 
 
 @torch_op("aten::any.dims", trace_only=True)
@@ -492,20 +482,16 @@ def aten_any_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False)
     """any.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
 
     if not dim:
-        return aten_any_dims_no_dim(self, keepdim)
+        return _aten_any_dims_no_dim(self, keepdim)
     for d in dim:
         self = aten_any_dim(self, d, keepdim=True)
     if not keepdim:
         self = op.Squeeze(self, list(dim))
-    return op.Identity(self)
+    return self
 
 
 @torch_op("aten::any.dims", trace_only=True)
-def aten_any_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
-    """any.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
-
-    # dim is None and thus not supplied
-
+def _aten_any_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
     if len(self.shape) == 0:
         result = op.Cast(self, to=BOOL.dtype)
     else:
@@ -4502,21 +4488,11 @@ def aten_is_pinned(self: TensorType, device: Optional[str] = None) -> bool:
     raise NotImplementedError()
 
 
-@torch_op("aten::is_same_size")
+# is_same_size is decomposed by PyTorch
 def aten_is_same_size(self: TTensor, other: TTensor) -> BOOL:
     """is_same_size(Tensor self, Tensor other) -> bool"""
 
-    # Cannot compare different shape of two tensors using op.Equal()
-    # So we need to compare the rank first, if rank is same, then compare shape
-    result = op.Equal(Rank(self), Rank(other))
-    if result:  # Same rank, then compare shape
-        self_shape = op.Shape(self)
-        other_shape = op.Shape(other)
-        result_bool = op.Equal(self_shape, other_shape)
-        result_int = op.Cast(result_bool, to=INT8.dtype)
-        result = op.Cast(op.ReduceMin(result_int, keepdims=False), to=BOOL.dtype)
-
-    return result
+    raise NotImplementedError
 
 
 def aten_is_set_to(self: TensorType, tensor: TensorType) -> bool:
@@ -6179,7 +6155,7 @@ def aten_native_group_norm_backward(
 @torch_op("aten::native_layer_norm", trace_only=True)
 def aten_native_layer_norm(
     input: TReal,
-    normalized_shape: INT64,
+    normalized_shape: Sequence[int],
     weight: Optional[TReal] = None,
     bias: Optional[TReal] = None,
     eps: float = 1e-05,

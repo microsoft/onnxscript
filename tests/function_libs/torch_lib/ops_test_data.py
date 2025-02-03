@@ -365,16 +365,6 @@ def _nonzero_input_wrangler(
     return args, kwargs
 
 
-def _permute_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Change the dims argument back to a list because ONNX Transpose does not
-    # support dynamic perms
-    kwargs["dims"] = args.pop()
-    kwargs["dims"] = kwargs["dims"].tolist()
-    return args, kwargs
-
-
 def _reflection_pad2d_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -1270,8 +1260,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("ones", core_ops.aten_ones),
     TorchLibOpInfo(
         "permute",
-        core_ops.aten_permute,
-        input_wrangler=_permute_input_wrangler,
+        core_ops.aten_permute
     ),
     TorchLibOpInfo("polar", core_ops.aten_polar),
     TorchLibOpInfo("pow", core_ops.aten_pow),
