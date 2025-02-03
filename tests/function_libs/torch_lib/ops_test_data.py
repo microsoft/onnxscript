@@ -408,9 +408,6 @@ def _roll_input_wrangler(
             dims = args.pop(2)
             kwargs["dims"] = []
             kwargs["dims"].append(dims)
-    if len(args) >= 2:
-        if isinstance(args[1], int):  # convert shift to tensor
-            args[1] = np.array([args[1]], dtype=np.int64)
     return args, kwargs
 
 

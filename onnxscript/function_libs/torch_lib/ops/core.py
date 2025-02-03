@@ -7272,8 +7272,7 @@ def aten_roll(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor
         else:
             # assert len(shifts) == len(dims), but shifts is a tensor, dims is a list
             result = self
-            for i in range(len(shifts)):  # pylint: disable=consider-using-enumerate
-                shift = op.Gather(shifts, i, axis=0)
+            for i, shift in enumerate(shifts):
                 dim = dims[i]
                 result = _aten_roll_shift_and_dim_onnx(result, shift, dim)
             return result
