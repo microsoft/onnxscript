@@ -6661,7 +6661,10 @@ def aten_pow(self: TReal, exponent: TTensor) -> TReal:
 def aten_pow_scalar(self: float, exponent: TTensor) -> TTensor:
     """pow.Scalar(Scalar self, Tensor exponent) -> Tensor"""
 
-    return op.Pow(op.Cast(self, to=exponent.dtype), exponent)
+    # self can be an int or a float.
+    if int(self) == self:
+        return op.Pow(op.Cast(self, to=exponent.dtype), exponent)
+    return op.Pow(self, exponent)
 
 
 @torch_op(("aten::prelu", "aten::_prelu_kernel"), trace_only=True)
