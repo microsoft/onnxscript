@@ -408,6 +408,13 @@ def _roll_input_wrangler(
             dims = args.pop(2)
             kwargs["dims"] = []
             kwargs["dims"].append(dims)
+        if isinstance(args[1], np.ndarray):  # convert shift to list[int]
+            shifts = args.pop(1)
+            kwargs["shifts"] = shifts.tolist()
+        elif isinstance(args[1], int):
+            shifts = args.pop(1)
+            kwargs["shifts"] = []
+            kwargs["shifts"].append(shifts)
     return args, kwargs
 
 
