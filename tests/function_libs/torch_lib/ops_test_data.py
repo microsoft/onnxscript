@@ -310,6 +310,13 @@ def _im2col_input_wrangler(
     return args, kwargs
 
 
+def _index_put_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    args[1] = [np.array(elem) for elem in args[1]]
+    return args, kwargs
+
+
 def _linalg_vector_norm_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -846,6 +853,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "index_put_bool",
         core_ops.aten_index_put_bool,
+        input_wrangler=_index_put_input_wrangler,
     ).skip(
         matcher=lambda sample: sample.args[0][0].dtype != torch.bool,
         reason="this Aten overload only supports tensor(bool) as indices",
@@ -853,6 +861,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "index_put",
         core_ops.aten_index_put,
+        input_wrangler=_index_put_input_wrangler,
     )
     .skip(
         matcher=lambda sample: sample.args[0][0].dtype != torch.int64,
