@@ -6659,7 +6659,7 @@ def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     trace_only=True,
 )
 def aten_pow_(self: TReal, exponent: TTensor) -> TReal:
-    """pow(Tensor self, Tensor exponent) -> Tensor"""
+    """pow.Scalar(Scalar self, Tensor exponent) -> Tensor"""
 
     return op.Pow(op.Cast(self, to=exponent.dtype), exponent)
 
