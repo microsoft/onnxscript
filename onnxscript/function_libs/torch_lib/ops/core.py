@@ -31,7 +31,6 @@ from onnxscript import (
     UINT32,
     UINT64,
     graph,
-    ir,
 )
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
