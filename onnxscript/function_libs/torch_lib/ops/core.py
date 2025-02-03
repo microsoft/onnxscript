@@ -6646,20 +6646,22 @@ def aten_positive(self: TensorType) -> TensorType:
 
 
 @torch_op(
-    (
-        "aten::pow.Scalar",
-        "aten::pow.Tensor_Tensor",
-        "aten::pow.Tensor_Scalar",
-        "_operator::pow",
-    ),
+    ("aten::pow.Tensor_Tensor", "aten::pow.Tensor_Scalar"),
     trace_only=True,
 )
 def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     """pow(Tensor self, Tensor exponent) -> Tensor"""
-
-    if isinstance(self, (int, float)) and hasattr(exponent, "dtype"):
-        return op.Pow(op.Cast(self, to=exponent.dtype), exponent)
     return op.Pow(self, exponent)
+
+
+@torch_op(
+    ("_operator::pow", "aten::pow.Scalar"),
+    trace_only=True,
+)
+def aten_pow_(self: TReal, exponent: TTensor) -> TReal:
+    """pow(Tensor self, Tensor exponent) -> Tensor"""
+
+    return op.Pow(op.Cast(self, to=exponent.dtype), exponent)
 
 
 @torch_op(("aten::prelu", "aten::_prelu_kernel"), trace_only=True)
