@@ -775,12 +775,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         # Numbers match sometimes but not other times
         reason="fixme: off-by-one. https://github.com/microsoft/onnxscript/issues/990",
-    )
-    .skip(
-        variant_name="floor_rounding",
-        dtypes=(torch.float16,),
-        test_class_name="TestOutputConsistencyEager",
-        reason="fixme: off-by-one and inverted inf. https://github.com/microsoft/onnxscript/issues/989",
     ),
     TorchLibOpInfo("div_mode_int", core_ops.aten_div_mode_int).skip(
         variant_name="no_rounding_mode",
@@ -826,11 +820,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("flatten", core_ops.aten_flatten),
     TorchLibOpInfo("floor", core_ops.aten_floor),
-    TorchLibOpInfo("ops.aten.floor_divide", core_ops.aten_floor_divide).skip(
-        dtypes=(torch.float16,),
-        test_class_name="TestOutputConsistencyEager",
-        reason="fixme: off-by-one issue due to numerical precision. https://github.com/microsoft/onnxscript/issues/989",
-    ),
+    TorchLibOpInfo("ops.aten.floor_divide", core_ops.aten_floor_divide),
     TorchLibOpInfo("fmod", core_ops.aten_fmod),
     TorchLibOpInfo("frac", core_ops.aten_frac),
     TorchLibOpInfo("full", core_ops.aten_full),
@@ -1149,11 +1139,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.int64,),
         enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
-    )
-    .xfail(
-        dtypes=(torch.int64,),
-        test_class_name="TestOutputConsistencyEager",
-        reason="fixme: ORT fails with 'Could not find an implementation for Relu(14) node'",
     ),
     TorchLibOpInfo(
         "nn.functional.relu6",
@@ -1163,11 +1148,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.int64,),
         enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
-    )
-    .xfail(
-        dtypes=(torch.int64,),
-        test_class_name="TestOutputConsistencyEager",
-        reason="fixme: ORT fails with 'Could not find an implementation for Relu(14) node'",
     ),
     TorchLibOpInfo(
         "ops.aten.replication_pad1d",
@@ -1224,17 +1204,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="ORT only accept float type for args[0] 'mean'",
     )
     .xfail(
-        reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
-        dtypes=(torch.float16,),
-        test_class_name="TestOutputConsistencyEager",
-    )
-    .xfail(
-        variant_name="number_mean",
-        reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
-        dtypes=(torch.float16,),
-        test_class_name="TestOutputConsistencyEager",
-    )
-    .xfail(
         variant_name="number_mean",
         reason="This variant does not support dtype as an argument",
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
@@ -1243,28 +1212,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.normal.float_Tensor",
         core_ops.aten_normal_float_tensor,
         nondeterministic=True,
-    ).xfail(
-        reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
-        dtypes=(torch.float16,),
-        test_class_name="TestOutputConsistencyEager",
     ),
     TorchLibOpInfo(
         "ops.aten.normal.Tensor_float",
         core_ops.aten_normal_tensor_float,
         nondeterministic=True,
-    ).xfail(
-        reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
-        dtypes=(torch.float16,),
-        test_class_name="TestOutputConsistencyEager",
     ),
     TorchLibOpInfo(
         "ops.aten.normal.Tensor_Tensor",
         core_ops.aten_normal_tensor_tensor,
         nondeterministic=True,
-    ).xfail(
-        reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
-        dtypes=(torch.float16,),
-        test_class_name="TestOutputConsistencyEager",
     ),
     TorchLibOpInfo("ones", core_ops.aten_ones),
     TorchLibOpInfo(
@@ -1307,10 +1264,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "remainder",
         core_ops.aten_remainder,
-    ).xfail(
-        dtypes=(torch.float16,),
-        reason="Eager mode failed on case(self=7.75,other=0.1582) due to precision loss",
-        test_class_name="TestOutputConsistencyEager",
     ),
     TorchLibOpInfo("repeat", core_ops.aten_repeat),
     TorchLibOpInfo("reshape", core_ops.aten_reshape),
@@ -1385,11 +1338,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: SoftMax does not support empty tensor as input",
     ),
-    TorchLibOpInfo("nn.functional.softplus", nn_ops.aten_softplus).xfail(
-        dtypes=(torch.float16,),
-        reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16449",
-        test_class_name="TestOutputConsistencyEager",
-    ),
+    TorchLibOpInfo("nn.functional.softplus", nn_ops.aten_softplus),
     TorchLibOpInfo("sort", core_ops.aten_sort).xfail(
         dtypes=(torch.float16,),
         reason="fixme: Tensor-likes are not close. Tests pass for float32.",
@@ -1760,13 +1709,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="native_batch_norm outputs different results on CPU and CUDA when training is False. Our implematation is based on that for CUDA",
     )
     .skip(
-        dtypes=(torch.float16,),
-        device_type="cuda",
-        matcher=lambda sample: sample.kwargs.get("training") is True,
-        test_class_name="TestOutputConsistencyEager",
-        reason="fixme: output 4 (new_running_var) does not match the gpu output sometimes",
-    )
-    .skip(
         matcher=lambda sample: sample.kwargs.get("training") is True
         or sample.args[-3] is True,
         reason="fixme: ORT only supports BatchNorm less than opset14",
@@ -1960,11 +1902,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
         test_class_name="TestOutputConsistencyFullGraph",
-    )
-    .xfail(
-        reason="fixme: ORT fails on type mismatch in Add",
-        dtypes=(torch.float16,),
-        test_class_name="TestOutputConsistencyEager",
     ),
     TorchLibOpInfo(
         "ops.aten._scaled_dot_product_flash_attention",
@@ -2016,11 +1953,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
         test_class_name="TestOutputConsistencyFullGraph",
-    )
-    .xfail(
-        reason="fixme: ORT fails on type mismatch in Add",
-        dtypes=(torch.float16,),
-        test_class_name="TestOutputConsistencyEager",
     ),
     TorchLibOpInfo(
         "ops.aten.upsample_bilinear2d.default",
