@@ -518,7 +518,7 @@ def aten_gelu_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::glu", trace_only=True)
+@torch_op("aten::glu")
 def aten_glu(self: TFloat, dim: int = -1) -> TFloat:
     """glu(Tensor self, int dim=-1) -> Tensor"""
 
