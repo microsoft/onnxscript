@@ -494,7 +494,12 @@ def graph_executor(
             (),
             (),
             nodes=(),
-            opset_imports={"": 18, "pkg.torch.onnx": 1},
+            opset_imports={
+                "": 18,
+                "pkg.torch.onnx": 1,
+                "pkg.onnxscript.torch_lib.common": 1,
+                "pkg.onnxscript.torch_lib": 1,
+            },
             name="main_graph",
         )
         opset = onnxscript.opset18
