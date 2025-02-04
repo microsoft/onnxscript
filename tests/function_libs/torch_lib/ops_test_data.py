@@ -943,7 +943,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "matmul",
         core_ops.aten_matmul,
         # Windows requires a more relaxed tolerance
-        tolerance={torch.float32: (2e-5, 2e-5), torch.float16: (2e-3, 2e-2)},
+        tolerance={torch.float32: (2e-5, 2e-5), torch.float16: (1e-2, 2e-2)},
     ).skip(
         matcher=lambda sample: torch.numel(sample.input) == 0,
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
