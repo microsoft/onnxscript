@@ -32,8 +32,8 @@ COMMON_TEST_DEPENDENCIES = (
 )
 ONNX = "onnx==1.17"
 ONNX_RUNTIME = "onnxruntime==1.20.1"
-PYTORCH = "torch==2.5.0"
-TORCHVISON = "torchvision==0.19.1"
+PYTORCH = "torch==2.5.1"
+TORCHVISON = "torchvision==0.20.1"
 TRANSFORMERS = "transformers==4.37.2"
 ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "flatbuffers",
