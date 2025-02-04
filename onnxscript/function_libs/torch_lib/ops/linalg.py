@@ -322,6 +322,8 @@ def aten_linalg_vector_norm(
 ) -> TFloat:
     """linalg_vector_norm(Tensor self, Scalar ord=2, int[1]? dim=None, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
 
+    if len(self.shape) == 0:
+        return op.Identity(self)
     if dtype != -1:
         self = op.Cast(self, to=dtype)
     if dim is None or (isinstance(dim, tuple) and len(dim) == 0):
@@ -334,10 +336,6 @@ def aten_linalg_vector_norm(
 
 @torch_op("aten::linalg_vector_norm", private=True)
 def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool) -> TFloat:
-    self_is_scalar = len(self.shape) == 0
-    if self_is_scalar:
-        self = op.Unsqueeze(self, axes=[0])
-
     self = op.Abs(self)
     ord = op.Cast(ord, to=FLOAT.dtype)  # Must be FLOAT, due to op.IsInf() needs FLOAT
     # TODO(justinchuby): Evaluate IsInf in trace mode
@@ -355,9 +353,6 @@ def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool
         self_pow = op.Pow(self, ord_float)
         result = op.Pow(op.ReduceSum(self_pow, keepdims=keepdim), op.Div(1.0, ord_float))
 
-    if self_is_scalar:
-        result = op.Squeeze(result)
-
     return result
 
 
@@ -365,10 +360,6 @@ def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool
 def _aten_linalg_vector_norm_onnx(
     self: TFloat, ord: float, dim: INT64, keepdim: bool
 ) -> TFloat:
-    self_is_scalar = len(self.shape) == 0
-    if self_is_scalar:
-        self = op.Unsqueeze(self, axes=[0])
-
     dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
     self = op.Abs(self)
     ord = op.Cast(ord, to=FLOAT.dtype)  # Must be FLOAT, due to op.IsInf() needs FLOAT
@@ -389,8 +380,5 @@ def _aten_linalg_vector_norm_onnx(
         ord_float = op.CastLike(ord, self)
         self_pow = op.Pow(self, ord_float)
         result = op.Pow(op.ReduceSum(self_pow, dim, keepdims=keepdim), op.Div(1.0, ord_float))
-
-    if self_is_scalar:
-        result = op.Squeeze(result)
 
     return result

@@ -1316,19 +1316,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("reshape", core_ops.aten_reshape),
     TorchLibOpInfo("resolve_conj", core_ops.aten_resolve_conj),
     TorchLibOpInfo("resolve_neg", core_ops.aten_resolve_neg),
-    TorchLibOpInfo("round", core_ops.aten_round)
-    .xfail(
-        variant_name="decimals_0",
-        reason="This variant does not accept decimals",
-        test_class_name="TestOutputConsistencyEager",
-    )
-    .xfail(
-        variant_name="decimals_3",
-        reason="This variant does not accept decimals",
-    )
-    .xfail(
-        variant_name="decimals_neg_3",
-        reason="This variant does not accept decimals",
+    TorchLibOpInfo("round", core_ops.aten_round).skip(
+        matcher=lambda sample: sample.kwargs.get("decimals") is not None,
+        reason="this Aten overload only support one tensor as input and one int as args by design",
     ),
     TorchLibOpInfo("round_decimals", core_ops.aten_round_decimals),
     TorchLibOpInfo("rsqrt", core_ops.aten_rsqrt),
