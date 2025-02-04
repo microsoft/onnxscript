@@ -5644,7 +5644,7 @@ def aten_mul_complex(self: TReal, other: TReal) -> TReal:
     return op.Concat(real, imag, axis=-1)
 
 
-@torch_op("aten::multinomial")
+@torch_op("aten::multinomial", trace_only=True)
 def aten_multinomial(
     self: TFloat,
     num_samples: int,
