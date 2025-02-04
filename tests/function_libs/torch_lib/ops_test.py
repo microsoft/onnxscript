@@ -328,6 +328,7 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
             ops_test_data.COMPLEX_FUNCTION_MAPPING,
         )
 
+
 common_device_type.instantiate_device_type_tests(
     TestOutputConsistencyFullGraph, globals(), only_for=["cpu", "cuda"]
 )

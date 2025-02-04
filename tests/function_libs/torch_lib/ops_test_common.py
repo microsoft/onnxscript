@@ -290,6 +290,7 @@ _TORCH_DTYPE_TO_ONNX: dict[torch.dtype, ir.DataType] = {
     torch.uint64: ir.DataType.UINT64,
 }
 
+
 def convert_tensor_to_numpy(input: Any) -> Any:
     if isinstance(input, torch.Tensor):
         if torch.is_complex(input):
@@ -467,15 +468,14 @@ def dtype_op_schema_compatible(dtype: torch.dtype, schema: onnx.defs.OpSchema) -
     # Here we consider seq(tensor(float)) compatible with tensor(float) as well
     return any(TORCH_DTYPE_TO_ONNX_STRING[dtype] in type_str for type_str in allowed_type_strs)
 
+
 def graph_executor(
     test_name: str,
     outputs: Sequence[Any],
 ) -> Callable[[Callable[..., Any], tuple[Any], dict[str, Any]], None]:
     """Eagerly executes a function."""
 
-    def _capture_graph_and_evaluate_torch_script_evaluator(
-        function: Callable, args, kwargs
-    ):
+    def _capture_graph_and_evaluate_torch_script_evaluator(function: Callable, args, kwargs):
         """Captures the graph of a function and evaluates it using TorchScriptEvaluator."""
 
         # Initialize the ONNX graph
@@ -588,9 +588,7 @@ def graph_executor(
                 or os.environ.get("CREATE_REPRODUCTION_REPORT") == "1"
             ):
                 # Use an individual process to run ONNX Runtime to catch segfaults
-                return _safe_ort_session_run(
-                    model_proto.SerializeToString(), ort_inputs
-                )
+                return _safe_ort_session_run(model_proto.SerializeToString(), ort_inputs)
 
             return _ort_session_run(model_proto.SerializeToString(), ort_inputs)
         except (

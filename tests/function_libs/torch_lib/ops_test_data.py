@@ -317,15 +317,6 @@ def _index_put_input_wrangler(
     return args, kwargs
 
 
-def _linalg_vector_norm_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Make the dims as tensor
-    if "dim" in kwargs:
-        kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64)
-    return args, kwargs
-
-
 def _max_pool_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -877,7 +868,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "linalg.vector_norm",
         linalg_ops.aten_linalg_vector_norm,
         tolerance={torch.float16: (2e-3, 2e-3)},
-        input_wrangler=_linalg_vector_norm_input_wrangler,
     ).skip(
         matcher=lambda sample: sample.kwargs.get("ord") == 6,
         dtypes=(torch.float16,),
@@ -1134,8 +1124,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.relu",
         nn_ops.aten_relu,
-    )
-    .xfail(
+    ).xfail(
         dtypes=(torch.int64,),
         enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
@@ -1143,8 +1132,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.relu6",
         nn_ops.aten_relu6,
-    )
-    .xfail(
+    ).xfail(
         dtypes=(torch.int64,),
         enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
@@ -1224,10 +1212,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nondeterministic=True,
     ),
     TorchLibOpInfo("ones", core_ops.aten_ones),
-    TorchLibOpInfo(
-        "permute",
-        core_ops.aten_permute
-    ),
+    TorchLibOpInfo("permute", core_ops.aten_permute),
     TorchLibOpInfo("polar", core_ops.aten_polar),
     TorchLibOpInfo("pow", core_ops.aten_pow),
     TorchLibOpInfo("prod", core_ops.aten_prod).skip(
