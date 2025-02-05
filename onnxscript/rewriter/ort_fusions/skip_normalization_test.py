@@ -5,9 +5,9 @@ from __future__ import annotations
 import unittest
 
 import onnxscript.optimizer
-from onnxscript.rewriter.onnxruntime.xformers._smollm_1 import TestData
-from onnxscript.rewriter.onnxruntime.xformers._test_utils import assert_allclose, ort_run
-from onnxscript.rewriter.onnxruntime.xformers.skip_normalization import fuse_normalization
+from onnxscript.rewriter.ort_fusions._smollm_1 import TestData
+from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
+from onnxscript.rewriter.ort_fusions.skip_normalization import fuse_normalization
 
 
 class TestSkipNormalization(unittest.TestCase):

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from onnxscript.rewriter import pattern
-from onnxscript.rewriter.onnxruntime.xformers.rms_normalization import rms_normalization_rules
+from onnxscript.rewriter.ort_fusions.rms_normalization import rms_normalization_rules
 
 
 def _skip_norm_pattern(op, input, skip, gamma, epsilon, stash_type):
