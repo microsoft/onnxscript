@@ -4,7 +4,6 @@
 
 __all__ = [
     "optimize_for_ort",
-    "transformers",
 ]
 
 from onnxscript.rewriter.ort_fusions import (
