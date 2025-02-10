@@ -52,10 +52,13 @@ __all__ = [
     "opset18",
     "opset19",
     "opset20",
+    "opset21",
+    "opset22",
     "opset_ai_onnx_ml1",
     "opset_ai_onnx_ml2",
     "opset_ai_onnx_ml3",
     "opset_ai_onnx_ml4",
+    "opset_ai_onnx_ml5",
     "DEBUG",
 ]
 
@@ -86,10 +89,13 @@ from .onnx_opset import (
     opset18,
     opset19,
     opset20,
+    opset21,
+    opset22,
     opset_ai_onnx_ml1,
     opset_ai_onnx_ml2,
     opset_ai_onnx_ml3,
     opset_ai_onnx_ml4,
+    opset_ai_onnx_ml5,
 )
 
 from .onnx_types import (

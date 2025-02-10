@@ -1,11 +1,11 @@
 # This file is auto updated by dependabot
 lintrunner-adapters>=0.8.0
 # RUFF, RUFF-FIX
-ruff==0.9.2
+ruff==0.9.4
 # MYPY
 mypy==1.10.1
 types-PyYAML==6.0.12.20241230
 # PYLINT
 pylint==3.3.3
 # EDITORCONFIG-CHECKER
-editorconfig-checker==3.0.3
+editorconfig-checker==3.2.0
