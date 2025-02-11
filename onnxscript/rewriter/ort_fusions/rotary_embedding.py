@@ -57,8 +57,12 @@ _rule = RotaryEmbeddingFusion.rule()
 
 rotary_embedding_rules = pattern.RewriteRuleSet([_rule])
 
+debug: bool = True
 
 def fuse_rotary_embedding(model: ir.Model) -> int:
     count = rotary_embedding_rules.apply_to_model(model)
-    print(f"Rotary Embedding count: {count}")
+    if count == 0 and debug:
+        rotary_embedding_rules.apply_to_model(model, debug=True)
+    else:
+        print(f"Rotary Embedding count: {count}")
     return count

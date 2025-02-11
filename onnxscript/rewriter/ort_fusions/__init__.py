@@ -4,6 +4,7 @@
 
 __all__ = [
     "optimize_for_ort",
+    "ORT_PATTERN_REWRITE_RULES",
 ]
 
 from onnxscript.rewriter.ort_fusions import (
