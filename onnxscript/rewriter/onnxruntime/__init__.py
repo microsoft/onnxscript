@@ -17,12 +17,13 @@ __all__ = [
     "ORT_FUNCTION_REWRITE_RULES",
 ]
 
-ORT_FUNCTION_REWRITE_RULES : list[Any] = []
+ORT_FUNCTION_REWRITE_RULES: list[Any] = []
+
 
 def rewrite(
     model_proto: onnx.ModelProto,
     /,
-    function_rules = None,
+    function_rules=None,
     pattern_rules: list[pattern.RewriteRule] | None = None,
 ) -> onnx.ModelProto:
     """Rewrite the model using the given rules.
@@ -36,6 +37,4 @@ def rewrite(
         The rewritten model.
     """
     pattern_rules = pattern_rules or ORT_PATTERN_REWRITE_RULES
-    return _rewrite(
-        model_proto, pattern_rewrite_rules=pattern_rules
-    )
+    return _rewrite(model_proto, pattern_rewrite_rules=pattern_rules)
