@@ -1082,26 +1082,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_nll_loss_input_wrangler,
         tolerance={torch.float16: (5e-2, 1e-2)},
     ),
-    TorchLibOpInfo("nn.functional.pad", nn_ops.aten_pad).skip(
-        variant_name="constant",
-        test_class_name="TestOutputConsistencyEager",
-        reason="fixme: Eager mode does not construct a correct signature for inputs of concat",
-    ).skip(
-        variant_name="reflect",
-        test_class_name="TestOutputConsistencyEager",
-        reason="fixme: Eager mode does not construct a correct signature for inputs of concat",
-    ).skip(
+    TorchLibOpInfo("nn.functional.pad", nn_ops.aten_pad)
+    .skip(
         variant_name="circular",
-        test_class_name="TestOutputConsistencyEager",
-        reason="fixme: Eager mode does not construct a correct signature for inputs of concat",
-    ).skip(
-        variant_name="replicate",
-        test_class_name="TestOutputConsistencyEager",
-        reason="fixme: Eager mode does not construct a correct signature for inputs of concat",
-    ).skip(
+        reason="fixme: ORT does not support the circular mode",
+    )
+    .skip(
         variant_name="replicate_negative",
-        test_class_name="TestOutputConsistencyEager",
-        reason="fixme: Eager mode does not construct a correct signature for inputs of concat",
+        reason="fixme: The implementation for negative paddings is not correct",
     ),
     TorchLibOpInfo(
         "nn.functional.pixel_shuffle",

@@ -1528,7 +1528,7 @@ def aten_pad(
         "circular": "wrap",
     }[mode]
 
-    return op.Pad(self, paddings, constant_value=const_value, mode=mode_mappings[mode])
+    return op.Pad(self, paddings, constant_value=const_value, mode=onnx_mode)
 
 
 def aten_pad_sequence(
