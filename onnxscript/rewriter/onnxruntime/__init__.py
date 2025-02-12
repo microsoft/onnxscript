@@ -6,9 +6,13 @@ Deprecated. This module is kept for backward compatibility.
 """
 
 from __future__ import annotations
-import onnx
+
 from typing import Any
-from onnxscript.rewriter import pattern, rewrite as _rewrite
+
+import onnx
+
+from onnxscript.rewriter import pattern
+from onnxscript.rewriter import rewrite as _rewrite
 from onnxscript.rewriter.ort_fusions import ORT_PATTERN_REWRITE_RULES
 
 __all__ = [
@@ -27,12 +31,14 @@ def rewrite(
     pattern_rules: list[pattern.RewriteRule] | None = None,
 ) -> onnx.ModelProto:
     """Rewrite the model using the given rules.
+
     Args:
         model_proto: The model to rewrite.
         function_rules: The function rewrite rules to apply. If None, the default rules
             for onnxruntime are used.
         pattern_rules: The pattern rewrite rules to apply. If None, the default rules
             for onnxruntime are used.
+
     Returns:
         The rewritten model.
     """
