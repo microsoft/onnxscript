@@ -2818,7 +2818,7 @@ def aten_div_mode_int(self: TInt, other: TInt, rounding_mode: str) -> TInt:
     return op.CastLike(result, self)
 
 
-@torch_op("aten::dot")
+@torch_op("aten::dot", trace_only=True)
 def aten_dot(self: TFloat, tensor: TFloat) -> TFloat:
     """dot(Tensor self, Tensor tensor) -> Tensor"""
 
@@ -5114,7 +5114,7 @@ def aten_masked_select_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::matmul")
+@torch_op("aten::matmul", trace_only=True)
 def aten_matmul(
     self: TRealUnlessInt16OrInt8, other: TRealUnlessInt16OrInt8
 ) -> TRealUnlessInt16OrInt8:
@@ -5670,7 +5670,7 @@ def aten_multiply(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::mv")
+@torch_op("aten::mv", trace_only=True)
 def aten_mv(self: TensorType, vec: TensorType) -> TensorType:
     """mv(Tensor self, Tensor vec) -> Tensor"""
 
