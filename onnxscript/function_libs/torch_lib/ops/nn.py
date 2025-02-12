@@ -19,7 +19,7 @@ from typing import Optional, Sequence, Tuple, TypeVar, Union
 
 import onnx
 
-from onnxscript import BFLOAT16, BOOL, DOUBLE, FLOAT, FLOAT16, INT64
+from onnxscript import BFLOAT16, BOOL, DOUBLE, FLOAT, FLOAT16, INT64, ir
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
@@ -1487,9 +1487,15 @@ def _process_padding(padding: Sequence[INT64 | int], rank: int) -> INT64:
         zeros = [0] * (rank * 2 - len(paddings))
         paddings = [*paddings, *zeros]
         paddings = paddings[-2::-2] + paddings[-1::-2]
-        return op.Constant(value_ints=paddings)
+        return op.Constant(value=ir.tensor(paddings, dtype=ir.DataType.INT64))
     else:
-        paddings = [op.Reshape(pad, [-1]) for pad in padding]
+        paddings = []
+        for pad in padding:
+            if isinstance(pad, int):
+                paddings.append(op.Constant(value_ints=[pad]))
+            else:
+                # Dynamic value
+                paddings.append(op.Reshape(pad, [-1]))
         # Create a series of 1d zero tensors
         zero = op.Constant(value_ints=[0])
         zeros = [zero] * (rank * 2 - len(paddings))
@@ -1510,13 +1516,18 @@ def aten_pad(
 
     rank = len(self.shape)
     paddings = _process_padding(pad, rank)
-    const_value = op.Constant(value_float=value) if value is not None else None
-    mode_mappings = {
+    const_value = (
+        op.Constant(value=ir.tensor(value, dtype=ir.DataType(self.dtype)))
+        if value is not None
+        else None
+    )
+    onnx_mode = {
         "constant": "constant",
         "reflect": "reflect",
         "replicate": "edge",
         "circular": "wrap",
-    }
+    }[mode]
+
     return op.Pad(self, paddings, constant_value=const_value, mode=mode_mappings[mode])
 
 
