@@ -1,9 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""
-Deprecated. This module is kept for backward compatibility.
-"""
+"""Deprecated. This module is kept for backward compatibility."""
 
 from __future__ import annotations
 
