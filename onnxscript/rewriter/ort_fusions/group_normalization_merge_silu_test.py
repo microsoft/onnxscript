@@ -6,7 +6,7 @@ import numpy as np
 import onnx.parser
 
 from onnxscript import ir
-from onnxscript.rewriter.onnxruntime import (
+from onnxscript.rewriter.ort_fusions import (
     group_normalization_merge_silu,
     instance_to_group_normalization,
 )
