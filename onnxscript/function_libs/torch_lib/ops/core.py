@@ -8385,11 +8385,8 @@ def aten_triu_indices(row: int, col: int, offset: int = 0) -> TensorType:
 @torch_op("aten::trunc")
 def aten_trunc(self: TFloat) -> TFloat:
     """trunc(Tensor self) -> Tensor"""
-
-    # Reference https://github.com/onnx/onnx/issues/4588#issuecomment-1463970126
-    integer_parts = op.Floor(op.Abs(self))
-    is_negative = op.Less(self, 0.0)
-    return op.Where(is_negative, op.Neg(integer_parts), integer_parts)
+    # Reference https://github.com/onnx/onnx/issues/4588#issuecomment-2658170591
+    return op.Floor(op.Abs(self)) * op.Sign(self)
 
 
 @torch_op("aten::type_as", trace_only=True)
