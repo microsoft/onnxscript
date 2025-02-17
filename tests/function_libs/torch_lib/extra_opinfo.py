@@ -790,20 +790,57 @@ def sample_inputs_index_put(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
 
-    data = torch_testing.make_tensor(
-        (10, 3),
-        device=device,
-        dtype=dtype,
-        requires_grad=requires_grad,
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
     )
-    indices = [torch.arange(8, dtype=torch.int64, device=device).reshape((-1, 4))]
-    values = torch_testing.make_tensor(
-        (2, 4, 3),
-        device=device,
-        dtype=dtype,
-        requires_grad=requires_grad,
-    )
-    yield opinfo_core.SampleInput(data, indices, values)
+
+    cases = [
+        # Cases: one None
+        ((1, 3, 4), [None, torch.arange(2, device=device), None], (1, 2, 4)),
+        ((10, 3, 4), [torch.arange(5, device=device), None, None], (5, 3, 4)),
+        ((10, 3, 4, 6), [None, None, None, torch.arange(3, device=device)], (10, 3, 4, 3)),
+        # Cases: two None
+        (
+            (10, 3, 4),
+            [None, torch.arange(3, device=device), torch.arange(3, device=device)],
+            (10, 3),
+        ),
+        (
+            (10, 3, 4, 6),
+            [
+                torch.arange(2, device=device),
+                None,
+                torch.arange(2, device=device),
+                torch.arange(2, device=device),
+            ],
+            (2, 3),
+        ),
+        (
+            (10, 3, 4),
+            [torch.arange(2, device=device), torch.arange(2, device=device), None],
+            (2, 4),
+        ),
+        # Cases: Single indexing
+        ((10, 3, 4), [None, None, torch.tensor([0], device=device)], (10, 3, 1)),
+        ((10, 3, 4), [torch.tensor([0], device=device), None, None], (1, 3, 4)),
+        ((10, 3, 4, 6), [None, torch.tensor([0], device=device), None, None], (10, 1, 4, 6)),
+        # Cases: Single element
+        (
+            (10, 3, 4),
+            [
+                torch.tensor([0], device=device),
+                torch.tensor([0], device=device),
+                torch.tensor([0], device=device),
+            ],
+            (1,),
+        ),
+    ]
+
+    for data_shape, indices, values_shape in cases:  # type: ignore[misc]
+        data = make_arg(data_shape)
+        values = make_arg(values_shape)  # type: ignore[has-type]
+
+        yield opinfo_core.SampleInput(data, indices, values)
 
 
 def sample_inputs_layer_norm(op_info, device, dtype, requires_grad, **kwargs):
