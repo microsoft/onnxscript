@@ -796,7 +796,7 @@ def sample_inputs_index_put(op_info, device, dtype, requires_grad, **kwargs):
         dtype=dtype,
         requires_grad=requires_grad,
     )
-    indices = (torch.arange(8, dtype=torch.int64, device=device).reshape((-1, 4)),)
+    indices = [torch.arange(8, dtype=torch.int64, device=device).reshape((-1, 4))]
     values = torch_testing.make_tensor(
         (2, 4, 3),
         device=device,
@@ -1374,6 +1374,30 @@ def sample_inputs__softmax(
         # So we don't test it here
         kwargs = dict(half_to_float=half_to_float)
         yield opinfo_core.SampleInput(make_arg(shape), args=dim, kwargs=kwargs)
+
+
+def sample_inputs_prims_std_var(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+    tensor_nd = functools.partial(
+        opinfo_core.make_tensor,
+        (S, S, S),
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+    )
+    tensor_1d = functools.partial(
+        opinfo_core.make_tensor, (S,), device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    yield opinfo_core.SampleInput(tensor_nd(), dims=(1,), correction=0)
+    yield opinfo_core.SampleInput(tensor_1d(), dims=(0,), correction=0)
+    yield opinfo_core.SampleInput(tensor_1d(), dims=(0,), correction=1)
+
+    yield opinfo_core.SampleInput(tensor_nd(), dims=(1,), correction=1)
+    yield opinfo_core.SampleInput(tensor_nd(), dims=(1,), correction=S // 2)
+    yield opinfo_core.SampleInput(tensor_nd(), dims=(), correction=0)
+    # Negative indices are not supported
 
 
 def sample_inputs_stft(op_info, device, dtype, requires_grad, **kwargs):
@@ -2527,6 +2551,18 @@ OP_DB: List[opinfo_core.OpInfo] = [
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_upsample_trilinear3d_vec,
         supports_out=False,
+    ),
+    opinfo_core.ReductionOpInfo(
+        "ops.prims.var.default",
+        nan_policy="propagate",
+        supports_out=True,
+        promotes_int_to_float=True,
+        complex_to_real=True,
+        supports_forward_ad=True,
+        supports_fwgrad_bwgrad=True,
+        check_batched_forward_grad=False,
+        dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_prims_std_var,
     ),
     opinfo_core.OpInfo(
         "nn.functional.max_pool1d_with_indices",

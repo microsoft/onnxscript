@@ -18,6 +18,7 @@ class Tape(Iterable[ir.Node]):
 
     def __init__(self) -> None:
         self._nodes: list[ir.Node] = []
+        self._initializers: list[ir.Value] = []
 
     def __iter__(self) -> Iterator[ir.Node]:
         return iter(self._nodes)
@@ -25,6 +26,10 @@ class Tape(Iterable[ir.Node]):
     @property
     def nodes(self) -> Sequence[ir.Node]:
         return tuple(self._nodes)
+
+    @property
+    def initializers(self) -> Sequence[ir.Value]:
+        return tuple(self._initializers)
 
     def op(
         self,
@@ -59,6 +64,17 @@ class Tape(Iterable[ir.Node]):
         self._nodes.append(node)
 
         return node.outputs
+
+    def initializer(self, tensor: ir.TensorProtocol, name: str | None = None) -> ir.Value:
+        name = name or tensor.name
+        if name is None:
+            raise ValueError("Name must be provided for initializer.")
+        shape = ir.Shape((d if isinstance(d, int) else d.value) for d in tensor.shape.dims)
+        value = ir.Value(
+            name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
+        )
+        self._initializers.append(value)
+        return value
 
 
 # A type representing the domains/versions used in creating nodes in IR.

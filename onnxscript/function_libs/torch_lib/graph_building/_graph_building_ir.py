@@ -475,9 +475,9 @@ class TorchScriptGraph:
         if isinstance(outputs, TorchScriptTensor):
             outputs = (outputs,)
         for output in outputs:
-            assert isinstance(
-                output, TorchScriptTensor
-            ), f"output must be a TorchScriptTensor, not {type(output)}"
+            assert isinstance(output, TorchScriptTensor), (
+                f"output must be a TorchScriptTensor, not {type(output)}"
+            )
             self._graph.outputs.append(output)
 
     def _add_constant_to_graph(self, constant) -> Sequence[ir.Value | None]:
@@ -556,9 +556,9 @@ class TorchScriptGraph:
                 # TODO(justinchuby): What is this case?
                 graph_inputs.append(input)
         for key, value in onnx_attributes.items():
-            assert not isinstance(
-                value, TorchScriptTensor
-            ), f"ONNX attribute must not be a TorchScriptTensor, got {key}: {value}."
+            assert not isinstance(value, TorchScriptTensor), (
+                f"ONNX attribute must not be a TorchScriptTensor, got {key}: {value}."
+            )
         tensors = _create_op_call_in_graph(
             self._graph,
             domain,
@@ -586,9 +586,9 @@ class TorchScriptGraph:
             domain = sub_torch_script_graph.domain_name
             assert domain is not None
             name_domain = (sub_graph_name, domain, "")
-            assert (
-                name_domain not in function_dict
-            ), f"Sub graph name already exists. {name_domain}"
+            assert name_domain not in function_dict, (
+                f"Sub graph name already exists. {name_domain}"
+            )
             function_dict[name_domain] = sub_torch_script_graph._to_function(  # pylint: disable=protected-access
                 opset_version, sub_graph_name
             )

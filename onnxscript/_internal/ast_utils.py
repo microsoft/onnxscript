@@ -18,8 +18,7 @@ def get_src_and_ast(func: Callable, /) -> tuple[str, ast.FunctionDef]:
         src = inspect.getsource(func)
     except OSError as e:
         raise RuntimeError(
-            f"Decorator script does not work on dynamically "
-            f"compiled function {func.__name__}."
+            f"Decorator script does not work on dynamically compiled function {func.__name__}."
         ) from e
     src = textwrap.dedent(src)
     top_level_ast = ast.parse(src)

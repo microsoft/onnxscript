@@ -3,12 +3,27 @@
 from __future__ import annotations
 
 import math
-from typing import Callable
+from typing import Callable, Sequence
 
 import numpy as np
 
 import onnxscript.ir as ir
 from onnxscript.optimizer import basic_constant_propagation
+
+
+def display_nodes(nodes: Sequence[ir.Node]) -> None:
+    """Display a list of nodes in the order they appear in the graph."""
+    if nodes:
+        graph = nodes[0].graph
+        if graph:
+            # Display nodes in same order as in graph:
+            # Currently doesn't handle (control-flow) subgraphs
+            for node in graph:
+                if node in nodes:
+                    node.display()
+        else:
+            for node in nodes:
+                node.display()
 
 
 def display_slice(x: ir.Value | ir.Node, backward: bool = True, depth_limit: int = 5) -> None:
@@ -33,17 +48,7 @@ def display_slice(x: ir.Value | ir.Node, backward: bool = True, depth_limit: int
         visit(x, 0)
     elif isinstance(x, ir.Value) and x.producer() is not None:
         visit(x.producer(), 0)  # type: ignore[arg-type]
-    if slice:
-        graph = slice[0].graph
-        if graph:
-            # Display nodes in same order as in graph:
-            # Currently doesn't handle (control-flow) subgraphs
-            for node in graph:
-                if node in slice:
-                    node.display()
-        else:
-            for node in reversed(slice):
-                node.display()
+    display_nodes(slice)
 
 
 def get_const_value(value: ir.Value) -> ir.TensorProtocol | None:

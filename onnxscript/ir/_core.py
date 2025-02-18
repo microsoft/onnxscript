@@ -22,14 +22,15 @@ import os
 import sys
 import textwrap
 import typing
+from collections.abc import Hashable
 from typing import (
     AbstractSet,
     Any,
     Collection,
     Generic,
-    Hashable,
     Iterable,
     Iterator,
+    NamedTuple,
     OrderedDict,
     Sequence,
     SupportsInt,
@@ -388,9 +389,9 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if isinstance(self._raw, np.ndarray) or _compatible_with_numpy(self._raw):
             return self._raw.__array__(dtype)
-        assert _compatible_with_dlpack(
-            self._raw
-        ), f"Bug: Expected DLPack or Numpy compatible objects, got {type(self._raw)}"
+        assert _compatible_with_dlpack(self._raw), (
+            f"Bug: Expected DLPack or Numpy compatible objects, got {type(self._raw)}"
+        )
         return np.from_dlpack(self._raw)
 
     def __dlpack__(self, *, stream: Any = None) -> Any:
@@ -515,6 +516,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         "_metadata_props",
         "_offset",
         "_shape",
+        "_valid",
         "doc_string",
         "name",
         "raw",
@@ -567,6 +569,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         self.raw: mmap.mmap | None = None
         self._metadata_props = metadata_props
         self._metadata: _metadata.MetadataStore | None = None
+        self._valid = True
 
     @property
     def base_dir(self) -> str | os.PathLike:
@@ -608,6 +611,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         return self._shape
 
     def _load(self):
+        self._check_validity()
         assert self._array is None, "Bug: The array should be loaded only once."
         if self.size == 0:
             # When the size is 0, mmap is impossible and meaningless
@@ -646,6 +650,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             self._array = self._array.reshape(shape)
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
+        self._check_validity()
         if self._array is None:
             self._load()
         assert self._array is not None
@@ -674,6 +679,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
 
         The data will be memory mapped into memory and will not taken up physical memory space.
         """
+        self._check_validity()
         if self._array is None:
             self._load()
         assert self._array is not None
@@ -684,12 +690,33 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
 
         This will load the tensor into memory.
         """
+        self._check_validity()
         if self.raw is None:
             self._load()
         assert self.raw is not None
         offset = self._offset or 0
         length = self._length or self.nbytes
         return self.raw[offset : offset + length]
+
+    def valid(self) -> bool:
+        """Check if the tensor is valid.
+
+        The external tensor is valid if it has not been invalidated.
+        """
+        return self._valid
+
+    def _check_validity(self) -> None:
+        if not self.valid():
+            raise ValueError(
+                f"The external tensor '{self!r}' is invalidated. The data may be corrupted or deleted."
+            )
+
+    def invalidate(self) -> None:
+        """Invalidate the tensor.
+
+        The external tensor is invalidated when the data is known to be corrupted or deleted.
+        """
+        self._valid = False
 
     def release(self) -> None:
         """Delete all references to the memory buffer and close the memory-mapped file."""
@@ -765,9 +792,9 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if isinstance(self._raw, np.ndarray):
             return self._raw
-        assert isinstance(
-            self._raw, Sequence
-        ), f"Bug: Expected a sequence, got {type(self._raw)}"
+        assert isinstance(self._raw, Sequence), (
+            f"Bug: Expected a sequence, got {type(self._raw)}"
+        )
         return np.array(self._raw, dtype=dtype).reshape(self.shape.numpy())
 
     def __dlpack__(self, *, stream: Any = None) -> Any:
@@ -1055,6 +1082,18 @@ def _quoted(string: str) -> str:
     return f'"{string}"'
 
 
+class Usage(NamedTuple):
+    """A usage of a value in a node.
+
+    Attributes:
+        node: The node that uses the value.
+        idx: The input index of the value in the node.
+    """
+
+    node: Node
+    idx: int
+
+
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     """IR Node.
 
@@ -1292,6 +1331,25 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         raise AttributeError(
             "Directly mutating the input sequence is unsupported. Please use Node.replace_input_with() instead."
         )
+
+    def predecessors(self) -> Sequence[Node]:
+        """Return the predecessor nodes of the node, deduplicated, in a deterministic order."""
+        # Use the ordered nature of a dictionary to deduplicate the nodes
+        predecessors: dict[Node, None] = {}
+        for value in self.inputs:
+            if value is not None and (producer := value.producer()) is not None:
+                predecessors[producer] = None
+        return tuple(predecessors)
+
+    def successors(self) -> Sequence[Node]:
+        """Return the successor nodes of the node, deduplicated, in a deterministic order."""
+        # Use the ordered nature of a dictionary to deduplicate the nodes
+        successors: dict[Node, None] = {}
+        for value in self.outputs:
+            assert value is not None, "Bug: Output values are not expected to be None"
+            for usage in value.uses():
+                successors[usage.node] = None
+        return tuple(successors)
 
     def replace_input_with(self, index: int, value: Value | None) -> None:
         """Replace an input with a new value."""
@@ -1564,7 +1622,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # Use a collection of (Node, int) to store uses. This is needed
         # because a single use can use the same value multiple times.
         # Use a dictionary to preserve insertion order so that the visiting order is deterministic
-        self._uses: dict[tuple[Node, int], None] = {}
+        self._uses: dict[Usage, None] = {}
         self.doc_string = doc_string
 
     def __repr__(self) -> str:
@@ -1595,31 +1653,39 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         """
         return self._producer
 
+    def consumers(self) -> Sequence[Node]:
+        """Return the nodes (deduplicated) that consume this value."""
+        return tuple({usage.node: None for usage in self._uses})
+
     def index(self) -> int | None:
         """The index of the output of the defining node."""
         return self._index
 
-    def uses(self) -> Collection[tuple[Node, int]]:
+    def uses(self) -> Collection[Usage]:
         """Return a set of uses of the value.
 
         The set contains tuples of ``(Node, index)`` where the index is the index of the input
         of the node. For example, if ``node.inputs[1] == value``, then the use is ``(node, 1)``.
         """
-        return self._uses.keys()
+        # Create a tuple for the collection so that iteration on will will not
+        # be affected when the usage changes during graph mutation.
+        # This adds a small overhead but is better a user experience than
+        # having users call tuple().
+        return tuple(self._uses)
 
     def _add_usage(self, use: Node, index: int) -> None:
         """Add a usage of this value.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._uses[(use, index)] = None
+        self._uses[Usage(use, index)] = None
 
     def _remove_usage(self, use: Node, index: int) -> None:
         """Remove a node from the uses of this value.
 
         This is an internal method. It should only be called by the Node class.
         """
-        self._uses.pop((use, index))
+        self._uses.pop(Usage(use, index))
 
     @property
     def name(self) -> str | None:
@@ -2228,11 +2294,11 @@ def _graph_str(graph: Graph | GraphView) -> str:
         )
     signature = f"""\
 graph(
-    name={graph.name or 'anonymous_graph:' + str(id(graph))},
-    inputs=({textwrap.indent(inputs_text, ' ' * 8)}
+    name={graph.name or "anonymous_graph:" + str(id(graph))},
+    inputs=({textwrap.indent(inputs_text, " " * 8)}
     ),
-    outputs=({textwrap.indent(outputs_text, ' ' * 8)}
-    ),{textwrap.indent(initializers_text, ' ' * 4)}
+    outputs=({textwrap.indent(outputs_text, " " * 8)}
+    ),{textwrap.indent(initializers_text, " " * 4)}
 )"""
     node_count = len(graph)
     number_width = len(str(node_count))
@@ -2266,11 +2332,11 @@ def _graph_repr(graph: Graph | GraphView) -> str:
         )
     return f"""\
 {graph.__class__.__name__}(
-    name={graph.name or 'anonymous_graph:' + str(id(graph))!r},
-    inputs=({textwrap.indent(inputs_text, ' ' * 8)}
+    name={graph.name or "anonymous_graph:" + str(id(graph))!r},
+    inputs=({textwrap.indent(inputs_text, " " * 8)}
     ),
-    outputs=({textwrap.indent(outputs_text, ' ' * 8)}
-    ),{textwrap.indent(initializers_text, ' ' * 4)}
+    outputs=({textwrap.indent(outputs_text, " " * 8)}
+    ),{textwrap.indent(initializers_text, " " * 4)}
     len()={len(graph)}
 )"""
 
@@ -2484,7 +2550,7 @@ Model(
     domain={self.domain!r},
     model_version={self.model_version!r},
     functions={self.functions!r},
-    graph={textwrap.indent(repr(self.graph), ' ' * 4).strip()}
+    graph={textwrap.indent(repr(self.graph), " " * 4).strip()}
 )"""
 
 
@@ -2684,10 +2750,10 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
 >
 def {full_name}(
     inputs=(
-{textwrap.indent(inputs_text, ' ' * 8)}
-    ),{textwrap.indent(attributes_text, ' ' * 4)}
+{textwrap.indent(inputs_text, " " * 8)}
+    ),{textwrap.indent(attributes_text, " " * 4)}
     outputs=(
-{textwrap.indent(outputs_text, ' ' * 8)}
+{textwrap.indent(outputs_text, " " * 8)}
     ),
 )"""
         node_count = len(self)
