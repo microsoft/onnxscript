@@ -123,7 +123,7 @@ subsequently modified, this modification has no effect on the attribute-value
 or the ONNX function/model created. This may potentially cause the behavior
 of eager-mode execution to be inconsistent with the ONNX construct generated.
 
-Thus, second `script_const` definition in the following code have no effect:
+Thus, the second `script_const` definition in the following code has no effect:
 
 ```{literalinclude} examples/tensor_attr2.py
 ```
