@@ -123,7 +123,9 @@ subsequently modified, this modification has no effect on the attribute-value
 or the ONNX function/model created. This may potentially cause the behavior
 of eager-mode execution to be inconsistent with the ONNX construct generated.
 
-Thus, the second `script_const` definition in the following code has no effect:
+Thus, the second assignment to `script_const` in the following code has no effect
+on the subsequent call to `tensor_attr.to_function_proto()`, which will use the
+original value of `script_const`:
 
 ```{literalinclude} examples/tensor_attr2.py
 ```
@@ -271,4 +273,3 @@ ONNX perspective, the two assignments to *g* represent two distinct tensors
 optimizer/index
 rewriter/index
 ```
-
