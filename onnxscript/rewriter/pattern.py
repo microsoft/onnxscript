@@ -1535,10 +1535,11 @@ class RewriteRuleClassBase:
 def _copy_for_function(
     inputs: Sequence[ir.Value], nodes: Sequence[ir.Node], outputs: Sequence[ir.Value]
 ):
+    """Utility function to extract a subgraph out as a function."""
     value_map: dict[ir.Value, ir.Value] = {}
     function_inputs: list[ir.Value] = []
     for input in inputs:
-        # Create a formal-parameter value to represent this value:
+        # Create a function input (formal-parameter value) to represent this value:
         new_value = ir.Value(
             name=input.name,
             shape=input.shape,
@@ -1548,15 +1549,19 @@ def _copy_for_function(
         value_map[input] = new_value
         function_inputs.append(new_value)
 
-    def copy_value(value: ir.Value) -> ir.Value:
+    def copy_value(value: ir.Value | None) -> ir.Value | None:
         if value is None:
             return None
         if value not in value_map:
             raise ValueError(f"Value {value} not found in value_map.")
         return value_map[value]
 
-    def copy_attr_value(attr_value):
-        return attr_value  # TODO
+    def copy_attr_value(attr: ir.Attr | ir.RefAttr) -> ir.Attr | ir.RefAttr:
+        if not isinstance(attr, ir.Attr):
+            raise ValueError("RefAttr not supported.")
+        if attr.type in {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}:
+            raise ValueError("Graph attributes not supported.")
+        return attr.copy()
 
     def copy_node(node: ir.Node) -> ir.Node:
         new_inputs = [copy_value(v) for v in node.inputs]
@@ -1583,6 +1588,27 @@ def _copy_for_function(
     function_nodes = [copy_node(node) for node in nodes]
     function_outputs = [copy_value(v) for v in outputs]
     return (function_inputs, function_nodes, function_outputs)
+
+
+def _get_new_overload(model: ir.Model, domain: str, name: str) -> str:
+    """Get a new overload for the given domain and name.
+
+    Args:
+        model: The model to which the new overload will be added.
+        domain: The domain of the new overload.
+        name: The opname of the new overload.
+
+    Returns:
+        The new overload name.
+    """
+    existing_functions = model.functions
+    # Just a simple implementation for now
+    overload = 1
+    while True:
+        overload_name = str(overload)
+        if (domain, name, overload_name) not in existing_functions:
+            return overload_name
+        overload += 1
 
 
 class RewriteRuleSet:
@@ -1648,6 +1674,7 @@ class RewriteRuleSet:
                 # insertion-point.
                 onnxscript.optimizer.basic_constant_propagation(delta.new_nodes)
                 if rule.as_function:
+                    # Create a function out of a copy of the matched nodes
                     if len(delta.new_nodes) != 1:
                         raise ValueError(
                             "as_function=True is only supported for patterns with a single replacement node."
@@ -1655,17 +1682,16 @@ class RewriteRuleSet:
                     call_node = delta.new_nodes[0]
                     domain = call_node.domain
                     name = call_node.op_type
-                    overload = ""  # TODO
+                    overload = _get_new_overload(model, domain, name)
+                    call_node.overload = overload
 
                     # Create topologically sorted list of nodes to be replaced.
                     unsorted_nodes = set(delta.match.nodes)
                     original_nodes = [n for n in graph_or_function if n in unsorted_nodes]
+                    # Create new inputs/nodes/outputs for the function
                     inputs, nodes, outputs = _copy_for_function(
                         call_node.inputs, original_nodes, delta.match.outputs
                     )
-                    # Create new function from delta.match.nodes and add it to model.functions.
-                    # Determine: inputs/outputs, domain, name, overload, opset_imports.
-                    # Create a copy of nodes, replacing actuals by formals.
 
                     used_domains: set[str] = set(node.domain for node in original_nodes)
                     parent_opset_imports = graph_or_function.opset_imports
@@ -1711,10 +1737,11 @@ class RewriteRuleSet:
         assert isinstance(model, ir.Model)
         tracer = MatchingTracer() if debug else None
         onnxscript.optimizer.basic_constant_propagation(model.graph)
+        original_functions = list(model.functions.values())
         count = self._apply_to_graph_or_function(
             model, model.graph, verbose=verbose, tracer=tracer
         )
-        for function in model.functions.values():
+        for function in original_functions:
             onnxscript.optimizer.basic_constant_propagation(function)
             count += self._apply_to_graph_or_function(
                 model, function, verbose=verbose, tracer=tracer

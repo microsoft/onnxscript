@@ -595,9 +595,14 @@ class RewriteRuleTest(unittest.TestCase):
         model_proto = test_model.to_model_proto()
         model = ir.serde.deserialize_model(model_proto)
         rule.apply_to_model(model)
-        self.assertEqual([x.op_type for x in model.graph], ["AddMul"])
-        self.assertEqual([f.name for f in model.functions.values()], ["AddMul"])
-        function = model.functions[("some.domain", "AddMul", "")]
+        self.assertEqual(len(model.functions), 1)
+        self.assertEqual(len(model.graph), 1)
+        call_node = model.graph.node(0)
+        self.assertEqual(call_node.domain, "some.domain")
+        self.assertEqual(call_node.op_type, "AddMul")
+        function_id = call_node.op_identifier()
+        self.assertIn(function_id, model.functions)
+        function = model.functions[function_id]
         self.assertEqual([x.op_type for x in function], ["Add", "Mul"])
         onnxscript.optimizer.inline(model)
         self.assertEqual([x.op_type for x in model.graph], ["Add", "Mul"])
