@@ -577,6 +577,21 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertIn(init_name, model.graph.initializers)
         self.assertIs(last_node.inputs[1], model.graph.initializers[init_name])
 
+    def test_extract_function(self):
+        def source_pattern(op, x, y, z):
+            sum = op.Add(x, y)
+            return op.Mul(sum, z)
+        def replacement(op, x, y, z):
+            return op.AddMul(x, y, z, _domain = "some.domain")
+        rule = pattern.RewriteRule(source_pattern, replacement, as_function=True)
+        @script()
+        def test_model(x: FLOAT[1024], y: FLOAT[1024], z: FLOAT[1024]) -> FLOAT[1024]:
+            return op.Mul(op.Add(x, y), z)
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        rule.apply_to_model(model)
+        # self.assertEqual(len(model.functions), 1)
+        model.display()
 
 class PatternBuilderTest(unittest.TestCase):
     def test_pattern_builder_context(self):
