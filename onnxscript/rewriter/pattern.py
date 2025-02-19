@@ -1561,11 +1561,11 @@ def _copy_for_function(
             raise ValueError("RefAttr not supported.")
         if attr.type in {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}:
             raise ValueError("Graph attributes not supported.")
-        return attr.copy()
+        return ir.Attr(attr.name, attr.type, attr.value, doc_string=attr.doc_string)
 
     def copy_node(node: ir.Node) -> ir.Node:
         new_inputs = [copy_value(v) for v in node.inputs]
-        new_attributes = {k: copy_attr_value(v) for k, v in node.attributes.items()}
+        new_attributes = [copy_attr_value(v) for v in node.attributes.values()]
         new_node = ir.Node(
             node.domain,
             node.op_type,

@@ -607,6 +607,66 @@ class RewriteRuleTest(unittest.TestCase):
         onnxscript.optimizer.inline(model)
         self.assertEqual([x.op_type for x in model.graph], ["Add", "Mul"])
 
+    def test_extract_function_with_attr(self):
+        def source_pattern(op, x, y):
+            sum = op.Add(x, y)
+            return op.Transpose(sum, perm=[1, 0])
+
+        def replacement(op, x, y):
+            return op.AddTranspose(x, y, _domain="some.domain")
+
+        rule = pattern.RewriteRule(source_pattern, replacement, as_function=True)
+
+        @script()
+        def test_model(x: FLOAT[1024, 512], y: FLOAT[1024, 512]) -> FLOAT[512, 1024]:
+            return op.Transpose(op.Add(x, y), perm=[1, 0])
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        rule.apply_to_model(model)
+        self.assertEqual(len(model.functions), 1)
+        self.assertEqual(len(model.graph), 1)
+        call_node = model.graph.node(0)
+        self.assertEqual(call_node.domain, "some.domain")
+        self.assertEqual(call_node.op_type, "AddTranspose")
+        function_id = call_node.op_identifier()
+        self.assertIn(function_id, model.functions)
+        function = model.functions[function_id]
+        self.assertEqual([x.op_type for x in function], ["Add", "Transpose"])
+        transpose_node = function[1]
+        self.assertEqual(transpose_node.attributes["perm"].value, [1, 0])
+        onnxscript.optimizer.inline(model)
+        self.assertEqual([x.op_type for x in model.graph], ["Add", "Transpose"])
+
+    def test_extract_repeated_function(self):
+        def source_pattern(op, x, y, z):
+            sum = op.Add(x, y)
+            return op.Mul(sum, z)
+
+        def replacement(op, x, y, z):
+            return op.AddMul(x, y, z, _domain="some.domain")
+
+        rule = pattern.RewriteRule(source_pattern, replacement, as_function=True)
+
+        @script()
+        def test_model(x: FLOAT[1024], y: FLOAT[1024], z: FLOAT[1024]) -> FLOAT[1024]:
+            t1 = op.Mul(op.Add(x, y), z)
+            t2 = op.Mul(op.Add(t1, y), z)
+            return t2
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        rule.apply_to_model(model)
+        self.assertEqual(len(model.functions), 2)
+        self.assertEqual(len(model.graph), 2)
+        for call_node in model.graph:
+            self.assertEqual(call_node.domain, "some.domain")
+            self.assertEqual(call_node.op_type, "AddMul")
+            function_id = call_node.op_identifier()
+            self.assertIn(function_id, model.functions)
+        onnxscript.optimizer.inline(model)
+        self.assertEqual([x.op_type for x in model.graph], ["Add", "Mul", "Add", "Mul"])
+
 
 class PatternBuilderTest(unittest.TestCase):
     def test_pattern_builder_context(self):
