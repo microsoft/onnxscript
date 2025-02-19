@@ -9,6 +9,7 @@ import numpy as np
 import onnx.checker
 import onnx.parser
 
+import onnxscript.optimizer
 from onnxscript import FLOAT, ir, script
 from onnxscript import opset17 as op
 from onnxscript.rewriter import cast_constant_of_shape, pattern
@@ -581,17 +582,26 @@ class RewriteRuleTest(unittest.TestCase):
         def source_pattern(op, x, y, z):
             sum = op.Add(x, y)
             return op.Mul(sum, z)
+
         def replacement(op, x, y, z):
-            return op.AddMul(x, y, z, _domain = "some.domain")
+            return op.AddMul(x, y, z, _domain="some.domain")
+
         rule = pattern.RewriteRule(source_pattern, replacement, as_function=True)
+
         @script()
         def test_model(x: FLOAT[1024], y: FLOAT[1024], z: FLOAT[1024]) -> FLOAT[1024]:
             return op.Mul(op.Add(x, y), z)
+
         model_proto = test_model.to_model_proto()
         model = ir.serde.deserialize_model(model_proto)
         rule.apply_to_model(model)
-        # self.assertEqual(len(model.functions), 1)
-        model.display()
+        self.assertEqual([x.op_type for x in model.graph], ["AddMul"])
+        self.assertEqual([f.name for f in model.functions.values()], ["AddMul"])
+        function = model.functions[("some.domain", "AddMul", "")]
+        self.assertEqual([x.op_type for x in function], ["Add", "Mul"])
+        onnxscript.optimizer.inline(model)
+        self.assertEqual([x.op_type for x in model.graph], ["Add", "Mul"])
+
 
 class PatternBuilderTest(unittest.TestCase):
     def test_pattern_builder_context(self):

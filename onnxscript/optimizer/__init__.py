@@ -8,6 +8,7 @@ import onnxscript.optimizer._constant_folding as constant_folding
 import onnxscript.optimizer._legacy._optimizer as legacy_optimizer
 import onnxscript.optimizer._legacy.constant_folding as legacy_constant_folding
 from onnxscript import ir
+from onnxscript.optimizer._inliner import inline
 from onnxscript.optimizer._optimizer import optimize_ir
 from onnxscript.optimizer._remove_unused import remove_unused_nodes
 
@@ -36,4 +37,5 @@ __all__ = [
     "optimize",
     "optimize_ir",
     "basic_constant_propagation",
+    "inline",
 ]

@@ -1315,9 +1315,7 @@ class RewriteRule:
                 is complete for a graph or function.
         """
         if as_function and not remove_nodes:
-            raise ValueError(
-                "as_function=True is only supported when remove_nodes=True."
-            )
+            raise ValueError("as_function=True is only supported when remove_nodes=True.")
         if not isinstance(target_pattern, GraphPattern):
             target_pattern = _to_graph_pattern(target_pattern)
         self._target_pattern = target_pattern
@@ -1533,24 +1531,33 @@ class RewriteRuleClassBase:
     def rewrite(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'rewrite' must be implemented by derived class.")
 
-def _copy_for_function(nodes: Sequence[ir.Node], outputs: Sequence[ir.Value]):
-    value_map : dict[ir.Value, ir.Value] = {}
+
+def _copy_for_function(
+    inputs: Sequence[ir.Value], nodes: Sequence[ir.Node], outputs: Sequence[ir.Value]
+):
+    value_map: dict[ir.Value, ir.Value] = {}
+    function_inputs: list[ir.Value] = []
+    for input in inputs:
+        # Create a formal-parameter value to represent this value:
+        new_value = ir.Value(
+            name=input.name,
+            shape=input.shape,
+            type=input.type,
+            doc_string=input.doc_string,
+        )
+        value_map[input] = new_value
+        function_inputs.append(new_value)
+
     def copy_value(value: ir.Value) -> ir.Value:
         if value is None:
             return None
-        if value in value_map:
-            return value_map[value]
-        # Create a formal-parameter value to represent this value:
-        new_value = ir.Value(
-            name = value.name,
-            shape = value.shape,
-            type = value.type,
-            doc_string= value.doc_string,
-        )
-        value_map[value] = new_value
-        return new_value
+        if value not in value_map:
+            raise ValueError(f"Value {value} not found in value_map.")
+        return value_map[value]
+
     def copy_attr_value(attr_value):
-        return attr_value # TODO
+        return attr_value  # TODO
+
     def copy_node(node: ir.Node) -> ir.Node:
         new_inputs = [copy_value(v) for v in node.inputs]
         new_attributes = {k: copy_attr_value(v) for k, v in node.attributes.items()}
@@ -1572,10 +1579,11 @@ def _copy_for_function(nodes: Sequence[ir.Node], outputs: Sequence[ir.Value]):
             if output.name is not None:
                 new_outputs[i].name = output.name
         return new_node
+
     function_nodes = [copy_node(node) for node in nodes]
-    function_inputs = list(value_map.values())
     function_outputs = [copy_value(v) for v in outputs]
     return (function_inputs, function_nodes, function_outputs)
+
 
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
@@ -1639,6 +1647,37 @@ class RewriteRuleSet:
                 # is sufficient for patterns with a single output-node "node", which can serve as the
                 # insertion-point.
                 onnxscript.optimizer.basic_constant_propagation(delta.new_nodes)
+                if rule.as_function:
+                    if len(delta.new_nodes) != 1:
+                        raise ValueError(
+                            "as_function=True is only supported for patterns with a single replacement node."
+                        )
+                    call_node = delta.new_nodes[0]
+                    domain = call_node.domain
+                    name = call_node.op_type
+                    overload = ""  # TODO
+
+                    # Create topologically sorted list of nodes to be replaced.
+                    unsorted_nodes = set(delta.match.nodes)
+                    original_nodes = [n for n in graph_or_function if n in unsorted_nodes]
+                    inputs, nodes, outputs = _copy_for_function(
+                        call_node.inputs, original_nodes, delta.match.outputs
+                    )
+                    # Create new function from delta.match.nodes and add it to model.functions.
+                    # Determine: inputs/outputs, domain, name, overload, opset_imports.
+                    # Create a copy of nodes, replacing actuals by formals.
+
+                    used_domains: set[str] = set(node.domain for node in original_nodes)
+                    parent_opset_imports = graph_or_function.opset_imports
+                    used_opset_imports = {
+                        k: v for k, v in parent_opset_imports.items() if k in used_domains
+                    }
+
+                    graph = ir.Graph(
+                        inputs, outputs, nodes=nodes, opset_imports=used_opset_imports
+                    )
+                    f = ir.Function(domain, name, overload, graph=graph, attributes={})
+                    model.functions[f.identifier()] = f
                 _convenience.replace_nodes_and_values(
                     graph_or_function,
                     node,
@@ -1647,27 +1686,10 @@ class RewriteRuleSet:
                     delta.match.outputs,
                     delta.new_outputs,
                 )
-                if rule.as_function:
-                    # Create new function from delta.match.nodes and add it to model.functions.
-                    # Determine: inputs/outputs, domain, name, overload, opset_imports.
-                    # Create a copy of nodes, replacing actuals by formals.
-                    original_nodes = delta.match.nodes
-                    used_domains: set[str] = set(node.domain for node in original_nodes)
-                    parent_opset_imports = graph_or_function.opset_imports
-                    used_opset_imports = { k: v for k, v in parent_opset_imports.items() if k in used_domains }
-                    inputs, nodes, outputs = _copy_for_function(original_nodes, delta.match.outputs)
-                    assert len(delta.new_nodes) == 1
-                    call_node = delta.new_nodes[0]
-                    domain = call_node.domain
-                    name = call_node.op_type
-                    overload = "" # TODO
-                    graph = ir.Graph(inputs, outputs, nodes=nodes, opset_imports=used_opset_imports)
-                    f = ir.Function(domain, name, overload, graph=graph, attributes={})
-                    model.functions[f.identifier()] = f
+
                 count += 1
             if rule.graph_post_visitor:
                 rule.graph_post_visitor()
-
 
         return count
 
