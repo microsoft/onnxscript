@@ -1707,7 +1707,7 @@ def aten_clamp_tensor(
 def aten_clamp_max(self: TReal, max_: float) -> TReal:
     """clamp_max(Tensor self, Scalar max) -> Tensor"""
 
-    # This implementation does not intent to handle when self is an empty tensor
+    # This implementation does not intend to handle when self is an empty tensor
     max_ = op.CastLike(max_, self)
     return op.Clip(self, None, max_)
 
@@ -1716,7 +1716,7 @@ def aten_clamp_max(self: TReal, max_: float) -> TReal:
 def aten_clamp_max_tensor(self: TReal, max_: TReal) -> TReal:
     """clamp_max.Tensor(Tensor self, Tensor max) -> Tensor"""
 
-    # This implementation does not intent to handle when self is an empty tensor
+    # This implementation does not intend to handle when self is an empty tensor
     max_rank = len(max_.shape)
     if max_rank == 0:
         max_ = op.CastLike(max_, self)
@@ -1731,7 +1731,7 @@ def aten_clamp_max_tensor(self: TReal, max_: TReal) -> TReal:
 def aten_clamp_min(self: TReal, min_: float) -> TReal:
     """clamp_min(Tensor self, Scalar min) -> Tensor"""
 
-    # This implementation does not intent to handle when self is an empty tensor
+    # This implementation does not intend to handle when self is an empty tensor
     min_ = op.CastLike(min_, self)
     return op.Clip(self, min_, None)
 
@@ -1740,7 +1740,7 @@ def aten_clamp_min(self: TReal, min_: float) -> TReal:
 def aten_clamp_min_tensor(self: TReal, min_: TReal) -> TReal:
     """clamp_min.Tensor(Tensor self, Tensor min) -> Tensor"""
 
-    # This implementation does not intent to handle when self is an empty tensor
+    # This implementation does not intend to handle when self is an empty tensor
     min_rank = len(min_.shape)
     if min_rank == 0:
         min_ = op.CastLike(min_, self)
