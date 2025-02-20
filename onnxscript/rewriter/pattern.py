@@ -1571,7 +1571,8 @@ def _copy_for_function(
             # No need to support this currently, as rewriting control-flow constructs
             # is not used and has several challenges.
             raise NotImplementedError("Graph attributes not supported.")
-        return ir.Attr(attr.name, attr.type, attr.value, doc_string=attr.doc_string)
+        # Primitive attributes are immutable by design and can be shared.
+        return attr
 
     def copy_node(node: ir.Node) -> ir.Node:
         new_inputs = [copy_value(v) for v in node.inputs]
@@ -1747,6 +1748,8 @@ class RewriteRuleSet:
         assert isinstance(model, ir.Model)
         tracer = MatchingTracer() if debug else None
         onnxscript.optimizer.basic_constant_propagation(model.graph)
+        # Rewriting may introduce new functions. In the following loop,
+        # we restrict rewriting to original functions, not newly introduced ones.
         original_functions = list(model.functions.values())
         count = self._apply_to_graph_or_function(
             model, model.graph, verbose=verbose, tracer=tracer
