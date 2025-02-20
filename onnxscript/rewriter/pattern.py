@@ -1313,6 +1313,10 @@ class RewriteRule:
                 rewriting to the top-level graph or a function.
             graph_post_visitor: A function that will be called after the rewriting
                 is complete for a graph or function.
+            as_function: If True, the matched nodes will be extracted into a model
+                local function. This is only supported when remove_nodes=True and
+                when the replacement subgraph has a single node, representing the
+                function call.
         """
         if as_function and not remove_nodes:
             raise ValueError("as_function=True is only supported when remove_nodes=True.")
