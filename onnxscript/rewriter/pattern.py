@@ -1533,13 +1533,15 @@ class RewriteRuleClassBase:
 
 
 def _copy_for_function(
-    inputs: Sequence[ir.Value], nodes: Sequence[ir.Node], outputs: Sequence[ir.Value]
+    inputs: Sequence[ir.Value | None], nodes: Sequence[ir.Node], outputs: Sequence[ir.Value]
 ):
     """Utility function to extract a subgraph out as a function."""
     value_map: dict[ir.Value, ir.Value] = {}
     function_inputs: list[ir.Value] = []
     for input in inputs:
         # Create a function input (formal-parameter value) to represent this value:
+        if input is None:
+            raise NotImplementedError("None inputs not supported.")
         new_value = ir.Value(
             name=input.name,
             shape=input.shape,
@@ -1558,9 +1560,13 @@ def _copy_for_function(
 
     def copy_attr_value(attr: ir.Attr | ir.RefAttr) -> ir.Attr | ir.RefAttr:
         if not isinstance(attr, ir.Attr):
-            raise ValueError("RefAttr not supported.")
+            # No need to support this currently, as rewriting inside a function is
+            # not used, as it has several challenges.
+            raise NotImplementedError("RefAttr not supported.")
         if attr.type in {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}:
-            raise ValueError("Graph attributes not supported.")
+            # No need to support this currently, as rewriting control-flow constructs
+            # is not used and has several challenges.
+            raise NotImplementedError("Graph attributes not supported.")
         return ir.Attr(attr.name, attr.type, attr.value, doc_string=attr.doc_string)
 
     def copy_node(node: ir.Node) -> ir.Node:
@@ -1693,7 +1699,7 @@ class RewriteRuleSet:
                         call_node.inputs, original_nodes, delta.match.outputs
                     )
 
-                    used_domains: set[str] = set(node.domain for node in original_nodes)
+                    used_domains: set[str] = {node.domain for node in original_nodes}
                     parent_opset_imports = graph_or_function.opset_imports
                     used_opset_imports = {
                         k: v for k, v in parent_opset_imports.items() if k in used_domains
