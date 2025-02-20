@@ -717,11 +717,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.bool,),
         reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
     ),
-    TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max).skip(
+    TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max_tensor).skip(
         reason="Size 0 inputs are not handled by design",
         matcher=lambda sample: sample.input.numel() == 0,
     ),
-    TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min).skip(
+    TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min_tensor).skip(
         reason="Size 0 inputs are not handled by design",
         matcher=lambda sample: sample.input.numel() == 0,
     ),
@@ -1553,7 +1553,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="partial_views",
         reason="ONNX doesn't have partial view for tensor",
     ),
-    TorchLibOpInfo("clamp", core_ops.aten_clamp),
+    TorchLibOpInfo("clamp", core_ops.aten_clamp_tensor),
     TorchLibOpInfo(
         "ops.aten.col2im",
         nn_ops.aten_col2im,
