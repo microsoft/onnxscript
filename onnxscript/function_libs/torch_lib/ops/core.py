@@ -1662,13 +1662,32 @@ def aten_chunk(self: TTensor, chunks: int, dim: int = 0) -> Sequence[TTensor]:
     return op.SplitToSequence(self, list_split, axis=dim)
 
 
-@torch_op(("aten::clamp", "aten::clamp.Tensor"), trace_only=True)
-def aten_clamp(self: TReal, min: Optional[TReal] = None, max: Optional[TReal] = None) -> TReal:
-    """clamp(Tensor self, Tensor? min=None, Tensor? max=None) -> Tensor"""
-    clamped = self
+@torch_op("aten::clamp", trace_only=True)
+def aten_clamp(self: TReal, min: Optional[float] = None, max: Optional[float] = None) -> TReal:
+    """clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor"""
 
     if min is None and max is None:
-        return clamped
+        return op.Identity(self)
+
+    if min is not None:
+        min = op.CastLike(min, self)
+
+    if max is not None:
+        max = op.CastLike(max, self)
+
+    return op.Clip(self, min, max)
+
+
+@torch_op("aten::clamp.Tensor", trace_only=True)
+def aten_clamp_tensor(
+    self: TReal, min: Optional[TReal] = None, max: Optional[TReal] = None
+) -> TReal:
+    """clamp.Tensor(Tensor self, Tensor? min=None, Tensor? max=None) -> Tensor"""
+
+    if min is None and max is None:
+        return op.Identity(self)
+
+    clamped = self
 
     # If min is greater than max torch.clamp(..., min, max)
     # sets all elements in input to the value of max.
@@ -1684,9 +1703,18 @@ def aten_clamp(self: TReal, min: Optional[TReal] = None, max: Optional[TReal] = 
     return clamped
 
 
-@torch_op(("aten::clamp_max", "aten::clamp_max.Tensor"), trace_only=True)
-def aten_clamp_max(self: TReal, max_: TReal) -> TReal:
-    """clamp_max(Tensor self, Tensor max) -> Tensor"""
+@torch_op("aten::clamp_max", trace_only=True)
+def aten_clamp_max(self: TReal, max_: float) -> TReal:
+    """clamp_max(Tensor self, Scalar max) -> Tensor"""
+
+    # This implementation does not intent to handle when self is an empty tensor
+    max_ = op.CastLike(max_, self)
+    return op.Clip(self, None, max_)
+
+
+@torch_op("aten::clamp_max.Tensor", trace_only=True)
+def aten_clamp_max_tensor(self: TReal, max_: TReal) -> TReal:
+    """clamp_max.Tensor(Tensor self, Tensor max) -> Tensor"""
 
     # This implementation does not intent to handle when self is an empty tensor
     max_rank = len(max_.shape)
@@ -1699,9 +1727,18 @@ def aten_clamp_max(self: TReal, max_: TReal) -> TReal:
     return result
 
 
-@torch_op(("aten::clamp_min", "aten::clamp_min.Tensor"), trace_only=True)
-def aten_clamp_min(self: TReal, min_: TReal) -> TReal:
-    """clamp_min(Tensor self, Tensor min) -> Tensor"""
+@torch_op("aten::clamp_min", trace_only=True)
+def aten_clamp_min(self: TReal, min_: float) -> TReal:
+    """clamp_min(Tensor self, Scalar min) -> Tensor"""
+
+    # This implementation does not intent to handle when self is an empty tensor
+    min_ = op.CastLike(min_, self)
+    return op.Clip(self, min_, None)
+
+
+@torch_op("aten::clamp_min.Tensor", trace_only=True)
+def aten_clamp_min_tensor(self: TReal, min_: TReal) -> TReal:
+    """clamp_min.Tensor(Tensor self, Tensor min) -> Tensor"""
 
     # This implementation does not intent to handle when self is an empty tensor
     min_rank = len(min_.shape)
