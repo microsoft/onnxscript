@@ -445,3 +445,8 @@ def replace_nodes_and_values(
     # insert new nodes after the index node
     graph_or_function.insert_after(insertion_point, new_nodes)
     graph_or_function.remove(old_nodes, safe=True)
+
+
+class ModelEditor:
+    def __init__(self, model: _core.Model) -> None:
+        self.model = model
