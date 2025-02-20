@@ -15,12 +15,12 @@ __all__ = [
 ]
 
 import typing
-from typing import Mapping, Sequence, Union
+from typing import Iterator, Mapping, Sequence, Union
 
 import numpy as np
 import onnx
 
-from onnxscript.ir import _core, _enums, _protocols, serde, tensor_adapters
+from onnxscript.ir import _core, _enums, _protocols, serde, tensor_adapters, traversal as _traversal
 
 if typing.TYPE_CHECKING:
     import numpy.typing as npt
@@ -450,3 +450,8 @@ def replace_nodes_and_values(
 class ModelEditor:
     def __init__(self, model: _core.Model) -> None:
         self.model = model
+
+    def graphs(self) -> Iterator[_core.Graph]:
+        yield self.model.graph
+        for node in _traversal.RecursiveGraphIterator(self.model.graph):
+            for attr in ...

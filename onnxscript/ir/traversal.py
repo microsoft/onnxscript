@@ -17,6 +17,8 @@ from onnxscript.ir import _core, _enums
 GraphLike = Union[_core.Graph, _core.Function, _core.GraphView]
 
 
+# TODO(justinchuby): Create an iterator for subgraphs.
+
 class RecursiveGraphIterator(Iterator[_core.Node], Reversible[_core.Node]):
     def __init__(
         self,
