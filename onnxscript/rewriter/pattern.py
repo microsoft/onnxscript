@@ -1702,7 +1702,7 @@ class RewriteRuleSet:
                     graph = ir.Graph(
                         inputs, outputs, nodes=nodes, opset_imports=used_opset_imports
                     )
-                    f = ir.Function(domain, name, overload, graph=graph, attributes={})
+                    f = ir.Function(domain, name, overload, graph=graph, attributes=())
                     model.functions[f.identifier()] = f
                 _convenience.replace_nodes_and_values(
                     graph_or_function,
