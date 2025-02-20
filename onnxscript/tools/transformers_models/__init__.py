@@ -42,14 +42,14 @@ def export_to_onnx(
         else:
             prog = torch.onnx.dynamo_export(model, *args)
     assert prog is not None
-    model_proto = prog.model_proto
+    model = prog.model
     if optimize:
-        model_proto = onnxscript.optimizer.optimize(
-            model_proto,
+        model = onnxscript.optimizer.optimize(
+            model,
             num_iterations=2,
-            onnx_shape_inference=True,
         )
-        model_proto = onnxscript.rewriter.rewrite(model_proto)
+        model = onnxscript.rewriter.rewrite(model)
+        model_proto = onnxscript.ir.to_proto(model)
         model_proto = onnx.inliner.inline_local_functions(model_proto)
     return model_proto
 

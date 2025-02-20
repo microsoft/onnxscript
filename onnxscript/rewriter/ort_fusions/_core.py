@@ -41,4 +41,3 @@ def fuse_xformers(model: ir.Model) -> None:
 def optimize_for_ort(model: ir.Model) -> None:
     fuse_xformers(model)
     rewrite(model, ORT_PATTERN_REWRITE_RULES)
-    

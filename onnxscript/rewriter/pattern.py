@@ -1313,6 +1313,10 @@ class RewriteRule:
                 rewriting to the top-level graph or a function.
             graph_post_visitor: A function that will be called after the rewriting
                 is complete for a graph or function.
+            as_function: If True, the matched nodes will be extracted into a model
+                local function. This is only supported when remove_nodes=True and
+                when the replacement subgraph has a single node, representing the
+                function call.
         """
         if as_function and not remove_nodes:
             raise ValueError("as_function=True is only supported when remove_nodes=True.")
@@ -1533,13 +1537,15 @@ class RewriteRuleClassBase:
 
 
 def _copy_for_function(
-    inputs: Sequence[ir.Value], nodes: Sequence[ir.Node], outputs: Sequence[ir.Value]
+    inputs: Sequence[ir.Value | None], nodes: Sequence[ir.Node], outputs: Sequence[ir.Value]
 ):
     """Utility function to extract a subgraph out as a function."""
     value_map: dict[ir.Value, ir.Value] = {}
     function_inputs: list[ir.Value] = []
     for input in inputs:
         # Create a function input (formal-parameter value) to represent this value:
+        if input is None:
+            raise NotImplementedError("None inputs not supported.")
         new_value = ir.Value(
             name=input.name,
             shape=input.shape,
@@ -1558,10 +1564,15 @@ def _copy_for_function(
 
     def copy_attr_value(attr: ir.Attr | ir.RefAttr) -> ir.Attr | ir.RefAttr:
         if not isinstance(attr, ir.Attr):
-            raise ValueError("RefAttr not supported.")
+            # No need to support this currently, as rewriting inside a function is
+            # not used, as it has several challenges.
+            raise NotImplementedError("RefAttr not supported.")
         if attr.type in {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}:
-            raise ValueError("Graph attributes not supported.")
-        return ir.Attr(attr.name, attr.type, attr.value, doc_string=attr.doc_string)
+            # No need to support this currently, as rewriting control-flow constructs
+            # is not used and has several challenges.
+            raise NotImplementedError("Graph attributes not supported.")
+        # Primitive attributes are immutable by design and can be shared.
+        return attr
 
     def copy_node(node: ir.Node) -> ir.Node:
         new_inputs = [copy_value(v) for v in node.inputs]
@@ -1693,7 +1704,7 @@ class RewriteRuleSet:
                         call_node.inputs, original_nodes, delta.match.outputs
                     )
 
-                    used_domains: set[str] = set(node.domain for node in original_nodes)
+                    used_domains: set[str] = {node.domain for node in original_nodes}
                     parent_opset_imports = graph_or_function.opset_imports
                     used_opset_imports = {
                         k: v for k, v in parent_opset_imports.items() if k in used_domains
@@ -1702,7 +1713,7 @@ class RewriteRuleSet:
                     graph = ir.Graph(
                         inputs, outputs, nodes=nodes, opset_imports=used_opset_imports
                     )
-                    f = ir.Function(domain, name, overload, graph=graph, attributes={})
+                    f = ir.Function(domain, name, overload, graph=graph, attributes=())
                     model.functions[f.identifier()] = f
                 _convenience.replace_nodes_and_values(
                     graph_or_function,
@@ -1737,6 +1748,8 @@ class RewriteRuleSet:
         assert isinstance(model, ir.Model)
         tracer = MatchingTracer() if debug else None
         onnxscript.optimizer.basic_constant_propagation(model.graph)
+        # Rewriting may introduce new functions. In the following loop,
+        # we restrict rewriting to original functions, not newly introduced ones.
         original_functions = list(model.functions.values())
         count = self._apply_to_graph_or_function(
             model, model.graph, verbose=verbose, tracer=tracer

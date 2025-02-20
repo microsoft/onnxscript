@@ -136,8 +136,12 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         )
 
 
-_cast_const_freqs = CosSinCacheFusion.rule("CosSinCache_cast_const_freqs", 2048, cast=True, const_freqs=True)
-_cast = CosSinCacheFusion.rule("CosSinCache_cast_no_const_freqs", 2048, cast=True, const_freqs=False)
+_cast_const_freqs = CosSinCacheFusion.rule(
+    "CosSinCache_cast_const_freqs", 2048, cast=True, const_freqs=True
+)
+_cast = CosSinCacheFusion.rule(
+    "CosSinCache_cast_no_const_freqs", 2048, cast=True, const_freqs=False
+)
 _basic = CosSinCacheFusion.rule("CosSinCache", 2048, cast=False)
 
 cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _cast_const_freqs, _basic])
