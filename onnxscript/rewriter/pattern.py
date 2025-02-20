@@ -1292,6 +1292,7 @@ class RewriteRule:
         remove_nodes: bool = True,
         graph_pre_visitor: Callable[[], None] | None = None,
         graph_post_visitor: Callable[[], None] | None = None,
+        as_function: bool = False,
     ) -> None:
         """Create a rewrite rule.
 
@@ -1312,8 +1313,13 @@ class RewriteRule:
                 rewriting to the top-level graph or a function.
             graph_post_visitor: A function that will be called after the rewriting
                 is complete for a graph or function.
+            as_function: If True, the matched nodes will be extracted into a model
+                local function. This is only supported when remove_nodes=True and
+                when the replacement subgraph has a single node, representing the
+                function call.
         """
-
+        if as_function and not remove_nodes:
+            raise ValueError("as_function=True is only supported when remove_nodes=True.")
         if not isinstance(target_pattern, GraphPattern):
             target_pattern = _to_graph_pattern(target_pattern)
         self._target_pattern = target_pattern
@@ -1338,6 +1344,7 @@ class RewriteRule:
         self.remove_nodes = remove_nodes
         self.graph_pre_visitor = graph_pre_visitor
         self.graph_post_visitor = graph_post_visitor
+        self.as_function = as_function
 
     def __str__(self) -> str:
         return self.name if self.name else "Anonymous Rule"
@@ -1529,6 +1536,92 @@ class RewriteRuleClassBase:
         raise NotImplementedError("Method 'rewrite' must be implemented by derived class.")
 
 
+def _copy_for_function(
+    inputs: Sequence[ir.Value | None], nodes: Sequence[ir.Node], outputs: Sequence[ir.Value]
+):
+    """Utility function to extract a subgraph out as a function."""
+    value_map: dict[ir.Value, ir.Value] = {}
+    function_inputs: list[ir.Value] = []
+    for input in inputs:
+        # Create a function input (formal-parameter value) to represent this value:
+        if input is None:
+            raise NotImplementedError("None inputs not supported.")
+        new_value = ir.Value(
+            name=input.name,
+            shape=input.shape,
+            type=input.type,
+            doc_string=input.doc_string,
+        )
+        value_map[input] = new_value
+        function_inputs.append(new_value)
+
+    def copy_value(value: ir.Value | None) -> ir.Value | None:
+        if value is None:
+            return None
+        if value not in value_map:
+            raise ValueError(f"Value {value} not found in value_map.")
+        return value_map[value]
+
+    def copy_attr_value(attr: ir.Attr | ir.RefAttr) -> ir.Attr | ir.RefAttr:
+        if not isinstance(attr, ir.Attr):
+            # No need to support this currently, as rewriting inside a function is
+            # not used, as it has several challenges.
+            raise NotImplementedError("RefAttr not supported.")
+        if attr.type in {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}:
+            # No need to support this currently, as rewriting control-flow constructs
+            # is not used and has several challenges.
+            raise NotImplementedError("Graph attributes not supported.")
+        # Primitive attributes are immutable by design and can be shared.
+        return attr
+
+    def copy_node(node: ir.Node) -> ir.Node:
+        new_inputs = [copy_value(v) for v in node.inputs]
+        new_attributes = [copy_attr_value(v) for v in node.attributes.values()]
+        new_node = ir.Node(
+            node.domain,
+            node.op_type,
+            new_inputs,
+            new_attributes,
+            overload=node.overload,
+            num_outputs=len(node.outputs),
+            graph=None,
+            name=node.name,
+            doc_string=node.doc_string,  # type: ignore
+            metadata_props=node.metadata_props.copy(),
+        )
+        new_outputs = new_node.outputs
+        for i, output in enumerate(node.outputs):
+            value_map[output] = new_outputs[i]
+            if output.name is not None:
+                new_outputs[i].name = output.name
+        return new_node
+
+    function_nodes = [copy_node(node) for node in nodes]
+    function_outputs = [copy_value(v) for v in outputs]
+    return (function_inputs, function_nodes, function_outputs)
+
+
+def _get_new_overload(model: ir.Model, domain: str, name: str) -> str:
+    """Get a new overload for the given domain and name.
+
+    Args:
+        model: The model to which the new overload will be added.
+        domain: The domain of the new overload.
+        name: The opname of the new overload.
+
+    Returns:
+        The new overload name.
+    """
+    existing_functions = model.functions
+    # Just a simple implementation for now
+    overload = 1
+    while True:
+        overload_name = str(overload)
+        if (domain, name, overload_name) not in existing_functions:
+            return overload_name
+        overload += 1
+
+
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
         if commute:
@@ -1591,6 +1684,37 @@ class RewriteRuleSet:
                 # is sufficient for patterns with a single output-node "node", which can serve as the
                 # insertion-point.
                 onnxscript.optimizer.basic_constant_propagation(delta.new_nodes)
+                if rule.as_function:
+                    # Create a function out of a copy of the matched nodes
+                    if len(delta.new_nodes) != 1:
+                        raise ValueError(
+                            "as_function=True is only supported for patterns with a single replacement node."
+                        )
+                    call_node = delta.new_nodes[0]
+                    domain = call_node.domain
+                    name = call_node.op_type
+                    overload = _get_new_overload(model, domain, name)
+                    call_node.overload = overload
+
+                    # Create topologically sorted list of nodes to be replaced.
+                    unsorted_nodes = set(delta.match.nodes)
+                    original_nodes = [n for n in graph_or_function if n in unsorted_nodes]
+                    # Create new inputs/nodes/outputs for the function
+                    inputs, nodes, outputs = _copy_for_function(
+                        call_node.inputs, original_nodes, delta.match.outputs
+                    )
+
+                    used_domains: set[str] = {node.domain for node in original_nodes}
+                    parent_opset_imports = graph_or_function.opset_imports
+                    used_opset_imports = {
+                        k: v for k, v in parent_opset_imports.items() if k in used_domains
+                    }
+
+                    graph = ir.Graph(
+                        inputs, outputs, nodes=nodes, opset_imports=used_opset_imports
+                    )
+                    f = ir.Function(domain, name, overload, graph=graph, attributes=())
+                    model.functions[f.identifier()] = f
                 _convenience.replace_nodes_and_values(
                     graph_or_function,
                     node,
@@ -1599,6 +1723,7 @@ class RewriteRuleSet:
                     delta.match.outputs,
                     delta.new_outputs,
                 )
+
                 count += 1
             if rule.graph_post_visitor:
                 rule.graph_post_visitor()
@@ -1623,10 +1748,13 @@ class RewriteRuleSet:
         assert isinstance(model, ir.Model)
         tracer = MatchingTracer() if debug else None
         onnxscript.optimizer.basic_constant_propagation(model.graph)
+        # Rewriting may introduce new functions. In the following loop,
+        # we restrict rewriting to original functions, not newly introduced ones.
+        original_functions = list(model.functions.values())
         count = self._apply_to_graph_or_function(
             model, model.graph, verbose=verbose, tracer=tracer
         )
-        for function in model.functions.values():
+        for function in original_functions:
             onnxscript.optimizer.basic_constant_propagation(function)
             count += self._apply_to_graph_or_function(
                 model, function, verbose=verbose, tracer=tracer
