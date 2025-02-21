@@ -21,7 +21,7 @@ extends:
   parameters:
     sdl:
       sourceAnalysisPool:
-        name: windows-latest
+        name: onnxruntime-Win-CPU-2022
         os: windows
     pool:
       name: 'onnxruntime-Ubuntu2204-AMD-CPU'
