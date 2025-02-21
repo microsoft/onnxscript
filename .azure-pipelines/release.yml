@@ -24,7 +24,7 @@ extends:
         name: windows-latest
         os: windows
     pool:
-      name: 'ubuntu-latest'
+      name: 'onnxruntime-Ubuntu2204-AMD-CPU'
       os: 'linux'
     stages:
     - template: stages/release_stage.yml
