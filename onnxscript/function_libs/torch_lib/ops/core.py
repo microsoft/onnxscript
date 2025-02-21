@@ -6652,7 +6652,7 @@ def aten_positive(self: TensorType) -> TensorType:
 
 
 @torch_op(
-    ("aten::pow.Tensor_Tensor", "aten::pow.Tensor_Scalar"),
+    ("aten::pow.Tensor_Tensor", "aten::pow.Tensor_Scalar", "_operator::pow"),
     trace_only=True,
 )
 def aten_pow(self: TReal, exponent: TTensor) -> TReal:
@@ -6660,10 +6660,7 @@ def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     return op.Pow(self, exponent)
 
 
-@torch_op(
-    ("_operator::pow", "aten::pow.Scalar"),
-    trace_only=True,
-)
+@torch_op("aten::pow.Scalar", trace_only=True)
 def aten_pow_scalar(self: float, exponent: TTensor) -> TTensor:
     """pow.Scalar(Scalar self, Tensor exponent) -> Tensor"""
 
