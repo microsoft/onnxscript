@@ -26,5 +26,5 @@ extends:
     pool:
       name: 'onnxruntime-Ubuntu2204-AMD-CPU'
       os: 'linux'
-    steps:
+    stages:
     - template: stages/_release-template-stage.yml
