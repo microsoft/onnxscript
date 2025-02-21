@@ -23,13 +23,9 @@ extends:
       name: 'ubuntu-latest'
       image: 'ubuntu-latest'
       os: 'linux'
-    stages:
-    - stage: Stage
-      jobs:
-      - job: Job
-        steps:
-        - template: _release-template.yml
-        # Test the wheels. This needs to happen after PublishBuildArtifacts
-        # to avoid interference with the artifacts
-        - script: python -m pip install dist/*.whl --no-deps
-          displayName: 'Install wheel'
+    steps:
+    - template: _release-template.yml
+    # Test the wheels. This needs to happen after PublishBuildArtifacts
+    # to avoid interference with the artifacts
+    - script: python -m pip install dist/*.whl --no-deps
+      displayName: 'Install wheel'
