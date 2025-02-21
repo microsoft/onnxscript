@@ -2769,7 +2769,8 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2.0) -> TensorType
         "aten::divide.Scalar",
         "aten::true_divide.Tensor",
         "aten::true_divide.Scalar",
-    )
+    ),
+    trace_only=True,
 )
 def aten_div(self: TFloat, other: TFloat) -> TFloat:
     """div.Tensor(Tensor self, Tensor other) -> Tensor"""
@@ -3338,7 +3339,7 @@ def aten_erfinv(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::exp")
+@torch_op("aten::exp", trace_only=True)
 def aten_exp(self: TFloat) -> TFloat:
     """exp(Tensor self) -> Tensor"""
 
@@ -3354,8 +3355,8 @@ def aten_exp2(self: TFloat) -> TFloat:
     return op.Pow(two, self)
 
 
-@torch_op("aten::expand")
-def aten_expand(self: TTensor, size: TInt) -> TTensor:
+@torch_op("aten::expand", trace_only=True)
+def aten_expand(self: TTensor, size: TInt, implicit: bool = False) -> TTensor:
     """expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)"""
     size = op.Cast(size, to=INT64.dtype)
     # NOTE: PyTorch supports `not changing dim` by -1, but ONNX supports `not changing dim` by 1.
@@ -7158,23 +7159,14 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
     raise NotImplementedError()
 
 
-@torch_op("aten::repeat")
-def aten_repeat(self: TTensor, repeats: TInt) -> TTensor:
+@torch_op("aten::repeat", trace_only=True)
+def aten_repeat(self: TTensor, repeats: Sequence[TInt]) -> TTensor:
     """repeat(Tensor self, SymInt[] repeats) -> Tensor"""
 
-    if op.Size(repeats) == 0:
-        result = self
-    else:
-        # TODO(justinchuby): Make ones_like a function when onnxscript supports it
-        repeats = op.Cast(repeats, to=INT64.dtype)
-        # shape = ones_like(repeats) := {
-        one = op.Constant(value_int=1)
-        repeats_shape = op.Shape(repeats)
-        shape = op.Expand(one, repeats_shape)
-        # }
-        self_expanded = op.Expand(self, shape)
-        result = op.Tile(self_expanded, repeats)
-    return result
+    if len(repeats) == 0:
+        return self
+    self_expanded = op.Expand(self, [1] * len(repeats))
+    return op.Tile(self_expanded, repeats)
 
 
 def aten_repeat_interleave(
@@ -7490,7 +7482,7 @@ def aten_scatter(
     return op.ScatterElements(self, index, update, axis=dim)
 
 
-@torch_op("aten::scatter_add")
+@torch_op("aten::scatter_add", trace_only=True)
 def aten_scatter_add(
     self: TReal,
     dim: int,  # we have to use int here because ScatterElements() will use this attribute
@@ -8568,7 +8560,7 @@ def aten_unsafe_split_with_sizes(
     raise NotImplementedError()
 
 
-@torch_op("aten::unsqueeze")
+@torch_op("aten::unsqueeze", trace_only=True)
 def aten_unsqueeze(self: TTensor, dim: int) -> TTensor:
     """unsqueeze(Tensor(a) self, int dim) -> Tensor(a)"""
 
