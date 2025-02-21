@@ -1,5 +1,9 @@
 # Template steps for the release pipeline
-
+parameters:
+- name: is1ES
+  displayName: 'Is 1ES pipeline'
+  type: boolean
+  default: false
 steps:
 - task: UsePythonVersion@0
   inputs:
@@ -15,8 +19,14 @@ steps:
     SourceFolder: 'dist'
     Contents: '*.*'
     TargetFolder: '$(Build.ArtifactStagingDirectory)'
-- task: 1ES.PublishBuildArtifacts@1
-  displayName: 'Save build artifacts'
-  inputs:
-    ArtifactName: onnxscript
-    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+- ${{ if eq(parameters.is1ES, false) }}:
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish Python Wheel'
+    inputs:
+      ArtifactName: 'onnxscript'
+- ${{ if eq(parameters.is1ES, true) }}:
+  - task: 1ES.PublishPipelineArtifact@1
+    displayName: 'Publish Python Wheel'
+    inputs:
+      ArtifactName: 'onnxscript'
+      PathToPublish: '$(Build.ArtifactStagingDirectory)'
