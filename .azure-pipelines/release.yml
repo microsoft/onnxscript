@@ -28,4 +28,4 @@ extends:
       name: 'onnxruntime-Ubuntu2204-AMD-CPU'
       os: 'linux'
     stages:
-    - template: stages/release_stage.yml
+    - template: stages/release-stage.yml
