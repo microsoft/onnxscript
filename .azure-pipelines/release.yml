@@ -21,6 +21,7 @@ extends:
   parameters:
     pool:
       name: 'ubuntu-latest'
+      image: 'ubuntu-latest'
       os: 'linux'
     stages:
     - stage: Stage
