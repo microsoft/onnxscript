@@ -19,3 +19,4 @@ steps:
   displayName: 'Save build artifacts'
   inputs:
     ArtifactName: onnxscript
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
