@@ -1,4 +1,5 @@
 # Template steps for the release pipeline
+
 parameters:
 - name: is1ES
   displayName: 'Is 1ES pipeline'
