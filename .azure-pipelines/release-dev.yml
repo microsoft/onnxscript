@@ -8,4 +8,4 @@ pool:
 variables:
   CI: 'true'
 steps:
-  - template: _release-template.yml
+- template: stages/_release-template-stage.yml
