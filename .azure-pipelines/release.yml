@@ -25,9 +25,11 @@ extends:
       os: 'linux'
     stages:
     - stage: Stage
-      steps:
-      - template: _release-template.yml
-      # Test the wheels. This needs to happen after PublishBuildArtifacts
-      # to avoid interference with the artifacts
-      - script: python -m pip install dist/*.whl --no-deps
-        displayName: 'Install wheel'
+      jobs:
+      - job: Job
+        steps:
+        - template: _release-template.yml
+        # Test the wheels. This needs to happen after PublishBuildArtifacts
+        # to avoid interference with the artifacts
+        - script: python -m pip install dist/*.whl --no-deps
+          displayName: 'Install wheel'
