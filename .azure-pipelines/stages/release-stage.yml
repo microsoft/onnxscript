@@ -8,4 +8,4 @@ stages:
     # to avoid interference with the artifacts
     - script: python -m pip install dist/*.whl --no-deps
       displayName: 'Install wheel'
-      condition: eq(variables['ONNX_SCRIPT_RELEASE'], '1')
+      condition: eq(variables['ONNX_SCRIPT_RELEASE'], 1)
