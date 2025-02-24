@@ -2,15 +2,30 @@
 
 trigger: none
 
-pool:
-  vmImage: ubuntu-latest
 variables:
   CI: 'true'
   # Set the release environment variable to build a release version of the wheel
   ONNX_SCRIPT_RELEASE: 1
-steps:
-  - template: _release-template.yml
-  # Test the wheels. This needs to happen after PublishBuildArtifacts
-  # to avoid interference with the artifacts
-  - script: python -m pip install dist/*.whl --no-deps
-    displayName: 'Install wheel'
+
+resources:
+  repositories:
+  - repository: 1esPipelines
+    type: git
+    name: 1ESPipelineTemplates/1ESPipelineTemplates
+    ref: refs/tags/release
+
+extends:
+  # The pipeline extends the 1ES PT which will inject different SDL and compliance tasks.
+  # For non-production pipelines, use "Unofficial" as defined below.
+  # For productions pipelines, use "Official".
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      sourceAnalysisPool:
+        name: onnxruntime-Win-CPU-2022
+        os: windows
+    pool:
+      name: 'onnxruntime-Ubuntu2204-AMD-CPU'
+      os: 'linux'
+    stages:
+    - template: stages/release-stage.yml
