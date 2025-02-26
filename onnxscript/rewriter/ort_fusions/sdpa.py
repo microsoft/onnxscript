@@ -25,7 +25,7 @@ class SDPA(pattern.RewriteRuleClassBase):
                 key_transposed = op.Mul(key_transposed, key_scale)
             else:
                 query = op.Div(query, query_scale)
-                key_transposed = op.Div(key_transposed, key_scale)            
+                key_transposed = op.Div(key_transposed, key_scale)
         attn_score = op.MatMul(query, key_transposed)
         if not self._pre_scale:
             # Some implementations scale the dot product.
@@ -73,13 +73,30 @@ class SDPA(pattern.RewriteRuleClassBase):
         return op.SDPA(query, key_transposed, value, mask, _domain="ai.onnxruntime.fusion")
 
 
-masked_pre_mul_sdpa_rule = SDPA.rule("masked_pre_mul_sdpa", use_mask=True, pre_scale=True, use_mul=True)
-masked_post_div_sdpa_rule = SDPA.rule("masked_post_div_sdpa", use_mask=True, pre_scale=False, use_mul=False)
-masked_post_mul_sdpa_rule = SDPA.rule("masked_post_div_sdpa", use_mask=True, pre_scale=False, use_mul=True)
+masked_pre_div_sdpa_rule = SDPA.rule(
+    "masked_pre_mul_sdpa", use_mask=True, pre_scale=True, use_mul=False
+)
+masked_pre_mul_sdpa_rule = SDPA.rule(
+    "masked_pre_mul_sdpa", use_mask=True, pre_scale=True, use_mul=True
+)
+masked_post_div_sdpa_rule = SDPA.rule(
+    "masked_post_div_sdpa", use_mask=True, pre_scale=False, use_mul=False
+)
+masked_post_mul_sdpa_rule = SDPA.rule(
+    "masked_post_div_sdpa", use_mask=True, pre_scale=False, use_mul=True
+)
 
-sdpa_rules = pattern.RewriteRuleSet([masked_pre_mul_sdpa_rule, masked_post_div_sdpa_rule, masked_post_mul_sdpa_rule])
+sdpa_rules = pattern.RewriteRuleSet(
+    [
+        masked_pre_mul_sdpa_rule,
+        masked_post_div_sdpa_rule,
+        masked_post_mul_sdpa_rule,
+        masked_pre_div_sdpa_rule,
+    ]
+)
 
 debug: bool = True
+
 
 def fuse_sdpa(model: ir.Model) -> int:
     count = sdpa_rules.apply_to_model(model)
@@ -88,4 +105,3 @@ def fuse_sdpa(model: ir.Model) -> int:
     else:
         print(f"SDPA count: {count}")
     return count
-
