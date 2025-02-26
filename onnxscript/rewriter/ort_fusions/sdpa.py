@@ -9,22 +9,30 @@ from onnxscript.rewriter import _ir_utils, pattern
 
 
 class SDPA(pattern.RewriteRuleClassBase):
-    def __init__(self, name: str, *, use_mask: bool, pre_scale: bool):
+    def __init__(self, name: str, *, use_mask: bool, pre_scale: bool, use_mul: bool):
         super().__init__(name=name)
         self._use_mask = use_mask
         self._pre_scale = pre_scale
+        self._use_mul = use_mul
 
     def pattern(
         self, op, query, key_transposed, value, mask, query_scale, key_scale, qk_scale
     ):
         if self._pre_scale:
             # Some implementations scale the query and key before computing the dot product
-            query = op.Mul(query, query_scale)
-            key_transposed = op.Mul(key_transposed, key_scale)
+            if self._use_mul:
+                query = op.Mul(query, query_scale)
+                key_transposed = op.Mul(key_transposed, key_scale)
+            else:
+                query = op.Div(query, query_scale)
+                key_transposed = op.Div(key_transposed, key_scale)            
         attn_score = op.MatMul(query, key_transposed)
         if not self._pre_scale:
             # Some implementations scale the dot product.
-            attn_score = op.Div(attn_score, qk_scale)
+            if self._use_mul:
+                attn_score = op.Mul(attn_score, qk_scale)
+            else:
+                attn_score = op.Div(attn_score, qk_scale)
         if self._use_mask:
             # Some implementations add a mask to the dot product.
             attn_score = op.Add(attn_score, mask)
@@ -42,16 +50,18 @@ class SDPA(pattern.RewriteRuleClassBase):
         if not isinstance(hidden_size, int):
             return False
         expected_scaling_factor = math.sqrt(hidden_size)
+        if self._use_mul:
+            expected_scaling_factor = 1.0 / expected_scaling_factor
 
         if self._pre_scale:
-            # Check if query_scale and key_scale are scalars == 1/sqrt(sqrt(hidden_size))
-            sqrt_scaling_factor = 1.0 / math.sqrt(expected_scaling_factor)
+            # Check if query_scale and key_scale are scalars == sqrt(expected_scaling_factor)
+            sqrt_scaling_factor = math.sqrt(expected_scaling_factor)
             if not _ir_utils.is_singleton_value(query_scale, sqrt_scaling_factor, rtol=1e-3):
                 return False
             if not _ir_utils.is_singleton_value(key_scale, sqrt_scaling_factor, rtol=1e-3):
                 return False
         else:
-            # Check if qk_scale is a scalar == sqrt(hidden_size)
+            # Check if qk_scale is a scalar == expected_scaling_factor)
             if not _ir_utils.is_singleton_value(qk_scale, expected_scaling_factor, rtol=1e-3):
                 return False
 
@@ -63,10 +73,11 @@ class SDPA(pattern.RewriteRuleClassBase):
         return op.SDPA(query, key_transposed, value, mask, _domain="ai.onnxruntime.fusion")
 
 
-masked_pre_mul_sdpa_rule = SDPA.rule("masked_pre_mul_sdpa", use_mask=True, pre_scale=True)
-masked_post_div_sdpa_rule = SDPA.rule("masked_post_div_sdpa", use_mask=True, pre_scale=False)
+masked_pre_mul_sdpa_rule = SDPA.rule("masked_pre_mul_sdpa", use_mask=True, pre_scale=True, use_mul=True)
+masked_post_div_sdpa_rule = SDPA.rule("masked_post_div_sdpa", use_mask=True, pre_scale=False, use_mul=False)
+masked_post_mul_sdpa_rule = SDPA.rule("masked_post_div_sdpa", use_mask=True, pre_scale=False, use_mul=True)
 
-sdpa_rules = pattern.RewriteRuleSet([masked_pre_mul_sdpa_rule, masked_post_div_sdpa_rule])
+sdpa_rules = pattern.RewriteRuleSet([masked_pre_mul_sdpa_rule, masked_post_div_sdpa_rule, masked_post_mul_sdpa_rule])
 
 debug: bool = True
 
