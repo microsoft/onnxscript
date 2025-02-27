@@ -1830,7 +1830,7 @@ class MatchingTracer:
             print(f"Rule: {rule}")
             print(f"Best score: {matches[0].score()}")
             for match in matches:
-                print(f"Status: {match.status}")
+                print(f"Status: {match.status.name}")
                 if match.status == MatchStatus.NO_MATCH:
                     print("Graph matching failed: " + match.match_result.reason)
                     node = match.match_result._failure_node
