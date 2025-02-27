@@ -834,6 +834,12 @@ def sample_inputs_index_put(op_info, device, dtype, requires_grad, **kwargs):
             ],
             (1,),
         ),
+        # Cases: Multidimensional index
+        (
+            (10, 3),
+            [torch.arange(8, dtype=torch.int64, device=device).reshape((-1, 4))],
+            (2, 4, 3),
+        ),
     ]
 
     for data_shape, indices, values_shape in cases:  # type: ignore[misc]

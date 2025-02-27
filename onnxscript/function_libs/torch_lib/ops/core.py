@@ -14,6 +14,8 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
+import numpy as np
+
 from onnxscript import (
     BFLOAT16,
     BOOL,
@@ -4303,17 +4305,21 @@ def aten_index_put(
         while len(reshape_list) > len(values_shape) and 1 in reshape_list:
             reshape_list.remove(1)
 
+        # Or add ones until the rank of reshape_list matches values_shape.
+        while len(reshape_list) < len(values_shape):
+            reshape_list.append(1)
+
         # Now ensure each dimension is broadcastable:
         # This is mandatory when mixing basic and advanced indexing
         # Example: data((10, 3, 4)), indices([[0, 1], :, [0, 1]]) values(2, 3)
         # the reshape list should be : [[2, 1], [1, 3], [2, 1]]
         for i, r in enumerate(reshape_list):
-            if r != 1 and r != values_shape[i]:
-                one_index = reshape_list.index(1)
+            if r not in (1, values_shape[i]):
+                value_index = values_shape.index(r)
                 # Swap elements
                 # For the example above the current reshape list is [1, 2] for last dim,
                 # to make it broadcastable, we swap the elements
-                reshape_list[one_index], reshape_list[i] = reshape_list[i], 1
+                reshape_list[value_index], reshape_list[i] = r, 1
 
         return reshape_list
 
@@ -4322,8 +4328,8 @@ def aten_index_put(
     if len(indices) < self_rank:
         indices = list(indices) + [None] * (self_rank - len(indices))
 
-    # Get values shape (we use .numpy to make it hashable)
-    values_shape = values.shape.numpy()
+    # Get values shape
+    values_shape = tuple(values.shape)
 
     index_vectors = []
     for i in range(self_rank):
@@ -4333,7 +4339,15 @@ def aten_index_put(
             reshape_update = self.shape[i]
         else:
             idx = indices[i]
-            reshape_update = indices[i].shape[0]
+            reshape_update = np.prod(idx.shape).item()
+            # when Index is more than 1D, flatten it and also the values shape
+            # Example: self shape: (10, 3), indices[i] shape: (2, 4), values shape: (2, 4, 3)
+            # Indices -> (2*4,) and values shape (2*4, 32)
+            if len(idx.shape) > 1:
+                values_shape = (reshape_update,) + values_shape[len(idx.shape) :]
+
+            # Flatten index (always working with 1D index in each dim)
+            idx = op.Reshape(idx, [-1])
 
         # Create a reshape pattern: one value per index dimension,
         # with the current dimension set to the update size.
