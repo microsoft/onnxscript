@@ -2769,7 +2769,8 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2.0) -> TensorType
         "aten::divide.Scalar",
         "aten::true_divide.Tensor",
         "aten::true_divide.Scalar",
-    )
+    ),
+    trace_only=True,
 )
 def aten_div(self: TFloat, other: TFloat) -> TFloat:
     """div.Tensor(Tensor self, Tensor other) -> Tensor"""
@@ -3338,7 +3339,7 @@ def aten_erfinv(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::exp")
+@torch_op("aten::exp", trace_only=True)
 def aten_exp(self: TFloat) -> TFloat:
     """exp(Tensor self) -> Tensor"""
 
@@ -3354,8 +3355,8 @@ def aten_exp2(self: TFloat) -> TFloat:
     return op.Pow(two, self)
 
 
-@torch_op("aten::expand")
-def aten_expand(self: TTensor, size: TInt) -> TTensor:
+@torch_op("aten::expand", trace_only=True)
+def aten_expand(self: TTensor, size: TInt, implicit: bool = False) -> TTensor:
     """expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)"""
     size = op.Cast(size, to=INT64.dtype)
     # NOTE: PyTorch supports `not changing dim` by -1, but ONNX supports `not changing dim` by 1.
@@ -6650,22 +6651,21 @@ def aten_positive(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(
-    ("aten::pow.Tensor_Tensor", "aten::pow.Tensor_Scalar"),
-    trace_only=True,
-)
+@torch_op(("aten::pow.Tensor_Tensor", "_operator::pow"), trace_only=True)
 def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     """pow(Tensor self, Tensor exponent) -> Tensor"""
     return op.Pow(self, exponent)
 
 
-@torch_op(
-    ("_operator::pow", "aten::pow.Scalar"),
-    trace_only=True,
-)
+@torch_op("aten::pow.Tensor_Scalar", trace_only=True)
+def aten_pow_tensor_scalar(self: TReal, exponent: float) -> TReal:
+    """pow(Tensor self, Scalar exponent) -> Tensor"""
+    return op.Pow(self, exponent)
+
+
+@torch_op("aten::pow.Scalar", trace_only=True)
 def aten_pow_scalar(self: float, exponent: TTensor) -> TTensor:
     """pow.Scalar(Scalar self, Tensor exponent) -> Tensor"""
-
     return op.Pow(op.Cast(self, to=exponent.dtype), exponent)
 
 
@@ -7158,23 +7158,14 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
     raise NotImplementedError()
 
 
-@torch_op("aten::repeat")
-def aten_repeat(self: TTensor, repeats: TInt) -> TTensor:
+@torch_op("aten::repeat", trace_only=True)
+def aten_repeat(self: TTensor, repeats: Sequence[TInt]) -> TTensor:
     """repeat(Tensor self, SymInt[] repeats) -> Tensor"""
 
-    if op.Size(repeats) == 0:
-        result = self
-    else:
-        # TODO(justinchuby): Make ones_like a function when onnxscript supports it
-        repeats = op.Cast(repeats, to=INT64.dtype)
-        # shape = ones_like(repeats) := {
-        one = op.Constant(value_int=1)
-        repeats_shape = op.Shape(repeats)
-        shape = op.Expand(one, repeats_shape)
-        # }
-        self_expanded = op.Expand(self, shape)
-        result = op.Tile(self_expanded, repeats)
-    return result
+    if len(repeats) == 0:
+        return self
+    self_expanded = op.Expand(self, [1] * len(repeats))
+    return op.Tile(self_expanded, repeats)
 
 
 def aten_repeat_interleave(
@@ -7490,7 +7481,7 @@ def aten_scatter(
     return op.ScatterElements(self, index, update, axis=dim)
 
 
-@torch_op("aten::scatter_add")
+@torch_op("aten::scatter_add", trace_only=True)
 def aten_scatter_add(
     self: TReal,
     dim: int,  # we have to use int here because ScatterElements() will use this attribute
@@ -8441,16 +8432,16 @@ def aten_unbind(self: TTensor, dim: int = 0) -> Sequence[TTensor]:
     return op.SplitToSequence(self, split_sizes, axis=dim, keepdims=False)
 
 
-@torch_op("aten::unflatten.int")
-def aten_unflatten(self: TReal, dim: INT64, sizes: INT64):
+@torch_op("aten::unflatten.int", trace_only=True)
+def aten_unflatten(self: TReal, dim: int, sizes: Sequence[INT64]):
     """unflatten(Tensor(a) self, int dim, SymInt[] sizes) -> Tensor(a)"""
 
     self_size = op.Shape(self)
 
     # PyTorch accepts negative dim as reversed counting
-    self_rank = op.Size(self_size)
-    dim = self_rank + dim
-    dim = dim % self_rank
+    self_rank = len(self.shape)
+    if dim < 0:
+        dim = self_rank + dim
 
     head_start_idx = op.Constant(value_ints=[0])
     head_end_idx = op.Reshape(dim, op.Constant(value_ints=[1]))
@@ -8460,8 +8451,16 @@ def aten_unflatten(self: TReal, dim: INT64, sizes: INT64):
     tail_end_idx = op.Constant(value_ints=[_INT64_MAX])
     tail_part_rank = op.Slice(self_size, tail_start_idx, tail_end_idx)
 
-    final_shape = op.Concat(head_part_rank, sizes, tail_part_rank, axis=0)
+    sizes = [op.Reshape(size, op.Constant(value_ints=[1])) for size in sizes]
 
+    # corner case 1: head part is None
+    if dim == 0:
+        final_shape = op.Concat(*sizes, tail_part_rank, axis=0)
+    # corner case 2: tail part is None
+    elif dim == self_rank - 1:
+        final_shape = op.Concat(head_part_rank, *sizes, axis=0)
+    else:
+        final_shape = op.Concat(head_part_rank, *sizes, tail_part_rank, axis=0)
     return op.Reshape(self, final_shape)
 
 
@@ -8477,38 +8476,29 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
         if dimension < 0:
             dimension = dimension + self_rank
         dim_size = self.shape[dimension]
-        target_end = (dim_size - size) // step + 1
-        if target_end >= 1:  # the rank of final reuslt will be self_rank + 1
-            self_rank = self_rank + 1
+
+        low_indices = range(0, dim_size, step)
+        hi_indices = range(size, dim_size + 1, step)
+        stack = [
+            op.Slice(
+                self,
+                op.Constant(value_ints=[low]),
+                op.Constant(value_ints=[hi]),
+                op.Constant(value_ints=[dimension]),
+            )
+            for low, hi in zip(low_indices, hi_indices)
+        ]
+
         # perm need to be list[int], so have to be generated in trace_only mode
         perm = list(range(self_rank))
         # from [0,1,2,3,4] -> [0,1,3,4,2] when dimension=1
-        perm.append(perm.pop(dimension + 1))
-        result = _aten_unfold_onnx(self, dimension, size, step, target_end, perm)
+        perm.append(perm.pop(dimension))
+        unsqueeze = [
+            op.Unsqueeze(op.Transpose(t, perm=perm), op.Constant(value_ints=[dimension]))
+            for t in stack
+        ]
+        result = op.Concat(*unsqueeze, axis=dimension)
     return result
-
-
-@torch_op("aten::unfold", private=True)
-def _aten_unfold_onnx(
-    self: TTensor, dim: int, size: int, step: int, target_end: int, perm: Sequence[int]
-) -> TTensor:
-    dims = op.Reshape(op.Constant(value_int=dim), op.Constant(value_ints=[-1]))
-    # FIXME(justinchuby): obtain the dtype for SequenceEmpty, currently it assumes float
-    seq_result = op.SequenceEmpty()
-    i = op.Constant(value_int=0)
-    cond = i < target_end
-    while cond:  # because for loop cannot work here, so use while loop
-        starts = op.Reshape(i * step, [-1])  # starts is [0, step, step*2, step*3, ...]
-        ends = starts + size  # ends is [0+size, step+size, step*2+size, step*3+size, ...]
-        slice_result = op.Slice(self, starts, ends, dims)
-        # sequence only support float32
-        slice_result_float32 = op.Cast(slice_result, to=FLOAT.dtype)
-        seq_result = op.SequenceInsert(seq_result, slice_result_float32)
-        i = i + 1
-        cond = i < target_end
-    concat_result = op.ConcatFromSequence(seq_result, axis=dim, new_axis=1)
-    result = op.Transpose(concat_result, perm=perm)
-    return op.CastLike(result, self)
 
 
 def aten_unfold_backward(
@@ -8577,7 +8567,7 @@ def aten_unsafe_split_with_sizes(
     raise NotImplementedError()
 
 
-@torch_op("aten::unsqueeze")
+@torch_op("aten::unsqueeze", trace_only=True)
 def aten_unsqueeze(self: TTensor, dim: int) -> TTensor:
     """unsqueeze(Tensor(a) self, int dim) -> Tensor(a)"""
 

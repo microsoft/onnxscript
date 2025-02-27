@@ -810,7 +810,7 @@ def aten_l1_loss(self: TensorType, target: TensorType, reduction: int = 1) -> Te
     raise NotImplementedError()
 
 
-@torch_op("aten::leaky_relu")
+@torch_op("aten::leaky_relu", trace_only=True)
 def aten_leaky_relu(self: TFloat, negative_slope: float = 0.01) -> TFloat:
     """leaky_relu(Tensor self, Scalar negative_slope=0.01) -> Tensor"""
 
