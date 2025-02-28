@@ -14,8 +14,6 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
-import numpy as np
-
 from onnxscript import (
     BFLOAT16,
     BOOL,
@@ -4305,10 +4303,6 @@ def aten_index_put(
         while len(reshape_list) > len(values_shape) and 1 in reshape_list:
             reshape_list.remove(1)
 
-        # Or add ones until the rank of reshape_list matches values_shape.
-        while len(reshape_list) < len(values_shape):
-            reshape_list.append(1)
-
         # Now ensure each dimension is broadcastable:
         # This is mandatory when mixing basic and advanced indexing
         # Example: data((10, 3, 4)), indices([[0, 1], :, [0, 1]]) values(2, 3)
@@ -4335,11 +4329,11 @@ def aten_index_put(
     for i in range(self_rank):
         if indices[i] is None:
             # For a full slice along dim i, create a range index [0, self.shape[i]).
-            idx = op.Range(start=0, limit=self.shape[i], delta=1)
+            idx = op.Range(0, op.Shape(self, start=i, end=i + 1), 1)
             reshape_update = self.shape[i]
         else:
             idx = indices[i]
-            reshape_update = np.prod(idx.shape).item()
+            reshape_update = math.prod(idx.shape)
             # when Index is more than 1D, flatten it and also the values shape
             # Example: self shape: (10, 3), indices[i] shape: (2, 4), values shape: (2, 4, 3)
             # Indices -> (2*4,) and values shape (2*4, 32)
