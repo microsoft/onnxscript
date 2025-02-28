@@ -245,9 +245,7 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
     __slots__ = ("_proto",)
 
     def __init__(self, proto: onnx.TensorProto) -> None:
-        super().__init__(metadata_props=deserialize_metadata_props(
-            proto.metadata_props
-        ))
+        super().__init__(metadata_props=deserialize_metadata_props(proto.metadata_props))
         self._proto = proto
 
     @property
