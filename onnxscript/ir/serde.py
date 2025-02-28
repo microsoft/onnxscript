@@ -242,6 +242,8 @@ def to_proto(ir_object: object) -> object:
 class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
     """A tensor initialized from a tensor proto."""
 
+    __slots__ = ("_proto",)
+
     def __init__(self, proto: onnx.TensorProto) -> None:
         super().__init__()
         self._proto = proto
