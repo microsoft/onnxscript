@@ -587,6 +587,9 @@ def deserialize_graph(proto: onnx.GraphProto) -> _core.Graph:
 
     Returns:
         IR Graph.
+
+    .. versionadded:: 0.3
+        Support for *quantization_annotation* is added.
     """
     return _deserialize_graph(proto, [])
 
