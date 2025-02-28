@@ -1790,6 +1790,25 @@ class MatchInfo:
         """Return a score for the match."""
         return len(self.match_result.nodes) + int(self.status.value) * 100
 
+    def print(self):
+        separator = "-" * 80
+        print(separator)
+        print(f"Status: {self.status.name}")
+        if self.status != MatchStatus.SUCCESS:
+            reason = self.match_result.reason
+            if reason:
+                print(f"Graph matching failed: {reason}")
+            else:
+                print("Graph matching failed.")
+            failure_node = self.match_result._failure_node
+            if failure_node:
+                print("Failure at or around node:")
+                failure_node.display()
+        print("Matched nodes:")
+        import onnxscript.rewriter._ir_utils as ir_utils
+        ir_utils.display_nodes(self.match_result.nodes)
+        print(separator)
+
 
 class MatchingTracer:
     """A debugging helper class to trace the matching of a pattern against a graph.
@@ -1828,22 +1847,17 @@ class MatchingTracer:
     def report(self) -> None:
         import onnxscript.rewriter._ir_utils as ir_utils
 
-        print("===")
+        best_score = 0
         for rule, matches in self._best_matches_map.items():
             if not matches:
                 continue
-            print(f"Rule: {rule}")
-            print(f"Best score: {matches[0].score()}")
-            # A single best-score match is usually sufficient for debugging.
-            # Reporting all usually clutters up things.
-            match = matches[0]
-            print(f"Status: {match.status.name}")
-            if match.status == MatchStatus.NO_MATCH:
-                print("Graph matching failed: " + match.match_result.reason)
-                node = match.match_result._failure_node
-                if node:
-                    print("Failure at or around node:")
-                    node.display()
-            print("Matched nodes:")
-            ir_utils.display_nodes(match.match_result.nodes)
-            print("===")
+            if matches[0].score() > best_score:
+                best_score = matches[0].score()
+                best_match = matches[0]
+                best_rule = rule
+        
+        if best_score > 0:
+            print(f"Rule: {best_rule}")
+            best_match.print()
+        else:
+            print("No matches found.")
