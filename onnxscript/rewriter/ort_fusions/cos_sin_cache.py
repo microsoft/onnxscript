@@ -58,14 +58,14 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
     def cleanup(self):
         self._inv_freq_cos_sin_cache.clear()
 
-    def pattern(self, op, x, inv_freq, position_ids, interleaved, num_heads, freqs, dtype):
+    def pattern(self, op, x, inv_freq, position_ids, interleaved, num_heads, freqs, dtype, extra_dims):
         if not self._const_freqs:
             # Compute freqs from inv_freq and position_ids. In the _const_freqs case,
             # this computation has been constant-folded away and freqs is a constant.
             # B: batch size, S: sequence length, E: embedding dimension
-            # position_ids: [B, S]
+            # position_ids: [B, S] or [S]
             # inv_freq: [1, E, 1]
-            position_ids_expanded = op.Unsqueeze(position_ids, 1)  # [B, S] => [B, 1, S]
+            position_ids_expanded = op.Unsqueeze(position_ids, extra_dims)  # [B, S] | [S] => [B, 1, S]
             position_ids_expanded = op.Cast(position_ids_expanded, to=ir.DataType.FLOAT)
             # if self._reshape:
             #     position_ids_expanded = op.Expand(position_ids_expanded, _allow_other_inputs=True)
@@ -92,11 +92,14 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
             _domain="ai.onnxruntime.fusion",
         )
 
-    def check(self, context, inv_freq, position_ids, freqs, **_):
+    def check(self, context, inv_freq, position_ids, freqs, extra_dims, **_):
         # TODO(rama): handle redundant reshape/expand
         if self._const_freqs:
             return (freqs.const_value is not None) and _ir_utils.has_rank(freqs, 3)
-        if not _ir_utils.has_rank(position_ids, 2):
+        if ((_ir_utils.has_rank(position_ids, 2) and _ir_utils.is_singleton_value(extra_dims, 1)) or
+            (_ir_utils.has_rank(position_ids, 1) and _ir_utils.is_1d_value(extra_dims, [0, 1]))):   
+            pass
+        else:
             return False
         if not _ir_utils.has_rank(inv_freq, 3):
             return False
