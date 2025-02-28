@@ -956,7 +956,7 @@ def deserialize_node(proto: onnx.NodeProto) -> _core.Node:
     )
 
 
-@_capture_errors(lambda proto, scoped_values, value_info: str(proto))
+@_capture_errors(lambda proto, scoped_values, value_info, quantization_annotations: str(proto))
 def _deserialize_node(
     proto: onnx.NodeProto,
     scoped_values: list[dict[str, _core.Value]],
