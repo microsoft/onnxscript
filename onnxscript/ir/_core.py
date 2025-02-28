@@ -100,6 +100,8 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
     __slots__ = (
         "_metadata",
         "_metadata_props",
+        "doc_string",
+        "name",
     )
 
     def __init__(
