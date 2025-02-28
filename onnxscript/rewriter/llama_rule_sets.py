@@ -12,6 +12,26 @@ import onnxscript.rewriter.no_op as no_op
 import onnxscript.rewriter.pattern as orp
 
 
+class SqueezeReshape(orp.RewriteRuleClassBase):
+    """Replaces ``Reshape(Squeeze(x), [-1]])`` with ``Identity(x)`` for 1D x.
+
+    This pattern arises from the translation of pytorch symints.
+    """
+
+    def __init__(self):
+        super().__init__("SqueezeReshape1d", remove_nodes=False)
+
+    def pattern(self, op, x):
+        return op.Reshape(op.Squeeze(x), [-1])
+
+    def rewrite(self, op, x: ir.Value):
+        return op.Identity(x)
+
+    def check(self, context, x) -> bool:
+        del context  # Unused
+        return ir_utils.has_rank(x, 1)
+
+
 class CastIdentity(orp.RewriteRuleAsClass):
     """Replaces ``Cast(., to=to)`` by ``Identity`` if possible."""
 
@@ -259,6 +279,7 @@ slice_split_rule = orp.make_rewrite_rule_from_class(SlicesSplit, True)
 transpose_identity_rule = orp.make_rewrite_rule_from_class(TransposeIdentity)
 transpose_transpose_rule = orp.make_rewrite_rule_from_class(TransposeTranspose)
 unsqueeze_unsqueeze_rule = orp.make_rewrite_rule_from_class(UnsqueezeUnsqueeze)
+squeeze_reshape_1d_rule = SqueezeReshape.rule()
 
 
 def llama_p0_rule_set() -> orp.RewriteRuleSet:
