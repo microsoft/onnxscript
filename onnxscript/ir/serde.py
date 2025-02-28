@@ -81,6 +81,7 @@ _PLEASE_CONTRIBUTE = (
 _FUNCTION_VALUE_INFO_SUPPORTED_VERSION = (
     10  # ONNX IR version where value info in functions was introduced
 )
+_QUANT_PARAMETER_TENSOR_NAMES_FIELD = "quant_parameter_tensor_names"
 _T = typing.TypeVar("_T", bound=Callable[..., Any])
 
 
@@ -638,8 +639,16 @@ def _deserialize_graph(
     # Add ValueInfos for this graph scope
     value_info = {info.name: info for info in proto.value_info}
 
+    # Add TensorAnnotation for quantization
+    quantization_annotations = {
+        annotation.tensor_name: annotation for annotation in proto.quantization_annotation
+    }
+
     # Deserialize nodes with all known values
-    nodes = [_deserialize_node(node, scoped_values, value_info) for node in proto.node]
+    nodes = [
+        _deserialize_node(node, scoped_values, value_info, quantization_annotations)
+        for node in proto.node
+    ]
 
     # Fill in values for graph outputs
     outputs = [deserialize_value_info_proto(info, values[info.name]) for info in proto.output]
@@ -704,6 +713,21 @@ def deserialize_value_info_proto(
     if metadata_props is not None:
         value.metadata_props.update(metadata_props)
     value.doc_string = _get_field(proto, "doc_string")
+    return value
+
+
+@_capture_errors(lambda proto, value: str(proto))
+def _deserialize_quantization_annotation(
+    proto: onnx.TensorAnnotation, value: _core.Value
+) -> _core.Value:
+    """Deserialize a quantization_annotation as TensorAnnotation into a Value.
+
+    This function is marked private because we don't expect users to call it directly.
+    """
+    assert proto.tensor_name == value.name
+    value.meta[_QUANT_PARAMETER_TENSOR_NAMES_FIELD] = _deserialize_string_string_maps(
+        proto.quant_parameter_tensor_names
+    )
     return value
 
 
@@ -844,6 +868,9 @@ def deserialize_metadata_props(
     return {entry.key: entry.value for entry in proto}
 
 
+_deserialize_string_string_maps = deserialize_metadata_props
+
+
 def deserialize_attribute(proto: onnx.AttributeProto) -> _core.Attr | _core.RefAttr:
     return _deserialize_attribute(proto, [])
 
@@ -918,7 +945,9 @@ def _deserialize_attribute(
 
 
 def deserialize_node(proto: onnx.NodeProto) -> _core.Node:
-    return _deserialize_node(proto, scoped_values=[], value_info={})
+    return _deserialize_node(
+        proto, scoped_values=[], value_info={}, quantization_annotations={}
+    )
 
 
 @_capture_errors(lambda proto, scoped_values, value_info: str(proto))
@@ -926,6 +955,7 @@ def _deserialize_node(
     proto: onnx.NodeProto,
     scoped_values: list[dict[str, _core.Value]],
     value_info: dict[str, onnx.ValueInfoProto],
+    quantization_annotations: dict[str, onnx.TensorAnnotation],
 ) -> _core.Node:
     node_inputs: list[_core.Value | None] = []
     for input_name in proto.input:
@@ -968,6 +998,10 @@ def _deserialize_node(
             # Fill in shape/type information if they exist
             if input_name in value_info:
                 deserialize_value_info_proto(value_info[input_name], value)
+            if input_name in quantization_annotations:
+                _deserialize_quantization_annotation(
+                    quantization_annotations[input_name], value
+                )
             node_inputs.append(value)
             # We can only create the value in the current scope. If the subgraph is
             # referencing a value that is not in the current scope, it is impossible
@@ -1002,6 +1036,8 @@ def _deserialize_node(
         # Fill in shape/type information if they exist
         if output_name in value_info:
             deserialize_value_info_proto(value_info[output_name], value)
+        if output_name in quantization_annotations:
+            _deserialize_quantization_annotation(quantization_annotations[output_name], value)
         else:
             logger.debug(
                 "ValueInfoProto not found for output '%s' in node '%s' of type '%s'",
@@ -1173,6 +1209,29 @@ def _serialize_metadata_props_into(
         string_string_entries.add(key=key, value=from_[key])
 
 
+_serialize_string_string_maps = _serialize_metadata_props_into
+
+
+def _maybe_add_quantization_annotation(
+    graph_proto: onnx.GraphProto, value: _protocols.ValueProtocol
+) -> None:
+    if quantization_annotation := value.meta.get(_QUANT_PARAMETER_TENSOR_NAMES_FIELD):
+        _serialize_tensor_annotation_into(
+            graph_proto.quantization_annotation.add(), value.name, quantization_annotation
+        )
+
+
+def _serialize_tensor_annotation_into(
+    tensor_annotation_proto: onnx.TensorAnnotation,
+    tensor_name: str,
+    quant_parameter_tensor_names: dict[str, str],
+) -> None:
+    tensor_annotation_proto.tensor_name = tensor_name
+    _serialize_string_string_maps(
+        tensor_annotation_proto.quant_parameter_tensor_names, quant_parameter_tensor_names
+    )
+
+
 def serialize_graph(
     graph: _protocols.GraphProtocol | _protocols.GraphViewProtocol,
 ) -> onnx.GraphProto:
@@ -1208,8 +1267,14 @@ def serialize_graph_into(
         graph_proto.doc_string = from_.doc_string
     for input_ in from_.inputs:
         serialize_value_into(graph_proto.input.add(), input_)
+        if input_.name not in from_.initializers:
+            # Annotations for initializers will be added below to avoid double adding
+            # TODO(justinchuby): We should add a method is_initializer() on Value when
+            # the initializer list is tracked
+            _maybe_add_quantization_annotation(graph_proto, input_)
     # TODO(justinchuby): Support sparse_initializer
     for initializer in from_.initializers.values():
+        _maybe_add_quantization_annotation(graph_proto, initializer)
         if initializer.const_value is None:
             # Skip initializers without constant values
             logger.warning(
@@ -1229,8 +1294,10 @@ def serialize_graph_into(
                 # No need to serialize value info for these outputs because they are also graph outputs
                 continue
             serialize_value_into(graph_proto.value_info.add(), node_output)
+            _maybe_add_quantization_annotation(graph_proto, node_output)
     for output in from_.outputs:
         serialize_value_into(graph_proto.output.add(), from_=output)
+        _maybe_add_quantization_annotation(graph_proto, output)
     if from_.metadata_props:
         _serialize_metadata_props_into(graph_proto.metadata_props, from_.metadata_props)
 
