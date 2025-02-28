@@ -674,7 +674,10 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
     value_info = {info.name: info for info in getattr(proto, "value_info", [])}
 
     # TODO(justinchuby): Handle unsorted nodes
-    nodes = [_deserialize_node(node, [values], value_info=value_info) for node in proto.node]
+    nodes = [
+        _deserialize_node(node, [values], value_info=value_info, quantization_annotations={})
+        for node in proto.node
+    ]
     outputs = [values[name] for name in proto.output]
     graph = _core.Graph(
         inputs,
