@@ -100,8 +100,8 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
     __slots__ = (
         "_metadata",
         "_metadata_props",
-        "doc_string",
-        "name",
+        "_doc_string",
+        "_name",
     )
 
     def __init__(
@@ -112,8 +112,8 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
     ) -> None:
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = metadata_props
-        self.name: str | None = name
-        self.doc_string: str | None = doc_string
+        self._name: str | None = name
+        self._doc_string: str | None = doc_string
 
     def _printable_type_shape(self) -> str:
         """Return a string representation of the shape and data type."""
@@ -125,6 +125,24 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         Example: Tensor<FLOAT,[5,42]>
         """
         return f"{self.__class__.__name__}<{self._printable_type_shape()}>"
+
+    @property
+    def name(self) -> str | None:
+        """The name of the tensor."""
+        return self._name
+
+    @name.setter
+    def name(self, value: str | None) -> None:
+        self._name = value
+
+    @property
+    def doc_string(self) -> str | None:
+        """The documentation string."""
+        return self._doc_string
+
+    @doc_string.setter
+    def doc_string(self, value: str | None) -> None:
+        self._doc_string = value
 
     @property
     def size(self) -> int:
