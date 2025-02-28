@@ -95,13 +95,7 @@ sdpa_rules = pattern.RewriteRuleSet(
     ]
 )
 
-debug: bool = True
-
 
 def fuse_sdpa(model: ir.Model) -> int:
     count = sdpa_rules.apply_to_model(model)
-    if count == 0 and debug:
-        sdpa_rules.apply_to_model(model, debug=True)
-    else:
-        print(f"SDPA count: {count}")
     return count
