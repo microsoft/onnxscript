@@ -98,9 +98,9 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
     """Convenience Shared methods for classes implementing TensorProtocol."""
 
     __slots__ = (
+        "_doc_string",
         "_metadata",
         "_metadata_props",
-        "_doc_string",
         "_name",
     )
 
@@ -362,8 +362,6 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         "_dtype",
         "_raw",
         "_shape",
-        "doc_string",
-        "name",
     )
 
     def __init__(
