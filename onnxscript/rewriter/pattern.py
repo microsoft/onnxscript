@@ -1806,6 +1806,7 @@ class MatchInfo:
                 failure_node.display()
         print("Matched nodes:")
         import onnxscript.rewriter._ir_utils as ir_utils
+
         ir_utils.display_nodes(self.match_result.nodes)
         print(separator)
 
@@ -1845,7 +1846,6 @@ class MatchingTracer:
         best_matches.append(this_match)
 
     def report(self) -> None:
-        import onnxscript.rewriter._ir_utils as ir_utils
 
         best_score = 0
         for rule, matches in self._best_matches_map.items():
@@ -1855,7 +1855,7 @@ class MatchingTracer:
                 best_score = matches[0].score()
                 best_match = matches[0]
                 best_rule = rule
-        
+
         if best_score > 0:
             print(f"Rule: {best_rule}")
             best_match.print()
