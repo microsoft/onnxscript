@@ -1042,8 +1042,6 @@ def _deserialize_node(
         # Fill in shape/type information if they exist
         if output_name in value_info:
             deserialize_value_info_proto(value_info[output_name], value)
-        if output_name in quantization_annotations:
-            _deserialize_quantization_annotation(quantization_annotations[output_name], value)
         else:
             logger.debug(
                 "ValueInfoProto not found for output '%s' in node '%s' of type '%s'",
@@ -1051,6 +1049,8 @@ def _deserialize_node(
                 proto.name,
                 proto.op_type,
             )
+        if output_name in quantization_annotations:
+            _deserialize_quantization_annotation(quantization_annotations[output_name], value)
         node_outputs.append(value)
     return _core.Node(
         proto.domain,
