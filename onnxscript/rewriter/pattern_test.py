@@ -536,14 +536,14 @@ class RewriteRuleTest(unittest.TestCase):
         model_proto = test_model.to_model_proto()
         model = ir.serde.deserialize_model(model_proto)
 
-        output_buffer = io.StringIO()
-        with contextlib.redirect_stdout(output_buffer):
-            count = rule.apply_to_model(model, debug=True)
-        captured_output = output_buffer.getvalue()
-
+        tracer = pattern.MatchingTracer()
+        count = rule.apply_to_model(model, tracer=tracer)
         self.assertEqual(count, 0)
-        # Not a robust test. But test serves to ensure that debug mode is producing something.
-        self.assertIn("OpType mismatch: expected Abs, got Neg", captured_output)
+        best_matches = tracer.best_matches_map[rule]
+        self.assertEqual(len(best_matches), 1)
+        best_match = best_matches[0]
+        self.assertEqual(best_match.status.value, pattern.MatchStatus.NO_MATCH)
+        self.assertIn("OpType mismatch: expected Abs, got Neg", best_match.match_result.reason)
 
     def test_new_initializer(self):
         def source_pattern(op, x, y):

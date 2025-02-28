@@ -1405,12 +1405,12 @@ class RewriteRule:
         *,
         commute: bool = False,
         verbose: int | None = None,
-        debug: bool = False,
+        tracer: MatchingTracer | None = None,
     ):
         # A convenience method to apply the rule to a model. We use a RewriteRuleSet to
         # handle commutative rules.
         return RewriteRuleSet([self], commute=commute).apply_to_model(
-            model, verbose=verbose, debug=debug
+            model, verbose=verbose, tracer=tracer
         )
 
     def commute(self) -> Sequence[RewriteRule]:
@@ -1731,7 +1731,11 @@ class RewriteRuleSet:
         return count
 
     def apply_to_model(
-        self, model: ir.Model, *, verbose: int | None = None, debug: bool = False
+        self,
+        model: ir.Model,
+        *,
+        verbose: int | None = None,
+        tracer: MatchingTracer | None = None,
     ) -> int:
         """Apply the rewrite rules in the set to the model.
 
@@ -1746,7 +1750,6 @@ class RewriteRuleSet:
             The number of applications of rewrite rules.
         """
         assert isinstance(model, ir.Model)
-        tracer = MatchingTracer() if debug else None
         onnxscript.optimizer.basic_constant_propagation(model.graph)
         # Rewriting may introduce new functions. In the following loop,
         # we restrict rewriting to original functions, not newly introduced ones.
@@ -1759,8 +1762,6 @@ class RewriteRuleSet:
             count += self._apply_to_graph_or_function(
                 model, function, verbose=verbose, tracer=tracer
             )
-        if tracer:
-            tracer.report()
         return count
 
     def __iter__(self):
@@ -1798,7 +1799,11 @@ class MatchingTracer:
     """
 
     def __init__(self) -> None:
-        self._log: dict[RewriteRule, list[MatchInfo]] = defaultdict(list)
+        self._best_matches_map: dict[RewriteRule, list[MatchInfo]] = defaultdict(list)
+
+    @property
+    def best_matches_map(self) -> dict[RewriteRule, list[MatchInfo]]:
+        return self._best_matches_map
 
     def log(
         self,
@@ -1812,7 +1817,7 @@ class MatchingTracer:
         this_score = this_match.score()
         if this_score == 0:
             return
-        best_matches = self._log[rule]
+        best_matches = self._best_matches_map[rule]
         if best_matches:
             if this_score < best_matches[0].score():
                 return
@@ -1824,19 +1829,21 @@ class MatchingTracer:
         import onnxscript.rewriter._ir_utils as ir_utils
 
         print("===")
-        for rule, matches in self._log.items():
+        for rule, matches in self._best_matches_map.items():
             if not matches:
                 continue
             print(f"Rule: {rule}")
             print(f"Best score: {matches[0].score()}")
-            for match in matches:
-                print(f"Status: {match.status.name}")
-                if match.status == MatchStatus.NO_MATCH:
-                    print("Graph matching failed: " + match.match_result.reason)
-                    node = match.match_result._failure_node
-                    if node:
-                        print("Failure at or around node:")
-                        node.display()
-                print("Matched nodes:")
-                ir_utils.display_nodes(match.match_result.nodes)
-                print("===")
+            # A single best-score match is usually sufficient for debugging.
+            # Reporting all usually clutters up things.
+            match = matches[0]
+            print(f"Status: {match.status.name}")
+            if match.status == MatchStatus.NO_MATCH:
+                print("Graph matching failed: " + match.match_result.reason)
+                node = match.match_result._failure_node
+                if node:
+                    print("Failure at or around node:")
+                    node.display()
+            print("Matched nodes:")
+            ir_utils.display_nodes(match.match_result.nodes)
+            print("===")
