@@ -97,7 +97,21 @@ def _compatible_with_dlpack(obj: Any) -> TypeGuard[_protocols.DLPackCompatible]:
 class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
     """Convenience Shared methods for classes implementing TensorProtocol."""
 
-    __slots__ = ()
+    __slots__ = (
+        "_metadata",
+        "_metadata_props",
+    )
+
+    def __init__(
+        self,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
+        self._metadata: _metadata.MetadataStore | None = None
+        self._metadata_props: dict[str, str] | None = metadata_props
+        self.name: str | None = name
+        self.doc_string: str | None = doc_string
 
     def _printable_type_shape(self) -> str:
         """Return a string representation of the shape and data type."""
@@ -120,6 +134,23 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         """The number of bytes in the tensor."""
         # Use math.ceil because when dtype is INT4, the itemsize is 0.5
         return math.ceil(self.dtype.itemsize * self.size)
+
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
 
     def display(self, *, page: bool = False) -> None:
         rich = _display.require_rich()
@@ -309,8 +340,6 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
 
     __slots__ = (
         "_dtype",
-        "_metadata",
-        "_metadata_props",
         "_raw",
         "_shape",
         "doc_string",
@@ -347,6 +376,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             ValueError: If the shape is not specified and the value does not have a shape attribute.
             ValueError: If the dtype is not specified and the value is not a numpy array.
         """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         # NOTE: We should not do any copying here for performance reasons
         if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
             raise TypeError(f"Expected an array compatible object, got {type(value)}")
@@ -381,10 +411,6 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             value = _maybe_view_np_array_with_ml_dtypes(value, self._dtype)  # type: ignore[assignment]
 
         self._raw = value
-        self.name = name
-        self.doc_string = doc_string
-        self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props = metadata_props
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if isinstance(self._raw, np.ndarray) or _compatible_with_numpy(self._raw):
@@ -455,23 +481,6 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             array = array.view(array.dtype.newbyteorder("<"))
         return array.tobytes()
 
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
-
 
 class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
     """An immutable concrete tensor with its data store on disk.
@@ -512,13 +521,9 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         "_dtype",
         "_length",
         "_location",
-        "_metadata",
-        "_metadata_props",
         "_offset",
         "_shape",
         "_valid",
-        "doc_string",
-        "name",
         "raw",
     )
 
@@ -548,6 +553,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             metadata_props: The metadata properties.
             base_dir: The base directory for the external data. It is used to resolve relative paths.
         """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         # NOTE: Do not verify the location by default. This is because the location field
         # in the tensor proto can be anything and we would like deserialization from
         # proto to IR to not fail.
@@ -725,34 +731,13 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             self.raw.close()
             self.raw = None
 
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
-
 
 class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
     """Multidimensional array of strings (as binary data to match the string_data field in TensorProto)."""
 
     __slots__ = (
-        "_metadata",
-        "_metadata_props",
         "_raw",
         "_shape",
-        "doc_string",
-        "name",
     )
 
     def __init__(
@@ -773,6 +758,7 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             doc_string: The documentation string.
             metadata_props: The metadata properties.
         """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         if shape is None:
             if not hasattr(value, "shape"):
                 raise ValueError(
@@ -784,10 +770,6 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             self._shape = shape
             self._shape._frozen = True
         self._raw = value
-        self.name = name
-        self.doc_string = doc_string
-        self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props = metadata_props
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if isinstance(self._raw, np.ndarray):
@@ -834,23 +816,6 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
         if isinstance(self._raw, np.ndarray):
             return self._raw.flatten().tolist()
         return self._raw
-
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
 
 
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
