@@ -16,12 +16,12 @@ from onnxscript.onnx_types import FLOAT, INT64
 # x: [B, H, S, E]
 # position_ids: [B, S]
 @script()
-def toy_model_1_script(
-    x: FLOAT[1, 4, 8, 8], position_ids: INT64[1, 8], inv_freq: FLOAT[1, 4, 1]
-) -> FLOAT[1, 4, 8, 8]:
+def toy_model_1_script(x: FLOAT[1, 4, 8, 8], position_ids: INT64[1, 8]) -> FLOAT[1, 4, 8, 8]:
+    inv_freq = op.Constant(value_floats=[1.0, 2.0, 3.0, 4.0])
+    inv_freq_3d = op.Unsqueeze(inv_freq, [0, 2])
     position_ids_expanded = op.Unsqueeze(position_ids, [1])  # => [B, 1, S]
     position_ids_float = op.Cast(position_ids_expanded, to=ir.DataType.FLOAT)
-    freqs = op.MatMul(inv_freq, position_ids_float)  # [B, E, S]
+    freqs = op.MatMul(inv_freq_3d, position_ids_float)  # [B, E, S]
     freqs = op.Transpose(freqs, perm=[0, 2, 1])  # [B, S, E]
     emb = op.Concat(freqs, freqs, axis=-1)
     cos = op.Cos(emb)
@@ -49,7 +49,6 @@ class TestData:
         if not hasattr(self, "_ort_inputs"):
             inputs = {
                 "x": numpy.random.rand(1, 4, 8, 8).astype(numpy.float32),
-                "inv_freq": numpy.random.rand(1, 4, 1).astype(numpy.float32),
                 "position_ids": numpy.arange(8, dtype=numpy.int64).reshape(1, 8),
             }
             self._ort_inputs = inputs
