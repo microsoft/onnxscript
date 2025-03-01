@@ -1851,7 +1851,6 @@ class MatchingTracer:
         best_matches.append(this_match)
 
     def report(self) -> None:
-
         best_score = 0
         for rule, matches in self._best_matches_map.items():
             if not matches:
