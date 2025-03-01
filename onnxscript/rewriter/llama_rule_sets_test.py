@@ -452,6 +452,43 @@ class LlamaRuleSetsTest(unittest.TestCase):
             self.assertEqual(["Split"], [n.op_type for n in rewritten_model.graph.node])
             self._check_model(model_proto, rewritten_model)
 
+    def test_squeeze_reshape_1d_test(self):
+        rule = llama_rule_sets.squeeze_reshape_1d_rule
+
+        def check(model_script, expected_count) -> None:
+            model_proto = model_script.to_model_proto()
+            ir_model = ir.serde.deserialize_model(model_proto)
+            count = rule.apply_to_model(ir_model)
+            self.assertEqual(count, expected_count)
+            if count > 0:
+                self.assertEqual([x.op_type for x in ir_model.graph], ["Identity"])
+            rewritten_proto = ir.serde.serialize_model(ir_model)
+            self._check_model(model_proto, rewritten_proto)
+
+        op = onnxscript.opset17
+
+        # input of shape [12]
+        @onnxscript.script()
+        def model1(X: ot.FLOAT[12]):
+            return op.Reshape(op.Squeeze(X), [-1])
+
+        check(model1, 1)
+
+        # input of shape [1]
+        @onnxscript.script()
+        def model2(X: ot.FLOAT[1]):
+            return op.Reshape(op.Squeeze(X), [-1])
+
+        check(model2, 1)
+
+        # input of shape [1, 1]
+        # This should NOT be optimized to Identity
+        @onnxscript.script()
+        def model3(X: ot.FLOAT[1, 1]):
+            return op.Reshape(op.Squeeze(X), [-1])
+
+        check(model3, 0)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

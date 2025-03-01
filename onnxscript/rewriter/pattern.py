@@ -1627,6 +1627,9 @@ class RewriteRuleSet:
         if commute:
             rules = list(itertools.chain.from_iterable([rule.commute() for rule in rules]))
         self.rules = rules
+        # We call remove_unused_nodes at end of rewriting if there is any rule that does
+        # NOT remove nodes (immediately when it is applied)
+        self.remove_unused_nodes = any(not rule.remove_nodes for rule in rules)
 
     def _apply_to_graph_or_function(
         self,
@@ -1762,6 +1765,8 @@ class RewriteRuleSet:
             count += self._apply_to_graph_or_function(
                 model, function, verbose=verbose, tracer=tracer
             )
+        if self.remove_unused_nodes:
+            onnxscript.optimizer.remove_unused_nodes(model)
         return count
 
     def __iter__(self):
