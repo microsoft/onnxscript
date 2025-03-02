@@ -135,6 +135,9 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
                 cos_2d = op.Cast(cos_2d, to=dtype)
                 sin_2d = op.Cast(sin_2d, to=dtype)
             self._inv_freq_cos_sin_cache[inv_freq] = (cos_2d, sin_2d)
+        if _ir_utils.has_rank(position_ids, 1):
+            zero_1d = op.Constant(value_ints=[0])
+            position_ids = op.Unsqueeze(position_ids, zero_1d)
         return op.RotaryEmbedding(
             x,
             position_ids,
