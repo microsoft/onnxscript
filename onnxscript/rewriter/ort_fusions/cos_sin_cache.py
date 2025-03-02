@@ -58,14 +58,18 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
     def cleanup(self):
         self._inv_freq_cos_sin_cache.clear()
 
-    def pattern(self, op, x, inv_freq, position_ids, interleaved, num_heads, freqs, dtype):
+    def pattern(
+        self, op, x, inv_freq, position_ids, interleaved, num_heads, freqs, dtype, extra_dims
+    ):
         if not self._const_freqs:
             # Compute freqs from inv_freq and position_ids. In the _const_freqs case,
             # this computation has been constant-folded away and freqs is a constant.
             # B: batch size, S: sequence length, E: embedding dimension
-            # position_ids: [B, S]
+            # position_ids: [B, S] or [S]
             # inv_freq: [1, E, 1]
-            position_ids_expanded = op.Unsqueeze(position_ids, 1)  # [B, S] => [B, 1, S]
+            position_ids_expanded = op.Unsqueeze(
+                position_ids, extra_dims
+            )  # [B, S] | [S] => [B, 1, S]
             position_ids_expanded = op.Cast(position_ids_expanded, to=ir.DataType.FLOAT)
             # if self._reshape:
             #     position_ids_expanded = op.Expand(position_ids_expanded, _allow_other_inputs=True)
@@ -92,11 +96,17 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
             _domain="ai.onnxruntime.fusion",
         )
 
-    def check(self, context, inv_freq, position_ids, freqs, **_):
+    def check(self, context, inv_freq, position_ids, freqs, extra_dims, **_):
         # TODO(rama): handle redundant reshape/expand
         if self._const_freqs:
             return (freqs.const_value is not None) and _ir_utils.has_rank(freqs, 3)
-        if not _ir_utils.has_rank(position_ids, 2):
+        if (
+            _ir_utils.has_rank(position_ids, 2) and _ir_utils.is_singleton_value(extra_dims, 1)
+        ) or (
+            _ir_utils.has_rank(position_ids, 1) and _ir_utils.is_1d_value(extra_dims, [0, 1])
+        ):
+            pass
+        else:
             return False
         if not _ir_utils.has_rank(inv_freq, 3):
             return False
@@ -125,6 +135,9 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
                 cos_2d = op.Cast(cos_2d, to=dtype)
                 sin_2d = op.Cast(sin_2d, to=dtype)
             self._inv_freq_cos_sin_cache[inv_freq] = (cos_2d, sin_2d)
+        if _ir_utils.has_rank(position_ids, 1):
+            zero_1d = op.Constant(value_ints=[0])
+            position_ids = op.Unsqueeze(position_ids, zero_1d)
         return op.RotaryEmbedding(
             x,
             position_ids,
@@ -146,14 +159,9 @@ _basic = CosSinCacheFusion.rule("CosSinCache", 2048, cast=False)
 
 cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _cast_const_freqs, _basic])
 
-debug: bool = True
-
 
 def fuse_cos_sin_cache(model: ir.Model) -> int:
     count = cos_sin_cache_rules.apply_to_model(model)
-    if count == 0 and debug:
-        cos_sin_cache_rules.apply_to_model(model, debug=True)
-    else:
-        print(f"CosSinCache count: {count}")
+    if count != 0:
         remove_unused_nodes(model)
     return count
