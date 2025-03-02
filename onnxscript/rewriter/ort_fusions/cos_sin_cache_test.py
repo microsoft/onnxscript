@@ -16,6 +16,8 @@ from onnxscript.rewriter.ort_fusions.rotary_embedding import fuse_rotary_embeddi
 toy_model_1_test = toy_models.TestData
 
 toy_model_2_test = toy_models.TestData2
+
+
 class TestCosSinCacheTransform(unittest.TestCase):
     @parameterized.expand(
         [
