@@ -51,6 +51,7 @@ exclude_patterns = [
     'onnxscript/rewriter/onnxruntime/transformers/fastgelu.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/instance_to_group_normalization.py',  # FIXME
     'onnxscript/rewriter/ort_fusions/_smollm_*.py',  # onnxscript code
+    'onnxscript/rewriter/ort_fusions/_toy_model*.py',  # onnxscript code
     'onnxscript/_legacy_ir/irbuilder.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/multihead_attention.py',  # FIXME
     'onnxscript/tools/function_unittest_producer.py',  # FIXME
