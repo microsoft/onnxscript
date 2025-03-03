@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 import unittest
 
+import google.protobuf.text_format
 import ml_dtypes
 import numpy as np
 import onnx
@@ -288,6 +289,111 @@ class DeserializeGraphTest(unittest.TestCase):
         deserialized_graph = serde.deserialize_graph(graph_proto)
         self.assertEqual(deserialized_graph[0].op_type, "Op_1")
         self.assertEqual(deserialized_graph[1].op_type, "Op_0")
+
+
+class QuantizationAnnotationTest(unittest.TestCase):
+    """Test that quantization annotations are correctly serialized and deserialized."""
+
+    def setUp(self):
+        model_text = """\
+ir_version: 8
+producer_name: "pytorch"
+producer_version: "2.1.1"
+graph {
+  input {
+    name: "input"
+    type {
+      tensor_type {
+        elem_type: 1
+        shape {
+          dim {
+            dim_value: 1
+          }
+        }
+      }
+    }
+  }
+  output {
+    name: "output"
+    type {
+      tensor_type {
+        elem_type: 1
+        shape {
+          dim {
+            dim_value: 1
+          }
+        }
+      }
+    }
+  }
+  node {
+    input: "input"
+    output: "intermediate_value"
+    op_type: "TestOp1"
+    domain: "test_domain"
+  }
+  node {
+    input: "intermediate_value"
+    output: "output"
+    op_type: "TestOp2"
+    domain: "test_domain"
+  }
+  quantization_annotation {
+    tensor_name: "input"
+    quant_parameter_tensor_names {
+      key: "custom_key"
+      value: "arbitrary_value_input"
+    }
+  }
+  quantization_annotation {
+    tensor_name: "intermediate_value"
+    quant_parameter_tensor_names {
+      key: "custom_key"
+      value: "arbitrary_value_intermediate"
+    }
+  }
+  quantization_annotation {
+    tensor_name: "output"
+    quant_parameter_tensor_names {
+      key: "custom_key"
+      value: "arbitrary_value_output"
+    }
+  }
+}"""
+        self.model = onnx.ModelProto()
+        google.protobuf.text_format.Parse(model_text, self.model)
+
+    def test_deserialize_quantization_annotation(self):
+        model = serde.deserialize_model(self.model)
+        self.assertEqual(
+            model.graph.inputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_input"},
+        )
+        self.assertEqual(
+            model.graph.node(0).outputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_intermediate"},
+        )
+        self.assertEqual(
+            model.graph.outputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_output"},
+        )
+
+    def test_serde_roundtrip(self):
+        model = serde.deserialize_model(self.model)
+        serialized_model = serde.serialize_model(model)
+        deserialized_model = serde.deserialize_model(serialized_model)
+        self.assertEqual(
+            deserialized_model.graph.inputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_input"},
+        )
+        self.assertEqual(
+            deserialized_model.graph.node(0).outputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_intermediate"},
+        )
+        self.assertEqual(
+            deserialized_model.graph.outputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_output"},
+        )
 
 
 if __name__ == "__main__":

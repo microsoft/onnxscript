@@ -610,11 +610,20 @@ def _deserialize_graph(
     Returns:
         IR Graph.
     """
+    # Process TensorAnnotation for quantization
+    quantization_annotations = {
+        annotation.tensor_name: annotation for annotation in proto.quantization_annotation
+    }
+
     # Create values for initializers and inputs
     initializer_tensors = [deserialize_tensor(tensor) for tensor in proto.initializer]
     inputs = [_core.Input(info.name) for info in proto.input]
     for info, value in zip(proto.input, inputs):
         deserialize_value_info_proto(info, value)
+
+        # Add TensorAnnotation for inputs if they exist
+        if value.name in quantization_annotations:
+            _deserialize_quantization_annotation(quantization_annotations[value.name], value)
 
     # Initialize the values dictionary for this graph scope with the inputs and initializers
     values: dict[str, _core.Value] = {v.name: v for v in inputs}  # type: ignore[misc]
@@ -636,16 +645,15 @@ def _deserialize_graph(
                 type=_core.TensorType(tensor.dtype),
                 const_value=tensor,
             )
+            if initializer_value.name in quantization_annotations:
+                _deserialize_quantization_annotation(
+                    quantization_annotations[initializer_value.name], initializer_value
+                )
             values[tensor.name] = initializer_value  # type: ignore[index]
         initializer_values.append(initializer_value)
 
     # Add ValueInfos for this graph scope
     value_info = {info.name: info for info in proto.value_info}
-
-    # Add TensorAnnotation for quantization
-    quantization_annotations = {
-        annotation.tensor_name: annotation for annotation in proto.quantization_annotation
-    }
 
     # Deserialize nodes with all known values
     nodes = [
@@ -1293,14 +1301,15 @@ def serialize_graph_into(
     for node in from_:
         serialize_node_into(graph_proto.node.add(), from_=node)
         for node_output in node.outputs:
+            if node_output.is_graph_output():
+                # No need to serialize info for these outputs because they are handled as graph outputs
+                continue
+            _maybe_add_quantization_annotation(graph_proto, node_output)
             if not _should_create_value_info_for_value(node_output):
                 # No need to serialize value info if it is not set
                 continue
-            if node_output.is_graph_output():
-                # No need to serialize value info for these outputs because they are also graph outputs
-                continue
-            serialize_value_into(graph_proto.value_info.add(), node_output)
-            _maybe_add_quantization_annotation(graph_proto, node_output)
+            else:
+                serialize_value_into(graph_proto.value_info.add(), node_output)
     for output in from_.outputs:
         serialize_value_into(graph_proto.output.add(), from_=output)
         _maybe_add_quantization_annotation(graph_proto, output)
