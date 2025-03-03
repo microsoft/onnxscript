@@ -733,7 +733,7 @@ def deserialize_value_info_proto(
 @_capture_errors(lambda proto, value: str(proto))
 def _deserialize_quantization_annotation(
     proto: onnx.TensorAnnotation, value: _core.Value
-) -> _core.Value:
+) -> None:
     """Deserialize a quantization_annotation as TensorAnnotation into a Value.
 
     This function is marked private because we don't expect users to call it directly.
@@ -741,7 +741,6 @@ def _deserialize_quantization_annotation(
     value.meta[_QUANT_PARAMETER_TENSOR_NAMES_FIELD] = _deserialize_string_string_maps(
         proto.quant_parameter_tensor_names
     )
-    return value
 
 
 @_capture_errors(str)
