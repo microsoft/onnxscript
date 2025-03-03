@@ -738,7 +738,6 @@ def _deserialize_quantization_annotation(
 
     This function is marked private because we don't expect users to call it directly.
     """
-    assert proto.tensor_name == value.name
     value.meta[_QUANT_PARAMETER_TENSOR_NAMES_FIELD] = _deserialize_string_string_maps(
         proto.quant_parameter_tensor_names
     )
