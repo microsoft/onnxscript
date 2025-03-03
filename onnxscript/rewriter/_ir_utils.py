@@ -105,6 +105,8 @@ def is_singleton_value(
 
 def is_1d_value(val: ir.Value | None, expected: list[int]) -> bool:
     """Returns True if the value is a 1d int64 tensor with given value, and False otherwise."""
+    if val is None:
+        return False
     if not isinstance(val.type, ir.TypeProtocol):
         return False
     np_val = get_numpy_value(val)
