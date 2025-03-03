@@ -4677,6 +4677,7 @@ def aten_layer_norm(
     weight: Optional[TReal] = None,
     bias: Optional[TReal] = None,
     eps: float = 1e-05,
+    cudnn_enable: bool = True,
 ) -> TReal:
     """layer_norm(Tensor input, int[] normalized_shape, Tensor? weight=None, Tensor? bias=None, float eps=1e-05, bool cudnn_enable=True) -> Tensor"""
 
