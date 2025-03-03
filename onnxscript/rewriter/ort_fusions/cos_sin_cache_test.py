@@ -7,31 +7,27 @@ import unittest
 from parameterized import parameterized
 
 import onnxscript.optimizer
-import onnxscript.rewriter.ort_fusions._toy_model_1 as toy_models
-from onnxscript.rewriter.ort_fusions._smollm_1 import TestData as smollm_1_test
+from onnxscript.rewriter.ort_fusions._rotary_embedding_models import test_case_1, test_case_2
+from onnxscript.rewriter.ort_fusions._smollm_1 import smollm_test_1
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
 from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
 from onnxscript.rewriter.ort_fusions.rotary_embedding import fuse_rotary_embedding
-
-toy_model_1_test = toy_models.TestData
-
-toy_model_2_test = toy_models.TestData2
 
 
 class TestCosSinCacheTransform(unittest.TestCase):
     @parameterized.expand(
         [
             (
-                "smollm_1_test",
-                smollm_1_test,
+                "smollm_test_1",
+                smollm_test_1,
             ),
             (
-                "toy_model_1_test",
-                toy_model_1_test,
+                "test_case_1",
+                test_case_1,
             ),
             (
-                "toy_model_2_test",
-                toy_model_2_test,
+                "test_case_2",
+                test_case_2,
             ),
         ]
     )

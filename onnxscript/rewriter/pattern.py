@@ -1745,9 +1745,8 @@ class RewriteRuleSet:
         Args:
             model: The model to which the rewrite rules are applied.
             verbose: The verbosity level of messages. Defaults to None.
-            debug: Whether to enable debugging. Defaults to False. In the
-                debug mode, no changes are made to the model, only a report is produced at
-                the end about the best matches found.
+            tracer: if specified, no changes are made to the model, only
+                information about the best matches found is computed.
 
         Returns:
             The number of applications of rewrite rules.

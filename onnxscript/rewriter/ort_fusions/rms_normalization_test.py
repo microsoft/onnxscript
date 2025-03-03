@@ -5,14 +5,14 @@ from __future__ import annotations
 import unittest
 
 import onnxscript.optimizer
-from onnxscript.rewriter.ort_fusions._smollm_1 import TestData
+from onnxscript.rewriter.ort_fusions._smollm_1 import smollm_test_1
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
 from onnxscript.rewriter.ort_fusions.rms_normalization import fuse_rms_normalization
 
 
 class TestRmsNormalization(unittest.TestCase):
     def test_smollm(self):
-        smollm_test = TestData()
+        smollm_test = smollm_test_1()
         model = smollm_test.get_onnx_model()
         onnxscript.optimizer.optimize(model)
         inputs = smollm_test.get_ort_inputs()

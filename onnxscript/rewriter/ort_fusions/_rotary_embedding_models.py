@@ -1,9 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""
-A toy model test case.
-"""
+"""Small test case models for rotary embedding."""
 
 import numpy
 
@@ -16,7 +14,7 @@ from onnxscript.onnx_types import FLOAT, INT64
 # x: [B, H, S, E]
 # position_ids: [B, S]
 @script()
-def toy_model_1_script(x: FLOAT[1, 4, 8, 8], position_ids: INT64[1, 8]) -> FLOAT[1, 4, 8, 8]:
+def _test_case_1_script(x: FLOAT[1, 4, 8, 8], position_ids: INT64[1, 8]) -> FLOAT[1, 4, 8, 8]:
     inv_freq = op.Constant(value_floats=[1.0, 2.0, 3.0, 4.0])
     inv_freq_3d = op.Unsqueeze(inv_freq, [0, 2])
     position_ids_expanded = op.Unsqueeze(position_ids, [1])  # => [B, 1, S]
@@ -37,10 +35,10 @@ def toy_model_1_script(x: FLOAT[1, 4, 8, 8], position_ids: INT64[1, 8]) -> FLOAT
     return rotary_embedding
 
 
-class TestData:
+class _TestCase1:
     def get_onnx_model(self):
         if not hasattr(self, "_onnx_model"):
-            model_proto = toy_model_1_script.to_model_proto()
+            model_proto = _test_case_1_script.to_model_proto()
             model = ir.serde.deserialize_model(model_proto)
             self._onnx_model = model
         return self._onnx_model
@@ -54,11 +52,13 @@ class TestData:
             self._ort_inputs = inputs
         return self._ort_inputs
 
+def test_case_1():
+    return _TestCase1()
 
 # x: [B, H, S, E]
 # position_ids: [S]
 @script()
-def toy_model_2_script(x: FLOAT[1, 4, 8, 8], position_ids: INT64[8]) -> FLOAT[1, 4, 8, 8]:
+def _test_case_2_script(x: FLOAT[1, 4, 8, 8], position_ids: INT64[8]) -> FLOAT[1, 4, 8, 8]:
     inv_freq = op.Constant(value_floats=[1.0, 2.0, 3.0, 4.0])
     inv_freq_3d = op.Unsqueeze(inv_freq, [0, 2])
     position_ids_expanded = op.Unsqueeze(position_ids, [0, 1])  # => [1, 1, S]
@@ -79,10 +79,10 @@ def toy_model_2_script(x: FLOAT[1, 4, 8, 8], position_ids: INT64[8]) -> FLOAT[1,
     return rotary_embedding
 
 
-class TestData2:
+class _TestCase2:
     def get_onnx_model(self):
         if not hasattr(self, "_onnx_model"):
-            model_proto = toy_model_2_script.to_model_proto()
+            model_proto = _test_case_2_script.to_model_proto()
             model = ir.serde.deserialize_model(model_proto)
             self._onnx_model = model
         return self._onnx_model
@@ -95,3 +95,6 @@ class TestData2:
             }
             self._ort_inputs = inputs
         return self._ort_inputs
+
+def test_case_2():
+    return _TestCase2()
