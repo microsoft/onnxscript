@@ -447,7 +447,7 @@ def make_model_with_random_weights():
     return model
 
 
-class TestData:
+class _SmollmTest2:
     def get_onnx_model(self):
         if not hasattr(self, "_onnx_model"):
             model_proto = make_model_with_random_weights()
@@ -465,3 +465,7 @@ class TestData:
             }
             self._ort_inputs = inputs
         return self._ort_inputs
+
+
+def smollm_test_2():
+    return _SmollmTest2()

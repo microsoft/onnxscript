@@ -103,6 +103,21 @@ def is_singleton_value(
     return math.isclose(scalar, expected, rel_tol=rtol)
 
 
+def is_1d_value(val: ir.Value | None, expected: list[int]) -> bool:
+    """Returns True if the value is a 1d int64 tensor with given value, and False otherwise."""
+    if val is None:
+        return False
+    if not isinstance(val.type, ir.TypeProtocol):
+        return False
+    np_val = get_numpy_value(val)
+    if np_val is None:
+        return False
+    if (np_val.size != len(expected)) or (val.type.dtype != ir.DataType.INT64):
+        return False
+    values = np_val.tolist()
+    return values == expected
+
+
 def has_rank(value: ir.Value | None, rank: int) -> bool:
     """Returns True if the value is statically known to have the given rank, and False otherwise."""
     if value is None:

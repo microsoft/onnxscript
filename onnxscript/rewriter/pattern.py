@@ -1405,12 +1405,12 @@ class RewriteRule:
         *,
         commute: bool = False,
         verbose: int | None = None,
-        debug: bool = False,
+        tracer: MatchingTracer | None = None,
     ):
         # A convenience method to apply the rule to a model. We use a RewriteRuleSet to
         # handle commutative rules.
         return RewriteRuleSet([self], commute=commute).apply_to_model(
-            model, verbose=verbose, debug=debug
+            model, verbose=verbose, tracer=tracer
         )
 
     def commute(self) -> Sequence[RewriteRule]:
@@ -1734,22 +1734,24 @@ class RewriteRuleSet:
         return count
 
     def apply_to_model(
-        self, model: ir.Model, *, verbose: int | None = None, debug: bool = False
+        self,
+        model: ir.Model,
+        *,
+        verbose: int | None = None,
+        tracer: MatchingTracer | None = None,
     ) -> int:
         """Apply the rewrite rules in the set to the model.
 
         Args:
             model: The model to which the rewrite rules are applied.
             verbose: The verbosity level of messages. Defaults to None.
-            debug: Whether to enable debugging. Defaults to False. In the
-                debug mode, no changes are made to the model, only a report is produced at
-                the end about the best matches found.
+            tracer: if specified, no changes are made to the model, only
+                information about the best matches found is computed.
 
         Returns:
             The number of applications of rewrite rules.
         """
         assert isinstance(model, ir.Model)
-        tracer = MatchingTracer() if debug else None
         onnxscript.optimizer.basic_constant_propagation(model.graph)
         # Rewriting may introduce new functions. In the following loop,
         # we restrict rewriting to original functions, not newly introduced ones.
@@ -1764,8 +1766,6 @@ class RewriteRuleSet:
             )
         if self.remove_unused_nodes:
             onnxscript.optimizer.remove_unused_nodes(model)
-        if tracer:
-            tracer.report()
         return count
 
     def __iter__(self):
@@ -1794,6 +1794,26 @@ class MatchInfo:
         """Return a score for the match."""
         return len(self.match_result.nodes) + int(self.status.value) * 100
 
+    def print(self):
+        separator = "-" * 80
+        print(separator)
+        print(f"Status: {self.status.name}")
+        if self.status != MatchStatus.SUCCESS:
+            reason = self.match_result.reason
+            if reason:
+                print(f"Graph matching failed: {reason}")
+            else:
+                print("Graph matching failed.")
+            failure_node = self.match_result._failure_node
+            if failure_node:
+                print("Failure at or around node:")
+                failure_node.display()
+        print("Matched nodes:")
+        import onnxscript.rewriter._ir_utils as ir_utils
+
+        ir_utils.display_nodes(self.match_result.nodes)
+        print(separator)
+
 
 class MatchingTracer:
     """A debugging helper class to trace the matching of a pattern against a graph.
@@ -1803,7 +1823,11 @@ class MatchingTracer:
     """
 
     def __init__(self) -> None:
-        self._log: dict[RewriteRule, list[MatchInfo]] = defaultdict(list)
+        self._best_matches_map: dict[RewriteRule, list[MatchInfo]] = defaultdict(list)
+
+    @property
+    def best_matches_map(self) -> dict[RewriteRule, list[MatchInfo]]:
+        return self._best_matches_map
 
     def log(
         self,
@@ -1817,7 +1841,7 @@ class MatchingTracer:
         this_score = this_match.score()
         if this_score == 0:
             return
-        best_matches = self._log[rule]
+        best_matches = self._best_matches_map[rule]
         if best_matches:
             if this_score < best_matches[0].score():
                 return
@@ -1826,22 +1850,17 @@ class MatchingTracer:
         best_matches.append(this_match)
 
     def report(self) -> None:
-        import onnxscript.rewriter._ir_utils as ir_utils
-
-        print("===")
-        for rule, matches in self._log.items():
+        best_score = 0
+        for rule, matches in self._best_matches_map.items():
             if not matches:
                 continue
-            print(f"Rule: {rule}")
-            print(f"Best score: {matches[0].score()}")
-            for match in matches:
-                print(f"Status: {match.status.name}")
-                if match.status == MatchStatus.NO_MATCH:
-                    print("Graph matching failed: " + match.match_result.reason)
-                    node = match.match_result._failure_node
-                    if node:
-                        print("Failure at or around node:")
-                        node.display()
-                print("Matched nodes:")
-                ir_utils.display_nodes(match.match_result.nodes)
-                print("===")
+            if matches[0].score() > best_score:
+                best_score = matches[0].score()
+                best_match = matches[0]
+                best_rule = rule
+
+        if best_score > 0:
+            print(f"Rule: {best_rule}")
+            best_match.print()
+        else:
+            print("No matches found.")

@@ -6,14 +6,14 @@ import unittest
 
 import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
-from onnxscript.rewriter.ort_fusions._smollm_2 import TestData
+from onnxscript.rewriter.ort_fusions._smollm_2 import smollm_test_2
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
 
 
 class TestMultiHeadAttention(unittest.TestCase):
     def test_smollm(self):
         # Generate model
-        smollm_test = TestData()
+        smollm_test = smollm_test_2()
         model = smollm_test.get_onnx_model()
         onnxscript.optimizer.optimize(model)
         xformers.fuse_rms_normalization(model)
