@@ -52,8 +52,10 @@ class _TestCase1:
             self._ort_inputs = inputs
         return self._ort_inputs
 
+
 def test_case_1():
     return _TestCase1()
+
 
 # x: [B, H, S, E]
 # position_ids: [S]
@@ -95,6 +97,7 @@ class _TestCase2:
             }
             self._ort_inputs = inputs
         return self._ort_inputs
+
 
 def test_case_2():
     return _TestCase2()
