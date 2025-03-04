@@ -4329,7 +4329,7 @@ def aten_index_put(
     for i in range(self_rank):
         if indices[i] is None:
             # For a full slice along dim i, create a range index [0, self.shape[i]).
-            idx = op.Range(0, op.Shape(self, start=i, end=i + 1), 1)
+            idx = op.Range(0, self.shape[i], 1)
             reshape_update = self.shape[i]
         else:
             idx = indices[i]
