@@ -1303,7 +1303,7 @@ def serialize_graph_into(
                 # No need to serialize info for these outputs because they are handled as graph outputs
                 continue
             _maybe_add_quantization_annotation(graph_proto, node_output)
-            if not _should_create_value_info_for_value(node_output):
+            if not _should_create_value_info_for_value(node_output):  # pylint: disable=no-else-continue
                 # No need to serialize value info if it is not set
                 continue
             else:
