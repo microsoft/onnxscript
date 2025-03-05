@@ -7698,6 +7698,19 @@ def aten_sinh(self: TFloat) -> TFloat:
     return op.Sinh(self)
 
 
+@torch_op(("aten::slice.Tensor"), trace_only=True, complex=True)
+def aten_slice_complex(
+    self: TTensor,
+    dim: int = 0,
+    start: Optional[INT64] = None,
+    end: Optional[INT64] = None,
+    step: Optional[INT64] = None,
+) -> TTensor:
+    """slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)"""
+
+    return aten_slice(self, dim, start, end, step)
+
+
 @torch_op(("aten::slice.Tensor"), trace_only=True)
 def aten_slice(
     self: TTensor,
