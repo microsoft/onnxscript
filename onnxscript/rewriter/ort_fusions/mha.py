@@ -119,7 +119,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             key_reshaped_transposed, _allow_other_inputs=True, _outputs=["key_transposed"]
         )
 
-        value = op.Concat(past_value, value, axis=-2)
+        value = op.Concat(past_value, value_BHSd, axis=-2)
 
         attention = op.SDPA(
             query_rope, key_transposed, value, mask, _domain="ai.onnxruntime.fusion"
