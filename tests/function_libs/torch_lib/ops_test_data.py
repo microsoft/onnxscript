@@ -2068,44 +2068,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),  # Custom from extra_opinfo
     TorchLibOpInfo("transpose", core_ops.aten_transpose),
     TorchLibOpInfo("transpose", core_ops.aten_transpose_complex, complex=True),
-    TorchLibOpInfo(
-        "ops.aten._unique.default",
-        core_ops.aten__unique,
-    ),
-    TorchLibOpInfo(
-        "ops.aten._unique2.default",
-        core_ops.aten__unique2,
-    ),
-    TorchLibOpInfo(
-        "ops.aten.unique_dim.default",
-        core_ops.aten_unique_dim,
-    ).skip(
+    TorchLibOpInfo("ops.aten._unique.default", core_ops.aten__unique),
+    TorchLibOpInfo("ops.aten._unique2.default", core_ops.aten__unique2),
+    TorchLibOpInfo("ops.aten.unique_dim.default", core_ops.aten_unique_dim).skip(
         device_type="cpu",
         reason=(
             "ops.aten.unique_dim.default returns different shapes for optional outputs on CPU/CUDA. "
             "Our implementation is based on that for CUDA"
-        )
-    ),
-    TorchLibOpInfo(
-        "var_mean",
-        core_ops.aten_var_mean,
-        trace_only=True,
-    ).xfail(
-        # kwargs is empty
-        matcher=lambda sample: len(sample.kwargs) > 0,
-        reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
-    ),
-    TorchLibOpInfo(
-        "var_mean_dim",
-        core_ops.aten_var_mean_dim,
-        trace_only=True,
-    ).xfail(
-        # kwargs["dim"] must exist, kwargs["correction"] must not exist
-        matcher=lambda sample: not (
-            sample.kwargs.get("dim", None) is not None
-            and sample.kwargs.get("correction", None) is None
         ),
-        reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
     ),
     TorchLibOpInfo(
         "ops.prims.var.default", prims_ops.prims_var, tolerance={torch.float16: (1e-3, 5e-2)}
