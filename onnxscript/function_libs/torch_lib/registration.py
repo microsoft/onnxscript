@@ -1,9 +1,10 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Registry for aten functions."""
 
 from __future__ import annotations
 
 import re
-from types import FunctionType
 from typing import Any, Callable, Generator, Optional
 
 import onnxscript
@@ -99,8 +100,7 @@ def torch_op(
     trace_only: bool = False,
     private: bool = False,
     complex: bool = False,
-    traceable: bool = False,
-) -> Callable[[FunctionType], onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction]:
+) -> Callable[[Callable], onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction]:
     """Register a torch op.
 
     Args:
@@ -113,24 +113,12 @@ def torch_op(
         private: Whether the function is private (not directly exposed). It should
             be true for all functions with names starting with "_".
         complex: Whether the function expects complex-valued inputs.
-        traceable: Whether the function can also be traced. This is an **experimental** flag.
-            A function is traceable if it can both be scripted and traced to produce
-            the same result for a given input. Specifically:
-
-            - A function _can_ be tagged with traceable if its if branches (if any)
-                can be statically evaluated.
-            - A function _should_ be tagged with traceable if it contains if branches
-                and/or CastLike nodes so that they can be evaluated away with the
-                EXPERIMENTAL_PREFER_TRACING on.
-            - A function without if branches or CastLike nodes _should not_ be tagged
-                with traceable because inlining will do the same thing.
-            - A function with `@graph` defined for a `Scan` op is not traceable yet.
     """
     if registry is None:
         registry = default_registry
 
     def wrapper(
-        func: FunctionType,
+        func: Callable,
     ) -> onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction:
         # Compile the function
         custom_opset = onnxscript.values.Opset(domain=_constants.DOMAIN, version=1)
@@ -139,9 +127,7 @@ def torch_op(
         if trace_only:
             processed_func = onnxscript.values.TracedOnnxFunction(custom_opset, func)
         else:
-            assert isinstance(func, FunctionType)
             processed_func = onnxscript.script(opset=custom_opset)(func)
-            processed_func.experimental_traceable = traceable
 
         assert registry is not None
         for name_ in _check_and_normalize_names(name):

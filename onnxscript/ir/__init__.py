@@ -1,14 +1,33 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 """In-memory intermediate representation for ONNX graphs."""
 
 __all__ = [
     # Modules
     "serde",
+    "traversal",
+    "convenience",
+    "external_data",
     # IR classes
+    "Tensor",
+    "ExternalTensor",
+    "StringTensor",
+    "SymbolicDim",
+    "Shape",
+    "TensorType",
+    "OptionalType",
+    "SequenceType",
+    "SparseTensorType",
+    "TypeAndShape",
+    "Value",
     "Attr",
+    "RefAttr",
+    "Node",
+    "Function",
+    "Graph",
+    "GraphView",
+    "Model",
+    # Constructors
     "AttrFloat32",
     "AttrFloat32s",
     "AttrGraph",
@@ -21,26 +40,9 @@ __all__ = [
     "AttrStrings",
     "AttrTensor",
     "AttrTensors",
-    "TypeAndShape",
     "AttrTypeProto",
     "AttrTypeProtos",
-    "SymbolicDim",
-    "ExternalTensor",
-    "StringTensor",
-    "Function",
-    "Graph",
-    "GraphView",
     "Input",
-    "Model",
-    "Node",
-    "RefAttr",
-    "Shape",
-    "Tensor",
-    "Value",
-    "TensorType",
-    "OptionalType",
-    "SequenceType",
-    "SparseTensorType",
     # Protocols
     "ArrayCompatible",
     "DLPackCompatible",
@@ -68,11 +70,17 @@ __all__ = [
     # Conversion functions
     "from_proto",
     "to_proto",
+    # IR Tensor initializer
+    "tensor",
     # Pass infrastructure
     "passes",
+    # IO
+    "load",
+    "save",
 ]
 
-from onnxscript.ir import passes, serde
+from onnxscript.ir import convenience, external_data, passes, serde, traversal
+from onnxscript.ir._convenience import tensor
 from onnxscript.ir._core import (
     Attr,
     AttrFloat32,
@@ -112,6 +120,7 @@ from onnxscript.ir._enums import (
     AttributeType,
     DataType,
 )
+from onnxscript.ir._io import load, save
 from onnxscript.ir._protocols import (
     ArrayCompatible,
     AttributeProtocol,
@@ -132,3 +141,13 @@ from onnxscript.ir._protocols import (
     ValueProtocol,
 )
 from onnxscript.ir.serde import TensorProtoTensor, from_proto, to_proto
+
+
+def __set_module() -> None:
+    """Set the module of all functions in this module to this public module."""
+    global_dict = globals()
+    for name in __all__:
+        global_dict[name].__module__ = __name__
+
+
+__set_module()

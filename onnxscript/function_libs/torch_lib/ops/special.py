@@ -15,14 +15,12 @@ from __future__ import annotations
 import math
 from typing import Optional, Sequence
 
-from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
-from onnxscript.function_libs.torch_lib.tensor_typing import TFloat, TFloatOrBFloat16
+from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 _MATH_PI = math.pi
-IsScalar = common_ops.IsScalar
 
 
 def aten_special_airy_ai(x: TensorType) -> TensorType:
@@ -92,21 +90,21 @@ def aten_special_entr(self: TensorType) -> TensorType:
 
 
 @torch_op(("aten::erf", "aten::special_erf"))
-def aten_special_erf(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def aten_special_erf(self: TFloat) -> TFloat:
     """erf(Tensor self) -> Tensor"""
 
     return op.Erf(self)
 
 
 @torch_op(("aten::erfc", "aten::special_erfc"))
-def aten_special_erfc(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def aten_special_erfc(self: TFloat) -> TFloat:
     """erfc(Tensor self) -> Tensor"""
 
     return op.Sub(1, op.Erf(self))
 
 
 @torch_op("aten::special_erfcx")
-def aten_special_erfcx(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+def aten_special_erfcx(self: TFloat) -> TFloat:
     """special_erfcx(Tensor self) -> Tensor"""
 
     return op.Mul(op.Exp(op.Pow(self, 2)), op.Sub(1, op.Erf(self)))
@@ -130,10 +128,11 @@ def aten_special_expit(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_special_expm1(self: TensorType) -> TensorType:
+@torch_op(("aten::expm1", "aten::special_expm1"))
+def aten_special_expm1(self: TFloat) -> TFloat:
     """special_expm1(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Sub(op.Exp(self), 1)
 
 
 def aten_special_gammainc(self: TensorType, other: TensorType) -> TensorType:
@@ -214,13 +213,11 @@ def aten_special_log_ndtr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::log_softmax", "aten::special_log_softmax"), trace_only=True)
-def aten_special_log_softmax(
-    self: TFloatOrBFloat16, dim: int, dtype: int = -1
-) -> TFloatOrBFloat16:
+@torch_op(("aten::log_softmax.int", "aten::special_log_softmax"), trace_only=True)
+def aten_special_log_softmax(self: TFloat, dim: int, dtype: int = -1) -> TFloat:
     """special_log_softmax(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor"""
 
-    self_is_scalar = IsScalar(self)
+    self_is_scalar = len(self.shape) == 0
     if self_is_scalar:
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
     result = op.LogSoftmax(self, axis=dim)
@@ -364,8 +361,8 @@ def aten_special_xlog1py(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::xlogy")
-def aten_special_xlogy(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
+@torch_op(("aten::xlogy.Tensor", "aten::xlogy.Scalar_Self", "aten::xlogy.Scalar_Other"))
+def aten_special_xlogy(self: TFloat, other: TFloat) -> TFloat:
     """special_xlogy(Tensor self, Tensor other) -> Tensor"""
 
     # https://pytorch.org/docs/stable/special.html#torch.special.xlogy

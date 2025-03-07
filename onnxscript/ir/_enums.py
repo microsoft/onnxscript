@@ -1,13 +1,12 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 """ONNX IR enums that matches the ONNX spec."""
 
 from __future__ import annotations
 
 import enum
 
+import ml_dtypes
 import numpy as np
 
 
@@ -65,6 +64,7 @@ class DataType(enum.IntEnum):
     FLOAT8E5M2FNUZ = 20
     UINT4 = 21
     INT4 = 22
+    FLOAT4E2M1 = 23
 
     @classmethod
     def from_numpy(cls, dtype: np.dtype) -> DataType:
@@ -122,9 +122,11 @@ _ITEMSIZE_MAP = {
     DataType.FLOAT8E5M2FNUZ: 1,
     DataType.UINT4: 0.5,
     DataType.INT4: 0.5,
+    DataType.FLOAT4E2M1: 0.5,
 }
 
 
+# We use ml_dtypes to support dtypes that are not in numpy.
 _NP_TYPE_TO_DATA_TYPE = {
     np.dtype("bool"): DataType.BOOL,
     np.dtype("complex128"): DataType.COMPLEX128,
@@ -141,19 +143,21 @@ _NP_TYPE_TO_DATA_TYPE = {
     np.dtype("uint32"): DataType.UINT32,
     np.dtype("uint64"): DataType.UINT64,
     np.dtype("uint8"): DataType.UINT8,
+    np.dtype(ml_dtypes.bfloat16): DataType.BFLOAT16,
+    np.dtype(ml_dtypes.float8_e4m3fn): DataType.FLOAT8E4M3FN,
+    np.dtype(ml_dtypes.float8_e4m3fnuz): DataType.FLOAT8E4M3FNUZ,
+    np.dtype(ml_dtypes.float8_e5m2): DataType.FLOAT8E5M2,
+    np.dtype(ml_dtypes.float8_e5m2fnuz): DataType.FLOAT8E5M2FNUZ,
+    np.dtype(ml_dtypes.int4): DataType.INT4,
+    np.dtype(ml_dtypes.uint4): DataType.UINT4,
 }
 
-# ONNX DataType to Numpy dtype. This mapping does not capture ONNX data
-# types that are not supported by numpy.
-_DATA_TYPE_TO_NP_TYPE = {v: k for k, v in _NP_TYPE_TO_DATA_TYPE.items()}
-_DATA_TYPE_TO_NP_TYPE.update(
-    {
-        DataType.FLOAT8E4M3FN: np.dtype("uint8"),
-        DataType.FLOAT8E4M3FNUZ: np.dtype("uint8"),
-        DataType.FLOAT8E5M2: np.dtype("uint8"),
-        DataType.FLOAT8E5M2FNUZ: np.dtype("uint8"),
-        DataType.UINT4: np.dtype("uint8"),
-        DataType.INT4: np.dtype("int8"),
-        DataType.BFLOAT16: np.dtype("uint16"),
-    }
+# TODO(after min req for ml_dtypes>=0.5): Move this inside _NP_TYPE_TO_DATA_TYPE
+_NP_TYPE_TO_DATA_TYPE.update(
+    {np.dtype(ml_dtypes.float4_e2m1fn): DataType.FLOAT4E2M1}
+    if hasattr(ml_dtypes, "float4_e2m1fn")
+    else {}
 )
+
+# ONNX DataType to Numpy dtype.
+_DATA_TYPE_TO_NP_TYPE = {v: k for k, v in _NP_TYPE_TO_DATA_TYPE.items()}

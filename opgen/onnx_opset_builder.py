@@ -9,6 +9,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Annotated, Any, Iterable, Optional, Set, TextIO
 
+import pygen as cg
 from onnx.defs import (
     AttributeProto,
     OpSchema,
@@ -16,8 +17,6 @@ from onnx.defs import (
     onnx_opset_version,
 )
 from onnx.helper import get_attribute_value
-
-import opgen.pygen as cg
 
 __all__ = [
     "OpsetId",
@@ -61,8 +60,7 @@ class QualOpName:
 
     def __repr__(self) -> str:
         return (
-            f"QualOpName(domain={self.domain!r}, "
-            f"version={self.version!r}, name={self.name!r})"
+            f"QualOpName(domain={self.domain!r}, version={self.version!r}, name={self.name!r})"
         )
 
     def __str__(self) -> str:
@@ -346,7 +344,7 @@ class OpsetsBuilder:
             for existing_constraints in input_constraints, output_constraints:
                 if (existing := existing_constraints.get(constraint_name, None)) is not None:
                     if len(existing) != len(constraint_types):
-                        return False  #  differing number of constraints, can't be compatible
+                        return False  # differing number of constraints, can't be compatible
                     for a, b in zip(existing, constraint_types):
                         if str(a) != str(b):
                             return False  # a constrained type does not match

@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Test op correctness by comparing with PyTorch results.
 
 Usage:
@@ -37,7 +39,6 @@ from torch.testing._internal.opinfo import core as opinfo_core
 from torch.utils import _pytree as pytree
 
 import onnxscript
-import onnxscript.evaluator
 from tests.function_libs.torch_lib import (
     error_reproduction,
     ops_test_common,
@@ -96,42 +97,14 @@ def _should_skip_xfail_test_sample(
 
 
 class TestFunctionValidity(unittest.TestCase):
-    def test_all_script_functions_are_onnx_functions(self):
-        for info in ops_test_data.TESTED_TORCHLIB_OPS:
-            if info.trace_only:
-                continue
-            with self.subTest(name=info.op_info_name):
-                func = info.op
-                if not isinstance(func, onnxscript.OnnxFunction):
-                    raise TypeError(
-                        f"'{func}' is not an OnnxFunction. Was it decorated with '@torch_op'? "
-                        "If the function is trace_only, please specify trace_only=True "
-                        "in the TorchLibOpInfo entry."
-                    )
-
-    def test_all_trace_only_functions_are_not_onnx_functions(self):
-        for info in ops_test_data.TESTED_TORCHLIB_OPS:
-            if not info.trace_only:
-                continue
-            with self.subTest(name=info.op_info_name):
-                func = info.op
-                if not isinstance(func, onnxscript.TracedOnnxFunction):
-                    raise TypeError(
-                        f"'{func.name}' is not a TracedOnnxFunction. "
-                        "If the function is not trace_only, please remove trace_only=True "
-                        "in the TorchLibOpInfo entry."
-                    )
-
     @parameterized.parameterized.expand(
-        [
-            (info.op.name, info)
-            for info in ops_test_data.TESTED_TORCHLIB_OPS
-            if not info.trace_only
-        ]
+        [(info.op.name, info) for info in ops_test_data.TESTED_TORCHLIB_OPS]
     )
     def test_script_function_passes_checker(
         self, _, torchlib_op_info: ops_test_data.TorchLibOpInfo
     ):
+        if not isinstance(torchlib_op_info.op, onnxscript.OnnxFunction):
+            self.skipTest("Traced functions does not have a function proto")
         function_proto = torchlib_op_info.op.to_function_proto()
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
@@ -294,68 +267,6 @@ def run_test_output_match(
                         raise
 
 
-class TestOutputConsistencyEager(unittest.TestCase):
-    """Test output consistency between the ONNX op run with ONNX eager mode and PyTorch eager mode.
-
-    This is a parameterized test suite.
-    """
-
-    def setUp(self) -> None:
-        torch.manual_seed(42)
-        np.random.seed(42)
-        ort.set_seed(42)
-
-    @ops_test_common.add_decorate_info(
-        ops_test_data.OPS_DB,
-        "TestOutputConsistencyEager",
-        "test_output_match_opinfo_",
-        skip_or_xfails=ops_test_data.EXPECTED_SKIPS_OR_FAILS,
-    )
-    @common_device_type.ops(  # type: ignore[misc]
-        [info for info in ops_test_data.OPS_DB if info.name in ops_test_data.TESTED_OPS],
-        allowed_dtypes=TESTED_DTYPES,
-    )
-    def test_output_match_opinfo_(
-        self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
-    ):
-        # Base test method for testing each op with the eager executor, used by instantiate_device_type_tests.
-        run_test_output_match(
-            self,
-            device,
-            dtype,
-            op,
-            ops_test_common.eager_executor,
-            ops_test_data.TORCHLIB_OPINFO_MAPPING,
-        )
-
-    @ops_test_common.add_decorate_info(
-        ops_test_data.OPS_DB,
-        "TestOutputConsistencyEager",
-        "test_complex_output_match_opinfo_",
-        skip_or_xfails=ops_test_data.EXPECTED_SKIPS_OR_FAILS,
-    )
-    @common_device_type.ops(  # type: ignore[misc]
-        [
-            info
-            for info in ops_test_data.OPS_DB
-            if info.name in ops_test_data.COMPLEX_FUNCTION_MAPPING
-        ],
-        allowed_dtypes=COMPLEX_TYPES,
-    )
-    def test_complex_output_match_opinfo_(
-        self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
-    ):
-        """Base test method for testing each op with the eager executor, used by instantiate_device_type_tests."""
-        run_test_output_match(
-            self,
-            device,
-            dtype,
-            op,
-            ops_test_common.eager_executor,
-            ops_test_data.COMPLEX_FUNCTION_MAPPING,
-        )
-
-
 class TestOutputConsistencyFullGraph(unittest.TestCase):
     """Test output consistency between exported ONNX op run as a graph and PyTorch eager mode.
 
@@ -417,10 +328,6 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
             ops_test_data.COMPLEX_FUNCTION_MAPPING,
         )
 
-
-common_device_type.instantiate_device_type_tests(
-    TestOutputConsistencyEager, globals(), only_for=["cpu", "cuda"]
-)
 
 common_device_type.instantiate_device_type_tests(
     TestOutputConsistencyFullGraph, globals(), only_for=["cpu", "cuda"]

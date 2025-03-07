@@ -3481,7 +3481,7 @@ class Opset11(Opset10):
 
 
         Produces a slice of the input tensor along multiple axes. Similar to numpy:
-        https://docs.scipy.org/doc/numpy/reference/arrays.indexing.html
+        https://numpy.org/doc/stable/reference/routines.indexing.html
         Slices uses `starts`, `ends`, `axes` and `steps` inputs to specify the start and end
         dimension and step for each axis in the list of axes, it uses this information to
         slice the input `data` tensor. If a negative value is passed for any of the

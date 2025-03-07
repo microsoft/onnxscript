@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 from onnxscript import graph, script
 from onnxscript import opset15 as op
 
@@ -13,7 +15,7 @@ try:
             return sum_out, sum_out
 
         g = op.Constant(value=1)
-        all_sum, cumulative_sum = op.Scan(0, X, body=Sum, num_scan_inputs=1)
+        _all_sum, cumulative_sum = op.Scan(0, X, body=Sum, num_scan_inputs=1)
         return cumulative_sum
 
 except Exception as e:

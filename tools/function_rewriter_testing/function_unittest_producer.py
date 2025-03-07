@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Fuction fusion unittest producer.
 
 Takes in a full model, function keyword, and example inputs, produces unit model protos
@@ -14,7 +16,6 @@ import itertools
 import logging
 import os
 import sys
-from typing import Dict, List, Tuple
 
 import numpy as np
 import onnx
@@ -71,14 +72,11 @@ class FunctionToKeepVisitor(visitor.ProtoVisitorCore):
         super().visit_model(model)
 
 
-FunctionMetaDict = Dict[Tuple[str, str], Tuple[List[str], List[str]]]
-
-
 class TargetFunctionMetaVisitor(visitor.ProtoVisitorCore):
     def __init__(self, function_keyword):
         self.function_keyword = function_keyword
         # Map from (domain, name) to (actual_input_names, actual_output_names)
-        self.function_meta: FunctionMetaDict = {}
+        self.function_meta: dict[tuple[str, str], tuple[list[str], list[str]]] = {}
         self._functions = {}
         super().__init__()
 
@@ -338,9 +336,9 @@ class FunctionProtoProducerWithData(visitor.ProtoVisitor):
             tmp_model_path, providers=["CUDAExecutionProvider"]
         )
         outputs = sess.run(fetch_outputs, inputs)
-        assert (
-            len(outputs) == len(fetch_outputs)
-        ), f"Number of outputs mismatch. outputs: {len(outputs)}, fetch_outputs: {len(fetch_outputs)}"
+        assert len(outputs) == len(fetch_outputs), (
+            f"Number of outputs mismatch. outputs: {len(outputs)}, fetch_outputs: {len(fetch_outputs)}"
+        )
 
         self._named_values = dict(zip(fetch_outputs, outputs))  # type: ignore[arg-type]
         for inputs, outputs in target_function_meta.values():

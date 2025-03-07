@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 
 
 import os
@@ -291,7 +289,7 @@ def enumerate_onnx_tests(series, fct_filter=None) -> Iterator[OnnxBackendTest]:
     sub = os.path.join(root, "data", series)
     if not os.path.exists(sub):
         raise FileNotFoundError(
-            "Unable to find series of tests in {root!r}, subfolders:\n"
+            f"Unable to find series of tests in {root!r}, subfolders:\n"
             + "\n".join(os.listdir(root))
         )
     tests = os.listdir(sub)

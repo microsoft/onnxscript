@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Graph building functions using the ONNX IR, compatible with the original TorchScriptGraph usage."""
 
 from __future__ import annotations
@@ -210,7 +212,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                     else:
                         # Fall to call add_function_call
                         pass
-                elif isinstance(args[0], Sequence):  # noqa: SIM103
+                elif isinstance(args[0], Sequence):
                     return False
                 else:
                     # Python constants are scalars
@@ -235,7 +237,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                 else:
                     # Python constants are scalars
                     return 0
-            elif function.experimental_traceable:
+            elif function.traceable:
                 # Trace the function call instead of adding the function as a node
                 return function.function(*args, **kwargs)
 
@@ -473,9 +475,9 @@ class TorchScriptGraph:
         if isinstance(outputs, TorchScriptTensor):
             outputs = (outputs,)
         for output in outputs:
-            assert isinstance(
-                output, TorchScriptTensor
-            ), f"output must be a TorchScriptTensor, not {type(output)}"
+            assert isinstance(output, TorchScriptTensor), (
+                f"output must be a TorchScriptTensor, not {type(output)}"
+            )
             self._graph.outputs.append(output)
 
     def _add_constant_to_graph(self, constant) -> Sequence[ir.Value | None]:
@@ -554,9 +556,9 @@ class TorchScriptGraph:
                 # TODO(justinchuby): What is this case?
                 graph_inputs.append(input)
         for key, value in onnx_attributes.items():
-            assert not isinstance(
-                value, TorchScriptTensor
-            ), f"ONNX attribute must not be a TorchScriptTensor, got {key}: {value}."
+            assert not isinstance(value, TorchScriptTensor), (
+                f"ONNX attribute must not be a TorchScriptTensor, got {key}: {value}."
+            )
         tensors = _create_op_call_in_graph(
             self._graph,
             domain,
@@ -584,15 +586,15 @@ class TorchScriptGraph:
             domain = sub_torch_script_graph.domain_name
             assert domain is not None
             name_domain = (sub_graph_name, domain, "")
-            assert (
-                name_domain not in function_dict
-            ), f"Sub graph name already exists. {name_domain}"
+            assert name_domain not in function_dict, (
+                f"Sub graph name already exists. {name_domain}"
+            )
             function_dict[name_domain] = sub_torch_script_graph._to_function(  # pylint: disable=protected-access
                 opset_version, sub_graph_name
             )
         # Fetch torchlib function protos.
         for identifier, function in self._function_store.items():
-            function_dict[identifier] = function
+            function_dict[identifier] = function  # noqa: PERF403
         return function_dict
 
     def add_op_call(

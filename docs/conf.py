@@ -1,5 +1,9 @@
-# Configuration file for the Sphinx documentation builder.
-# To run the documentation: python -m sphinx docs dist/html
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+"""Configuration file for the Sphinx documentation builder.
+
+To run the documentation: python -m sphinx docs dist/html
+"""
 
 import os
 import re
@@ -84,7 +88,10 @@ intersphinx_mapping = {
     "python": (f"https://docs.python.org/{sys.version_info.major}", None),
     "matplotlib": ("https://matplotlib.org/stable/", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
+    "onnx": ("https://onnx.ai/onnx/", None),
     "onnxruntime": ("https://onnxruntime.ai/docs/api/python/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+    "torch": ("https://pytorch.org/docs/main/", None),
 }
 
 # -- Options for Sphinx Gallery ----------------------------------------------

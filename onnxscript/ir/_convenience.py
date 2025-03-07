@@ -1,11 +1,9 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 """Convenience methods for constructing and manipulating the IR.
 
 This is an internal only module. We should choose to expose some of the methods
-after they are proven to be useful.
+in convenience.py after they are proven to be useful.
 """
 
 from __future__ import annotations
@@ -16,11 +14,16 @@ __all__ = [
     "replace_all_uses_with",
 ]
 
+import typing
 from typing import Mapping, Sequence, Union
 
+import numpy as np
 import onnx
 
-from onnxscript.ir import _core, _enums, _protocols, serde
+from onnxscript.ir import _core, _enums, _protocols, serde, tensor_adapters
+
+if typing.TYPE_CHECKING:
+    import numpy.typing as npt
 
 SupportedAttrTypes = Union[
     str,
@@ -190,7 +193,7 @@ def convert_attributes(
         ...     "type_protos": [ir.TensorType(ir.DataType.FLOAT), ir.TensorType(ir.DataType.FLOAT)],
         ... }
         >>> convert_attributes(attrs)
-        [AttrInt64('int', 1), AttrFloat32('float', 1.0), AttrString('str', 'hello'), AttrInt64s('ints', [1, 2, 3]), AttrFloat32s('floats', [1.0, 2.0, 3.0]), AttrStrings('strings', ['hello', 'world']), AttrTensor('tensor', Tensor<DOUBLE,[3]>(array([1., 2., 3.]), name=None)), AttrTensor('tensor_proto', TensorProtoTensor<FLOAT,[3]>(name='proto')), AttrInt64s('graph', Graph(
+        [Attr('int', INT, 1), Attr('float', FLOAT, 1.0), Attr('str', STRING, 'hello'), Attr('ints', INTS, [1, 2, 3]), Attr('floats', FLOATS, [1.0, 2.0, 3.0]), Attr('strings', STRINGS, ['hello', 'world']), Attr('tensor', TENSOR, Tensor<DOUBLE,[3]>(array([1., 2., 3.]), name=None)), Attr('tensor_proto', TENSOR, TensorProtoTensor<FLOAT,[3]>(name='proto')), Attr('graph', INTS, Graph(
             name='graph0',
             inputs=(
         <BLANKLINE>
@@ -199,7 +202,7 @@ def convert_attributes(
         <BLANKLINE>
             ),
             len()=0
-        )), AttrGraphs('graphs', [Graph(
+        )), Attr('graphs', GRAPHS, [Graph(
             name='graph1',
             inputs=(
         <BLANKLINE>
@@ -217,7 +220,7 @@ def convert_attributes(
         <BLANKLINE>
             ),
             len()=0
-        )]), AttrTypeProto('type_proto', Tensor(FLOAT)), AttrTypeProtos('type_protos', [Tensor(FLOAT), Tensor(FLOAT)])]
+        )]), Attr('type_proto', TYPE_PROTO, Tensor(FLOAT)), Attr('type_protos', TYPE_PROTOS, [Tensor(FLOAT), Tensor(FLOAT)])]
 
     Args:
         attrs: A dictionary of {<attribute name>: <python objects>} to convert.
@@ -227,7 +230,8 @@ def convert_attributes(
     """
     attributes: list[_core.Attr | _core.RefAttr] = []
     for name, attr in attrs.items():
-        attributes.append(convert_attribute(name, attr))
+        if attr is not None:
+            attributes.append(convert_attribute(name, attr))
     return attributes
 
 
@@ -285,3 +289,159 @@ def replace_all_uses_with(
     for value, replacement in zip(values, replacements):
         for user_node, index in tuple(value.uses()):
             user_node.replace_input_with(index, replacement)
+
+
+def tensor(
+    value: npt.ArrayLike
+    | onnx.TensorProto
+    | _protocols.DLPackCompatible
+    | _protocols.ArrayCompatible,
+    dtype: _enums.DataType | None = None,
+    name: str | None = None,
+    doc_string: str | None = None,
+) -> _protocols.TensorProtocol:
+    """Create a tensor value from an ArrayLike object or a TensorProto.
+
+    The dtype must match the value. Reinterpretation of the value is
+    not supported, unless if the value is a plain Python object, in which case
+    it is converted to a numpy array with the given dtype.
+
+    :param:`value` can be a numpy array, a plain Python object, or a TensorProto.
+
+    Example::
+
+        >>> from onnxscript import ir
+        >>> import numpy as np
+        >>> import ml_dtypes
+        >>> import onnx
+        >>> ir.tensor(np.array([1, 2, 3], dtype=np.int16))
+        Tensor<INT16,[3]>(array([1, 2, 3], dtype=int16), name=None)
+        >>> ir.tensor([1, 2, 3], dtype=ir.DataType.BFLOAT16)
+        Tensor<BFLOAT16,[3]>(array([1, 2, 3], dtype=bfloat16), name=None)
+        >>> tp_tensor = ir.tensor(onnx.helper.make_tensor("tensor", onnx.TensorProto.FLOAT, dims=[], vals=[0.5]))
+        >>> tp_tensor.numpy()
+        array(0.5, dtype=float32)
+        >>> import torch
+        >>> ir.tensor(torch.tensor([1.0, 2.0]), name="torch_tensor")
+        TorchTensor<FLOAT,[2]>(tensor([1., 2.]), name='torch_tensor')
+
+    Args:
+        value: The numpy array to create the tensor from.
+        dtype: The data type of the tensor.
+        name: The name of the tensor.
+        doc_string: The documentation string of the tensor.
+
+    Returns:
+        A tensor value.
+
+    Raises:
+        ValueError: If the dtype does not match the value when value is not a plain Python
+            object like ``list[int]``.
+    """
+    if isinstance(value, _protocols.TensorProtocol):
+        if dtype is not None and dtype != value.dtype:
+            raise ValueError(
+                f"The dtype must match the value when value is a Tensor. dtype={dtype}, value.dtype={value.dtype}. "
+                "You do not have to specify the dtype when value is a Tensor."
+            )
+        return value
+    if isinstance(value, onnx.TensorProto):
+        tensor_ = serde.deserialize_tensor(value)
+        if name is not None:
+            tensor_.name = name
+        if doc_string is not None:
+            tensor_.doc_string = doc_string
+        if dtype is not None and dtype != tensor_.dtype:
+            raise ValueError(
+                f"The dtype must match the value when value is a TensorProto. dtype={dtype}, value.data_type={tensor_.dtype}"
+                "You do not have to specify the dtype when value is a TensorProto."
+            )
+        return tensor_
+    elif str(type(value)) == "<class 'torch.Tensor'>":
+        # NOTE: We use str(type(...)) and do not import torch for type checking
+        # as it creates overhead during import
+        return tensor_adapters.TorchTensor(value, name=name, doc_string=doc_string)  # type: ignore[arg-type]
+    elif isinstance(value, (_protocols.DLPackCompatible, _protocols.ArrayCompatible)):
+        return _core.Tensor(value, dtype=dtype, name=name, doc_string=name)
+
+    # Plain Python object
+    if dtype is not None:
+        numpy_dtype = dtype.numpy()
+    else:
+        numpy_dtype = None
+    array = np.array(value, dtype=numpy_dtype)
+    return _core.Tensor(
+        array,
+        dtype=dtype,
+        shape=_core.Shape(array.shape),
+        name=name,
+        doc_string=name,
+    )
+
+
+def create_value_mapping(graph: _core.Graph) -> dict[str, _core.Value]:
+    """Return a dictionary mapping names to values in the graph.
+
+    The mapping does not include values from subgraphs.
+
+    Args:
+        graph: The graph to extract the mapping from.
+
+    Returns:
+        A dictionary mapping names to values.
+    """
+    values = {}
+    values.update(graph.initializers)
+    # The names of the values can be None or "", which we need to exclude
+    for input in graph.inputs:
+        if not input.name:
+            continue
+        values[input.name] = input
+    for node in graph:
+        for value in node.outputs:
+            if not value.name:
+                continue
+            values[value.name] = value
+    return values
+
+
+def replace_nodes_and_values(
+    graph_or_function: _core.Graph | _core.Function,
+    /,
+    insertion_point: _core.Node,
+    old_nodes: Sequence[_core.Node],
+    new_nodes: Sequence[_core.Node],
+    old_values: Sequence[_core.Value],
+    new_values: Sequence[_core.Value],
+) -> None:
+    """Replaces nodes and values in the graph or function.
+
+    Args:
+        graph_or_function: The graph or function to replace nodes and values in.
+        insertion_point: The node to insert the new nodes after.
+        old_nodes: The nodes to replace.
+        new_nodes: The nodes to replace with.
+        old_values: The values to replace.
+        new_values: The values to replace with.
+    """
+
+    for old_value, new_value in zip(old_values, new_values):
+        # Propagate relevant info from old value to new value
+        # TODO(Rama): Perhaps this should be a separate utility function. Also, consider
+        # merging old and new type/shape info.
+        new_value.type = old_value.type
+        new_value.shape = old_value.shape
+        new_value.const_value = old_value.const_value
+        new_value.name = old_value.name
+
+    # Reconnect the users of the deleted values to use the new values
+    replace_all_uses_with(old_values, new_values)
+    # Update graph/function outputs if the node generates output
+    replacement_mapping = dict(zip(old_values, new_values))
+    for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
+        if graph_or_function_output in replacement_mapping:
+            graph_or_function.outputs[idx] = replacement_mapping[graph_or_function_output]
+
+    # insert new nodes after the index node
+    graph_or_function.insert_after(insertion_point, new_nodes)
+    graph_or_function.remove(old_nodes, safe=True)

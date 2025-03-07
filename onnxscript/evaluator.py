@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 from __future__ import annotations
 
 import abc
@@ -292,16 +290,16 @@ class BaseEvaluator(Evaluator, abc.ABC):
         has_array = False
         for arg, param_schema in tagged_args:
             if param_schema.is_input:
-                adapted_arg, _has_array = _adapt_to_eager_mode(arg)
-                has_array = has_array or _has_array
+                adapted_arg, has_array_ = _adapt_to_eager_mode(arg)
+                has_array = has_array or has_array_
                 adapted_args.append(adapted_arg)
             else:
                 adapted_args.append(arg)
 
         for key, (arg, param_schema) in tagged_kwargs.items():
             if param_schema.is_input:
-                adapted_arg, _has_array = _adapt_to_eager_mode(arg)
-                has_array = has_array or _has_array
+                adapted_arg, has_array_ = _adapt_to_eager_mode(arg)
+                has_array = has_array or has_array_
                 adapted_kwargs[key] = adapted_arg
             else:
                 adapted_kwargs[key] = arg
@@ -369,7 +367,7 @@ def _onnxscript_to_numpy_value(v):
     if isinstance(v, list):
         return [_onnxscript_to_numpy_value(x) for x in v]
     if isinstance(v, tuple):
-        if len(v) > 0 and type(v[0]) is int:  # noqa: E721  # pylint: disable=unidiomatic-typecheck
+        if len(v) > 0 and type(v[0]) is int:  # pylint: disable=unidiomatic-typecheck
             return np.array(v, dtype=np.int64)
         return np.array(v)
     if v is None:
@@ -389,8 +387,10 @@ def _numpy_to_onnxscript_value(
 ):
     """Converts an ORT encoding of an ONNX value into the encoding used by onnxscript."""
     if isinstance(v, np.ndarray):
-        return tensor.Tensor(v)
-    if np.issctype(type(v)):  # noqa: NPY201
+        # ORT may reuse buffers when the output numpy array is provided back as input.
+        # We need to make a copy to ensure that the tensor is not modified in-place.
+        return tensor.Tensor(v.copy())
+    if issubclass(type(v), np.generic):
         # Numpy scalar types that are not ndarray
         # https://numpy.org/doc/stable/reference/arrays.scalars.html
         return tensor.Tensor(np.array(v))

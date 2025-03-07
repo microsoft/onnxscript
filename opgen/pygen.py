@@ -367,7 +367,7 @@ class Constant(Expr):
         self._dispatch_visit(visitor.visit_constant)
 
 
-class ExprList(Expr, Generic[TExpr], ABC):
+class ExprList(Expr, ABC, Generic[TExpr]):
     class Roles:
         Elements = Role("ExprList.Elements")
 

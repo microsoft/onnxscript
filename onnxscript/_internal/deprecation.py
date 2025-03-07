@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 """Utility for deprecating APIs."""
 
 # Reference: https://github.com/pytorch/pytorch/blob/aed9bee0413dac190452fbfa9ab2a44b6e6843f5/torch/onnx/_deprecation.py
@@ -12,6 +10,12 @@ import warnings
 from typing import Callable, TypeVar
 
 T = TypeVar("T")
+
+
+@functools.lru_cache(maxsize=1024)
+def _warn_once(message: str):
+    """Issue a FutureWarning only once per message."""
+    warnings.warn(message, category=FutureWarning, stacklevel=3)
 
 
 def deprecated(since: str, removed_in: str, instructions: str) -> Callable[[T], T]:
@@ -32,12 +36,10 @@ def deprecated(since: str, removed_in: str, instructions: str) -> Callable[[T], 
     def decorator(function):
         @functools.wraps(function)
         def wrapper(*args, **kwargs):
-            warnings.warn(
+            _warn_once(
                 f"'{function.__module__}.{function.__qualname__}' "
                 f"is deprecated in version {since} and will be "
                 f"removed in {removed_in}. Please {instructions}.",
-                category=FutureWarning,
-                stacklevel=2,
             )
             return function(*args, **kwargs)
 

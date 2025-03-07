@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 """Protocols for the ONNX IR.
 
 This file defines the interfaces for tools to interact with the IR. The interfaces
@@ -279,6 +277,11 @@ class GraphProtocol(Protocol):
     seen as a Sequence of nodes and should be used as such. For example, to obtain
     all nodes as a list, call ``list(graph)``.
 
+    .. :note::
+        ``quantization_annotation`` is deserialized into the Value's ``meta`` field
+        under the ``quant_parameter_tensor_names`` key. Values that are stored
+        under this key will be serialized as quantization annotations.
+
     Attributes:
         name: The name of the graph.
         inputs: The input values of the graph.
@@ -290,7 +293,6 @@ class GraphProtocol(Protocol):
         meta: Metadata store for graph transform passes.
     """
 
-    # TODO(justinchuby): Support quantization_annotation
     name: str | None
     inputs: MutableSequence[ValueProtocol]
     outputs: MutableSequence[ValueProtocol]
@@ -506,7 +508,7 @@ class TypeProtocol(Protocol):
     elem_type: TypeProtocol | _enums.DataType
     dtype: _enums.DataType
 
-    def __eq__(self, __value: object) -> bool: ...
+    def __eq__(self, value: object, /) -> bool: ...
 
 
 @typing.runtime_checkable

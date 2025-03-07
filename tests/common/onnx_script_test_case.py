@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 from __future__ import annotations
 
 import copy
@@ -192,6 +190,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         onnx_case_model: Optional[onnx.ModelProto] = None,
         *,
         ir_version: int = 9,
+        rtol: Optional[float] = None,
     ):
         # FIXME(justinchuby): Defaulting to ir_version 9 because ONNX Runtime supports
         # up to IR version 9 as of 4/2/2024. We should have a better mechanism to
@@ -252,7 +251,7 @@ class OnnxScriptTestCase(unittest.TestCase):
             raise AssertionError(f"Unable to load model\n{model}") from e
         # input['input_2'] = None
         actual = session.run(None, input)
-        np.testing.assert_allclose(actual, param.output, rtol=self.rtol)
+        np.testing.assert_allclose(actual, param.output, rtol=rtol or self.rtol)
 
     def run_eager_test(
         self,

@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Onnx Pattern Rewriting.
 
 This script shows how to define a rewriting rule based on patterns.
@@ -85,7 +87,7 @@ def erf_gelu_pattern_2(op, x):
 
 
 def gelu(op, x: ir.Value):
-    return op.Gelu(x, domain="com.microsoft")
+    return op.Gelu(x, _domain="com.microsoft")
 
 
 ####################################

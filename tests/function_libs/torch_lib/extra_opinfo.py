@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """
 Test data for aten operators which don't exist in PyTorch file:
 pytorch/torch/testing/_internal/common_methods_invocations.py.
@@ -788,20 +790,63 @@ def sample_inputs_index_put(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
 
-    data = torch_testing.make_tensor(
-        (10, 3),
-        device=device,
-        dtype=dtype,
-        requires_grad=requires_grad,
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
     )
-    indices = (torch.arange(8, dtype=torch.int64, device=device).reshape((-1, 4)),)
-    values = torch_testing.make_tensor(
-        (2, 4, 3),
-        device=device,
-        dtype=dtype,
-        requires_grad=requires_grad,
-    )
-    yield opinfo_core.SampleInput(data, indices, values)
+
+    cases = [
+        # Cases: one None
+        ((1, 3, 4), [None, torch.arange(2, device=device), None], (1, 2, 4)),
+        ((10, 3, 4), [torch.arange(5, device=device), None, None], (5, 3, 4)),
+        ((10, 3, 4, 6), [None, None, None, torch.arange(3, device=device)], (10, 3, 4, 3)),
+        # Cases: two None
+        (
+            (10, 3, 4),
+            [None, torch.arange(3, device=device), torch.arange(3, device=device)],
+            (10, 3),
+        ),
+        (
+            (10, 3, 4, 6),
+            [
+                torch.arange(2, device=device),
+                None,
+                torch.arange(2, device=device),
+                torch.arange(2, device=device),
+            ],
+            (2, 3),
+        ),
+        (
+            (10, 3, 4),
+            [torch.arange(2, device=device), torch.arange(2, device=device), None],
+            (2, 4),
+        ),
+        # Cases: Single indexing
+        ((10, 3, 4), [None, None, torch.tensor([0], device=device)], (10, 3, 1)),
+        ((10, 3, 4), [torch.tensor([0], device=device), None, None], (1, 3, 4)),
+        ((10, 3, 4, 6), [None, torch.tensor([0], device=device), None, None], (10, 1, 4, 6)),
+        # Cases: Single element
+        (
+            (10, 3, 4),
+            [
+                torch.tensor([0], device=device),
+                torch.tensor([0], device=device),
+                torch.tensor([0], device=device),
+            ],
+            (1,),
+        ),
+        # Cases: Multidimensional index
+        (
+            (10, 3),
+            [torch.arange(8, dtype=torch.int64, device=device).reshape((-1, 4))],
+            (2, 4, 3),
+        ),
+    ]
+
+    for data_shape, indices, values_shape in cases:  # type: ignore[misc]
+        data = make_arg(data_shape)
+        values = make_arg(values_shape)  # type: ignore[has-type]
+
+        yield opinfo_core.SampleInput(data, indices, values)
 
 
 def sample_inputs_layer_norm(op_info, device, dtype, requires_grad, **kwargs):
@@ -850,18 +895,6 @@ def sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
         ((S, S), {}),
         ((0, S, 0), {}),
         ((S,), {}),
-    ]
-    for shape, kwargs in inputs:
-        t = torch_testing.make_tensor(
-            shape, dtype=dtype, device=device, low=None, high=None, requires_grad=requires_grad
-        )
-        yield opinfo_core.SampleInput(t, **kwargs)
-
-
-def sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
-    del self  # Unused
-
-    inputs = [
         ((S,), {"dtype": dtype}),
         # Hard-code some dtypes/devices. We want to test cases where the
         # (dtype, device) is different from the input's (dtype, device)
@@ -1163,26 +1196,6 @@ def sample_inputs_rand_like(op_info, device, dtype, requires_grad, **kwargs):
         yield opinfo_core.SampleInput(make_arg(shape))
 
 
-def sample_inputs_rand_like_dtype(op_info, device, dtype, requires_grad, **kwargs):
-    del op_info  # Unused
-    del kwargs  # Unused
-
-    make_arg = functools.partial(
-        torch_testing.make_tensor,
-        device=device,
-        dtype=torch.float32,
-        requires_grad=requires_grad,
-    )
-    shapes = (
-        (M,),
-        (S, S),
-        (S, S, S),
-    )
-
-    for shape in shapes:
-        yield opinfo_core.SampleInput(make_arg(shape), kwargs=dict(dtype=dtype))
-
-
 def sample_inputs_randint(self, device, dtype, requires_grad, **kwargs):
     high = 10
 
@@ -1210,28 +1223,11 @@ def sample_inputs_randint_like(self, device, dtype, requires_grad, **kwargs):
         yield opinfo_core.SampleInput(sample.input, high, *sample.args, **sample.kwargs)
 
 
-def sample_inputs_randint_like_dtype(self, device, dtype, requires_grad, **kwargs):
-    high = 10
-
-    for sample in sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
-        # With low and high
-        yield opinfo_core.SampleInput(sample.input, high, *sample.args, **sample.kwargs)
-
-
 def sample_inputs_randint_like_low_dtype(self, device, dtype, requires_grad, **kwargs):
     low = 2
     high = 10
 
     for sample in sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
-        # With low and high
-        yield opinfo_core.SampleInput(sample.input, low, high, *sample.args, **sample.kwargs)
-
-
-def sample_inputs_randint_like_low_dtype_dtype(self, device, dtype, requires_grad, **kwargs):
-    low = 2
-    high = 10
-
-    for sample in sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
         # With low and high
         yield opinfo_core.SampleInput(sample.input, low, high, *sample.args, **sample.kwargs)
 
@@ -1368,12 +1364,13 @@ def sample_inputs__scaled_dot_product_efficient_attention(
     make = opinfo_core.partial(
         opinfo_core.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
     )
-    batch, seq_q, seq_kv, num_heads, head_dim = 4, 3, 6, 4, 8
+    batch, seq_q, seq_kv, num_heads, head_dim = 2, 3, 6, 4, 8
 
     dim_4_q_shape = (batch, num_heads, seq_q, head_dim)
     dim_4_kv_shape = (batch, num_heads, seq_kv, head_dim)
 
     qkv_shapes = [(dim_4_q_shape, dim_4_kv_shape)]
+
     samples = []
     for qkv_shape, is_causal, dropout_p, compute_log_sumexp in opinfo_core.product(
         qkv_shapes, [True, False], [0.0], [True, False]
@@ -1384,7 +1381,7 @@ def sample_inputs__scaled_dot_product_efficient_attention(
                 make(shape_q),
                 make(shape_kv),
                 make(shape_kv),
-                attn_bias=None,
+                attn_bias=None,  # TODO: Add attn_bias
                 is_causal=is_causal,
                 dropout_p=dropout_p,
                 compute_log_sumexp=compute_log_sumexp,
@@ -1420,6 +1417,30 @@ def sample_inputs__softmax(
         # So we don't test it here
         kwargs = dict(half_to_float=half_to_float)
         yield opinfo_core.SampleInput(make_arg(shape), args=dim, kwargs=kwargs)
+
+
+def sample_inputs_prims_std_var(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+    tensor_nd = functools.partial(
+        opinfo_core.make_tensor,
+        (S, S, S),
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+    )
+    tensor_1d = functools.partial(
+        opinfo_core.make_tensor, (S,), device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    yield opinfo_core.SampleInput(tensor_nd(), dims=(1,), correction=0)
+    yield opinfo_core.SampleInput(tensor_1d(), dims=(0,), correction=0)
+    yield opinfo_core.SampleInput(tensor_1d(), dims=(0,), correction=1)
+
+    yield opinfo_core.SampleInput(tensor_nd(), dims=(1,), correction=1)
+    yield opinfo_core.SampleInput(tensor_nd(), dims=(1,), correction=S // 2)
+    yield opinfo_core.SampleInput(tensor_nd(), dims=(), correction=0)
+    # Negative indices are not supported
 
 
 def sample_inputs_stft(op_info, device, dtype, requires_grad, **kwargs):
@@ -1585,7 +1606,7 @@ def sample_inputs_upsample_2d_vec(op_info, device, dtype, requires_grad, **kwarg
                 None,  # output_size
                 align_corners,
             ),
-            kwargs=dict(scale_factors=(1.7, 1.7)),
+            kwargs=dict(scale_factors=[1.7, 1.7]),
         )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
@@ -1593,7 +1614,7 @@ def sample_inputs_upsample_2d_vec(op_info, device, dtype, requires_grad, **kwarg
                 None,  # if this is None, the scalar must be list
                 align_corners,
             ),
-            kwargs=dict(scale_factors=(0.6, 0.6)),
+            kwargs=dict(scale_factors=[0.6, 0.6]),
         )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
@@ -1601,7 +1622,7 @@ def sample_inputs_upsample_2d_vec(op_info, device, dtype, requires_grad, **kwarg
                 None,  # if this is None, the scalar must be list
                 align_corners,
             ),
-            kwargs=dict(scale_factors=(0.6, 4.2)),
+            kwargs=dict(scale_factors=[0.6, 4.2]),
         )
 
 
@@ -1651,7 +1672,6 @@ def sample_inputs_upsample_nearest1d(op_info, device, dtype, requires_grad, **kw
 
     N, C = 2, 3
     D = 4
-    SS = 3
     L = 5
 
     rank = 1
@@ -1670,8 +1690,6 @@ def sample_inputs_upsample_nearest1d(op_info, device, dtype, requires_grad, **kw
         high=1,
     )
 
-    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True)
-
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
         shape(S, rank, False),
@@ -1680,15 +1698,53 @@ def sample_inputs_upsample_nearest1d(op_info, device, dtype, requires_grad, **kw
         make_arg(shape(D, rank)),
         shape(L, rank, False),
     )
+    # yield opinfo_core.SampleInput(
+    #     make_arg(shape(D, rank)),
+    #     shape(S, rank, False),  # output_size
+    #     [1.7],  # scaler
+    # )
+    # yield opinfo_core.SampleInput(
+    #     make_arg(shape(D, rank)),
+    #     shape(S, rank, False),  # if this is None, the scalar must be list
+    #     [0.6],
+    # )
+
+
+def sample_inputs_upsample_nearest1d_vec(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    N, C = 2, 3
+    D = 4
+    L = 5
+
+    rank = 1
+
+    def shape(size, rank, with_batch_channel=True):
+        if with_batch_channel:
+            return tuple([N, C] + ([size] * rank))
+        return tuple([size] * rank)
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor,
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+        low=-1,
+        high=1,
+    )
+
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(S, rank, False), None)
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(L, rank, False), None)
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
         None,  # output_size
-        (1.7,),  # scaler
+        scale_factors=(1.7,),
     )
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
-        None,  # if this is None, the scalar must be list
-        (0.6,),
+        None,
+        scale_factors=(0.6,),
     )
 
 
@@ -1698,7 +1754,6 @@ def sample_inputs_upsample_nearest2d(op_info, device, dtype, requires_grad, **kw
 
     N, C = 2, 3
     D = 4
-    SS = 3
     L = 5
 
     rank = 2
@@ -1717,8 +1772,6 @@ def sample_inputs_upsample_nearest2d(op_info, device, dtype, requires_grad, **kw
         high=1,
     )
 
-    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True)
-
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
         shape(S, rank, False),
@@ -1727,17 +1780,54 @@ def sample_inputs_upsample_nearest2d(op_info, device, dtype, requires_grad, **kw
         make_arg(shape(D, rank)),
         shape(L, rank, False),
     )
-    # ONNX don't support below cases: both output_size and scaler are not None
     # yield opinfo_core.SampleInput(
     #     make_arg(shape(D, rank)),
     #     shape(L, rank, False),
-    #     1.7,  # scaler
+    #     1.7, 2.0,  # scaler
     # )
     # yield opinfo_core.SampleInput(
     #     make_arg(shape(D, rank)),
     #     shape(L, rank, False),
-    #     0.6,
+    #     0.6, 0.4,
     # )
+
+
+def sample_inputs_upsample_nearest2d_vec(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    N, C = 2, 3
+    D = 4
+    L = 5
+
+    rank = 2
+
+    def shape(size, rank, with_batch_channel=True):
+        if with_batch_channel:
+            return tuple([N, C] + ([size] * rank))
+        return tuple([size] * rank)
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor,
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+        low=-1,
+        high=1,
+    )
+
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(S, rank, False), None)
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(L, rank, False), None)
+    yield opinfo_core.SampleInput(
+        make_arg(shape(D, rank)),
+        None,
+        scale_factors=(1.7, 2.0),
+    )
+    yield opinfo_core.SampleInput(
+        make_arg(shape(D, rank)),
+        None,
+        scale_factors=(0.6, 0.4),
+    )
 
 
 def sample_inputs_upsample_nearest3d(op_info, device, dtype, requires_grad, **kwargs):
@@ -1746,7 +1836,6 @@ def sample_inputs_upsample_nearest3d(op_info, device, dtype, requires_grad, **kw
 
     N, C = 2, 3
     D = 4
-    SS = 3
     L = 5
 
     rank = 3
@@ -1765,8 +1854,6 @@ def sample_inputs_upsample_nearest3d(op_info, device, dtype, requires_grad, **kw
         high=1,
     )
 
-    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True)
-
     yield opinfo_core.SampleInput(
         make_arg(shape(D, rank)),
         shape(S, rank, False),
@@ -1775,17 +1862,54 @@ def sample_inputs_upsample_nearest3d(op_info, device, dtype, requires_grad, **kw
         make_arg(shape(D, rank)),
         shape(L, rank, False),
     )
-    # ONNX don't support below cases: both output_size and scaler are not None
     # yield opinfo_core.SampleInput(
     #     make_arg(shape(D, rank)),
     #     shape(L, rank, False),
-    #     1.7,  # scaler
+    #     1.7, 1.5, 2.0,  # scaler
     # )
     # yield opinfo_core.SampleInput(
     #     make_arg(shape(D, rank)),
     #     shape(L, rank, False),
-    #     0.6,
+    #     0.6, 0.3, 0.5,
     # )
+
+
+def sample_inputs_upsample_nearest3d_vec(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    N, C = 2, 3
+    D = 4
+    L = 5
+
+    rank = 3
+
+    def shape(size, rank, with_batch_channel=True):
+        if with_batch_channel:
+            return tuple([N, C] + ([size] * rank))
+        return tuple([size] * rank)
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor,
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+        low=-1,
+        high=1,
+    )
+
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(S, rank, False), None)
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(L, rank, False), None)
+    yield opinfo_core.SampleInput(
+        make_arg(shape(D, rank)),
+        None,
+        scale_factors=(1.7, 1.5, 2.0),  # scaler
+    )
+    yield opinfo_core.SampleInput(
+        make_arg(shape(D, rank)),
+        None,
+        scale_factors=(0.6, 0.3, 0.5),
+    )
 
 
 def sample_inputs_upsample_trilinear3d(op_info, device, dtype, requires_grad, **kwargs):
@@ -1850,6 +1974,66 @@ def sample_inputs_unique_dim(op_info, device, dtype, requires_grad, **kwargs):
         # take only those samples that ask for a dim
         if sample.kwargs.get('dim') is not None:
             yield sample
+def sample_inputs_upsample_trilinear3d_vec(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    N, C = 2, 3
+    D = 4
+    SS = 3
+    L = 5
+
+    align_corners_options = (True, False)
+    rank = 3
+
+    def shape(size, rank, with_batch_channel=True):
+        if with_batch_channel:
+            return tuple([N, C] + ([size] * rank))
+        return tuple([size] * rank)
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor,
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+        low=-1,
+        high=1,
+    )
+
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True, None)
+
+    for align_corners in align_corners_options:
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(S, rank, False), align_corners, None
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(L, rank, False), align_corners, None
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)),
+            args=(None, align_corners),
+            kwargs=dict(scale_factors=(1.7, 1.7, 1.7)),
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)),
+            args=(None, align_corners),
+            kwargs=dict(scale_factors=(0.6, 0.6, 0.6)),
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)),
+            args=(None, align_corners),
+            kwargs=dict(scale_factors=(0.6, 1.7, 4.2)),
+        )
+
+
+def sample_inputs_window_functions(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+    del device
+    del requires_grad
+
+    for window_length in [2, 3, 7, 10, 32]:
+        yield opinfo_core.SampleInput(window_length, kwargs=dict(dtype=dtype))
 
 
 class _TestParamsMaxPoolEmptyStrideBase:
@@ -1955,6 +2139,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "ops.aten.blackman_window",
+        aten_name="blackman_window",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_window_functions,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "ops.aten.col2im",
         aten_name="col2im",
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
@@ -2015,6 +2206,35 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="_fft_r2c",
         dtypes=common_dtype.floating_types(),
         sample_inputs_func=sample_inputs__fft_r2c,
+        supports_out=False,
+    ),
+    opinfo_core.BinaryUfuncInfo(
+        "ops.aten.floor_divide",
+        aten_name="floor_divide",
+        dtypes=common_dtype.floating_types_and_half(),
+        rhs_make_tensor_kwargs=dict(exclude_zero=True),
+    ),
+    opinfo_core.BinaryUfuncInfo(
+        "ops.aten.floor_divide.int",
+        aten_name="floor_divide",
+        op=torch.ops.aten.floor_divide,
+        dtypes=common_dtype.integral_types(),
+        # Create only positive inputs
+        lhs_make_tensor_kwargs=dict(low=0),
+        rhs_make_tensor_kwargs=dict(exclude_zero=True, low=0),
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.hamming_window",
+        aten_name="hamming_window",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_window_functions,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.hann_window",
+        aten_name="hann_window",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_window_functions,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
@@ -2174,14 +2394,6 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.rand_like__dtype",
-        op=torch.ops.aten.rand_like,
-        aten_name="rand_like",
-        dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        sample_inputs_func=sample_inputs_rand_like_dtype,
-        supports_out=False,
-    ),
-    opinfo_core.OpInfo(
         "ops.aten.randint",
         aten_name="randint",
         dtypes=common_dtype.integral_types(),
@@ -2203,26 +2415,10 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.randint_like__dtype",
-        op=torch.ops.aten.randint_like,
-        aten_name="randint_like",
-        dtypes=common_dtype.integral_types(),
-        sample_inputs_func=sample_inputs_randint_like_dtype,
-        supports_out=False,
-    ),
-    opinfo_core.OpInfo(
         "ops.aten.randint_like.low_dtype",
         aten_name="randint_like.low_dtype",
         dtypes=common_dtype.integral_types(),
         sample_inputs_func=sample_inputs_randint_like_low_dtype,
-        supports_out=False,
-    ),
-    opinfo_core.OpInfo(
-        "ops.aten.randint_like.low_dtype__dtype",
-        op=torch.ops.aten.randint_like.low_dtype,
-        aten_name="randint_like.low_dtype",
-        dtypes=common_dtype.integral_types(),
-        sample_inputs_func=sample_inputs_randint_like_low_dtype_dtype,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
@@ -2237,14 +2433,6 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="randn",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_like_fns,
-        supports_out=False,
-    ),
-    opinfo_core.OpInfo(
-        "ops.aten.randn_like_dtype",
-        op=torch.ops.aten.randn_like,
-        aten_name="randn",
-        dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        sample_inputs_func=sample_inputs_like_fns_dtype,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
@@ -2383,10 +2571,24 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "ops.aten.upsample_nearest1d.vec",
+        aten_name="upsample_nearest1d.vec",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_upsample_nearest1d_vec,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "ops.aten.upsample_nearest2d",
         aten_name="upsample_nearest2d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_upsample_nearest2d,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.upsample_nearest2d.vec",
+        aten_name="upsample_nearest2d.vec",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_upsample_nearest2d_vec,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
@@ -2397,11 +2599,37 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.upsample_trilinear3d",
+        "ops.aten.upsample_nearest3d.vec",
+        aten_name="upsample_nearest3d.vec",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_upsample_nearest3d_vec,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.upsample_trilinear3d.default",
         aten_name="upsample_trilinear3d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_upsample_trilinear3d,
         supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.upsample_trilinear3d.vec",
+        aten_name="upsample_trilinear3d.vec",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_upsample_trilinear3d_vec,
+        supports_out=False,
+    ),
+    opinfo_core.ReductionOpInfo(
+        "ops.prims.var.default",
+        nan_policy="propagate",
+        supports_out=True,
+        promotes_int_to_float=True,
+        complex_to_real=True,
+        supports_forward_ad=True,
+        supports_fwgrad_bwgrad=True,
+        check_batched_forward_grad=False,
+        dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_prims_std_var,
     ),
     opinfo_core.OpInfo(
         "nn.functional.max_pool1d_with_indices",

@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """APIs for building an ONNX graph from a PyTorch model.
 
 This module exposes only three classes that will be used to build an ONNX graph

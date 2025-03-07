@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 from __future__ import annotations
 
 import functools
@@ -12,6 +10,7 @@ import unittest
 import numpy as np
 import onnx
 import onnxruntime
+import torch
 
 from onnxscript import optimizer
 from onnxscript._legacy_ir import visitor
@@ -31,7 +30,7 @@ def skip_if_no_cuda(reason: str):
     def skip_dec(func):
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
-            if not onnxruntime.get_device() == "GPU":
+            if not torch.cuda.is_available() or not onnxruntime.get_device() == "GPU":
                 raise unittest.SkipTest(f"GPU is not available. {reason}")
             return func(self, *args, **kwargs)
 

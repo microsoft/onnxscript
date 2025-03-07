@@ -1,5 +1,8 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 import unittest
 
+import google.protobuf.text_format
 import ml_dtypes
 import numpy as np
 import onnx
@@ -82,6 +85,10 @@ class TensorProtoTensorTest(unittest.TestCase):
             self.skipTest("numpy<1.25 does not support bool dtype in from_dlpack")
         np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
+    @unittest.skipIf(
+        version_utils.onnx_older_than("1.17"),
+        "numpy_helper.to_array was not correctly implemented in onnx<1.17",
+    )
     def test_tensor_proto_tensor_bfloat16(self):
         expected_array = np.array(
             [[-3.0, -1.0, -0.5, -0.0, +0.0, 0.5, 1.0, 42.0, 2.0]], dtype=ml_dtypes.bfloat16
@@ -93,7 +100,7 @@ class TensorProtoTensorTest(unittest.TestCase):
             np.array([[-3.0, -1.0, -0.5, -0.0, +0.0, 0.5, 1.0, 42.0, 2.0]]),
         )
         tensor = serde.TensorProtoTensor(tensor_proto)
-        np.testing.assert_array_equal(tensor.numpy().view(ml_dtypes.bfloat16), expected_array)
+        np.testing.assert_array_equal(tensor.numpy(), expected_array)
         raw_data = tensor.tobytes()
         tensor_proto_from_raw_data = onnx.TensorProto(
             dims=tensor_proto.dims,
@@ -101,9 +108,13 @@ class TensorProtoTensorTest(unittest.TestCase):
             raw_data=raw_data,
         )
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
-        np.testing.assert_array_equal(array_from_raw_data, expected_array)
+        np.testing.assert_array_equal(
+            array_from_raw_data.view(ml_dtypes.bfloat16), expected_array
+        )
         # Test dlpack
-        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
+        with self.assertRaises(BufferError):
+            # NumPy does not support bfloat16 in from_dlpack
+            np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(
         [
@@ -150,7 +161,9 @@ class TensorProtoTensorTest(unittest.TestCase):
         )
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
         # Test dlpack
-        np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
+        with self.assertRaises(BufferError):
+            # DL Pack does not support float8
+            np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(
         [
@@ -177,6 +190,8 @@ class TensorProtoTensorTest(unittest.TestCase):
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
         # Test dlpack
+        if dtype == onnx.TensorProto.INT4:
+            return  # DL Pack does not support int4
         np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(
@@ -202,6 +217,8 @@ class TensorProtoTensorTest(unittest.TestCase):
         array_from_raw_data = onnx.numpy_helper.to_array(tensor_proto_from_raw_data)
         np.testing.assert_array_equal(array_from_raw_data, expected_array)
         # Test dlpack
+        if dtype == onnx.TensorProto.UINT4:
+            return  # DL Pack does not support uint4
         np.testing.assert_array_equal(np.from_dlpack(tensor), tensor.numpy())
 
     @parameterized.parameterized.expand(
@@ -272,6 +289,111 @@ class DeserializeGraphTest(unittest.TestCase):
         deserialized_graph = serde.deserialize_graph(graph_proto)
         self.assertEqual(deserialized_graph[0].op_type, "Op_1")
         self.assertEqual(deserialized_graph[1].op_type, "Op_0")
+
+
+class QuantizationAnnotationTest(unittest.TestCase):
+    """Test that quantization annotations are correctly serialized and deserialized."""
+
+    def setUp(self):
+        model_text = """\
+ir_version: 8
+producer_name: "pytorch"
+producer_version: "2.1.1"
+graph {
+  input {
+    name: "input"
+    type {
+      tensor_type {
+        elem_type: 1
+        shape {
+          dim {
+            dim_value: 1
+          }
+        }
+      }
+    }
+  }
+  output {
+    name: "output"
+    type {
+      tensor_type {
+        elem_type: 1
+        shape {
+          dim {
+            dim_value: 1
+          }
+        }
+      }
+    }
+  }
+  node {
+    input: "input"
+    output: "intermediate_value"
+    op_type: "TestOp1"
+    domain: "test_domain"
+  }
+  node {
+    input: "intermediate_value"
+    output: "output"
+    op_type: "TestOp2"
+    domain: "test_domain"
+  }
+  quantization_annotation {
+    tensor_name: "input"
+    quant_parameter_tensor_names {
+      key: "custom_key"
+      value: "arbitrary_value_input"
+    }
+  }
+  quantization_annotation {
+    tensor_name: "intermediate_value"
+    quant_parameter_tensor_names {
+      key: "custom_key"
+      value: "arbitrary_value_intermediate"
+    }
+  }
+  quantization_annotation {
+    tensor_name: "output"
+    quant_parameter_tensor_names {
+      key: "custom_key"
+      value: "arbitrary_value_output"
+    }
+  }
+}"""
+        self.model = onnx.ModelProto()
+        google.protobuf.text_format.Parse(model_text, self.model)
+
+    def test_deserialize_quantization_annotation(self):
+        model = serde.deserialize_model(self.model)
+        self.assertEqual(
+            model.graph.inputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_input"},
+        )
+        self.assertEqual(
+            model.graph.node(0).outputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_intermediate"},
+        )
+        self.assertEqual(
+            model.graph.outputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_output"},
+        )
+
+    def test_serde_roundtrip(self):
+        model = serde.deserialize_model(self.model)
+        serialized_model = serde.serialize_model(model)
+        deserialized_model = serde.deserialize_model(serialized_model)
+        self.assertEqual(
+            deserialized_model.graph.inputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_input"},
+        )
+        self.assertEqual(
+            deserialized_model.graph.node(0).outputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_intermediate"},
+        )
+        self.assertEqual(
+            deserialized_model.graph.outputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_output"},
+        )
 
 
 if __name__ == "__main__":

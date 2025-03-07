@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 from __future__ import annotations
 
 import copy
@@ -151,11 +153,9 @@ class OnnxFunctionTypeConstraints:
             "  Type Constraints: ",
         ]
         # Trick to get unique type constraints but maintain the order.
-        ordered_unique_type_constraints = {
-            v: None for v in self.input_type_constraints.values()
-        }
+        ordered_unique_type_constraints = dict.fromkeys(self.input_type_constraints.values())
         ordered_unique_type_constraints.update(
-            {v: None for v in self.output_type_constraints.values()}
+            dict.fromkeys(self.output_type_constraints.values())
         )
         repr_strs += [
             f"    {type_constraint.name}: {type_constraint.type_strs}"
@@ -175,9 +175,9 @@ class OnnxFunctionTypeConstraints:
             repr_strs += [
                 "  Intermediate Type Constraints: ",
             ]
-            ordered_unique_type_constraints = {
-                v: None for v in self.intermediate_type_constraints.values()
-            }
+            ordered_unique_type_constraints = dict.fromkeys(
+                self.intermediate_type_constraints.values()
+            )
             repr_strs += [
                 f"    {type_constraint.name}: {type_constraint.type_strs}"
                 for type_constraint in ordered_unique_type_constraints
@@ -210,15 +210,15 @@ class TypeConstraintDeducer:
         )
 
         # Rename type constraints to T0, T1, T2, ...
-        _seen_type_constraints: Set[TypeConstraint] = set()
+        seen_type_constraints: Set[TypeConstraint] = set()
         for type_constraint in (
             *input_type_constraints.values(),
             *output_type_constraints.values(),
             *intermediate_type_constraints.values(),
         ):
-            if type_constraint is not None and type_constraint not in _seen_type_constraints:
-                type_constraint.name = f"T{len(_seen_type_constraints)}"
-                _seen_type_constraints.add(type_constraint)
+            if type_constraint is not None and type_constraint not in seen_type_constraints:
+                type_constraint.name = f"T{len(seen_type_constraints)}"
+                seen_type_constraints.add(type_constraint)
 
         return OnnxFunctionTypeConstraints(
             input_type_constraints, output_type_constraints, intermediate_type_constraints

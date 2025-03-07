@@ -33,7 +33,7 @@ class SourceInfo:
         if self.function_name:
             source_loc = f"Function '{self.function_name}', line {lineno}"
         else:
-            source_loc = "Line {lineno}"
+            source_loc = f"Line {lineno}"
 
         if self.code:
             lines = self.code.split("\n")

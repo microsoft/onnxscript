@@ -1,11 +1,12 @@
-# SPDX-License-Identifier: Apache-2.0
-# pylint: disable=import-outside-toplevel
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 
 import itertools
 import unittest
 
 import numpy as np
 import parameterized
+import torch
 
 from tests.common import onnx_script_test_case
 from tests.models import signal_dft
@@ -82,10 +83,6 @@ def _stft(
     onesided=False,
     hop_length=None,
 ):
-    try:
-        import torch
-    except ImportError as e:
-        raise ImportError("torch is not installed.") from e
     ft = torch.stft(
         torch.from_numpy(x),
         n_fft=fft_length,

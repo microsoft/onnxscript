@@ -1,7 +1,7 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 from onnxscript.rewriter import pattern
 from onnxscript.rewriter.broadcast_to_matmul import check_if_not_need_reshape
-
-op = pattern.onnxop
 
 
 # Pattern to match against

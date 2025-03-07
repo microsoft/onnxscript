@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 from __future__ import annotations
 
 import unittest
@@ -95,12 +97,12 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float{input_x_shape} input_x, float{input_y_shape} input_y) => (float{output_shape} output)
             {{
-                shape_a = Constant<value: tensor = int64[{len(shape_a)}] {{ {', '.join(str(i) for i in shape_a)} }}>()
+                shape_a = Constant<value: tensor = int64[{len(shape_a)}] {{ {", ".join(str(i) for i in shape_a)} }}>()
                 reshape_x = Reshape (input_x, shape_a)
-                shape_b = Constant<value: tensor = int64[{len(shape_b)}] {{ {', '.join(str(i) for i in shape_b)} }}>()
+                shape_b = Constant<value: tensor = int64[{len(shape_b)}] {{ {", ".join(str(i) for i in shape_b)} }}>()
                 reshape_y = Reshape (input_y, shape_b)
                 matmul = MatMul (reshape_x, reshape_y)
-                shape_c = Constant<value: tensor = int64[{len(shape_c)}] {{ {', '.join(str(i) for i in shape_c)} }}>()
+                shape_c = Constant<value: tensor = int64[{len(shape_c)}] {{ {", ".join(str(i) for i in shape_c)} }}>()
                 output = Reshape (matmul, shape_c)
             }}
             """
@@ -242,6 +244,29 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
                 reshape_y = Reshape (input_y, shape_b)
                 matmul = MatMul (reshape_x, reshape_y)
                 shape_c = Constant<value: tensor = int64[3] {2, 3, 5}>()
+                output = Reshape (matmul, shape_c)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = broadcast_to_matmul.rules.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(model.graph), 4)
+
+    def test_reshape_matmul_reshape_replace_when_first_input_is_one_dimension_and_second_isexpanded_alike_and_broadcastable(
+        self,
+    ):
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[5] input_x, float[5, 1] input_y) => (float[1] output)
+            {
+                shape_a = Constant<value: tensor = int64[2] {1, 5}>()
+                reshape_x = Reshape (input_x, shape_a)
+                shape_b = Constant<value: tensor = int64[2] {5, 1}>()
+                reshape_y = Reshape (input_y, shape_b)
+                matmul = MatMul (reshape_x, reshape_y)
+                shape_c = Constant<value: tensor = int64[1] {1}>()
                 output = Reshape (matmul, shape_c)
             }
         """

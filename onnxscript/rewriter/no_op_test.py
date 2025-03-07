@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 import unittest
 
 import onnx.parser
@@ -174,6 +176,26 @@ class NoOpTest(unittest.TestCase):
             }}
         """
         )
+
+    @parameterized.parameterized.expand(
+        [
+            ("dropout zero ratio", "ratio=0.0"),
+            ("dropout inference", "training_mode=0"),
+            ("dropout inference with positive ratio", "ratio=0.42, training_mode=0"),
+            ("dropout training with zero ratio", "ratio=0.0, training_mode=1"),
+        ]
+    )
+    def test_dropout_zero_or_inference_no_op_with_initializer(self, _, attribute: str):
+        self._check(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float16[M] input) => (float16[M] output)
+            {{
+                output = Dropout<{attribute}>(input)
+            }}
+        """
+        )
+        # TODO: Test the negative cases
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ import subprocess
 import textwrap
 from pathlib import Path
 
-from opgen.onnx_opset_builder import (
+from onnx_opset_builder import (
     OpsetId,
     OpsetsBuilder,
     format_opsetid,

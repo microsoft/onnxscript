@@ -1,7 +1,5 @@
-# -------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
 
 __all__ = [
     "script",
@@ -54,10 +52,13 @@ __all__ = [
     "opset18",
     "opset19",
     "opset20",
+    "opset21",
+    "opset22",
     "opset_ai_onnx_ml1",
     "opset_ai_onnx_ml2",
     "opset_ai_onnx_ml3",
     "opset_ai_onnx_ml4",
+    "opset_ai_onnx_ml5",
     "DEBUG",
 ]
 
@@ -88,10 +89,13 @@ from .onnx_opset import (
     opset18,
     opset19,
     opset20,
+    opset21,
+    opset22,
     opset_ai_onnx_ml1,
     opset_ai_onnx_ml2,
     opset_ai_onnx_ml3,
     opset_ai_onnx_ml4,
+    opset_ai_onnx_ml5,
 )
 
 from .onnx_types import (
@@ -124,7 +128,7 @@ from ._internal.utils import external_tensor
 from .values import OnnxFunction, TracedOnnxFunction
 
 # Set DEBUG to True to enable additional debug checks
-DEBUG = False
+DEBUG: bool = False
 
 try:  # noqa: SIM105
     __version__ = importlib.metadata.version("onnxscript")

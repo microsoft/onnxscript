@@ -1,3 +1,7 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+import contextlib
+import io
 import logging
 import unittest
 
@@ -5,8 +9,10 @@ import numpy as np
 import onnx.checker
 import onnx.parser
 
-from onnxscript import ir
-from onnxscript.rewriter import _ir_utils, cast_constant_of_shape, pattern
+import onnxscript.optimizer
+from onnxscript import FLOAT, ir, script
+from onnxscript import opset17 as op
+from onnxscript.rewriter import cast_constant_of_shape, pattern
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +63,16 @@ class ReciprocalMulTest(unittest.TestCase):
         self.assertEqual(count, 0)
         self.assertEqual(len(model.graph), 4)
 
+        # Test verbose output produces something:
+        # TODO(rama): Need a better way to test this.
+        # Well-defined error-codes and messages would be helpful.
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            self.rule().apply_to_model(model, verbose=5)
+        out = buffer.getvalue()
+        self.assertIn("Match failed", out)
+
     def test_multiple_matches(self):
         model_proto = onnx.parser.parse_model(
             """
@@ -96,7 +112,7 @@ class FastGeluTest(unittest.TestCase):
             return (1.0 + tanh) * (0.5 * x)
 
         def fast_gelu(op, x):
-            return op.FastGelu(x, domain="com.microsoft")
+            return op.FastGelu(x, _domain="com.microsoft")
 
         return pattern.RewriteRule(fast_gelu_pattern1, fast_gelu)
 
@@ -117,7 +133,7 @@ class FastGeluTest(unittest.TestCase):
             return op.Mul(one_plus_tanh, half_x)
 
         def fast_gelu(op, x):
-            return op.FastGelu(x, domain="com.microsoft")
+            return op.FastGelu(x, _domain="com.microsoft")
 
         return pattern.RewriteRule(fast_gelu_pattern1_long, fast_gelu)
 
@@ -245,10 +261,11 @@ class RewriteRuleTest(unittest.TestCase):
 
         def check_for_redundant_reshape(context, x, newshape):
             oldshape = x.shape
-            newshape = _ir_utils.propagate_const_value(newshape)
-            newshape = _ir_utils.get_numpy_from_ir_value(newshape)
-            if not isinstance(newshape, np.ndarray):
+            newshape_const_value = newshape.const_value
+            if newshape_const_value is None:
                 return False
+
+            newshape = newshape_const_value.numpy()
             newshape = newshape.tolist()
 
             if len(oldshape) != len(newshape):
@@ -300,7 +317,7 @@ class RewriteRuleTest(unittest.TestCase):
             return x + x
 
         def double(op, x):
-            return op.Double(x, domain="custom.domain", version=10)
+            return op.Double(x, _domain="custom.domain", _version=10)
 
         rule = pattern.RewriteRule(add_same, double)
 
@@ -324,7 +341,7 @@ class RewriteRuleTest(unittest.TestCase):
             return x + x
 
         def double(op, x):
-            return op.Double(x, domain="custom.domain", version=10)
+            return op.Double(x, _domain="custom.domain", _version=10)
 
         rule = pattern.RewriteRule(add_same, double)
 
@@ -352,6 +369,316 @@ class RewriteRuleTest(unittest.TestCase):
             model.functions[("pkg.custom", "afunction", "")].opset_imports["custom.domain"], 10
         )
         onnx.checker.check_model(ir.serde.serialize_model(model))
+
+    def test_optional_attribute(self):
+        """Test rules with optional attributes."""
+
+        def concat_pattern(op, x, y):
+            seq = op.SequenceConstruct(x, y)
+            result = op.ConcatFromSequence(seq, _outputs=["result"])
+            return result
+
+        def concat(op, x, y, result: ir.Value):
+            node = result.producer()
+            assert node is not None
+            axis = node.attributes.get("axis", None)
+            return op.Concat(x, y, axis=axis)
+
+        rule = pattern.RewriteRule(concat_pattern, concat)
+
+        # Case 1: a model with attribute axis present
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x, float[N] y) => (float[M] z)
+            {
+                t = SequenceConstruct (x, y)
+                z = ConcatFromSequence <axis=0> (t)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = rule.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(model.graph), 1)
+        self.assertEqual(model.graph[0].op_type, "Concat")
+        self.assertEqual(model.graph[0].attributes["axis"].value, 0)
+
+        # Case 2: a model with attribute axis absent
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x, float[N] y) => (float[M] z)
+            {
+                t = SequenceConstruct (x, y)
+                z = ConcatFromSequence (t)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = rule.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(model.graph), 1)
+        self.assertEqual(model.graph[0].op_type, "Concat")
+        self.assertNotIn("axis", model.graph[0].attributes)
+
+    def test_match_none_input(self):
+        def none_pattern(op, x):
+            # match against a call to Original where the first input is None
+            return op.Original(None, x)
+
+        def replacement(op, x):
+            return op.Replaced(x)
+
+        rule = pattern.RewriteRule(none_pattern, replacement)
+
+        @script()
+        def test_model(x: FLOAT[1024]) -> FLOAT[1024]:
+            # Pattern should match following call
+            t1 = op.Original(None, x)
+            # Pattern should not match following call
+            z = op.Original(t1, x)
+            return z
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+
+        count = rule.apply_to_model(model)
+        self.assertEqual(count, 1)
+        self.assertEqual(len(model.graph), 2)
+        self.assertEqual(model.graph.node(0).op_type, "Replaced")
+        self.assertEqual(model.graph.node(1).op_type, "Original")
+
+    def test_match_optional_input(self):
+        def none_pattern(op, optional_input, x):
+            # match against a call to Original where the first input may or may not be None
+            return op.Original(optional_input, x)
+
+        def replacement(op, optional_input, x):
+            if optional_input is None:
+                return op.ReplacedNone(x)
+            return op.ReplacedNotNone(x)
+
+        rule = pattern.RewriteRule(none_pattern, replacement)
+
+        @script()
+        def test_model(x: FLOAT[1024]) -> FLOAT[1024]:
+            # Pattern should match following call
+            t1 = op.Original(None, x)
+            # as well as this one
+            z = op.Original(t1, x)
+            return z
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+
+        count = rule.apply_to_model(model)
+        self.assertEqual(count, 2)
+        self.assertEqual(len(model.graph), 2)
+        self.assertEqual(model.graph.node(0).op_type, "ReplacedNone")
+        self.assertEqual(model.graph.node(1).op_type, "ReplacedNotNone")
+
+    def test_graph_visitor(self):
+        class ReplaceFoo(pattern.RewriteRuleClassBase):
+            def __init__(self):
+                super().__init__()
+                self.replacement = None
+
+            def pattern(self, op):
+                return op.Foo()
+
+            def rewrite(self, op):
+                if self.replacement is None:
+                    self.replacement = op.Bar()
+                return self.replacement
+
+        rule = ReplaceFoo.rule()
+
+        @script()
+        def test_model(x: FLOAT[1024]) -> FLOAT[1024]:
+            # Pattern should match following call
+            t1 = op.Foo()
+            # as well as this one
+            t2 = op.Foo()
+            z = op.Add(t1, t2)
+            return z
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+
+        count = rule.apply_to_model(model)
+        self.assertEqual(count, 2)
+        self.assertEqual(len(model.graph), 2)
+        self.assertEqual(model.graph.node(0).op_type, "Bar")
+        self.assertEqual(model.graph.node(1).op_type, "Add")
+
+    def test_debug_mode(self):
+        def source_pattern(op, x):
+            t1 = op.Abs(x)
+            t2 = op.Neg(t1)
+            t3 = op.Exp(t2)
+            return t3
+
+        def replacement(op, x):
+            return op.Something(x)
+
+        rule = pattern.RewriteRule(source_pattern, replacement)
+
+        @script()
+        def test_model(x: FLOAT[1024]) -> FLOAT[1024]:
+            a2 = op.Abs(x)  # match-1 fails here
+            a3 = op.Exp(a2)  # match-1 starts here
+            b1 = op.Neg(a3)  # match-2 fails here
+            b2 = op.Neg(b1)  # match-2 (partially) succeeds here
+            b3 = op.Exp(b2)  # match-2 starts here
+            return b3
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+
+        tracer = pattern.MatchingTracer()
+        count = rule.apply_to_model(model, tracer=tracer)
+        self.assertEqual(count, 0)
+        best_matches = tracer.best_matches_map[rule]
+        self.assertEqual(len(best_matches), 1)
+        best_match = best_matches[0]
+        self.assertEqual(best_match.status.value, pattern.MatchStatus.NO_MATCH)
+        self.assertIn("OpType mismatch: expected Abs, got Neg", best_match.match_result.reason)
+
+    def test_new_initializer(self):
+        def source_pattern(op, x, y):
+            return op.Gemm(x, op.Transpose(y))
+
+        def check(context, x, y):
+            return y.const_value is not None
+
+        def replacement(op, x, y):
+            tensor = y.const_value
+            name = y.name + "_transposed"
+            transposed = ir.tensor(tensor.numpy().T, name=name)
+            initializer = op.initializer(transposed)
+            return op.Gemm(x, initializer)
+
+        rule = pattern.RewriteRule(source_pattern, replacement, check)
+
+        y_value = np.random.rand(8, 4).astype(np.float32)
+
+        @script()
+        def test_model(x: FLOAT[16, 8]) -> FLOAT[16, 4]:
+            y = op.Constant(value=y_value)
+            return op.Gemm(x, op.Transpose(y))
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        rule.apply_to_model(model)
+        self.assertEqual(len(model.graph.initializers), 1)
+        last_node = model.graph[-1]
+        self.assertEqual(len(last_node.inputs), 2)
+        init_name = last_node.inputs[1].name
+        self.assertIn(init_name, model.graph.initializers)
+        self.assertIs(last_node.inputs[1], model.graph.initializers[init_name])
+
+    def test_extract_function(self):
+        def source_pattern(op, x, y, z):
+            sum = op.Add(x, y)
+            return op.Mul(sum, z)
+
+        def replacement(op, x, y, z):
+            return op.AddMul(x, y, z, _domain="some.domain")
+
+        rule = pattern.RewriteRule(source_pattern, replacement, as_function=True)
+
+        @script()
+        def test_model(x: FLOAT[1024], y: FLOAT[1024], z: FLOAT[1024]) -> FLOAT[1024]:
+            return op.Mul(op.Add(x, y), z)
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        rule.apply_to_model(model)
+        self.assertEqual(len(model.functions), 1)
+        self.assertEqual(len(model.graph), 1)
+        call_node = model.graph.node(0)
+        self.assertEqual(call_node.domain, "some.domain")
+        self.assertEqual(call_node.op_type, "AddMul")
+        function_id = call_node.op_identifier()
+        self.assertIn(function_id, model.functions)
+        function = model.functions[function_id]
+        self.assertEqual([x.op_type for x in function], ["Add", "Mul"])
+        onnxscript.optimizer.inline(model)
+        self.assertEqual([x.op_type for x in model.graph], ["Add", "Mul"])
+
+    def test_extract_function_with_attr(self):
+        def source_pattern(op, x, y):
+            sum = op.Add(x, y)
+            return op.Transpose(sum, perm=[1, 0])
+
+        def replacement(op, x, y):
+            return op.AddTranspose(x, y, _domain="some.domain")
+
+        rule = pattern.RewriteRule(source_pattern, replacement, as_function=True)
+
+        @script()
+        def test_model(x: FLOAT[1024, 512], y: FLOAT[1024, 512]) -> FLOAT[512, 1024]:
+            return op.Transpose(op.Add(x, y), perm=[1, 0])
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        rule.apply_to_model(model)
+        self.assertEqual(len(model.functions), 1)
+        self.assertEqual(len(model.graph), 1)
+        call_node = model.graph.node(0)
+        self.assertEqual(call_node.domain, "some.domain")
+        self.assertEqual(call_node.op_type, "AddTranspose")
+        function_id = call_node.op_identifier()
+        self.assertIn(function_id, model.functions)
+        function = model.functions[function_id]
+        self.assertEqual([x.op_type for x in function], ["Add", "Transpose"])
+        transpose_node = function[1]
+        self.assertEqual(transpose_node.attributes["perm"].value, [1, 0])
+        onnxscript.optimizer.inline(model)
+        self.assertEqual([x.op_type for x in model.graph], ["Add", "Transpose"])
+
+    def test_extract_repeated_function(self):
+        def source_pattern(op, x, y, z):
+            sum = op.Add(x, y)
+            return op.Mul(sum, z)
+
+        def replacement(op, x, y, z):
+            return op.AddMul(x, y, z, _domain="some.domain")
+
+        rule = pattern.RewriteRule(source_pattern, replacement, as_function=True)
+
+        @script()
+        def test_model(x: FLOAT[1024], y: FLOAT[1024], z: FLOAT[1024]) -> FLOAT[1024]:
+            t1 = op.Mul(op.Add(x, y), z)
+            t2 = op.Mul(op.Add(t1, y), z)
+            return t2
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        rule.apply_to_model(model)
+        self.assertEqual(len(model.functions), 2)
+        self.assertEqual(len(model.graph), 2)
+        for call_node in model.graph:
+            self.assertEqual(call_node.domain, "some.domain")
+            self.assertEqual(call_node.op_type, "AddMul")
+            function_id = call_node.op_identifier()
+            self.assertIn(function_id, model.functions)
+        onnxscript.optimizer.inline(model)
+        self.assertEqual([x.op_type for x in model.graph], ["Add", "Mul", "Add", "Mul"])
+
+
+class PatternBuilderTest(unittest.TestCase):
+    def test_pattern_builder_context(self):
+        builder = pattern.OpsetPatternBuilder("", True)
+        with pattern.pattern_builder(builder):
+            x = builder.Op1()
+            y = builder.Op2(x)
+            z = x + y
+            w = builder.Op3(z)
+            _ = z * w
+        ops = [x.op_type for x in builder.nodes()]
+        self.assertEqual(ops, ["Op1", "Op2", "Add", "Op3", "Mul"])
 
 
 if __name__ == "__main__":
