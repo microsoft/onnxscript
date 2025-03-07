@@ -8655,13 +8655,15 @@ def aten_unique_dim(
     input_ndim = op.Max(op.Size(input_size), [1])
     dim = op.Mod(dim, input_ndim)
     if return_inverse:
-        inverse_indices = op.Reshape(inverse_indices, op.Reshape(op.Slice(input_size, dim, dim+1), [-1]))
+        inverse_indices = op.Reshape(
+            inverse_indices, op.Reshape(op.Slice(input_size, dim, dim + 1), [-1])
+        )
     else:
         inverse_indices = op.ConstantOfShape([0])
         inverse_indices = op.Cast(inverse_indices, to=INT64.dtype)
     if return_counts:
         output_size = op.Shape(unique_values)
-        counts = op.Reshape(counts, op.Reshape(op.Slice(output_size, dim, dim+1), [-1]))
+        counts = op.Reshape(counts, op.Reshape(op.Slice(output_size, dim, dim + 1), [-1]))
     else:
         counts = op.ConstantOfShape([0])
         counts = op.Cast(counts, to=INT64.dtype)
