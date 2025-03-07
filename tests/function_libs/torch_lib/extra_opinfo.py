@@ -1950,6 +1950,35 @@ def sample_inputs_upsample_trilinear3d(op_info, device, dtype, requires_grad, **
         )
 
 
+def sample_inputs__unique(op_info, device, dtype, requires_grad, **kwargs):
+    for sample in common_methods_invocations.sample_inputs_unique(
+        op_info, device, dtype, requires_grad, **kwargs
+    ):
+        return_counts = sample.kwargs.pop("return_counts", None)
+        dim = sample.kwargs.pop("dim", None)
+        # take only those samples that do not ask for counts or a dim
+        if not return_counts and dim is None:
+            yield sample
+
+
+def sample_inputs__unique2(op_info, device, dtype, requires_grad, **kwargs):
+    for sample in common_methods_invocations.sample_inputs_unique(
+        op_info, device, dtype, requires_grad, **kwargs
+    ):
+        # take only those samples that do not ask for a dim
+        if sample.kwargs.pop("dim", None) is None:
+            yield sample
+
+
+def sample_inputs_unique_dim(op_info, device, dtype, requires_grad, **kwargs):
+    for sample in common_methods_invocations.sample_inputs_unique(
+        op_info, device, dtype, requires_grad, **kwargs
+    ):
+        # take only those samples that ask for a dim
+        if sample.kwargs.get("dim") is not None:
+            yield sample
+
+
 def sample_inputs_upsample_trilinear3d_vec(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -2503,6 +2532,30 @@ OP_DB: List[opinfo_core.OpInfo] = [
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_unfold,
         supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._unique.default",
+        aten_name="_unique.default",
+        dtypes=common_dtype.floating_types_and(torch.float16, torch.int64, torch.int8),
+        sample_inputs_func=sample_inputs__unique,
+        supports_out=False,
+        supports_autograd=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._unique2.default",
+        aten_name="_unique2.default",
+        dtypes=common_dtype.floating_types_and(torch.float16, torch.int64, torch.int8),
+        sample_inputs_func=sample_inputs__unique2,
+        supports_out=False,
+        supports_autograd=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.unique_dim.default",
+        aten_name="unique_dim.default",
+        dtypes=common_dtype.floating_types_and(torch.float16, torch.int64, torch.int8),
+        sample_inputs_func=sample_inputs_unique_dim,
+        supports_out=False,
+        supports_autograd=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.upsample_bicubic2d.default",

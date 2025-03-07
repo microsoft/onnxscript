@@ -8604,16 +8604,84 @@ def aten_unique_consecutive(
     raise NotImplementedError()
 
 
+@torch_op("aten::_unique", trace_only=True)
+def aten__unique(
+    self: TensorType,
+    sorted: bool = True,  # pylint: disable=unused-argument
+    return_inverse: bool = False,
+) -> tuple[TensorType, TensorType]:
+    """_unique(Tensor self, bool sorted=True, bool return_inverse=False) -> (Tensor, Tensor)"""
+
+    unique_values, _, inverse_indices, _ = op.Unique(self, axis=None, sorted=True)
+    input_size = op.Shape(self)
+    if return_inverse:
+        inverse_indices = op.Reshape(inverse_indices, input_size)
+    else:
+        input_numel = op.ReduceProd(input_size, keepdims=False)
+        if input_numel == 0:
+            inverse_indices = op.Reshape(inverse_indices, input_size)
+        else:
+            inverse_indices = op.ConstantOfShape([0])
+            inverse_indices = op.Cast(inverse_indices, to=INT64.dtype)
+    return unique_values, inverse_indices
+
+
+@torch_op("aten::_unique2", trace_only=True)
+def aten__unique2(
+    self: TensorType,
+    sorted: bool = True,  # pylint: disable=unused-argument
+    return_inverse: bool = False,
+    return_counts: bool = False,
+) -> tuple[TensorType, TensorType, TensorType]:
+    """_unique2(Tensor self, bool sorted=True, bool return_inverse=False, bool return_counts=False) -> (Tensor, Tensor, Tensor)"""
+
+    unique_values, _, inverse_indices, counts = op.Unique(self, axis=None, sorted=True)
+    input_size = op.Shape(self)
+    if return_inverse:
+        inverse_indices = op.Reshape(inverse_indices, input_size)
+    else:
+        input_numel = op.ReduceProd(input_size, keepdims=False)
+        if input_numel == 0:
+            inverse_indices = op.Reshape(inverse_indices, input_size)
+        else:
+            inverse_indices = op.ConstantOfShape([0])
+            inverse_indices = op.Cast(inverse_indices, to=INT64.dtype)
+    if not return_counts:
+        counts = op.ConstantOfShape([0])
+        counts = op.Cast(counts, to=INT64.dtype)
+    return unique_values, inverse_indices, counts
+
+
+@torch_op("aten::unique_dim", trace_only=True)
 def aten_unique_dim(
     self: TensorType,
     dim: int,
-    sorted: bool = True,
+    sorted: bool = True,  # pylint: disable=unused-argument
     return_inverse: bool = False,
     return_counts: bool = False,
 ) -> tuple[TensorType, TensorType, TensorType]:
     """unique_dim(Tensor self, int dim, bool sorted=True, bool return_inverse=False, bool return_counts=False) -> (Tensor, Tensor, Tensor)"""
 
-    raise NotImplementedError()
+    unique_values, _, inverse_indices, counts = op.Unique(self, axis=dim, sorted=True)
+    input_size = op.Shape(self)
+    # Normalize dim to be non-negative
+    input_ndim = op.Max(op.Size(input_size), op.Constant(value_ints=[1]))
+    dim = op.Mod(dim, input_ndim)
+    if return_inverse:
+        inverse_indices = op.Reshape(
+            inverse_indices,
+            op.Reshape(op.Slice(input_size, dim, dim + 1), op.Constant(value_ints=[-1])),
+        )
+    else:
+        inverse_indices = op.ConstantOfShape([0])
+        inverse_indices = op.Cast(inverse_indices, to=INT64.dtype)
+    if return_counts:
+        output_size = op.Shape(unique_values)
+        counts = op.Reshape(counts, op.Reshape(op.Slice(output_size, dim, dim + 1), [-1]))
+    else:
+        counts = op.ConstantOfShape([0])
+        counts = op.Cast(counts, to=INT64.dtype)
+    return unique_values, inverse_indices, counts
 
 
 def aten_unique_dim_consecutive(

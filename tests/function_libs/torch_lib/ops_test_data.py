@@ -2069,6 +2069,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),  # Custom from extra_opinfo
     TorchLibOpInfo("transpose", core_ops.aten_transpose),
     TorchLibOpInfo("transpose", core_ops.aten_transpose_complex, complex=True),
+    TorchLibOpInfo("ops.aten._unique.default", core_ops.aten__unique),
+    TorchLibOpInfo("ops.aten._unique2.default", core_ops.aten__unique2),
+    TorchLibOpInfo("ops.aten.unique_dim.default", core_ops.aten_unique_dim).skip(
+        device_type="cpu",
+        reason=(
+            "ops.aten.unique_dim.default returns different shapes for optional outputs on CPU/CUDA. "
+            "Our implementation is based on that for CUDA"
+        ),
+    ),
     TorchLibOpInfo(
         "ops.prims.var.default", prims_ops.prims_var, tolerance={torch.float16: (1e-3, 5e-2)}
     ),
