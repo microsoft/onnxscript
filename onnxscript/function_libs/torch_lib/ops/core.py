@@ -7707,7 +7707,9 @@ def aten_slice_complex(
     step: Optional[INT64] = None,
 ) -> TTensor:
     """slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)"""
-
+    if dim < 0:
+        # Account for the complex dimension in ONNX
+        dim = dim - 1
     return aten_slice(self, dim, start, end, step)
 
 
