@@ -5,8 +5,7 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import onnxscript.ir as ir
-from onnxscript.rewriter import pattern
-from onnxscript.rewriter import _ir_utils
+from onnxscript.rewriter import _ir_utils, pattern
 
 """
 The MultiHeadAttention pattern: generate an instance
@@ -30,6 +29,7 @@ The suffix "BH_Skv_Dh" indicates that the tensor has the shape (B*H, Skv, Dh).
 """
 
 Dim = Union[int, ir.SymbolicDim]
+
 
 def _check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]) -> bool:
     if val.shape is None:
@@ -62,7 +62,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         sin,
     ):
         # First, query, key, and value are reshaped+transposed from (B, S, D) to (B, H, S, D/H)
-    
+
         # Reshape from (B, S, D) to (B, S, H, D/H)
         query_BSHDh = op.Reshape(
             query_BSD,
@@ -93,8 +93,12 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
         value_BHSDh = op.Transpose(value_BSHDh, perm=[0, 2, 1, 3])
 
-        query_BHSDh_rope = op.RotaryEmbedding(query_BHSDh, position_ids, cos, sin, _domain="com.microsoft")
-        key_BHSDh_rope = op.RotaryEmbedding(key_BHSDh, position_ids, cos, sin, _domain="com.microsoft")
+        query_BHSDh_rope = op.RotaryEmbedding(
+            query_BHSDh, position_ids, cos, sin, _domain="com.microsoft"
+        )
+        key_BHSDh_rope = op.RotaryEmbedding(
+            key_BHSDh, position_ids, cos, sin, _domain="com.microsoft"
+        )
 
         # Concatenate past_key cache and current key, and transpose to enable
         # dot-product attention computation.
@@ -113,7 +117,11 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         value_seq = op.Concat(past_value, value_BHSDh, axis=-2)
 
         attention = op.SDPA(
-            query_BHSDh_rope, key_seq_B_H_Dh_Skv, value_seq, mask, _domain="ai.onnxruntime.fusion"
+            query_BHSDh_rope,
+            key_seq_B_H_Dh_Skv,
+            value_seq,
+            mask,
+            _domain="ai.onnxruntime.fusion",
         )
 
         # Transpose attention back to (B, S, H, D/H)
@@ -139,9 +147,10 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         **_,
     ):
         bindings: dict[str, Dim] = {}
+
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
             return not _check_shape(bindings, val, dims)
-        
+
         if no_match(query_BSD, ["B", "S", "D"]):
             return False
         if no_match(key_BSD, ["B", "Skv", "D"]):
@@ -190,8 +199,12 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
 
         # Switch to 3D RotaryEmbedding
         # TODO: forward other attributes
-        query_BSD_rope = op.RotaryEmbedding(query_BSD, position_ids, cos, sin, _domain="com.microsoft")
-        key_BSD_rope = op.RotaryEmbedding(key_BSD, position_ids, cos, sin, _domain="com.microsoft")
+        query_BSD_rope = op.RotaryEmbedding(
+            query_BSD, position_ids, cos, sin, _domain="com.microsoft"
+        )
+        key_BSD_rope = op.RotaryEmbedding(
+            key_BSD, position_ids, cos, sin, _domain="com.microsoft"
+        )
 
         return op.MultiHeadAttention(
             query_BSD_rope,

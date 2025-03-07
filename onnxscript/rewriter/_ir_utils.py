@@ -125,6 +125,7 @@ def has_rank(value: ir.Value | None, rank: int) -> bool:
     shape = value.shape
     return (shape is not None) and (shape.rank() == rank)
 
+
 def get_dim(value: ir.Value | None, dim: int) -> ir.SymbolicDim | int | None:
     """Returns the value of the given dimension, or None if it is not statically known."""
     if value is None:

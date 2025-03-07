@@ -2,22 +2,20 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import onnxscript.ir as ir
-from onnxscript.rewriter import _ir_utils, pattern
 import onnxscript.rewriter._ir_utils as ir_utils
+from onnxscript.rewriter import pattern
+
 
 class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
     def pattern(self, op, input_BSD, position_ids, cos, sin, shape):
         # Reshape input from (B, S, D) to (B, S, H, D/H)
-        input_BSHd = op.Reshape(
-            input_BSD,
-            shape,
-            _allow_other_attributes=True
-        )
+        input_BSHd = op.Reshape(input_BSD, shape, _allow_other_attributes=True)
         # Transpose input from (B, S, H, D/H) to (B, H, S, D/H)
         input_BHSd = op.Transpose(input_BSHd, perm=[0, 2, 1, 3])
         # Apply rotary embedding on 4D input
-        output = op.RotaryEmbedding(input_BHSd, position_ids, cos, sin, _domain="com.microsoft")
+        output = op.RotaryEmbedding(
+            input_BHSd, position_ids, cos, sin, _domain="com.microsoft"
+        )
 
     def check(self, op, input_BSD, position_ids, cos, sin):
         # Check that input is a 3D tensor

@@ -95,7 +95,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             _outputs=["key_BSHd"],
         )
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
-        key_BHSd = op.Transpose(key_BSHd, perm=[0, 2, 1, 3])    
+        key_BHSd = op.Transpose(key_BSHd, perm=[0, 2, 1, 3])
 
         # Reshape from (B, S, D) to (B, S, H, D/H)
         value_BSHd = op.Reshape(
@@ -107,8 +107,12 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
         value_BHSd = op.Transpose(value_BSHd, perm=[0, 2, 1, 3])
 
-        query_rope = op.RotaryEmbedding(query_BHSd, position_ids, cos, sin, _domain="com.microsoft")
-        present_key_rope = op.RotaryEmbedding(key_BHSd, position_ids, cos, sin, _domain="com.microsoft")
+        query_rope = op.RotaryEmbedding(
+            query_BHSd, position_ids, cos, sin, _domain="com.microsoft"
+        )
+        present_key_rope = op.RotaryEmbedding(
+            key_BHSd, position_ids, cos, sin, _domain="com.microsoft"
+        )
         key_rope = op.Concat(past_key, present_key_rope, axis=-2)
         # Transpose last two axes of key_rope to compute dot-product via matmul.
         key_reshaped = op.Reshape(
