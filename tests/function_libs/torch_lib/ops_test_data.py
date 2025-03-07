@@ -2048,6 +2048,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("ops.aten.slice_scatter", core_ops.aten_slice_scatter),
     TorchLibOpInfo("slice", core_ops.aten_slice),
+    TorchLibOpInfo("slice", core_ops.aten_slice_complex, complex=True),
     TorchLibOpInfo(
         "sum",
         core_ops.aten_sum_dim_IntList,
