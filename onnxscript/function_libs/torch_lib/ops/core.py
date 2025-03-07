@@ -7590,10 +7590,14 @@ def aten_scatter_reduce(
 
     if not include_self:
         if onnx_reduce == "max":
-            value = onh.from_array(np.array([np.finfo(src.dtype.numpy()).min], dtype=src.dtype.numpy()))
+            value = onh.from_array(
+                np.array([np.finfo(src.dtype.numpy()).min], dtype=src.dtype.numpy())
+            )
             reduction_init = "min"
         elif onnx_reduce == "min":
-            value = onh.from_array(np.array([np.finfo(src.dtype.numpy()).max], dtype=src.dtype.numpy()))
+            value = onh.from_array(
+                np.array([np.finfo(src.dtype.numpy()).max], dtype=src.dtype.numpy())
+            )
             reduction_init = "max"
         elif onnx_reduce == "add":
             value = onh.from_array(np.array([0], dtype=src.dtype.numpy()))
