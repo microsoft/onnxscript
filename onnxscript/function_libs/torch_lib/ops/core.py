@@ -15,6 +15,7 @@ import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
+import onnx.numpy_helper as onh
 
 from onnxscript import (
     BFLOAT16,
@@ -7589,16 +7590,16 @@ def aten_scatter_reduce(
 
     if not include_self:
         if onnx_reduce == "max":
-            value = np.finfo(src.dtype.numpy()).min
+            value = onh.from_array(np.array([np.finfo(src.dtype.numpy()).min], dtype=src.dtype.numpy()))
             reduction_init = "min"
         elif onnx_reduce == "min":
-            value = np.finfo(src.dtype.numpy()).max
+            value = onh.from_array(np.array([np.finfo(src.dtype.numpy()).max], dtype=src.dtype.numpy()))
             reduction_init = "max"
         elif onnx_reduce == "add":
-            value = 0
+            value = onh.from_array(np.array([0], dtype=src.dtype.numpy()))
             reduction_init = "none"
         elif onnx_reduce == "mul":
-            value = 1
+            value = onh.from_array(np.array([1], dtype=src.dtype.numpy()))
             reduction_init = "none"
         else:
             value = 0
