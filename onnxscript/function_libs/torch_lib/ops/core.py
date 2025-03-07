@@ -8652,11 +8652,12 @@ def aten_unique_dim(
     unique_values, _, inverse_indices, counts = op.Unique(self, axis=dim, sorted=True)
     input_size = op.Shape(self)
     # Normalize dim to be non-negative
-    input_ndim = op.Max(op.Size(input_size), [1])
+    input_ndim = op.Max(op.Size(input_size), op.Constant(value_ints=[1]))
     dim = op.Mod(dim, input_ndim)
     if return_inverse:
         inverse_indices = op.Reshape(
-            inverse_indices, op.Reshape(op.Slice(input_size, dim, dim + 1), [-1])
+            inverse_indices,
+            op.Reshape(op.Slice(input_size, dim, dim + 1), op.Constant(value_ints=[-1])),
         )
     else:
         inverse_indices = op.ConstantOfShape([0])
