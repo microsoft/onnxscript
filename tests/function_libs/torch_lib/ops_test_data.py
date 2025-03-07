@@ -2025,11 +2025,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="mean",
         reason="ONNX doesn't support reduce='mean' option",
     )
-    .skip(
-        # ONNX has not include_self parameter and default is include_self=True mode
-        matcher=lambda sample: sample.kwargs.get("include_self") is False,
-        reason="ONNX does't support include_self=False option",
-    )
     .xfail(
         variant_name="amax",
         reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'max'",

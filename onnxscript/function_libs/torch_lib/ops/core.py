@@ -14,6 +14,8 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
+import numpy as np
+
 from onnxscript import (
     BFLOAT16,
     BOOL,
@@ -7584,7 +7586,29 @@ def aten_scatter_reduce(
         self = op.Reshape(self, neg_1)
         index = op.Reshape(index, neg_1)
         src = op.Reshape(src, neg_1)
+
+    if not include_self:
+        if onnx_reduce == "max":
+            value = np.finfo(src.dtype.numpy()).min
+            reduction_init = "min"
+        elif onnx_reduce == "min":
+            value = np.finfo(src.dtype.numpy()).max
+            reduction_init = "max"
+        elif onnx_reduce == "add":
+            value = 0
+            reduction_init = "none"
+        elif onnx_reduce == "mul":
+            value = 1
+            reduction_init = "none"
+        else:
+            value = 0
+            reduction_init = "none"
+
+        cst = op.ConstantOfShape(op.Shape(src), value=value)
+        self = op.ScatterElements(self, index, cst, axis=dim, reduction=reduction_init)
+
     result = op.ScatterElements(self, index, src, axis=dim, reduction=onnx_reduce)
+
     if self_is_scalar:
         result = op.Squeeze(result)
     return result
