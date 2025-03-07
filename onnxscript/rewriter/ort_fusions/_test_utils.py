@@ -8,6 +8,7 @@ import tempfile
 import numpy as np
 import onnx
 import onnxruntime
+import packaging.version
 
 import onnxscript.ir as ir
 import onnxscript.ir._io as io
@@ -19,6 +20,9 @@ def _save(model, modelpath):
     else:
         assert isinstance(model, ir.Model)
         io.save(model, modelpath)
+
+
+ort_version = packaging.version.Version(onnxruntime.__version__)
 
 
 def ort_run(model_name: str, model, inputs):
