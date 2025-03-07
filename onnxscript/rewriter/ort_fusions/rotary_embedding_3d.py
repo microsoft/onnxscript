@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import onnxscript.ir as ir
 from onnxscript.rewriter import _ir_utils, pattern
+import onnxscript.rewriter._ir_utils as ir_utils
 
 class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
-    def pattern(self, op, input_BSD, position_ids, cos, sin):
+    def pattern(self, op, input_BSD, position_ids, cos, sin, shape):
         # Reshape input from (B, S, D) to (B, S, H, D/H)
         input_BSHd = op.Reshape(
             input_BSD,
-            _allow_other_inputs=True,
-            _allow_other_attributes=True,
-            _outputs=["query_BSHd"],
+            shape,
+            _allow_other_attributes=True
         )
         # Transpose input from (B, S, H, D/H) to (B, H, S, D/H)
         input_BHSd = op.Transpose(input_BSHd, perm=[0, 2, 1, 3])
@@ -21,10 +21,7 @@ class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
 
     def check(self, op, input_BSD, position_ids, cos, sin):
         # Check that input is a 3D tensor
-        if input_BSD is None or input_BSD.shape is None or len(input_BSD.shape) != 3:
-            return False
-        # Check that position_ids is a 2D tensor
-        if position_ids is None or position_ids.shape is None or len(position_ids.shape) != 2:
+        if not ir_utils.has_rank(input_BSD, 3):
             return False
         # Check that cos and sin are 1D tensors
         if cos is None or cos.shape is None or len(cos.shape) != 1:

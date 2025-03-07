@@ -8,6 +8,7 @@ import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
 from onnxscript.rewriter.ort_fusions._smollm_2 import smollm_test_2
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
+from onnxscript.rewriter.ort_fusions.mha2 import fuse_mha
 
 
 class TestMultiHeadAttention(unittest.TestCase):

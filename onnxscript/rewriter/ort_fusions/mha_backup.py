@@ -52,13 +52,6 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
 
     def _compute_QKV(self, op, input, weight, reshape_var: str):
         """Applied to generate each of Q, K, and V from input."""
-        if self._use_2d_matmul:
-            # Convert batched input of shape (B, S, D) to 2D input (B*S, D)
-            input = op.Reshape(input, _allow_other_inputs=True)
-        projected = op.MatMul(input, weight)
-        if self._use_2d_matmul:
-            # Convert 2D output back to batched output of shape (B, S, D)
-            projected = op.Reshape(projected, _allow_other_inputs=True)
         # Reshape from (B, S, D) to (B, S, H, D/H)
         reshaped = op.Reshape(
             projected,
@@ -74,9 +67,9 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         self,
         op,
         input,
-        query_weight,
-        key_weight,
-        value_weight,
+        query_BSD,
+        key_BSD,
+        value_BSD,
         qkv_weight,
         mask,
         cos,
@@ -85,14 +78,38 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         past_value,
         position_ids,
     ):
-        query = self._compute_QKV(op, input, query_weight, "query_mm_reshaped")
-        key = self._compute_QKV(op, input, key_weight, "key_mm_reshaped")
-        value = self._compute_QKV(op, input, value_weight, "value_mm_reshaped")
+        # Reshape from (B, S, D) to (B, S, H, D/H)
+        query_BSHd = op.Reshape(
+            query_BSD,
+            _allow_other_inputs=True,
+            _allow_other_attributes=True,
+            _outputs=["query_BSHd"],
+        )
+        # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
+        query_BHSd = op.Transpose(query_BSHd, perm=[0, 2, 1, 3])
+        # Reshape from (B, S, D) to (B, S, H, D/H)
+        key_BSHd = op.Reshape(
+            key_BSD,
+            _allow_other_inputs=True,
+            _allow_other_attributes=True,
+            _outputs=["key_BSHd"],
+        )
+        # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
+        key_BHSd = op.Transpose(key_BSHd, perm=[0, 2, 1, 3])    
 
-        query_rope = op.RotaryEmbedding(query, position_ids, cos, sin, _domain="com.microsoft")
+        # Reshape from (B, S, D) to (B, S, H, D/H)
+        value_BSHd = op.Reshape(
+            value_BSD,
+            _allow_other_inputs=True,
+            _allow_other_attributes=True,
+            _outputs=["value_BSHd"],
+        )
+        # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
+        value_BHSd = op.Transpose(value_BSHd, perm=[0, 2, 1, 3])
 
-        key_rope = op.RotaryEmbedding(key, position_ids, cos, sin, _domain="com.microsoft")
-        key_rope = op.Concat(past_key, key_rope, axis=-2)
+        query_rope = op.RotaryEmbedding(query_BHSd, position_ids, cos, sin, _domain="com.microsoft")
+        present_key_rope = op.RotaryEmbedding(key_BHSd, position_ids, cos, sin, _domain="com.microsoft")
+        key_rope = op.Concat(past_key, present_key_rope, axis=-2)
         # Transpose last two axes of key_rope to compute dot-product via matmul.
         key_reshaped = op.Reshape(
             key_rope, _allow_other_inputs=True, _outputs=["key_reshaped"]
@@ -102,7 +119,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             key_reshaped_transposed, _allow_other_inputs=True, _outputs=["key_transposed"]
         )
 
-        value = op.Concat(past_value, value, axis=-2)
+        value = op.Concat(past_value, value_BHSd, axis=-2)
 
         attention = op.SDPA(
             query_rope, key_transposed, value, mask, _domain="ai.onnxruntime.fusion"
