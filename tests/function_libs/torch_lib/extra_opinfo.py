@@ -1974,6 +1974,7 @@ def sample_inputs_unique_dim(op_info, device, dtype, requires_grad, **kwargs):
         # take only those samples that ask for a dim
         if sample.kwargs.get('dim') is not None:
             yield sample
+
 def sample_inputs_upsample_trilinear3d_vec(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
