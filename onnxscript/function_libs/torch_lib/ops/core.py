@@ -14,6 +14,8 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
+import numpy as np
+
 from onnxscript import (
     BFLOAT16,
     BOOL,
@@ -31,6 +33,7 @@ from onnxscript import (
     UINT32,
     UINT64,
     graph,
+    ir,
 )
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
@@ -7584,7 +7587,37 @@ def aten_scatter_reduce(
         self = op.Reshape(self, neg_1)
         index = op.Reshape(index, neg_1)
         src = op.Reshape(src, neg_1)
+
+    if not include_self:
+        # onnx standard always assume the value from self is part of the reduction.
+        # A first step is added to replace the impacted value by another one
+        # chosen in a way that the results of the reduction is not changed
+        # whether or not it takes part in it.
+        # It is -inf if the reduction is max, inf for min, 0 for add, 1 for mul.
+        # mean is not supported.
+        dtype = src.dtype or cst.dtype
+        # dtype should be not None.
+        if onnx_reduce == "max":
+            value = ir.tensor([np.finfo(dtype.numpy()).min], dtype=dtype)
+            reduction_init = "min"
+        elif onnx_reduce == "min":
+            value = ir.tensor([np.finfo(dtype.numpy()).max], dtype=dtype)
+            reduction_init = "max"
+        elif onnx_reduce == "add":
+            value = ir.tensor([0], dtype=dtype)
+            reduction_init = "none"
+        elif onnx_reduce == "mul":
+            value = ir.tensor([1], dtype=dtype)
+            reduction_init = "none"
+        else:
+            value = 0
+            reduction_init = "none"
+
+        cst = op.ConstantOfShape(op.Shape(src), value=value)
+        self = op.ScatterElements(self, index, cst, axis=dim, reduction=reduction_init)
+
     result = op.ScatterElements(self, index, src, axis=dim, reduction=onnx_reduce)
+
     if self_is_scalar:
         result = op.Squeeze(result)
     return result
