@@ -152,16 +152,23 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
 _cast_const_freqs = CosSinCacheFusion.rule(
     "CosSinCache_cast_const_freqs", 2048, cast=True, const_freqs=True
 )
-_cast = CosSinCacheFusion.rule(
-    "CosSinCache_cast_no_const_freqs", 2048, cast=True, const_freqs=False
+_cast = CosSinCacheFusion.rule("CosSinCache_cast", 2048, cast=True, const_freqs=False)
+_const_freqs = CosSinCacheFusion.rule(
+    "CosSinCache_const_freqs", 2048, cast=False, const_freqs=True
 )
 _basic = CosSinCacheFusion.rule("CosSinCache", 2048, cast=False)
 
-cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _cast_const_freqs, _basic])
+# cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _cast_const_freqs, _const_freqs, _basic])
+
+cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _basic])
 
 
-def fuse_cos_sin_cache(model: ir.Model) -> int:
+def fuse_cos_sin_cache(model: ir.Model, debug: bool) -> int:
     count = cos_sin_cache_rules.apply_to_model(model)
+    if count == 0 and debug:
+        tracer = pattern.MatchingTracer()
+        cos_sin_cache_rules.apply_to_model(model, tracer=tracer)
+        tracer.report()
     if count != 0:
         remove_unused_nodes(model)
     return count

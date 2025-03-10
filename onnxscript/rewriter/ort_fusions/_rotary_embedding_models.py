@@ -109,7 +109,7 @@ def test_case_2():
 # A partial rotary embedding example:
 
 # A random inverse frequency tensor for the sake of this example.
-inv_freqs_value = numpy.random.rand(1, 40, 1).astype(numpy.float32)
+inv_freqs_value = numpy.random.rand(1, 16, 1).astype(numpy.float32)
 # inv_freqs_value = make_tensor("value", 1, dims=[1, 40, 1], vals=[1.0]*40)
 
 
@@ -117,13 +117,13 @@ inv_freqs_value = numpy.random.rand(1, 40, 1).astype(numpy.float32)
 def _partial_rotary_script(
     position_ids: INT64["Batchsize", "Sequence"], query: FLOAT["Batchsize", 32, "Sequence", 80]
 ) -> FLOAT["Batchsize", 32, "Sequence", 80]:
-    val_0 = op.Shape(position_ids, end=1, start=0)
-    sym_size_int_6 = op.Squeeze(val_0)
+    # val_0 = op.Shape(position_ids, end=1, start=0)
+    # sym_size_int_6 = op.Squeeze(val_0)
     _to_copy_1 = op.Constant(value=inv_freqs_value)
-    val_25 = op.Reshape(sym_size_int_6, [-1], allowzero=0)
-    val_28 = op.Concat(val_25, [-1], [1], axis=0)
-    val_30 = op.Abs(val_28)
-    expand = op.Expand(_to_copy_1, val_30)
+    # val_25 = op.Reshape(sym_size_int_6, [-1], allowzero=0)
+    # val_28 = op.Concat(val_25, [-1], [1], axis=0)
+    # val_30 = op.Abs(val_28)
+    expand = _to_copy_1  # op.Expand(_to_copy_1, val_30)
     unsqueeze_2 = op.Unsqueeze(position_ids, 1)
     _to_copy_2 = op.Cast(unsqueeze_2, to=1)
     matmul = op.MatMul(expand, _to_copy_2)
@@ -135,12 +135,12 @@ def _partial_rotary_script(
     slice_4 = op.Slice(query, [0], [32], [3], val_63)
     val_73 = op.Constant(value_ints=[1])
     slice_5 = op.Slice(query, [32], [9223372036854775807], [3], val_73)
-    val_83 = op.Constant(value_ints=[1])
-    slice_6 = op.Slice(cos, [0], [32], [2], val_83)
-    val_93 = op.Constant(value_ints=[1])
-    slice_7 = op.Slice(sin, [0], [32], [2], val_93)
-    unsqueeze_3 = op.Unsqueeze(slice_6, 1)
-    unsqueeze_4 = op.Unsqueeze(slice_7, 1)
+    # val_83 = op.Constant(value_ints=[1])
+    # slice_6 = op.Slice(cos, [0], [32], [2], val_83)
+    # val_93 = op.Constant(value_ints=[1])
+    # slice_7 = op.Slice(sin, [0], [32], [2], val_93)
+    unsqueeze_3 = op.Unsqueeze(cos, 1)
+    unsqueeze_4 = op.Unsqueeze(sin, 1)
     mul_55 = op.Mul(slice_4, unsqueeze_3)
     val_106 = op.Constant(value_ints=[1])
     slice_8 = op.Slice(slice_4, [0], [16], [3], val_106)

@@ -61,7 +61,7 @@ class PartialRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
             x_part_1,
             _allow_other_inputs=True,
             _allow_other_attributes=True,
-            _domain="ai.onnxruntime.fusion",
+            _domain="com.microsoft",
             _outputs=["x_part_1_rope"],
         )
         return op.Concat(x_part_1_rope, x_part_2, axis=-1)
@@ -94,7 +94,7 @@ class PartialRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
         return op.RotaryEmbedding(
             *inputs,
             **attrs,
-            _domain="ai.onnxruntime.fusion",
+            _domain="com.microsoft",
         )
 
 
@@ -109,4 +109,13 @@ partial_embedding_rules = pattern.RewriteRuleSet([_partial_embedding_rule])
 
 def fuse_rotary_embedding(model: ir.Model) -> int:
     count = rotary_embedding_rules.apply_to_model(model)
+    return count
+
+
+def fuse_partial_rotary_embedding(model: ir.Model, debug: bool = False) -> int:
+    count = partial_embedding_rules.apply_to_model(model)
+    if count == 0 and debug:
+        tracer = pattern.MatchingTracer()
+        partial_embedding_rules.apply_to_model(model, tracer=tracer)
+        tracer.report()
     return count
