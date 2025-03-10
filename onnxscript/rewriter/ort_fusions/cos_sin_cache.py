@@ -161,7 +161,7 @@ _basic = CosSinCacheFusion.rule("CosSinCache", 2048, cast=False)
 cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _cast_const_freqs, _const_freqs, _basic])
 
 
-def fuse_cos_sin_cache(model: ir.Model, debug: bool) -> int:
+def fuse_cos_sin_cache(model: ir.Model, debug: bool = False) -> int:
     count = cos_sin_cache_rules.apply_to_model(model)
     if count == 0 and debug:
         tracer = pattern.MatchingTracer()
