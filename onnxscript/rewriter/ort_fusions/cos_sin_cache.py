@@ -158,9 +158,7 @@ _const_freqs = CosSinCacheFusion.rule(
 )
 _basic = CosSinCacheFusion.rule("CosSinCache", 2048, cast=False)
 
-# cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _cast_const_freqs, _const_freqs, _basic])
-
-cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _basic])
+cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _cast_const_freqs, _const_freqs, _basic])
 
 
 def fuse_cos_sin_cache(model: ir.Model, debug: bool) -> int:
