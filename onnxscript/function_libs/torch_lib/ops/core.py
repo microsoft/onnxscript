@@ -15,7 +15,6 @@ import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
-import onnx.numpy_helper as onh
 
 from onnxscript import (
     BFLOAT16,
@@ -34,6 +33,7 @@ from onnxscript import (
     UINT32,
     UINT64,
     graph,
+    ir,
 )
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
@@ -7589,19 +7589,23 @@ def aten_scatter_reduce(
         src = op.Reshape(src, neg_1)
 
     if not include_self:
+        # onnx standard always assume the value from self is part of the reduction.
+        # A first step is added to replace the impacted value by another one
+        # chosen in a way that the results of the reduction is not changed
+        # whether or not it takes part in it.
+        # It is -inf if the reduction is max, inf for min, 0 for add, 1 for mul.
+        # mean is not supported.
         if onnx_reduce == "max":
             value = ir.tensor([np.finfo(src.dtype.numpy()).min], dtype=src.dtype)
             reduction_init = "min"
         elif onnx_reduce == "min":
-            value = onh.from_array(
-                np.array([np.finfo(src.dtype.numpy()).max], dtype=src.dtype.numpy())
-            )
+            value = ir.tensor([np.finfo(src.dtype.numpy()).max], dtype=src.dtype)
             reduction_init = "max"
         elif onnx_reduce == "add":
-            value = onh.from_array(np.array([0], dtype=src.dtype.numpy()))
+            value = ir.tensor([0], dtype=src.dtype)
             reduction_init = "none"
         elif onnx_reduce == "mul":
-            value = onh.from_array(np.array([1], dtype=src.dtype.numpy()))
+            value = ir.tensor([1], dtype=src.dtype)
             reduction_init = "none"
         else:
             value = 0
