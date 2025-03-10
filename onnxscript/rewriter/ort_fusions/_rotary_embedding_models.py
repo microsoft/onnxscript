@@ -10,6 +10,8 @@ from onnxscript import script
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import FLOAT, INT64
 
+# A simple rotary embedding example
+
 
 # x: [B, H, S, E]
 # position_ids: [B, S]
@@ -57,6 +59,7 @@ def test_case_1():
     return _TestCase1()
 
 
+# A simple rotary embedding example with 1D position_ids
 # x: [B, H, S, E]
 # position_ids: [S]
 @script()
@@ -101,3 +104,73 @@ class _TestCase2:
 
 def test_case_2():
     return _TestCase2()
+
+
+# A partial rotary embedding example:
+
+# A random inverse frequency tensor for the sake of this example.
+inv_freqs_value = numpy.random.rand(1, 40, 1).astype(numpy.float32)
+# inv_freqs_value = make_tensor("value", 1, dims=[1, 40, 1], vals=[1.0]*40)
+
+
+@script()
+def _partial_rotary_script(
+    position_ids: INT64["Batchsize", "Sequence"], query: FLOAT["Batchsize", 32, "Sequence", 80]
+) -> FLOAT["Batchsize", 32, "Sequence", 80]:
+    val_0 = op.Shape(position_ids, end=1, start=0)
+    sym_size_int_6 = op.Squeeze(val_0)
+    _to_copy_1 = op.Constant(value=inv_freqs_value)
+    val_25 = op.Reshape(sym_size_int_6, [-1], allowzero=0)
+    val_28 = op.Concat(val_25, [-1], [1], axis=0)
+    val_30 = op.Abs(val_28)
+    expand = op.Expand(_to_copy_1, val_30)
+    unsqueeze_2 = op.Unsqueeze(position_ids, 1)
+    _to_copy_2 = op.Cast(unsqueeze_2, to=1)
+    matmul = op.MatMul(expand, _to_copy_2)
+    transpose = op.Transpose(matmul, perm=[0, 2, 1])
+    cat = op.Concat(transpose, transpose, axis=-1)
+    cos = op.Cos(cat)
+    sin = op.Sin(cat)
+    val_63 = op.Constant(value_ints=[1])
+    slice_4 = op.Slice(query, [0], [32], [3], val_63)
+    val_73 = op.Constant(value_ints=[1])
+    slice_5 = op.Slice(query, [32], [9223372036854775807], [3], val_73)
+    val_83 = op.Constant(value_ints=[1])
+    slice_6 = op.Slice(cos, [0], [32], [2], val_83)
+    val_93 = op.Constant(value_ints=[1])
+    slice_7 = op.Slice(sin, [0], [32], [2], val_93)
+    unsqueeze_3 = op.Unsqueeze(slice_6, 1)
+    unsqueeze_4 = op.Unsqueeze(slice_7, 1)
+    mul_55 = op.Mul(slice_4, unsqueeze_3)
+    val_106 = op.Constant(value_ints=[1])
+    slice_8 = op.Slice(slice_4, [0], [16], [3], val_106)
+    val_116 = op.Constant(value_ints=[1])
+    slice_9 = op.Slice(slice_4, [16], [9223372036854775807], [3], val_116)
+    neg = op.Neg(slice_9)
+    cat_1 = op.Concat(neg, slice_8, axis=-1)
+    mul_76 = op.Mul(cat_1, unsqueeze_4)
+    add_101 = op.Add(mul_55, mul_76)
+    cat_2 = op.Concat(add_101, slice_5, axis=-1)
+    return cat_2
+
+
+class _PartialRotaryTestCase:
+    def get_onnx_model(self):
+        if not hasattr(self, "_onnx_model"):
+            model_proto = _partial_rotary_script.to_model_proto()
+            model = ir.serde.deserialize_model(model_proto)
+            self._onnx_model = model
+        return self._onnx_model
+
+    def get_ort_inputs(self):
+        if not hasattr(self, "_ort_inputs"):
+            inputs = {
+                "query": numpy.random.rand(1, 32, 8, 80).astype(numpy.float32),
+                "position_ids": numpy.arange(8, dtype=numpy.int64).reshape(1, 8),
+            }
+            self._ort_inputs = inputs
+        return self._ort_inputs
+
+
+def partial_rotary_test_case():
+    return _PartialRotaryTestCase()
