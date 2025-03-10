@@ -7590,9 +7590,7 @@ def aten_scatter_reduce(
 
     if not include_self:
         if onnx_reduce == "max":
-            value = onh.from_array(
-                np.array([np.finfo(src.dtype.numpy()).min], dtype=src.dtype.numpy())
-            )
+            value = ir.tensor([np.finfo(src.dtype.numpy()).min], dtype=src.dtype)
             reduction_init = "min"
         elif onnx_reduce == "min":
             value = onh.from_array(
