@@ -22,7 +22,7 @@ def _save(model, modelpath):
         io.save(model, modelpath)
 
 
-ort_version = packaging.version.Version(onnxruntime.__version__)
+ORT_VERSION = packaging.version.Version(onnxruntime.__version__)
 
 
 def ort_run(model_name: str, model, inputs):

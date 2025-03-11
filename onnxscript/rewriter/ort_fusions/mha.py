@@ -157,9 +157,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             return False
         if no_match(value_BSD, ["B", "Skv", "D"]):
             return False
-        # TODO: broadcast check
-        # if no_match(mask, ["B", "H", "S", "St"]):
-        #     return False
+
         if no_match(past_key, ["B", "H", "Spast", "Dh"]):
             return False
         if no_match(past_value, ["B", "H", "Spast", "Dv"]):
@@ -170,12 +168,13 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             return False
         if no_match(value_BSHDh, ["B", "S", "H", "Dh"]):
             return False
-        # if not status:
-        #     return False
-        # if bindings["B"] * bindings["H"] != bindings["B*H"]:
-        #     return False
-        # if bindings["H"] * bindings["Dh"] != bindings["H*Dh"]:
-        #     return False
+        # TODO: mask shape check: ideally, it should be (1 or B, 1 or H, S, St)
+        # But this also, unforunately, depends on ORT version.
+
+        # TODO: verify Reshapes:
+        # eg.: verify bindings["B"] * bindings["H"] == bindings["B*H"]:
+        # and bindings["H"] * bindings["Dh"] == bindings["H*Dh"]:
+        # or check Reshape's shape-input value
         return True
 
     def rewrite(
