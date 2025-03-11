@@ -124,10 +124,13 @@ def _partial_rotary_script(position_ids, query):
     cat = op.Concat(transpose, transpose, axis=-1)  # [B, S, rd]
     cos_3d = op.Cos(cat)  # [B, S, rd]
     sin_3d = op.Sin(cat)  # [B, S, rd]
+    # Split the query for partial embedding
     to_embed = op.Slice(query, [0], [32], [3], [1])
     unembedded = op.Slice(query, [32], [9223372036854775807], [3], [1])
     cos_4d = op.Unsqueeze(cos_3d, 1)  # [B, 1, S, rd]
     sin_4d = op.Unsqueeze(sin_3d, 1)  # [B, 1, S, rd]
+    # Compute rotation of X as X * cos + rotate_half(X) * sin, where rotate_half(X)
+    # essentially represents X rotated by 90 degrees
     to_embed_times_cos = op.Mul(to_embed, cos_4d)
     to_embed_x = op.Slice(to_embed, [0], [16], [3], [1])
     to_embed_y = op.Slice(to_embed, [16], [9223372036854775807], [3], [1])
