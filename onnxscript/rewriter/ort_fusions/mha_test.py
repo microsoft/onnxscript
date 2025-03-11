@@ -23,7 +23,8 @@ class TestMultiHeadAttention(unittest.TestCase):
         xformers.fuse_rotary_embedding(model)
         xformers.fuse_cos_sin_cache(model)
 
-        if packaging.version.Version("1.20") <= ORT_VERSION:
+        test_with_ort = packaging.version.Version("1.20") <= ORT_VERSION
+        if test_with_ort:
             # Run model
             inputs = smollm_test.get_ort_inputs()
             original_outputs = ort_run("original", model, inputs)
@@ -34,7 +35,7 @@ class TestMultiHeadAttention(unittest.TestCase):
         mha_count = xformers.fuse_mha(model)
         self.assertGreater(mha_count, 0)
 
-        if packaging.version.Version("1.20") <= ORT_VERSION:
+        if test_with_ort:
             # Run model again
             new_outputs = ort_run("optimized", model, inputs)
             assert_allclose(new_outputs, original_outputs)
