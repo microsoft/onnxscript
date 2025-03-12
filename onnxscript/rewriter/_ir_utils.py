@@ -79,11 +79,15 @@ def get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
     return None
 
 
-def get_singleton_value(val: ir.Value | None):
-    """Returns element of a single element tensor constant value, and None otherwise."""
+def get_singleton_value(val: ir.Value | None, rank: int | None = None):
+    """Returns element of a single element tensor constant value, and None otherwise.
+
+    If rank is specified, it checks that the value has the given rank.
+    """
     np_val = get_numpy_value(val)
     if np_val is not None and np_val.size == 1:
-        return np_val.item()
+        if rank is None or (np_val.ndim == rank):
+            return np_val.item()
     return None
 
 
