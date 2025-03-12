@@ -31,6 +31,7 @@ from onnxscript import (
     UINT32,
     UINT64,
     graph,
+    ir,
 )
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
@@ -4752,7 +4753,7 @@ def aten_layer_norm(
         one = op.Constant(value=ir.tensor(1, dtype=input.dtype))
         weight = op.Expand(one, op.Shape(input, start=start_axis))
 
-    result, _, _ = op.LayerNormalization(input, weight, bias, axis=axis, epsilon=eps)
+    result, _, _ = op.LayerNormalization(input, weight, bias, axis=start_axis, epsilon=eps)
     return result
 
 
