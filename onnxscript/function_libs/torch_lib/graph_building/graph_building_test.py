@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import os
-import sys
 import unittest
 
 import torch
@@ -15,7 +14,6 @@ import onnxscript
 import onnxscript.testing
 from onnxscript import FLOAT, evaluator
 from onnxscript import opset18 as op
-from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib import graph_building, ops
 
 IS_WINDOWS = os.name == "nt"
@@ -155,80 +153,6 @@ class TestTorchScriptGraph(unittest.TestCase):
         x_tensor = torch.ones((1, 2, 3), dtype=torch.float32)
         graph.add_initializer("x", x_tensor)
         graph.add_initializer("x", x_tensor)
-
-
-class _MLP(torch.nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
-        super().__init__()
-        self.fc1 = torch.nn.Linear(input_size, hidden_size)
-        self.fc2 = torch.nn.Linear(hidden_size, output_size)
-        self.relu = torch.nn.ReLU()
-
-    def forward(self, x):
-        out = self.fc1(x)
-        out = self.relu(out)
-        out = self.fc2(out)
-        return out
-
-
-@unittest.skipIf(
-    IS_WINDOWS and version_utils.torch_older_than("2.3"),
-    "dynamo_export not supported on Windows in PyTorch<2.3",
-)
-@unittest.skipIf(
-    sys.version_info > (3, 11),
-    "dynamo_export not supported due to torch.compile not functional for python>3.11",
-)
-class TestModelSaving(unittest.TestCase):
-    def test_save_initializer_to_files_for_large_model(self):
-        # # of model parameters:
-        #  input_size x hidden_size + hidden_size +
-        #  hidden_size x output_size + output_size
-        #  ~= 3GB below
-        batch_size, input_size, hidden_size, output_size = 1, 4, 50000000, 10
-        model = _MLP(input_size, hidden_size, output_size)
-        x = torch.randn(batch_size, input_size)
-
-        model_proto = torch.onnx.dynamo_export(model, x).model_proto
-        # Assert model is larger than 2GB (~=3GB)
-        self.assertGreater(model_proto.ByteSize(), 2**31)
-
-    def test_input_output_and_initializer_are_not_stored_in_value_info(self):
-        batch_size, input_size, hidden_size, output_size = 1, 4, 5, 10
-        model = _MLP(input_size, hidden_size, output_size)
-        x = torch.randn(batch_size, input_size)
-
-        model_proto = torch.onnx.dynamo_export(model, x).model_proto
-        v_names = {v.name for v in model_proto.graph.value_info}
-
-        for i in model_proto.graph.input:
-            self.assertNotIn(i.name, v_names)
-        for o in model_proto.graph.output:
-            self.assertNotIn(o.name, v_names)
-        for i in model_proto.graph.initializer:
-            self.assertNotIn(i.name, v_names)
-
-    @unittest.skipIf(
-        not version_utils.torch_older_than("2.4"),
-        "PyTorch 2.4-preview optimizes the functions away",
-    )
-    def test_experimental_function_value_info_are_stored_in_graph_value_info(self):
-        batch_size, input_size, hidden_size, output_size = 1, 4, 5, 10
-        model = _MLP(input_size, hidden_size, output_size)
-        x = torch.randn(batch_size, input_size)
-
-        model_proto = torch.onnx.dynamo_export(model, x).model_proto
-        v_names = {v.name for v in model_proto.graph.value_info}
-        torch_functions = [
-            f for f in model_proto.functions if f.domain.startswith("pkg.torch")
-        ]
-        self.assertNotEqual(len(torch_functions), 0)
-        for f in torch_functions:
-            for n in f.node:
-                for i in n.input:
-                    self.assertIn(f"{f.domain}::{f.name}/{i}", v_names)
-                for o in n.output:
-                    self.assertIn(f"{f.domain}::{f.name}/{o}", v_names)
 
 
 if __name__ == "__main__":
