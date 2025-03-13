@@ -103,14 +103,13 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             position_ids_q = op.Unsqueeze(position_ids, [0])
             position_ids_k = op.Unsqueeze(position_ids, [0])
         else:
-
             position_ids_q = position_ids
             position_ids_k = position_ids
 
         query_BHSDh_rope = op.RotaryEmbedding(
             query_BHSDh, position_ids_q, cos, sin, _domain="com.microsoft"
         )
-        
+
         key_BHSDh_rope = op.RotaryEmbedding(
             key_BHSDh, position_ids_k, cos, sin, _domain="com.microsoft"
         )
