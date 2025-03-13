@@ -32,7 +32,7 @@ class TestMultiHeadAttention(unittest.TestCase):
         # Fuse SDPA and MHA
         sdpa_count = xformers.fuse_sdpa(model)
         self.assertGreater(sdpa_count, 0)
-        mha_count = xformers.fuse_mha(model, debug=True)
+        mha_count = xformers.fuse_mha(model)
         self.assertGreater(mha_count, 0)
 
         if test_with_ort:
