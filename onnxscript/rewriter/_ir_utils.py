@@ -79,11 +79,15 @@ def get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
     return None
 
 
-def get_singleton_value(val: ir.Value | None):
-    """Returns element of a single element tensor constant value, and None otherwise."""
+def get_singleton_value(val: ir.Value | None, rank: int | None = None):
+    """Returns element of a single element tensor constant value, and None otherwise.
+
+    If rank is specified, it checks that the value has the given rank.
+    """
     np_val = get_numpy_value(val)
     if np_val is not None and np_val.size == 1:
-        return np_val.item()
+        if rank is None or (np_val.ndim == rank):
+            return np_val.item()
     return None
 
 
@@ -124,3 +128,17 @@ def has_rank(value: ir.Value | None, rank: int) -> bool:
         return False
     shape = value.shape
     return (shape is not None) and (shape.rank() == rank)
+
+
+def get_dim(value: ir.Value | None, dim: int) -> ir.SymbolicDim | int | None:
+    """Returns the value of the given dimension, or None if it is not statically known."""
+    if value is None:
+        return None
+    shape = value.shape
+    if shape is None:
+        return None
+    if dim < 0:
+        dim += shape.rank()
+    if dim < 0 or dim >= shape.rank():
+        return None
+    return shape[dim]

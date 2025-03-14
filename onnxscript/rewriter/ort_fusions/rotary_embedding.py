@@ -53,11 +53,69 @@ class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
         )
 
 
+class PartialRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
+    def pattern(self, op, x, end1, start2):
+        x_part_1 = op.Slice(x, [0], end1, [3], [1])
+        x_part_2 = op.Slice(x, start2, [9223372036854775807], [3], [1])
+        x_part_1_rope = op.RotaryEmbedding(
+            x_part_1,
+            _allow_other_inputs=True,
+            _allow_other_attributes=True,
+            _domain="com.microsoft",
+            _outputs=["x_part_1_rope"],
+        )
+        return op.Concat(x_part_1_rope, x_part_2, axis=-1)
+
+    def check(self, op, x, end1, start2, x_part_1_rope, **_):
+        end1_value = _ir_utils.get_singleton_value(end1)
+        start2_value = _ir_utils.get_singleton_value(start2)
+        if not isinstance(end1_value, int) or not isinstance(start2_value, int):
+            return False
+        if end1_value != start2_value:
+            return False
+        rotary_embedding_attributes = x_part_1_rope.producer().attributes
+        if "rotary_embedding_dim" in rotary_embedding_attributes:
+            return False
+        if (
+            "interleaved" in rotary_embedding_attributes
+            and rotary_embedding_attributes["interleaved"].value != 0
+        ):
+            return False
+        return True
+
+    def rewrite(self, op, x, end1, x_part_1_rope, **_):
+        # Create a modified version of the RotaryEmbedding op:
+        rotary_embedding_dim = _ir_utils.get_singleton_value(end1)
+        original_node = x_part_1_rope.producer()
+        inputs = list(original_node.inputs)
+        inputs[0] = x
+        attrs = dict(original_node.attributes)
+        attrs["rotary_embedding_dim"] = rotary_embedding_dim
+        return op.RotaryEmbedding(
+            *inputs,
+            **attrs,
+            _domain="com.microsoft",
+        )
+
+
 _rule = RotaryEmbeddingFusion.rule()
 
+_partial_embedding_rule = PartialRotaryEmbeddingFusion.rule()
+
 rotary_embedding_rules = pattern.RewriteRuleSet([_rule])
+
+partial_embedding_rules = pattern.RewriteRuleSet([_partial_embedding_rule])
 
 
 def fuse_rotary_embedding(model: ir.Model) -> int:
     count = rotary_embedding_rules.apply_to_model(model)
+    return count
+
+
+def fuse_partial_rotary_embedding(model: ir.Model, debug: bool = False) -> int:
+    count = partial_embedding_rules.apply_to_model(model)
+    if count == 0 and debug:
+        tracer = pattern.MatchingTracer()
+        partial_embedding_rules.apply_to_model(model, tracer=tracer)
+        tracer.report()
     return count
