@@ -32,7 +32,7 @@ def ort_run(model_name: str, model, inputs):
     opts.graph_optimization_level = (
         onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
     )
-    session = onnxruntime.InferenceSession(onx.SerializeToString(), opts, providers=providers)
+    session = onnxruntime.InferenceSession(model_proto.SerializeToString(), options, providers=providers)
     return session.run(None, inputs)
 
 
