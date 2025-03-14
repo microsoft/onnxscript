@@ -27,13 +27,13 @@ ORT_VERSION = packaging.version.Version(onnxruntime.__version__)
 
 def ort_run(model_name: str, model, inputs):
     providers = ["CPUExecutionProvider"]
-    with tempfile.TemporaryDirectory() as temp_dir:
-        model_path = os.path.join(temp_dir, f"{model_name}.onnx")
-        _save(model, model_path)
-        # Run model
-        session = onnxruntime.InferenceSession(model_path, providers=providers)
-        ort_outputs = session.run(None, inputs)
-    return ort_outputs
+    onx = ir.serde.serialize_model(model)
+    opts = onnxruntime.SessionOptions()
+    opts.graph_optimization_level = (
+        onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+    )
+    session = onnxruntime.InferenceSession(onx.SerializeToString(), opts, providers=providers)
+    return session.run(None, inputs)
 
 
 def assert_allclose(outputs, expected_outputs, rtol=1e-2, atol=1e-2):
