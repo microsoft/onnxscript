@@ -7586,12 +7586,29 @@ def aten_scatter_reduce(
         # It is -inf if the reduction is max, inf for min, 0 for add, 1 for mul.
         # mean is not supported.
         dtype = src.dtype or self.dtype
+        assert dtype is not None, f"dtype is None, src={src}, self={self}"
         # dtype should be not None.
         if onnx_reduce == "max":
-            value = ir.tensor([-np.inf], dtype=dtype)
+            if dtype in {
+                ir.DataType.FLOAT16,
+                ir.DataType.BFLOAT16,
+                ir.DataType.FLOAT,
+                ir.DataType.DOUBLE,
+            }:
+                value = ir.tensor([np.finfo(dtype.numpy()).min], dtype=dtype)
+            else:
+                value = ir.tensor([np.iinfo(dtype.numpy()).min], dtype=dtype)
             reduction_init = "min"
         elif onnx_reduce == "min":
-            value = ir.tensor([np.inf], dtype=dtype)
+            if dtype in {
+                ir.DataType.FLOAT16,
+                ir.DataType.BFLOAT16,
+                ir.DataType.FLOAT,
+                ir.DataType.DOUBLE,
+            }:
+                value = ir.tensor([np.finfo(dtype.numpy()).max], dtype=dtype)
+            else:
+                value = ir.tensor([np.iinfo(dtype.numpy()).max], dtype=dtype)
             reduction_init = "max"
         elif onnx_reduce == "add":
             value = ir.tensor([0], dtype=dtype)
