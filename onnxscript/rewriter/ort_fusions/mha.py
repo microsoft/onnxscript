@@ -216,8 +216,9 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
 
         # Switch to 3D RotaryEmbedding
         # TODO: forward other attributes
-        zero_1d = op.Constant(value_ints=[0])
+
         if self._transpose_4d:
+            zero_1d = op.Constant(value_ints=[0])
             position_ids = op.Unsqueeze(position_ids, zero_1d)
         query_BSD_rope = op.RotaryEmbedding(
             query_BSD, position_ids, cos, sin, _domain="com.microsoft"
