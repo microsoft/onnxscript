@@ -93,11 +93,14 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
         value_BHkvSDh = op.Transpose(value_BSHkvDh, perm=[0, 2, 1, 3])
 
+        position_ids_q = op.Unsqueeze(position_ids, [0])
+        position_ids_k = op.Unsqueeze(position_ids, [0])
+        
         query_BHSDh_rope = op.RotaryEmbedding(
-            query_BHSDh, position_ids, cos, sin, _domain="com.microsoft"
+            query_BHSDh, position_ids_q, cos, sin, _domain="com.microsoft"
         )
         key_BHkvSDh_rope = op.RotaryEmbedding(
-            key_BHkvSDh, position_ids, cos, sin, _domain="com.microsoft"
+            key_BHkvSDh, position_ids_k, cos, sin, _domain="com.microsoft"
         )
 
         # Concatenate past_key cache and current key, and transpose to enable
@@ -116,13 +119,13 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         value_seq_BHkvSDh = op.Concat(past_value, value_BHkvSDh, axis=-2)
         value_seq_BHkv1SDh = op.Unsqueeze(value_seq_BHkvSDh, 2)
         value_seq_BHkvGSDh = op.Expand(value_seq_BHkv1SDh, _allow_other_inputs=True)
-        key_seq_BHSkvDh = op.Reshape(
-            value_seq_BHkvGSDh, _allow_other_inputs=True, _outputs=["key_seq_BHSkvDh"])
+        value_seq_BHSkvDh = op.Reshape(
+            value_seq_BHkvGSDh, _allow_other_inputs=True, _outputs=["value_seq_BHSkvDh"])
         
         attention_BHSDh = op.SDPA(
             query_BHSDh_rope,
             key_seq_BHDhSkv,
-            key_seq_BHSkvDh,
+            value_seq_BHSkvDh,
             mask,
             _domain="ai.onnxruntime.fusion",
         )
