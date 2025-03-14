@@ -241,7 +241,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         )
 
 
-_mha_4d_transpose = MultiHeadAttention.rule("MHA_3D_Transpose", transpose_4d=True)
+_mha_4d_transpose = MultiHeadAttention.rule("MHA_4D_Transpose", transpose_4d=True)
 _mha_3d_transpose = MultiHeadAttention.rule("MHA_3D_Transpose", transpose_4d=False)
 
 mha_rules = pattern.RewriteRuleSet([_mha_4d_transpose, _mha_3d_transpose])
