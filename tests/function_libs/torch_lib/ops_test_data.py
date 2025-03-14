@@ -2027,6 +2027,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         variant_name="amax",
+        dtypes=(torch.float16),
         reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'max'",
     )
     .xfail(
