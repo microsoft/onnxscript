@@ -45,8 +45,9 @@ def _check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]) 
 
 
 class MultiHeadAttention(pattern.RewriteRuleClassBase):
-    def __init__(self):
-        super().__init__("MHA")
+    def __init__(self, name, *, transpose_4d: bool):
+        super().__init__(name)
+        self._transpose_4d = transpose_4d
 
     def pattern(
         self,
@@ -93,11 +94,24 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
         value_BHSDh = op.Transpose(value_BSHDh, perm=[0, 2, 1, 3])
 
+        # This is workaround for examples where there is a duplication of Unsqueeze op
+        # to generate a 2D positions-ids from a 1D position-ids. This can be eliminated
+        # if we have CSE-optimization to eliminate the duplicate Unsqueeze ops.
+        # For now, same flag (transpose_4d) controls this variation. A different flag
+        # can be added if we see instances that mix the two.
+        if self._transpose_4d:
+            position_ids_q = op.Unsqueeze(position_ids, [0])
+            position_ids_k = op.Unsqueeze(position_ids, [0])
+        else:
+            position_ids_q = position_ids
+            position_ids_k = position_ids
+
         query_BHSDh_rope = op.RotaryEmbedding(
-            query_BHSDh, position_ids, cos, sin, _domain="com.microsoft"
+            query_BHSDh, position_ids_q, cos, sin, _domain="com.microsoft"
         )
+
         key_BHSDh_rope = op.RotaryEmbedding(
-            key_BHSDh, position_ids, cos, sin, _domain="com.microsoft"
+            key_BHSDh, position_ids_k, cos, sin, _domain="com.microsoft"
         )
 
         # Concatenate past_key cache and current key, and transpose to enable
@@ -105,13 +119,17 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
 
         key_seq = op.Concat(past_key, key_BHSDh_rope, axis=-2)
         # Transpose last two axes of key_seq to compute dot-product via matmul.
-        key_seq_BH_Skv_Dh = op.Reshape(
-            key_seq, _allow_other_inputs=True, _outputs=["key_seq_BH_Skv_Dh"]
-        )
-        key_seq_BH_Dh_Skv = op.Transpose(key_seq_BH_Skv_Dh, perm=[0, 2, 1])
-        key_seq_B_H_Dh_Skv = op.Reshape(
-            key_seq_BH_Dh_Skv, _allow_other_inputs=True, _outputs=["key_seq_B_H_Dh_Skv"]
-        )
+        if self._transpose_4d:
+            key_seq_B_H_Dh_Skv = op.Transpose(key_seq, perm=[0, 1, 3, 2])
+        else:
+            # Transpose after converting to 3D
+            key_seq_BH_Skv_Dh = op.Reshape(
+                key_seq, _allow_other_inputs=True, _outputs=["key_seq_BH_Skv_Dh"]
+            )
+            key_seq_BH_Dh_Skv = op.Transpose(key_seq_BH_Skv_Dh, perm=[0, 2, 1])
+            key_seq_B_H_Dh_Skv = op.Reshape(
+                key_seq_BH_Dh_Skv, _allow_other_inputs=True, _outputs=["key_seq_B_H_Dh_Skv"]
+            )
 
         # Concatenate past_value cache and current value
         value_seq = op.Concat(past_value, value_BHSDh, axis=-2)
@@ -198,6 +216,10 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
 
         # Switch to 3D RotaryEmbedding
         # TODO: forward other attributes
+
+        if self._transpose_4d:
+            zero_1d = op.Constant(value_ints=[0])
+            position_ids = op.Unsqueeze(position_ids, zero_1d)
         query_BSD_rope = op.RotaryEmbedding(
             query_BSD, position_ids, cos, sin, _domain="com.microsoft"
         )
@@ -220,9 +242,10 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         )
 
 
-_rule1 = MultiHeadAttention.rule()
+_mha_4d_transpose = MultiHeadAttention.rule("MHA_4D_Transpose", transpose_4d=True)
+_mha_3d_transpose = MultiHeadAttention.rule("MHA_3D_Transpose", transpose_4d=False)
 
-mha_rules = pattern.RewriteRuleSet([_rule1])
+mha_rules = pattern.RewriteRuleSet([_mha_4d_transpose, _mha_3d_transpose])
 
 
 def fuse_mha(model: ir.Model, *, debug: bool = False) -> int:
