@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import tempfile
 
 import numpy as np
 import onnx
@@ -29,10 +28,10 @@ def ort_run(model_name: str, model, inputs):
     providers = ["CPUExecutionProvider"]
     model_proto = ir.serde.serialize_model(model)
     options = onnxruntime.SessionOptions()
-    options.graph_optimization_level = (
-        onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+    options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+    session = onnxruntime.InferenceSession(
+        model_proto.SerializeToString(), options, providers=providers
     )
-    session = onnxruntime.InferenceSession(model_proto.SerializeToString(), options, providers=providers)
     return session.run(None, inputs)
 
 
