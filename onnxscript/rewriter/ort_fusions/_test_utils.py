@@ -29,7 +29,7 @@ def ort_run(model_name: str, model, inputs):
     providers = ["CPUExecutionProvider"]
     model_proto = ir.serde.serialize_model(model)
     options = onnxruntime.SessionOptions()
-    opts.graph_optimization_level = (
+    options.graph_optimization_level = (
         onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
     )
     session = onnxruntime.InferenceSession(model_proto.SerializeToString(), options, providers=providers)
