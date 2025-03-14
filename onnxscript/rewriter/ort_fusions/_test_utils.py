@@ -27,7 +27,7 @@ ORT_VERSION = packaging.version.Version(onnxruntime.__version__)
 
 def ort_run(model_name: str, model, inputs):
     providers = ["CPUExecutionProvider"]
-    onx = ir.serde.serialize_model(model)
+    model_proto = ir.serde.serialize_model(model)
     opts = onnxruntime.SessionOptions()
     opts.graph_optimization_level = (
         onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
