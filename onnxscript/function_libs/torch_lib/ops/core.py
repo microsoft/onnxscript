@@ -31,6 +31,7 @@ from onnxscript import (
     UINT32,
     UINT64,
     graph,
+    ir,
 )
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
@@ -1242,6 +1243,7 @@ def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
         "_operator::__lshift__",
+        "aten::__lshift__.Scalar",
     ),
     trace_only=True,
 )
@@ -1262,6 +1264,7 @@ def aten_bitwise_left_shift_int16(self: INT16, other: INT16) -> INT16:
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
         "_operator::__lshift__",
+        "aten::__lshift__.Scalar",
     ),
     trace_only=True,
 )
@@ -1282,6 +1285,7 @@ def aten_bitwise_left_shift_int32(self: INT32, other: INT32) -> INT32:
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
         "_operator::__lshift__",
+        "aten::__lshift__.Scalar",
     ),
     trace_only=True,
 )
@@ -1302,6 +1306,7 @@ def aten_bitwise_left_shift_int64(self: INT64, other: INT64) -> INT64:
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
         "_operator::__lshift__",
+        "aten::__lshift__.Scalar",
     ),
     trace_only=True,
 )
@@ -1346,6 +1351,7 @@ def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
         "aten::bitwise_right_shift.Tensor_Scalar",
         "aten::bitwise_right_shift.Scalar_Tensor",
         "_operator::__rshift__",
+        "aten::__rshift__.Scalar",
     )
 )
 def aten_bitwise_right_shift_int16(self: INT16, other: INT16) -> INT16:
@@ -1376,6 +1382,7 @@ def aten_bitwise_right_shift_int16(self: INT16, other: INT16) -> INT16:
         "aten::bitwise_right_shift.Tensor_Scalar",
         "aten::bitwise_right_shift.Scalar_Tensor",
         "_operator::__rshift__",
+        "aten::__rshift__.Scalar",
     )
 )
 def aten_bitwise_right_shift_int32(self: INT32, other: INT32) -> INT32:
@@ -1406,6 +1413,7 @@ def aten_bitwise_right_shift_int32(self: INT32, other: INT32) -> INT32:
         "aten::bitwise_right_shift.Tensor_Scalar",
         "aten::bitwise_right_shift.Scalar_Tensor",
         "_operator::__rshift__",
+        "aten::__rshift__.Scalar",
     )
 )
 def aten_bitwise_right_shift_int64(self: INT64, other: INT64) -> INT64:
@@ -1439,6 +1447,7 @@ def aten_bitwise_right_shift_int64(self: INT64, other: INT64) -> INT64:
         "aten::bitwise_right_shift.Tensor_Scalar",
         "aten::bitwise_right_shift.Scalar_Tensor",
         "_operator::__rshift__",
+        "aten::__rshift__.Scalar",
     )
 )
 def aten_bitwise_right_shift_int8(self: INT8, other: INT8) -> INT8:
@@ -4749,28 +4758,10 @@ def aten_layer_norm(
     start_axis = -len(normalized_shape)
 
     if weight is None:
-        one = op.Constant(value_float=1.0)
+        one = op.Constant(value=ir.tensor(1, dtype=input.dtype))
         weight = op.Expand(one, op.Shape(input, start=start_axis))
 
-    if bias is None:
-        zero = op.Constant(value_float=0.0)
-        bias = op.Expand(zero, op.Shape(input, start=start_axis))
-
-    return _aten_layer_norm_onnx(input, weight, bias, axis=start_axis, eps=eps)
-
-
-@torch_op("aten::layer_norm", private=True)
-def _aten_layer_norm_onnx(
-    input: TReal,
-    weight: TReal,
-    bias: TReal,
-    axis: int,
-    eps: float = 1e-05,
-) -> TReal:
-    """layer_norm(Tensor input, int[] normalized_shape, Tensor? weight=None, Tensor? bias=None, float eps=1e-05, bool cudnn_enable=True) -> Tensor"""
-
-    # TODO(justinchuby): Use OptionalHasElement after onnx/onnx#4982
-    result, _, _ = op.LayerNormalization(input, weight, bias, axis=axis, epsilon=eps)
+    result, _, _ = op.LayerNormalization(input, weight, bias, axis=start_axis, epsilon=eps)
     return result
 
 
