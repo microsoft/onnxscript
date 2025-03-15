@@ -14,13 +14,16 @@ for query and key/value.
 We use the following abbreviations for the dimensions:
 B: Batch size
 S: Sequence length (for current query/key/value)
-D: input embedding dimension
-Dkv: key/value hidden size
-H: number of heads (must be an integral multiple of Hkv)
+
 Hkv: number of heads for key/value
-Dh: head size or embedding dimension per head (usually, D = H * Dh)
-Skv: key/value sequence length
-St: total sequence length
+G = number of groups
+H: number of heads = G * Hkv
+
+Dh: head size or embedding dimension per head
+D: input embedding dimension (hidden size) = H * Dh
+Dkv: key/value hidden size = Hkv * Dh
+
+Skv: key/value sequence length (after concatenation of past and current key/value)
 
 In the sequel, the suffix "_BHSDh" indicates that the tensor has the shape (B, H, S, Dh).
 The suffix "BH_Skv_Dh" indicates that the tensor has the shape (B*H, Skv, Dh).
@@ -102,11 +105,11 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # Concatenate past_key cache and current key, expand across heads
         # that share key/value and transpose to enable dot-product attention computation.
 
-        key_seq_BHkvSDh = op.Concat(past_key, key_BHkvSDh_rope, axis=-2)
-        key_seq_BHkv1SDh = op.Unsqueeze(key_seq_BHkvSDh, 2)
-        key_seq_BHkvGSDh = op.Expand(key_seq_BHkv1SDh, _allow_other_inputs=True)
+        key_seq_BHkvSkvDh = op.Concat(past_key, key_BHkvSDh_rope, axis=-2)
+        key_seq_BHkv1SkvDh = op.Unsqueeze(key_seq_BHkvSkvDh, 2)
+        key_seq_BHkvGSkvDh = op.Expand(key_seq_BHkv1SkvDh, _allow_other_inputs=True)
         key_seq_BHSkvDh = op.Reshape(
-            key_seq_BHkvGSDh, _allow_other_inputs=True, _outputs=["key_seq_BHSkvDh"]
+            key_seq_BHkvGSkvDh, _allow_other_inputs=True, _outputs=["key_seq_BHSkvDh"]
         )
         key_seq_BHDhSkv = op.Transpose(
             key_seq_BHSkvDh, _allow_other_inputs=True, _outputs=["key_seq_BHDhSkv"]
@@ -114,11 +117,11 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
 
         # Concatenate past_value cache and current value, expand across heads
         # that share key/value.
-        value_seq_BHkvSDh = op.Concat(past_value, value_BHkvSDh, axis=-2)
-        value_seq_BHkv1SDh = op.Unsqueeze(value_seq_BHkvSDh, 2)
-        value_seq_BHkvGSDh = op.Expand(value_seq_BHkv1SDh, _allow_other_inputs=True)
+        value_seq_BHkvSkvDh = op.Concat(past_value, value_BHkvSDh, axis=-2)
+        value_seq_BHkv1SkvDh = op.Unsqueeze(value_seq_BHkvSkvDh, 2)
+        value_seq_BHkvGSkvDh = op.Expand(value_seq_BHkv1SkvDh, _allow_other_inputs=True)
         value_seq_BHSkvDh = op.Reshape(
-            value_seq_BHkvGSDh, _allow_other_inputs=True, _outputs=["value_seq_BHSkvDh"]
+            value_seq_BHkvGSkvDh, _allow_other_inputs=True, _outputs=["value_seq_BHSkvDh"]
         )
 
         attention_BHSDh = op.SDPA(
@@ -135,7 +138,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         attention_BSD = op.Reshape(
             attention_BSHDh, _allow_other_inputs=True, _outputs=["attention_BSD"]
         )
-        return attention_BSD, key_seq_BHkvSDh, value_seq_BHkvSDh
+        return attention_BSD, key_seq_BHkvSkvDh, value_seq_BHkvSkvDh
 
     def check(
         self,
