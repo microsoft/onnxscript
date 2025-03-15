@@ -958,7 +958,7 @@ def _deserialize_attribute(
 
 def deserialize_node(proto: onnx.NodeProto) -> _core.Node:
     return _deserialize_node(
-        proto, scoped_values=[], value_info={}, quantization_annotations={}
+        proto, scoped_values=[{}], value_info={}, quantization_annotations={}
     )
 
 
