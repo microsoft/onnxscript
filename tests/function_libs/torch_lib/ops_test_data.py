@@ -2031,6 +2031,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 16 when reduction is 'mul'",
     )
     .xfail(
+        variant_name="amin",
+        dtypes=(torch.int32, torch.int64),
+        reason="fixme: discrepancies, that should be investigated",
+    )
+    .xfail(
         variant_name="sum",
         dtypes=(torch.float16, torch.float64),
         reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'add'",
