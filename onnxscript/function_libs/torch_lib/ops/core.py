@@ -2079,12 +2079,12 @@ def aten_convolution(
     # 3D: rank=5
     rank = len(input.shape)
 
-    rank_to_image_d = {3: 1, 4: 2, 5: 3}
-    image_d = rank_to_image_d[rank]
+    image_d = rank - 2
 
     if not isinstance(padding, Sequence):
         padding = [padding] * image_d
     elif len(padding) != image_d:
+        assert len(padding) > 0, "Padding should not be an empty sequence."
         padding = [padding[0]] * image_d
     pads = [*padding, *padding]
 
