@@ -66,7 +66,9 @@ class TorchLibe2eTest(testutils.TestBase):
                     model_path, sess_options=sess_options, providers=["CPUExecutionProvider"]
                 )
                 got = sess.run(None, feeds)[0]
-                torch.testing.assert_close(expected, torch.from_numpy(got), atol=1e-5, rtol=1e-5)
+                torch.testing.assert_close(
+                    expected, torch.from_numpy(got), atol=1e-5, rtol=1e-5
+                )
 
 
 if __name__ == "__main__":

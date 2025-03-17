@@ -15,6 +15,7 @@ import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
+import ml_dtypes
 
 from onnxscript import (
     BFLOAT16,
@@ -7596,7 +7597,6 @@ def aten_scatter_reduce(
             }:
                 value = ir.tensor([np.finfo(dtype.numpy()).min], dtype=dtype)
             elif dtype in {ir.DataType.BFLOAT16}:
-                import ml_dtypes
                 value = ir.tensor([ml_dtypes.finfo(dtype.numpy()).min], dtype=dtype)
             else:
                 value = ir.tensor([np.iinfo(dtype.numpy()).min], dtype=dtype)
