@@ -89,6 +89,7 @@ class RemoveUnusedNodesPass(ir.passes.PassBase):
         initializers = model.graph.initializers
         for init in list(initializers.values()):
             if not (init in graph_outputs or init.uses()):
+                assert init.name is not None
                 del initializers[init.name]
                 count += 1
         for function in model.functions.values():
