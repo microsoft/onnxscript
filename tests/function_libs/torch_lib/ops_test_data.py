@@ -2036,7 +2036,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'add'",
     )
     .xfail(
-        dtypes=(torch.bfloat16),
+        variant_name="mean",
+        dtypes=(torch.bfloat16,),
+        reason="onnxruntime does not support ml_dtypes.bfloat16",
+    )
+    .xfail(
+        variant_name="prod",
+        dtypes=(torch.bfloat16,),
+        reason="onnxruntime does not support ml_dtypes.bfloat16",
+    )
+    .xfail(
+        variant_name="sum",
+        dtypes=(torch.bfloat16,),
         reason="onnxruntime does not support ml_dtypes.bfloat16",
     ),
     TorchLibOpInfo("ops.aten.slice_scatter", core_ops.aten_slice_scatter),
