@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import onnxscript.ir as ir
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter import _ir_utils, pattern
 
 """
 GroupQueryAttention: This generalizes MHA by allowing the number of heads to be different
@@ -196,15 +196,18 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         mask,
         past_key,
         past_value,
+        query_BSHDh,
+        key_BSHkvDh,
         # key_BSHkvDh,
         # position_ids,
         # cos,
         # sin,
         **_,
     ):
-        # num_heads = _ir_utils.get_dim(key_BSHkvDh, 2)
-        # if not isinstance(num_heads, int):
-        #     return None
+        num_heads = _ir_utils.get_dim(query_BSHDh, 2)
+        kv_num_heads = _ir_utils.get_dim(key_BSHkvDh, 2)
+        if not isinstance(num_heads, int) or not isinstance(kv_num_heads, int):
+            return None
 
         # # Switch to 3D RotaryEmbedding
         # # TODO: forward other attributes
@@ -215,16 +218,16 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         #     key_BSDkv, position_ids, cos, sin, _domain="com.microsoft"
         # )
 
-        return op.DummyGQA(
+        return op.GroupQueryAttention(
             query_BSD,
             key_BSDkv,
             value_BSDkv,
-            None,  # bias
-            None,  # key padding mask
-            mask,  # attention mask/bias
             past_key,
             past_value,
-            # num_heads=num_heads,
+            # skipped optional inputs: seqlens_k, total_sequence_length, cos_cache, sin_cache
+            num_heads=num_heads,
+            kv_num_heads=kv_num_heads,
+            # skipped optional attributes: do_rotary, local_window_size, rotary_interleaved, scale, smooth_softmax, softcap
             _domain="com.microsoft",
             _outputs=3,
         )
