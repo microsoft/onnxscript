@@ -7608,7 +7608,7 @@ def aten_scatter_reduce(
                 ir.DataType.DOUBLE,
             }:
                 value = ir.tensor([np.finfo(dtype.numpy()).max], dtype=dtype)
-            elif dtype in {ir.DataType.BFLOAT16}:
+            elif dtype == ir.DataType.BFLOAT16:
                 import ml_dtypes
                 value = ir.tensor([ml_dtypes.finfo(dtype.numpy()).max], dtype=dtype)
             else:
