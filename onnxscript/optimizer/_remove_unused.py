@@ -55,7 +55,7 @@ def remove_unused_optional_outputs(
             out.name = ""
 
 
-def process_function_or_graph(function_or_graph: ir.Function | ir.Graph) -> int:
+def _process_function_or_graph(function_or_graph: ir.Function | ir.Graph) -> int:
     graph_outputs = frozenset(function_or_graph.outputs)
     onnx_opset_version = function_or_graph.opset_imports.get("", None)
     count = 0
@@ -75,32 +75,33 @@ def process_function_or_graph(function_or_graph: ir.Function | ir.Graph) -> int:
                 if not isinstance(attr, ir.Attr):
                     continue
                 if attr.type == ir.AttributeType.GRAPH:
-                    count += process_function_or_graph(attr.as_graph())
+                    count += _process_function_or_graph(attr.as_graph())
                 elif attr.type == ir.AttributeType.GRAPHS:
                     for graph in attr.as_graphs():
-                        count += process_function_or_graph(graph)
+                        count += _process_function_or_graph(graph)
     return count
 
 
-def _remove_unused_nodes(model: ir.Model) -> None:
-    """Removes unused nodes from a model in IR form."""
-    count = process_function_or_graph(model.graph)
-    graph_outputs = frozenset(model.graph.outputs)
-    initializers = model.graph.initializers
-    for init in list(initializers.values()):
-        if not (init in graph_outputs or init.uses()):
-            del initializers[init.name]  # type: ignore[arg-type]
-            count += 1
-
-    for function in model.functions.values():
-        count += process_function_or_graph(function)
-
-    logger.info("Removed %s unused nodes", count)
+class RemoveUnusedNodesPass(ir.passes.PassBase):
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        count = _process_function_or_graph(model.graph)
+        graph_outputs = frozenset(model.graph.outputs)
+        initializers = model.graph.initializers
+        for init in list(initializers.values()):
+            if not (init in graph_outputs or init.uses()):
+                del initializers[init.name]
+                count += 1
+        for function in model.functions.values():
+            count += _process_function_or_graph(function)
+        if count:
+            logger.info("Removed %s unused nodes", count)
+            return ir.passes.PassResult(model, modified=True)
+        return ir.passes.PassResult(model, modified=False)
 
 
 def remove_unused_nodes(model: ir.Model | onnx.ModelProto) -> None:
     """Removes unused nodes from a model."""
     if isinstance(model, ir.Model):
-        _remove_unused_nodes(model)
+        RemoveUnusedNodesPass()(model)
     else:
         onnxscript.optimizer._legacy._remove_unused_proto.remove_unused_nodes(model)

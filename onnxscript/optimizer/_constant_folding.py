@@ -797,8 +797,7 @@ def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape 
     return ir.Shape([merge_dims(dim1, dim2) for dim1, dim2 in zip(shape1, shape2)])
 
 
-class ConstantFolder:
-    opset_imports: dict[str, int]
+class FoldConstantsPass(ir.passes.PassBase):
 
     def __init__(
         self,
@@ -812,9 +811,15 @@ class ConstantFolder:
         self._shape_inference = shape_inference
         self._input_size_limit = input_size_limit
         self._output_size_limit = output_size_limit
-        self._init()
+        self.opset_imports: dict[str, int] = {}
+        self.counts: dict[str, int] = {}
+        self.sizes: dict[str, int] = {}
+        self.modified = False
+        self._state = OptimizerState()
+        self._reset()
 
-    def _init(self) -> None:
+    def _reset(self) -> None:
+        """Reset internal states for a new run."""
         self.counts: dict[str, int] = {}
         self.sizes: dict[str, int] = {}
         self.modified = False
@@ -931,6 +936,7 @@ class ConstantFolder:
                     sym_value.name,
                 )
                 node.replace_input_with(i, sym_value)
+                self.modified = True
                 # TODO(rama): consider merging type/other info from both values
 
         # Do incremental shape inference
@@ -1007,6 +1013,8 @@ class ConstantFolder:
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
 
+        self.modified = True
+
         # TODO: what about new opset_imports?
         # TODO: track statistics about replaced nodes and sizes of new constants
 
@@ -1045,13 +1053,14 @@ class ConstantFolder:
         for node in function:
             self.visit_node(node, function)
 
-    def visit_model(self, model: ir.Model) -> None:
-        self._init()
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        self._reset()
         self.opset_imports = model.opset_imports
         self.visit_graph(model.graph)
         for function in model.functions.values():
             # TODO(rama): Should we specialize functions?
             self.visit_function(function)
+        return ir.passes.PassResult(model, self.modified)
 
 
 def fold_constants(
@@ -1066,18 +1075,18 @@ def fold_constants(
     Applies constant folding optimization to the model.
     Returns true iff the model was modified.
     """
-    folder = ConstantFolder(
+    folder_pass = FoldConstantsPass(
         external_data_folder=external_data_folder,
         shape_inference=onnx_shape_inference,
         input_size_limit=input_size_limit,
         output_size_limit=output_size_limit,
     )
-    folder.visit_model(model)
-    for op in folder.counts:
+    folder_pass(model)
+    for op in folder_pass.counts:
         logger.info(
             "Constant-folded '%s' %s times, with %s size.",
             op,
-            folder.counts[op],
-            folder.sizes[op],
+            folder_pass.counts[op],
+            folder_pass.sizes[op],
         )
-    return folder.modified
+    return folder_pass.modified
