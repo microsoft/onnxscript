@@ -798,7 +798,6 @@ def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape 
 
 
 class FoldConstantsPass(ir.passes.PassBase):
-
     def __init__(
         self,
         *,
