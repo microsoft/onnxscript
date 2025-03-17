@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING
 from onnxscript import ir, optimizer, version_converter
 from onnxscript._framework_apis.torch_2_5 import (
     check_model,
-    convert_version,
     get_torchlib_ops,
     save_model_with_external_data,
 )
