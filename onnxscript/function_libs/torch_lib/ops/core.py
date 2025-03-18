@@ -2074,16 +2074,30 @@ def aten_convolution(
 ) -> TFloat:
     """convolution(Tensor input, Tensor weight, Tensor? bias, int[] stride, SymInt[] padding, int[] dilation, bool transposed, SymInt[] output_padding, int groups) -> Tensor"""
 
+    rank = len(input.shape)
+
+    image_d = rank - 2
+
+    # NOTE: We assume the sequence padding/dilation/stride
+    # from ATen op can only be either len == 1 or
+    # len == rank.
+
     if not isinstance(padding, Sequence):
-        padding = (padding, padding)
+        padding = [padding] * image_d
+    elif len(padding) == 1:
+        padding = [padding[0]] * image_d
     pads = [*padding, *padding]
 
     if not isinstance(dilation, Sequence):
-        dilation = (dilation, dilation)
+        dilation = [dilation] * image_d
+    elif len(dilation) == 1:
+        dilation = [dilation[0]] * image_d
     dilations = list(dilation)
 
     if not isinstance(stride, Sequence):
-        stride = (stride, stride)
+        stride = [stride] * image_d
+    elif len(stride) == 1:
+        stride = [stride[0]] * image_d
     strides = list(stride)
 
     result = _aten_convolution_onnx(
