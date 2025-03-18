@@ -5207,10 +5207,10 @@ def aten_masked_scatter(self: TTensor, mask: TTensor, source: TTensor) -> TTenso
     """masked_scatter(Tensor self, Tensor mask, Tensor source) -> Tensor"""
 
     if len(mask.shape) < len(self.shape):
-        mask = aten_expand_as(mask, self)
+        mask = op.Expand(mask, op.Shape(self))
     else:
-        self = aten_expand_as(self, mask)
-    index = aten_nonzero(mask)
+        self = op.Expand(self, op.Shape(mask))
+    index = op.Transpose(op.NonZero(mask), perm=[1, 0])
 
     # NOTE: source can have more elements than needed.
     # It could also have arbitrary shape.
