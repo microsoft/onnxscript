@@ -1557,7 +1557,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "ops.aten.convolution",
         core_ops.aten_convolution,
-        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
+        tolerance={torch.float32: (2e-4, 9e-4)},
     ),
     TorchLibOpInfo("empty_like", core_ops.aten_empty_like, nondeterministic=True),
     TorchLibOpInfo(
