@@ -48,6 +48,7 @@ def _check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]) 
 class GroupQueryAttention(pattern.RewriteRuleClassBase):
     def __init__(self):
         super().__init__("GQA")
+        self.remove_nodes = False
 
     def pattern(
         self,
@@ -58,7 +59,9 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         mask,
         past_key,
         past_value,
-        position_ids,
+        # position_ids,
+        past_seq_length,
+        total_seq_length,
         cos,
         sin,
     ):
@@ -92,6 +95,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # Transpose from (B, S, Hkv, D/H) to (B, Hkv, S, D/H)
         value_BHkvSDh = op.Transpose(value_BSHkvDh, perm=[0, 2, 1, 3])
 
+        position_ids = op.Range(past_seq_length, total_seq_length, 1)
         position_ids_q = op.Unsqueeze(position_ids, [0])
         position_ids_k = op.Unsqueeze(position_ids, [0])
 
@@ -198,6 +202,8 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         past_value,
         query_BSHDh,
         key_BSHkvDh,
+        past_seq_length,
+        total_seq_length,
         # key_BSHkvDh,
         # position_ids,
         # cos,
@@ -217,6 +223,11 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # key_BSD_rope = op.RotaryEmbedding(
         #     key_BSDkv, position_ids, cos, sin, _domain="com.microsoft"
         # )
+        total_seq_length_int32 = op.Cast(total_seq_length, to=ir.DataType.INT32)
+        one_0D = op.Constant(value_int=1, dtype=ir.DataType.INT32)
+        seqlens_k_0D = op.Sub(total_seq_length_int32, one_0D)
+        zero_1D = op.Constant(value_int=0, dtype=ir.DataType.INT64, shape=[1])
+        seqlens_k = op.Unsqueeze(seqlens_k_0D, zero_1D)
 
         return op.GroupQueryAttention(
             query_BSD,
@@ -224,6 +235,9 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
             value_BSDkv,
             past_key,
             past_value,
+            seqlens_k,
+            total_seq_length_int32,
+            # mask, # TODO: this is not a valid input for GQA
             # skipped optional inputs: seqlens_k, total_sequence_length, cos_cache, sin_cache
             num_heads=num_heads,
             kv_num_heads=kv_num_heads,
