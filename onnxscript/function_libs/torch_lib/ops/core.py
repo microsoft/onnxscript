@@ -7601,6 +7601,7 @@ def aten_scatter_reduce(
         # It is -inf if the reduction is max, inf for min, 0 for add, 1 for mul.
         # mean is not supported.
         dtype = src.dtype or self.dtype
+        post_process_after_cast_like = False
         if dtype is None:
             dtype = ir.DataType.FLOAT
             cast_like = True
@@ -7620,6 +7621,7 @@ def aten_scatter_reduce(
                 value = ir.tensor([np.iinfo(dtype.numpy()).min], dtype=dtype)
             reduction_init = "min"
         elif onnx_reduce == "min":
+            post_process_after_cast_like = cast_like
             if dtype in {
                 ir.DataType.FLOAT16,
                 ir.DataType.FLOAT,
@@ -7629,6 +7631,7 @@ def aten_scatter_reduce(
             elif dtype == ir.DataType.BFLOAT16:
                 value = ir.tensor([ml_dtypes.finfo(dtype.numpy()).max], dtype=dtype)
             else:
+                # Cast 1e20 into int32 returns the min value -2147483648
                 value = ir.tensor([np.iinfo(dtype.numpy()).max], dtype=dtype)
             reduction_init = "max"
         elif onnx_reduce == "add":
@@ -7644,6 +7647,8 @@ def aten_scatter_reduce(
         cst = op.ConstantOfShape(op.Shape(src), value=value)
         if cast_like:
             cst = op.CastLike(cst, self)
+            if post_process_after_cast_like:
+                cst = op.Max(cst, op.Neg(op.Add(cst, op.CastLike(1, cst))))
         self = op.ScatterElements(self, index, cst, axis=dim, reduction=reduction_init)
 
     result = op.ScatterElements(self, index, src, axis=dim, reduction=onnx_reduce)

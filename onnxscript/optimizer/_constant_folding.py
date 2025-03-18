@@ -827,7 +827,11 @@ class ConstantFolder:
         def get_constant_value(x: ir.Value) -> onnx.TensorProto | None:
             value = _get_numpy_value(x)
             if isinstance(value, np.ndarray) and value.size < 20:
-                return onnx.numpy_helper.from_array(value, x.name)
+                try:
+                    return onnx.numpy_helper.from_array(value, x.name)
+                except ValueError:
+                    # This happens for bfloat16 and old versions of ONNX.
+                    return None
             return None
 
         def get_type(value: ir.Value) -> onnx.TypeProto | None:
