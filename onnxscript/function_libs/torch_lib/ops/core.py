@@ -7648,6 +7648,12 @@ def aten_scatter_reduce(
         if cast_like:
             cst = op.CastLike(cst, self)
             if post_process_after_cast_like:
+                # torch.tensor(1e20, dtype=torch.float32).to(torch.int32) -> 
+                # -2147483648 and we need 2147483647. These extra operators
+                # compute that value. It could be a constant but this
+                # works for int16, int32, int64.
+                # This is not added where one of the input type (src or self)
+                # is known. Constant folding should fold them anyway.
                 cst = op.Max(cst, op.Neg(op.Add(cst, op.CastLike(1, cst))))
         self = op.ScatterElements(self, index, cst, axis=dim, reduction=reduction_init)
 
