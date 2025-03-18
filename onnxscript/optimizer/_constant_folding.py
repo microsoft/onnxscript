@@ -813,14 +813,14 @@ class FoldConstantsPass(ir.passes.PassBase):
         self.opset_imports: dict[str, int] = {}
         self.counts: dict[str, int] = {}
         self.sizes: dict[str, int] = {}
-        self.modified = False
+        self.modified: bool = False
         self._state = OptimizerState()
         self._reset()
 
     def _reset(self) -> None:
         """Reset internal states for a new run."""
-        self.counts: dict[str, int] = {}
-        self.sizes: dict[str, int] = {}
+        self.counts = {}
+        self.sizes = {}
         self.modified = False
         self._state = OptimizerState()
 
