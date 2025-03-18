@@ -932,6 +932,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.bool,),
         reason="fixme: ORT does not have an implementation for Where with bool inputs.",
     ),
+    TorchLibOpInfo("masked_scatter", core_ops.aten_masked_scatter),
     TorchLibOpInfo(
         "matmul",
         core_ops.aten_matmul,
