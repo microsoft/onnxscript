@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
+# TODO(pytorch/pytorch#129279): Migrate these tests to the PyTorch repo
+
 import unittest
 
 import onnxruntime
