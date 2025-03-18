@@ -14,8 +14,8 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
-import numpy as np
 import ml_dtypes
+import numpy as np
 
 from onnxscript import (
     BFLOAT16,

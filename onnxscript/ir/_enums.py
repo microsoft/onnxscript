@@ -74,7 +74,9 @@ class DataType(enum.IntEnum):
             TypeError: If the data type is not supported by ONNX.
         """
         if dtype not in _NP_TYPE_TO_DATA_TYPE:
-            if dtype == ml_dtypes.bfloat16 or (hasattr(dtype, "names") and dtype.names == ("bfloat16",)):
+            if dtype == ml_dtypes.bfloat16 or (
+                hasattr(dtype, "names") and dtype.names == ("bfloat16",)
+            ):
                 return DataType.BFLOAT16
             raise TypeError(f"Unsupported numpy data type: {dtype}")
         return cls(_NP_TYPE_TO_DATA_TYPE[dtype])

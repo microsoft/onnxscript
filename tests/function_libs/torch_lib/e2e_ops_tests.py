@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-import itertools
 import unittest
 
 import onnxruntime
@@ -36,8 +35,7 @@ class TorchLibe2eTest(testutils.TestBase):
         )
         expected = model(*xs)
         model_path = (
-            f"test_aten_scatter_{red}_"
-            f"{'include' if include else 'exclude'}_{stype}.onnx"
+            f"test_aten_scatter_{red}_{'include' if include else 'exclude'}_{stype}.onnx"
         )
         torch.onnx.export(model, xs, model_path, dynamo=True)
         feeds = dict(zip(["x", "indices", "updates"], [x.numpy() for x in xs]))
@@ -47,9 +45,7 @@ class TorchLibe2eTest(testutils.TestBase):
             model_path, sess_options=sess_options, providers=["CPUExecutionProvider"]
         )
         got = sess.run(None, feeds)[0]
-        torch.testing.assert_close(
-            expected, torch.from_numpy(got), atol=1e-5, rtol=1e-5
-        )
+        torch.testing.assert_close(expected, torch.from_numpy(got), atol=1e-5, rtol=1e-5)
 
 
 if __name__ == "__main__":
