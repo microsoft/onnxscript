@@ -233,8 +233,9 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
             return None
 
         total_seq_length_int32 = op.Cast(total_seq_length, to=ir.DataType.INT32)
-        one_0D = op.Constant(value_int=1, dtype=ir.DataType.INT32)
-        seqlens_k_0D = op.Sub(total_seq_length_int32, one_0D)
+        one_0D = op.Constant(value_int=1)
+        one_0D_int32 = op.Cast(one_0D, to=ir.DataType.INT32)
+        seqlens_k_0D = op.Sub(total_seq_length_int32, one_0D_int32)
         zero_1D = op.Constant(value_int=0, dtype=ir.DataType.INT64, shape=[1])
         seqlens_k = op.Unsqueeze(seqlens_k_0D, zero_1D)
 
@@ -252,7 +253,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
             num_heads=num_heads,
             kv_num_heads=kv_num_heads,
             do_rotary=1,
-            rotary_interleaved=self._interleaved,
+            rotary_interleaved=self._interleaved.value,
             # skipped optional attributes: local_window_size, scale, smooth_softmax, softcap
             _domain="com.microsoft",
             _outputs=3,
