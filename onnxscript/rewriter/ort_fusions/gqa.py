@@ -179,6 +179,8 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
 
         # TODO: mask shape check: ideally, it should be (1 or B, 1 or H, S, St)
         # But this also, unforunately, depends on ORT version.
+        # TODO: check that mask is causal. Latest ORT is adding support for
+        # non-causal masks, but not yet for all EPs.
 
         # TODO: verify Reshapes:
         # eg.: verify bindings["B"] * bindings["H"] == bindings["B*H"]:
