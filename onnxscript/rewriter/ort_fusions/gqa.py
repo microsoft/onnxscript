@@ -48,6 +48,7 @@ def _check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]) 
 class GroupQueryAttention(pattern.RewriteRuleClassBase):
     def __init__(self):
         super().__init__("GQA")
+        self.remove_nodes = False
 
     def pattern(
         self,
@@ -58,7 +59,9 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         mask,
         past_key,
         past_value,
-        position_ids,
+        # position_ids,
+        past_seq_length,
+        total_seq_length,
         cos,
         sin,
     ):
@@ -92,14 +95,25 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # Transpose from (B, S, Hkv, D/H) to (B, Hkv, S, D/H)
         value_BHkvSDh = op.Transpose(value_BSHkvDh, perm=[0, 2, 1, 3])
 
+        position_ids = op.Range(past_seq_length, total_seq_length, 1)
         position_ids_q = op.Unsqueeze(position_ids, [0])
         position_ids_k = op.Unsqueeze(position_ids, [0])
 
         query_BHSDh_rope = op.RotaryEmbedding(
-            query_BHSDh, position_ids_q, cos, sin, _domain="com.microsoft"
+            query_BHSDh,
+            position_ids_q,
+            cos,
+            sin,
+            _domain="com.microsoft",
+            _outputs=["query_BHSDh_rope"],
         )
         key_BHkvSDh_rope = op.RotaryEmbedding(
-            key_BHkvSDh, position_ids_k, cos, sin, _domain="com.microsoft"
+            key_BHkvSDh,
+            position_ids_k,
+            cos,
+            sin,
+            _domain="com.microsoft",
+            _outputs=["key_BHkvSDh_rope"],
         )
 
         # Concatenate past_key cache and current key, expand across heads
@@ -149,6 +163,8 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         mask,
         past_key,
         past_value,
+        query_BHSDh_rope,
+        key_BHkvSDh_rope,
         # query_BSHDh,
         # key_BSHkvDh,
         # value_BSHkvDh,
@@ -187,6 +203,15 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # and bindings["H"] * bindings["Dh"] == bindings["H*Dh"]:
         # or check Reshape's shape-input value
 
+        # Rotary embedding attributes
+        query_rotary_attributes = query_BHSDh_rope.producer().attributes
+        key_rotary_attributes = key_BHkvSDh_rope.producer().attributes
+        query_interleaved = query_rotary_attributes.get("interleaved", 0)
+        key_interleaved = key_rotary_attributes.get("interleaved", 0)
+        if query_interleaved != key_interleaved:
+            return False
+        self._interleaved = query_interleaved
+
         return True
 
     def rewrite(
@@ -195,15 +220,13 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         query_BSD,
         key_BSDkv,
         value_BSDkv,
-        mask,
         past_key,
         past_value,
         query_BSHDh,
         key_BSHkvDh,
-        # key_BSHkvDh,
-        # position_ids,
-        # cos,
-        # sin,
+        total_seq_length,
+        cos,
+        sin,
         **_,
     ):
         num_heads = _ir_utils.get_dim(query_BSHDh, 2)
@@ -211,14 +234,12 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         if not isinstance(num_heads, int) or not isinstance(kv_num_heads, int):
             return None
 
-        # # Switch to 3D RotaryEmbedding
-        # # TODO: forward other attributes
-        # query_BSD_rope = op.RotaryEmbedding(
-        #     query_BSD, position_ids, cos, sin, _domain="com.microsoft"
-        # )
-        # key_BSD_rope = op.RotaryEmbedding(
-        #     key_BSDkv, position_ids, cos, sin, _domain="com.microsoft"
-        # )
+        total_seq_length_int32 = op.Cast(total_seq_length, to=ir.DataType.INT32)
+        one_0D = op.Constant(value_int=1)
+        one_0D_int32 = op.Cast(one_0D, to=ir.DataType.INT32)
+        seqlens_k_0D = op.Sub(total_seq_length_int32, one_0D_int32)
+        zero_1D = op.Constant(value_int=0, dtype=ir.DataType.INT64, shape=[1])
+        seqlens_k = op.Unsqueeze(seqlens_k_0D, zero_1D)
 
         return op.GroupQueryAttention(
             query_BSD,
@@ -226,10 +247,16 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
             value_BSDkv,
             past_key,
             past_value,
-            # skipped optional inputs: seqlens_k, total_sequence_length, cos_cache, sin_cache
+            seqlens_k,
+            total_seq_length_int32,
+            cos,
+            sin,
+            # mask, # TODO: this is not a valid input for GQA
             num_heads=num_heads,
             kv_num_heads=kv_num_heads,
-            # skipped optional attributes: do_rotary, local_window_size, rotary_interleaved, scale, smooth_softmax, softcap
+            do_rotary=1,
+            rotary_interleaved=self._interleaved.value,
+            # skipped optional attributes: local_window_size, scale, smooth_softmax, softcap
             _domain="com.microsoft",
             _outputs=3,
         )
