@@ -5,17 +5,17 @@
 
 from __future__ import annotations
 
-import unittest
 import math
+import unittest
+
 import numpy
 
 import onnxscript.ir as ir
+import onnxscript.optimizer
 from onnxscript import script
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import FLOAT
-import onnxscript.optimizer
 from onnxscript.rewriter.ort_fusions.sdpa import fuse_sdpa
-from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
 
 batchsize = 2
 num_heads = 4
@@ -23,6 +23,7 @@ seq_len = 8
 headsize = 128
 scale_factor = math.sqrt(headsize)
 sqrt_scale_factor = math.sqrt(scale_factor)
+
 
 @script()
 def _masked_pre_div_sdpa_script(query, key, value, mask):
@@ -36,14 +37,14 @@ def _masked_pre_div_sdpa_script(query, key, value, mask):
     attn_output = op.MatMul(attn_weight, value)
     return attn_output
 
+
 class _MaskedPreDivSDPATestCase:
     def get_onnx_model(self):
         if not hasattr(self, "_onnx_model"):
             qkv_type = FLOAT[batchsize, num_heads, seq_len, headsize]
             mask_type = FLOAT[batchsize, num_heads, seq_len, seq_len]
             model_proto = _masked_pre_div_sdpa_script.to_model_proto(
-                input_types=[qkv_type, qkv_type, qkv_type, mask_type],
-                output_types=[qkv_type]
+                input_types=[qkv_type, qkv_type, qkv_type, mask_type], output_types=[qkv_type]
             )
             model = ir.serde.deserialize_model(model_proto)
             self._onnx_model = model
@@ -52,20 +53,29 @@ class _MaskedPreDivSDPATestCase:
     def get_ort_inputs(self):
         if not hasattr(self, "_ort_inputs"):
             inputs = {
-                "query": numpy.random.rand(batchsize, num_heads, seq_len, headsize).astype(numpy.float32),
-                "key": numpy.random.rand(batchsize, num_heads, seq_len, headsize).astype(numpy.float32),
-                "value": numpy.random.rand(batchsize, num_heads, seq_len, headsize).astype(numpy.float32),
-                "mask": numpy.random.rand(batchsize, num_heads, seq_len, seq_len).astype(numpy.float32),
+                "query": numpy.random.rand(batchsize, num_heads, seq_len, headsize).astype(
+                    numpy.float32
+                ),
+                "key": numpy.random.rand(batchsize, num_heads, seq_len, headsize).astype(
+                    numpy.float32
+                ),
+                "value": numpy.random.rand(batchsize, num_heads, seq_len, headsize).astype(
+                    numpy.float32
+                ),
+                "mask": numpy.random.rand(batchsize, num_heads, seq_len, seq_len).astype(
+                    numpy.float32
+                ),
             }
             self._ort_inputs = inputs
         return self._ort_inputs
+
 
 class TestSDPAFusion(unittest.TestCase):
     def test_sdpa_fusion(self):
         test = _MaskedPreDivSDPATestCase()
         model = test.get_onnx_model()
         onnxscript.optimizer.optimize(model)
-        
+
         # inputs = test.get_ort_inputs()
         # original_outputs = ort_run("original", model, inputs)
 
