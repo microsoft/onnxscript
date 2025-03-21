@@ -2,9 +2,15 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+import os
+import tempfile
+
+import onnx
+
 import onnxscript.ir as ir
 from onnxscript.optimizer import optimize, remove_unused_nodes
 from onnxscript.rewriter import rewrite
+from onnxscript.rewriter.llama_rule_sets import llama_p0_rule_set
 from onnxscript.rewriter.ort_fusions import (
     fused_matmul_rule_sets,
     # group_normalization_merge_silu,
@@ -26,9 +32,32 @@ ORT_PATTERN_REWRITE_RULES = [
     *fused_matmul_rule_sets.fused_matmul_rule_sets(),
 ]
 
+_extra_opt_rules = llama_p0_rule_set()
+
+
+# Preliminary optimizations before applying the transformer fusions.
+# TODO: There are some potential redundancies below. Can be targeted for optimization
+# once we have robust fusion.
+def _pre_optimize(model):
+    optimize(model)
+    # TODO: Do we need this dependence on ONNX's partial-data-propagation? There are some
+    # extra shape-propagation and partial-data-propagation rules in ONNX that are not yet
+    # incorporated in our optimizer.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        infile = os.path.join(tmpdir, "in.onnx")
+        outfile = os.path.join(tmpdir, "out.onnx")
+        ir.save(model, infile)
+        onnx.shape_inference.infer_shapes_path(infile, outfile, True, True, True)
+        model = ir.load(outfile)
+    optimize(model)
+    # TODO: The extra optimization rules should be included in the base optimization
+    _extra_opt_rules.apply_to_model(model)
+    optimize(model)
+    return model
+
 
 def fuse_xformers(model: ir.Model) -> None:
-    optimize(model)
+    _pre_optimize(model)
     fuse_rms_normalization(model)
     fuse_normalization(model)
     fuse_rotary_embedding(model)
