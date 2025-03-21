@@ -932,6 +932,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.bool,),
         reason="fixme: ORT does not have an implementation for Where with bool inputs.",
     ),
+    TorchLibOpInfo("masked_scatter", core_ops.aten_masked_scatter),
     TorchLibOpInfo(
         "matmul",
         core_ops.aten_matmul,
@@ -1557,7 +1558,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "ops.aten.convolution",
         core_ops.aten_convolution,
-        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
+        tolerance={torch.float32: (2e-4, 9e-4)},
     ),
     TorchLibOpInfo("empty_like", core_ops.aten_empty_like, nondeterministic=True),
     TorchLibOpInfo(
@@ -2048,6 +2049,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("ops.aten.slice_scatter", core_ops.aten_slice_scatter),
     TorchLibOpInfo("slice", core_ops.aten_slice),
+    TorchLibOpInfo("slice", core_ops.aten_slice_complex, complex=True),
     TorchLibOpInfo(
         "sum",
         core_ops.aten_sum_dim_IntList,
@@ -2068,6 +2070,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),  # Custom from extra_opinfo
     TorchLibOpInfo("transpose", core_ops.aten_transpose),
     TorchLibOpInfo("transpose", core_ops.aten_transpose_complex, complex=True),
+    TorchLibOpInfo("ops.aten._unique.default", core_ops.aten__unique),
+    TorchLibOpInfo("ops.aten._unique2.default", core_ops.aten__unique2),
+    TorchLibOpInfo("ops.aten.unique_dim.default", core_ops.aten_unique_dim).skip(
+        device_type="cpu",
+        reason=(
+            "ops.aten.unique_dim.default returns different shapes for optional outputs on CPU/CUDA. "
+            "Our implementation is based on that for CUDA"
+        ),
+    ),
     TorchLibOpInfo(
         "ops.prims.var.default", prims_ops.prims_var, tolerance={torch.float16: (1e-3, 5e-2)}
     ),

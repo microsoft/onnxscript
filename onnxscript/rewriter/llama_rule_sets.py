@@ -304,5 +304,6 @@ def llama_p0_rule_set() -> orp.RewriteRuleSet:
             transpose_identity_rule,
             transpose_transpose_rule,
             unsqueeze_unsqueeze_rule,
+            squeeze_reshape_1d_rule,
         ]
     )

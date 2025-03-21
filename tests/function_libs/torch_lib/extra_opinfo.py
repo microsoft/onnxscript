@@ -240,6 +240,19 @@ def sample_inputs_convolution(op_info, device, dtype, requires_grad, **kwargs):
             },
         ),
         (
+            (1, 3, 224, 224),
+            (32, 3, 3, 3),
+            None,
+            {
+                "stride": (2,),
+                "padding": (1,),
+                "dilation": (1,),
+                "transposed": False,
+                "output_padding": (0, 0),
+                "groups": 1,
+            },
+        ),
+        (
             (1, 3, 3, 224, 224),
             (32, 3, 3, 3, 3),
             (32,),
@@ -252,21 +265,19 @@ def sample_inputs_convolution(op_info, device, dtype, requires_grad, **kwargs):
                 "groups": 1,
             },
         ),
-        # FIXME(jiz): Uncomment out these test data once
-        # torch 2.0 is released.
-        # (
-        #     (1, 3, 224, 224, 224),
-        #     (32, 3, 3, 3, 3),
-        #     (32,),
-        #     {
-        #         "stride": (2, 2, 2),
-        #         "padding": (1, 1, 1),
-        #         "dilation": (1, 1, 1),
-        #         "transposed": False,
-        #         "output_padding": (0, 0, 0),
-        #         "groups": 1,
-        #     },
-        # ),
+        (
+            (1, 3, 224, 224, 224),
+            (32, 3, 3, 3, 3),
+            (32,),
+            {
+                "stride": (2, 2, 2),
+                "padding": (1, 1, 1),
+                "dilation": (1, 1, 1),
+                "transposed": False,
+                "output_padding": (0, 0, 0),
+                "groups": 1,
+            },
+        ),
         (
             (2, 4, 6, 6),
             (4, 1, 3, 3),
@@ -790,20 +801,63 @@ def sample_inputs_index_put(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
 
-    data = torch_testing.make_tensor(
-        (10, 3),
-        device=device,
-        dtype=dtype,
-        requires_grad=requires_grad,
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
     )
-    indices = [torch.arange(8, dtype=torch.int64, device=device).reshape((-1, 4))]
-    values = torch_testing.make_tensor(
-        (2, 4, 3),
-        device=device,
-        dtype=dtype,
-        requires_grad=requires_grad,
-    )
-    yield opinfo_core.SampleInput(data, indices, values)
+
+    cases = [
+        # Cases: one None
+        ((1, 3, 4), [None, torch.arange(2, device=device), None], (1, 2, 4)),
+        ((10, 3, 4), [torch.arange(5, device=device), None, None], (5, 3, 4)),
+        ((10, 3, 4, 6), [None, None, None, torch.arange(3, device=device)], (10, 3, 4, 3)),
+        # Cases: two None
+        (
+            (10, 3, 4),
+            [None, torch.arange(3, device=device), torch.arange(3, device=device)],
+            (10, 3),
+        ),
+        (
+            (10, 3, 4, 6),
+            [
+                torch.arange(2, device=device),
+                None,
+                torch.arange(2, device=device),
+                torch.arange(2, device=device),
+            ],
+            (2, 3),
+        ),
+        (
+            (10, 3, 4),
+            [torch.arange(2, device=device), torch.arange(2, device=device), None],
+            (2, 4),
+        ),
+        # Cases: Single indexing
+        ((10, 3, 4), [None, None, torch.tensor([0], device=device)], (10, 3, 1)),
+        ((10, 3, 4), [torch.tensor([0], device=device), None, None], (1, 3, 4)),
+        ((10, 3, 4, 6), [None, torch.tensor([0], device=device), None, None], (10, 1, 4, 6)),
+        # Cases: Single element
+        (
+            (10, 3, 4),
+            [
+                torch.tensor([0], device=device),
+                torch.tensor([0], device=device),
+                torch.tensor([0], device=device),
+            ],
+            (1,),
+        ),
+        # Cases: Multidimensional index
+        (
+            (10, 3),
+            [torch.arange(8, dtype=torch.int64, device=device).reshape((-1, 4))],
+            (2, 4, 3),
+        ),
+    ]
+
+    for data_shape, indices, values_shape in cases:  # type: ignore[misc]
+        data = make_arg(data_shape)
+        values = make_arg(values_shape)  # type: ignore[has-type]
+
+        yield opinfo_core.SampleInput(data, indices, values)
 
 
 def sample_inputs_layer_norm(op_info, device, dtype, requires_grad, **kwargs):
@@ -1907,6 +1961,35 @@ def sample_inputs_upsample_trilinear3d(op_info, device, dtype, requires_grad, **
         )
 
 
+def sample_inputs__unique(op_info, device, dtype, requires_grad, **kwargs):
+    for sample in common_methods_invocations.sample_inputs_unique(
+        op_info, device, dtype, requires_grad, **kwargs
+    ):
+        return_counts = sample.kwargs.pop("return_counts", None)
+        dim = sample.kwargs.pop("dim", None)
+        # take only those samples that do not ask for counts or a dim
+        if not return_counts and dim is None:
+            yield sample
+
+
+def sample_inputs__unique2(op_info, device, dtype, requires_grad, **kwargs):
+    for sample in common_methods_invocations.sample_inputs_unique(
+        op_info, device, dtype, requires_grad, **kwargs
+    ):
+        # take only those samples that do not ask for a dim
+        if sample.kwargs.pop("dim", None) is None:
+            yield sample
+
+
+def sample_inputs_unique_dim(op_info, device, dtype, requires_grad, **kwargs):
+    for sample in common_methods_invocations.sample_inputs_unique(
+        op_info, device, dtype, requires_grad, **kwargs
+    ):
+        # take only those samples that ask for a dim
+        if sample.kwargs.get("dim") is not None:
+            yield sample
+
+
 def sample_inputs_upsample_trilinear3d_vec(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -2460,6 +2543,30 @@ OP_DB: List[opinfo_core.OpInfo] = [
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_unfold,
         supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._unique.default",
+        aten_name="_unique.default",
+        dtypes=common_dtype.floating_types_and(torch.float16, torch.int64, torch.int8),
+        sample_inputs_func=sample_inputs__unique,
+        supports_out=False,
+        supports_autograd=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._unique2.default",
+        aten_name="_unique2.default",
+        dtypes=common_dtype.floating_types_and(torch.float16, torch.int64, torch.int8),
+        sample_inputs_func=sample_inputs__unique2,
+        supports_out=False,
+        supports_autograd=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.unique_dim.default",
+        aten_name="unique_dim.default",
+        dtypes=common_dtype.floating_types_and(torch.float16, torch.int64, torch.int8),
+        sample_inputs_func=sample_inputs_unique_dim,
+        supports_out=False,
+        supports_autograd=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.upsample_bicubic2d.default",

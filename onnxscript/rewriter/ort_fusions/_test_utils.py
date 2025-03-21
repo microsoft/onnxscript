@@ -2,12 +2,10 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import os
-import tempfile
-
 import numpy as np
 import onnx
 import onnxruntime
+import packaging.version
 
 import onnxscript.ir as ir
 import onnxscript.ir._io as io
@@ -21,15 +19,18 @@ def _save(model, modelpath):
         io.save(model, modelpath)
 
 
+ORT_VERSION = packaging.version.Version(onnxruntime.__version__)
+
+
 def ort_run(model_name: str, model, inputs):
     providers = ["CPUExecutionProvider"]
-    with tempfile.TemporaryDirectory() as temp_dir:
-        model_path = os.path.join(temp_dir, f"{model_name}.onnx")
-        _save(model, model_path)
-        # Run model
-        session = onnxruntime.InferenceSession(model_path, providers=providers)
-        ort_outputs = session.run(None, inputs)
-    return ort_outputs
+    model_proto = ir.serde.serialize_model(model)
+    options = onnxruntime.SessionOptions()
+    options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+    session = onnxruntime.InferenceSession(
+        model_proto.SerializeToString(), options, providers=providers
+    )
+    return session.run(None, inputs)
 
 
 def assert_allclose(outputs, expected_outputs, rtol=1e-2, atol=1e-2):
