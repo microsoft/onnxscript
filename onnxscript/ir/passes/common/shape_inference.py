@@ -4,9 +4,13 @@
 
 from __future__ import annotations
 
+import logging
+
 import onnx
 
 from onnxscript import ir
+
+logger = logging.getLogger(__name__)
 
 
 class ShapeInferencePass(ir.passes.PassBase):
@@ -34,6 +38,8 @@ class ShapeInferencePass(ir.passes.PassBase):
             proto = ir.serde.serialize_model(model)
             proto = onnx.shape_inference.infer_shapes(proto, data_prop=True)
             model = ir.serde.deserialize_model(proto)
+        except Exception:
+            logger.warning("Shape inference failed. The model is not modified", exc_info=True)
         finally:
             # Restore the original initializer values so the model is unchanged
             for new_input in model.graph.inputs:
