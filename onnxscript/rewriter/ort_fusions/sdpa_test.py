@@ -80,11 +80,9 @@ def _masked_post_mul_sdpa_script(query, key, value, mask):
 class SDPATestCase:
     def __init__(self, script_func):
         self.script_func = script_func
-        self._onnx_model = None
-        self._ort_inputs = None
 
     def get_onnx_model(self):
-        if self._onnx_model is None:
+        if not hasattr(self, "_onnx_model"):
             qkv_type = FLOAT[B, N, S, H]
             mask_type = FLOAT[B, N, S, S]
             model_proto = self.script_func.to_model_proto(
@@ -94,13 +92,14 @@ class SDPATestCase:
         return self._onnx_model
 
     def get_ort_inputs(self):
-        if self._ort_inputs is None:
-            self._ort_inputs = {
+        if not hasattr(self, "_ort_inputs"):
+            inputs = {
                 "query": numpy.random.rand(B, N, S, H).astype(numpy.float32),
                 "key": numpy.random.rand(B, N, S, H).astype(numpy.float32),
                 "value": numpy.random.rand(B, N, S, H).astype(numpy.float32),
                 "mask": numpy.random.rand(B, N, S, S).astype(numpy.float32),
             }
+            self._ort_inputs = inputs
         return self._ort_inputs
 
 
