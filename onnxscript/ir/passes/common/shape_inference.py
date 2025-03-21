@@ -49,7 +49,7 @@ class ShapeInferencePass(ir.passes.PassBase):
             # Make sure the initializer has its shape/type set
             assert initializer.const_value is not None
             if initializer.shape is None:
-                initializer.shape = initializer.const_value.shape
+                initializer.shape = initializer.const_value.shape  # type: ignore[assignment
             if initializer.dtype is None:
                 initializer.dtype = initializer.const_value.dtype
             if initializer not in model.graph.inputs:
@@ -67,7 +67,7 @@ class ShapeInferencePass(ir.passes.PassBase):
                 data_prop=self.data_prop,
             )
             inferred_model = ir.serde.deserialize_model(proto)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             logger.warning("Shape inference failed. The model is not modified", exc_info=True)
             return ir.passes.PassResult(model, modified=False)
         finally:
