@@ -46,7 +46,10 @@ class TestShapeInferencePass(unittest.TestCase):
         self.assertEqual(result.model.graph.outputs[0].dtype, ir.DataType.FLOAT)
 
     def test_pass_with_initializers(self):
-        big_dim = shape_inference._BIG_TENSOR_SIZE_LIMIT * 2
+        # _BIG_TENSOR_SIZE_LIMIT is in bytes, but we create big_dim as size
+        # of a tensor. This is fine as we just need to create a big tensor whose size
+        # passes _BIG_TENSOR_SIZE_LIMIT
+        big_dim = shape_inference._BIG_TENSOR_SIZE_LIMIT * 2  # pylint: disable=protected-access
         inputs = [
             ir.Value(
                 name="input_a", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((1, 2))
