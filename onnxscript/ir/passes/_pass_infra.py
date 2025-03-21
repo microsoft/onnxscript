@@ -58,7 +58,7 @@ class PassResult:
 
     Attributes:
         model: The transformed model.
-        modified: Whether the model was modified.
+        modified: Whether the resulting model is different from the input model.
     """
 
     model: ir.Model
