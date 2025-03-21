@@ -4,7 +4,10 @@
 
 from __future__ import annotations
 
-__all__ = ["ShapeInferencePass"]
+__all__ = [
+    "ShapeInferencePass",
+    "infer_shapes",
+]
 
 import logging
 
@@ -13,6 +16,10 @@ import onnx
 from onnxscript import ir
 
 logger = logging.getLogger(__name__)
+
+# Temporarily remove initializers larger than this size to keep model size down
+# for the onnx.shape_inference call because it needs to serialize the model
+_BIG_TENSOR_SIZE_LIMIT = 1000  # 1KB
 
 
 class ShapeInferencePass(ir.passes.PassBase):
@@ -54,7 +61,10 @@ class ShapeInferencePass(ir.passes.PassBase):
                 initializer.dtype = initializer.const_value.dtype
             if initializer not in model.graph.inputs:
                 model.graph.inputs.append(initializer)
-            initializer.const_value = None
+            if initializer.const_value.nbytes > _BIG_TENSOR_SIZE_LIMIT:
+                # Temporarily remove the initializer value to reduce model size
+                # for onnx.shape_inference
+                initializer.const_value = None
         model.graph.initializers.clear()
 
         # Perform shape inference
@@ -96,3 +106,26 @@ class ShapeInferencePass(ir.passes.PassBase):
         # Even though modified, we know the pass will not change the model if we ran it again.
         # So set modified to False
         return ir.passes.PassResult(inferred_model, modified=False)
+
+
+def infer_shapes(
+    model: ir.Model,
+    *,
+    check_type: bool = True,
+    strict_mode: bool = True,
+    data_prop: bool = True,
+) -> ir.Model:
+    """Perform shape inference on the model.
+
+    Args:
+        model: The model to perform shape inference on.
+        check_type: If True, check the types of the inputs and outputs.
+        strict_mode: If True, use strict mode for shape inference.
+        data_prop: If True, use data propagation for shape inference.
+
+    Returns:
+        The model with shape inference applied.
+    """
+    return ShapeInferencePass(
+        check_type=check_type, strict_mode=strict_mode, data_prop=data_prop
+    )(model).model
