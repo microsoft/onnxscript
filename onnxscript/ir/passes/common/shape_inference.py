@@ -74,7 +74,7 @@ class ShapeInferencePass(ir.passes.PassBase):
             model.graph.inputs.clear()
             model.graph.inputs.extend(inputs)
 
-        # Restore the original initializer values for the new (inferred) model
+        # Add the original initializer tensors to the new (inferred) model
         for new_input in inferred_model.graph.inputs:
             # Assign the tensors back to the initializers
             if new_input.name in initializer_names:
@@ -82,9 +82,9 @@ class ShapeInferencePass(ir.passes.PassBase):
                 inferred_model.graph.register_initializer(new_input)
 
         # Remove the inputs that were added
-        inputs = inferred_model.graph.inputs[:original_inputs_len]
+        new_inputs = inferred_model.graph.inputs[:original_inputs_len]
         inferred_model.graph.inputs.clear()
-        inferred_model.graph.inputs.extend(inputs)
+        inferred_model.graph.inputs.extend(new_inputs)
         # Even though modified, we know the pass will not change the model if we ran it again.
         # So set modified to False
         return ir.passes.PassResult(inferred_model, modified=False)
