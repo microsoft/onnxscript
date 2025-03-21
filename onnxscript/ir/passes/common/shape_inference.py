@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+__all__ = ["ShapeInferencePass"]
+
 import logging
 
 import onnx
