@@ -1,3 +1,7 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+"""Shape inference pass using onnx.shape_inference."""
+
 from __future__ import annotations
 
 import onnx
