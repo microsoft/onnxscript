@@ -74,7 +74,7 @@ class SDPA(pattern.RewriteRuleClassBase):
 
 
 masked_pre_div_sdpa_rule = SDPA.rule(
-    "masked_pre_mul_sdpa", use_mask=True, pre_scale=True, use_mul=False
+    "masked_pre_div_sdpa", use_mask=True, pre_scale=True, use_mul=False
 )
 masked_pre_mul_sdpa_rule = SDPA.rule(
     "masked_pre_mul_sdpa", use_mask=True, pre_scale=True, use_mul=True
