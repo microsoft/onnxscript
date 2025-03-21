@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 class ShapeInferencePass(ir.passes.PassBase):
     """This pass performs shape inference on the graph."""
 
+    # This pass does not modify the model in place.
+    in_place = False
+
     def __init__(
         self, check_type: bool = True, strict_mode: bool = True, data_prop: bool = True
     ) -> None:
@@ -30,8 +33,6 @@ class ShapeInferencePass(ir.passes.PassBase):
         self.check_type = check_type
         self.strict_mode = strict_mode
         self.data_prop = data_prop
-
-    in_place = False
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         # Store the original initializer values so they can be restored
@@ -57,21 +58,33 @@ class ShapeInferencePass(ir.passes.PassBase):
                 strict_mode=self.strict_mode,
                 data_prop=self.data_prop,
             )
-            model = ir.serde.deserialize_model(proto)
+            inferred_model = ir.serde.deserialize_model(proto)
         except Exception:
             logger.warning("Shape inference failed. The model is not modified", exc_info=True)
+            return ir.passes.PassResult(model, modified=False)
         finally:
             # Restore the original initializer values so the model is unchanged
-            for new_input in model.graph.inputs:
-                # Assign the tensors back to the initializers
-                if new_input.name in initializer_names:
-                    model.graph.register_initializer(new_input)
-                    new_input.const_value = tensors[new_input.name]
-            # Remove the inputs that were added
+            for initializer in initializer_values:
+                if initializer.name in initializer_names:
+                    initializer.const_value = tensors[initializer.name]
+                    model.graph.register_initializer(initializer)
+
+            # Restore the original inputs
             inputs = model.graph.inputs[:original_inputs_len]
             model.graph.inputs.clear()
             model.graph.inputs.extend(inputs)
 
+        # Restore the original initializer values for the new (inferred) model
+        for new_input in inferred_model.graph.inputs:
+            # Assign the tensors back to the initializers
+            if new_input.name in initializer_names:
+                new_input.const_value = tensors[new_input.name]
+                inferred_model.graph.register_initializer(new_input)
+
+        # Remove the inputs that were added
+        inputs = inferred_model.graph.inputs[:original_inputs_len]
+        inferred_model.graph.inputs.clear()
+        inferred_model.graph.inputs.extend(inputs)
         # Even though modified, we know the pass will not change the model if we ran it again.
         # So set modified to False
-        return ir.passes.PassResult(model, modified=False)
+        return ir.passes.PassResult(inferred_model, modified=False)
