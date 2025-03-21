@@ -1366,12 +1366,11 @@ class RewriteRule:
             model, graph_or_function, node, verbose=verbose, remove_nodes=self.remove_nodes
         )
         if match:
-            context = None  # TODO(rama)
             for var in self._target_pattern.inputs:
                 if var.name is not None:
                     if var.name not in match.bindings:
                         match.bindings[var.name] = None
-            if not self._condition_function(context, **match.bindings):
+            if not self._condition_function(match, **match.bindings):
                 if tracer:
                     tracer.log(
                         self, graph_or_function, node, match, MatchStatus.CONDITION_FAILED
