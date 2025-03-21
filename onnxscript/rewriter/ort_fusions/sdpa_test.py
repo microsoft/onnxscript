@@ -9,6 +9,7 @@ import math
 import unittest
 
 import numpy
+from parameterized import parameterized
 
 import onnxscript.ir as ir
 import onnxscript.optimizer
@@ -104,7 +105,15 @@ class SDPATestCase:
 
 
 class TestSDPAFusion(unittest.TestCase):
-    def _test_sdpa_fusion(self, script_func):
+    @parameterized.expand(
+        [
+            ("pre_div", _masked_pre_div_sdpa_script),
+            ("pre_mul", _masked_pre_mul_sdpa_script),
+            ("post_div", _masked_post_div_sdpa_script),
+            ("post_mul", _masked_post_mul_sdpa_script),
+        ]
+    )
+    def test_sdpa_fusion(self, name, script_func):
         test_case = SDPATestCase(script_func)
         model = test_case.get_onnx_model()
         onnxscript.optimizer.optimize(model)
@@ -121,15 +130,3 @@ class TestSDPAFusion(unittest.TestCase):
 
         # new_outputs = ort_run("optimized", model, inputs)
         # assert_allclose(new_outputs, original_outputs)
-
-    def test_sdpa_fusion_pre_div(self):
-        self._test_sdpa_fusion(_masked_pre_div_sdpa_script)
-
-    def test_sdpa_fusion_pre_mul(self):
-        self._test_sdpa_fusion(_masked_pre_mul_sdpa_script)
-
-    def test_sdpa_fusion_post_div(self):
-        self._test_sdpa_fusion(_masked_post_div_sdpa_script)
-
-    def test_sdpa_fusion_post_mul(self):
-        self._test_sdpa_fusion(_masked_post_mul_sdpa_script)
