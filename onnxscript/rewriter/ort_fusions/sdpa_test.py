@@ -25,7 +25,7 @@ H = 128  # head size
 SCALE_FACTOR = math.sqrt(H)
 MUL_SCALE_FACTOR = 1.0 / SCALE_FACTOR
 SQRT_SCALE_FACTOR = math.sqrt(SCALE_FACTOR)
-MUL_SQRT_SCALE_FACTOR = math.sqrt(MUL_SCALE_FACTOR)
+SQRT_MUL_SCALE_FACTOR = math.sqrt(MUL_SCALE_FACTOR)
 
 
 @script()
@@ -44,7 +44,7 @@ def _masked_pre_div_sdpa_script(query, key, value, mask):
 @script()
 def _masked_pre_mul_sdpa_script(query, key, value, mask):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
-    multiplier = op.Constant(value_float=MUL_SQRT_SCALE_FACTOR)
+    multiplier = op.Constant(value_float=SQRT_MUL_SCALE_FACTOR)
     scaled_query = op.Mul(query, multiplier)
     scaled_key = op.Mul(key_transposed, multiplier)
     attn_score = op.MatMul(scaled_query, scaled_key)
