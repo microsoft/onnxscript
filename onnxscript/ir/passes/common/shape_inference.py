@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from onnxscript import ir
 import onnx
+
+from onnxscript import ir
 
 
 class ShapeInferencePass(ir.passes.PassBase):
     """This pass performs shape inference on the graph."""
+
     in_place = False
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
@@ -40,6 +42,6 @@ class ShapeInferencePass(ir.passes.PassBase):
             model.graph.inputs.clear()
             model.graph.inputs.extend(inputs)
 
-         # Even though modified, we know the pass will not change the model if we ran it again.
-         # So set modified to False
+        # Even though modified, we know the pass will not change the model if we ran it again.
+        # So set modified to False
         return ir.passes.PassResult(model, modified=False)
