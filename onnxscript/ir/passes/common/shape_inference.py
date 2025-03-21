@@ -36,7 +36,9 @@ class ShapeInferencePass(ir.passes.PassBase):
         # Perform shape inference
         try:
             proto = ir.serde.serialize_model(model)
-            proto = onnx.shape_inference.infer_shapes(proto, data_prop=True)
+            proto = onnx.shape_inference.infer_shapes(
+                proto, check_type=True, strict_mode=True, data_prop=True
+            )
             model = ir.serde.deserialize_model(proto)
         except Exception:
             logger.warning("Shape inference failed. The model is not modified", exc_info=True)
