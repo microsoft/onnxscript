@@ -16,6 +16,21 @@ logger = logging.getLogger(__name__)
 class ShapeInferencePass(ir.passes.PassBase):
     """This pass performs shape inference on the graph."""
 
+    def __init__(
+        self, check_type: bool = True, strict_mode: bool = True, data_prop: bool = True
+    ) -> None:
+        """Initialize the shape inference pass.
+
+        Args:
+            check_type: If True, check the types of the inputs and outputs.
+            strict_mode: If True, use strict mode for shape inference.
+            data_prop: If True, use data propagation for shape inference.
+        """
+        super().__init__()
+        self.check_type = check_type
+        self.strict_mode = strict_mode
+        self.data_prop = data_prop
+
     in_place = False
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
@@ -37,7 +52,10 @@ class ShapeInferencePass(ir.passes.PassBase):
         try:
             proto = ir.serde.serialize_model(model)
             proto = onnx.shape_inference.infer_shapes(
-                proto, check_type=True, strict_mode=True, data_prop=True
+                proto,
+                check_type=self.check_type,
+                strict_mode=self.strict_mode,
+                data_prop=self.data_prop,
             )
             model = ir.serde.deserialize_model(proto)
         except Exception:
