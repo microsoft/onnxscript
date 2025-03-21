@@ -65,7 +65,8 @@ class ShapeInferencePass(ir.passes.PassBase):
                 # Temporarily remove the initializer value to reduce model size
                 # for onnx.shape_inference
                 initializer.const_value = None
-        model.graph.initializers.clear()
+                assert initializer.name is not None
+                model.graph.initializers.pop(initializer.name)
 
         # Perform shape inference
         try:
