@@ -3,16 +3,15 @@
 """Passes for extracting subgraphs from a graph."""
 
 from __future__ import annotations
+
 import itertools
 
 __all__ = [
-    "ExtractGraphByNodePass",
+    "ExtractGraphPass",
 ]
 
-from collections.abc import Collection
 import logging
-
-import onnx
+from collections.abc import Collection
 
 from onnxscript import ir
 
@@ -35,7 +34,7 @@ def _find_subgraph_bounded_by_values(
     all_nodes = []
     value_stack: list[ir.Value] = [*outputs]
     visited_nodes: set[ir.Node] = set()
-    visited_values: set[ir.Value] = set()
+    visited_values: set[ir.Value] = set(inputs)
     initializers = []
     while value_stack:
         value = value_stack.pop()
@@ -56,7 +55,7 @@ def _find_subgraph_bounded_by_values(
     return all_nodes, initializers
 
 
-class ExtractGraphByValuePass(ir.passes.PassBase):
+class ExtractGraphPass(ir.passes.PassBase):
     """This pass performs shape inference on the graph."""
 
     # This pass does not modify the model in place
@@ -64,18 +63,63 @@ class ExtractGraphByValuePass(ir.passes.PassBase):
     # This pass destroys the input model
     destructive = True
 
-    def __init__(self, *, input_names: Collection[str], output_names: Collection[str]) -> None:
+    def __init__(self, input_names: Collection[str], output_names: Collection[str]) -> None:
         """Extracts sub-model from an ONNX model.
 
         The sub-model is defined by the names of the input and output tensors *exactly*.
 
         Args:
-            input_names: The names of the inputs to extract.
-            output_names: The names of the outputs to extract.
+            input_names: The names of the inputs to extract. Must be deduplicated.
+            output_names: The names of the outputs to extract. Must be deduplicated.
         """
         super().__init__()
         self.input_names = input_names
         self.output_names = output_names
+
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        values = ir.convenience.create_value_mapping(model.graph)
+        inputs = [values[name] for name in self.input_names]
+        outputs = [values[name] for name in self.output_names]
+        extracted_nodes, initializers = _find_subgraph_bounded_by_values(
+            model.graph, inputs, outputs
+        )
+
+        model.graph.remove(extracted_nodes)
+        # Create inputs for the new graph as the old inputs are owned by the old nodes
+        new_inputs = []
+        for input in inputs:
+            new_inputs.append(
+                ir.Value(
+                    name=input.name,
+                    shape=input.shape,
+                    type=input.type,
+                    doc_string=input.doc_string,
+                    const_value=input.const_value,
+                )
+            )
+        ir.convenience.replace_all_uses_with(inputs, new_inputs)
+
+        new_model = ir.Model(
+            ir.Graph(
+                new_inputs,
+                outputs,
+                nodes=extracted_nodes,
+                initializers=initializers,
+                doc_string=model.graph.doc_string,
+                opset_imports=model.graph.opset_imports,
+                name=model.graph.name,
+                metadata_props=model.graph.metadata_props,
+            ),
+            ir_version=model.ir_version,
+            producer_name=model.producer_name,
+            producer_version=model.producer_version,
+            domain=model.domain,
+            model_version=model.model_version,
+            doc_string=model.doc_string,
+            functions=tuple(model.functions.values()),
+            meta_data_props=model.metadata_props,
+        )
+        return ir.passes.PassResult(new_model, modified=True)
 
     def requires(self, model: ir.Model) -> None:
         # All inputs and outputs can be found in the model
@@ -104,34 +148,4 @@ class ExtractGraphByValuePass(ir.passes.PassBase):
                     f"Value {name} does not have a shape: {value}. "
                     "Consider setting its shape or running shape inference first."
                 )
-
-    def call(self, model: ir.Model) -> ir.passes.PassResult:
-        values = ir.convenience.create_value_mapping(model.graph)
-        inputs = [values[name] for name in self.input_names]
-        outputs = [values[name] for name in self.output_names]
-        extracted_nodes, initializers = _find_subgraph_bounded_by_values(
-            model.graph, inputs, outputs
-        )
-        # Create a graph with the extracted nodes
-        model.graph.remove(extracted_nodes)
-        new_model = ir.Model(
-            ir.Graph(
-                inputs,
-                outputs,
-                nodes=extracted_nodes,
-                initializers=initializers,
-                doc_string=model.graph.doc_string,
-                opset_imports=model.graph.opset_imports,
-                name=model.graph.name,
-                metadata_props=model.graph.metadata_props,
-            ),
-            ir_version=model.ir_version,
-            producer_name=model.producer_name,
-            producer_version=model.producer_version,
-            domain=model.domain,
-            model_version=model.model_version,
-            doc_string=model.doc_string,
-            functions=tuple(model.functions.values()),
-            meta_data_props=model.metadata_props,
-        )
-        return ir.passes.PassResult(new_model, modified=True)
+        # TODO(justinchuby): Make sure the subgraph is completely bounded by inputs and outputs
