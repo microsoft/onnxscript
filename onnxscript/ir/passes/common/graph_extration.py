@@ -3,16 +3,15 @@
 """Passes for extracting subgraphs from a graph."""
 
 from __future__ import annotations
+
 import itertools
 
 __all__ = [
-    "ExtractGraphByNodePass",
+    "ExtractGraphPass",
 ]
 
-from collections.abc import Collection
 import logging
-
-import onnx
+from collections.abc import Collection
 
 from onnxscript import ir
 
@@ -56,7 +55,7 @@ def _find_subgraph_bounded_by_values(
     return all_nodes, initializers
 
 
-class ExtractGraphByValuePass(ir.passes.PassBase):
+class ExtractGraphPass(ir.passes.PassBase):
     """This pass performs shape inference on the graph."""
 
     # This pass does not modify the model in place
