@@ -63,7 +63,7 @@ class ExtractGraphPass(ir.passes.PassBase):
     # This pass destroys the input model
     destructive = True
 
-    def __init__(self, *, input_names: Collection[str], output_names: Collection[str]) -> None:
+    def __init__(self, input_names: Collection[str], output_names: Collection[str]) -> None:
         """Extracts sub-model from an ONNX model.
 
         The sub-model is defined by the names of the input and output tensors *exactly*.
