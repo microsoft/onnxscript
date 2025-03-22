@@ -225,13 +225,14 @@ class PassManager(Sequential):
     Attributes:
         passes: The passes to run.
         steps: The number of times to run the passes.
+        early_stop: Whether to stop running the passes if the graph stops changing.
     """
 
     def __init__(
         self,
         passes: Sequence[PassBase],
         steps: int = 1,
-        early_stop=True,
+        early_stop: bool = True,
     ):
         # TODO(justinchuby): Implement constraints
         super().__init__(*passes)
