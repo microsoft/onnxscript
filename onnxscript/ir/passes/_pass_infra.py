@@ -186,6 +186,8 @@ class Sequential(PassBase):
     """Run a sequence of passes in order."""
 
     def __init__(self, *passes: PassBase):
+        if not passes:
+            raise ValueError("Sequential must take at least one pass")
         self.passes = passes
 
     @property
