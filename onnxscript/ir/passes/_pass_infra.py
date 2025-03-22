@@ -103,7 +103,7 @@ class PassBase(abc.ABC):
 
         if not isinstance(result, PassResult):
             raise TypeError(
-                f"The result of the pass '{self.__class__.__name__}' should be type PassResult."
+                f"The result of the pass '{self.__class__.__name__}' should be type PassResult. "
                 "Please create one with ir.passes.PassResult()."
             )
         return result
