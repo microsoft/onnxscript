@@ -31,9 +31,7 @@ def _find_subgraph_bounded_by_values(
     Returns:
         A list of nodes in the subgraph and the initializers used.
     """
-    node_index = {
-        node: idx for idx, node in enumerate(graph)
-    }
+    node_index = {node: idx for idx, node in enumerate(graph)}
     all_nodes = []
     value_stack: list[ir.Value] = [*outputs]
     visited_nodes: set[ir.Node] = set()
