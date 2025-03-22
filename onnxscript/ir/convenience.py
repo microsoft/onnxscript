@@ -9,11 +9,13 @@ __all__ = [
     "convert_attributes",
     "replace_all_uses_with",
     "replace_nodes_and_values",
+    "create_value_mapping",
 ]
 
 from onnxscript.ir._convenience import (
     convert_attribute,
     convert_attributes,
+    create_value_mapping,
     replace_all_uses_with,
     replace_nodes_and_values,
 )
