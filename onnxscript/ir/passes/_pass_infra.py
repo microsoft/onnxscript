@@ -70,12 +70,31 @@ class PassBase(abc.ABC):
 
     Class attributes:
         in_place: Whether the pass modifies the model in place.
+        destructive: Whether the pass will destroy the input model when ``in_place=False``.
     """
 
     in_place: bool = True
+    destructive: bool = False
 
     def __call__(self, model: ir.Model) -> PassResult:
-        return self.call(model)
+        # Check preconditions
+        try:
+            self.requires(model)
+        except PreconditionError:
+            raise
+        except Exception as e:
+            raise PreconditionError("Pre-condition failed") from e
+
+        result = self.call(model)
+
+        # Check postconditions
+        try:
+            self.ensures(model)
+        except PostconditionError:
+            raise
+        except Exception as e:
+            raise PostconditionError("Post-condition failed") from e
+        return result
 
     @abc.abstractmethod
     def call(self, model: ir.Model) -> PassResult:
@@ -111,12 +130,10 @@ class PassManager:
     def __init__(
         self,
         passes: Sequence[PassBase],
-        check_invariants: bool = False,
         steps: int = 1,
     ):
         # TODO(justinchuby): Implement constraints
         self.passes = list(passes)
-        self.check_invariants = check_invariants
         self.steps = steps
 
     def __call__(self, model: ir.Model) -> PassResult:
@@ -137,17 +154,10 @@ class PassManager:
         modified = False
         for i, pass_ in enumerate(self.passes):
             logger.debug("Running the %s-th pass '%s', (step %s)", i, pass_, step)
-
-            # 1. Check preconditions
-            if self.check_invariants:
-                try:
-                    pass_.requires(model)
-                except Exception as e:
-                    raise PreconditionError(f"Pre-condition failed for {pass_}") from e
-
-            # 2. Run the pass
             try:
                 pass_result = pass_(model)
+            except (PreconditionError, PostconditionError):
+                raise
             except Exception as e:
                 prev_pass_names = [str(p) for p in self.passes[:i]]
                 raise PassError(
@@ -163,10 +173,4 @@ class PassManager:
             model = pass_result.model
             modified = modified or pass_result.modified
 
-            # 3. Check postconditions
-            if self.check_invariants:
-                try:
-                    pass_.ensures(model)
-                except Exception as e:
-                    raise PostconditionError(f"Post-condition failed for {pass_}") from e
         return PassResult(model, modified)
