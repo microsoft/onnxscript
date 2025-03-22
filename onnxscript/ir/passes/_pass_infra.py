@@ -85,7 +85,7 @@ class PassBase(abc.ABC):
         except PreconditionError:
             raise
         except Exception as e:
-            raise PreconditionError("Pre-condition failed") from e
+            raise PreconditionError(f"Pre-condition failed: {e.__class__.__name__}") from e
 
         result = self.call(model)
 
@@ -95,7 +95,7 @@ class PassBase(abc.ABC):
         except PostconditionError:
             raise
         except Exception as e:
-            raise PostconditionError(f"Post-condition failed: {e.__class__.__name__}: {e}") from e
+            raise PostconditionError(f"Post-condition failed: {e.__class__.__name__}") from e
         return result
 
     @abc.abstractmethod
