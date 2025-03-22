@@ -56,8 +56,7 @@ def _find_subgraph_bounded_by_values(
 
 
 class ExtractGraphPass(ir.passes.PassBase):
-    """This pass performs shape inference on the graph."""
-
+    """This pass extracts a subgraph from the given graph."""
     # This pass does not modify the model in place
     in_place = False
     # This pass destroys the input model
