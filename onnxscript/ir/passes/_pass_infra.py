@@ -66,15 +66,17 @@ class PassResult:
 
 
 class PassBase(abc.ABC):
-    """Base class for all passes.
+    """Base class for all passes."""
 
-    Class attributes:
-        in_place: Whether the pass modifies the model in place.
-        destructive: Whether the pass will destroy the input model when ``in_place=False``.
-    """
+    @property
+    def in_place(self) -> bool:
+        """Whether the pass modifies the model in place."""
+        return True
 
-    in_place: bool = True
-    destructive: bool = False
+    @property
+    def destructive(self) -> bool:
+        """Whether the pass will destroy the input model when ``in_place=False``."""
+        return False
 
     def __call__(self, model: ir.Model) -> PassResult:
         # Check preconditions
@@ -135,7 +137,18 @@ class PassManager(PassBase):
         self.passes = list(passes)
         self.steps = steps
 
-    def __call__(self, model: ir.Model) -> PassResult:
+    @property
+    def in_place(self) -> bool:
+        """Whether the pass modifies the model in place."""
+        return all(pass_.in_place for pass_ in self.passes)
+
+    @property
+    def destructive(self) -> bool:
+        """Whether the pass will destroy the input model when ``in_place=False``."""
+        # This logic is a little conservative, but it is ok for now
+        return any(pass_.destructive for pass_ in self.passes)
+
+    def call(self, model: ir.Model) -> PassResult:
         """Run the set of passes `steps` number of times or until the graph stops changing."""
         overall_modified = False
         for step in range(self.steps):
