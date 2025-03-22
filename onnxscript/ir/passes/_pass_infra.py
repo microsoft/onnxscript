@@ -95,7 +95,7 @@ class PassBase(abc.ABC):
         except PostconditionError:
             raise
         except Exception as e:
-            raise PostconditionError("Post-condition failed") from e
+            raise PostconditionError(f"Post-condition failed: {e.__class__.__name__}: {e}") from e
         return result
 
     @abc.abstractmethod
