@@ -100,6 +100,12 @@ class PassBase(abc.ABC):
             raise PostconditionError(
                 f"Post-condition for pass '{self.__class__.__name__}' failed"
             ) from e
+
+        if not isinstance(result, PassResult):
+            raise TypeError(
+                f"The result of the pass '{self.__class__.__name__}' should be type PassResult."
+                "Please create one with ir.passes.PassResult()."
+            )
         return result
 
     @abc.abstractmethod
