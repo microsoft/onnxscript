@@ -186,11 +186,6 @@ class PassManager(PassBase):
                     f"An error occurred when running the '{pass_}' pass after the "
                     f"following passes: {prev_pass_names} during step {step}"
                 ) from e
-            if not isinstance(pass_result, PassResult):
-                raise TypeError(
-                    f"The result of the pass {pass_} should be type PassResult."
-                    "Please create one with ir.passes.PassResult()."
-                )
 
             model = pass_result.model
             modified = modified or pass_result.modified
