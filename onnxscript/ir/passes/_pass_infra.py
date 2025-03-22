@@ -70,7 +70,11 @@ class PassBase(abc.ABC):
 
     @property
     def in_place(self) -> bool:
-        """Whether the pass modifies the model in place."""
+        """Whether the pass modifies the model in place.
+
+        If True, the pass will return the same model object that was passed in.
+        If False, the pass will return a new model object.
+        """
         return True
 
     @property
