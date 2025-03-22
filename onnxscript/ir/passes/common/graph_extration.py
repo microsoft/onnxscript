@@ -139,13 +139,15 @@ class ExtractGraphPass(ir.passes.PassBase):
         for name in itertools.chain(self.input_names, self.output_names):
             value = values[name]
             if value.type is None:
-                raise ir.passes.PreconditionError(
-                    f"Value {name} does not have a type: {value}. "
-                    "Consider setting its type or running shape inference first."
+                logger.warning(
+                    "Value %s does not have a type: %s. "
+                    "Consider setting its type or running shape inference first.",
+                    name, value
                 )
             if value.shape is None:
-                raise ir.passes.PreconditionError(
-                    f"Value {name} does not have a shape: {value}. "
-                    "Consider setting its shape or running shape inference first."
+                logger.warning(
+                    "Value %s does not have a shape: %s. "
+                    "Consider setting its shape or running shape inference first.",
+                    name, value
                 )
         # TODO(justinchuby): Make sure the subgraph is completely bounded by inputs and outputs
