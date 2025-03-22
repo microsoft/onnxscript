@@ -20,6 +20,10 @@ from typing import Sequence
 
 __all__ = [
     "PassBase",
+    "Sequential",
+    "InPlacePass",
+    "OutOfPlacePass",
+    "DestructivePass",
     "PassManager",
     "PassResult",
     # Errors
@@ -69,8 +73,9 @@ class PassBase(abc.ABC):
     """Base class for all passes."""
 
     @property
+    @abc.abstractmethod
     def in_place(self) -> bool:
-        """Whether the pass modifies the model in place.
+        """Whether the pass modifies the model in place and returns it.
 
         If True, the pass will return the same model object that was passed in.
         If False, the pass will return a new model object.
@@ -78,9 +83,18 @@ class PassBase(abc.ABC):
         return True
 
     @property
+    @abc.abstractmethod
+    def changes_input(self) -> bool:
+        """Whether the pass modifies input model."""
+        return True
+
+    @property
     def destructive(self) -> bool:
-        """Whether the pass will destroy the input model when ``in_place=False``."""
-        return False
+        """Whether the pass will destroy the input model when ``in_place=False``.
+
+        A pass is destructive if it is not in place and it modifies the input model.
+        """
+        return not self.in_place and self.changes_input
 
     def __call__(self, model: ir.Model) -> PassResult:
         # Check preconditions
@@ -132,7 +146,76 @@ class PassBase(abc.ABC):
         del model  # Unused
 
 
-class PassManager(PassBase):
+class InPlacePass(PassBase):
+    """A pass that modifies the input model in place and returns it."""
+
+    @property
+    def in_place(self) -> bool:
+        return True
+
+    @property
+    def changes_input(self) -> bool:
+        return True
+
+
+class OutOfPlacePass(PassBase):
+    """A pass that returns a new model but does not modify the input model."""
+
+    @property
+    def in_place(self) -> bool:
+        return False
+
+    @property
+    def changes_input(self) -> bool:
+        return False
+
+
+class DestructivePass(PassBase):
+    """A pass that modifies the input model and returns a new model."""
+
+    @property
+    def in_place(self) -> bool:
+        return False
+
+    @property
+    def changes_input(self) -> bool:
+        return True
+
+
+class Sequential(PassBase):
+    """Run a sequence of passes in order."""
+
+    def __init__(self, *passes: PassBase):
+        self.passes = passes
+
+    @property
+    def in_place(self) -> bool:
+        return all(pass_.in_place for pass_ in self.passes)
+
+    @property
+    def changes_input(self) -> bool:
+        return self.passes[0].changes_input or self.passes[0].in_place
+
+    def call(self, model: ir.Model) -> PassResult:
+        modified = False
+        for i, pass_ in enumerate(self.passes):
+            logger.debug("Running the %s-th pass '%s'", i, pass_)
+            try:
+                pass_result = pass_(model)
+            except Exception as e:
+                prev_pass_names = [str(p) for p in self.passes[:i]]
+                raise PassError(
+                    f"An error occurred when running the '{pass_}' pass after the "
+                    f"following passes: {prev_pass_names}"
+                ) from e
+
+            model = pass_result.model
+            modified = modified or pass_result.modified
+
+        return PassResult(model, modified)
+
+
+class PassManager(Sequential):
     """Pass manager for the IR.
 
     The PassManager is a Pass that runs a sequence of passes on a model.
@@ -146,52 +229,26 @@ class PassManager(PassBase):
         self,
         passes: Sequence[PassBase],
         steps: int = 1,
+        early_stop=True,
     ):
         # TODO(justinchuby): Implement constraints
-        self.passes = list(passes)
+        super().__init__(*passes)
         self.steps = steps
-
-    @property
-    def in_place(self) -> bool:
-        """Whether the pass modifies the model in place."""
-        return all(pass_.in_place for pass_ in self.passes)
-
-    @property
-    def destructive(self) -> bool:
-        """Whether the pass will destroy the input model when ``in_place=False``."""
-        # This logic is a little conservative, but it is ok for now
-        return any(pass_.destructive for pass_ in self.passes)
+        self.early_stop = early_stop
 
     def call(self, model: ir.Model) -> PassResult:
         """Run the set of passes `steps` number of times or until the graph stops changing."""
         overall_modified = False
         for step in range(self.steps):
-            step_result = self._run_one_step(model, step)
+            try:
+                step_result = super().__call__(model)
+            except Exception as e:
+                raise PassError(f"An error occurred at step {step}") from e
             model = step_result.model
             modified = step_result.modified
             overall_modified = overall_modified or modified
             # If the graph no longer changes, then we can stop running these passes
-            if not modified:
+            if not modified and self.early_stop:
                 logger.info("PassManager: No more graph changes detected after step %s", step)
                 break
         return PassResult(model, overall_modified)
-
-    def _run_one_step(self, model: ir.Model, step: int) -> PassResult:
-        modified = False
-        for i, pass_ in enumerate(self.passes):
-            logger.debug("Running the %s-th pass '%s', (step %s)", i, pass_, step)
-            try:
-                pass_result = pass_(model)
-            except (PreconditionError, PostconditionError):
-                raise
-            except Exception as e:
-                prev_pass_names = [str(p) for p in self.passes[:i]]
-                raise PassError(
-                    f"An error occurred when running the '{pass_}' pass after the "
-                    f"following passes: {prev_pass_names} during step {step}"
-                ) from e
-
-            model = pass_result.model
-            modified = modified or pass_result.modified
-
-        return PassResult(model, modified)
