@@ -140,13 +140,13 @@ class ExtractGraphPass(ir.passes.PassBase):
             value = values[name]
             if value.type is None:
                 logger.warning(
-                    "Value %s does not have a type: %s. "
+                    "Value %%%s does not have a type: '%r'. "
                     "Consider setting its type or running shape inference first.",
                     name, value
                 )
             if value.shape is None:
                 logger.warning(
-                    "Value %s does not have a shape: %s. "
+                    "Value %%%s does not have a shape: '%r'. "
                     "Consider setting its shape or running shape inference first.",
                     name, value
                 )
