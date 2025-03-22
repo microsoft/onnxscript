@@ -35,7 +35,7 @@ def _find_subgraph_bounded_by_values(
     value_stack: list[ir.Value] = [*outputs]
     visited_nodes: set[ir.Node] = set()
     visited_values: set[ir.Value] = set(inputs)
-    initializers = []
+    initializers = [val for val in inputs if val.name in graph.initializers]
     while value_stack:
         value = value_stack.pop()
         if value in visited_values:
@@ -57,6 +57,7 @@ def _find_subgraph_bounded_by_values(
 
 class ExtractGraphPass(ir.passes.PassBase):
     """This pass extracts a subgraph from the given graph."""
+
     # This pass does not modify the model in place
     in_place = False
     # This pass destroys the input model
@@ -141,12 +142,14 @@ class ExtractGraphPass(ir.passes.PassBase):
                 logger.warning(
                     "Value %%%s does not have a type: '%r'. "
                     "Consider setting its type or running shape inference first.",
-                    name, value
+                    name,
+                    value,
                 )
             if value.shape is None:
                 logger.warning(
                     "Value %%%s does not have a shape: '%r'. "
                     "Consider setting its shape or running shape inference first.",
-                    name, value
+                    name,
+                    value,
                 )
         # TODO(justinchuby): Make sure the subgraph is completely bounded by inputs and outputs
