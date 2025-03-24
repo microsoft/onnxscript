@@ -71,13 +71,18 @@ class ShapeInferencePass(ir.passes.PassBase):
         # Perform shape inference
         try:
             proto = ir.serde.serialize_model(model)
-            proto = onnx.shape_inference.infer_shapes(
+            value_infos = {info.name: info for info in proto.graph.value_info}
+            inferred_proto = onnx.shape_inference.infer_shapes(
                 proto,
                 check_type=self.check_type,
                 strict_mode=self.strict_mode,
                 data_prop=self.data_prop,
             )
-            inferred_model = ir.serde.deserialize_model(proto)
+            inferred_value_infos = {
+                info.name: info for info in inferred_proto.graph.value_info
+            }
+            inferred_model = ir.serde.deserialize_model(inferred_proto)
+
         except Exception:  # pylint: disable=broad-exception-caught
             logger.warning("Shape inference failed. The model is not modified", exc_info=True)
             return ir.passes.PassResult(model, modified=False)
@@ -104,9 +109,10 @@ class ShapeInferencePass(ir.passes.PassBase):
         new_inputs = inferred_model.graph.inputs[:original_inputs_len]
         inferred_model.graph.inputs.clear()
         inferred_model.graph.inputs.extend(new_inputs)
-        # Even though modified, we know the pass will not change the model if we ran it again.
-        # So set modified to False
-        return ir.passes.PassResult(inferred_model, modified=False)
+
+        return ir.passes.PassResult(
+            inferred_model, modified=value_infos != inferred_value_infos
+        )
 
 
 def infer_shapes(

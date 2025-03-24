@@ -39,7 +39,7 @@ class TestShapeInferencePass(unittest.TestCase):
 
         # Perform shape inference
         result = shape_inference.ShapeInferencePass()(model)
-        self.assertFalse(result.modified)
+        self.assertTrue(result.modified)
         self.assertEqual(result.model.graph.node(0).outputs[0].shape, ir.Shape((1, 2)))
         self.assertEqual(result.model.graph.node(0).outputs[0].dtype, ir.DataType.FLOAT)
         self.assertEqual(result.model.graph.outputs[0].shape, ir.Shape((1, 2)))
@@ -91,7 +91,7 @@ class TestShapeInferencePass(unittest.TestCase):
 
         # Perform shape inference
         result = shape_inference.ShapeInferencePass()(model)
-        self.assertFalse(result.modified)
+        self.assertTrue(result.modified)
         self.assertEqual(result.model.graph.node(0).outputs[0].shape, ir.Shape((big_dim, 2)))
         self.assertEqual(result.model.graph.node(0).outputs[0].dtype, ir.DataType.FLOAT)
         self.assertEqual(result.model.graph.node(1).outputs[0].shape, ir.Shape((big_dim, 2)))
