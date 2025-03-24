@@ -12,6 +12,8 @@ __all__ = [
     "convert_attribute",
     "convert_attributes",
     "replace_all_uses_with",
+    "create_value_mapping",
+    "replace_nodes_and_values",
 ]
 
 from typing import Mapping, Sequence, Union
