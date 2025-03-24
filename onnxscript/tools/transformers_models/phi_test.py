@@ -89,7 +89,7 @@ class TestExportPhi(unittest.TestCase):
         input_tensors = input_tensors_many[0]
         expected = model(*input_tensors)
 
-        local_aot_ort = onnxscript.tools.training_helper.make_aot_ort(dynamic=False)
+        local_aot_ort = onnxscript.tools.training_helper.make_aot_ort()
 
         compiled_model = torch.compile(
             copy.deepcopy(model),
