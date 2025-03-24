@@ -1,9 +1,12 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Convenience constructors for IR objects."""
 
 from __future__ import annotations
 
 __all__ = [
     "tensor",
+    "node",
 ]
 
 import typing
@@ -21,10 +24,7 @@ if typing.TYPE_CHECKING:
 
 
 def tensor(
-    value: npt.ArrayLike
-    | onnx.TensorProto
-    | ir.DLPackCompatible
-    | ir.ArrayCompatible,
+    value: npt.ArrayLike | onnx.TensorProto | ir.DLPackCompatible | ir.ArrayCompatible,
     dtype: _enums.DataType | None = None,
     name: str | None = None,
     doc_string: str | None = None,
@@ -112,7 +112,7 @@ def node(
     inputs: Sequence[ir.Value],
     attributes: Mapping[str, _convenience.SupportedAttrTypes] | None = None,
     *,
-    domain: str  = "",
+    domain: str = "",
     overload: str = "",
     num_outputs: int | None = None,
     outputs: Sequence[ir.Value] | None = None,

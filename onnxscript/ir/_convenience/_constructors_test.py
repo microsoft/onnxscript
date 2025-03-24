@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Unit tests for the _convenience module."""
+"""Unit tests for the _constructors module."""
 
 import unittest
 
