@@ -87,7 +87,7 @@ class ConstantFolder(visitor.FunctionCallsiteProtoTransformer):
             )
             return None
 
-        return onnx.numpy_helper.from_array(value, name)
+        return onnx.numpy_helper.from_array(value, name)  # noqa: TID251
 
     def new_constant(self, name, value):
         if isinstance(value, (int, float, np.ScalarType)):

@@ -20,7 +20,7 @@ from typing import (
 import numpy as np
 import onnx
 import onnx.defs
-import onnx.helper
+import onnx.helper  # noqa: TID251
 import onnx.reference
 from typing_extensions import TypeAlias
 
@@ -430,21 +430,22 @@ def _prepare_model_and_inputs_for_eager(
     num_outputs = compute_num_outputs(schema, args, kwargs)
     outputs = [f"output{i}" for i in range(num_outputs)]
 
-    node = onnx.helper.make_node(schema.name, inputs, outputs, domain=schema.domain)
+    node = onnx.helper.make_node(schema.name, inputs, outputs, domain=schema.domain)  # noqa: TID251
     node.attribute.extend(
         make_attr(key, value) for key, value in kwargs.items() if value is not None
     )
     input_value_infos = utils.values_to_value_infos(zip(inputs, args))
     implicit_value_infos = utils.values_to_value_infos(implicit_args.items())
     output_value_infos = [
-        onnx.helper.make_value_info(name, onnx.TypeProto()) for name in outputs
+        onnx.helper.make_value_info(name, onnx.TypeProto())  # noqa: TID251
+        for name in outputs
     ]
 
-    graph = onnx.helper.make_graph(
+    graph = onnx.helper.make_graph(  # noqa: TID251
         [node], "node_graph", input_value_infos + implicit_value_infos, output_value_infos
     )
-    opset_id = onnx.helper.make_opsetid(schema.domain, schema.since_version)
-    model = onnx.helper.make_model(
+    opset_id = onnx.helper.make_opsetid(schema.domain, schema.since_version)  # noqa: TID251
+    model = onnx.helper.make_model(  # noqa: TID251
         graph,
         opset_imports=[opset_id],
         ir_version=irbuilder.select_ir_version(schema.since_version, domain=schema.domain),

@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import numpy as np
-import onnx.helper
+import onnx
 from onnx import TensorProto
 
 from onnxscript import onnx_opset
@@ -52,7 +52,7 @@ class Tensor:
 
     @property
     def onnx_dtype(self) -> int:
-        return onnx.helper.np_dtype_to_tensor_dtype(self.dtype)
+        return onnx.helper.np_dtype_to_tensor_dtype(self.dtype)  # noqa: TID251
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.value!r})"

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-import onnx.numpy_helper
-
 from onnxscript import ir
 from onnxscript.rewriter import _ir_utils as ir_utils
 from onnxscript.rewriter import pattern as orp
