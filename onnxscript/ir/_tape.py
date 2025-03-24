@@ -36,7 +36,14 @@ class Tape(Iterable[ir.Node]):
         op_type: str,
         inputs: Sequence[ir.Value | None],
         attributes: Mapping[str, _convenience.SupportedAttrTypes] | None = None,
-        domain: str = "",
+        *,
+        domain: str  = "",
+        overload: str = "",
+        version: int | None = None,
+        graph: ir.Graph | None = None,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
     ) -> ir.Value:
         if attributes is None:
             attrs: Sequence[ir.Attr | ir.RefAttr] = ()
@@ -53,8 +60,14 @@ class Tape(Iterable[ir.Node]):
         inputs: Sequence[ir.Value | None],
         attributes: Mapping[str, _convenience.SupportedAttrTypes] | None = None,
         *,
-        num_outputs: int,
-        domain: str = "",
+        domain: str  = "",
+        overload: str = "",
+        num_outputs: int | None = None,
+        version: int | None = None,
+        graph: ir.Graph | None = None,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
     ) -> Sequence[ir.Value]:
         if attributes is None:
             attrs: Sequence[ir.Attr | ir.RefAttr] = ()
