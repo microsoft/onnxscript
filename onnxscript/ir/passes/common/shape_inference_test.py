@@ -7,6 +7,7 @@ import unittest
 import numpy as np
 
 from onnxscript import ir
+from onnxscript.ir import building
 from onnxscript.ir.passes.common import shape_inference
 
 
@@ -23,19 +24,21 @@ class TestShapeInferencePass(unittest.TestCase):
             ),
         ]
 
-        add_node = ir.Node("", "Add", inputs=inputs)
+        tape = building.Tape()
+
+        output = tape.op("Add", inputs=inputs)
 
         model = ir.Model(
             ir.Graph(
                 inputs=inputs,
-                outputs=add_node.outputs,
-                nodes=[add_node],
+                outputs=[output],
+                nodes=tape.nodes,
                 opset_imports={"": 20},
             ),
             ir_version=10,
         )
-        self.assertIsNone(add_node.outputs[0].shape)
-        self.assertIsNone(add_node.outputs[0].dtype)
+        self.assertIsNone(output.shape)
+        self.assertIsNone(output.dtype)
 
         # Perform shape inference
         result = shape_inference.ShapeInferencePass()(model)
@@ -62,19 +65,20 @@ class TestShapeInferencePass(unittest.TestCase):
             ),
         ]
 
-        # Shape and type are not explicitly set for the initializer but it should still work
-        initializer = ir.Value(
-            name="initializer", const_value=ir.tensor([[2, 3]], dtype=ir.DataType.FLOAT)
-        )
+        tape = building.Tape()
 
-        add_node = ir.Node("", "Add", inputs=[*inputs])
-        mul_node = ir.Node("", "Mul", inputs=[add_node.outputs[0], initializer])
+        # Shape and type are not explicitly set for the initializer but it should still work
+        initializer = tape.initializer(
+            ir.tensor([[2, 3]], dtype=ir.DataType.FLOAT, name="initializer")
+        )
+        val_add = tape.op("Add", inputs=[*inputs])
+        val_mul = tape.op("Mul", inputs=[val_add, initializer])
 
         model = ir.Model(
             graph := ir.Graph(
                 inputs=inputs,
-                outputs=mul_node.outputs,
-                nodes=[add_node, mul_node],
+                outputs=[val_mul],
+                nodes=tape.nodes,
                 opset_imports={"": 20},
             ),
             ir_version=10,
@@ -82,10 +86,10 @@ class TestShapeInferencePass(unittest.TestCase):
         graph.register_initializer(inputs[1])
         graph.register_initializer(initializer)
 
-        self.assertIsNone(add_node.outputs[0].shape)
-        self.assertIsNone(add_node.outputs[0].dtype)
-        self.assertIsNone(mul_node.outputs[0].shape)
-        self.assertIsNone(mul_node.outputs[0].dtype)
+        self.assertIsNone(val_add.shape)
+        self.assertIsNone(val_add.dtype)
+        self.assertIsNone(val_mul.shape)
+        self.assertIsNone(val_mul.dtype)
         self.assertIsNone(initializer.shape)
         self.assertIsNone(initializer.dtype)
 
@@ -128,10 +132,10 @@ class TestShapeInferencePass(unittest.TestCase):
         )
 
         # Check that the original model is not modified
-        self.assertIsNone(add_node.outputs[0].shape)
-        self.assertIsNone(add_node.outputs[0].dtype)
-        self.assertIsNone(mul_node.outputs[0].shape)
-        self.assertIsNone(mul_node.outputs[0].dtype)
+        self.assertIsNone(val_add.shape)
+        self.assertIsNone(val_add.dtype)
+        self.assertIsNone(val_mul.shape)
+        self.assertIsNone(val_mul.dtype)
         self.assertEqual(len(model.graph.inputs), 2)
         self.assertEqual(len(model.graph.initializers), 2)
         self.assertIs(model.graph.initializers["input_b"].const_value, inputs[1].const_value)

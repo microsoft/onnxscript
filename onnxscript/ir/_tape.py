@@ -37,7 +37,7 @@ class Tape(Iterable[ir.Node]):
         inputs: Sequence[ir.Value | None],
         attributes: Mapping[str, _convenience.SupportedAttrTypes] | None = None,
         *,
-        domain: str  = "",
+        domain: str = "",
         overload: str = "",
         version: int | None = None,
         graph: ir.Graph | None = None,
@@ -49,7 +49,19 @@ class Tape(Iterable[ir.Node]):
             attrs: Sequence[ir.Attr | ir.RefAttr] = ()
         else:
             attrs = _convenience.convert_attributes(attributes)
-        node = ir.Node(domain, op_type, inputs, attributes=attrs, num_outputs=1)
+        node = ir.Node(
+            domain,
+            op_type,
+            inputs,
+            attributes=attrs,
+            num_outputs=1,
+            overload=overload,
+            version=version,
+            graph=graph,
+            name=name,
+            doc_string=doc_string,
+            metadata_props=metadata_props,
+        )
         self._nodes.append(node)
 
         return node.outputs[0]
@@ -60,7 +72,7 @@ class Tape(Iterable[ir.Node]):
         inputs: Sequence[ir.Value | None],
         attributes: Mapping[str, _convenience.SupportedAttrTypes] | None = None,
         *,
-        domain: str  = "",
+        domain: str = "",
         overload: str = "",
         num_outputs: int | None = None,
         version: int | None = None,
@@ -73,7 +85,19 @@ class Tape(Iterable[ir.Node]):
             attrs: Sequence[ir.Attr | ir.RefAttr] = ()
         else:
             attrs = _convenience.convert_attributes(attributes)
-        node = ir.Node(domain, op_type, inputs, attributes=attrs, num_outputs=num_outputs)
+        node = ir.Node(
+            domain,
+            op_type,
+            inputs,
+            attributes=attrs,
+            num_outputs=num_outputs,
+            overload=overload,
+            version=version,
+            graph=graph,
+            name=name,
+            doc_string=doc_string,
+            metadata_props=metadata_props,
+        )
         self._nodes.append(node)
 
         return node.outputs
