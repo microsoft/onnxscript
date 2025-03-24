@@ -2,9 +2,6 @@
 # Licensed under the MIT License.
 """Convenience methods for constructing the IR."""
 
-# NOTE: This is a temporary solution for constructing the IR. It should be replaced
-# with a more permanent solution in the future.
-
 from __future__ import annotations
 
 from typing import Any, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple
@@ -14,7 +11,32 @@ from onnxscript.ir import _convenience
 
 
 class Tape(Iterable[ir.Node]):
-    """A tape for recording nodes that are created."""
+    """Tape class.
+
+    A tape is a recorder that collects nodes and initializers that are created so
+    that they can be used for creating a graph.
+
+    Example::
+        from onnxscript import ir
+
+        tape = Tape()
+        a = tape.initializer(ir.tensor([1, 2, 3], name="a"))
+        b: ir.Value = ...
+        c: ir.Value = ...
+        x = tape.op("Add", [a, b], attributes={"alpha": 1.0})
+        y = tape.op("Mul", [x, c], attributes={"beta": 2.0})
+        model = ir.Model(
+            graph := ir.Graph(
+                inputs=[b, c],
+                outputs=[y],
+                nodes=tape.nodes,
+                opset_imports={"": 20},
+            ),
+            ir_version=10,
+        )
+        for initializer in tape.initializers:
+            graph.register_initializer(initializer)
+    """
 
     def __init__(self) -> None:
         self._nodes: list[ir.Node] = []

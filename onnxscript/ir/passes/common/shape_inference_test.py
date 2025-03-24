@@ -7,7 +7,6 @@ import unittest
 import numpy as np
 
 from onnxscript import ir
-from onnxscript.ir import building
 from onnxscript.ir.passes.common import shape_inference
 
 
@@ -24,7 +23,7 @@ class TestShapeInferencePass(unittest.TestCase):
             ),
         ]
 
-        tape = building.Tape()
+        tape = ir.tape.Tape()
 
         output = tape.op("Add", inputs=inputs)
 
@@ -65,7 +64,7 @@ class TestShapeInferencePass(unittest.TestCase):
             ),
         ]
 
-        tape = building.Tape()
+        tape = ir.tape.Tape()
 
         # Shape and type are not explicitly set for the initializer but it should still work
         initializer = tape.initializer(
