@@ -81,7 +81,7 @@ def pyvalue_to_onnx_attribute(
         )
     else:
         attr = ir.convenience.convert_attribute(
-            key, value, attr_type=ir.AttributeType(attr_type)
+            key, value, attr_type=ir.AttributeType(attr_type) if attr_type is not None else None
         )
         assert isinstance(attr, ir.Attr)
         return ir.serde.serialize_attribute(attr)
