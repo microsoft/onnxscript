@@ -6,9 +6,9 @@ from typing import ClassVar
 
 import onnx.numpy_helper
 
-import onnxscript.ir as ir
-import onnxscript.rewriter._ir_utils as ir_utils
-import onnxscript.rewriter.pattern as orp
+from onnxscript import ir
+from onnxscript.rewriter import _ir_utils as ir_utils
+from onnxscript.rewriter import pattern as orp
 
 
 class SqueezeReshape(orp.RewriteRuleClassBase):
