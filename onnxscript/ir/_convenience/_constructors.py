@@ -147,12 +147,14 @@ def node(
         A node with the given op_type and inputs.
     """
     if attributes is None:
-        attributes = {}
+        attrs: Sequence[ir.Attr | ir.RefAttr] = ()
+    else:
+        attrs = _convenience.convert_attributes(attributes)
     return _core.Node(
         domain=domain,
         op_type=op_type,
         inputs=inputs,
-        attributes=_convenience.convert_attributes(attributes),
+        attributes=attrs,
         overload=overload,
         num_outputs=num_outputs,
         outputs=outputs,
