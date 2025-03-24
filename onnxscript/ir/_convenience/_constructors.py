@@ -35,7 +35,7 @@ def tensor(
     not supported, unless if the value is a plain Python object, in which case
     it is converted to a numpy array with the given dtype.
 
-    :param:`value` can be a numpy array, a plain Python object, or a TensorProto.
+    ``value`` can be a numpy array, a plain Python object, or a TensorProto.
 
     Example::
 
@@ -126,6 +126,21 @@ def node(
 
     This is a convenience constructor for creating a Node that supports Python
     objects as attributes.
+
+    Example::
+
+        >>> from onnxscript import ir
+        >>> input_a = ir.Input("A", shape=ir.Shape([1, 2]), type=ir.TensorType(ir.DataType.INT32))
+        >>> input_b = ir.Input("B", shape=ir.Shape([1, 2]), type=ir.TensorType(ir.DataType.INT32))
+        >>> node = ir.node(
+        ...     "SomeOp",
+        ...     inputs=[input_a, input_b],
+        ...     attributes={"alpha": 1.0, "some_list": [1, 2, 3]},
+        ...     domain="some.domain",
+        ...     name="node_name"
+        ... )
+        >>> node.op_type
+        'SomeOp'
 
     Args:
         op_type: The name of the operator.

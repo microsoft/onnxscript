@@ -9,7 +9,7 @@ import numpy as np
 from onnxscript.ir._convenience import _constructors
 
 
-class ConvenienceTest(unittest.TestCase):
+class ConstructorsTest(unittest.TestCase):
     def test_tensor_accepts_torch_tensor(self):
         import torch as some_random_name  # pylint: disable=import-outside-toplevel
 
