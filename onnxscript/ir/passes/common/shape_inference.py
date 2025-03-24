@@ -22,11 +22,8 @@ logger = logging.getLogger(__name__)
 _BIG_TENSOR_SIZE_LIMIT = 1000  # 1KB
 
 
-class ShapeInferencePass(ir.passes.PassBase):
+class ShapeInferencePass(ir.passes.OutOfPlacePass):
     """This pass performs shape inference on the graph."""
-
-    # This pass does not modify the model in place.
-    in_place = False
 
     def __init__(
         self, check_type: bool = True, strict_mode: bool = True, data_prop: bool = True
