@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 
 import numpy as np
 import onnx
-from onnx import helper, numpy_helper
+from onnxscript import ir
 from onnx.defs import OpSchema
 
 from onnxscript import tensor
@@ -37,29 +37,7 @@ def _py_type_to_onnx_type(pytype: type):
 
 
 def pyvalue_to_onnx_tensor(tensor_name: str, pyvalue):
-    if isinstance(pyvalue, np.ndarray):
-        return numpy_helper.from_array(pyvalue, tensor_name)
-    if isinstance(pyvalue, list):
-        if len(pyvalue) == 0:
-            raise ValueError("Cannot convert an empty list to tensor")
-        pytype = type(pyvalue[0])
-        if not all(isinstance(e, pytype) for e in pyvalue):
-            raise ValueError(
-                "Cannot convert an list with elements of different types to tensor"
-            )
-        return helper.make_tensor(
-            tensor_name,
-            _py_type_to_onnx_type(pytype),
-            [len(pyvalue)],
-            pyvalue,
-        )
-    onnx_type = _py_type_to_onnx_type(type(pyvalue))
-    if onnx_type is onnx.TensorProto.BOOL:
-        return helper.make_tensor(tensor_name, onnx_type, [], [int(pyvalue)])
-    if onnx_type is onnx.TensorProto.STRING:
-        return helper.make_tensor(tensor_name, onnx_type, [], vals=[pyvalue.encode("utf-8")])
-
-    return helper.make_tensor(tensor_name, onnx_type, [], [pyvalue])
+    return ir.serde.serialize_tensor(ir.tensor(pyvalue, name=tensor_name))
 
 
 _REPEATED_ATTRIBUTE_TYPES = frozenset(
@@ -103,7 +81,11 @@ def pyvalue_to_onnx_attribute(
             name=key, type=attr_type, t=pyvalue_to_onnx_tensor(name_generator(), value)
         )
     else:
-        return onnx.helper.make_attribute(key, value)
+        attr = ir.convenience.convert_attribute(
+            key, value, attr_type=ir.AttributeType(attr_type)
+        )
+        assert isinstance(attr, ir.Attr)
+        return ir.serde.serialize_attribute(attr)
 
 
 # Utilities to convert python values into onnxscript tensors.

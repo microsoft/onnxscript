@@ -1800,15 +1800,11 @@ def _aten__scaled_dot_product_flash_attention_fillin_empty_outputs(
         op.Shape(query), op.Constant(value_ints=[0]), op.Constant(value_ints=[3])
     )
     logsumexp = op.Expand(0.0, query_first_three_dims)
-    # TODO: Eliminate `make_tensor` usage when ORT supports empty tensor.
-    empty_tensor_int = op.Cast(
-        op.ConstantOfShape(
-            op.Constant(value=onnx.helper.make_tensor("Empty_INTS", INT64.dtype, [0], []))
-        ),
-        to=INT64.dtype,
+    empty_tensor_int = op.ConstantOfShape(
+        op.Constant(value=ir.tensor([], dtype=ir.DataType.INT64))
     )
     empty_tensor_float = op.ConstantOfShape(
-        op.Constant(value=onnx.helper.make_tensor("Empty_FLOATS", INT64.dtype, [0], []))
+        op.Constant(value=ir.tensor([], dtype=ir.DataType.FLOAT))
     )
     empty_int = op.Constant(value_int=0)
 
@@ -1883,11 +1879,8 @@ def _aten_scaled_dot_product_efficient_attention_fillin_empty_outputs(
         logsum_exp = op.Expand(0.0, op.Concat(query_first_dims, num_heads, [0], axis=0))
 
     # See Note [Seed and Offset]:
-    empty_tensor_int = op.Cast(
-        op.ConstantOfShape(
-            op.Constant(value=onnx.helper.make_tensor("Empty_INTS", INT64.dtype, [0], []))
-        ),
-        to=INT64.dtype,
+    empty_tensor_int = op.ConstantOfShape(
+        op.Constant(value=ir.tensor([], dtype=ir.DataType.INT64))
     )
 
     return logsum_exp, empty_tensor_int
