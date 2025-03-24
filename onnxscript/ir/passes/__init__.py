@@ -7,7 +7,7 @@ __all__ = [
     "PassManager",
     "Sequential",
     "InPlacePass",
-    "OutOfPlacePass",
+    "FunctionalPass",
     # Errors
     "InvariantError",
     "PreconditionError",
@@ -16,9 +16,9 @@ __all__ = [
 ]
 
 from onnxscript.ir.passes._pass_infra import (
+    FunctionalPass,
     InPlacePass,
     InvariantError,
-    OutOfPlacePass,
     PassBase,
     PassError,
     PassManager,

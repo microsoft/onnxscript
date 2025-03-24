@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 _BIG_TENSOR_SIZE_LIMIT = 1000  # 1KB
 
 
-class ShapeInferencePass(ir.passes.OutOfPlacePass):
+class ShapeInferencePass(ir.passes.FunctionalPass):
     """This pass performs shape inference on the graph."""
 
     def __init__(

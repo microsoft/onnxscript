@@ -22,7 +22,7 @@ __all__ = [
     "PassBase",
     "Sequential",
     "InPlacePass",
-    "OutOfPlacePass",
+    "FunctionalPass",
     "PassManager",
     "PassResult",
     # Errors
@@ -157,7 +157,7 @@ class InPlacePass(PassBase):
         return True
 
 
-class OutOfPlacePass(PassBase):
+class FunctionalPass(PassBase):
     """A pass that returns a new model but does not modify the input model."""
 
     @property
