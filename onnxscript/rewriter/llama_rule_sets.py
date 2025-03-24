@@ -6,10 +6,9 @@ from typing import ClassVar
 
 import onnx.numpy_helper
 
-import onnxscript.ir as ir
-import onnxscript.rewriter._ir_utils as ir_utils
-import onnxscript.rewriter.no_op as no_op
-import onnxscript.rewriter.pattern as orp
+from onnxscript import ir
+from onnxscript.rewriter import _ir_utils as ir_utils
+from onnxscript.rewriter import pattern as orp
 
 
 class SqueezeReshape(orp.RewriteRuleClassBase):
@@ -292,17 +291,14 @@ def llama_p0_rule_set() -> orp.RewriteRuleSet:
     """
     return orp.RewriteRuleSet(
         [
-            no_op.mul_by_1_rule,
-            no_op.add_0_rule,
-            no_op.add_0_rule,
-            no_op.div_by_1_rule,
-            cast_cast_rule,
+            # cast_cast_rule,  # Might have precision issues.
             cast_identity_rule,
             expand_identity_rule,
             reshape_reshape_rule,
-            slice_split_rule,
+            slice_split_rule,  # Affect collapse slices rules?
             transpose_identity_rule,
             transpose_transpose_rule,
             unsqueeze_unsqueeze_rule,
+            squeeze_reshape_1d_rule,
         ]
     )

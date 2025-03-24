@@ -18,7 +18,7 @@ class ConvenienceFunctionsTest(unittest.TestCase):
         [
             ("model", onnx.ModelProto()),
             ("graph", onnx.GraphProto()),
-            ("node", onnx.NodeProto()),
+            ("node", onnx.NodeProto(input=["X"], output=["Y"])),
             (
                 "tensor",
                 onnx.helper.make_tensor("test_tensor", onnx.TensorProto.FLOAT, [1], [1.0]),

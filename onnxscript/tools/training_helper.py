@@ -3,16 +3,13 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 import torch
-from torch.onnx import ExportOptions
-from torch.onnx import _OrtBackend as OrtBackend
-from torch.onnx import _OrtBackendOptions as OrtBackendOptions
+from torch.onnx import _OrtBackend, _OrtBackendOptions
 
 
-def make_aot_ort(dynamic: bool = False):
+def make_aot_ort():
     """Implements an autograd backend for torch.compile based on onnxrt backend."""
-    export_options = ExportOptions(dynamic_shapes=dynamic)
-    options = OrtBackendOptions(export_options=export_options)
-    ort_backend = OrtBackend(options=options)
+    options = _OrtBackendOptions()
+    ort_backend = _OrtBackend(options=options)
     return ort_backend
 
 

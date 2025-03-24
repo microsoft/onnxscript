@@ -78,7 +78,7 @@ def save(
 
         # Store the original initializer values so they can be restored if modify_model=False
         initializer_values = tuple(model.graph.initializers.values())
-        tensors = [v.const_value for v in model.graph.initializers.values()]
+        tensors = [v.const_value for v in initializer_values]
 
         try:
             model = _external_data.unload_from_model(

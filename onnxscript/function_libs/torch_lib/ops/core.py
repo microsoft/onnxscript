@@ -31,6 +31,7 @@ from onnxscript import (
     UINT32,
     UINT64,
     graph,
+    ir,
 )
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
@@ -1242,6 +1243,7 @@ def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
         "_operator::__lshift__",
+        "aten::__lshift__.Scalar",
     ),
     trace_only=True,
 )
@@ -1262,6 +1264,7 @@ def aten_bitwise_left_shift_int16(self: INT16, other: INT16) -> INT16:
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
         "_operator::__lshift__",
+        "aten::__lshift__.Scalar",
     ),
     trace_only=True,
 )
@@ -1282,6 +1285,7 @@ def aten_bitwise_left_shift_int32(self: INT32, other: INT32) -> INT32:
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
         "_operator::__lshift__",
+        "aten::__lshift__.Scalar",
     ),
     trace_only=True,
 )
@@ -1302,6 +1306,7 @@ def aten_bitwise_left_shift_int64(self: INT64, other: INT64) -> INT64:
         "aten::bitwise_left_shift.Tensor_Scalar",
         "aten::bitwise_left_shift.Scalar_Tensor",
         "_operator::__lshift__",
+        "aten::__lshift__.Scalar",
     ),
     trace_only=True,
 )
@@ -1346,6 +1351,7 @@ def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
         "aten::bitwise_right_shift.Tensor_Scalar",
         "aten::bitwise_right_shift.Scalar_Tensor",
         "_operator::__rshift__",
+        "aten::__rshift__.Scalar",
     )
 )
 def aten_bitwise_right_shift_int16(self: INT16, other: INT16) -> INT16:
@@ -1376,6 +1382,7 @@ def aten_bitwise_right_shift_int16(self: INT16, other: INT16) -> INT16:
         "aten::bitwise_right_shift.Tensor_Scalar",
         "aten::bitwise_right_shift.Scalar_Tensor",
         "_operator::__rshift__",
+        "aten::__rshift__.Scalar",
     )
 )
 def aten_bitwise_right_shift_int32(self: INT32, other: INT32) -> INT32:
@@ -1406,6 +1413,7 @@ def aten_bitwise_right_shift_int32(self: INT32, other: INT32) -> INT32:
         "aten::bitwise_right_shift.Tensor_Scalar",
         "aten::bitwise_right_shift.Scalar_Tensor",
         "_operator::__rshift__",
+        "aten::__rshift__.Scalar",
     )
 )
 def aten_bitwise_right_shift_int64(self: INT64, other: INT64) -> INT64:
@@ -1439,6 +1447,7 @@ def aten_bitwise_right_shift_int64(self: INT64, other: INT64) -> INT64:
         "aten::bitwise_right_shift.Tensor_Scalar",
         "aten::bitwise_right_shift.Scalar_Tensor",
         "_operator::__rshift__",
+        "aten::__rshift__.Scalar",
     )
 )
 def aten_bitwise_right_shift_int8(self: INT8, other: INT8) -> INT8:
@@ -2065,16 +2074,30 @@ def aten_convolution(
 ) -> TFloat:
     """convolution(Tensor input, Tensor weight, Tensor? bias, int[] stride, SymInt[] padding, int[] dilation, bool transposed, SymInt[] output_padding, int groups) -> Tensor"""
 
+    rank = len(input.shape)
+
+    image_d = rank - 2
+
+    # NOTE: We assume the sequence padding/dilation/stride
+    # from ATen op can only be either len == 1 or
+    # len == rank.
+
     if not isinstance(padding, Sequence):
-        padding = (padding, padding)
+        padding = [padding] * image_d
+    elif len(padding) == 1:
+        padding = [padding[0]] * image_d
     pads = [*padding, *padding]
 
     if not isinstance(dilation, Sequence):
-        dilation = (dilation, dilation)
+        dilation = [dilation] * image_d
+    elif len(dilation) == 1:
+        dilation = [dilation[0]] * image_d
     dilations = list(dilation)
 
     if not isinstance(stride, Sequence):
-        stride = (stride, stride)
+        stride = [stride] * image_d
+    elif len(stride) == 1:
+        stride = [stride[0]] * image_d
     strides = list(stride)
 
     result = _aten_convolution_onnx(
@@ -4749,28 +4772,10 @@ def aten_layer_norm(
     start_axis = -len(normalized_shape)
 
     if weight is None:
-        one = op.Constant(value_float=1.0)
+        one = op.Constant(value=ir.tensor(1, dtype=input.dtype))
         weight = op.Expand(one, op.Shape(input, start=start_axis))
 
-    if bias is None:
-        zero = op.Constant(value_float=0.0)
-        bias = op.Expand(zero, op.Shape(input, start=start_axis))
-
-    return _aten_layer_norm_onnx(input, weight, bias, axis=start_axis, eps=eps)
-
-
-@torch_op("aten::layer_norm", private=True)
-def _aten_layer_norm_onnx(
-    input: TReal,
-    weight: TReal,
-    bias: TReal,
-    axis: int,
-    eps: float = 1e-05,
-) -> TReal:
-    """layer_norm(Tensor input, int[] normalized_shape, Tensor? weight=None, Tensor? bias=None, float eps=1e-05, bool cudnn_enable=True) -> Tensor"""
-
-    # TODO(justinchuby): Use OptionalHasElement after onnx/onnx#4982
-    result, _, _ = op.LayerNormalization(input, weight, bias, axis=axis, epsilon=eps)
+    result, _, _ = op.LayerNormalization(input, weight, bias, axis=start_axis, epsilon=eps)
     return result
 
 
@@ -5197,10 +5202,26 @@ def aten_masked_fill(self: TTensor, mask: BOOL, value: TTensor) -> TTensor:
     return op.Where(mask, value_cast, self)
 
 
-def aten_masked_scatter(self: TensorType, mask: TensorType, source: TensorType) -> TensorType:
+@torch_op(("aten::masked_scatter"), trace_only=True)
+def aten_masked_scatter(self: TTensor, mask: TTensor, source: TTensor) -> TTensor:
     """masked_scatter(Tensor self, Tensor mask, Tensor source) -> Tensor"""
 
-    raise NotImplementedError()
+    if len(mask.shape) < len(self.shape):
+        mask = op.Expand(mask, op.Shape(self))
+    else:
+        self = op.Expand(self, op.Shape(mask))
+    index = op.Transpose(op.NonZero(mask), perm=[1, 0])
+
+    # NOTE: source can have more elements than needed.
+    # It could also have arbitrary shape.
+    # This is not supported by ONNX::ScatterND, so we need to flatten and slice source tensor.
+    source = op.Reshape(source, op.Constant(value_ints=[-1]))
+    axes = op.Constant(value_ints=[0])
+    starts = op.Constant(value_ints=[0])
+    ends = op.Gather(op.Shape(index), op.Constant(value_ints=[0]), axis=0)
+    source = op.Slice(source, starts, ends, axes)
+
+    return op.ScatterND(self, index, source)
 
 
 def aten_masked_select(self: TensorType, mask: TensorType) -> TensorType:
@@ -6424,7 +6445,7 @@ def aten_nextafter(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::nonzero")
+@torch_op("aten::nonzero", trace_only=True)
 def aten_nonzero(self: TTensor) -> INT64:
     """nonzero(Tensor self) -> Tensor"""
     # NOTE: In torch the return shape is [n, d], while in onnx [d, n],
@@ -7696,6 +7717,21 @@ def aten_sinh(self: TFloat) -> TFloat:
     """sinh(Tensor self) -> Tensor"""
 
     return op.Sinh(self)
+
+
+@torch_op(("aten::slice.Tensor"), trace_only=True, complex=True)
+def aten_slice_complex(
+    self: TTensor,
+    dim: int = 0,
+    start: Optional[INT64] = None,
+    end: Optional[INT64] = None,
+    step: Optional[INT64] = None,
+) -> TTensor:
+    """slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)"""
+    if dim < 0:
+        # Account for the complex dimension in ONNX
+        dim = len(self.shape) + dim - 1
+    return aten_slice(self, dim, start, end, step)
 
 
 @torch_op(("aten::slice.Tensor"), trace_only=True)
