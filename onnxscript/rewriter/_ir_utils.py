@@ -7,8 +7,7 @@ from typing import Callable, Sequence
 
 import numpy as np
 
-import onnxscript.ir as ir
-from onnxscript.optimizer import basic_constant_propagation
+from onnxscript import ir, optimizer
 
 
 def display_nodes(nodes: Sequence[ir.Node]) -> None:
@@ -54,7 +53,7 @@ def display_slice(x: ir.Value | ir.Node, backward: bool = True, depth_limit: int
 def get_const_value(value: ir.Value) -> ir.TensorProtocol | None:
     node = value.producer()
     if node is not None:
-        basic_constant_propagation([node])
+        optimizer.basic_constant_propagation([node])
     return value.const_value
 
 
