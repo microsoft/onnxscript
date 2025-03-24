@@ -104,7 +104,7 @@ def tensor(
         dtype=dtype,
         shape=_core.Shape(array.shape),
         name=name,
-        doc_string=name,
+        doc_string=doc_string,
     )
 
 
