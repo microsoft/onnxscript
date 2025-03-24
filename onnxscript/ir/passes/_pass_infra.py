@@ -177,6 +177,9 @@ class Sequential(PassBase):
             raise ValueError("Sequential must take at least one pass")
         self.passes = passes
         self._in_place = all(pass_.in_place for pass_ in passes)
+        # The reason changes_inputs is decided by the first pass is that if the first pass is either in-place,
+        # or if it is not designed to be in-place but somehow changes the input (destructive),
+        # this pass sequence will change inputs.
         self._changes_input = self.passes[0].changes_input or self.passes[0].in_place
 
     @property
