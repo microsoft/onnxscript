@@ -296,7 +296,7 @@ def llama_p0_rule_set() -> orp.RewriteRuleSet:
             no_op.add_0_rule,
             no_op.add_0_rule,
             no_op.div_by_1_rule,
-            cast_cast_rule,
+            # cast_cast_rule,  Might have precision issues.
             cast_identity_rule,
             expand_identity_rule,
             reshape_reshape_rule,
