@@ -70,7 +70,7 @@ class TestShapeInferencePass(unittest.TestCase):
         initializer = ir.Value(
             name="initializer", const_value=ir.tensor([[2, 3]], dtype=ir.DataType.FLOAT)
         )
-        val_add = tape.op("Add", inputs=[*inputs])
+        val_add = tape.op("Add", inputs=inputs)
         val_mul = tape.op("Mul", inputs=[val_add, initializer])
 
         model = ir.Model(
