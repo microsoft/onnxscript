@@ -23,7 +23,6 @@ __all__ = [
     "Sequential",
     "InPlacePass",
     "OutOfPlacePass",
-    "DestructivePass",
     "PassManager",
     "PassResult",
     # Errors
@@ -168,18 +167,6 @@ class OutOfPlacePass(PassBase):
     @property
     def changes_input(self) -> bool:
         return False
-
-
-class DestructivePass(PassBase):
-    """A pass that modifies the input model and returns a new model."""
-
-    @property
-    def in_place(self) -> bool:
-        return False
-
-    @property
-    def changes_input(self) -> bool:
-        return True
 
 
 class Sequential(PassBase):
