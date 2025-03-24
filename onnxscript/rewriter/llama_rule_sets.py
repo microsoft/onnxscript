@@ -291,7 +291,7 @@ def llama_p0_rule_set() -> orp.RewriteRuleSet:
     """
     return orp.RewriteRuleSet(
         [
-            # cast_cast_rule,  Might have precision issues.
+            # cast_cast_rule,  # Might have precision issues.
             cast_identity_rule,
             expand_identity_rule,
             reshape_reshape_rule,
