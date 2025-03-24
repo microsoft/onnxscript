@@ -4,13 +4,22 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple
+from typing import (
+    Any,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 from onnxscript import ir
-from onnxscript.ir import _convenience
+from onnxscript.ir import _convenience, _core
 
 
-class Tape(Iterable[ir.Node]):
+class Tape(Iterable[_core.Node]):
     """Tape class.
 
     A tape is a recorder that collects nodes and initializers that are created so
@@ -30,12 +39,11 @@ class Tape(Iterable[ir.Node]):
                 inputs=[b, c],
                 outputs=[y],
                 nodes=tape.nodes,
+                initializers=tape.initializers
                 opset_imports={"": 20},
             ),
             ir_version=10,
         )
-        for initializer in tape.initializers:
-            graph.register_initializer(initializer)
     """
 
     def __init__(self) -> None:

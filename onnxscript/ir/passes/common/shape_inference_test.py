@@ -67,23 +67,22 @@ class TestShapeInferencePass(unittest.TestCase):
         tape = ir.tape.Tape()
 
         # Shape and type are not explicitly set for the initializer but it should still work
-        initializer = tape.initializer(
-            ir.tensor([[2, 3]], dtype=ir.DataType.FLOAT, name="initializer")
+        initializer = ir.Value(
+            name="initializer", const_value=ir.tensor([[2, 3]], dtype=ir.DataType.FLOAT)
         )
         val_add = tape.op("Add", inputs=[*inputs])
         val_mul = tape.op("Mul", inputs=[val_add, initializer])
 
         model = ir.Model(
-            graph := ir.Graph(
+            ir.Graph(
                 inputs=inputs,
                 outputs=[val_mul],
                 nodes=tape.nodes,
                 opset_imports={"": 20},
+                initializers=[inputs[1], initializer],
             ),
             ir_version=10,
         )
-        graph.register_initializer(inputs[1])
-        graph.register_initializer(initializer)
 
         self.assertIsNone(val_add.shape)
         self.assertIsNone(val_add.dtype)
