@@ -176,14 +176,16 @@ class Sequential(PassBase):
         if not passes:
             raise ValueError("Sequential must take at least one pass")
         self.passes = passes
+        self._in_place = all(pass_.in_place for pass_ in passes)
+        self._changes_input = self.passes[0].changes_input or self.passes[0].in_place
 
     @property
     def in_place(self) -> bool:
-        return all(pass_.in_place for pass_ in self.passes)
+        return self._in_place
 
     @property
     def changes_input(self) -> bool:
-        return self.passes[0].changes_input or self.passes[0].in_place
+        return self._changes_input
 
     def call(self, model: ir.Model) -> PassResult:
         modified = False
