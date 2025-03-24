@@ -73,6 +73,21 @@ class SDPA(pattern.RewriteRuleClassBase):
         return op.SDPA(query, key_transposed, value, mask, _domain="ai.onnxruntime.fusion")
 
 
+# Rules for SDPA without mask
+unmasked_pre_div_sdpa_rule = SDPA.rule(
+    "unmasked_pre_div_sdpa", use_mask=False, pre_scale=True, use_mul=False
+)
+unmasked_pre_mul_sdpa_rule = SDPA.rule(
+    "unmasked_pre_mul_sdpa", use_mask=False, pre_scale=True, use_mul=True
+)
+unmasked_post_div_sdpa_rule = SDPA.rule(
+    "unmasked_post_div_sdpa", use_mask=False, pre_scale=False, use_mul=False
+)
+unmasked_post_mul_sdpa_rule = SDPA.rule(
+    "unmasked_post_div_sdpa", use_mask=False, pre_scale=False, use_mul=True
+)
+
+# Rules for SDPA with mask
 masked_pre_div_sdpa_rule = SDPA.rule(
     "masked_pre_div_sdpa", use_mask=True, pre_scale=True, use_mul=False
 )
@@ -88,6 +103,10 @@ masked_post_mul_sdpa_rule = SDPA.rule(
 
 sdpa_rules = pattern.RewriteRuleSet(
     [
+        unmasked_pre_mul_sdpa_rule,
+        unmasked_post_div_sdpa_rule,
+        unmasked_post_mul_sdpa_rule,
+        unmasked_pre_div_sdpa_rule,
         masked_pre_mul_sdpa_rule,
         masked_post_div_sdpa_rule,
         masked_post_mul_sdpa_rule,
