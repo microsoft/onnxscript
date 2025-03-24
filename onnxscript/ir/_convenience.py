@@ -157,11 +157,11 @@ def convert_attribute(
             return _core.AttrTensor(name, serde.deserialize_tensor(attr))
     if attr_type == _enums.AttributeType.TENSORS:
         tensors = []
-        for tensor in attr:  # type: ignore[union-attr]
-            if isinstance(tensor, onnx.TensorProto):
-                tensors.append(_core.AttrTensor(name, serde.deserialize_tensor(tensor)))
+        for t in attr:  # type: ignore[union-attr]
+            if isinstance(t, onnx.TensorProto):
+                tensors.append(_core.AttrTensor(name, serde.deserialize_tensor(t)))
             else:
-                tensors.append(tensor)
+                tensors.append(t)  # type: ignore[arg-type]
         return _core.AttrTensors(name, tensors)  # type: ignore[arg-type]
     if attr_type == _enums.AttributeType.GRAPH:
         if isinstance(attr, onnx.GraphProto):
@@ -173,7 +173,7 @@ def convert_attribute(
             if isinstance(graph, onnx.GraphProto):
                 graphs.append(serde.deserialize_graph(graph))
             else:
-                graphs.append(graph)
+                graphs.append(graph)  # type: ignore[arg-type]
         return _core.AttrGraphs(name, graphs)  # type: ignore[arg-type]
     if attr_type == _enums.AttributeType.TYPE_PROTO:
         return _core.AttrTypeProto(name, attr)  # type: ignore[arg-type]
