@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # -------------------------------------------------------------------------
-
+# ruff: noqa: TID251
 from __future__ import annotations
 
 import dataclasses

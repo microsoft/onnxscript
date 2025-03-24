@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+# ruff: noqa: TID251
 from __future__ import annotations
 
 import logging
@@ -87,7 +88,7 @@ class ConstantFolder(visitor.FunctionCallsiteProtoTransformer):
             )
             return None
 
-        return onnx.numpy_helper.from_array(value, name)  # noqa: TID251
+        return onnx.numpy_helper.from_array(value, name)
 
     def new_constant(self, name, value):
         if isinstance(value, (int, float, np.ScalarType)):
