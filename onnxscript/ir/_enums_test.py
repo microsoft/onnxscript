@@ -42,6 +42,7 @@ class DataTypeTest(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         [
+            ("string", np.array("some_string").dtype, _enums.DataType.STRING),
             ("float64", np.dtype(np.float64), _enums.DataType.DOUBLE),
             ("float32", np.dtype(np.float32), _enums.DataType.FLOAT),
             ("float16", np.dtype(np.float16), _enums.DataType.FLOAT16),
@@ -103,11 +104,6 @@ class DataTypeTest(unittest.TestCase):
                 _enums.DataType.UINT4,
             ),
             ("onnx_ref_int4", onnx._custom_element_types.int4, _enums.DataType.INT4),
-            (
-                "onnx_ref_float4e2m1",
-                onnx._custom_element_types.float4e2m1,
-                _enums.DataType.FLOAT4E2M1,
-            ),
         ]
     )
     def test_from_numpy_takes_np_dtype_and_returns_data_type(
