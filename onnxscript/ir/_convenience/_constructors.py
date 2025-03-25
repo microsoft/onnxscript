@@ -95,9 +95,16 @@ def tensor(
     # Plain Python object
     if dtype is not None:
         numpy_dtype = dtype.numpy()
+    elif isinstance(value, int) and not isinstance(value, bool):
+        # Specify int64 for ints because on Windows this may be int32
+        numpy_dtype = np.dtype(np.int64)
     elif isinstance(value, float):
         # If the value is a single float, we use np.float32 as the default dtype
         numpy_dtype = np.dtype(np.float32)
+    elif isinstance(value, Sequence) and all(
+        (isinstance(elem, int) and not isinstance(value, bool)) for elem in value
+    ):
+        numpy_dtype = np.dtype(np.int64)
     elif isinstance(value, Sequence) and all(isinstance(elem, float) for elem in value):
         # If the value is a sequence of floats, we use np.float32 as the default dtype
         numpy_dtype = np.dtype(np.float32)
