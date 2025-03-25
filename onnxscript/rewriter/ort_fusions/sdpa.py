@@ -9,15 +9,20 @@ from onnxscript.rewriter import _ir_utils, pattern
 
 
 class SDPA(pattern.RewriteRuleClassBase):
-    def __init__(self, name: str, *, use_mask: bool, pre_scale: bool, use_mul: bool):
+    def __init__(self, name: str, *, is_key_transposed: bool, use_mask: bool, pre_scale: bool, use_mul: bool):
         super().__init__(name=name)
         self._use_mask = use_mask
         self._pre_scale = pre_scale
         self._use_mul = use_mul
+        self._is_key_transposed = is_key_transposed
 
     def pattern(
-        self, op, query, key_transposed, value, mask, query_scale, key_scale, qk_scale
+        self, op, query, key, value, mask, query_scale, key_scale, qk_scale
     ):
+        if not self._is_key_transposed:
+            key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
+        else:
+            key_transposed = key
         if self._pre_scale:
             # Some implementations scale the query and key before computing the dot product
             if self._use_mul:
@@ -40,12 +45,19 @@ class SDPA(pattern.RewriteRuleClassBase):
         attn_output = op.MatMul(attn_weight, value)
         return attn_output
 
-    def check(self, op, query, key_transposed, value, mask, query_scale, key_scale, qk_scale):
+    def check(self, op, query, key, value, mask, query_scale, key_scale, qk_scale):
+        if query is None or query.shape is None or len(query.shape) < 2:
+            return False
+        if key is None or key.shape is None or len(key.shape) < 2:
+            return False
+        # Check that the key is transposed
+        if self._is_key_transposed:
+            if key.shape[-1] != query.shape[-2]:
+                return False
+
         # Check that the scaling factors match what SDPA implements:
 
         # We need to know the hidden size to check the scaling factors.
-        if query is None or query.shape is None or len(query.shape) < 2:
-            return False
         hidden_size = query.shape[-1]
         if not isinstance(hidden_size, int):
             return False
@@ -69,48 +81,84 @@ class SDPA(pattern.RewriteRuleClassBase):
 
         return True
 
-    def rewrite(self, op, query, key_transposed, value, mask, **_):
-        return op.SDPA(query, key_transposed, value, mask, _domain="ai.onnxruntime.fusion")
+    def rewrite(self, op, query, key, value, mask, **_):
+        return op.SDPA(query, key, value, mask, _domain="ai.onnxruntime.fusion")
 
+
+# Rules for SDPA without mask and key not transposed
+key_not_transposed_unmasked_pre_div_sdpa_rule = SDPA.rule(
+    "key_not_transposed_unmasked_pre_div_sdpa", is_key_transposed=False, use_mask=False, pre_scale=True, use_mul=False
+)
+key_not_transposed_unmasked_pre_mul_sdpa_rule = SDPA.rule(
+    "key_not_transposed_unmasked_pre_mul_sdpa", is_key_transposed=False, use_mask=False, pre_scale=True, use_mul=True
+)
+key_not_transposed_unmasked_post_div_sdpa_rule = SDPA.rule(
+    "key_not_transposed_unmasked_post_div_sdpa", is_key_transposed=False, use_mask=False, pre_scale=False, use_mul=False
+)
+key_not_transposed_unmasked_post_mul_sdpa_rule = SDPA.rule(
+    "key_not_transposed_unmasked_post_mul_sdpa", is_key_transposed=False, use_mask=False, pre_scale=False, use_mul=True
+)
+
+# Rules for SDPA with mask and key not transposed
+key_not_transposed_masked_pre_div_sdpa_rule = SDPA.rule(
+    "key_not_transposed_masked_pre_div_sdpa", is_key_transposed=False, use_mask=True, pre_scale=True, use_mul=False
+)
+key_not_transposed_masked_pre_mul_sdpa_rule = SDPA.rule(
+    "key_not_transposed_masked_pre_mul_sdpa", is_key_transposed=False, use_mask=True, pre_scale=True, use_mul=True
+)
+key_not_transposed_masked_post_div_sdpa_rule = SDPA.rule(
+    "key_not_transposed_masked_post_div_sdpa", is_key_transposed=False, use_mask=True, pre_scale=False, use_mul=False
+)
+key_not_transposed_masked_post_mul_sdpa_rule = SDPA.rule(
+    "key_not_transposed_masked_post_mul_sdpa", is_key_transposed=False, use_mask=True, pre_scale=False, use_mul=True
+)
 
 # Rules for SDPA without mask
-unmasked_pre_div_sdpa_rule = SDPA.rule(
-    "unmasked_pre_div_sdpa", use_mask=False, pre_scale=True, use_mul=False
+key_transposed_unmasked_pre_div_sdpa_rule = SDPA.rule(
+    "key_transposed_unmasked_pre_div_sdpa", is_key_transposed=True, use_mask=False, pre_scale=True, use_mul=False
 )
-unmasked_pre_mul_sdpa_rule = SDPA.rule(
-    "unmasked_pre_mul_sdpa", use_mask=False, pre_scale=True, use_mul=True
+key_transposed_unmasked_pre_mul_sdpa_rule = SDPA.rule(
+    "key_transposed_unmasked_pre_mul_sdpa", is_key_transposed=True, use_mask=False, pre_scale=True, use_mul=True
 )
-unmasked_post_div_sdpa_rule = SDPA.rule(
-    "unmasked_post_div_sdpa", use_mask=False, pre_scale=False, use_mul=False
+key_transposed_unmasked_post_div_sdpa_rule = SDPA.rule(
+    "key_transposed_unmasked_post_div_sdpa", is_key_transposed=True, use_mask=False, pre_scale=False, use_mul=False
 )
-unmasked_post_mul_sdpa_rule = SDPA.rule(
-    "unmasked_post_mul_sdpa", use_mask=False, pre_scale=False, use_mul=True
+key_transposed_unmasked_post_mul_sdpa_rule = SDPA.rule(
+    "key_transposed_unmasked_post_mul_sdpa", is_key_transposed=True, use_mask=False, pre_scale=False, use_mul=True
 )
 
 # Rules for SDPA with mask
-masked_pre_div_sdpa_rule = SDPA.rule(
-    "masked_pre_div_sdpa", use_mask=True, pre_scale=True, use_mul=False
+key_transposed_masked_pre_div_sdpa_rule = SDPA.rule(
+    "key_transposed_masked_pre_div_sdpa", is_key_transposed=True, use_mask=True, pre_scale=True, use_mul=False
 )
-masked_pre_mul_sdpa_rule = SDPA.rule(
-    "masked_pre_mul_sdpa", use_mask=True, pre_scale=True, use_mul=True
+key_transposed_masked_pre_mul_sdpa_rule = SDPA.rule(
+    "key_transposed_masked_pre_mul_sdpa", is_key_transposed=True, use_mask=True, pre_scale=True, use_mul=True
 )
-masked_post_div_sdpa_rule = SDPA.rule(
-    "masked_post_div_sdpa", use_mask=True, pre_scale=False, use_mul=False
+key_transposed_masked_post_div_sdpa_rule = SDPA.rule(
+    "key_transposed_masked_post_div_sdpa", is_key_transposed=True, use_mask=True, pre_scale=False, use_mul=False
 )
-masked_post_mul_sdpa_rule = SDPA.rule(
-    "masked_post_mul_sdpa", use_mask=True, pre_scale=False, use_mul=True
+key_transposed_masked_post_mul_sdpa_rule = SDPA.rule(
+    "key_transposed_masked_post_mul_sdpa", is_key_transposed=True, use_mask=True, pre_scale=False, use_mul=True
 )
 
 sdpa_rules = pattern.RewriteRuleSet(
     [
-        unmasked_pre_mul_sdpa_rule,
-        unmasked_post_div_sdpa_rule,
-        unmasked_post_mul_sdpa_rule,
-        unmasked_pre_div_sdpa_rule,
-        masked_pre_mul_sdpa_rule,
-        masked_post_div_sdpa_rule,
-        masked_post_mul_sdpa_rule,
-        masked_pre_div_sdpa_rule,
+        key_not_transposed_unmasked_pre_mul_sdpa_rule,
+        key_not_transposed_unmasked_post_div_sdpa_rule,
+        key_not_transposed_unmasked_post_mul_sdpa_rule,
+        key_not_transposed_unmasked_pre_div_sdpa_rule,
+        key_not_transposed_masked_pre_mul_sdpa_rule,
+        key_not_transposed_masked_post_div_sdpa_rule,
+        key_not_transposed_masked_post_mul_sdpa_rule,
+        key_not_transposed_masked_pre_div_sdpa_rule,
+        key_transposed_unmasked_pre_mul_sdpa_rule,
+        key_transposed_unmasked_post_div_sdpa_rule,
+        key_transposed_unmasked_post_mul_sdpa_rule,
+        key_transposed_unmasked_pre_div_sdpa_rule,
+        key_transposed_masked_pre_mul_sdpa_rule,
+        key_transposed_masked_post_div_sdpa_rule,
+        key_transposed_masked_post_mul_sdpa_rule,
+        key_transposed_masked_pre_div_sdpa_rule,
     ]
 )
 

@@ -153,14 +153,22 @@ class SDPATestCase:
 class TestSDPAFusion(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
-            ("unmasked_pre_div", _unmasked_pre_div_sdpa_script),
-            ("unmasked_pre_mul", _unmasked_pre_mul_sdpa_script),
-            ("unmasked_post_div", _unmasked_post_div_sdpa_script),
-            ("unmasked_post_mul", _unmasked_post_mul_sdpa_script),
-            ("pre_div", _masked_pre_div_sdpa_script),
-            ("pre_mul", _masked_pre_mul_sdpa_script),
-            ("post_div", _masked_post_div_sdpa_script),
-            ("post_mul", _masked_post_mul_sdpa_script),
+            ("key_not_transposed_unmasked_pre_div", _unmasked_pre_div_sdpa_script),
+            ("key_not_transposed_unmasked_pre_mul", _unmasked_pre_mul_sdpa_script),
+            ("key_not_transposed_unmasked_post_div", _unmasked_post_div_sdpa_script),
+            ("key_not_transposed_unmasked_post_mul", _unmasked_post_mul_sdpa_script),
+            ("key_not_transposed_pre_div", _masked_pre_div_sdpa_script),
+            ("key_not_transposed_pre_mul", _masked_pre_mul_sdpa_script),
+            ("key_not_transposed_post_div", _masked_post_div_sdpa_script),
+            ("key_not_transposed_post_mul", _masked_post_mul_sdpa_script),
+            ("key_transposed_unmasked_pre_div", _unmasked_pre_div_sdpa_script),
+            ("key_transposed_unmasked_pre_mul", _unmasked_pre_mul_sdpa_script),
+            ("key_transposed_unmasked_post_div", _unmasked_post_div_sdpa_script),
+            ("key_transposed_unmasked_post_mul", _unmasked_post_mul_sdpa_script),
+            ("key_transposed_pre_div", _masked_pre_div_sdpa_script),
+            ("key_transposed_pre_mul", _masked_pre_mul_sdpa_script),
+            ("key_transposed_post_div", _masked_post_div_sdpa_script),
+            ("key_transposed_post_mul", _masked_post_mul_sdpa_script),
         ]
     )
     def test_sdpa_fusion(self, name, script_func):
