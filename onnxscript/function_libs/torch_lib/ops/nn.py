@@ -487,8 +487,8 @@ def _aten_gelu_approximate_none(self: TReal) -> TReal:
     inner = op.Div(self, 1.4142135623730951)
     erf = op.Erf(inner)
     inner = op.Add(erf, 1)
-    inner = op.Mul(self, inner)
-    result = op.Mul(0.5, inner)
+    inner = op.Mul(0.5, inner)
+    result = op.Mul(self, inner)
     return result
 
 
@@ -505,8 +505,8 @@ def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
     inner = op.Mul(op.Sqrt(two_over_pi), inner)
     inner = op.Tanh(inner)
     inner = op.Add(inner, 1)
-    inner = op.Mul(self, inner)
-    result = op.Mul(0.5, inner)
+    inner = op.Mul(0.5, inner)
+    result = op.Mul(self, inner)
     return result
 
 
