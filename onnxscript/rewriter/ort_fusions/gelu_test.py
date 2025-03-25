@@ -4,7 +4,10 @@
 import math
 import unittest
 
+import numpy as np
+
 import onnxscript.ir as ir
+import onnxscript.rewriter.ort_fusions._test_utils as test_utils
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
 from onnxscript.optimizer import optimize, remove_unused_nodes
@@ -34,11 +37,20 @@ class GeluFusionTest(unittest.TestCase):
         )
         model = ir.serde.deserialize_model(model_proto)
 
+        # Eliminate redundant CastLike ops:
         optimize(model)
+
+        input = {"x": np.random.randn(10).astype(np.float32)}
+        original_output = test_utils.ort_run("Original", model, input)
+
         fuse_gelu(model)
         remove_unused_nodes(model)
+
         self.assertEqual(len(model.graph), 1)
         self.assertEqual(model.graph.node(0).op_type, "Gelu")
+
+        optimized_output = test_utils.ort_run("Optimized", model, input)
+        test_utils.assert_allclose(original_output, optimized_output)
 
 
 if __name__ == "__main__":
