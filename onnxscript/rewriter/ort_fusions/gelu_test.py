@@ -4,10 +4,12 @@
 import math
 import unittest
 
-from onnxscript import script, FLOAT, opset18 as op
 import onnxscript.ir as ir
+from onnxscript import FLOAT, script
+from onnxscript import opset18 as op
+from onnxscript.optimizer import optimize, remove_unused_nodes
 from onnxscript.rewriter.ort_fusions.gelu import fuse_gelu
-from onnxscript.optimizer import remove_unused_nodes, optimize
+
 
 class GeluFusionTest(unittest.TestCase):
     def test_gelu_fusion(self):
@@ -19,17 +21,19 @@ class GeluFusionTest(unittest.TestCase):
             t1 = op.Pow(x, 3)
             t2 = op.Mul(0.044715, t1)
             t3 = op.Add(x, t2)
-            
+
             t4 = op.Mul(_sqrt_two_over_pi, t3)
             t5 = op.Tanh(t4)
             t6 = op.Add(t5, 1)
             t7 = op.Mul(x, t6)
             result = op.Mul(0.5, t7)
             return result
-        
-        model_proto = gelu_model.to_model_proto(input_types=[FLOAT[10]], output_types=[FLOAT[10]])
+
+        model_proto = gelu_model.to_model_proto(
+            input_types=[FLOAT[10]], output_types=[FLOAT[10]]
+        )
         model = ir.serde.deserialize_model(model_proto)
-        
+
         optimize(model)
         fuse_gelu(model)
         remove_unused_nodes(model)
