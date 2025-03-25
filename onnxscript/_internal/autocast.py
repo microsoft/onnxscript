@@ -23,18 +23,6 @@ if TYPE_CHECKING:
 # Utilities to convert a python value to TensorProto (for use by the script converter)
 
 
-def _py_type_to_onnx_type(pytype: type):
-    if pytype is bool:
-        return onnx.TensorProto.BOOL
-    if pytype is int:
-        return onnx.TensorProto.INT64
-    if pytype is float:
-        return onnx.TensorProto.FLOAT
-    if pytype is str:
-        return onnx.TensorProto.STRING
-    raise ValueError(f"Tensor element of type {pytype} not supported")
-
-
 def pyvalue_to_onnx_tensor(tensor_name: str, pyvalue):
     return ir.serde.serialize_tensor(ir.tensor(pyvalue, name=tensor_name))
 

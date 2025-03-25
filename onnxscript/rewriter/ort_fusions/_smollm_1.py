@@ -56,9 +56,7 @@ def make_model(
         model_layers_0_mlp_down_proj_weight = opset18.Constant(value=mlp_down_proj_weight0)
 
         embedding = opset18.Gather(lm_head_weight, input0, axis=0)
-        minus_inf_10x10 = opset18.ConstantOfShape(
-            [10, 10], ir.tensor([-3.4028234663852886e38], dtype=ir.DataType.FLOAT)
-        )
+        minus_inf_10x10 = opset18.ConstantOfShape([10, 10], [-3.4028234663852886e38])
         mask_10x10 = opset18.Trilu(minus_inf_10x10, 1)
         slice_5 = opset18.Reshape(mask_10x10, [1, 1, 10, 10])
         unsqueeze_2 = opset18.Unsqueeze(input1, 1)
