@@ -1,14 +1,15 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+# pylint: disable=protected-access
 import unittest
 
+import ml_dtypes
 import numpy as np
 import onnx
 import onnx._custom_element_types
+import parameterized
 
 from onnxscript.ir import _enums
-import parameterized
-import ml_dtypes
 
 
 class DataTypeTest(unittest.TestCase):
