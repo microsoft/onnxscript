@@ -12,6 +12,7 @@ from onnxscript.rewriter import (
     cast_constant_of_shape,
     collapse_slices,
     gemm_to_matmul_add,
+    llama_rule_sets,
     no_op,
 )
 
@@ -23,6 +24,7 @@ _DEFAULT_REWRITE_RULES = [
     gemm_to_matmul_add.rule,
     *cast_constant_of_shape.rules.rules,
     *collapse_slices.rules.rules,
+    *llama_rule_sets.llama_p0_rule_set().rules,
 ]
 
 
