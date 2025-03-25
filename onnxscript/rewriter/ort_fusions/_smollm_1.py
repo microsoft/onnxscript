@@ -56,7 +56,9 @@ def make_model(
         model_layers_0_mlp_down_proj_weight = opset18.Constant(value=mlp_down_proj_weight0)
 
         embedding = opset18.Gather(lm_head_weight, input0, axis=0)
-        minus_inf_10x10 = opset18.ConstantOfShape([10, 10], [-3.4028234663852886e38])
+        minus_inf_10x10 = opset18.ConstantOfShape(
+            [10, 10], ir.tensor([-3.4028234663852886e38], dtype=ir.DataType.FLOAT)
+        )
         mask_10x10 = opset18.Trilu(minus_inf_10x10, 1)
         slice_5 = opset18.Reshape(mask_10x10, [1, 1, 10, 10])
         unsqueeze_2 = opset18.Unsqueeze(input1, 1)
@@ -107,7 +109,8 @@ def make_model(
                         0.0002371373848291114,
                         0.00017782794020604342,
                         0.0001333521504420787,
-                    ]
+                    ],
+                    dtype=np.float32,
                 ).reshape([1, 32, 1])
             )
         )
@@ -217,17 +220,17 @@ def make_model_with_random_weights():
     mlp_up_proj_weight0 = np.random.rand(8192, 2048).astype(np.float32)
     mlp_down_proj_weight0 = np.random.rand(2048, 8192).astype(np.float32)
     model = make_model(
-        input_layernorm_weight_0,
-        post_attention_layernorm_weight0,
-        norm_weight,
-        head_weight,
-        self_attn_q_proj_weight0,
-        self_attn_k_proj_weight0,
-        self_attn_v_proj_weight0,
-        self_attn_o_proj_weight0,
-        mlp_gate_proj_weight0,
-        mlp_up_proj_weight0,
-        mlp_down_proj_weight0,
+        ir.tensor(input_layernorm_weight_0),
+        ir.tensor(post_attention_layernorm_weight0),
+        ir.tensor(norm_weight),
+        ir.tensor(head_weight),
+        ir.tensor(self_attn_q_proj_weight0),
+        ir.tensor(self_attn_k_proj_weight0),
+        ir.tensor(self_attn_v_proj_weight0),
+        ir.tensor(self_attn_o_proj_weight0),
+        ir.tensor(mlp_gate_proj_weight0),
+        ir.tensor(mlp_up_proj_weight0),
+        ir.tensor(mlp_down_proj_weight0),
     )
     return model
 
