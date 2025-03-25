@@ -6,7 +6,6 @@ import onnxscript.ir as ir
 from onnxscript.ir.passes.common import shape_inference
 from onnxscript.optimizer import optimize, remove_unused_nodes
 from onnxscript.rewriter import rewrite
-from onnxscript.rewriter.llama_rule_sets import llama_p0_rule_set
 from onnxscript.rewriter.ort_fusions import (
     fused_matmul_rule_sets,
     # group_normalization_merge_silu,
@@ -31,8 +30,6 @@ ORT_PATTERN_REWRITE_RULES = [
     # *group_normalization_merge_silu.rules.rules,
     *fused_matmul_rule_sets.fused_matmul_rule_sets(),
 ]
-
-_extra_opt_rules = llama_p0_rule_set()
 
 
 # Preliminary optimizations before applying the transformer fusions.
