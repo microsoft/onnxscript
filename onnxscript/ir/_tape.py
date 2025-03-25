@@ -28,7 +28,7 @@ class Tape(Iterable[_core.Node]):
     Example::
         from onnxscript import ir
 
-        tape = Tape()
+        tape = ir.tape.Tape()
         a = tape.initializer(ir.tensor([1, 2, 3], name="a"))
         b: ir.Value = ...
         c: ir.Value = ...
