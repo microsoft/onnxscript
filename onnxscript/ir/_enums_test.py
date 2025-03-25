@@ -4,8 +4,11 @@ import unittest
 
 import numpy as np
 import onnx
+import onnx._custom_element_types
 
 from onnxscript.ir import _enums
+import parameterized
+import ml_dtypes
 
 
 class DataTypeTest(unittest.TestCase):
@@ -36,9 +39,80 @@ class DataTypeTest(unittest.TestCase):
             self.assertEqual(_enums.DataType.FLOAT4E2M1, onnx.TensorProto.FLOAT4E2M1)
         self.assertEqual(_enums.DataType.UNDEFINED, onnx.TensorProto.UNDEFINED)
 
-    def test_from_numpy_takes_np_dtype_and_returns_data_type(self):
-        array = np.array([], dtype=np.float64)
-        self.assertEqual(_enums.DataType.from_numpy(array.dtype), _enums.DataType.DOUBLE)
+    @parameterized.parameterized.expand(
+        [
+            ("float64", np.dtype(np.float64), _enums.DataType.DOUBLE),
+            ("float32", np.dtype(np.float32), _enums.DataType.FLOAT),
+            ("float16", np.dtype(np.float16), _enums.DataType.FLOAT16),
+            ("int32", np.dtype(np.int32), _enums.DataType.INT32),
+            ("int16", np.dtype(np.int16), _enums.DataType.INT16),
+            ("int8", np.dtype(np.int8), _enums.DataType.INT8),
+            ("int64", np.dtype(np.int64), _enums.DataType.INT64),
+            ("uint8", np.dtype(np.uint8), _enums.DataType.UINT8),
+            ("uint16", np.dtype(np.uint16), _enums.DataType.UINT16),
+            ("uint32", np.dtype(np.uint32), _enums.DataType.UINT32),
+            ("uint64", np.dtype(np.uint64), _enums.DataType.UINT64),
+            ("bool", np.dtype(np.bool_), _enums.DataType.BOOL),
+            ("complex64", np.dtype(np.complex64), _enums.DataType.COMPLEX64),
+            ("complex128", np.dtype(np.complex128), _enums.DataType.COMPLEX128),
+            ("bfloat16", np.dtype(ml_dtypes.bfloat16), _enums.DataType.BFLOAT16),
+            ("float8e4m3fn", np.dtype(ml_dtypes.float8_e4m3fn), _enums.DataType.FLOAT8E4M3FN),
+            (
+                "float8e4m3fnuz",
+                np.dtype(ml_dtypes.float8_e4m3fnuz),
+                _enums.DataType.FLOAT8E4M3FNUZ,
+            ),
+            ("float8e5m2", np.dtype(ml_dtypes.float8_e5m2), _enums.DataType.FLOAT8E5M2),
+            (
+                "float8e5m2fnuz",
+                np.dtype(ml_dtypes.float8_e5m2fnuz),
+                _enums.DataType.FLOAT8E5M2FNUZ,
+            ),
+            ("uint4", np.dtype(ml_dtypes.uint4), _enums.DataType.UINT4),
+            ("int4", np.dtype(ml_dtypes.int4), _enums.DataType.INT4),
+            ("float4e2m1", np.dtype(ml_dtypes.float4_e2m1fn), _enums.DataType.FLOAT4E2M1),
+            (
+                "onnx_ref_bfloat16",
+                onnx._custom_element_types.bfloat16,
+                _enums.DataType.BFLOAT16,
+            ),
+            (
+                "onnx_ref_float8e4m3fn",
+                onnx._custom_element_types.float8e4m3fn,
+                _enums.DataType.FLOAT8E4M3FN,
+            ),
+            (
+                "onnx_ref_float8e4m3fnuz",
+                onnx._custom_element_types.float8e4m3fnuz,
+                _enums.DataType.FLOAT8E4M3FNUZ,
+            ),
+            (
+                "onnx_ref_float8e5m2",
+                onnx._custom_element_types.float8e5m2,
+                _enums.DataType.FLOAT8E5M2,
+            ),
+            (
+                "onnx_ref_float8e5m2fnuz",
+                onnx._custom_element_types.float8e5m2fnuz,
+                _enums.DataType.FLOAT8E5M2FNUZ,
+            ),
+            (
+                "onnx_ref_uint4",
+                onnx._custom_element_types.uint4,
+                _enums.DataType.UINT4,
+            ),
+            ("onnx_ref_int4", onnx._custom_element_types.int4, _enums.DataType.INT4),
+            (
+                "onnx_ref_float4e2m1",
+                onnx._custom_element_types.float4e2m1,
+                _enums.DataType.FLOAT4E2M1,
+            ),
+        ]
+    )
+    def test_from_numpy_takes_np_dtype_and_returns_data_type(
+        self, _: str, np_dtype: np.dtype, onnx_type: _enums.DataType
+    ):
+        self.assertEqual(_enums.DataType.from_numpy(np_dtype), onnx_type)
 
     def test_numpy_returns_np_dtype(self):
         self.assertEqual(_enums.DataType.DOUBLE.numpy(), np.dtype(np.float64))

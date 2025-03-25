@@ -74,6 +74,25 @@ class DataType(enum.IntEnum):
             TypeError: If the data type is not supported by ONNX.
         """
         if dtype not in _NP_TYPE_TO_DATA_TYPE:
+            # Special cases for handling custom dtypes defined in ONNX (as of onnx 1.18)
+            # Ref: https://github.com/onnx/onnx/blob/2d42b6a60a52e925e57c422593e88cc51890f58a/onnx/_custom_element_types.py
+            if hasattr(dtype, "names"):
+                if dtype.names == ("bfloat16",):
+                    return DataType.BFLOAT16
+                if dtype.names == ("e4m3fn",):
+                    return DataType.FLOAT8E4M3FN
+                if dtype.names == ("e4m3fnuz",):
+                    return DataType.FLOAT8E4M3FNUZ
+                if dtype.names == ("e5m2",):
+                    return DataType.FLOAT8E5M2
+                if dtype.names == ("e5m2fnuz",):
+                    return DataType.FLOAT8E5M2FNUZ
+                if dtype.names == ("uint4",):
+                    return DataType.UINT4
+                if dtype.names == ("int4",):
+                    return DataType.INT4
+                if dtype.names == ("float4e2m1",):
+                    return DataType.FLOAT4E2M1
             raise TypeError(f"Unsupported numpy data type: {dtype}")
         return cls(_NP_TYPE_TO_DATA_TYPE[dtype])
 
