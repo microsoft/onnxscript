@@ -92,13 +92,13 @@ class PassBase(abc.ABC):
         If True, the pass will return the same model object that was passed in.
         If False, the pass will return a new model object.
         """
-        return True
+        raise NotImplementedError
 
     @property
     @abc.abstractmethod
     def changes_input(self) -> bool:
         """Whether the pass modifies input model."""
-        return True
+        raise NotImplementedError
 
     @property
     def destructive(self) -> bool:
