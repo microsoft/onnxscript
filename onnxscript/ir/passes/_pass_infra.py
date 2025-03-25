@@ -69,7 +69,20 @@ class PassResult:
 
 
 class PassBase(abc.ABC):
-    """Base class for all passes."""
+    """Base class for all passes.
+
+
+    ``in_place`` and ``changes_input`` properties and what they mean:
+
+    +------------+------------------+----------------------------+
+    |            | changes_inputs   | not changes_inputs         |
+    +------------+------------------+----------------------------+
+    | in_place   | in place         | Side-effect-only pass      |
+    +------------+------------------+----------------------------+
+    | not        | destructive      | functional                 |
+    | in_place   |                  |                            |
+    +------------+------------------+----------------------------+
+    """
 
     @property
     @abc.abstractmethod
