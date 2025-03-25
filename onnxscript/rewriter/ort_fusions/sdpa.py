@@ -84,7 +84,7 @@ unmasked_post_div_sdpa_rule = SDPA.rule(
     "unmasked_post_div_sdpa", use_mask=False, pre_scale=False, use_mul=False
 )
 unmasked_post_mul_sdpa_rule = SDPA.rule(
-    "unmasked_post_div_sdpa", use_mask=False, pre_scale=False, use_mul=True
+    "unmasked_post_mul_sdpa", use_mask=False, pre_scale=False, use_mul=True
 )
 
 # Rules for SDPA with mask
@@ -98,7 +98,7 @@ masked_post_div_sdpa_rule = SDPA.rule(
     "masked_post_div_sdpa", use_mask=True, pre_scale=False, use_mul=False
 )
 masked_post_mul_sdpa_rule = SDPA.rule(
-    "masked_post_div_sdpa", use_mask=True, pre_scale=False, use_mul=True
+    "masked_post_mul_sdpa", use_mask=True, pre_scale=False, use_mul=True
 )
 
 sdpa_rules = pattern.RewriteRuleSet(
