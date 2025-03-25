@@ -81,25 +81,6 @@ class LlamaRuleSetsTest(unittest.TestCase):
                 ),
             ),
             (
-                "mul_by_one",
-                _make_model(
-                    onnx.helper.make_graph(
-                        [
-                            onnx.helper.make_node("Mul", ["X", "one"], ["Y"]),
-                        ],
-                        "name",
-                        [onnx.helper.make_tensor_value_info("X", FLOAT, [None])],
-                        [onnx.helper.make_tensor_value_info("Y", FLOAT, [None])],
-                        [
-                            onnx.numpy_helper.from_array(
-                                np.array([1], dtype=np.float32), name="one"
-                            )
-                        ],
-                    ),
-                    opset_imports=[onnx.helper.make_opsetid("", 18)],
-                ),
-            ),
-            (
                 "canceled_out_transposes",
                 _make_model(
                     onnx.helper.make_graph(
@@ -180,7 +161,7 @@ class LlamaRuleSetsTest(unittest.TestCase):
         ]
     )
     def test_llama_p0_rule_set_cast_cast(self, _: str, model: ir.Model):
-        rule_set = llama_rule_sets.llama_p0_rule_set()
+        rule_set = llama_rule_sets.cast_cast_rule
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
