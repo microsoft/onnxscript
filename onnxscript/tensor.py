@@ -6,10 +6,8 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import numpy as np
-import onnx
-from onnx import TensorProto
 
-from onnxscript import onnx_opset
+from onnxscript import ir, onnx_opset
 from onnxscript._internal import autocast
 
 
@@ -52,7 +50,7 @@ class Tensor:
 
     @property
     def onnx_dtype(self) -> int:
-        return onnx.helper.np_dtype_to_tensor_dtype(self.dtype)  # noqa: TID251
+        return ir.DataType.from_numpy(self.dtype)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.value!r})"
@@ -160,10 +158,10 @@ class Tensor:
 
     def __mod__(self, other):
         if self.onnx_dtype in {
-            TensorProto.FLOAT,
-            TensorProto.DOUBLE,
-            TensorProto.FLOAT16,
-            TensorProto.BFLOAT16,
+            ir.DataType.FLOAT,
+            ir.DataType.DOUBLE,
+            ir.DataType.FLOAT16,
+            ir.DataType.BFLOAT16,
         }:
             return self._opset.Mod(self, other, fmod=1)
         return self._opset.Mod(self, other)
