@@ -829,13 +829,10 @@ class FoldConstantsPass(ir.passes.PassBase):
 
         # TODO: handle optional inputs
         def get_constant_value(x: ir.Value) -> onnx.TensorProto | None:
-            value = _get_numpy_value(x)
-            if isinstance(value, np.ndarray) and value.size < 20:
-                try:
-                    return onnx.numpy_helper.from_array(value, x.name)
-                except ValueError:
-                    # This happens for bfloat16 and old versions of ONNX.
-                    return None
+            value = _get_numpy_value(x, size_limit=20)
+            if value is not None:
+                assert x.const_value is not None
+                return ir.serde.serialize_tensor(x.const_value)
             return None
 
         def get_type(value: ir.Value) -> onnx.TypeProto | None:
