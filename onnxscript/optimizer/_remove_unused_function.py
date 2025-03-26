@@ -25,7 +25,7 @@ def _clean_up_unused_functions(model: ir.Model, unused: set[ir.OperatorIdentifie
     logger.debug("Functions removed: %s", unused)
 
 
-class RemoveUnusedFunctionPass(ir.passes.PassBase):
+class RemoveUnusedFunctionPass(ir.passes.InPlacePass):
     def __init__(self):
         super().__init__()
         self.used: set[ir.OperatorIdentifier] | None = None

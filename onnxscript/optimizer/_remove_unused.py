@@ -82,7 +82,7 @@ def _process_function_or_graph(function_or_graph: ir.Function | ir.Graph) -> int
     return count
 
 
-class RemoveUnusedNodesPass(ir.passes.PassBase):
+class RemoveUnusedNodesPass(ir.passes.InPlacePass):
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         count = _process_function_or_graph(model.graph)
         graph_outputs = frozenset(model.graph.outputs)
