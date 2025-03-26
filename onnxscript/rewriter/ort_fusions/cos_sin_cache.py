@@ -96,10 +96,16 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
             _domain="ai.onnxruntime.fusion",
         )
 
-    def check(self, context, inv_freq, position_ids, freqs, extra_dims, **_):
+    def check(
+        self, context, inv_freq, position_ids, freqs, extra_dims, **_
+    ) -> pattern.MatchResult:
+        check_result = pattern.MatchResult()
         # TODO(rama): handle redundant reshape/expand
         if self._const_freqs:
-            return (freqs.const_value is not None) and _ir_utils.has_rank(freqs, 3)
+            if (freqs.const_value is None) or not _ir_utils.has_rank(freqs, 3):
+                return check_result.fail("freqs is not a constant or not 3D.")
+            else:
+                return check_result
         if (
             _ir_utils.has_rank(position_ids, 2) and _ir_utils.is_singleton_value(extra_dims, 1)
         ) or (
@@ -107,13 +113,15 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         ):
             pass
         else:
-            return False
+            return check_result.fail("position_ids are not 1D or 2D tensors.")
         if not _ir_utils.has_rank(inv_freq, 3):
-            return False
+            return check_result.fail("inv_freq is not 3D.")
         inv_freq_shape = inv_freq.shape
         if inv_freq.const_value is None:  # TODO: should this be inv_freq_shape?
-            return False
-        return inv_freq_shape[0] == 1 and inv_freq_shape[2] == 1
+            return check_result.fail("inv_freq is not a constant.")
+        if inv_freq_shape[0] != 1 or inv_freq_shape[2] != 1:
+            return check_result.fail("inv_freq is not of shape [1, ., 1].")
+        return check_result
 
     def rewrite(
         self, op, x, inv_freq, position_ids, interleaved, num_heads, freqs, dtype, **_

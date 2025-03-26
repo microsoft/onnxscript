@@ -546,8 +546,8 @@ class GenericPatternTest(unittest.TestCase):
             # replace by return [perm0[p] for p in perm1] ?
             return new_perm
 
-        def transpose_transpose_check(op, **_) -> bool:
-            return True
+        def transpose_transpose_check(op, **_) -> pattern.MatchResult:
+            return pattern.MatchResult()
 
         def transpose_transpose_apply_pattern(op, X, XT: ir.Value, Y, **_):
             perm0 = XT.producer().attributes.get("perm")

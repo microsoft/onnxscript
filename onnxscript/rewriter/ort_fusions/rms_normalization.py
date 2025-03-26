@@ -52,21 +52,22 @@ class RmsNormFusion(pattern.RewriteRuleClassBase):
             normalized = op.Cast(normalized, to=target_dtype)
         return op.Mul(scale, normalized)
 
-    def check(self, op, x, scale, epsilon, compute_dtype, target_dtype):
+    def check(self, op, x, scale, epsilon, compute_dtype, target_dtype) -> pattern.MatchResult:
         """Check if the pattern matches conditions for use of SimplifiedLayerNormalization op."""
+        check_result = pattern.MatchResult()
         # epsilon must be a scalar
         epsilon_value = _ir_utils.get_singleton_value(epsilon)
         if not isinstance(epsilon_value, float):  # TODO: support other types
-            return False
+            return check_result.fail("Epsilon is not a float value.")
         # input and output must be same dtype
         if x.dtype not in float_types:
-            return False
+            return check_result.fail("Input is not a float type.")
         if scale.dtype not in float_types:
-            return False
+            return check_result.fail("Scale is not a float type.")
         stash_dtype = compute_dtype.value if self._cast_input else x.dtype
         if stash_dtype not in fp_float_types:
-            return False
-        return True
+            return check_result.fail("Normalization precision is not a float or double type.")
+        return check_result
 
     def rewrite(self, op, x, scale, epsilon, compute_dtype, target_dtype):
         stash_dtype = compute_dtype.value if self._cast_input else x.dtype

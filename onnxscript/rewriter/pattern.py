@@ -1371,7 +1371,11 @@ class RewriteRule:
                 if var.name is not None:
                     if var.name not in match.bindings:
                         match.bindings[var.name] = None
-            if not self._condition_function(context, **match.bindings):
+            check_match_result = self._condition_function(context, **match.bindings)
+            if not check_match_result:
+                # If check function was provided, but it failed, return the reason for failure to the tracer.
+                if not isinstance(check_match_result, bool):
+                    match.fail(check_match_result.reason)
                 if tracer:
                     tracer.log(
                         self, graph_or_function, node, match, MatchStatus.CONDITION_FAILED
@@ -1449,8 +1453,8 @@ class RewriteRuleAsClass:
         raise NotImplementedError("Method 'rewrite' must be overwritten.")
 
     @classmethod
-    def check(cls, context, *_, **__) -> bool:
-        return True
+    def check(cls, context, *_, **__) -> MatchResult:
+        return MatchResult()
 
 
 def make_rewrite_rule_from_class(
@@ -1532,8 +1536,9 @@ class RewriteRuleClassBase:
         raise NotImplementedError("Method 'pattern' must be implemented by derived class.")
 
     def check(self, op, *args, **kwargs):
-        # Default check function that always returns True.
-        return True
+        # Default check function that returns a
+        # MatchResult object with success always set to True.
+        return MatchResult()
 
     def rewrite(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'rewrite' must be implemented by derived class.")
@@ -1826,7 +1831,10 @@ class MatchInfo:
         if self.status != MatchStatus.SUCCESS:
             reason = self.match_result.reason
             if reason:
-                print(f"Graph matching failed: {reason}")
+                if self.status == MatchStatus.CONDITION_FAILED:
+                    print(f"Graph matching failed due to failing check condition : {reason}")
+                else:
+                    print(f"Graph matching failed: {reason}")
             else:
                 print("Graph matching failed.")
             failure_node = self.match_result._failure_node

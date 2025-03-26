@@ -94,7 +94,8 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # key_transposed,
         # attention_reshaped,
         **_,
-    ):
+    ) -> pattern.MatchResult:
+        check_result = pattern.MatchResult()
         # bindings: dict[str, int] = {}
         # status = (
         #     _check_shape(bindings, query_mm_reshaped, ["B", "S", "H", "d_h"])
@@ -110,7 +111,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         #     return False
         # if bindings["H"] * bindings["d_h"] != bindings["H*d_h"]:
         #     return False
-        return True
+        return check_result
 
     def rewrite(
         self,

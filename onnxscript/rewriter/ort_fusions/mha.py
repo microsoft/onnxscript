@@ -163,29 +163,49 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         key_BSHDh,
         value_BSHDh,
         **_,
-    ):
+    ) -> pattern.MatchResult:
+        check_result = pattern.MatchResult()
         bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-            return not _check_shape(bindings, val, dims)
+            if not _check_shape(bindings, val, dims):
+                return check_result.fail(
+                    f"Shape mismatch: {val} does not match expected dimensions {dims}"
+                )
 
         if no_match(query_BSD, ["B", "S", "D"]):
-            return False
+            return check_result.fail(
+                f"Shape mismatch: {query_BSD} does not match expected dimensions ['B', 'S', 'D']"
+            )
         if no_match(key_BSD, ["B", "Skv", "D"]):
-            return False
+            return check_result.fail(
+                f"Shape mismatch: {key_BSD} does not match expected dimensions ['B', 'Skv', 'D']"
+            )
         if no_match(value_BSD, ["B", "Skv", "D"]):
-            return False
+            return check_result.fail(
+                f"Shape mismatch: {value_BSD} does not match expected dimensions ['B', 'Skv', 'D']"
+            )
 
         if no_match(past_key, ["B", "H", "Spast", "Dh"]):
-            return False
+            return check_result.fail(
+                f"Shape mismatch: {past_key} does not match expected dimensions ['B', 'H', 'Spast', 'Dh']"
+            )
         if no_match(past_value, ["B", "H", "Spast", "Dv"]):
-            return False
+            return check_result.fail(
+                f"Shape mismatch: {past_value} does not match expected dimensions ['B', 'H', 'Spast', 'Dv']"
+            )
         if no_match(query_BSHDh, ["B", "S", "H", "Dh"]):
-            return False
+            return check_result.fail(
+                f"Shape mismatch: {query_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']"
+            )
         if no_match(key_BSHDh, ["B", "S", "H", "Dh"]):
-            return False
+            return check_result.fail(
+                f"Shape mismatch: {key_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']"
+            )
         if no_match(value_BSHDh, ["B", "S", "H", "Dh"]):
-            return False
+            return check_result.fail(
+                f"Shape mismatch: {value_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']"
+            )
         # TODO: mask shape check: ideally, it should be (1 or B, 1 or H, S, St)
         # But this also, unforunately, depends on ORT version.
 
@@ -193,7 +213,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         # eg.: verify bindings["B"] * bindings["H"] == bindings["B*H"]:
         # and bindings["H"] * bindings["Dh"] == bindings["H*Dh"]:
         # or check Reshape's shape-input value
-        return True
+        return check_result
 
     def rewrite(
         self,
