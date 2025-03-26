@@ -36,7 +36,6 @@ ORT_PATTERN_REWRITE_RULES = [
 # TODO: There are some potential redundancies below. Can be targeted for optimization
 # once we have robust fusion.
 def _pre_optimize(model: ir.Model) -> ir.Model:
-    optimize(model)
     # TODO: Do we need this dependence on ONNX's partial-data-propagation? There are some
     # extra shape-propagation and partial-data-propagation rules in ONNX that are not yet
     # incorporated in our optimizer.
@@ -45,7 +44,7 @@ def _pre_optimize(model: ir.Model) -> ir.Model:
     return model
 
 
-def fuse_xformers(model: ir.Model) -> None:
+def fuse_xformers(model: ir.Model) -> ir.Model:
     model = _pre_optimize(model)
     fuse_rms_normalization(model)
     fuse_normalization(model)
@@ -58,8 +57,26 @@ def fuse_xformers(model: ir.Model) -> None:
     # Finally: inline any intermediate fusion functions introduced that were not
     # consumed by other fusions, and eliminate any remaining unused nodes.
     optimize(model)
+    return model
 
 
-def optimize_for_ort(model: ir.Model) -> None:
+def optimize_for_ort(model: ir.Model, config_name: str | None = None) -> ir.Model:
+    """
+    Optimize the model for ORT backend.
+
+    TODO: config_name is not used yet. It should be used to select the appropriate
+    optimization configuration (for an EP). Currently, a default implementation is used.
+
+    Args:
+        model: The model to optimize.
+        config_name: The name of the configuration to use for optimization.
+            Typically it identifies the Execution Provider (EP) to optimize for.
+            If None, the default configuration will be used.
+
+    Returns:
+        The optimized model.
+    """
+
     fuse_xformers(model)
     rewrite(model, ORT_PATTERN_REWRITE_RULES)
+    return model

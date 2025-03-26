@@ -17,7 +17,7 @@ class TestFuseXformers(unittest.TestCase):
         onnxscript.optimizer.optimize(model)
         inputs = test.get_ort_inputs()
         original_outputs = ort_run("original", model, inputs)
-        fuse_xformers(model)
+        model = fuse_xformers(model)
         new_outputs = ort_run("optimized", model, inputs)
         assert_allclose(new_outputs, original_outputs)
 
