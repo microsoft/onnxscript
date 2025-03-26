@@ -79,12 +79,16 @@ class PartialRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
         end1_value = _ir_utils.get_singleton_value(end1)
         start2_value = _ir_utils.get_singleton_value(start2)
         if not isinstance(end1_value, int) or not isinstance(start2_value, int):
-            return check_result.fail("end1 and start2 are not integers.")
+            return check_result.fail(
+                "The end1 value of first slice and start2 value of second slice are not integers."
+            )
         if end1_value != start2_value:
-            return check_result.fail("end1 and start2 are not equal.")
+            return check_result.fail(
+                "The end1 value of first slice and start2 value of second slice are not equal."
+            )
         rotary_embedding_attributes = x_part_1_rope.producer().attributes
         if "rotary_embedding_dim" in rotary_embedding_attributes:
-            return check_result.fail("rotary_embedding_dim is not a singleton value.")
+            return check_result.fail("rotary_embedding_dim attribute already specified.")
         if (
             "interleaved" in rotary_embedding_attributes
             and rotary_embedding_attributes["interleaved"].value != 0

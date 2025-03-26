@@ -113,7 +113,7 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         ):
             pass
         else:
-            return check_result.fail("position_ids are not 1D or 2D tensors.")
+            return check_result.fail("position_ids is not a 1D or 2D tensor.")
         if not _ir_utils.has_rank(inv_freq, 3):
             return check_result.fail("inv_freq is not 3D.")
         inv_freq_shape = inv_freq.shape

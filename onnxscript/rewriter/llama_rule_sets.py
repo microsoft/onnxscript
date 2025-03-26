@@ -207,7 +207,7 @@ class TransposeIdentity(orp.RewriteRuleAsClass):
     def check(cls, context, x: ir.Value, perm: ir.Attr) -> orp.MatchResult:
         check_result = orp.MatchResult()
         if isinstance(perm, ir.RefAttr):
-            return check_result.fail("Permutation is not a reference attr.")
+            return check_result.fail("Permutation is a reference attribute.")
         if perm.type == ir.AttributeType.INTS:
             if perm.value == list(range(len(perm.value))):
                 return check_result
@@ -231,7 +231,7 @@ class TransposeTranspose(orp.RewriteRuleAsClass):
     def check(cls, context, x: ir.Value, perm1: ir.Attr, perm2: ir.Attr) -> orp.MatchResult:
         check_result = orp.MatchResult()
         if isinstance(perm1, ir.RefAttr) or isinstance(perm2, ir.RefAttr):
-            return check_result.fail("Permutation values are not reference attributes.")
+            return check_result.fail("Permutation is a reference attribute.")
         return check_result
 
     @classmethod

@@ -46,7 +46,9 @@ class SDPA(pattern.RewriteRuleClassBase):
 
         # We need to know the hidden size to check the scaling factors.
         if query is None or query.shape is None or len(query.shape) < 2:
-            return check_result.fail("Query shape is not known or has less than 2 dimensions.")
+            return check_result.fail(
+                "Query shape is not known or has less than 2 dimensions.", query
+            )
         hidden_size = query.shape[-1]
         if not isinstance(hidden_size, int):
             return check_result.fail("Hidden size is not an integer.")
@@ -59,17 +61,20 @@ class SDPA(pattern.RewriteRuleClassBase):
             sqrt_scaling_factor = math.sqrt(expected_scaling_factor)
             if not _ir_utils.is_singleton_value(query_scale, sqrt_scaling_factor, rtol=1e-3):
                 return check_result.fail(
-                    "Query scale is not a scalar or does not match the expected scaling factor."
+                    "Query scale is not a scalar or does not match the expected scaling factor.",
+                    query_scale,
                 )
             if not _ir_utils.is_singleton_value(key_scale, sqrt_scaling_factor, rtol=1e-3):
                 return check_result.fail(
-                    "Key scale is not a scalar or does not match the expected scaling factor."
+                    "Key scale is not a scalar or does not match the expected scaling factor.",
+                    key_scale,
                 )
         else:
             # Check if qk_scale is a scalar == expected_scaling_factor)
             if not _ir_utils.is_singleton_value(qk_scale, expected_scaling_factor, rtol=1e-3):
                 return check_result.fail(
-                    "QK scale is not a scalar or does not match the expected scaling factor."
+                    "QK scale is not a scalar or does not match the expected scaling factor.",
+                    qk_scale,
                 )
 
         # check ranks/shapes
