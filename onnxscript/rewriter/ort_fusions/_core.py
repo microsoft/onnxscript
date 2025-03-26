@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import onnxscript.ir as ir
 from onnxscript.ir.passes.common import shape_inference
-from onnxscript.optimizer import optimize, remove_unused_nodes
+from onnxscript.optimizer import optimize
 from onnxscript.rewriter import rewrite
 from onnxscript.rewriter.ort_fusions import (
     fused_matmul_rule_sets,
@@ -55,7 +55,9 @@ def fuse_xformers(model: ir.Model) -> None:
     fuse_sdpa(model)
     fuse_mha(model)
     fuse_gelu(model)
-    remove_unused_nodes(model)
+    # Finally: inline any intermediate fusion functions introduced that were not
+    # consumed by other fusions, and eliminate any remaining unused nodes.
+    optimize(model)
 
 
 def optimize_for_ort(model: ir.Model) -> None:
