@@ -1387,7 +1387,8 @@ class RewriteRule:
                             check_match_result.reason,
                             check_match_result._failure_nodes_and_values,
                         )
-                    match.fail(check_match_result.reason)
+                    else:
+                        match.fail(check_match_result.reason)
                 if tracer:
                     tracer.log(
                         self, graph_or_function, node, match, MatchStatus.CONDITION_FAILED
