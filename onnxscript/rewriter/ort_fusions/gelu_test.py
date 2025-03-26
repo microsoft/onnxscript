@@ -28,8 +28,8 @@ class GeluFusionTest(unittest.TestCase):
             t4 = op.Mul(_sqrt_two_over_pi, t3)
             t5 = op.Tanh(t4)
             t6 = op.Add(t5, 1)
-            t7 = op.Mul(x, t6)
-            result = op.Mul(0.5, t7)
+            t7 = op.Mul(0.5, t6)
+            result = op.Mul(x, t7)
             return result
 
         model_proto = gelu_model.to_model_proto(
