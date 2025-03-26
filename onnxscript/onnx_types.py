@@ -7,7 +7,6 @@ import abc
 from typing import ClassVar, Optional, Tuple, Union
 
 import onnx
-import onnx.helper
 
 import onnxscript.ir
 
@@ -99,7 +98,7 @@ class TensorType(abc.ABC):
             shape = cls.shape  # example: "FLOAT[10,20]"
         else:
             shape = [cls.shape]  # example: "FLOAT[10]"
-        return onnx.helper.make_tensor_type_proto(cls.dtype, shape)
+        return onnx.helper.make_tensor_type_proto(cls.dtype, shape)  # noqa: TID251
 
     @classmethod
     def to_string(cls) -> str:

@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-
+# ruff: noqa: TID251
 
 import os
 import textwrap

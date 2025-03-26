@@ -6,8 +6,7 @@ A one-layer SmolLM model test case, with inputs: input_ids, attention_mask, and 
 This is an onnxscript version of the model.
 """
 
-import numpy
-from onnx.helper import make_tensor
+import numpy as np
 
 import onnxscript.ir as ir
 from onnxscript import script
@@ -73,44 +72,44 @@ def make_model(
         unsqueeze_6 = opset18.Unsqueeze(input2, 1)
         to_copy_1 = opset18.Cast(unsqueeze_6, to=1)
         view_1 = opset18.Constant(
-            value=make_tensor(
-                "value",
-                1,
-                dims=[1, 32, 1],
-                vals=[
-                    1.0,
-                    0.7498942017555237,
-                    0.5623413324356079,
-                    0.4216965138912201,
-                    0.3162277638912201,
-                    0.23713736236095428,
-                    0.17782793939113617,
-                    0.1333521455526352,
-                    0.10000000149011612,
-                    0.07498941570520401,
-                    0.05623412877321243,
-                    0.04216964915394783,
-                    0.03162277862429619,
-                    0.0237137358635664,
-                    0.017782794311642647,
-                    0.01333521492779255,
-                    0.009999999776482582,
-                    0.007498942315578461,
-                    0.005623413249850273,
-                    0.0042169648222625256,
-                    0.003162277862429619,
-                    0.0023713738191872835,
-                    0.0017782794311642647,
-                    0.0013335214462131262,
-                    0.0010000000474974513,
-                    0.0007498941849917173,
-                    0.000562341301701963,
-                    0.00042169648804701865,
-                    0.0003162277862429619,
-                    0.0002371373848291114,
-                    0.00017782794020604342,
-                    0.0001333521504420787,
-                ],
+            value=ir.tensor(
+                np.array(
+                    [
+                        1.0,
+                        0.7498942017555237,
+                        0.5623413324356079,
+                        0.4216965138912201,
+                        0.3162277638912201,
+                        0.23713736236095428,
+                        0.17782793939113617,
+                        0.1333521455526352,
+                        0.10000000149011612,
+                        0.07498941570520401,
+                        0.05623412877321243,
+                        0.04216964915394783,
+                        0.03162277862429619,
+                        0.0237137358635664,
+                        0.017782794311642647,
+                        0.01333521492779255,
+                        0.009999999776482582,
+                        0.007498942315578461,
+                        0.005623413249850273,
+                        0.0042169648222625256,
+                        0.003162277862429619,
+                        0.0023713738191872835,
+                        0.0017782794311642647,
+                        0.0013335214462131262,
+                        0.0010000000474974513,
+                        0.0007498941849917173,
+                        0.000562341301701963,
+                        0.00042169648804701865,
+                        0.0003162277862429619,
+                        0.0002371373848291114,
+                        0.00017782794020604342,
+                        0.0001333521504420787,
+                    ],
+                    dtype=np.float32,
+                ).reshape([1, 32, 1])
             )
         )
         view_2 = opset18.Reshape(to_copy_1, [1, 1, 10], allowzero=0)
@@ -207,29 +206,29 @@ def make_model(
 
 
 def make_model_with_random_weights():
-    input_layernorm_weight_0 = numpy.random.rand(2048).astype(numpy.float32)
-    post_attention_layernorm_weight0 = numpy.random.rand(2048).astype(numpy.float32)
-    norm_weight = numpy.random.rand(2048).astype(numpy.float32)
-    head_weight = numpy.random.rand(49152, 2048).astype(numpy.float32)
-    self_attn_q_proj_weight0 = numpy.random.rand(2048, 2048).astype(numpy.float32)
-    self_attn_k_proj_weight0 = numpy.random.rand(2048, 2048).astype(numpy.float32)
-    self_attn_v_proj_weight0 = numpy.random.rand(2048, 2048).astype(numpy.float32)
-    self_attn_o_proj_weight0 = numpy.random.rand(2048, 2048).astype(numpy.float32)
-    mlp_gate_proj_weight0 = numpy.random.rand(8192, 2048).astype(numpy.float32)
-    mlp_up_proj_weight0 = numpy.random.rand(8192, 2048).astype(numpy.float32)
-    mlp_down_proj_weight0 = numpy.random.rand(2048, 8192).astype(numpy.float32)
+    input_layernorm_weight_0 = np.random.rand(2048).astype(np.float32)
+    post_attention_layernorm_weight0 = np.random.rand(2048).astype(np.float32)
+    norm_weight = np.random.rand(2048).astype(np.float32)
+    head_weight = np.random.rand(49152, 2048).astype(np.float32)
+    self_attn_q_proj_weight0 = np.random.rand(2048, 2048).astype(np.float32)
+    self_attn_k_proj_weight0 = np.random.rand(2048, 2048).astype(np.float32)
+    self_attn_v_proj_weight0 = np.random.rand(2048, 2048).astype(np.float32)
+    self_attn_o_proj_weight0 = np.random.rand(2048, 2048).astype(np.float32)
+    mlp_gate_proj_weight0 = np.random.rand(8192, 2048).astype(np.float32)
+    mlp_up_proj_weight0 = np.random.rand(8192, 2048).astype(np.float32)
+    mlp_down_proj_weight0 = np.random.rand(2048, 8192).astype(np.float32)
     model = make_model(
-        input_layernorm_weight_0,
-        post_attention_layernorm_weight0,
-        norm_weight,
-        head_weight,
-        self_attn_q_proj_weight0,
-        self_attn_k_proj_weight0,
-        self_attn_v_proj_weight0,
-        self_attn_o_proj_weight0,
-        mlp_gate_proj_weight0,
-        mlp_up_proj_weight0,
-        mlp_down_proj_weight0,
+        ir.tensor(input_layernorm_weight_0),
+        ir.tensor(post_attention_layernorm_weight0),
+        ir.tensor(norm_weight),
+        ir.tensor(head_weight),
+        ir.tensor(self_attn_q_proj_weight0),
+        ir.tensor(self_attn_k_proj_weight0),
+        ir.tensor(self_attn_v_proj_weight0),
+        ir.tensor(self_attn_o_proj_weight0),
+        ir.tensor(mlp_gate_proj_weight0),
+        ir.tensor(mlp_up_proj_weight0),
+        ir.tensor(mlp_down_proj_weight0),
     )
     return model
 
@@ -245,9 +244,9 @@ class _SmollmTest1:
     def get_ort_inputs(self):
         if not hasattr(self, "_ort_inputs"):
             inputs = {
-                "input0": numpy.random.randint(0, 49152, (1, 10)).astype(numpy.int64),
-                "input1": numpy.ones((1, 10), dtype=numpy.float32),
-                "input2": numpy.arange(10, dtype=numpy.int64).reshape(1, 10),
+                "input0": np.random.randint(0, 49152, (1, 10)).astype(np.int64),
+                "input1": np.ones((1, 10), dtype=np.float32),
+                "input2": np.arange(10, dtype=np.int64).reshape(1, 10),
             }
             self._ort_inputs = inputs
         return self._ort_inputs

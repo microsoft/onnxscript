@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-import onnx.numpy_helper
-
 from onnxscript import ir
 from onnxscript.rewriter import _ir_utils as ir_utils
 from onnxscript.rewriter import pattern as orp
@@ -51,10 +49,10 @@ class CastCast(orp.RewriteRuleAsClass):
     """Replaces ``Cast(Cast(X, ...), to=to)`` by ``Cast(X, to=to)``."""
 
     _allowed_tensor_types: ClassVar = {
-        onnx.TensorProto.FLOAT,
-        onnx.TensorProto.FLOAT16,
-        onnx.TensorProto.BFLOAT16,
-        onnx.TensorProto.DOUBLE,
+        ir.DataType.FLOAT,
+        ir.DataType.FLOAT16,
+        ir.DataType.BFLOAT16,
+        ir.DataType.DOUBLE,
     }
 
     @classmethod
@@ -64,7 +62,7 @@ class CastCast(orp.RewriteRuleAsClass):
     @classmethod
     def check(cls, context, x: ir.Value, to: ir.Attr, to_ignored: ir.Attr) -> bool:
         return (
-            to.value in cls._allowed_tensor_types
+            to.as_int() in cls._allowed_tensor_types
             and to_ignored.value in cls._allowed_tensor_types
         )
 

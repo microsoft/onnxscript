@@ -142,7 +142,7 @@ class StaticValueInfo:
         if isinstance(self.value, np.ndarray):
             return self.value
         if isinstance(self.value, onnx.TensorProto):
-            return onnx.numpy_helper.to_array(self.value)
+            return onnx.numpy_helper.to_array(self.value)  # noqa: TID251
         return None
 
     def def_node(self) -> Node | None:
