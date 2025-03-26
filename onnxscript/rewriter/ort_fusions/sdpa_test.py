@@ -9,7 +9,7 @@ import math
 import unittest
 
 import numpy
-from parameterized import parameterized
+import parameterized
 
 import onnxscript.ir as ir
 import onnxscript.optimizer
@@ -26,6 +26,52 @@ SCALE_FACTOR = math.sqrt(H)
 MUL_SCALE_FACTOR = 1.0 / SCALE_FACTOR
 SQRT_SCALE_FACTOR = math.sqrt(SCALE_FACTOR)
 SQRT_MUL_SCALE_FACTOR = math.sqrt(MUL_SCALE_FACTOR)
+
+
+@script()
+def _unmasked_pre_div_sdpa_script(query, key, value):
+    key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
+    divisor = op.Constant(value_float=SQRT_SCALE_FACTOR)
+    scaled_query = op.Div(query, divisor)
+    scaled_key = op.Div(key_transposed, divisor)
+    attn_score = op.MatMul(scaled_query, scaled_key)
+    attn_weight = op.Softmax(attn_score, axis=-1)
+    attn_output = op.MatMul(attn_weight, value)
+    return attn_output
+
+
+@script()
+def _unmasked_pre_mul_sdpa_script(query, key, value):
+    key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
+    multiplier = op.Constant(value_float=SQRT_MUL_SCALE_FACTOR)
+    scaled_query = op.Mul(query, multiplier)
+    scaled_key = op.Mul(key_transposed, multiplier)
+    attn_score = op.MatMul(scaled_query, scaled_key)
+    attn_weight = op.Softmax(attn_score, axis=-1)
+    attn_output = op.MatMul(attn_weight, value)
+    return attn_output
+
+
+@script()
+def _unmasked_post_div_sdpa_script(query, key, value):
+    key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
+    divisor = op.Constant(value_float=SCALE_FACTOR)
+    attn_score = op.MatMul(query, key_transposed)
+    scaled_attn_score = op.Div(attn_score, divisor)
+    attn_weight = op.Softmax(scaled_attn_score, axis=-1)
+    attn_output = op.MatMul(attn_weight, value)
+    return attn_output
+
+
+@script()
+def _unmasked_post_mul_sdpa_script(query, key, value):
+    key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
+    multiplier = op.Constant(value_float=MUL_SCALE_FACTOR)
+    attn_score = op.MatMul(query, key_transposed)
+    scaled_attn_score = op.Mul(attn_score, multiplier)
+    attn_weight = op.Softmax(scaled_attn_score, axis=-1)
+    attn_output = op.MatMul(attn_weight, value)
+    return attn_output
 
 
 @script()
@@ -105,8 +151,12 @@ class SDPATestCase:
 
 
 class TestSDPAFusion(unittest.TestCase):
-    @parameterized.expand(
+    @parameterized.parameterized.expand(
         [
+            ("unmasked_pre_div", _unmasked_pre_div_sdpa_script),
+            ("unmasked_pre_mul", _unmasked_pre_mul_sdpa_script),
+            ("unmasked_post_div", _unmasked_post_div_sdpa_script),
+            ("unmasked_post_mul", _unmasked_post_mul_sdpa_script),
             ("pre_div", _masked_pre_div_sdpa_script),
             ("pre_mul", _masked_pre_mul_sdpa_script),
             ("post_div", _masked_post_div_sdpa_script),
