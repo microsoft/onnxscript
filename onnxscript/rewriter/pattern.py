@@ -1382,9 +1382,12 @@ class RewriteRule:
             if not check_match_result:
                 # If check function was provided, but it failed, return the reason for failure to the tracer.
                 if isinstance(check_match_result, MatchResult):
-                    match.fail(
-                        check_match_result.reason, check_match_result._failure_nodes_and_values
-                    )
+                    if check_match_result._failure_nodes_and_values:
+                        match.fail(
+                            check_match_result.reason,
+                            check_match_result._failure_nodes_and_values,
+                        )
+                    match.fail(check_match_result.reason)
                 if tracer:
                     tracer.log(
                         self, graph_or_function, node, match, MatchStatus.CONDITION_FAILED
