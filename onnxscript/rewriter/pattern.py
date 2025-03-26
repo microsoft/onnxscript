@@ -1428,6 +1428,7 @@ class RewriteRule:
                 self.remove_nodes,
                 self.graph_pre_visitor,
                 self.graph_post_visitor,
+                self.as_function,
             )
 
         return [replace_pattern(p) for p in self._target_pattern.commute()]
@@ -1511,6 +1512,7 @@ class RewriteRuleClassBase:
         instance = cls(*args, **kwargs)
         setup = instance.setup if hasattr(instance, "setup") else None
         cleanup = instance.cleanup if hasattr(instance, "cleanup") else None
+        as_function = instance.as_function if hasattr(instance, "as_function") else False
         return RewriteRule(
             instance.pattern,
             instance.rewrite,
@@ -1519,6 +1521,7 @@ class RewriteRuleClassBase:
             remove_nodes=instance.remove_nodes,
             graph_pre_visitor=setup,
             graph_post_visitor=cleanup,
+            as_function=as_function,
         )
 
     def __init__(self, name: str | None = None, remove_nodes: bool = True) -> None:
@@ -1542,16 +1545,15 @@ def _copy_for_function(
     """Utility function to extract a subgraph out as a function."""
     value_map: dict[ir.Value, ir.Value] = {}
     function_inputs: list[ir.Value] = []
+    constant_nodes: list[ir.Node] = []
     for input in inputs:
         # Create a function input (formal-parameter value) to represent this value:
-        if input is None:
-            raise NotImplementedError("None inputs not supported.")
         new_value = ir.Value(
             name=input.name,
             shape=input.shape,
             type=input.type,
             doc_string=input.doc_string,
-        )
+        ) if input else ir.Value()  # dummy parameter for a None input
         value_map[input] = new_value
         function_inputs.append(new_value)
 
@@ -1559,6 +1561,14 @@ def _copy_for_function(
         if value is None:
             return None
         if value not in value_map:
+            const_value = value.const_value
+            if isinstance(const_value, ir.Tensor):
+                # create a Constant node to represent the value
+                value_attr = ir.AttrTensor("value", const_value)
+                const_node = ir.Node("", "Constant", [], [value_attr])
+                constant_nodes.append(const_node)
+                value_map[value] = result = const_node.outputs[0]
+                return result
             raise ValueError(f"Value {value} not found in value_map.")
         return value_map[value]
 
@@ -1598,7 +1608,7 @@ def _copy_for_function(
 
     function_nodes = [copy_node(node) for node in nodes]
     function_outputs = [copy_value(v) for v in outputs]
-    return (function_inputs, function_nodes, function_outputs)
+    return (function_inputs, constant_nodes + function_nodes, function_outputs)
 
 
 def _get_new_overload(model: ir.Model, domain: str, name: str) -> str:

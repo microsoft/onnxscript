@@ -71,7 +71,7 @@ class RmsNormFusion(pattern.RewriteRuleClassBase):
     def rewrite(self, op, x, scale, epsilon, compute_dtype, target_dtype):
         stash_dtype = compute_dtype.value if self._cast_input else x.dtype
         # Note: ORT's SimplifiedLayerNormalization was placed in onnx domain by mistake.
-        # No need to use com.microsoft domain here.
+        # No need to use com.microsoft domain here; but this is a custom op in ORT.
         return op.SimplifiedLayerNormalization(
             x,
             scale,

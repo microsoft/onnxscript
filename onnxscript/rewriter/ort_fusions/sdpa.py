@@ -11,6 +11,7 @@ from onnxscript.rewriter import _ir_utils, pattern
 class SDPA(pattern.RewriteRuleClassBase):
     def __init__(self, name: str, *, use_mask: bool, pre_scale: bool, use_mul: bool):
         super().__init__(name=name)
+        self.as_function = True
         self._use_mask = use_mask
         self._pre_scale = pre_scale
         self._use_mul = use_mul
