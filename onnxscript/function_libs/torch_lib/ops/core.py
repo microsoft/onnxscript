@@ -7617,12 +7617,6 @@ def aten_scatter_reduce(
         # It is -inf if the reduction is max, inf for min, 0 for add, 1 for mul.
         # mean is not supported.
         dtype = src.dtype or self.dtype
-        post_process_after_cast_like = False
-        if dtype is None:
-            dtype = ir.DataType.FLOAT
-            cast_like = True
-        else:
-            cast_like = False
         # dtype should be not None.
         if onnx_reduce == "max":
             if dtype in {
@@ -7637,7 +7631,6 @@ def aten_scatter_reduce(
                 value = ir.tensor([np.iinfo(dtype.numpy()).min], dtype=dtype)
             reduction_init = "min"
         elif onnx_reduce == "min":
-            post_process_after_cast_like = cast_like
             if dtype in {
                 ir.DataType.FLOAT16,
                 ir.DataType.FLOAT,
@@ -7661,16 +7654,6 @@ def aten_scatter_reduce(
             reduction_init = "none"
 
         cst = op.ConstantOfShape(op.Shape(src), value=value)
-        if cast_like:
-            cst = op.CastLike(cst, self)
-            if post_process_after_cast_like:
-                # torch.tensor(1e20, dtype=torch.float32).to(torch.int32) -> 
-                # -2147483648 and we need 2147483647. These extra operators
-                # compute that value. It could be a constant but this
-                # works for int16, int32, int64.
-                # This is not added where one of the input type (src or self)
-                # is known. Constant folding should fold them anyway.
-                cst = op.Max(cst, op.Neg(op.Add(cst, op.CastLike(1, cst))))
         self = op.ScatterElements(self, index, cst, axis=dim, reduction=reduction_init)
 
     result = op.ScatterElements(self, index, src, axis=dim, reduction=onnx_reduce)
