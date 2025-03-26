@@ -797,7 +797,7 @@ def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape 
     return ir.Shape([merge_dims(dim1, dim2) for dim1, dim2 in zip(shape1, shape2)])
 
 
-class FoldConstantsPass(ir.passes.PassBase):
+class FoldConstantsPass(ir.passes.InPlacePass):
     def __init__(
         self,
         *,

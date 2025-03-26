@@ -10,7 +10,7 @@ from onnxscript.rewriter import _ir_utils, pattern
 
 class SDPA(pattern.RewriteRuleClassBase):
     def __init__(self, name: str, *, use_mask: bool, pre_scale: bool, use_mul: bool):
-        super().__init__(name=name)
+        super().__init__(name=name, as_function=True)
         self._use_mask = use_mask
         self._pre_scale = pre_scale
         self._use_mul = use_mul
@@ -70,7 +70,10 @@ class SDPA(pattern.RewriteRuleClassBase):
         return True
 
     def rewrite(self, op, query, key_transposed, value, mask, **_):
-        return op.SDPA(query, key_transposed, value, mask, _domain="ai.onnxruntime.fusion")
+        if self._use_mask:
+            return op.SDPA(query, key_transposed, value, mask, _domain="ai.onnxruntime.fusion")
+        else:
+            return op.SDPA(query, key_transposed, value, _domain="ai.onnxruntime.fusion")
 
 
 # Rules for SDPA without mask

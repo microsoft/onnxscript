@@ -29,7 +29,7 @@ SQRT_MUL_SCALE_FACTOR = math.sqrt(MUL_SCALE_FACTOR)
 
 
 @script()
-def _unmasked_pre_div_sdpa_script(query, key, value, mask):
+def _unmasked_pre_div_sdpa_script(query, key, value):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
     divisor = op.Constant(value_float=SQRT_SCALE_FACTOR)
     scaled_query = op.Div(query, divisor)
@@ -41,7 +41,7 @@ def _unmasked_pre_div_sdpa_script(query, key, value, mask):
 
 
 @script()
-def _unmasked_pre_mul_sdpa_script(query, key, value, mask):
+def _unmasked_pre_mul_sdpa_script(query, key, value):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
     multiplier = op.Constant(value_float=SQRT_MUL_SCALE_FACTOR)
     scaled_query = op.Mul(query, multiplier)
@@ -53,7 +53,7 @@ def _unmasked_pre_mul_sdpa_script(query, key, value, mask):
 
 
 @script()
-def _unmasked_post_div_sdpa_script(query, key, value, mask):
+def _unmasked_post_div_sdpa_script(query, key, value):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
     divisor = op.Constant(value_float=SCALE_FACTOR)
     attn_score = op.MatMul(query, key_transposed)
@@ -64,7 +64,7 @@ def _unmasked_post_div_sdpa_script(query, key, value, mask):
 
 
 @script()
-def _unmasked_post_mul_sdpa_script(query, key, value, mask):
+def _unmasked_post_mul_sdpa_script(query, key, value):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
     multiplier = op.Constant(value_float=MUL_SCALE_FACTOR)
     attn_score = op.MatMul(query, key_transposed)
@@ -180,3 +180,7 @@ class TestSDPAFusion(unittest.TestCase):
 
         # new_outputs = ort_run("optimized", model, inputs)
         # assert_allclose(new_outputs, original_outputs)
+
+
+if __name__ == "__main__":
+    unittest.main()
