@@ -1510,23 +1510,23 @@ class RewriteRuleClassBase:
     @classmethod
     def rule(cls, *args, **kwargs):
         instance = cls(*args, **kwargs)
-        setup = instance.setup if hasattr(instance, "setup") else None
-        cleanup = instance.cleanup if hasattr(instance, "cleanup") else None
-        as_function = instance.as_function if hasattr(instance, "as_function") else False
         return RewriteRule(
             instance.pattern,
             instance.rewrite,
             instance.check,
             name=instance.name,
             remove_nodes=instance.remove_nodes,
-            graph_pre_visitor=setup,
-            graph_post_visitor=cleanup,
-            as_function=as_function,
+            graph_pre_visitor=instance.setup,
+            graph_post_visitor=instance.cleanup,
+            as_function=instance.as_function,
         )
 
-    def __init__(self, name: str | None = None, remove_nodes: bool = True) -> None:
+    def __init__(
+        self, name: str | None = None, remove_nodes: bool = True, as_function: bool = False
+    ) -> None:
         self.name = name or self.__class__.__name__
         self.remove_nodes = remove_nodes
+        self.as_function = as_function
 
     def pattern(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'pattern' must be implemented by derived class.")
@@ -1537,6 +1537,16 @@ class RewriteRuleClassBase:
 
     def rewrite(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'rewrite' must be implemented by derived class.")
+
+    def setup(self):
+        # Optional setup function that can be overridden by derived classes. Used to do
+        # per model/function initialization.
+        pass
+
+    def cleanup(self):
+        # Optional cleanup function that can be overridden by derived classes. Used to do
+        # per model/function cleanup.
+        pass
 
 
 def _copy_for_function(
@@ -1556,9 +1566,10 @@ def _copy_for_function(
                 doc_string=input.doc_string,
             )
             if input
-            else ir.Value()
-        )  # dummy parameter for a None input
-        value_map[input] = new_value
+            else ir.Value()  # dummy parameter for a None input
+        )
+        if input is not None:
+            value_map[input] = new_value
         function_inputs.append(new_value)
 
     def copy_value(value: ir.Value | None) -> ir.Value | None:
