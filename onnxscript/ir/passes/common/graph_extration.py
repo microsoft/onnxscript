@@ -58,13 +58,8 @@ def _find_subgraph_bounded_by_values(
     return all_nodes, initializers
 
 
-class ExtractGraphPass(ir.passes.PassBase):
+class ExtractGraphPass(ir.passes.InPlacePass):
     """This pass extracts a subgraph from the given graph."""
-
-    # This pass does not modify the model in place
-    in_place = False
-    # This pass destroys the input model
-    destructive = True
 
     def __init__(self, input_names: Collection[str], output_names: Collection[str]) -> None:
         """Extracts sub-model from an ONNX model.
@@ -102,27 +97,19 @@ class ExtractGraphPass(ir.passes.PassBase):
             )
         ir.convenience.replace_all_uses_with(inputs, new_inputs)
 
-        new_model = ir.Model(
-            ir.Graph(
-                new_inputs,
-                outputs,
-                nodes=extracted_nodes,
-                initializers=initializers,
-                doc_string=model.graph.doc_string,
-                opset_imports=model.graph.opset_imports,
-                name=model.graph.name,
-                metadata_props=model.graph.metadata_props,
-            ),
-            ir_version=model.ir_version,
-            producer_name=model.producer_name,
-            producer_version=model.producer_version,
-            domain=model.domain,
-            model_version=model.model_version,
-            doc_string=model.doc_string,
-            functions=tuple(model.functions.values()),
-            meta_data_props=model.metadata_props,
+        # Replace the model graph
+        model.graph = ir.Graph(
+            new_inputs,
+            outputs,
+            nodes=extracted_nodes,
+            initializers=initializers,
+            doc_string=model.graph.doc_string,
+            opset_imports=model.graph.opset_imports,
+            name=model.graph.name,
+            metadata_props=model.graph.metadata_props,
         )
-        return ir.passes.PassResult(new_model, modified=True)
+
+        return ir.passes.PassResult(model, modified=True)
 
     def requires(self, model: ir.Model) -> None:
         # All inputs and outputs can be found in the model
