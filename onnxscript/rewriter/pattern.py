@@ -1566,7 +1566,7 @@ def _copy_for_function(
             return None
         if value not in value_map:
             const_value = value.const_value
-            if isinstance(const_value, ir.Tensor):
+            if isinstance(const_value, (ir.Tensor, ir.TensorProtoTensor)):
                 # create a Constant node to represent the value
                 value_attr = ir.AttrTensor("value", const_value)
                 const_node = ir.Node("", "Constant", [], [value_attr])
