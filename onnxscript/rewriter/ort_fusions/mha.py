@@ -163,15 +163,12 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         key_BSHDh,
         value_BSHDh,
         **_,
-    ) -> pattern.MatchResult:
+    ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
         bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-            if not _check_shape(bindings, val, dims):
-                return check_result.fail(
-                    f"Shape mismatch: {val} does not match expected dimensions {dims}"
-                )
+            return not _check_shape(bindings, val, dims)
 
         if no_match(query_BSD, ["B", "S", "D"]):
             return check_result.fail(

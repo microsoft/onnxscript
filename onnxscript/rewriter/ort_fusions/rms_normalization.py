@@ -52,7 +52,7 @@ class RmsNormFusion(pattern.RewriteRuleClassBase):
             normalized = op.Cast(normalized, to=target_dtype)
         return op.Mul(scale, normalized)
 
-    def check(self, op, x, scale, epsilon, compute_dtype, target_dtype) -> pattern.MatchResult:
+    def check(self, op, x, scale, epsilon, compute_dtype, target_dtype) -> pattern.MatchResult:  # type: ignore[name-defined]
         """Check if the pattern matches conditions for use of SimplifiedLayerNormalization op."""
         check_result = pattern.MatchResult()
         # epsilon must be a scalar

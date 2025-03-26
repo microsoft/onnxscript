@@ -30,7 +30,7 @@ class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
     def pattern(self, op, x, cos, sin, start1, end1, start2, end2):
         return x * cos + _rotate_half_pattern(op, x, start1, end1, start2, end2) * sin
 
-    def check(self, op, x, start1, end1, start2, end2, **_) -> pattern.MatchResult:
+    def check(self, op, x, start1, end1, start2, end2, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
         # x needs to be a 4D tensor with known last dimension size (== head_size) and known second dimension (num_heads)
         if x is None or x.shape is None or len(x.shape) != 4:
@@ -74,7 +74,7 @@ class PartialRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
         )
         return op.Concat(x_part_1_rope, x_part_2, axis=-1)
 
-    def check(self, op, x, end1, start2, x_part_1_rope, **_) -> pattern.MatchResult:
+    def check(self, op, x, end1, start2, x_part_1_rope, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
         end1_value = _ir_utils.get_singleton_value(end1)
         start2_value = _ir_utils.get_singleton_value(start2)

@@ -94,7 +94,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # key_transposed,
         # attention_reshaped,
         **_,
-    ) -> pattern.MatchResult:
+    ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
         # bindings: dict[str, int] = {}
         # status = (

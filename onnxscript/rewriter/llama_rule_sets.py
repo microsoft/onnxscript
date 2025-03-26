@@ -144,7 +144,7 @@ class SlicesSplit(orp.RewriteRuleAsClass):
         return op.Slice(x, begin0, end0, axes0), op.Slice(x, begin1, end1, axes1)
 
     @classmethod
-    def check(cls, context, x, begin0, end0, axes0, begin1, end1, axes1) -> orp:
+    def check(cls, context, x, begin0, end0, axes0, begin1, end1, axes1) -> orp.MatchResult:
         check_result = orp.MatchResult()
         if (
             axes0.const_value is None

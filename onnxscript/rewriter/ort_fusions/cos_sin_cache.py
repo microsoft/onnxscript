@@ -98,7 +98,7 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
 
     def check(
         self, context, inv_freq, position_ids, freqs, extra_dims, **_
-    ) -> pattern.MatchResult:
+    ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
         # TODO(rama): handle redundant reshape/expand
         if self._const_freqs:
