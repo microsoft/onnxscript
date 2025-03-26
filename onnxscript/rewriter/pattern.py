@@ -1548,12 +1548,16 @@ def _copy_for_function(
     constant_nodes: list[ir.Node] = []
     for input in inputs:
         # Create a function input (formal-parameter value) to represent this value:
-        new_value = ir.Value(
-            name=input.name,
-            shape=input.shape,
-            type=input.type,
-            doc_string=input.doc_string,
-        ) if input else ir.Value()  # dummy parameter for a None input
+        new_value = (
+            ir.Value(
+                name=input.name,
+                shape=input.shape,
+                type=input.type,
+                doc_string=input.doc_string,
+            )
+            if input
+            else ir.Value()
+        )  # dummy parameter for a None input
         value_map[input] = new_value
         function_inputs.append(new_value)
 

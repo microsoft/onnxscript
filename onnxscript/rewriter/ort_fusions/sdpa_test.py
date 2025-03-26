@@ -181,5 +181,6 @@ class TestSDPAFusion(unittest.TestCase):
         # new_outputs = ort_run("optimized", model, inputs)
         # assert_allclose(new_outputs, original_outputs)
 
+
 if __name__ == "__main__":
     unittest.main()
