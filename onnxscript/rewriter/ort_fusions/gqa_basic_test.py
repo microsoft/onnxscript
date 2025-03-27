@@ -10,9 +10,12 @@ import onnx
 import onnxruntime as ort
 import torch
 
+import onnxscript
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose
+
+msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
 # This is a basic test that verifies that a proposed expanded computation is equivalent to
 # ORT's GQA (for the specific configuration considered).
@@ -47,35 +50,34 @@ class GQA1(unittest.TestCase):
             "value": value,
         }
 
-    def fused_model(self):
-        D = self.hidden_size
-        Dkv = self.kv_hidden_size
-        Dh = self.headsize
+    def fused_model_script(self):
         H = self.num_heads
         Hkv = self.kv_num_heads
-        return onnx.parser.parse_model(
-            f"""
-                <ir_version: 7, opset_import: [ "" : 18, "com.microsoft" : 1 ] >
-                GQA (float[B, S, {D}] query, float[B, S, {Dkv}] key, float[B, S, {Dkv}] value)
-                => (float[B, S, {D}] attn,
-                    float[B, {Hkv}, S, {Dh}] past_key,
-                    float[B, {Hkv}, S, {Dh}] past_value)
-                {{
-                    # Generate seqlens_k and total_seqlen inputs for GQA:
-                    # In this test case, all batch elements have same sequence length.
 
-                    total_seqlen = Shape <start=1, end=2> (query)
-                    total_seqlen_int32 = Cast <to=6> (total_seqlen)
-                    one = Constant <value = int32{{1}}> ()
-                    total_seqlen_int32_minus_1 = Sub (total_seqlen_int32, one)
-                    batchsize = Shape <start=0, end=1> (query)
-                    seqlens_k = Tile (total_seqlen_int32_minus_1, batchsize)
+        @script()
+        def gqa(query, key, value):
+            # Generate seqlens_k and total_seqlen inputs for GQA:
+            # In this test case, all batch elements have same sequence length.
 
-                    attn, past_key, past_value = com.microsoft.GroupQueryAttention <num_heads = {H}, kv_num_heads = {Hkv}>
-                        (query, key, value, , , seqlens_k, total_seqlen_int32)
-                }}
-            """
-        )
+            total_seqlen = op.Shape(query, start=1, end=2)
+            total_seqlen_int32 = op.Cast(total_seqlen, to=6)
+            total_seqlen_int32_minus_1 = op.Sub(total_seqlen_int32, 1)
+            batchsize = op.Shape(query, start=0, end=1)
+            seqlens_k = op.Tile(total_seqlen_int32_minus_1, batchsize)
+            attn, past_key, past_value = msft_op.GroupQueryAttention(
+                query,
+                key,
+                value,
+                None,
+                None,
+                seqlens_k,
+                total_seqlen_int32,
+                num_heads=H,
+                kv_num_heads=Hkv,
+            )
+            return attn, past_key, past_value
+
+        return gqa
 
     def expanded_model_script(self):
         scale_factor = math.sqrt(math.sqrt(self.headsize))
@@ -143,12 +145,12 @@ class GQA1(unittest.TestCase):
 
         return gqa
 
-    def expanded_model(self):
+    def to_proto(self, model_script):
         D = self.hidden_size
         Dkv = self.kv_hidden_size
         Dh = self.headsize
         Hkv = self.kv_num_heads
-        return self.expanded_model_script().to_model_proto(
+        return model_script.to_model_proto(
             input_types=(FLOAT["B", "S", D], FLOAT["B", "S", Dkv], FLOAT["B", "S", Dkv]),
             output_types=(
                 FLOAT["B", "S", D],
@@ -160,13 +162,13 @@ class GQA1(unittest.TestCase):
     def test_equivalence(self):
         inputs = self.random_inputs()
 
-        fused_model = self.fused_model()
+        fused_model = self.to_proto(self.fused_model_script())  # self.fused_model()
         session = ort.InferenceSession(
             fused_model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
         outputs1 = session.run(None, inputs)
 
-        expanded_model = self.expanded_model()
+        expanded_model = self.to_proto(self.expanded_model_script())  # self.expanded_model()
         session = ort.InferenceSession(
             expanded_model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
@@ -175,11 +177,6 @@ class GQA1(unittest.TestCase):
         self.assertEqual(len(outputs1), len(outputs2))
         assert_allclose(outputs1, outputs2)
 
-
-# past_seqlen = 0
-# total_seqlen = past_seqlen + S
-# seqlens_k = np.array([total_seqlen-1], dtype=np.int32)
-# total_seqlen_input = np.array(total_seqlen, dtype=np.int32)
 
 if __name__ == "__main__":
     unittest.main()
