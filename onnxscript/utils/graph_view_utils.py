@@ -40,23 +40,14 @@ def find_subgraph_inputs(nodes):
     inputs = set()
     initializers = set()
     for node in nodes:
-        print(f'{type(node)} {type(nodes)}')
-        print(f'{node}')
         for ninput in node.inputs:
             if ninput in node.graph.inputs:
                 inputs.add(ninput)
             elif any(ninput is init for init in node.graph.initializers):
-                print("adding graph initializater")
                 initializers.add(ninput)
             elif ninput.producer() == None:
-                print(f"adding none initializer: {ninput}")
                 inputs.add(ninput)
             elif ninput.producer() not in nodes:
-                print(f"adding not in nodes: {ninput}")
-                if ninput.producer() in node.graph._nodes:
-                    print(f'\tIn Graph node list')
-                print(f"\t {ninput.producer()}")
-                print(f"\t {ninput.producer().metadata_props}")
                 inputs.add(ninput)
 
     return inputs, initializers

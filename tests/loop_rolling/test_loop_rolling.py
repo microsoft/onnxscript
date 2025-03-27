@@ -73,11 +73,7 @@ change_layers_to_function_calls = pattern.RewriteRule(
 
 print("Find and Replace layers with single layer op.")
 
-print(LoopBody.function.identifier())
-
 mypipeline = onnx.load(args.filename)
-
-
 
 print('applying rewrite rule')
 
@@ -121,8 +117,6 @@ change_function_calls_to_loop = pattern.RewriteRule(
     loop_replace_pattern
 )
 
-#print(loop_replace_pattern.get_replacement())
-#exit()
 class AllTracer(pattern.MatchingTracer):
     def __init__(self):
         super().__init__()
@@ -136,25 +130,14 @@ class AllTracer(pattern.MatchingTracer):
         status: pattern.MatchStatus,
     ) -> None:
         this_match = pattern.MatchInfo(match_result, node, container, status)
-        #this_score = this_match.score()
-        #if this_score == 0:
-        #    return
         best_matches = self._best_matches_map[rule]
-        #if best_matches:
-        #    if this_score < best_matches[0].score():
-        #        return
-        #    if this_score > best_matches[0].score():
-        #        best_matches.clear()
         best_matches.append(this_match)
 
 
 tracer = pattern.MatchingTracer()
 rewrite_set = pattern.RewriteRuleSet([change_function_calls_to_loop])
-#model_ir = ir.serde.deserialize_model(mypipeline_l)
-#pdb.set_trace()
 count = rewrite_set.apply_to_model(mypipeline_model, verbose=None)
 print(f"Count {count}")
-print(tracer.best_matches_map)
 
 # tracer.report()
 # for rule in tracer.best_matches_map:
@@ -169,7 +152,6 @@ print(tracer.best_matches_map)
 #    pattern_rewrite_rules = [change_function_calls_to_loop]
 #)
 
-print(mypipeline_model.opset_imports)
 #mypipeline_model.opset_imports.pop('')
 mypipeline_model.opset_imports.pop('loop')
 mypipeline_model._functions = {}
@@ -177,9 +159,9 @@ mypipeline_model._functions = {}
 
 
 # scanning for empty domains
-for node in ir.traversal.RecursiveGraphIterator(mypipeline_model.graph):
-    if node.domain == '':
-        print(node)
+# for node in ir.traversal.RecursiveGraphIterator(mypipeline_model.graph):
+#     if node.domain == '':
+#         print(node)
 
 
 #mypipeline_model.opset_imports['main'] = 13

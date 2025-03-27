@@ -24,7 +24,6 @@ def direct_convert_ir_graph_to_pattern(graph):
         vmap[input] = ValuePattern(input.name)
 
     for init in graph.initializers:
-        print(init)
         vmap[init] = ValuePattern(init.name)
 
 
@@ -101,7 +100,6 @@ class LoopBodyTemplate:
         inputs  = [vdisconnect(copy.copy(x)) for x in self._ir_graph.inputs]
         outputs = [vdisconnect(copy.copy(x)) for x in self._ir_graph.outputs]
 
-        print(type(self.function.domain))
         node = ir.Node(domain=self.function.domain,
                        version=0,
                        op_type=self.function.name,
@@ -160,11 +158,9 @@ class LoopBodyTemplate:
 
     def build_function_match_pattern(self, graph):
         graph.sort()
-        print(self.function.name)
         nodes  = find_nodes_of_optype(graph, self.function.name)
         nodes.insert(0,graph.node('iteration_ext'))
         nodes.insert(0,graph.node('condition_ext'))
-        print(f'found {len(nodes)}')
 
         ir_model = ir.Model(bGraphView('inlined_pipe_pattern', nodes), ir_version=10)
 
@@ -282,7 +278,6 @@ def normalize_io_for_loop_rolling(graph, LoopBody):
         LoopBody.function.inputs[swap[1]] = a
         LoopBody.signature[swap[0]] = LoopBodyInputType.ACTIVATION
         activations+=1
-        #print(f"Added Activation: {swap[0]}")
 
     # Next Inputs according to how they are produced.
     # Indexable inputs will have different constant or none producers
@@ -296,11 +291,9 @@ def normalize_io_for_loop_rolling(graph, LoopBody):
             inputs.append(cinput)
         if same(inputs):
             # Constant with Respect to Loop
-            #print(f"Added Constant: {index}")
             LoopBody.signature[index] = LoopBodyInputType.CONSTANT
         else:
             # Must be Indexed
-            #print(f"Added Parameter: {index}")
             LoopBody.signature[index] = LoopBodyInputType.PARAMETER
 
 
@@ -392,53 +385,31 @@ class ReplacementPatternGraph(pattern.ReplacementPatternFunction):
 
 
     def get_replacement(self, match: pattern.MatchResult) -> pattern.ReplacementSubgraph | None:
-        print(f"in get replacement!!!!")
-        print(f"match pattern full: {match.outputs}")
 
         context = pattern.RewriterContext()
         # match.bindings is dictionary of value_name (str) in replacement subgraph pattern (i.e. ir_graph -> IR Value in actual graph)
         vvmap = {} # Dictionary mapping values in replacement subgraph pattern -> values in the replacement subgraph
 
-        #print(f'self._graph: {self._graph}')
-        #print(f'len inputs: {self._graph.inputs}')
-        #print(f'match bindings: {match.bindings}')
         for value in self._graph.inputs:
             if value.name in match.bindings:
-                #print(f'***bound input value name: {value.name}')
                 vvmap[value] = match.bindings[value.name]
             else:
-                #print(f'***unbound input value name: {value.name}')
-                #print(f'***unbound value : {value}')
                 vvmap[value] = value
 
         for node in self._graph._nodes:
             ninputs = []
-            print(node)
             for ninput in node.inputs:
-                #print(f'{ninput}')
                 ninputs.append(vvmap[ninput])
 
 
             coutput = context.__getattr__(node.op_type)(*ninputs, **node.attributes, _outputs=len(node.outputs), _domain=node.domain, _version=node.version)
-            print(f"coutput type: {type(coutput)}")
-            print(f"coutput type: {coutput}")
             if not isinstance(coutput,Iterable):
-                print("Not an Iterable")
                 coutput = [coutput]
 
             for i, cout in enumerate(coutput):
-                print(f"listing outputs: {node.outputs[cout.index()]}")
-                print(f"cout {cout.index()} {cout} ")
                 vvmap[node.outputs[cout.index()]] = cout
 
-        for x in vvmap:
-            print(x)
-        print(f"context nodes")
-        for node in context.nodes:
-            print(node)
         new_outputs = [vvmap[x] for x in self._graph.outputs]
-        print(f'new_outputs={new_outputs}')
-        print(f'_graph.outputs={self._graph.outputs}')
         return pattern.ReplacementSubgraph(
             match, new_outputs, context.nodes, context.initializers, context.used_opsets
         )
@@ -514,15 +485,12 @@ def build_loop_replace_pattern(graph, LoopBody):
     loop_inputs.append(cond.outputs[0])
 
     graph_inputs  = []
-    print(LoopBody.signature)
     for i, LoopInputType in enumerate(LoopBody.signature):
 
         if LoopInputType == LoopBodyInputType.PARAMETER:
             # Build Concat Node
             concat_inputs  = []
             for node in nodes:
-                print(f"node.optype: {node}")
-                print(f"node inputs:{i} {node.inputs}")
                 nvalue = vdisconnect(copy.copy(node.inputs[i]))
                 graph_inputs.append(nvalue)
                 concat_inputs.append(nvalue)
@@ -566,7 +534,6 @@ def build_loop_replace_pattern(graph, LoopBody):
 
     graph = ir.Graph(name='loop_replace',nodes=graph_nodes, inputs=graph_inputs, outputs=graph_outputs)
 
-    print('sorting graph')
     graph.sort()
 
     model = ir.serde.serialize_model(ir.Model(graph, ir_version=8))
