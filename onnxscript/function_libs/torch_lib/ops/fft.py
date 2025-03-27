@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional, Sequence
+from typing import Optional, Sequence
 
 from onnxscript import INT64
 from onnxscript.function_libs.torch_lib.registration import torch_op
@@ -25,7 +25,7 @@ def _fftn_onnx_normalization(
 ) -> TFloat:
     """
     """
-    # TODO: Make more efficient - there should be a faster way to recalculate everything
+    # TODO: Make more efficient
     # Norm values defined in https://github.com/pytorch/pytorch/blob/758d78790164bfb041555daed380de96e06f78a3/aten/src/ATen/native/SpectralOps.cpp#L117-L131
     # Norm modes: https://github.com/pytorch/pytorch/blob/758d78790164bfb041555daed380de96e06f78a3/aten/src/ATen/native/SpectralOpsUtils.h#L15-L19
     # Modes:
@@ -45,7 +45,7 @@ def _fftn_onnx_inverse_normalization(
 ) -> TFloat:
     """
     """
-    # TODO: Make more efficient - there should be a faster way to recalculate everything
+    # TODO: Make more efficient
     # Norm values defined in https://github.com/pytorch/pytorch/blob/758d78790164bfb041555daed380de96e06f78a3/aten/src/ATen/native/SpectralOps.cpp#L117-L131
     # Norm modes: https://github.com/pytorch/pytorch/blob/758d78790164bfb041555daed380de96e06f78a3/aten/src/ATen/native/SpectralOpsUtils.h#L15-L19
     # Modes:
@@ -71,7 +71,7 @@ def aten__fft_c2c(
 
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
-    assert(dim[2] in dim == 2, "Unexpected input size")
+    assert(dim[-1] in dim == 2, "Unexpected input size")
 
     signal = self
     self_rank = len(self.shape)
@@ -105,7 +105,7 @@ def aten__fft_c2r(
 
     Complex to real inverse FFT.
     """
-    assert(dim[2] in dim == 2, "Unexpected input size")
+    assert(dim[-1] in dim == 2, "Unexpected input size")
 
     signal = self
     self_rank = len(self.shape)
