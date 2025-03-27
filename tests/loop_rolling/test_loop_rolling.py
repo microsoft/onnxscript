@@ -12,13 +12,7 @@ import onnxruntime as onnxrt
 
 import pdb
 
-from onnxscript.utils.pattern_builder import build_layer_pipeline_pattern
-from onnxscript.utils.pattern_builder import direct_convert_ir_graph_to_pattern
-from onnxscript.utils.pattern_builder import convert_graph_to_function_call_pattern
-from onnxscript.utils.pattern_builder import build_loop_body
 from onnxscript.utils.pattern_builder import build_loop_replace_pattern
-#from pattern_builder import find_parameter_input_indexes
-from onnxscript.utils.pattern_builder import connect_loop_constants
 from onnxscript.utils.pattern_builder import normalize_io_for_loop_rolling
 from onnxscript.utils.pattern_builder import LoopBodyTemplate
 

@@ -1,12 +1,9 @@
-import ast
-import astor
 import copy
 
 import numpy as np
 import onnx
 
 import pdb
-from typing import Callable
 
 from onnxscript import ir, script, INT64, BOOL
 from onnxscript.rewriter import pattern, rewrite
@@ -18,99 +15,6 @@ from collections.abc import Iterable
 from onnxscript.utils.graph_view_utils import bGraphView
 
 
-def bAstModule(body=[]):
-    return ast.Module(body=body)
-
-def bAstArguments(posonlyargs=[], args=[], vararg=None,
-                  kwonlyargs=None, kw_defaults=None, kwarg=None,
-                  defaults=[]):
-    return ast.arguments(posonlyargs, args, vararg,
-                         kwonlyargs, kw_defaults, kwarg,
-                         defaults)
-
-def bAstFunctionDef(name = '', args=bAstArguments(), body=[],
-                    decorator_list=[], returns=None, type_comment='',
-                    type_params=[]):
-    f_def = ast.FunctionDef(name, args, body, decorator_list,
-                           returns, type_comment, type_params=type_params)
-    return f_def
-
-def bAstArg(value):
-    if isinstance(value, ir.Value):
-        return ast.arg(arg=value.name)
-    else:
-        return ast.arg(arg=value)
-
-def bAstName(value):
-    if isinstance(value, ir.Value):
-        return ast.Name(id=value.name, ctx=ast.Load())
-    else:
-        return ast.Name(id=value, ctx=ast.Load())
-
-def bAstList(values, bfunc):
-    return [bfunc(x) for x in values]
-
-def bAstArgList(values):
-    return bAstList(values,bAstArg)
-
-def bAstNameList(values):
-    return bAstList(values,bAstName)
-
-
-def bAstOpAttr(node, opAttr='op'):
-    return ast.Attribute(value = ast.Name(id=opAttr, ctx=ast.Load()),
-                         attr  = node.op_type,
-                         ctx   = ast.Load())
-
-def bAstCall(func, args, keywords=[]):
-    return ast.Call(func=func, args=args, keywords=keywords)
-
-def bAstAssign(node, opAttr='op'):
-    keywords = []
-    for attribute in node.attributes:
-        print(attribute)
-        keywords.append(ast.keyword(attribute, ast.Constant(0)))
-    return ast.Assign(targets = bAstNameList(node.outputs),
-                      value   = bAstCall(bAstOpAttr(node, opAttr), bAstNameList(node.inputs), keywords=keywords))
-
-
-# def bAstTensorProto(tensor):
-#     attr0 = ast.Attribute(value=ast.Name(id='onnx',ctx=ast.Load()),
-#                           attr = 'helper',
-#                           ctx  = ast.Load())
-#     attr1 = ast.Attribute(value=attr1,
-#                           attr = 'make_tensor',
-#                           ctx  = ast.Load())
-#     call = bAstCall(func = attr1, args =  , key
-
-
-#const_value = onnx.helper.make_tensor("tensor", onnx.TensorProto.INT64, (3,), [3, 384, 384])
-
-def bAstReturn(value):
-    if isinstance(value, ir.Value):
-        value = bAstName(value)
-
-    return ast.Return(value=value)
-
-def bAstModule():
-    return ast.Module(body=[])
-
-def bIrValueList(names):
-    return [ir.Value(name=name) for name in names]
-
-def build_pattern(tree, name):
-    code = 'from onnxscript import script, opset18, FLOAT, BOOL\n'
-    code += 'import onnx\n'
-    code += 'from typing import Tuple\n'
-    code += astor.to_source(tree)
-    code += '\nfunc = ' + name
-    #print(code)
-    scope = {}
-    exec(code, scope)
-    return scope['func']
-
-
-import pdb
 def direct_convert_ir_graph_to_pattern(graph):
 
 
@@ -159,32 +63,6 @@ def direct_convert_ir_graph_to_pattern(graph):
         poutputs.append(vmap[output])
 
     return GraphPattern(inputs=pinputs, outputs=poutputs, nodes=builder.nodes())
-
-
-
-
-# def convert_graph_to_pattern(graph):
-
-#     #Build Function Definition
-#     f_def = bAstFunctionDef(name=graph.name)
-#     #print(f_def)
-#     # Add Arguments
-#     f_def.args.args.append(ast.arg(arg='op'))
-#     f_def.args.args.extend(bAstArgList(graph.inputs))
-
-#     # Build Body
-#     for node in ir.traversal.RecursiveGraphIterator(graph):
-#         f_def.body.append(bAstAssign(node))
-
-#     # Add Return Statement
-#     if len(graph.outputs) == 1:
-#         f_def.body.append(bAstReturn(graph.outputs[0]))
-#     else:
-#         print("only one output supported for now")
-#         return None
-
-#     return build_pattern(f_def, graph.name)
-
 
 from enum import Enum
 
@@ -319,21 +197,6 @@ class LoopBodyTemplate:
         # The output signature is the same as the input signature but without the iteration input
         return self.signature[1:]
 
-
-
-# class LoopBodyBuilderInfo:
-#     def __init__(self, nodes):
-#         self._nodes = nodes
-#         self._input_types = [UNDEFINED] * len(self._nodes.inputs())
-
-#     def _validate_nodes_
-
-
-#     def size(self):
-#         return len(self._input_types)
-
-#     def set_type(self, index, input_type):
-#         self._input_types[index] = input_type
 
 def same(input_list):
     return len(set(input_list)) == 1
@@ -510,157 +373,9 @@ def normalize_io_for_loop_rolling(graph, LoopBody):
         noutput = ir.Value(name=f'cond_out_{i}', type=ir.TensorType(ir.DataType.BOOL))
         prepend_output_to_node(node,noutput)
 
-
-    # Add External Constants to Drive These
-    # M_value = ir.Attr(name='value', type=ir.AttributeType.TENSOR, value=ir.Tensor(np.array([number_of_layers])))
-    # M = ir.Node('', 'Constant', inputs=[], outputs=[loop_node.inputs[0]], attributes=[M_value], graph=model_graph)
-
-    # cond_value = ir.Attr(name='value', type=ir.AttributeType.TENSOR, value=ir.Tensor(np.array([True])))
-    # cond = ir.Node('', 'Constant', inputs=[], outputs=[loop_node.inputs[1]],attributes=[cond_value], graph=model_graph)
-
-    # model_graph.insert_before(model_graph[0], [cond])
-    # model_graph.insert_before(model_graph[0], [M])
-
-    # Add Gather Nodes
-    # for index,LoopInputType in enumerate(LoopBody.signature):
-#         if LoopInputType == LoopBodyInputType.PARAMETER:
-#             # Update the Shape
-
-
-# gvo = copy.copy(indexed_input)
-#         gvo.name = gvo.name + '_gather_out'
-#         for node in indexed_input.consumers():
-#             for i,inp in enumerate(node.inputs):
-#                 if indexed_input is inp:
-#                     node.replace_input_with(i, gvo)
-#         graph.append(ir.Node(domain='',
-#                     op_type='Gather',
-#                     inputs = [nv, viter],
-#                     outputs = [gvo],
-#                     num_outputs = 1,
-#                     graph = graph
-#                     ))
     graph.sort()
     return graph
 
-
-
-# def find_parameter_input_indexes(graph, layername):
-
-#     nodes = find_nodes_of_optype(graph, layername)
-
-#     if len(nodes) == 0:
-#         raise Exception("Did not find node with name {layername}")
-
-#     indexes = []
-#     for i in range(len(nodes[0].inputs)):
-#         value = nodes[0].inputs[i]
-#         print(f'node input[{i}] {value} {value.producer()}')
-#         if value.producer() == None: # is an initializer/weight value (unless an input)
-#             print(f"appending {value} at index {i}")
-#             indexes.append(i)
-#         elif value.producer().op_type == 'Constant':
-#             print("found constant optype")
-#             same_value = True
-#             for node in nodes:
-#                 if node.inputs[i] is not value:
-#                     same_value = False
-#             if not same_value:
-#                 print(f"appending constant {value} at index {i}")
-#                 indexes.append(i)
-
-#     return indexes
-
-
-
-def build_loop_body(graph, number_of_layers, parameter_indexes = []):
-
-    # for i,inp in enumerate(graph.inputs):
-    #     print(f"graph input: {i} {inp}")
-
-    # print(f'parameter indexes: {parameter_indexes}')
-
-
-    # viter = ir.Value(name='iteration', shape=ir.Shape([1]), type=ir.TensorType(ir.DataType.INT64))
-    # vcond_in = ir.Value(name='cond', shape=ir.Shape([1]), type=ir.TensorType(ir.DataType.BOOL))
-
-    # for index in parameter_indexes:
-    #     indexed_input = graph.inputs[index]
-
-    #     nv = copy.copy(indexed_input)
-    #     nv.shape = ir.Shape((number_of_layers, *nv.shape.dims))
-    #     nv.name = nv.name + '_array_in'
-    #     graph.inputs[index] = nv
-
-    #     nvo = copy.copy(indexed_input)
-    #     nvo.shape = ir.Shape((nv.shape.dims))
-    #     nvo.name = nvo.name + '_array_out'
-    #     graph.outputs.append(nvo)
-
-    #     graph.append(ir.Node(domain='', op_type='Identity',
-    #                  inputs = [nv],
-    #                  outputs = [nvo],
-    #                  num_outputs =1))
-
-    # for index in
-    #     gvo = copy.copy(indexed_input)
-    #     gvo.name = gvo.name + '_gather_out'
-    #     for node in indexed_input.consumers():
-    #         for i,inp in enumerate(node.inputs):
-    #             if indexed_input is inp:
-    #                 node.replace_input_with(i, gvo)
-    #     graph.append(ir.Node(domain='',
-    #                 op_type='Gather',
-    #                 inputs = [nv, viter],
-    #                 outputs = [gvo],
-    #                 num_outputs = 1,
-    #                 graph = graph
-    #                 ))
-
-        # print(f'indexed input: {indexed_input} {gvo.producer}')
-        # print(f'usages: {gvo.uses()}')
-        # print(f'const_value: {gvo.const_value}')
-        # print(f'type: {gvo.type}')
-        # print(f'meta: {gvo.meta}')
-        # print(f'initializers: {graph.initializers}')
-        #exit(1)
-        #new_values.append(nv)
-
-
-
-    graph.inputs.insert(0,vcond_in)
-    graph.inputs.insert(0,viter)
-
-
-    vcond_out   = ir.Value(name='cond_out', type=ir.TensorType(ir.DataType.BOOL))
-    vcond_ident = ir.Node(domain='', op_type='Identity',
-                          inputs = [vcond_in],
-                          outputs = [vcond_out],
-                          num_outputs =1,
-                          graph = graph)
-    graph.append(vcond_ident)
-
-    #ovalue = graph.outputs[0]
-    #graph.outputs[0] = (ovalue, vcond_out)
-
-    graph.outputs.insert(0,vcond_out)
-    #print(graph)
-    print(f"*** graph.outputs = {graph.outputs}")
-    # for i in range(len(indexed_values)):
-    #     graph.append(ir.Node(domain='',
-    #                 op_type='Gather',
-    #                 inputs = [new_values[i], viter],
-    #                 outputs = [indexed_values[i]],
-    #                 num_outputs = 1,
-    #                 graph = graph
-    #                 ))
-
-    graph.sort()
-    #print(indexed_values)
-    #print(graph.inputs)
-    #print(graph)
-
-    return graph
 
 import copy
 
@@ -745,7 +460,6 @@ def convert_graph_to_function_call_pattern(graph):
 def find_nodes_of_optype(graph, layername):
     nodes = []
     for node in ir.traversal.RecursiveGraphIterator(graph):
-        #print(f'node op_type: {node.op_type} {layername}')
         if node.op_type == layername:
             nodes.append(node)
     return nodes
@@ -762,21 +476,6 @@ def build_layer_pipeline_pattern(graph, layername):
     pattern  = direct_convert_ir_graph_to_pattern(ir_model.graph)
 
     return (pattern, nodes)
-
-def connect_loop_constants(model_graph, layer_nodes):
-    number_of_layers = len(layer_nodes)
-
-    loop_node = find_nodes_of_optype(model_graph,'Loop')[0]
-
-
-    #r.TensorType(ir.DataType.INT64), const_value=ir.Tensor(np.array([number_of_layers])))
-    M_value = ir.Attr(name='value', type=ir.AttributeType.TENSOR, value=ir.Tensor(np.array([number_of_layers])))
-    M = ir.Node('', 'Constant', inputs=[], outputs=[loop_node.inputs[0]], attributes=[M_value], graph=model_graph)
-    cond_value = ir.Attr(name='value', type=ir.AttributeType.TENSOR, value=ir.Tensor(np.array([True])))
-    cond = ir.Node('', 'Constant', inputs=[], outputs=[loop_node.inputs[1]],attributes=[cond_value], graph=model_graph)
-    model_graph.insert_before(model_graph[0], [cond])
-    model_graph.insert_before(model_graph[0], [M])
-    return model_graph
 
 def build_constant_from_tensor(name, tensor):
     value_attribute = ir.Attr(name='value', type=ir.AttributeType.TENSOR, value=tensor)
@@ -842,14 +541,6 @@ def build_loop_replace_pattern(graph, LoopBody):
             constant_input = nodes[0].inputs[i]
             constant_node  = constant_input.producer()
             constant_value  = constant_node.attributes['value'].value.numpy()
-            # n_constant_input = ir.Value(name = 'n_'+constant_input.name,
-            #                             shape = constant_input.shape,
-            #                             type = constant_input.type)
-            # n_constant_node = ir.Node('', 'Constant',
-            #                           inputs =[],
-            #                           outputs=[n_constant_input],
-            #                           attributes=[constant_value_attr],
-            #                           version=13)
             n_constant_node = build_constant_from_tensor(constant_input.name+"_const_val", ir.Tensor(constant_value))
             graph_nodes.append(n_constant_node)
             loop_inputs.append(n_constant_node.outputs[0])
@@ -882,13 +573,3 @@ def build_loop_replace_pattern(graph, LoopBody):
     onnx.save(model, 'replacementgraph.onnx')
 
     return ReplacementPatternGraph(graph)
-
-
-
-
-
-
-
-
-
-
