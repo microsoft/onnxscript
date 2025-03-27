@@ -1382,13 +1382,10 @@ class RewriteRule:
             if not check_match_result:
                 # If check function was provided, but it failed, return the reason for failure to the tracer.
                 if isinstance(check_match_result, MatchResult):
-                    if check_match_result._failure_nodes_and_values:
-                        match.fail(
-                            check_match_result.reason,
-                            check_match_result._failure_nodes_and_values,
-                        )
-                    else:
-                        match.fail(check_match_result.reason)
+                    match.fail(
+                        check_match_result.reason,
+                        check_match_result._failure_nodes_and_values,
+                    )
                 if tracer:
                     tracer.log(
                         self, graph_or_function, node, match, MatchStatus.CONDITION_FAILED
@@ -1852,18 +1849,9 @@ class MatchInfo:
                 print("Graph matching failed.")
             failure_nodes_and_values = self.match_result._failure_nodes_and_values
             print("Failure at or around nodes/values:")
-
             if failure_nodes_and_values:
-                if isinstance(failure_nodes_and_values, list):
-                    for failure_cause in failure_nodes_and_values:
-                        if isinstance(failure_cause, ir.Node):
-                            failure_cause.display()
-                        elif isinstance(failure_cause, ir.Value):
-                            print(failure_cause)
-                elif isinstance(failure_nodes_and_values, ir.Node):
-                    failure_nodes_and_values.display()
-                elif isinstance(failure_nodes_and_values, ir.Value):
-                    print(failure_nodes_and_values)
+                for failure_cause in failure_nodes_and_values:
+                    failure_cause.display()
         print("Matched nodes:")
         import onnxscript.rewriter._ir_utils as ir_utils
 
