@@ -24,7 +24,7 @@ from onnxscript.onnx_types import TensorType
 def _fftn_onnx_normalization(
     self: TFloat,
     normalization: int,
-    signal_size: INT64,
+    signal_size: TFloat,
 ) -> TFloat:
     """Normalize in forward direction."""
     # TODO: Make more efficient
@@ -44,7 +44,7 @@ def _fftn_onnx_normalization(
 def _fftn_onnx_inverse_normalization(
     self: TFloat,
     normalization: int,
-    signal_size: INT64,
+    signal_size: TFloat,
 ) -> TFloat:
     """Normalize in backward direction, accounting for what op.DFT does."""
     # TODO: Make more efficient
@@ -74,15 +74,13 @@ def aten__fft_c2c(
 
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
-    signal = self
+    transformed = self
     self_rank = len(self.shape)
-    signal_size = op.Size(signal)
+    signal_size = op.CastLike(op.Size(transformed), transformed)
 
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
     dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
-
-    transformed = signal
 
     for dimension in reversed(dim):
         transformed = op.DFT(transformed, axis=dimension, inverse=not forward, onesided=False)
@@ -93,7 +91,6 @@ def aten__fft_c2c(
                 transformed, normalization, signal_size
             )
 
-    # Unsure if output format is correct
     return transformed
 
 
@@ -108,21 +105,17 @@ def aten__fft_c2r(
 
     Complex to real inverse FFT.
     """
-    signal = self
+    transformed = self
     self_rank = len(self.shape)
-    signal_size = op.Size(signal)
+    signal_size = op.CastLike(op.Size(transformed), transformed)
 
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
     dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
 
-    transformed = signal
     for dimension in reversed(dim):
         transformed = op.DFT(transformed, axis=dimension, inverse=True, onesided=False)
         transformed = _fftn_onnx_inverse_normalization(transformed, normalization, signal_size)
-
-    # Unsure if output format is correct
-    transformed = op.Squeeze(transformed, axes=[-1])
 
     if transformed.shape[-1] < last_dim_size:
         pads = [0, last_dim_size - transformed.shape[-1]]
@@ -150,26 +143,25 @@ def aten__fft_r2c(
     """
 
     # Add a new dimension at the end
-    signal = op.Unsqueeze(self, axes=[-1])
+    transformed = op.Unsqueeze(self, axes=[-1])
     # No need to fill the imaginary part because ONNX DFT accepts real inputs
     # https://onnx.ai/onnx/operators/onnx__DFT.html#inputs
 
     self_rank = len(self.shape)
-    signal_size = op.Size(signal)
+    signal_size = op.CastLike(op.Size(transformed), transformed)
 
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
     dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
 
     # Torch computes one-sided FFT on the last dimension only.
-    transformed = op.DFT(signal, axis=dim[-1], inverse=False, onesided=onesided)
+    transformed = op.DFT(transformed, axis=dim[-1], inverse=False, onesided=onesided)
     transformed = _fftn_onnx_normalization(transformed, normalization, signal_size)
 
     for dimension in reversed(dim[:-1]):
         transformed = op.DFT(transformed, axis=dimension, inverse=False, onesided=False)
         transformed = _fftn_onnx_normalization(transformed, normalization, signal_size)
 
-    # Unsure if output format is correct
     return transformed
 
 
