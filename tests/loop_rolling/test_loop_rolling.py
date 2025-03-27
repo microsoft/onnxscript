@@ -1,22 +1,24 @@
 import argparse
-import ast
 
 import numpy as np
 
 import onnx
-import onnxscript
+import os
 
 from onnxscript import ir
 from onnxscript.rewriter import pattern, rewrite
 import onnxruntime as onnxrt
-
-import pdb
 
 from onnxscript.utils.pattern_builder import build_loop_replace_pattern
 from onnxscript.utils.pattern_builder import normalize_io_for_loop_rolling
 from onnxscript.utils.pattern_builder import LoopBodyTemplate
 
 from onnx import shape_inference
+
+def remove_existing_data_file(filename):
+    if os.path.exists(filename):
+        print(f"Removing existing data file: {filename}")
+        os.remove(filename)
 
 def open_ir(filename):
     print('loading onnx')
@@ -93,8 +95,9 @@ mypipeline_layers_replaced = ir.serde.serialize_model(mypipeline_model)
 
 replaced_filename = "replaced_"+args.filename
 print(f"Writing Updated Graph to {replaced_filename}")
+remove_existing_data_file(replaced_filename+'.data')
 onnx.save(mypipeline_layers_replaced,
-          replaced_filename, save_as_external_data=True, location=replaced_filename+'.data')
+          replaced_filename, save_as_external_data=True, location= replaced_filename+'.data')
 
 print("Replace Layer Ops with Loop Body")
 
@@ -103,6 +106,7 @@ normalized_graph = normalize_io_for_loop_rolling(mypipeline_model.graph, LoopBod
 
 
 model = ir.serde.serialize_model(mypipeline_model)
+remove_existing_data_file('normalized.onnx.data')
 onnx.save(model, 'normalized.onnx',  save_as_external_data=True, location='normalized.onnx.data')
 
 
@@ -185,7 +189,7 @@ loop_added = ir.serde.serialize_model(mypipeline_model)
 
 
 
-
+remove_existing_data_file('loop_added.onnx.data')
 onnx.save(loop_added, 'loop_added.onnx', save_as_external_data=True, location='loop_added.onnx.data')
 
 onnx.checker.check_model(loop_added)
