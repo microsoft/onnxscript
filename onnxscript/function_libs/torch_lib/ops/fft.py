@@ -1,5 +1,7 @@
-# Copyright (c) Microsoft Corporation.
+# --------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
+# --------------------------------------------------------------------------
 # mypy: disable-error-code="misc,arg-type,type-arg,valid-type,assignment,return-value"
 """torch.ops.aten operators under the `fft` module.
 
@@ -18,13 +20,13 @@ from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
+
 def _fftn_onnx_normalization(
     self: TFloat,
     normalization: int,
     signal_size: INT64,
 ) -> TFloat:
-    """
-    """
+    """ """
     # TODO: Make more efficient
     # Norm values defined in https://github.com/pytorch/pytorch/blob/758d78790164bfb041555daed380de96e06f78a3/aten/src/ATen/native/SpectralOps.cpp#L117-L131
     # Norm modes: https://github.com/pytorch/pytorch/blob/758d78790164bfb041555daed380de96e06f78a3/aten/src/ATen/native/SpectralOpsUtils.h#L15-L19
@@ -38,13 +40,13 @@ def _fftn_onnx_normalization(
         self = op.Div(self, signal_size)
     return self
 
+
 def _fftn_onnx_inverse_normalization(
     self: TFloat,
     normalization: int,
     signal_size: INT64,
 ) -> TFloat:
-    """
-    """
+    """ """
     # TODO: Make more efficient
     # Norm values defined in https://github.com/pytorch/pytorch/blob/758d78790164bfb041555daed380de96e06f78a3/aten/src/ATen/native/SpectralOps.cpp#L117-L131
     # Norm modes: https://github.com/pytorch/pytorch/blob/758d78790164bfb041555daed380de96e06f78a3/aten/src/ATen/native/SpectralOpsUtils.h#L15-L19
@@ -57,6 +59,7 @@ def _fftn_onnx_inverse_normalization(
     elif normalization == 0:
         self = op.Mul(self, signal_size)
     return self
+
 
 @torch_op("aten::_fft_c2c", trace_only=True, complex=True)
 def aten__fft_c2c(
@@ -71,7 +74,7 @@ def aten__fft_c2c(
 
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
-    assert(dim[-1] in dim == 2, "Unexpected input size")
+    assert (dim[-1] in dim == 2, "Unexpected input size")
 
     signal = self
     self_rank = len(self.shape)
@@ -88,7 +91,9 @@ def aten__fft_c2c(
         if forward:
             transformed = _fftn_onnx_normalization(transformed, normalization, signal_size)
         else:
-            transformed = _fftn_onnx_inverse_normalization(transformed, normalization, signal_size)
+            transformed = _fftn_onnx_inverse_normalization(
+                transformed, normalization, signal_size
+            )
 
     # Unsure if output format is correct
     return transformed
@@ -105,7 +110,7 @@ def aten__fft_c2r(
 
     Complex to real inverse FFT.
     """
-    assert(dim[-1] in dim == 2, "Unexpected input size")
+    assert (dim[-1] in dim == 2, "Unexpected input size")
 
     signal = self
     self_rank = len(self.shape)
@@ -125,11 +130,13 @@ def aten__fft_c2r(
 
     if transformed.shape[-1] < last_dim_size:
         pads = [0, last_dim_size - transformed.shape[-1]]
-        mode = 'constant'
+        mode = "constant"
         constant_value = 0.0
-        transformed = op.Pad(mode=mode, data=transformed, pads=pads, constant_value=constant_value, axes=[-1])
+        transformed = op.Pad(
+            mode=mode, data=transformed, pads=pads, constant_value=constant_value, axes=[-1]
+        )
     elif transformed.shape[-1] > last_dim_size:
-        starts = [0]*(self_rank-1)
+        starts = [0] * (self_rank - 1)
         ends = list(self.shape)
         ends[-1] = last_dim_size
         transformed = op.Slice(data=transformed, starts=starts, ends=ends)
@@ -168,6 +175,7 @@ def aten__fft_r2c(
 
     # Unsure if output format is correct
     return transformed
+
 
 def aten_fft_fft(
     self: TensorType, n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None
