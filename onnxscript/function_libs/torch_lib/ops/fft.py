@@ -18,46 +18,6 @@ from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
-
-# def _compute_signal_size(signal: TFloat, dims: Sequence[int], last_dim_size: Optional[INT64] = None) -> INT64:
-#     if last_dim_size is not None:
-#         all_other_dims = dims[:-1]
-#         if all_other_dims:
-#             signal_size = op.ReduceProd(signal, axes=all_other_dims, keepdims=False)
-#             signal_size = op.Mul(signal_size, last_dim_size)
-#         else:
-#             signal_size = last_dim_size
-#     else:
-#         signal_size = op.ReduceProd(signal, axes=dims, keepdims=False)
-#     return signal_size
-
-
-# def _fftn_ortho_normalization(
-#     self: TFloat,
-#     dims: Sequence[int],
-#     forward: bool,
-#     onesided: bool,
-#     last_dim_size: Optional[INT64] = None,
-# ) -> TFloat:
-#     transformed = self
-
-#     signal_size = _compute_signal_size(self, dims, last_dim_size)
-
-#     for dim in dims[:-1]:
-#         transformed = op.DFT(transformed, axis=dim, onesided=False)
-
-#     # Torch computes one-sided FFT on the last dimension only.
-#     if onesided:
-#         transformed = op.DFT(transformed, axis=dims[-1], onesided=True)
-#         # TODO: Update signal_size for one-sided FFT
-#     elif last_dim_size is not None:
-#         transformed = op.DFT(
-#             transformed, last_dim_size, axis=dims[-1], onesided=True
-#         )
-#     else:
-#         transformed = op.DFT(transformed, axis=dims[-1], onesided=False)
-
-
 def _fftn_onnx_normalization(
     self: TFloat,
     normalization: int,
@@ -97,80 +57,6 @@ def _fftn_onnx_inverse_normalization(
     elif normalization == 0:
         self = op.Mul(self, signal_size)
     return self
-
-# def _fftn_onnx(
-#     self: TFloat,
-#     dims: Sequence[int],
-#     normalization: int,
-#     forward: bool,
-#     onesided: bool,
-#     last_dim_size: Optional[INT64] = None,
-# ) -> TFloat:
-#     """Standard complex to complex or real to complex FFT (forward or backward).
-
-#     This is a private shared function for implementing the various FFT functions.
-
-#     Args:
-#         self: The input tensor.
-#         dims: The dimensions to apply FFT.
-#         normalization: The normalization mode.
-#         forward: Whether to compute forward FFT or backward FFT.
-#         onesided: Whether to compute the one-sided FFT, which retains only the
-#             positive frequencies.
-#         last_dim_size: The size of the last specified dimension.
-
-#     Returns:
-#         The transformed tensor.
-#     """
-#     # NOTE: SymInt dim is not support because DFT-17 needs a static axis
-
-#     # If taking FFT along the 0-th dimension: Since
-#     # the 0-th dimension in ONNX DFT-17 is the batch dimension (cannot take DFT over),
-#     # we need to add a new dimension at the beginning to represent the batch dimension.
-#     unsqueeze_first_dim = 0 in dims
-#     if unsqueeze_first_dim:
-#         transformed = op.Unsqueeze(self, axes=[0])
-#         # Add 1 to account for the batch dimension when counting axes from the left
-#         dims = [dim_ + 1 if dim_ >= 0 else dim_ for dim_ in dims]
-#     else:
-#         transformed = self
-
-#     # Select inverse mode for ONNX based on the norm mode and forward/backward mode.
-#     # In ONNX the only difference between inverse=True/False is the 1/n normalization applied.
-#     #
-#     # If normalization is 1/n and we are in backward mode, we use the inverse
-#     # mode in ONNX to get the 1/n normalization.
-#     inverse = normalization == 2 and not forward
-#     ortho = normalization == 1
-
-#     for dim in dims[:-1]:
-#         transformed = op.DFT(transformed, axis=dim, inverse=inverse, onesided=False)
-
-#     # Torch computes one-sided FFT on the last dimension only.
-#     if onesided:
-#         transformed = op.DFT(transformed, axis=dims[-1], inverse=inverse, onesided=True)
-#     elif last_dim_size is not None:
-#         transformed = op.DFT(
-#             transformed, last_dim_size, axis=dims[-1], inverse=inverse, onesided=False
-#         )
-#     else:
-#         transformed = op.DFT(transformed, axis=dims[-1], inverse=inverse, onesided=False)
-
-#     if ortho or inverse:
-#         normalized = _fftn_onnx_normalization(
-#             transformed, ortho, dims, last_dim_size=last_dim_size
-#         )
-#     else:
-#         normalized = transformed
-#     # TODO: Merge to normalization mode and ONNX inverse mode
-#     # Be sure to normalize before squeezing the batch dimension, because dims would
-#     # have been shifted by 1 if the batch dimension was added.
-#     if unsqueeze_first_dim:
-#         # Remove the batch dimension
-#         normalized = op.Squeeze(normalized, axes=[0])
-
-#     return normalized
-
 
 @torch_op("aten::_fft_c2c", trace_only=True, complex=True)
 def aten__fft_c2c(
