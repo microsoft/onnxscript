@@ -103,7 +103,7 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         # TODO(rama): handle redundant reshape/expand
         if self._const_freqs:
             if (freqs.const_value is None) or not _ir_utils.has_rank(freqs, 3):
-                return check_result.fail("freqs is not a constant or not 3D.")
+                return check_result.fail("freqs is not a constant or not 3D.", freqs)
             else:
                 return check_result
         if (
@@ -113,14 +113,14 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         ):
             pass
         else:
-            return check_result.fail("position_ids is not a 1D or 2D tensor.")
+            return check_result.fail("position_ids is not a 1D or 2D tensor.", position_ids)
         if not _ir_utils.has_rank(inv_freq, 3):
-            return check_result.fail("inv_freq is not 3D.")
+            return check_result.fail("inv_freq is not 3D.", inv_freq)
         inv_freq_shape = inv_freq.shape
         if inv_freq.const_value is None:  # TODO: should this be inv_freq_shape?
-            return check_result.fail("inv_freq is not a constant.")
+            return check_result.fail("inv_freq is not a constant.", inv_freq)
         if inv_freq_shape[0] != 1 or inv_freq_shape[2] != 1:
-            return check_result.fail("inv_freq is not of shape [1, ., 1].")
+            return check_result.fail("inv_freq is not of shape [1, ., 1].", inv_freq)
         return check_result
 
     def rewrite(

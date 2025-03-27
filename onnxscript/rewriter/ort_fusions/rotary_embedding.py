@@ -34,12 +34,12 @@ class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
         check_result = pattern.MatchResult()
         # x needs to be a 4D tensor with known last dimension size (== head_size) and known second dimension (num_heads)
         if x is None or x.shape is None or len(x.shape) != 4:
-            return check_result.fail("Input is not a 4D tensor.")
+            return check_result.fail("Input is not a 4D tensor.", x)
         if not isinstance(x.shape[1], int):
-            return check_result.fail("Input dimension 1 is not an integer.")
+            return check_result.fail("Input dimension 1 is not an integer.", x)
         head_size = x.shape[3]
         if not isinstance(head_size, int):
-            return check_result.fail("Head size is not an integer.")
+            return check_result.fail("Head size is not an integer.", x)
         half_head_size = head_size // 2
 
         # Check that x is being split into two equal halves of size half_head_size
