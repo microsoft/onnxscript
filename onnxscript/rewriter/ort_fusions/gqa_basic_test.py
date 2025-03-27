@@ -64,6 +64,7 @@ class GQA1(unittest.TestCase):
             total_seqlen_int32_minus_1 = op.Sub(total_seqlen_int32, 1)
             batchsize = op.Shape(query, start=0, end=1)
             seqlens_k = op.Tile(total_seqlen_int32_minus_1, batchsize)
+
             attn, past_key, past_value = msft_op.GroupQueryAttention(
                 query,
                 key,
