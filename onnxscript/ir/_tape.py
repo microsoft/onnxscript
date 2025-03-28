@@ -6,9 +6,6 @@ from __future__ import annotations
 
 from typing import (
     Any,
-    Iterable,
-    Iterator,
-    List,
     Mapping,
     Optional,
     Sequence,
@@ -16,10 +13,13 @@ from typing import (
 )
 
 from onnxscript import ir
-from onnxscript.ir import _convenience, _core
+from onnxscript.ir import _convenience
+
+# A type representing the domains/versions used in creating nodes in IR.
+UsedOpsets = set[Tuple[str, Optional[int]]]
 
 
-class Tape(Iterable[_core.Node]):
+class Tape:
     """Tape class.
 
     A tape is a recorder that collects nodes and initializers that are created so
@@ -49,9 +49,10 @@ class Tape(Iterable[_core.Node]):
     def __init__(self) -> None:
         self._nodes: list[ir.Node] = []
         self._initializers: list[ir.Value] = []
+        self._used_opsets: UsedOpsets = set()
 
-    def __iter__(self) -> Iterator[ir.Node]:
-        return iter(self._nodes)
+    def __repr__(self) -> str:
+        return f"Tape(nodes={self._nodes}, initializers={self._initializers})"
 
     @property
     def nodes(self) -> Sequence[ir.Node]:
@@ -60,6 +61,10 @@ class Tape(Iterable[_core.Node]):
     @property
     def initializers(self) -> Sequence[ir.Value]:
         return tuple(self._initializers)
+
+    @property
+    def used_opsets(self) -> UsedOpsets:
+        return self._used_opsets
 
     def op(
         self,
@@ -93,6 +98,7 @@ class Tape(Iterable[_core.Node]):
             metadata_props=metadata_props,
         )
         self._nodes.append(node)
+        self._used_opsets.add((domain, version))
 
         return node.outputs[0]
 
@@ -129,6 +135,7 @@ class Tape(Iterable[_core.Node]):
             metadata_props=metadata_props,
         )
         self._nodes.append(node)
+        self._used_opsets.add((domain, version))
 
         return node.outputs
 
@@ -144,16 +151,8 @@ class Tape(Iterable[_core.Node]):
         return value
 
 
-# A type representing the domains/versions used in creating nodes in IR.
-UsedOpsets = List[Tuple[str, Optional[int]]]
-
-
 class Builder(Tape):
     """An extension of the tape that provides a more convenient API for constructing the IR."""
-
-    def __init__(self):
-        super().__init__()
-        self._used_opsets: UsedOpsets = []
 
     def __getattr__(self, op_type: str) -> Any:
         return lambda *args, **kwargs: self._make_node(op_type, args, kwargs)
@@ -168,20 +167,22 @@ class Builder(Tape):
             assert isinstance(outputs, int)
             num_outputs = outputs
 
-        self._used_opsets.append((domain, version))
         if num_outputs == 1:
-            value = super().op(op_type, inputs=inputs, attributes=kwargs, domain=domain)
+            value = super().op(
+                op_type, inputs=inputs, attributes=kwargs, domain=domain, version=version
+            )
             if isinstance(outputs, Sequence):
                 value.name = outputs[0]
             return value
         values = super().op_multi_output(
-            op_type, inputs=inputs, attributes=kwargs, domain=domain, num_outputs=num_outputs
+            op_type,
+            inputs=inputs,
+            attributes=kwargs,
+            domain=domain,
+            version=version,
+            num_outputs=num_outputs,
         )
         if isinstance(outputs, Sequence):
             for value, name in zip(values, outputs):
                 value.name = name
         return values
-
-    @property
-    def used_opsets(self) -> UsedOpsets:
-        return self._used_opsets
