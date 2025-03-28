@@ -4,8 +4,8 @@ from __future__ import annotations
 
 __all__ = [
     "RemoveUnusedNodesPass",
-    "RemoveUnusedFunctionPass",
-    "RemoveUnusedOpsetPass",
+    "RemoveUnusedFunctionsPass",
+    "RemoveUnusedOpsetsPass",
 ]
 
 import logging
@@ -105,7 +105,7 @@ class RemoveUnusedNodesPass(ir.passes.InPlacePass):
         return ir.passes.PassResult(model, modified=False)
 
 
-class RemoveUnusedFunctionPass(ir.passes.InPlacePass):
+class RemoveUnusedFunctionsPass(ir.passes.InPlacePass):
     def __init__(self):
         super().__init__()
         self._used: set[ir.OperatorIdentifier] | None = None
@@ -147,7 +147,7 @@ class RemoveUnusedFunctionPass(ir.passes.InPlacePass):
         self._call_function(model, model.functions[op_identifier])
 
 
-class RemoveUnusedOpsetPass(ir.passes.InPlacePass):
+class RemoveUnusedOpsetsPass(ir.passes.InPlacePass):
     """Remove unused opset imports from the model and functions.
 
     Attributes:
