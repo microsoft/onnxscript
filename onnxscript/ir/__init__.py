@@ -5,6 +5,9 @@
 __all__ = [
     # Modules
     "serde",
+    "traversal",
+    "convenience",
+    "external_data",
     # IR classes
     "Tensor",
     "ExternalTensor",
@@ -67,18 +70,18 @@ __all__ = [
     # Conversion functions
     "from_proto",
     "to_proto",
-    # IR Tensor initializer
+    # Convenience constructors
     "tensor",
+    "node",
     # Pass infrastructure
     "passes",
-    "traversal",
     # IO
     "load",
     "save",
 ]
 
-from onnxscript.ir import passes, serde, traversal
-from onnxscript.ir._convenience import tensor
+from onnxscript.ir import convenience, external_data, passes, serde, traversal
+from onnxscript.ir._convenience._constructors import node, tensor
 from onnxscript.ir._core import (
     Attr,
     AttrFloat32,

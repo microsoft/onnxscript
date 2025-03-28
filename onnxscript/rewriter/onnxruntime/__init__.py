@@ -1,34 +1,31 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+
+"""Deprecated. This module is kept for backward compatibility."""
+
 from __future__ import annotations
+
+from typing import Any
 
 import onnx
 
-from onnxscript.rewriter import function_rule, pattern
+from onnxscript.rewriter import pattern
 from onnxscript.rewriter import rewrite as _rewrite
-from onnxscript.rewriter.onnxruntime import (
-    fused_matmul_rule_sets,
-    group_normalization_merge_silu,
-    instance_to_group_normalization,
-    softmax,
-    transformers,
-)
+from onnxscript.rewriter.ort_fusions import ORT_PATTERN_REWRITE_RULES
 
-ORT_FUNCTION_REWRITE_RULES = [*transformers.TRANSFORMERS_FUNCTION_REWRITE_RULES]
-
-ORT_PATTERN_REWRITE_RULES = [
-    *softmax.rules.rules,
-    *instance_to_group_normalization.rules.rules,
-    # NOTE: group normalization merge silu should be applied after instance to group normalization
-    *group_normalization_merge_silu.rules.rules,
-    *fused_matmul_rule_sets.fused_matmul_rule_sets(),
+__all__ = [
+    "rewrite",
+    "ORT_PATTERN_REWRITE_RULES",
+    "ORT_FUNCTION_REWRITE_RULES",
 ]
+
+ORT_FUNCTION_REWRITE_RULES: list[Any] = []
 
 
 def rewrite(
     model_proto: onnx.ModelProto,
     /,
-    function_rules: list[type[function_rule.FunctionRewriteRule]] | None = None,
+    function_rules=None,
     pattern_rules: list[pattern.RewriteRule] | None = None,
 ) -> onnx.ModelProto:
     """Rewrite the model using the given rules.
@@ -43,8 +40,5 @@ def rewrite(
     Returns:
         The rewritten model.
     """
-    function_rules = function_rules or ORT_FUNCTION_REWRITE_RULES
     pattern_rules = pattern_rules or ORT_PATTERN_REWRITE_RULES
-    return _rewrite(
-        model_proto, function_rewrite_rules=function_rules, pattern_rewrite_rules=pattern_rules
-    )
+    return _rewrite(model_proto, pattern_rewrite_rules=pattern_rules)

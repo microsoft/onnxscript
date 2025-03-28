@@ -15,8 +15,7 @@ COMMON_TEST_DEPENDENCIES = (
     "beartype==0.17.2",
     "expecttest==0.1.6",
     "hypothesis",
-    'numpy==1.24.4; python_version<"3.9"',
-    'numpy==1.26.4; python_version>="3.9"',
+    "numpy",
     "packaging",
     "parameterized",
     'psutil; sys_platform != "win32"',
@@ -27,13 +26,13 @@ COMMON_TEST_DEPENDENCIES = (
     "pytest!=7.1.0",
     "pyyaml",
     "types-PyYAML",
-    "typing_extensions",
+    "typing_extensions>=4.10",
     "ml-dtypes",
 )
-ONNX = "onnx==1.16"
-ONNX_RUNTIME = "onnxruntime==1.17.1"
-PYTORCH = "torch==2.2.2"
-TORCHVISON = "torchvision==0.17.2"
+ONNX = "onnx==1.17"
+ONNX_RUNTIME = "onnxruntime==1.20.1"
+PYTORCH = "torch==2.5.1"
+TORCHVISON = "torchvision==0.20.1"
 TRANSFORMERS = "transformers==4.37.2"
 ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "flatbuffers",
@@ -104,6 +103,7 @@ def test_ort_nightly(session):
         PYTORCH,
         TORCHVISON,
         ONNX,
+        TRANSFORMERS,
         *ONNX_RUNTIME_NIGHTLY_DEPENDENCIES,
     )
     session.install("-r", "requirements/ci/requirements-ort-nightly.txt")
@@ -132,32 +132,3 @@ def test_experimental_torchlib_tracing(session):
         *session.posargs,
         env={"TORCHLIB_EXPERIMENTAL_PREFER_TRACING": "1"},
     )
-
-
-@nox.session(tags=["test-dort"])
-def test_dort(session):
-    """Test the conversion of a couple of models from transformers."""
-    session.install(
-        *COMMON_TEST_DEPENDENCIES,
-    )
-    torch_version, transformers_version = session.posargs
-
-    if torch_version == "nightly":
-        session.install(
-            "--pre",
-            "torch",
-            "torchvision",
-            "torchaudio",
-            "--index-url",
-            "https://download.pytorch.org/whl/nightly/cpu",
-        )
-    else:
-        session.install("torch", "torchvision", "torchaudio")
-
-    session.install("torch", "torchvision", "torchaudio")
-    session.install(f"transformers=={transformers_version}")
-    session.install("onnxruntime-training==1.17.1")
-
-    session.run("pip", "list")
-    session.run("pytest", "onnxscript")
-    session.run("pytest", "tests")

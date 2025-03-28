@@ -4,12 +4,31 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-import numpy as np
 import onnx.numpy_helper
 
-import onnxscript.ir as ir
-import onnxscript.rewriter.no_op as no_op
-import onnxscript.rewriter.pattern as orp
+from onnxscript import ir
+from onnxscript.rewriter import _ir_utils as ir_utils
+from onnxscript.rewriter import pattern as orp
+
+
+class SqueezeReshape(orp.RewriteRuleClassBase):
+    """Replaces ``Reshape(Squeeze(x), [-1]])`` with ``Identity(x)`` for 1D x.
+
+    This pattern arises from the translation of pytorch symints.
+    """
+
+    def __init__(self):
+        super().__init__("SqueezeReshape1d", remove_nodes=False)
+
+    def pattern(self, op, x):
+        return op.Reshape(op.Squeeze(x), [-1])
+
+    def rewrite(self, op, x: ir.Value):
+        return op.Identity(x)
+
+    def check(self, context, x) -> bool:
+        del context  # Unused
+        return ir_utils.has_rank(x, 1)
 
 
 class CastIdentity(orp.RewriteRuleAsClass):
@@ -55,7 +74,7 @@ class CastCast(orp.RewriteRuleAsClass):
 
 
 class ExpandIdentity(orp.RewriteRuleAsClass):
-    """Replaces ``Expand(., shape)`` by ``Identity`` if possible."""
+    """Replaces ``Expand(..., shape)`` by ``Identity`` if possible."""
 
     @classmethod
     def pattern(cls, op, x, shape):
@@ -70,8 +89,10 @@ class ExpandIdentity(orp.RewriteRuleAsClass):
         if shape.const_value is None:
             # Shape is not a constant and cannot be guessed.
             return False
-        shape_x = x.shape
-        return shape_x.dims == tuple(shape.const_value.numpy().tolist())
+        if (x_shape := x.shape) is None:
+            # We don't know the shape of the input
+            return False
+        return x_shape.dims == tuple(shape.const_value.numpy().tolist())
 
 
 class ReshapeReshape(orp.RewriteRuleAsClass):
@@ -222,40 +243,42 @@ class TransposeTranspose(orp.RewriteRuleAsClass):
 
 
 class UnsqueezeUnsqueeze(orp.RewriteRuleAsClass):
-    """Replaces ``Unsqueeze(Unsqueeze(., axes1), axes2)``
-    with one Unsqueeze.
-    """
+    """Replaces ``Unsqueeze(Unsqueeze(., axes1), axes2)`` with one Unsqueeze."""
 
     @classmethod
     def pattern(cls, op, x, axes1, axes2):
         return op.Unsqueeze(op.Unsqueeze(x, axes1), axes2)
 
     @classmethod
-    def _combine_axes(cls, axes1: np.ndarray, axes2: np.ndarray) -> np.ndarray:
-        """Combines two single axes into one tensor of two axes."""
-        if axes1[0] < axes2[0]:
-            return np.hstack([axes1, axes2])
-        return np.hstack([axes2, axes1 + 1]).astype(np.int64)
-
-    @classmethod
     def rewrite(cls, op, x: ir.Value, axes1: ir.Value, axes2: ir.Value):
-        v1 = axes1.const_value.numpy()  # type: ignore[union-attr]
-        v2 = axes2.const_value.numpy()  # type: ignore[union-attr]
-        if len(v1) != 1 or len(v2) != 1:
-            # Implemented later if needed.
-            return False
-        axes = cls._combine_axes(v1, v2)
-        return op.Unsqueeze(x, op.Constant(value=onnx.numpy_helper.from_array(axes)))
+        v1 = ir_utils.get_singleton_value(axes1)
+        v2 = ir_utils.get_singleton_value(axes2)
+        axes = [v1, v2] if v1 < v2 else [v2, v1 + 1]
+        return op.Unsqueeze(x, op.Constant(value=ir.tensor(axes, dtype=ir.DataType.INT64)))
 
     @classmethod
     def check(cls, context, x, axes1, axes2) -> bool:
-        if axes1.const_value is None or axes2.const_value is None:
+        del context  # Unused
+        del x  # Unused
+        # Currently restricted to single element positive axis
+        v1 = ir_utils.get_singleton_value(axes1)
+        v2 = ir_utils.get_singleton_value(axes2)
+        if v1 is None or v2 is None:
             return False
-        if axes1.const_value.numpy().min() < 0:
-            return False
-        if axes2.const_value.numpy().min() < 0:
+        if (v1 < 0) or (v2 < 0):
             return False
         return True
+
+
+cast_cast_rule = orp.make_rewrite_rule_from_class(CastCast)
+cast_identity_rule = orp.make_rewrite_rule_from_class(CastIdentity)
+expand_identity_rule = orp.make_rewrite_rule_from_class(ExpandIdentity)
+reshape_reshape_rule = orp.make_rewrite_rule_from_class(ReshapeReshape)
+slice_split_rule = orp.make_rewrite_rule_from_class(SlicesSplit, True)
+transpose_identity_rule = orp.make_rewrite_rule_from_class(TransposeIdentity)
+transpose_transpose_rule = orp.make_rewrite_rule_from_class(TransposeTranspose)
+unsqueeze_unsqueeze_rule = orp.make_rewrite_rule_from_class(UnsqueezeUnsqueeze)
+squeeze_reshape_1d_rule = SqueezeReshape.rule()
 
 
 def llama_p0_rule_set() -> orp.RewriteRuleSet:
@@ -266,28 +289,16 @@ def llama_p0_rule_set() -> orp.RewriteRuleSet:
     Returns:
         RewriteRuleSet
     """
-    cast_cast_rule = orp.make_rewrite_rule_from_class(CastCast)
-    cast_identity_rule = orp.make_rewrite_rule_from_class(CastIdentity)
-    expand_identity_rule = orp.make_rewrite_rule_from_class(ExpandIdentity)
-    reshape_reshape_rule = orp.make_rewrite_rule_from_class(ReshapeReshape)
-    slice_split_rule = orp.make_rewrite_rule_from_class(SlicesSplit, True)
-    transpose_identity_rule = orp.make_rewrite_rule_from_class(TransposeIdentity)
-    transpose_transpose_rule = orp.make_rewrite_rule_from_class(TransposeTranspose)
-    unsqueeze_unsqueeze_rule = orp.make_rewrite_rule_from_class(UnsqueezeUnsqueeze)
-
     return orp.RewriteRuleSet(
         [
-            no_op.mul_by_1_rule,
-            no_op.add_0_rule,
-            no_op.add_0_rule,
-            no_op.div_by_1_rule,
-            cast_cast_rule,
+            # cast_cast_rule,  # Might have precision issues.
             cast_identity_rule,
             expand_identity_rule,
             reshape_reshape_rule,
-            slice_split_rule,
+            slice_split_rule,  # Affect collapse slices rules?
             transpose_identity_rule,
             transpose_transpose_rule,
             unsqueeze_unsqueeze_rule,
+            squeeze_reshape_1d_rule,
         ]
     )

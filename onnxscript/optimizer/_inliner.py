@@ -25,13 +25,14 @@ CallStack = List[CallSiteId]
 def _make_unique_name(name: str, callstack: CallStack, used_names: set[str]) -> str:
     """Generate a unique name from a name, calling-context, and set of used names.
 
-    When a value X in a function is inlined into a graph, we rename X by adding a prefix
-    representing the call-stack of the function. This should typically avoid name clashes.
-    If there is a name clash, even after this, we add a numeric suffix to the name to make
+    If there is a name clash, we add a numeric suffix to the name to make
     it unique. We use the same strategy to make node names unique.
+
+    TODO: We can use the callstack in generating a name for a value X in a function
+    that is inlined into a graph. This is not yet implemented. Using the full callstack
+    leads to very long and hard to read names. Some investigation is needed to find
+    a good naming strategy that will produce useful names for debugging.
     """
-    prefix = "_".join(callstack)
-    name = prefix + "_" + name
     candidate = name
     i = 1
     while candidate in used_names:
@@ -62,7 +63,7 @@ class _CopyReplace:
         if value in self._value_map:
             return self._value_map[value]
         # If the value is not in the value map, it must be a graph input.
-        assert value.producer() is not None, f"Value {value} has no entry in the value map"
+        assert value.producer() is None, f"Value {value} has no entry in the value map"
         new_value = ir.Value(
             name=value.name,
             type=value.type,
@@ -81,17 +82,26 @@ class _CopyReplace:
     def clone_attr(self, key: str, attr: ir.Attr | ir.RefAttr) -> ir.Attr | ir.RefAttr | None:
         if isinstance(attr, ir.Attr):
             if attr.type == ir.AttributeType.GRAPH:
-                graph = self.clone_graph(attr.value)
+                graph = self.clone_graph(attr.as_graph())
                 return ir.Attr(key, ir.AttributeType.GRAPH, graph, doc_string=attr.doc_string)
             elif attr.type == ir.AttributeType.GRAPHS:
-                graphs = [self.clone_graph(graph) for graph in attr.value]
+                graphs = [self.clone_graph(graph) for graph in attr.as_graphs()]
                 return ir.Attr(
                     key, ir.AttributeType.GRAPHS, graphs, doc_string=attr.doc_string
                 )
             return attr
         assert isinstance(attr, ir.RefAttr)
-        if key in self._attr_map:
-            return self._attr_map[key]
+        ref_attr_name = attr.ref_attr_name
+        if ref_attr_name in self._attr_map:
+            ref_attr = self._attr_map[ref_attr_name]
+            if isinstance(ref_attr, ir.Attr):
+                return ir.Attr(
+                    key, ref_attr.type, ref_attr.value, doc_string=ref_attr.doc_string
+                )
+            assert isinstance(ref_attr, ir.RefAttr)
+            return ir.RefAttr(
+                key, ref_attr.ref_attr_name, ref_attr.type, doc_string=ref_attr.doc_string
+            )
         # Note that if a function has an attribute-parameter X, and a call (node) to the function
         # has no attribute X, all references to X in nodes inside the function body will be
         # removed. This is just the ONNX representation of optional-attributes.
@@ -142,10 +152,13 @@ class _CopyReplace:
         input_values = [self.clone_value(v) for v in graph.inputs]
         nodes = [self.clone_node(node) for node in graph]
         initializers = [self.clone_value(init) for init in graph.initializers.values()]
+        output_values = [
+            self.clone_value(v) for v in graph.outputs
+        ]  # Looks up already cloned values
 
         return ir.Graph(
             input_values,  # type: ignore
-            graph.outputs,
+            output_values,  # type: ignore
             nodes=nodes,
             initializers=initializers,  # type: ignore
             doc_string=graph.doc_string,
@@ -224,9 +237,9 @@ class _Inliner:
 
         # Identify call-stack for node, used to generate unique names.
         call_stack = self.node_context.get(node, [])
-        call_stack.append(call_site_id)
+        new_call_stack = [*call_stack, call_site_id]
 
-        cloner = _CopyReplace(self, attributes, value_map, node.metadata_props, call_stack)
+        cloner = _CopyReplace(self, attributes, value_map, node.metadata_props, new_call_stack)
 
         # iterate over the nodes in the function, creating a copy of each node
         # and replacing inputs with the corresponding values in the value map.
@@ -285,14 +298,15 @@ class _Inliner:
                     if not isinstance(attr, ir.Attr):
                         continue
                     if attr.type == ir.AttributeType.GRAPH:
-                        self.inline_calls_in(attr.value)
+                        self.inline_calls_in(attr.as_graph())
                     elif attr.type == ir.AttributeType.GRAPHS:
-                        for graph in attr.value:
+                        for graph in attr.as_graphs():
                             self.inline_calls_in(graph)
 
 
 def inline(model: ir.Model) -> None:
     """Inline all function calls (recursively) in the model."""
-    inliner = _Inliner(model)
-    inliner.inline_calls_in(model.graph)
-    model.functions.clear()
+    if model.functions:
+        inliner = _Inliner(model)
+        inliner.inline_calls_in(model.graph)
+        model.functions.clear()

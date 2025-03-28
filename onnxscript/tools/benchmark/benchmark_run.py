@@ -45,7 +45,7 @@ def _cmd_line(script_name: str, **kwargs: dict[str, str | int | float]) -> list[
 
 
 def _extract_metrics(text: str) -> dict[str, str]:
-    reg = re.compile(":(.*?),(.*.?);")
+    reg = re.compile(r":(.*?),(.*.?);")
     res = reg.findall(text)
     if len(res) == 0:
         return {}

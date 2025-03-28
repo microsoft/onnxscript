@@ -73,7 +73,7 @@ def main(args: list[str] | None = None):
 
     if kwargs["verbose"]:
         for i, cf in enumerate(configs):
-            print(f"[export_common_batch] config {i+1}: {cf}")
+            print(f"[export_common_batch] config {i + 1}: {cf}")
 
     ################################
     # Running configuration.

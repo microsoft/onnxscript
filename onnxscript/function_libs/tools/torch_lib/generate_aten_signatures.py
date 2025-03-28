@@ -283,7 +283,7 @@ def main(args: argparse.Namespace) -> None:
             functions[module_name] = {}
         op_name = get_op_name(func)
         if op_name in functions[module_name]:
-            logging.warning(
+            logging.warning(  # noqa: LOG015
                 "Duplicated function: %s, overload: %s", op_name, func.func.name.overload_name
             )
             continue

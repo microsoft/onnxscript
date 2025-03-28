@@ -64,6 +64,7 @@ class DataType(enum.IntEnum):
     FLOAT8E5M2FNUZ = 20
     UINT4 = 21
     INT4 = 22
+    FLOAT4E2M1 = 23
 
     @classmethod
     def from_numpy(cls, dtype: np.dtype) -> DataType:
@@ -72,9 +73,32 @@ class DataType(enum.IntEnum):
         Raises:
             TypeError: If the data type is not supported by ONNX.
         """
-        if dtype not in _NP_TYPE_TO_DATA_TYPE:
-            raise TypeError(f"Unsupported numpy data type: {dtype}")
-        return cls(_NP_TYPE_TO_DATA_TYPE[dtype])
+        if dtype in _NP_TYPE_TO_DATA_TYPE:
+            return cls(_NP_TYPE_TO_DATA_TYPE[dtype])
+
+        if np.issubdtype(dtype, np.str_):
+            return DataType.STRING
+
+        # Special cases for handling custom dtypes defined in ONNX (as of onnx 1.18)
+        # Ref: https://github.com/onnx/onnx/blob/2d42b6a60a52e925e57c422593e88cc51890f58a/onnx/_custom_element_types.py
+        if hasattr(dtype, "names"):
+            if dtype.names == ("bfloat16",):
+                return DataType.BFLOAT16
+            if dtype.names == ("e4m3fn",):
+                return DataType.FLOAT8E4M3FN
+            if dtype.names == ("e4m3fnuz",):
+                return DataType.FLOAT8E4M3FNUZ
+            if dtype.names == ("e5m2",):
+                return DataType.FLOAT8E5M2
+            if dtype.names == ("e5m2fnuz",):
+                return DataType.FLOAT8E5M2FNUZ
+            if dtype.names == ("uint4",):
+                return DataType.UINT4
+            if dtype.names == ("int4",):
+                return DataType.INT4
+            if dtype.names == ("float4e2m1",):
+                return DataType.FLOAT4E2M1
+        raise TypeError(f"Unsupported numpy data type: {dtype}")
 
     @property
     def itemsize(self) -> float:
@@ -121,6 +145,7 @@ _ITEMSIZE_MAP = {
     DataType.FLOAT8E5M2FNUZ: 1,
     DataType.UINT4: 0.5,
     DataType.INT4: 0.5,
+    DataType.FLOAT4E2M1: 0.5,
 }
 
 
@@ -149,6 +174,13 @@ _NP_TYPE_TO_DATA_TYPE = {
     np.dtype(ml_dtypes.int4): DataType.INT4,
     np.dtype(ml_dtypes.uint4): DataType.UINT4,
 }
+
+# TODO(after min req for ml_dtypes>=0.5): Move this inside _NP_TYPE_TO_DATA_TYPE
+_NP_TYPE_TO_DATA_TYPE.update(
+    {np.dtype(ml_dtypes.float4_e2m1fn): DataType.FLOAT4E2M1}
+    if hasattr(ml_dtypes, "float4_e2m1fn")
+    else {}
+)
 
 # ONNX DataType to Numpy dtype.
 _DATA_TYPE_TO_NP_TYPE = {v: k for k, v in _NP_TYPE_TO_DATA_TYPE.items()}

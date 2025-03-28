@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import functools
+import typing
 
 __all__ = [
     # Tensors
@@ -29,6 +30,7 @@ __all__ = [
     "deserialize_node",
     "deserialize_opset_import",
     "deserialize_tensor",
+    "deserialize_tensor_shape",
     "deserialize_type_proto_for_shape",
     "deserialize_type_proto_for_type",
     "deserialize_value_info_proto",
@@ -59,7 +61,6 @@ __all__ = [
 import collections
 import logging
 import os
-import typing
 from typing import Any, Callable, List, Mapping, Sequence
 
 import numpy as np
@@ -80,6 +81,7 @@ _PLEASE_CONTRIBUTE = (
 _FUNCTION_VALUE_INFO_SUPPORTED_VERSION = (
     10  # ONNX IR version where value info in functions was introduced
 )
+_QUANT_PARAMETER_TENSOR_NAMES_FIELD = "quant_parameter_tensor_names"
 _T = typing.TypeVar("_T", bound=Callable[..., Any])
 
 
@@ -121,16 +123,35 @@ def _unflatten_complex(
     return array[::2] + 1j * array[1::2]
 
 
-def from_proto(
-    proto: onnx.ModelProto
-    | onnx.GraphProto
-    | onnx.NodeProto
-    | onnx.TensorProto
-    | onnx.AttributeProto
-    | onnx.ValueInfoProto
-    | onnx.TypeProto
-    | onnx.FunctionProto,
-) -> Any:
+@typing.overload
+def from_proto(proto: onnx.ModelProto) -> _core.Model: ...  # type: ignore[overload-overlap]
+@typing.overload
+def from_proto(proto: onnx.GraphProto) -> _core.Graph: ...  # type: ignore[overload-overlap]
+@typing.overload
+def from_proto(proto: onnx.NodeProto) -> _core.Node: ...  # type: ignore[overload-overlap]
+@typing.overload
+def from_proto(proto: onnx.TensorProto) -> _protocols.TensorProtocol: ...  # type: ignore[overload-overlap]
+@typing.overload
+def from_proto(proto: onnx.AttributeProto) -> _core.Attr: ...  # type: ignore[overload-overlap]
+@typing.overload
+def from_proto(proto: onnx.ValueInfoProto) -> _core.Value: ...  # type: ignore[overload-overlap]
+@typing.overload
+def from_proto(proto: onnx.TypeProto) -> _core.TypeAndShape: ...  # type: ignore[overload-overlap]
+@typing.overload
+def from_proto(proto: onnx.FunctionProto) -> _core.Function: ...  # type: ignore[overload-overlap]
+@typing.overload
+def from_proto(proto: onnx.TensorShapeProto) -> _core.Shape: ...  # type: ignore[overload-overlap]
+@typing.overload
+def from_proto(  # type: ignore[overload-overlap]
+    proto: onnx.TensorShapeProto.Dimension,
+) -> tuple[int | _core.SymbolicDim, str | None]: ...
+@typing.overload
+def from_proto(proto: Sequence[onnx.OperatorSetIdProto]) -> dict[str, int]: ...  # type: ignore[overload-overlap]
+@typing.overload
+def from_proto(proto: Sequence[onnx.StringStringEntryProto]) -> dict[str, str]: ...  # type: ignore[overload-overlap]
+
+
+def from_proto(proto: object) -> object:
     """Deserialize an ONNX proto message to an IR object."""
     if isinstance(proto, onnx.ModelProto):
         return deserialize_model(proto)
@@ -151,24 +172,47 @@ def from_proto(
         )
     if isinstance(proto, onnx.FunctionProto):
         return deserialize_function(proto)
+    if isinstance(proto, onnx.TensorShapeProto):
+        return deserialize_tensor_shape(proto)
+    if isinstance(proto, onnx.TensorShapeProto.Dimension):
+        return deserialize_dimension(proto)
+    if isinstance(proto, Sequence) and all(
+        isinstance(p, onnx.OperatorSetIdProto) for p in proto
+    ):
+        return deserialize_opset_import(proto)
+    if isinstance(proto, Sequence) and all(
+        isinstance(p, onnx.StringStringEntryProto) for p in proto
+    ):
+        return deserialize_metadata_props(proto)
     raise NotImplementedError(
         f"Deserialization of {type(proto)} in from_proto is not implemented. "
         "Use a specific ir.serde.deserialize* function instead."
     )
 
 
-def to_proto(
-    ir_object: _protocols.ModelProtocol
-    | _protocols.GraphProtocol
-    | _protocols.NodeProtocol
-    | _protocols.ValueProtocol
-    | _protocols.AttributeProtocol
-    | _protocols.ReferenceAttributeProtocol
-    | _protocols.TensorProtocol
-    | _protocols.TypeProtocol
-    | _protocols.GraphViewProtocol
-    | _protocols.FunctionProtocol,
-) -> Any:
+@typing.overload
+def to_proto(ir_object: _protocols.ModelProtocol) -> onnx.ModelProto: ...  # type: ignore[overload-overlap]
+@typing.overload
+def to_proto(ir_object: _protocols.GraphProtocol) -> onnx.GraphProto: ...  # type: ignore[overload-overlap]
+@typing.overload
+def to_proto(ir_object: _protocols.NodeProtocol) -> onnx.NodeProto: ...  # type: ignore[overload-overlap]
+@typing.overload
+def to_proto(ir_object: _protocols.TensorProtocol) -> onnx.TensorProto: ...  # type: ignore[overload-overlap]
+@typing.overload
+def to_proto(ir_object: _protocols.AttributeProtocol) -> onnx.AttributeProto: ...  # type: ignore[overload-overlap]
+@typing.overload
+def to_proto(ir_object: _protocols.ReferenceAttributeProtocol) -> onnx.AttributeProto: ...  # type: ignore[overload-overlap]
+@typing.overload
+def to_proto(ir_object: _protocols.ValueProtocol) -> onnx.ValueInfoProto: ...  # type: ignore[overload-overlap]
+@typing.overload
+def to_proto(ir_object: _protocols.TypeProtocol) -> onnx.TypeProto: ...  # type: ignore[overload-overlap]
+@typing.overload
+def to_proto(ir_object: _protocols.FunctionProtocol) -> onnx.FunctionProto: ...  # type: ignore[overload-overlap]
+@typing.overload
+def to_proto(ir_object: _protocols.GraphViewProtocol) -> onnx.GraphProto: ...  # type: ignore[overload-overlap]
+
+
+def to_proto(ir_object: object) -> object:
     """Serialize an IR object to a proto."""
     if isinstance(ir_object, _protocols.ModelProtocol):
         return serialize_model(ir_object)
@@ -277,8 +321,7 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
             raise ValueError("Cannot convert UNDEFINED tensor to numpy array.")
         if self._proto.data_location == onnx.TensorProto.EXTERNAL:
             raise ValueError(
-                "Cannot convert external tensor to numpy array. "
-                "Use ir.ExternalTensor instead."
+                "Cannot convert external tensor to numpy array. Use ir.ExternalTensor instead."
             )
 
         if self._proto.HasField("raw_data"):
@@ -323,6 +366,8 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
             return _type_casting.unpack_int4(array.astype(np.uint8), self._proto.dims)
         elif dtype == _enums.DataType.UINT4:
             return _type_casting.unpack_uint4(array.astype(np.uint8), self._proto.dims)
+        elif dtype == _enums.DataType.FLOAT4E2M1:
+            return _type_casting.unpack_float4e2m1(array.astype(np.uint8), self._proto.dims)
         else:
             # Otherwise convert to the correct dtype and reshape
             # Note we cannot use view() here because the storage dtype may not be the same size as the target
@@ -369,6 +414,7 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
                 _enums.DataType.FLOAT8E5M2FNUZ,
                 _enums.DataType.INT4,
                 _enums.DataType.UINT4,
+                _enums.DataType.FLOAT4E2M1,
             }:
                 # uint4 and int4 values are already packed, even when stored as int32
                 # so we don't need to pack them again
@@ -541,6 +587,9 @@ def deserialize_graph(proto: onnx.GraphProto) -> _core.Graph:
 
     Returns:
         IR Graph.
+
+    .. versionadded:: 0.3
+        Support for *quantization_annotation* is added.
     """
     return _deserialize_graph(proto, [])
 
@@ -561,11 +610,20 @@ def _deserialize_graph(
     Returns:
         IR Graph.
     """
+    # Process TensorAnnotation for quantization
+    quantization_annotations = {
+        annotation.tensor_name: annotation for annotation in proto.quantization_annotation
+    }
+
     # Create values for initializers and inputs
     initializer_tensors = [deserialize_tensor(tensor) for tensor in proto.initializer]
     inputs = [_core.Input(info.name) for info in proto.input]
     for info, value in zip(proto.input, inputs):
         deserialize_value_info_proto(info, value)
+
+        # Add TensorAnnotation for inputs if they exist
+        if value.name in quantization_annotations:
+            _deserialize_quantization_annotation(quantization_annotations[value.name], value)
 
     # Build the value info dictionary to allow for quick lookup for this graph scope
     value_info = {info.name: info for info in proto.value_info}
@@ -605,10 +663,17 @@ def _deserialize_graph(
                 # This is where we fill in the shape and type information for the initializer
                 deserialize_value_info_proto(value_info[initializer_name], initializer_value)
             values[initializer_name] = initializer_value  # type: ignore[index]
+            if initializer_value.name in quantization_annotations:
+                _deserialize_quantization_annotation(
+                    quantization_annotations[initializer_value.name], initializer_value
+                )
         initializer_values.append(initializer_value)
 
     # Deserialize nodes with all known values
-    nodes = [_deserialize_node(node, scoped_values, value_info) for node in proto.node]
+    nodes = [
+        _deserialize_node(node, scoped_values, value_info, quantization_annotations)
+        for node in proto.node
+    ]
 
     # Fill in values for graph outputs
     outputs = [deserialize_value_info_proto(info, values[info.name]) for info in proto.output]
@@ -634,7 +699,10 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
     value_info = {info.name: info for info in getattr(proto, "value_info", [])}
 
     # TODO(justinchuby): Handle unsorted nodes
-    nodes = [_deserialize_node(node, [values], value_info=value_info) for node in proto.node]
+    nodes = [
+        _deserialize_node(node, [values], value_info=value_info, quantization_annotations={})
+        for node in proto.node
+    ]
     outputs = [values[name] for name in proto.output]
     graph = _core.Graph(
         inputs,
@@ -679,29 +747,41 @@ def deserialize_value_info_proto(
     return value
 
 
+@_capture_errors(lambda proto, value: str(proto))
+def _deserialize_quantization_annotation(
+    proto: onnx.TensorAnnotation, value: _core.Value
+) -> None:
+    """Deserialize a quantization_annotation as TensorAnnotation into a Value.
+
+    This function is marked private because we don't expect users to call it directly.
+    """
+    value.meta[_QUANT_PARAMETER_TENSOR_NAMES_FIELD] = _deserialize_string_string_maps(
+        proto.quant_parameter_tensor_names
+    )
+
+
+@_capture_errors(str)
+def deserialize_tensor_shape(proto: onnx.TensorShapeProto) -> _core.Shape:
+    # This logic handles when the shape is [] as well
+    dim_protos = proto.dim
+    deserialized_dim_denotations = [
+        deserialize_dimension(dim_proto) for dim_proto in dim_protos
+    ]
+    dims = [dim for dim, _ in deserialized_dim_denotations]
+    denotations = [denotation for _, denotation in deserialized_dim_denotations]
+    return _core.Shape(dims, denotations=denotations, frozen=True)
+
+
 @_capture_errors(str)
 def deserialize_type_proto_for_shape(proto: onnx.TypeProto) -> _core.Shape | None:
     if proto.HasField("tensor_type"):
         if (shape_proto := _get_field(proto.tensor_type, "shape")) is None:
             return None
-        # This logic handles when the shape is [] as well
-        dim_protos = shape_proto.dim
-        deserialized_dim_denotations = [
-            deserialize_dimension(dim_proto) for dim_proto in dim_protos
-        ]
-        dims = [dim for dim, _ in deserialized_dim_denotations]
-        denotations = [denotation for _, denotation in deserialized_dim_denotations]
-        return _core.Shape(dims, denotations=denotations, frozen=True)
+        return deserialize_tensor_shape(shape_proto)
     if proto.HasField("sparse_tensor_type"):
         if (shape_proto := _get_field(proto.sparse_tensor_type, "shape")) is None:
             return None
-        dim_protos = shape_proto.dim
-        deserialized_dim_denotations = [
-            deserialize_dimension(dim_proto) for dim_proto in dim_protos
-        ]
-        dims = [dim for dim, _ in deserialized_dim_denotations]
-        denotations = [denotation for _, denotation in deserialized_dim_denotations]
-        return _core.Shape(dims, denotations=denotations, frozen=True)
+        return deserialize_tensor_shape(shape_proto)
     if proto.HasField("sequence_type"):
         if (elem_type := _get_field(proto.sequence_type, "elem_type")) is None:
             return None
@@ -817,6 +897,9 @@ def deserialize_metadata_props(
     return {entry.key: entry.value for entry in proto}
 
 
+_deserialize_string_string_maps = deserialize_metadata_props
+
+
 def deserialize_attribute(proto: onnx.AttributeProto) -> _core.Attr | _core.RefAttr:
     return _deserialize_attribute(proto, [])
 
@@ -891,14 +974,17 @@ def _deserialize_attribute(
 
 
 def deserialize_node(proto: onnx.NodeProto) -> _core.Node:
-    return _deserialize_node(proto, scoped_values=[], value_info={})
+    return _deserialize_node(
+        proto, scoped_values=[{}], value_info={}, quantization_annotations={}
+    )
 
 
-@_capture_errors(lambda proto, scoped_values, value_info: str(proto))
+@_capture_errors(lambda proto, scoped_values, value_info, quantization_annotations: str(proto))
 def _deserialize_node(
     proto: onnx.NodeProto,
     scoped_values: list[dict[str, _core.Value]],
     value_info: dict[str, onnx.ValueInfoProto],
+    quantization_annotations: dict[str, onnx.TensorAnnotation],
 ) -> _core.Node:
     node_inputs: list[_core.Value | None] = []
     for input_name in proto.input:
@@ -941,6 +1027,10 @@ def _deserialize_node(
             # Fill in shape/type information if they exist
             if input_name in value_info:
                 deserialize_value_info_proto(value_info[input_name], value)
+            if input_name in quantization_annotations:
+                _deserialize_quantization_annotation(
+                    quantization_annotations[input_name], value
+                )
             node_inputs.append(value)
             # We can only create the value in the current scope. If the subgraph is
             # referencing a value that is not in the current scope, it is impossible
@@ -982,6 +1072,8 @@ def _deserialize_node(
                 proto.name,
                 proto.op_type,
             )
+        if output_name in quantization_annotations:
+            _deserialize_quantization_annotation(quantization_annotations[output_name], value)
         node_outputs.append(value)
     return _core.Node(
         proto.domain,
@@ -1053,7 +1145,12 @@ def _should_create_value_info_for_value(value: _protocols.ValueProtocol) -> bool
         True if value info should be created for the value.
     """
     # No need to serialize value info if it is not set
-    return not (value.shape is None and value.type is None)
+    if value.shape is None and value.type is None:
+        return False
+    if not value.name:
+        logger.debug("Did not serialize '%s' because its name is empty", value)
+        return False
+    return True
 
 
 def _serialize_experimental_value_info_for_function_ir9_into(
@@ -1080,7 +1177,7 @@ def _serialize_experimental_value_info_for_function_ir9_into(
 
     for input in function.inputs:
         if not input.name:
-            logging.warning(
+            logger.warning(
                 "Function '%s': Value name not set for function input: %s",
                 function_qualified_name,
                 input,
@@ -1093,7 +1190,7 @@ def _serialize_experimental_value_info_for_function_ir9_into(
     for node in function:
         for node_output in node.outputs:
             if not node_output.name:
-                logging.warning(
+                logger.warning(
                     "Function '%s': Value name not set for node output: %s",
                     function_qualified_name,
                     node_output,
@@ -1141,6 +1238,29 @@ def _serialize_metadata_props_into(
         string_string_entries.add(key=key, value=from_[key])
 
 
+_serialize_string_string_maps = _serialize_metadata_props_into
+
+
+def _maybe_add_quantization_annotation(
+    graph_proto: onnx.GraphProto, value: _protocols.ValueProtocol
+) -> None:
+    if quantization_annotation := value.meta.get(_QUANT_PARAMETER_TENSOR_NAMES_FIELD):
+        _serialize_tensor_annotation_into(
+            graph_proto.quantization_annotation.add(), value.name, quantization_annotation
+        )
+
+
+def _serialize_tensor_annotation_into(
+    tensor_annotation_proto: onnx.TensorAnnotation,
+    tensor_name: str,
+    quant_parameter_tensor_names: dict[str, str],
+) -> None:
+    tensor_annotation_proto.tensor_name = tensor_name
+    _serialize_string_string_maps(
+        tensor_annotation_proto.quant_parameter_tensor_names, quant_parameter_tensor_names
+    )
+
+
 def serialize_graph(
     graph: _protocols.GraphProtocol | _protocols.GraphViewProtocol,
 ) -> onnx.GraphProto:
@@ -1176,9 +1296,15 @@ def serialize_graph_into(
         graph_proto.doc_string = from_.doc_string
     for input_ in from_.inputs:
         serialize_value_into(graph_proto.input.add(), input_)
+        if input_.name not in from_.initializers:
+            # Annotations for initializers will be added below to avoid double adding
+            # TODO(justinchuby): We should add a method is_initializer() on Value when
+            # the initializer list is tracked
+            _maybe_add_quantization_annotation(graph_proto, input_)
     input_names = {input_.name for input_ in from_.inputs}
     # TODO(justinchuby): Support sparse_initializer
     for value in from_.initializers.values():
+        _maybe_add_quantization_annotation(graph_proto, value)
         if _should_create_value_info_for_value(value) and value.name not in input_names:
             # Serialize information about all initializers into value_info,
             # except for those that are also graph inputs
@@ -1194,15 +1320,18 @@ def serialize_graph_into(
     for node in from_:
         serialize_node_into(graph_proto.node.add(), from_=node)
         for node_output in node.outputs:
-            if not _should_create_value_info_for_value(node_output):
+            if node_output.is_graph_output():
+                # No need to serialize info for these outputs because they are handled as graph outputs
+                continue
+            _maybe_add_quantization_annotation(graph_proto, node_output)
+            if not _should_create_value_info_for_value(node_output):  # pylint: disable=no-else-continue
                 # No need to serialize value info if it is not set
                 continue
-            if node_output.is_graph_output():
-                # No need to serialize value info for these outputs because they are also graph outputs
-                continue
-            serialize_value_into(graph_proto.value_info.add(), node_output)
+            else:
+                serialize_value_into(graph_proto.value_info.add(), node_output)
     for output in from_.outputs:
         serialize_value_into(graph_proto.output.add(), from_=output)
+        _maybe_add_quantization_annotation(graph_proto, output)
     if from_.metadata_props:
         _serialize_metadata_props_into(graph_proto.metadata_props, from_.metadata_props)
 
@@ -1290,6 +1419,23 @@ def serialize_node(node: _protocols.NodeProtocol) -> onnx.NodeProto:
     return node_proto
 
 
+def _remove_trailing_outputs(
+    outputs: Sequence[_protocols.ValueProtocol],
+) -> Sequence[_protocols.ValueProtocol]:
+    """Remove trailing outputs that have empty names.
+
+    Args:
+        outputs: The outputs to remove trailing outputs from.
+
+    Returns:
+        The outputs with trailing outputs removed.
+    """
+    for i, output in enumerate(reversed(outputs)):
+        if output.name:
+            return outputs[: len(outputs) - i]
+    return []
+
+
 @_capture_errors(lambda node_proto, from_: repr(from_))
 def serialize_node_into(node_proto: onnx.NodeProto, from_: _protocols.NodeProtocol) -> None:
     node_proto.op_type = from_.op_type
@@ -1309,8 +1455,11 @@ def serialize_node_into(node_proto: onnx.NodeProto, from_: _protocols.NodeProtoc
             node_proto.input.append("")
         else:
             node_proto.input.append(input_.name)
-    for output in from_.outputs:
+
+    # Do not include the trailing outputs that have empty names
+    for output in _remove_trailing_outputs(from_.outputs):
         node_proto.output.append(output.name)
+
     for attr in from_.attributes.values():
         if isinstance(attr, _core.Attr):
             serialize_attribute_into(node_proto.attribute.add(), from_=attr)

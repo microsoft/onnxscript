@@ -15,7 +15,7 @@ import onnx
 
 import onnxscript
 from onnxscript import FLOAT, ir, opset18, script
-from onnxscript.rewriter import _ir_utils, pattern
+from onnxscript.rewriter import pattern
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +83,6 @@ def check_if_not_need_reshape(
 
     input_a_shape = input_a.shape
     input_b_shape = input_b.shape
-    # TODO: Get a helper func to get const_value
-    _ir_utils.propagate_const_value(shape_c)
     shape_c_tensor = shape_c.const_value
     if shape_c_tensor is None:
         logger.info("The value 'shape_c' is not statically known.")

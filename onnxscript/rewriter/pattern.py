@@ -5,9 +5,11 @@ from __future__ import annotations
 import abc
 import contextlib
 import dataclasses
+import enum
 import inspect
 import itertools
 import math
+from collections import defaultdict
 from typing import (
     Any,
     Callable,
@@ -21,9 +23,9 @@ from typing import (
     Union,
 )
 
+import onnxscript.optimizer
 from onnxscript import ir
 from onnxscript.ir import _convenience, _tape
-from onnxscript.rewriter import _ir_utils
 
 T = TypeVar("T")
 
@@ -225,6 +227,7 @@ class OpPatternBuilder:
         _version: int | None = None,
         _outputs: int | list[str | None] = 1,
         _allow_other_attributes: bool | None = None,
+        _allow_other_inputs: bool | None = None,
         **kwargs,
     ):
         if _version is not None:
@@ -249,7 +252,13 @@ class OpPatternBuilder:
         inputs = [_to_value_pattern(x) for x in args]
         attributes = {name: _to_attr_pattern(value) for (name, value) in kwargs.items()}
         node_pattern = NodePattern(
-            opset_pattern, self.op_name, inputs, attributes, _outputs, _allow_other_attributes
+            opset_pattern,
+            self.op_name,
+            inputs,
+            attributes,
+            _outputs,
+            allow_other_attributes=_allow_other_attributes,
+            allow_other_inputs=_allow_other_inputs,
         )
         self.pattern_builder.add_node(node_pattern)
         output_values = node_pattern.outputs
@@ -282,12 +291,11 @@ def _to_value_pattern(
         return x
     if isinstance(x, (int, float)):
         return Constant(x)
-    # TODO(rama): support lists of int/float
-    # if isinstance(x, list):
-    #     if all(isinstance(i, (int, float)) for i in x):
-    #         return Constant(x)
-    #     raise ValueError("Only lists of int/float can be used as a ValuePattern")
-    # TODO(titaiwang): Could this be wrapped Constant?
+    if isinstance(x, Sequence):
+        if all(isinstance(i, (int, float)) for i in x):
+            return Constant(x)
+        raise ValueError("Only lists of int/float can be used as a ValuePattern")
+
     raise TypeError(f"Cannot convert {type(x)} to ValuePattern")
 
 
@@ -322,13 +330,17 @@ class MatchResult:
         self.outputs: list[ir.Value] = []
         # For a failed match, _reason is a string that describes the reason for the failure.
         self._reason: str = ""
+        # Track the node that caused the failure.
+        # TODO: May be useful to extend this to be a collection of Nodes and Values.
+        self._failure_node: ir.Node | None = None
 
     def __bool__(self):
         return self._success
 
-    def fail(self, reason: str = "") -> MatchResult:
+    def fail(self, reason: str = "", node: ir.Node | None = None) -> MatchResult:
         self._success = False
         self._reason = reason
+        self._failure_node = node
         return self
 
     @property
@@ -405,7 +417,7 @@ class ValuePattern:
     def name(self) -> str | None:
         return self._name
 
-    def producer(self) -> None | NodePattern:
+    def producer(self) -> NodePattern | None:
         return None
 
     def uses(self) -> Sequence[tuple[NodePattern, int]]:
@@ -472,16 +484,22 @@ class NodePattern:
         inputs: Sequence[int | float | ValuePattern | None],
         attributes: dict[str, AttrPattern],
         outputs: Sequence[str | None],
+        *,
         allow_other_attributes: bool | None,
+        allow_other_inputs: bool | None,
     ):
         if allow_other_attributes is None:
             # Default behavior: allow other unmatched attributes in the node.
             allow_other_attributes = True
+        if allow_other_inputs is None:
+            # TODO(rama): Should we default to True? For now, we preserve the current behavior.
+            allow_other_inputs = False
         self.domain = domain
         self.op = StringConstantPattern(op) if isinstance(op, str) else op
         self.inputs = [_to_value_pattern(x) for x in inputs]
         self.attributes = attributes
         self.allow_other_attributes = allow_other_attributes
+        self.allow_other_inputs = allow_other_inputs
         # In the common case, domain and op are constants, which can be used to optimize matching.
         if isinstance(op, str) and isinstance(domain, StringConstantPattern):
             # TODO(rama): support overloaded operators.
@@ -524,18 +542,23 @@ class NodePattern:
         We check the domain, op_type, and attributes of the node, but not the inputs.
         """
         # TODO(rama): Ensure we handle "" and "onnx.ai" correctly.
-        if not self.domain.matches(node.domain):
-            return match.fail(f"Domain mismatch: expected {self.domain}, got {node.domain}.")
         if not self.op.matches(node.op_type):
-            return match.fail(f"OpType mismatch: expected {self.op}, got {node.op_type}.")
+            return match.fail(
+                f"OpType mismatch: expected {self.op}, got {node.op_type}.", node
+            )
+        if not self.domain.matches(node.domain):
+            return match.fail(
+                f"Domain mismatch: expected {self.domain}, got {node.domain}.", node
+            )
 
         for name, attr_pattern in self.attributes.items():
             attr_value = node.attributes.get(name)
             if attr_value is None:
-                return match.fail(f"Attribute {name} not found in node.")
+                return match.fail(f"Attribute {name} not found in node.", node)
             if not attr_pattern.matches(attr_value):
                 return match.fail(
-                    f"Attribute {name} mismatch: expected {attr_pattern}, got {attr_value}."
+                    f"Attribute {name} mismatch: expected {attr_pattern}, got {attr_value}.",
+                    node,
                 )
             if attr_pattern.name is not None:
                 if not match.bind(attr_pattern.name, attr_value):
@@ -545,20 +568,26 @@ class NodePattern:
             for name in node.attributes:
                 # TODO: Support matching default nodes for attributes.
                 if name not in self.attributes:
-                    return match.fail(f"Attribute {name} not expected in node.")
+                    return match.fail(f"Attribute {name} not expected in node.", node)
 
         return match
 
     def clone(self, node_map: dict[NodePattern, NodePattern], swap: bool) -> NodePattern:
         inputs = [(v.clone(node_map) if v is not None else None) for v in self.inputs]
         if swap:
-            assert (
-                len(inputs) == 2
-            ), "Internal error: commutative swap applies only to binary ops."
+            assert len(inputs) == 2, (
+                "Internal error: commutative swap applies only to binary ops."
+            )
             inputs = [inputs[1], inputs[0]]
         outputs = [value.name for value in self.outputs]
         copied = NodePattern(
-            self.domain, self.op, inputs, self.attributes, outputs, self.allow_other_attributes
+            self.domain,
+            self.op,
+            inputs,
+            self.attributes,
+            outputs,
+            allow_other_attributes=self.allow_other_attributes,
+            allow_other_inputs=self.allow_other_inputs,
         )
         node_map[self] = copied
         return copied
@@ -593,14 +622,22 @@ class NodeOutputPattern(ValuePattern):
 Var = ValuePattern
 
 
+def _is_pattern_variable(x: Any) -> bool:
+    # The derived classes of ValuePattern represent constant patterns and node-output patterns.
+    return type(x) is ValuePattern
+
+
 class Constant(ValuePattern):
     """Represents a pattern that matches against a scalar constant value."""
 
     def __init__(
-        self, value: int | float, rel_tol: float = 1e-5, abs_tol: float = 1e-8
+        self,
+        value: int | float | Sequence[int] | Sequence[float],
+        rel_tol: float = 1e-5,
+        abs_tol: float = 1e-8,
     ) -> None:
         super().__init__(None)
-        self._value = value
+        self._value = list(value) if isinstance(value, Sequence) else value
         self._rel_tol = rel_tol
         self._abs_tol = abs_tol
 
@@ -609,16 +646,33 @@ class Constant(ValuePattern):
         return Constant(self._value, self._rel_tol, self._abs_tol)
 
     @property
-    def value(self) -> int | float:
+    def value(self) -> int | float | list[int] | list[float]:
         return self._value
 
     def matches(self, value: ir.Value, match: MatchResult) -> MatchResult:
-        value = _ir_utils.propagate_const_value(value)
         constant_value = value.const_value
         if constant_value is None:
             return match.fail(f"Value is not a constant, expecting {self.value}.")
 
         constant_value_numpy = constant_value.numpy()
+        if isinstance(self._value, list):
+            if constant_value_numpy.shape != (len(self._value),):
+                return match.fail(f"Value has mismatching shape, expecting ({self.value},).")
+            if not all(
+                math.isclose(
+                    constant_value_numpy.item(i),
+                    self._value[i],
+                    rel_tol=self._rel_tol,
+                    abs_tol=self._abs_tol,
+                )
+                for i in range(len(self._value))
+            ):
+                return match.fail(
+                    f"Value mismatch: expected {self._value}, got {constant_value_numpy}."
+                )
+            return match
+
+        # Scalar constant case:
         # TODO (rama): allow users to specify shape requirement, if desired.
         if constant_value_numpy.size != 1:
             return match.fail(f"Value is not a scalar, expecting {self.value}.")
@@ -660,6 +714,20 @@ def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[NodePattern]:
     return node_patterns
 
 
+def _add_backward_slice(node: NodePattern, backward_slice: set[NodePattern]) -> None:
+    """Adds all nodes in the backward slice of given node to the set `backward_slice`.
+
+    The backward slice of a node is the set of all nodes that are reachable from the node
+    in a backward traversal from the given node.
+    """
+    if node in backward_slice:
+        return
+    backward_slice.add(node)
+    for value_pattern in node.inputs:
+        if isinstance(value_pattern, NodeOutputPattern):
+            _add_backward_slice(value_pattern.producer(), backward_slice)
+
+
 class GraphPattern:
     """Represents a pattern that can be matched against a subgraph."""
 
@@ -675,8 +743,10 @@ class GraphPattern:
             raise ValueError("GraphPattern must have at least one output")
         self._nodes = nodes  # _nodes_in_pattern(outputs)
 
-        # Check if all outputs are produced by the same node.
+        # Determine the output nodes of the pattern. These are a minimal set of nodes
+        # whose backward-slices cover the entire pattern.
         output_nodes: set[NodePattern] = set()
+        covered: set[NodePattern] = set()
         for value_pattern in outputs:
             if not isinstance(value_pattern, ValuePattern):
                 raise TypeError(
@@ -687,7 +757,11 @@ class GraphPattern:
                     "Constant values are not allowed as graph pattern outputs."
                 )
             if isinstance(value_pattern, NodeOutputPattern):
-                output_nodes.add(value_pattern.producer())
+                candidate = value_pattern.producer()
+                if candidate not in covered:
+                    output_nodes.add(candidate)
+                    _add_backward_slice(candidate, covered)
+
         self.output_nodes: list[NodePattern] = list(output_nodes)
 
     @property
@@ -826,6 +900,7 @@ class ReplacementSubgraph:
     match: MatchResult
     new_outputs: Sequence[ir.Value]
     new_nodes: Sequence[ir.Node]
+    new_initializers: Sequence[ir.Value]
     used_opsets: _tape.UsedOpsets
 
 
@@ -854,7 +929,9 @@ class ReplacementPatternFunction:
             return None  # Failed to create replacement subgraph
         if not isinstance(new_outputs, Sequence):
             new_outputs = [new_outputs]
-        return ReplacementSubgraph(match, new_outputs, context.nodes, context.used_opsets)
+        return ReplacementSubgraph(
+            match, new_outputs, context.nodes, context.initializers, context.used_opsets
+        )
 
 
 def _update_opset_imports(
@@ -882,7 +959,10 @@ class PatternMatcher(abc.ABC):
         model: ir.Model,
         graph_or_function: ir.Graph | ir.Function,
         node: ir.Node,
+        *,
         verbose: int = 0,
+        remove_nodes: bool = True,
+        tracer: MatchingTracer | None = None,
     ) -> MatchResult:
         """Match the pattern against the subgraph ending at the given node."""
 
@@ -893,13 +973,14 @@ class PatternMatcher(abc.ABC):
 class SimplePatternMatcher(PatternMatcher):
     def __init__(self, pattern: GraphPattern) -> None:
         super().__init__(pattern)
+        self._current_node: ir.Node | None = None
 
-    def fail(self, reason: str) -> bool:
+    def fail(self, reason: str, node: ir.Node | None = None) -> bool:
         if self._verbose:
             if self._matched:  # Print only if at least one node successfully matched.
                 count = len(self._matched)
                 print(f"Match failed after {count} nodes: {reason}")
-        self._match.fail(reason)
+        self._match.fail(reason, node or self._current_node)
         return False
 
     def _match_constant(self, pattern_constant: Constant, value: ir.Value) -> bool:
@@ -910,35 +991,58 @@ class SimplePatternMatcher(PatternMatcher):
         if subgraph replacement happens. But subsequent DCE will remove the constant
         node if it is not used elsewhere.
         """
-        value = _ir_utils.propagate_const_value(value)
         constant_value = value.const_value
         if constant_value is None:
             return self.fail(
                 f"Value {value.name} is not a constant, expecting {pattern_constant.value}.",
             )
 
-        constant_value_numpy = constant_value.numpy()
+        try:
+            constant_value_numpy = constant_value.numpy()
+        except FileNotFoundError:
+            return self.fail(f"Constant value of {value.name} not available.")
+
+        pattern_constant_value = pattern_constant._value
+
+        if isinstance(pattern_constant_value, list):
+            expected_shape = (len(pattern_constant_value),)
+            if constant_value_numpy.shape != expected_shape:
+                return self.fail(f"Value has mismatching shape, expecting {expected_shape}.")
+            if not all(
+                math.isclose(
+                    constant_value_numpy.item(i),
+                    pattern_constant_value[i],
+                    rel_tol=pattern_constant._rel_tol,
+                    abs_tol=pattern_constant._abs_tol,
+                )
+                for i in range(len(pattern_constant_value))
+            ):
+                return self.fail(
+                    f"Value mismatch: expected {pattern_constant_value}, got {constant_value_numpy}."
+                )
+            return True
+
         # TODO (rama): allow users to specify shape requirement, if desired.
         if constant_value_numpy.size != 1:
             return self.fail(
-                f"Value {value.name} is not a scalar, expecting {pattern_constant.value}.",
+                f"Value {value.name} is not a scalar, expecting {pattern_constant_value}.",
             )
 
         if not math.isclose(
             constant_value_numpy.item(),
-            pattern_constant._value,
+            pattern_constant_value,
             rel_tol=pattern_constant._rel_tol,
             abs_tol=pattern_constant._abs_tol,
         ):
             return self.fail(
-                f"Constant value mismatch: expected {pattern_constant._value}, got {constant_value_numpy.item()}.",
+                f"Constant value mismatch: expected {pattern_constant_value}, got {constant_value_numpy.item()}.",
             )
 
         return True
 
     def _match_node(self, pattern_node: NodePattern, node: ir.Node) -> bool:
         """Matches a pattern subgraph against subgraph rooted at node."""
-
+        self._current_node = node
         # Graph-matching: we do not allow the same pattern node to be matched against
         # different graph nodes.
         if pattern_node in self._matched:
@@ -952,30 +1056,38 @@ class SimplePatternMatcher(PatternMatcher):
         if self._verbose:
             print(f"Matched: {node.op_type}")
 
+        match.nodes.append(node)
         self._matched[pattern_node] = node
 
-        for arg_value, previous_node_output_pattern in zip(node.inputs, pattern_node.inputs):
-            # previous_node_output_pattern could be a Var, if it's the original arg.
-            if arg_value is None and previous_node_output_pattern is None:
-                continue
-            if arg_value is None or previous_node_output_pattern is None:
-                msg = (
-                    "Input not expected to be None"
-                    if arg_value is None
-                    else "Input expected to be None"
+        # TODO: Revisit this to handle optional trailing inputs better.
+        if pattern_node.allow_other_inputs:
+            if len(node.inputs) < len(pattern_node.inputs):
+                return self.fail(
+                    f"Number of inputs ({len(node.inputs)}) is less than expected ({len(pattern_node.inputs)})"
                 )
-                return self.fail(msg)
-            if not self._match_value(previous_node_output_pattern, arg_value):
+        else:
+            if len(node.inputs) != len(pattern_node.inputs):
+                return self.fail(
+                    f"Input nums mismatch. {len(node.inputs)} vs {len(pattern_node.inputs)}"
+                )
+
+        for arg_value, arg_pattern in zip(node.inputs, pattern_node.inputs):
+            # arg_pattern could be a Var, if it's the original arg.
+            if arg_pattern is None:
+                if arg_value is None:
+                    continue
+                else:
+                    return self.fail("(Optional) input is expected to be None but is not.")
+            if not self._match_value(arg_pattern, arg_value):
                 return False
 
         for i, output_value_pattern in enumerate(pattern_node.outputs):
             if not self._bind_value(output_value_pattern, node.outputs[i]):
                 return False
 
-        match.nodes.append(node)
         return True
 
-    def _bind_value(self, pattern_value: ValuePattern, value: ir.Value) -> bool:
+    def _bind_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
         """Bind a ValuePattern var to ir Value."""
         if pattern_value.name is not None:
             match = self._match
@@ -987,14 +1099,18 @@ class SimplePatternMatcher(PatternMatcher):
             match.bindings[pattern_value.name] = value
         return True
 
-    def _match_value(self, pattern_value: ValuePattern, value: ir.Value) -> bool:
+    def _match_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
         """Match an IR value against a ValuePattern instance."""
         if not self._bind_value(pattern_value, value):
             return False
 
         if isinstance(pattern_value, NodeOutputPattern):
+            if value is None:
+                return self.fail("Mismatch: Computed node pattern does not match None.")
             return self._match_node_output(pattern_value, value)
         if isinstance(pattern_value, Constant):
+            if value is None:
+                return self.fail("Mismatch: Constant pattern does not match None.")
             return self._match_constant(pattern_value, value)
         return True
 
@@ -1016,6 +1132,7 @@ class SimplePatternMatcher(PatternMatcher):
         self._verbose = verbose
         self._matched: dict[NodePattern, ir.Node] = {}
         self._match: MatchResult = MatchResult()
+        self._current_node = None
 
     def _get_output_values(self) -> list[ir.Value] | None:
         """Get values bound to the output variables of the pattern."""
@@ -1046,6 +1163,7 @@ class SimplePatternMatcher(PatternMatcher):
         model: ir.Model,
         graph_or_function: ir.Graph | ir.Function,
         node: ir.Node,
+        check_removable: bool,
     ) -> MatchResult:
         del model
         del graph_or_function
@@ -1063,19 +1181,16 @@ class SimplePatternMatcher(PatternMatcher):
 
         output_values = self._get_output_values()
         if output_values is None:
+            # TODO(rama): Is this a valid (useful) case?
             return match
-        if not _valid_to_replace(match.nodes, output_values):
+        if check_removable and not _valid_to_replace(match.nodes, output_values):
+            # TODO(rama): Match status should be updated to reflect failure reason.
             return match.fail("Matched nodes have other uses preventing replacement.")
-
-        if len(node.outputs) != pattern.num_outputs:
-            return match.fail(
-                f"Number of node outputs mismatch: expected {pattern.num_outputs}, got {len(node.outputs)}."
-            )
 
         match.outputs.extend(output_values)
         return match
 
-    def _multi_match(self, candidate: Iterable[ir.Node]) -> MatchResult:
+    def _multi_match(self, candidate: Iterable[ir.Node], check_removable: bool) -> MatchResult:
         """Find a match for a pattern with multiple output nodes.
 
         For a pattern with K output nodes, the input candidate should specify K nodes
@@ -1083,6 +1198,8 @@ class SimplePatternMatcher(PatternMatcher):
 
         Args:
             candidate: An iterable of nodes that will be matched against the pattern output nodes.
+            check_removable: If True, check that the matched nodes can be removed (that is, that
+                they are not used elsewhere in the graph).
         """
         match = self._match
         for pattern_node, node in zip(self.pattern.output_nodes, candidate):
@@ -1092,7 +1209,7 @@ class SimplePatternMatcher(PatternMatcher):
         if output_values is None:
             return match
 
-        if not _valid_to_replace(match.nodes, output_values):
+        if check_removable and not _valid_to_replace(match.nodes, output_values):
             return match.fail("Matched nodes have other uses preventing replacement.")
 
         match.outputs.extend(output_values)
@@ -1103,7 +1220,10 @@ class SimplePatternMatcher(PatternMatcher):
         model: ir.Model,
         graph_or_function: ir.Graph | ir.Function,
         node: ir.Node,
+        *,
         verbose: int = 0,
+        remove_nodes: bool = True,
+        tracer: MatchingTracer | None = None,
     ) -> MatchResult:
         """Match the pattern against the subgraph ending at the given node.
 
@@ -1120,10 +1240,12 @@ class SimplePatternMatcher(PatternMatcher):
         matching in the presence of subgraphs (control-flow) can introduce some
         complications which require careful consideration.
         """
-
+        self._tracer = tracer
         if self.pattern.has_single_output_node:
             self._init_match(verbose)
-            return self._match_single_output_node(model, graph_or_function, node)
+            return self._match_single_output_node(
+                model, graph_or_function, node, check_removable=remove_nodes
+            )
         else:
             # Note: This is a potentially expensive algorithm for matching patterns with
             # multiple output nodes. For patterns with N output nodes, we try all possible
@@ -1150,7 +1272,7 @@ class SimplePatternMatcher(PatternMatcher):
             match = None
             for combination in itertools.product(*candidates):
                 self._init_match(verbose)
-                match = self._multi_match(combination)
+                match = self._multi_match(combination, check_removable=remove_nodes)
                 if match:
                     return match
             if match is None:
@@ -1167,6 +1289,10 @@ class RewriteRule:
         matcher: PatternMatcher | Callable[[GraphPattern], PatternMatcher] | None = None,
         verbose: int = 0,
         name: str | None = None,
+        remove_nodes: bool = True,
+        graph_pre_visitor: Callable[[], None] | None = None,
+        graph_post_visitor: Callable[[], None] | None = None,
+        as_function: bool = False,
     ) -> None:
         """Create a rewrite rule.
 
@@ -1182,8 +1308,18 @@ class RewriteRule:
                 If not provided, a default matcher will be used.
             verbose: The verbosity level of the rule.
             name: An optional name for the pattern that will show up in verbose logging.
+            remove_nodes: If True, the matched nodes will be removed from the graph.
+            graph_pre_visitor: A function that will be called before applying the
+                rewriting to the top-level graph or a function.
+            graph_post_visitor: A function that will be called after the rewriting
+                is complete for a graph or function.
+            as_function: If True, the matched nodes will be extracted into a model
+                local function. This is only supported when remove_nodes=True and
+                when the replacement subgraph has a single node, representing the
+                function call.
         """
-
+        if as_function and not remove_nodes:
+            raise ValueError("as_function=True is only supported when remove_nodes=True.")
         if not isinstance(target_pattern, GraphPattern):
             target_pattern = _to_graph_pattern(target_pattern)
         self._target_pattern = target_pattern
@@ -1205,32 +1341,48 @@ class RewriteRule:
             self._matcher = matcher(self._target_pattern)
         self._verbose = verbose
         self.name = name
+        self.remove_nodes = remove_nodes
+        self.graph_pre_visitor = graph_pre_visitor
+        self.graph_post_visitor = graph_post_visitor
+        self.as_function = as_function
 
     def __str__(self) -> str:
-        if self.name:
-            return f"{self.__class__.__name__}(..., name={self.name!r})"
-        return (
-            f"{self.__class__.__name__}({self._target_pattern}, {self._replacement_pattern})"
-        )
+        return self.name if self.name else "Anonymous Rule"
 
     def try_rewrite(
         self,
         model: ir.Model,
         graph_or_function: ir.Graph | ir.Function,
         node: ir.Node,
+        *,
         verbose: int | None = None,
+        tracer: MatchingTracer | None = None,
     ) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
         if verbose and verbose > 2:
             print(f"[try_rewrite] {self}")
         verbose = verbose if verbose is not None else self._verbose
-        match = self._matcher.match(model, graph_or_function, node, verbose=verbose)
+        match = self._matcher.match(
+            model, graph_or_function, node, verbose=verbose, remove_nodes=self.remove_nodes
+        )
         if match:
             context = None  # TODO(rama)
+            for var in self._target_pattern.inputs:
+                if var.name is not None:
+                    if var.name not in match.bindings:
+                        match.bindings[var.name] = None
             if not self._condition_function(context, **match.bindings):
+                if tracer:
+                    tracer.log(
+                        self, graph_or_function, node, match, MatchStatus.CONDITION_FAILED
+                    )
                 return None
             replacement_subgraph = self._replacement_pattern.get_replacement(match)
             if replacement_subgraph is None:
+                if tracer:
+                    tracer.log(
+                        self, graph_or_function, node, match, MatchStatus.REPLACEMENT_FAILED
+                    )
                 return None
             if len(replacement_subgraph.new_outputs) != self._target_pattern.num_outputs:
                 raise ValueError(
@@ -1240,15 +1392,26 @@ class RewriteRule:
             # TODO(rama): Remove the opset imports from deleted nodes?
             _update_opset_imports(graph_or_function, replacement_subgraph)
             _update_opset_imports(model.graph, replacement_subgraph)
+            if tracer:
+                tracer.log(self, graph_or_function, node, match, MatchStatus.SUCCESS)
             return replacement_subgraph
+        if tracer:
+            tracer.log(self, graph_or_function, node, match, MatchStatus.NO_MATCH)
         return None
 
     def apply_to_model(
-        self, model: ir.Model, *, commute: bool = False, verbose: int | None = None
+        self,
+        model: ir.Model,
+        *,
+        commute: bool = False,
+        verbose: int | None = None,
+        tracer: MatchingTracer | None = None,
     ):
         # A convenience method to apply the rule to a model. We use a RewriteRuleSet to
         # handle commutative rules.
-        return RewriteRuleSet([self], commute=commute).apply_to_model(model, verbose=verbose)
+        return RewriteRuleSet([self], commute=commute).apply_to_model(
+            model, verbose=verbose, tracer=tracer
+        )
 
     def commute(self) -> Sequence[RewriteRule]:
         def replace_pattern(new_pattern):
@@ -1261,6 +1424,11 @@ class RewriteRule:
                 self._condition_function,
                 matcher_class(new_pattern),
                 self._verbose,
+                self.name,
+                self.remove_nodes,
+                self.graph_pre_visitor,
+                self.graph_post_visitor,
+                self.as_function,
             )
 
         return [replace_pattern(p) for p in self._target_pattern.commute()]
@@ -1335,50 +1503,389 @@ def make_rewrite_rule_from_class(
     )
 
 
+# Variation of RewriteRuleAsClass that is based on instance methods instead of class methods.
+# Useful to implement a family of rules to support pattern variations.
+# TODO: cleanup the naming conventions for these inter-related classes.
+class RewriteRuleClassBase:
+    @classmethod
+    def rule(cls, *args, **kwargs):
+        instance = cls(*args, **kwargs)
+        return RewriteRule(
+            instance.pattern,
+            instance.rewrite,
+            instance.check,
+            name=instance.name,
+            remove_nodes=instance.remove_nodes,
+            graph_pre_visitor=instance.setup,
+            graph_post_visitor=instance.cleanup,
+            as_function=instance.as_function,
+        )
+
+    def __init__(
+        self, name: str | None = None, remove_nodes: bool = True, as_function: bool = False
+    ) -> None:
+        self.name = name or self.__class__.__name__
+        self.remove_nodes = remove_nodes
+        self.as_function = as_function
+
+    def pattern(self, op, *args, **kwargs):
+        raise NotImplementedError("Method 'pattern' must be implemented by derived class.")
+
+    def check(self, op, *args, **kwargs):
+        # Default check function that always returns True.
+        return True
+
+    def rewrite(self, op, *args, **kwargs):
+        raise NotImplementedError("Method 'rewrite' must be implemented by derived class.")
+
+    def setup(self):
+        # Optional setup function that can be overridden by derived classes. Used to do
+        # per model/function initialization.
+        pass
+
+    def cleanup(self):
+        # Optional cleanup function that can be overridden by derived classes. Used to do
+        # per model/function cleanup.
+        pass
+
+
+def _copy_for_function(
+    inputs: Sequence[ir.Value | None], nodes: Sequence[ir.Node], outputs: Sequence[ir.Value]
+):
+    """Utility function to extract a subgraph out as a function."""
+    value_map: dict[ir.Value, ir.Value] = {}
+    function_inputs: list[ir.Value] = []
+    constant_nodes: list[ir.Node] = []
+    for input in inputs:
+        # Create a function input (formal-parameter value) to represent this value:
+        new_value = (
+            ir.Value(
+                name=input.name,
+                shape=input.shape,
+                type=input.type,
+                doc_string=input.doc_string,
+            )
+            if input
+            else ir.Value()  # dummy parameter for a None input
+        )
+        if input is not None:
+            value_map[input] = new_value
+        function_inputs.append(new_value)
+
+    def copy_value(value: ir.Value | None) -> ir.Value | None:
+        if value is None:
+            return None
+        if value not in value_map:
+            const_value = value.const_value
+            if const_value is not None:
+                # create a Constant node to represent the value
+                value_attr = ir.AttrTensor("value", const_value)
+                const_node = ir.Node("", "Constant", [], [value_attr])
+                constant_nodes.append(const_node)
+                value_map[value] = result = const_node.outputs[0]
+                return result
+            raise ValueError(f"Value {value} not found in value_map.")
+        return value_map[value]
+
+    def copy_attr_value(attr: ir.Attr | ir.RefAttr) -> ir.Attr | ir.RefAttr:
+        if not isinstance(attr, ir.Attr):
+            # No need to support this currently, as rewriting inside a function is
+            # not used, as it has several challenges.
+            raise NotImplementedError("RefAttr not supported.")
+        if attr.type in {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}:
+            # No need to support this currently, as rewriting control-flow constructs
+            # is not used and has several challenges.
+            raise NotImplementedError("Graph attributes not supported.")
+        # Primitive attributes are immutable by design and can be shared.
+        return attr
+
+    def copy_node(node: ir.Node) -> ir.Node:
+        new_inputs = [copy_value(v) for v in node.inputs]
+        new_attributes = [copy_attr_value(v) for v in node.attributes.values()]
+        new_node = ir.Node(
+            node.domain,
+            node.op_type,
+            new_inputs,
+            new_attributes,
+            overload=node.overload,
+            num_outputs=len(node.outputs),
+            graph=None,
+            name=node.name,
+            doc_string=node.doc_string,  # type: ignore
+            metadata_props=node.metadata_props.copy(),
+        )
+        new_outputs = new_node.outputs
+        for i, output in enumerate(node.outputs):
+            value_map[output] = new_outputs[i]
+            if output.name is not None:
+                new_outputs[i].name = output.name
+        return new_node
+
+    function_nodes = [copy_node(node) for node in nodes]
+    function_outputs = [copy_value(v) for v in outputs]
+    return (function_inputs, constant_nodes + function_nodes, function_outputs)
+
+
+def _get_new_overload(model: ir.Model, domain: str, name: str) -> str:
+    """Get a new overload for the given domain and name.
+
+    Args:
+        model: The model to which the new overload will be added.
+        domain: The domain of the new overload.
+        name: The opname of the new overload.
+
+    Returns:
+        The new overload name.
+    """
+    existing_functions = model.functions
+    # Just a simple implementation for now
+    overload = 1
+    while True:
+        overload_name = str(overload)
+        if (domain, name, overload_name) not in existing_functions:
+            return overload_name
+        overload += 1
+
+
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
         if commute:
             rules = list(itertools.chain.from_iterable([rule.commute() for rule in rules]))
         self.rules = rules
+        # We call remove_unused_nodes at end of rewriting if there is any rule that does
+        # NOT remove nodes (immediately when it is applied)
+        self.remove_unused_nodes = any(not rule.remove_nodes for rule in rules)
 
     def _apply_to_graph_or_function(
         self,
         model: ir.Model,
         graph_or_function: ir.Graph | ir.Function,
+        *,
         verbose: int | None,
+        tracer: MatchingTracer | None = None,
     ) -> int:
+        """
+        Apply the rewrite rules to the given graph or function.
+
+        Args:
+            model: The model to which the rewrite rules are applied.
+            graph_or_function: The graph or function to which the rewrite rules are applied.
+            verbose: The verbosity level. Defaults to None.
+            tracer: The tracer for debugging. Defaults to None.
+
+        Returns:
+            The number of rewrite rules applied.
+        """
         count = 0
 
         # NOTE: Rules should be prioritized in the order they are added to the RewriteRuleSet.
         # And the graph is applied in order.
         for rule in self.rules:
+            if rule.graph_pre_visitor:
+                rule.graph_pre_visitor()
             for node in graph_or_function:
-                delta = rule.try_rewrite(model, graph_or_function, node, verbose=verbose)
-                if delta is None:
+                delta = rule.try_rewrite(
+                    model, graph_or_function, node, verbose=verbose, tracer=tracer
+                )
+                if delta is None or tracer is not None:
                     continue
                 assert isinstance(delta, ReplacementSubgraph)
+                if delta.new_initializers:
+                    if isinstance(graph_or_function, ir.Function):
+                        # TODO(rama): Can't add initializers to functions. But currently this is not
+                        # an issue, as we apply inlining before applying rewrite rules.
+                        if verbose:
+                            print(
+                                f"Rewrites adding initializers not supported for functions: {rule}"
+                            )
+                        continue
+                    initializers = graph_or_function.initializers
+                    for initializer in delta.new_initializers:
+                        if initializer.name in initializers:
+                            if verbose:
+                                print(f"Initializer {initializer.name} already exists.")
+                            continue
+                    for initializer in delta.new_initializers:
+                        initializers[initializer.name] = initializer  # type: ignore[index]
                 # TODO: This does not yet handle the problem of determining the correct insertion point
                 # for inserted nodes in the case of patterns with multiple output-nodes. The following
                 # is sufficient for patterns with a single output-node "node", which can serve as the
                 # insertion-point.
+                onnxscript.optimizer.basic_constant_propagation(delta.new_nodes)
+                if rule.as_function:
+                    # Create a function out of a copy of the matched nodes
+                    if len(delta.new_nodes) != 1:
+                        raise ValueError(
+                            "as_function=True is only supported for patterns with a single replacement node."
+                        )
+                    call_node = delta.new_nodes[0]
+                    domain = call_node.domain
+                    name = call_node.op_type
+                    overload = _get_new_overload(model, domain, name)
+                    call_node.overload = overload
+
+                    # Create topologically sorted list of nodes to be replaced.
+                    unsorted_nodes = set(delta.match.nodes)
+                    original_nodes = [n for n in graph_or_function if n in unsorted_nodes]
+                    # Create new inputs/nodes/outputs for the function
+                    inputs, nodes, outputs = _copy_for_function(
+                        call_node.inputs, original_nodes, delta.match.outputs
+                    )
+
+                    used_domains: set[str] = {node.domain for node in original_nodes}
+                    parent_opset_imports = graph_or_function.opset_imports
+                    used_opset_imports = {
+                        k: v for k, v in parent_opset_imports.items() if k in used_domains
+                    }
+
+                    graph = ir.Graph(
+                        inputs, outputs, nodes=nodes, opset_imports=used_opset_imports
+                    )
+                    f = ir.Function(domain, name, overload, graph=graph, attributes=())
+                    model.functions[f.identifier()] = f
                 _convenience.replace_nodes_and_values(
                     graph_or_function,
                     node,
-                    delta.match.nodes,
+                    delta.match.nodes if rule.remove_nodes else [],
                     delta.new_nodes,
                     delta.match.outputs,
                     delta.new_outputs,
                 )
+
                 count += 1
+            if rule.graph_post_visitor:
+                rule.graph_post_visitor()
 
         return count
 
-    def apply_to_model(self, model: ir.Model, verbose: int | None = None) -> int:
+    def apply_to_model(
+        self,
+        model: ir.Model,
+        *,
+        verbose: int | None = None,
+        tracer: MatchingTracer | None = None,
+    ) -> int:
+        """Apply the rewrite rules in the set to the model.
+
+        Args:
+            model: The model to which the rewrite rules are applied.
+            verbose: The verbosity level of messages. Defaults to None.
+            tracer: if specified, no changes are made to the model, only
+                information about the best matches found is computed.
+
+        Returns:
+            The number of applications of rewrite rules.
+        """
         assert isinstance(model, ir.Model)
-        count = self._apply_to_graph_or_function(model, model.graph, verbose=verbose)
-        for function in model.functions.values():
-            count += self._apply_to_graph_or_function(model, function, verbose=verbose)
+        onnxscript.optimizer.basic_constant_propagation(model.graph)
+        # Rewriting may introduce new functions. In the following loop,
+        # we restrict rewriting to original functions, not newly introduced ones.
+        original_functions = list(model.functions.values())
+        count = self._apply_to_graph_or_function(
+            model, model.graph, verbose=verbose, tracer=tracer
+        )
+        for function in original_functions:
+            onnxscript.optimizer.basic_constant_propagation(function)
+            count += self._apply_to_graph_or_function(
+                model, function, verbose=verbose, tracer=tracer
+            )
+        if self.remove_unused_nodes:
+            onnxscript.optimizer.remove_unused_nodes(model)
         return count
 
     def __iter__(self):
         yield from self.rules
+
+
+class MatchStatus(enum.IntEnum):
+    """The status of a pattern-matching operation."""
+
+    NO_MATCH = 0  # No successful match found for entire pattern graph
+    CONDITION_FAILED = 1  # Subsequent validation check failed
+    REPLACEMENT_FAILED = 2  # Replacement subgraph could not be created
+    SUCCESS = 3  # A successful match was found
+
+
+@dataclasses.dataclass
+class MatchInfo:
+    """The status of a pattern-matching operation. An extension of MatchResult."""
+
+    match_result: MatchResult
+    root_node: ir.Node
+    container: ir.Graph | ir.Function
+    status: MatchStatus
+
+    def score(self) -> int:
+        """Return a score for the match."""
+        return len(self.match_result.nodes) + int(self.status.value) * 100
+
+    def print(self):
+        separator = "-" * 80
+        print(separator)
+        print(f"Status: {self.status.name}")
+        if self.status != MatchStatus.SUCCESS:
+            reason = self.match_result.reason
+            if reason:
+                print(f"Graph matching failed: {reason}")
+            else:
+                print("Graph matching failed.")
+            failure_node = self.match_result._failure_node
+            if failure_node:
+                print("Failure at or around node:")
+                failure_node.display()
+        print("Matched nodes:")
+        import onnxscript.rewriter._ir_utils as ir_utils
+
+        ir_utils.display_nodes(self.match_result.nodes)
+        print(separator)
+
+
+class MatchingTracer:
+    """A debugging helper class to trace the matching of a pattern against a graph.
+
+    This is used to track the best matches found for each rule, and to report the
+    results at the end of the matching.
+    """
+
+    def __init__(self) -> None:
+        self._best_matches_map: dict[RewriteRule, list[MatchInfo]] = defaultdict(list)
+
+    @property
+    def best_matches_map(self) -> dict[RewriteRule, list[MatchInfo]]:
+        return self._best_matches_map
+
+    def log(
+        self,
+        rule: RewriteRule,
+        container: ir.Graph | ir.Function,
+        node: ir.Node,
+        match_result: MatchResult,
+        status: MatchStatus,
+    ) -> None:
+        this_match = MatchInfo(match_result, node, container, status)
+        this_score = this_match.score()
+        if this_score == 0:
+            return
+        best_matches = self._best_matches_map[rule]
+        if best_matches:
+            if this_score < best_matches[0].score():
+                return
+            if this_score > best_matches[0].score():
+                best_matches.clear()
+        best_matches.append(this_match)
+
+    def report(self) -> None:
+        best_score = 0
+        for rule, matches in self._best_matches_map.items():
+            if not matches:
+                continue
+            if matches[0].score() > best_score:
+                best_score = matches[0].score()
+                best_match = matches[0]
+                best_rule = rule
+
+        if best_score > 0:
+            print(f"Rule: {best_rule}")
+            best_match.print()
+        else:
+            print("No matches found.")

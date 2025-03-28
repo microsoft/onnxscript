@@ -28,11 +28,14 @@ import onnxscript
 
 
 def convert2script(
-    input_file_name: str, output_file_name: Optional[str], verbose: bool
+    input_file_name: str, output_file_name: Optional[str], verbose: bool, initializers: bool
 ) -> None:
     model = onnx.load(input_file_name, load_external_data=False)
     python_code = onnxscript.proto2python(
-        model, use_operators=not verbose, inline_const=not verbose
+        model,
+        use_operators=not verbose,
+        inline_const=not verbose,
+        skip_initializers=not initializers,
     )
 
     # If output file name is not provided, use the input file name with .py extension
@@ -55,6 +58,13 @@ if __name__ == "__main__":
         help="Verbose mode, suppresses use of overloaded operators and inline constants",
         default=False,
     )
+    parser.add_argument(
+        "-i",
+        "--initializers",
+        action="store_true",
+        help="Include initializers in the generated script",
+        default=False,
+    )
 
     args = parser.parse_args()
-    convert2script(args.input, args.output, args.verbose)
+    convert2script(args.input, args.output, args.verbose, args.initializers)
