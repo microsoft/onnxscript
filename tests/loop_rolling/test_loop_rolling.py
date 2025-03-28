@@ -6,12 +6,14 @@ import onnx
 import os
 
 from onnxscript import ir
-from onnxscript.rewriter import pattern, rewrite
+from onnxscript import rewriter
+
+#.rewriter import PatternRewriteRule, RewriteRuleSet, rewrite
 import onnxruntime as onnxrt
 
-from onnxscript.utils.pattern_builder import build_loop_replace_pattern
-from onnxscript.utils.pattern_builder import normalize_io_for_loop_rolling
-from onnxscript.utils.pattern_builder import LoopBodyTemplate
+from onnxscript.utils.pattern_builder_jsm import build_loop_replace_pattern
+from onnxscript.utils.pattern_builder_jsm import normalize_io_for_loop_rolling
+from onnxscript.utils.pattern_builder_jsm import LoopBodyTemplate
 
 from onnx import shape_inference
 
@@ -65,7 +67,7 @@ golden_results      = ort_run_graph(args.filename, input_dict, outputs[0].name)
 
 LoopBody = LoopBodyTemplate(args.patternfilename)
 
-change_layers_to_function_calls = pattern.RewriteRule(
+change_layers_to_function_calls = rewriter.PatternRewriteRule(
     LoopBody.pattern,
     LoopBody.function_replace
 )
@@ -112,30 +114,30 @@ LoopMatchPattern,nodes = LoopBody.build_function_match_pattern(normalized_graph)
 loop_replace_pattern = build_loop_replace_pattern(normalized_graph, LoopBody)
 
 
-change_function_calls_to_loop = pattern.RewriteRule(
+change_function_calls_to_loop = rewriter.PatternRewriteRule(
     LoopMatchPattern,
     loop_replace_pattern
 )
 
-class AllTracer(pattern.MatchingTracer):
-    def __init__(self):
-        super().__init__()
+# class AllTracer(pattern.MatchingTracer):
+#     def __init__(self):
+#         super().__init__()
 
-    def log(
-        self,
-        rule: pattern.RewriteRule,
-        container: ir.Graph | ir.Function,
-        node: ir.Node,
-        match_result: pattern.MatchResult,
-        status: pattern.MatchStatus,
-    ) -> None:
-        this_match = pattern.MatchInfo(match_result, node, container, status)
-        best_matches = self._best_matches_map[rule]
-        best_matches.append(this_match)
+#     def log(
+#         self,
+#         rule: PatternRewriteRule,
+#         container: ir.Graph | ir.Function,
+#         node: ir.Node,
+#         match_result: pattern.MatchResult,
+#         status: pattern.MatchStatus,
+#     ) -> None:
+#         this_match = pattern.MatchInfo(match_result, node, container, status)
+#         best_matches = self._best_matches_map[rule]
+#         best_matches.append(this_match)
 
 
-tracer = pattern.MatchingTracer()
-rewrite_set = pattern.RewriteRuleSet([change_function_calls_to_loop])
+# tracer = pattern.MatchingTracer()
+rewrite_set = RewriteRuleSet([change_function_calls_to_loop])
 count = rewrite_set.apply_to_model(mypipeline_model, verbose=None)
 print(f"Count {count}")
 

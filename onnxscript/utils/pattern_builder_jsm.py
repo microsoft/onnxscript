@@ -5,14 +5,21 @@ import onnx
 
 import pdb
 
-from onnxscript import ir, script, INT64, BOOL
-from onnxscript.rewriter import pattern, rewrite
-from onnxscript.rewriter.pattern import ValuePattern, GraphPattern, OpsetPatternBuilder, pattern_builder, NodeOutputPattern
+from onnxscript import ir
+from onnxscript import rewriter
+from onnxscript.rewriter.pattern import (
+    MatchResult, ValuePattern, GraphPattern, OpsetPatternBuilder, pattern_builder, NodeOutputPattern, ReplacementSubgraph
+
+)
 
 
 
 from collections.abc import Iterable
 from onnxscript.utils.graph_view_utils import bGraphView
+
+#print("**************************************")
+#print("********* Pattern Builder ************")
+#print("**************************************")
 
 
 def direct_convert_ir_graph_to_pattern(graph):
@@ -379,14 +386,14 @@ def vdisconnect(value):
     return value
 
 
-class ReplacementPatternGraph(pattern.ReplacementPatternFunction):
+class ReplacementPatternGraph(rewriter.pattern.ReplacementPatternFunction):
     def __init__(self, ir_graph):
         self._graph = ir_graph
 
 
-    def get_replacement(self, match: pattern.MatchResult) -> pattern.ReplacementSubgraph | None:
+    def get_replacement(self, match: MatchResult) -> ReplacementSubgraph | None:
 
-        context = pattern.RewriterContext()
+        context = rewriter.RewriterContext()
         # match.bindings is dictionary of value_name (str) in replacement subgraph pattern (i.e. ir_graph -> IR Value in actual graph)
         vvmap = {} # Dictionary mapping values in replacement subgraph pattern -> values in the replacement subgraph
 
@@ -410,7 +417,7 @@ class ReplacementPatternGraph(pattern.ReplacementPatternFunction):
                 vvmap[node.outputs[cout.index()]] = cout
 
         new_outputs = [vvmap[x] for x in self._graph.outputs]
-        return pattern.ReplacementSubgraph(
+        return rewriter.ReplacementSubgraph(
             match, new_outputs, context.nodes, context.initializers, context.used_opsets
         )
 
