@@ -171,7 +171,7 @@ class TestSDPAFusion(unittest.TestCase):
         # inputs = test_case.get_ort_inputs()
         # original_outputs = ort_run("original", model, inputs)
 
-        count = fuse_sdpa(model)
+        count = fuse_sdpa(model, debug=True)
         self.assertGreater(count, 0)
 
         # Check that the fusion was successful
