@@ -11,7 +11,7 @@ from onnxscript.rewriter import (
     broadcast_to_matmul,
     cast_constant_of_shape,
     collapse_slices,
-    gemm_to_matmul_add,
+    gemm_to_matmul_add,  # type: ignore[has-type]
     llama_rule_sets,
     no_op,
 )
