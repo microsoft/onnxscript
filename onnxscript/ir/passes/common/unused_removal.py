@@ -164,7 +164,9 @@ class RemoveUnusedOpsetsPass(ir.passes.InPlacePass):
         super().__init__()
         self.process_functions = process_functions
 
-    def _process_graph_like(self, graph_like: ir.Graph | ir.Function, used_domains: set[str]) -> bool:
+    def _process_graph_like(
+        self, graph_like: ir.Graph | ir.Function, used_domains: set[str]
+    ) -> bool:
         for node in ir.traversal.RecursiveGraphIterator(graph_like):
             used_domains.add(node.domain)
         unused = set(graph_like.opset_imports) - used_domains
