@@ -44,12 +44,18 @@ class Tape:
             ),
             ir_version=10,
         )
+
+    Attributes:
+        graph_like: The graph to append the new nodes and initializers to. When
+            it is None, the nodes and initializers are creating without owned by a graph.
+            Initializers will not be added to functions because it is not supported by ONNX.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, graph_like: ir.Graph | ir.Function | None = None) -> None:
         self._nodes: list[ir.Node] = []
         self._initializers: list[ir.Value] = []
         self._used_opsets: UsedOpsets = set()
+        self.graph_like = graph_like
 
     def __repr__(self) -> str:
         return f"Tape(nodes={self._nodes}, initializers={self._initializers})"
@@ -92,7 +98,7 @@ class Tape:
             num_outputs=1,
             overload=overload,
             version=version,
-            graph=graph,
+            graph=graph or self.graph_like,
             name=name,
             doc_string=doc_string,
             metadata_props=metadata_props,
@@ -129,7 +135,7 @@ class Tape:
             num_outputs=num_outputs,
             overload=overload,
             version=version,
-            graph=graph,
+            graph=graph or self.graph_like,
             name=name,
             doc_string=doc_string,
             metadata_props=metadata_props,
@@ -148,6 +154,8 @@ class Tape:
             name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
         )
         self._initializers.append(value)
+        if isinstance(self.graph_like, ir.Graph):
+            self.graph_like.register_initializer(value)
         return value
 
 

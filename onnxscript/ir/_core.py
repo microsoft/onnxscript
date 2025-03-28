@@ -1135,7 +1135,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         num_outputs: int | None = None,
         outputs: Sequence[Value] | None = None,
         version: int | None = None,
-        graph: Graph | None = None,
+        graph: Graph | Function | None = None,
         name: str | None = None,
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
@@ -1187,7 +1187,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._version: int | None = version
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = metadata_props
-        self._graph: Graph | None = graph
+        self._graph: Graph | Function | None = graph
         self.doc_string = doc_string
 
         # Add the node as a use of the inputs
@@ -1432,11 +1432,11 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         return self._metadata_props
 
     @property
-    def graph(self) -> Graph | None:
+    def graph(self) -> Graph | Function | None:
         return self._graph
 
     @graph.setter
-    def graph(self, value: Graph | None) -> None:
+    def graph(self, value: Graph | Function | None) -> None:
         self._graph = value
 
     def op_identifier(self) -> _protocols.OperatorIdentifier:
