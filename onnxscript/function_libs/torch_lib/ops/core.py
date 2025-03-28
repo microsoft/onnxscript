@@ -2784,10 +2784,6 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2.0) -> TensorType
     (
         "aten::div.Tensor",
         "aten::div.Scalar",
-        # When rounding_mode is None, performs a true division
-        # https://pytorch.org/docs/stable/generated/torch.div.html
-        "aten::div.Tensor_mode",
-        "aten::div.Scalar_mode",
         "aten::divide.Tensor",
         "aten::divide.Scalar",
         "aten::true_divide.Tensor",
@@ -2799,6 +2795,20 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
     """div.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     # Int inputs will be promoted to float by PyTorch
+    return op.Div(self, other)
+
+
+@torch_op(
+    (
+        "aten::div.Tensor_mode",
+        "aten::div.Scalar_mode",
+    ),
+    trace_only=True,
+)
+def aten_div_mode(self: TFloat, other: TFloat, rounding_mode: Optional[str] = None) -> TFloat:
+    """div.Tensor_mode(Tensor self, Tensor other, *, str? rounding_mode) -> Tensor"""
+    # When rounding_mode is None, performs a true division
+    # https://pytorch.org/docs/stable/generated/torch.div.html
     return op.Div(self, other)
 
 
