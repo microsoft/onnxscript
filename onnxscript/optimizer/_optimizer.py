@@ -11,7 +11,7 @@ from onnxscript.rewriter import (
     broadcast_to_matmul,
     cast_constant_of_shape,
     collapse_slices,
-    gemm_to_matmul_add,  # type: ignore[has-type]
+    gemm_to_matmul_add,
     llama_rule_sets,
     no_op,
 )
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 _DEFAULT_REWRITE_RULES: tuple[rewriter.pattern.RewriteRule, ...] = (
     *no_op.rules.rules,  # TODO: merge this rule into constant folding?
     *broadcast_to_matmul.rules.rules,
-    gemm_to_matmul_add.rule,
+    gemm_to_matmul_add.rule,  # type: ignore[has-type]
     *cast_constant_of_shape.rules.rules,
     *collapse_slices.rules.rules,
     *llama_rule_sets.llama_p0_rule_set().rules,
