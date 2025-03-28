@@ -2,17 +2,22 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+__all__ = [
+    "RemoveUnusedNodesPass",
+    "RemoveUnusedFunctionPass",
+    "RemoveUnusedOpsetPass",
+]
+
 import logging
 
 import onnx
 
-import onnxscript.optimizer._legacy._remove_unused_proto
 from onnxscript import ir
 
 logger = logging.getLogger(__name__)
 
 
-def remove_unused_optional_outputs(
+def _remove_unused_optional_outputs(
     node: ir.Node, graph_outputs: frozenset[ir.Value], onnx_opset_version: int
 ) -> None:
     try:
@@ -70,7 +75,7 @@ def _process_function_or_graph(function_or_graph: ir.Function | ir.Graph) -> int
             count += 1
         else:
             if onnx_opset_version is not None:
-                remove_unused_optional_outputs(node, graph_outputs, onnx_opset_version)
+                _remove_unused_optional_outputs(node, graph_outputs, onnx_opset_version)
             for attr in node.attributes.values():
                 if not isinstance(attr, ir.Attr):
                     continue
@@ -100,9 +105,79 @@ class RemoveUnusedNodesPass(ir.passes.InPlacePass):
         return ir.passes.PassResult(model, modified=False)
 
 
-def remove_unused_nodes(model: ir.Model | onnx.ModelProto) -> None:
-    """Removes unused nodes from a model."""
-    if isinstance(model, ir.Model):
-        RemoveUnusedNodesPass()(model)
-    else:
-        onnxscript.optimizer._legacy._remove_unused_proto.remove_unused_nodes(model)
+def _clean_up_unused_functions(model: ir.Model, unused: set[ir.OperatorIdentifier]) -> None:
+    """Removes unused functions from the model."""
+    for op_identifier in unused:
+        del model.functions[op_identifier]
+
+    logger.info("Removed %s unused functions", len(unused))
+    logger.debug("Functions left: %s", list(model.functions))
+    logger.debug("Functions removed: %s", unused)
+
+
+class RemoveUnusedFunctionPass(ir.passes.InPlacePass):
+    def __init__(self):
+        super().__init__()
+        self.used: set[ir.OperatorIdentifier] | None = None
+
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        self.used = set()
+        for node in ir.traversal.RecursiveGraphIterator(model.graph):
+            self._call_node(model, node)
+
+        # Update the model to remove unused functions
+        unused = set(model.functions) - self.used
+        if not unused:
+            logger.info("No unused functions to remove")
+            return ir.passes.PassResult(model, modified=False)
+
+        _clean_up_unused_functions(model, unused)
+        self.used = None
+        return ir.passes.PassResult(model, modified=True)
+
+    def _call_function(self, model: ir.Model, function: ir.Function) -> None:
+        assert self.used is not None
+        if function.identifier() in self.used:
+            # The function and its nodes are already recorded as used
+            return
+        self.used.add(function.identifier())
+        for node in ir.traversal.RecursiveGraphIterator(function):
+            self._call_node(model, node)
+
+    def _call_node(self, model: ir.Model, node: ir.Node) -> None:
+        op_identifier = node.op_identifier()
+        if op_identifier not in model.functions:
+            return
+        self._call_function(model, model.functions[op_identifier])
+
+
+class RemoveUnusedOpsetPass(ir.passes.InPlacePass):
+    """Remove unused opset imports from the model and functions.
+
+    Attributes:
+        process_functions: Whether to process functions in the model. If True, the pass will
+            remove unused opset imports from functions as well. If False, only the main graph
+            will be processed.
+    """
+
+    def __init__(self, process_functions: bool = True):
+        super().__init__()
+        self.process_functions = process_functions
+
+    def _process_graph_like(self, graph_like: ir.Graph | ir.Function) -> bool:
+        used_domains: set[str] = set()
+        for node in ir.traversal.RecursiveGraphIterator(graph_like):
+            used_domains.add(node.domain)
+        unused = set(graph_like.opset_imports) - used_domains
+        for domain in unused:
+            del graph_like.opset_imports[domain]
+        return bool(unused)
+
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        modified = self._process_graph_like(model.graph)
+
+        if self.process_functions:
+            for function in model.functions.values():
+                modified |= self._process_graph_like(function)
+
+        return ir.passes.PassResult(model, modified=modified)
