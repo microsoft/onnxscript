@@ -12,13 +12,13 @@ __all__ = [
     "inline",
 ]
 
+import ir.passes.common.unused_removal
 import onnx
 
 import onnxscript.optimizer._constant_folding as constant_folding
 import onnxscript.optimizer._legacy._optimizer as legacy_optimizer
 import onnxscript.optimizer._legacy.constant_folding as legacy_constant_folding
 from onnxscript import ir
-import ir.passes.common.unused_removal
 from onnxscript.optimizer._inliner import inline
 from onnxscript.optimizer._optimizer import optimize_ir
 
@@ -49,6 +49,18 @@ def remove_unused_nodes(model: ir.Model | onnx.ModelProto) -> None:
     else:
         model_ir = ir.serde.deserialize_model(model)
         model_ir = ir.passes.common.unused_removal.RemoveUnusedNodesPass()(model_ir).model
+        new_proto = ir.serde.serialize_model(model_ir)
+        model.Clear()
+        model.CopyFrom(new_proto)
+
+
+def remove_unused_functions(model: ir.Model | onnx.ModelProto) -> None:
+    """Removes unused functions from a model inplace."""
+    if isinstance(model, ir.Model):
+        ir.passes.common.unused_removal.RemoveUnusedFunctionsPass()(model)
+    else:
+        model_ir = ir.serde.deserialize_model(model)
+        model_ir = ir.passes.common.unused_removal.RemoveUnusedFunctionsPass()(model_ir).model
         new_proto = ir.serde.serialize_model(model_ir)
         model.Clear()
         model.CopyFrom(new_proto)

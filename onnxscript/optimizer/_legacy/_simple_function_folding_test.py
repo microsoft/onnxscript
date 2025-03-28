@@ -16,6 +16,7 @@ def _remove_unused_functions(model_proto: onnx.ModelProto) -> onnx.ModelProto:
     model = unused_removal.RemoveUnusedFunctionsPass()(model).model
     return ir.serde.serialize_model(model)
 
+
 class SingleNodeFunctionFoldingTest(unittest.TestCase):
     def test_fold_single_node_function(self):
         model = onnx.parser.parse_model(

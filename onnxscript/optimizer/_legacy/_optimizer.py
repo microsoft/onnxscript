@@ -8,6 +8,7 @@ from typing import Any
 import onnx
 import onnx.shape_inference
 
+import onnxscript.optimizer
 from onnxscript import rewriter
 from onnxscript.optimizer._legacy._simple_function_folding import (
     inline_functions_with_unused_outputs,
@@ -15,8 +16,6 @@ from onnxscript.optimizer._legacy._simple_function_folding import (
 )
 from onnxscript.optimizer._legacy.constant_folding import fold_constants
 from onnxscript.optimizer._optimizer import _DEFAULT_REWRITE_RULES
-from onnxscript.optimizer._remove_unused import remove_unused_nodes
-from onnxscript.optimizer._remove_unused_function import remove_unused_functions
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +70,9 @@ def optimize(
             model, external_data_folder, onnx_shape_inference=onnx_shape_inference
         )
 
-        remove_unused_nodes(model)
+        onnxscript.optimizer.remove_unused_nodes(model)
         inline_simple_functions(model)
-        model = remove_unused_functions(model)
+        onnxscript.optimizer.remove_unused_functions(model)
         inline_functions_with_unused_outputs(model)
         # NOTE: This is general rewrite rules
         model = rewriter.rewrite(model, pattern_rewrite_rules=_DEFAULT_REWRITE_RULES)
