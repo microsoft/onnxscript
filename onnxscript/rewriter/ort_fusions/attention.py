@@ -131,7 +131,7 @@ class Attention(pattern.RewriteRuleClassBase):
         if Dh is None or Dh_q is None or Dh_k is None or Dh_v is None:
             return False  # Missing bindings, cannot verify
 
-        if Dh != Dh_q + Dh_k + Dh_v:
+        if Dh != Dh_q + Dh_k + Dh_v:  # type: ignore[operator]
             return False  # Hidden size mismatch
         # TODO: Add mask check once mask is added to the pattern
 
