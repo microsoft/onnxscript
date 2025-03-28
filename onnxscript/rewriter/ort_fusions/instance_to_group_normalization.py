@@ -14,15 +14,15 @@ torch_module_op = pattern.torch_module_op
 logger = logging.getLogger(__name__)
 
 
-def _simulated_instance_norm(
+def check_if_simulated_instance_norm_is_used(
     context,
-    input_x: ir.Value,
-    adjusted_input_shape: ir.Value,
-    original_input_shape: ir.Value,
-    weight_for_norm: ir.Value,
-    bias_for_norm: ir.Value,
-    weight_full: ir.Value,
-    bias_full: ir.Value,
+    input_x,
+    adjusted_input_shape,
+    original_input_shape,
+    weight_for_norm,
+    bias_for_norm,
+    weight_full,
+    bias_full,
     **_,
 ) -> bool:
     """Check if the simulated instance normalization is used.
@@ -40,7 +40,7 @@ def _simulated_instance_norm(
     6. original_input_shape is the same as input_x shape.
 
     Returns:
-        True if the simulated instance normalization is used, False otherwise.
+        bool: True if the simulated instance normalization is used, False otherwise.
     """
     weight_for_norm_const_value = weight_for_norm.const_value
     if weight_for_norm_const_value is None:
@@ -57,7 +57,7 @@ def _simulated_instance_norm(
     if not np.all(bias_for_norm == 0):
         return False
 
-    input_rank_minus_one = input_x.shape.rank() - 1
+    input_rank_minus_one = len(input_x.shape) - 1
     weight_full_rank = len(weight_full.shape)
     bias_full_rank = len(bias_full.shape)
     if weight_full_rank != input_rank_minus_one or bias_full_rank != input_rank_minus_one:
@@ -147,7 +147,7 @@ def group_normalization(op, input_x, weight_for_norm, weight_full, bias_full, ep
 instance_norm_to_group_norm_rule = pattern.RewriteRule(
     instance_simulates_group_normalization_pattern,
     group_normalization,
-    _simulated_instance_norm,
+    check_if_simulated_instance_norm_is_used,
 )
 
 # NOTE: instance_norm_to_group_norm_rule is subset of instance_norm_to_group_norm_with_silu_rule,
