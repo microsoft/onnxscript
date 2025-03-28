@@ -6,8 +6,15 @@ import unittest
 
 import onnx
 
-from onnxscript.optimizer import _remove_unused_function
+from onnxscript import ir
+from onnxscript.ir.passes.common import unused_removal
 from onnxscript.optimizer._legacy import _simple_function_folding
+
+
+def _remove_unused_functions(model_proto: onnx.ModelProto) -> onnx.ModelProto:
+    model = ir.serde.deserialize_model(model_proto)
+    model = unused_removal.RemoveUnusedFunctionsPass()(model).model
+    return ir.serde.serialize_model(model)
 
 
 class SingleNodeFunctionFoldingTest(unittest.TestCase):
@@ -34,7 +41,7 @@ foldable (x) => (return_val)
         )
 
         _simple_function_folding.inline_simple_functions(model)
-        model = _remove_unused_function.remove_unused_functions(model)
+        model = _remove_unused_functions(model)
 
         self.assertEqual(len(model.functions), 0)
 
@@ -61,7 +68,7 @@ foldable <dim>(x, y) => (return_val)
         )
 
         _simple_function_folding.inline_simple_functions(model)
-        model = _remove_unused_function.remove_unused_functions(model)
+        model = _remove_unused_functions(model)
 
         self.assertEqual(len(model.functions), 0)
         self.assertFalse(model.graph.node[0].attribute[0].ref_attr_name)
@@ -100,7 +107,7 @@ non_foldable <axis>(x, y) => (return_val)
         )
 
         _simple_function_folding.inline_simple_functions(model)
-        model = _remove_unused_function.remove_unused_functions(model)
+        model = _remove_unused_functions(model)
 
         self.assertEqual(len(model.functions), 1)
         self.assertEqual(model.functions[0].node[0].op_type, "Concat")
@@ -129,7 +136,7 @@ prim_cast <to>(x) => (return_val)
             """
         )
         _simple_function_folding.inline_simple_functions(model)
-        model = _remove_unused_function.remove_unused_functions(model)
+        model = _remove_unused_functions(model)
         self.assertEqual(len(model.functions), 0)
         self.assertEqual(len(model.graph.node), 3)
         self.assertEqual(model.graph.node[0].attribute[0].i, 10)
@@ -172,7 +179,7 @@ foldable_func (x, y) => (z_6)
         )
 
         _simple_function_folding.inline_simple_functions(model)
-        model = _remove_unused_function.remove_unused_functions(model)
+        model = _remove_unused_functions(model)
 
         self.assertEqual(len(model.functions), 0)
         self.assertEqual(len(model.graph.node), 2)
@@ -213,7 +220,7 @@ non_foldable <axis>(x, y) => (return_val)
         )
 
         _simple_function_folding.inline_functions_with_unused_outputs(model)
-        model = _remove_unused_function.remove_unused_functions(model)
+        model = _remove_unused_functions(model)
         self.assertEqual(len(model.functions), 1)
 
 
