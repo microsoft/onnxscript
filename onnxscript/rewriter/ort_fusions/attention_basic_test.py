@@ -2,13 +2,10 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import math
 import unittest
 
 import numpy as np
-import onnx
 import onnxruntime as ort
-import torch
 
 import onnxscript
 from onnxscript import FLOAT, script
@@ -17,7 +14,7 @@ from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose
 
 msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
-# This is a basic test that verifies that a 
+# This is a basic test that verifies that a
 # proposed expanded computation using packed matmul and ORT's MHA
 # is equivalent to ORT's Attention (for the specific configuration considered).
 
@@ -25,7 +22,7 @@ msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
 
 class AttentionEquivalence(unittest.TestCase):
-    def __init__(self, *args, **kwargs):  
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.batchsize = 2
         self.seqlen = 8
@@ -35,7 +32,7 @@ class AttentionEquivalence(unittest.TestCase):
         self.q_hidden_size = 160
         self.k_hidden_size = 160
         self.v_hidden_size = 180
-        #self.num_groups = self.num_heads // self.kv_num_heads
+        # self.num_groups = self.num_heads // self.kv_num_heads
 
     def random_inputs(self):
         B = self.batchsize
@@ -72,6 +69,7 @@ class AttentionEquivalence(unittest.TestCase):
         Dh_q = self.q_hidden_size
         Dh_qk = self.q_hidden_size + self.k_hidden_size
         Dh_qkv = self.q_hidden_size + self.k_hidden_size + self.v_hidden_size
+
         @script()
         def attention(input, weight, bias):
             QKV_no_bias = op.MatMul(input, weight)
@@ -96,9 +94,7 @@ class AttentionEquivalence(unittest.TestCase):
         D_qkv = self.q_hidden_size + self.k_hidden_size + self.v_hidden_size
         return model_script.to_model_proto(
             input_types=(FLOAT["B", "S", D], FLOAT[D, D_qkv], FLOAT[D_qkv]),
-            output_types=(
-                FLOAT["B", "S", self.v_hidden_size],
-            ),
+            output_types=(FLOAT["B", "S", self.v_hidden_size],),
         )
 
     def test_equivalence(self):

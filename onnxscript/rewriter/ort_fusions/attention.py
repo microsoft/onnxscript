@@ -7,7 +7,6 @@ from typing import Sequence, Union
 import onnxscript.ir as ir
 from onnxscript.rewriter import pattern
 
-
 Dim = Union[int, ir.SymbolicDim]
 
 
@@ -43,9 +42,7 @@ class Attention(pattern.RewriteRuleClassBase):
         attention_bias,
         num_heads,
         scale,
-        **_,
     ):
-
         projected = op.MatMul(input, qkv_weight)
         # Add bias if present
         if self._has_input_bias:
@@ -71,7 +68,7 @@ class Attention(pattern.RewriteRuleClassBase):
             _allow_other_attributes=True,
             _outputs=["value_mm_sliced"],
         )
-        
+
         # Split past into past_key and past_value
         # past_key and past_value are of shape (B, H, S, D/H)
         past_key, past_value = op.Split(past, axis=0, split=[1, 1])
@@ -87,7 +84,7 @@ class Attention(pattern.RewriteRuleClassBase):
             past_key,
             past_value,
             num_heads=num_heads,
-            scale=scale,           
+            scale=scale,
             _domain="com.microsoft",
             _outputs=3,
         )
@@ -124,7 +121,7 @@ class Attention(pattern.RewriteRuleClassBase):
             return False
         if no_match(value_mm_sliced, ["B", "S", "Dh_v"]):
             return False
-        
+
         # Ensure Dh = Dh_q + Dh_k + Dh_v
         Dh = bindings.get("Dh")
         Dh_q = bindings.get("Dh_q")
@@ -169,9 +166,7 @@ class Attention(pattern.RewriteRuleClassBase):
         )
 
 
-attention_with_input_bias_rule = Attention.rule(
-    "attention_input_bias", has_input_bias=True
-)
+attention_with_input_bias_rule = Attention.rule("attention_input_bias", has_input_bias=True)
 attention_with_no_input_bias_rule = Attention.rule(
     "attention_no_input_bias", has_input_bias=False
 )
