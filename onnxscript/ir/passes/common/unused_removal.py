@@ -24,7 +24,7 @@ def _remove_unused_optional_outputs(
         if node.domain not in {"", "onnx.ai"}:
             return
         op_schema = onnx.defs.get_schema(node.op_type, onnx_opset_version, domain=node.domain)
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         logger.info(
             "Failed to get schema for %s, skipping optional output removal",
             node,
