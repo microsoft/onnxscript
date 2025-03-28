@@ -101,8 +101,7 @@ class RemoveUnusedNodesPass(ir.passes.InPlacePass):
             count += _remove_unused_nodes_in_graph_like(function)
         if count:
             logger.info("Removed %s unused nodes", count)
-            return ir.passes.PassResult(model, modified=True)
-        return ir.passes.PassResult(model, modified=False)
+        return ir.passes.PassResult(model, modified=bool(count))
 
 
 class RemoveUnusedFunctionsPass(ir.passes.InPlacePass):
@@ -129,7 +128,7 @@ class RemoveUnusedFunctionsPass(ir.passes.InPlacePass):
         logger.debug("Functions removed: %s", unused)
 
         self._used = None
-        return ir.passes.PassResult(model, modified=True)
+        return ir.passes.PassResult(model, modified=bool(unused))
 
     def _call_function(self, model: ir.Model, function: ir.Function) -> None:
         assert self._used is not None
