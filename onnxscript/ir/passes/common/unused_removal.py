@@ -60,7 +60,7 @@ def _remove_unused_optional_outputs(
             out.name = ""
 
 
-def _process_function_or_graph(function_or_graph: ir.Function | ir.Graph) -> int:
+def _remove_unused_nodes_in_graph_like(function_or_graph: ir.Function | ir.Graph) -> int:
     graph_outputs = frozenset(function_or_graph.outputs)
     onnx_opset_version = function_or_graph.opset_imports.get("", None)
     count = 0
@@ -80,16 +80,16 @@ def _process_function_or_graph(function_or_graph: ir.Function | ir.Graph) -> int
                 if not isinstance(attr, ir.Attr):
                     continue
                 if attr.type == ir.AttributeType.GRAPH:
-                    count += _process_function_or_graph(attr.as_graph())
+                    count += _remove_unused_nodes_in_graph_like(attr.as_graph())
                 elif attr.type == ir.AttributeType.GRAPHS:
                     for graph in attr.as_graphs():
-                        count += _process_function_or_graph(graph)
+                        count += _remove_unused_nodes_in_graph_like(graph)
     return count
 
 
 class RemoveUnusedNodesPass(ir.passes.InPlacePass):
     def call(self, model: ir.Model) -> ir.passes.PassResult:
-        count = _process_function_or_graph(model.graph)
+        count = _remove_unused_nodes_in_graph_like(model.graph)
         graph_outputs = frozenset(model.graph.outputs)
         initializers = model.graph.initializers
         for init in list(initializers.values()):
@@ -98,49 +98,45 @@ class RemoveUnusedNodesPass(ir.passes.InPlacePass):
                 del initializers[init.name]
                 count += 1
         for function in model.functions.values():
-            count += _process_function_or_graph(function)
+            count += _remove_unused_nodes_in_graph_like(function)
         if count:
             logger.info("Removed %s unused nodes", count)
             return ir.passes.PassResult(model, modified=True)
         return ir.passes.PassResult(model, modified=False)
 
 
-def _clean_up_unused_functions(model: ir.Model, unused: set[ir.OperatorIdentifier]) -> None:
-    """Removes unused functions from the model."""
-    for op_identifier in unused:
-        del model.functions[op_identifier]
-
-    logger.info("Removed %s unused functions", len(unused))
-    logger.debug("Functions left: %s", list(model.functions))
-    logger.debug("Functions removed: %s", unused)
-
-
 class RemoveUnusedFunctionPass(ir.passes.InPlacePass):
     def __init__(self):
         super().__init__()
-        self.used: set[ir.OperatorIdentifier] | None = None
+        self._used: set[ir.OperatorIdentifier] | None = None
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
-        self.used = set()
+        self._used = set()
         for node in ir.traversal.RecursiveGraphIterator(model.graph):
             self._call_node(model, node)
 
         # Update the model to remove unused functions
-        unused = set(model.functions) - self.used
+        unused = set(model.functions) - self._used
         if not unused:
             logger.info("No unused functions to remove")
             return ir.passes.PassResult(model, modified=False)
 
-        _clean_up_unused_functions(model, unused)
-        self.used = None
+        for op_identifier in unused:
+            del model.functions[op_identifier]
+
+        logger.info("Removed %s unused functions", len(unused))
+        logger.debug("Functions left: %s", list(model.functions))
+        logger.debug("Functions removed: %s", unused)
+
+        self._used = None
         return ir.passes.PassResult(model, modified=True)
 
     def _call_function(self, model: ir.Model, function: ir.Function) -> None:
-        assert self.used is not None
-        if function.identifier() in self.used:
+        assert self._used is not None
+        if function.identifier() in self._used:
             # The function and its nodes are already recorded as used
             return
-        self.used.add(function.identifier())
+        self._used.add(function.identifier())
         for node in ir.traversal.RecursiveGraphIterator(function):
             self._call_node(model, node)
 
