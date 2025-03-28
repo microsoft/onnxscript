@@ -12,9 +12,9 @@ __all__ = [
     "inline",
 ]
 
-import ir.passes.common.unused_removal
 import onnx
 
+import onnxscript.ir.passes.common.unused_removal
 import onnxscript.optimizer._constant_folding as constant_folding
 import onnxscript.optimizer._legacy._optimizer as legacy_optimizer
 import onnxscript.optimizer._legacy.constant_folding as legacy_constant_folding
@@ -45,10 +45,12 @@ def fold_constants(model: ir.Model | onnx.ModelProto, *args, **kwargs) -> bool:
 def remove_unused_nodes(model: ir.Model | onnx.ModelProto) -> None:
     """Removes unused nodes from a model inplace."""
     if isinstance(model, ir.Model):
-        ir.passes.common.unused_removal.RemoveUnusedNodesPass()(model)
+        onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass()(model)
     else:
         model_ir = ir.serde.deserialize_model(model)
-        model_ir = ir.passes.common.unused_removal.RemoveUnusedNodesPass()(model_ir).model
+        model_ir = onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass()(
+            model_ir
+        ).model
         new_proto = ir.serde.serialize_model(model_ir)
         model.Clear()
         model.CopyFrom(new_proto)
@@ -57,10 +59,12 @@ def remove_unused_nodes(model: ir.Model | onnx.ModelProto) -> None:
 def remove_unused_functions(model: ir.Model | onnx.ModelProto) -> None:
     """Removes unused functions from a model inplace."""
     if isinstance(model, ir.Model):
-        ir.passes.common.unused_removal.RemoveUnusedFunctionsPass()(model)
+        onnxscript.ir.passes.common.unused_removal.RemoveUnusedFunctionsPass()(model)
     else:
         model_ir = ir.serde.deserialize_model(model)
-        model_ir = ir.passes.common.unused_removal.RemoveUnusedFunctionsPass()(model_ir).model
+        model_ir = onnxscript.ir.passes.common.unused_removal.RemoveUnusedFunctionsPass()(
+            model_ir
+        ).model
         new_proto = ir.serde.serialize_model(model_ir)
         model.Clear()
         model.CopyFrom(new_proto)
