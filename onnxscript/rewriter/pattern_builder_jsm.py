@@ -1,5 +1,3 @@
-print("***** IMPORTING JSM PATTERN BUILDER *****")
-
 import copy
 
 import numpy as np
