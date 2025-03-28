@@ -11,9 +11,11 @@ from onnxscript import rewriter
 #.rewriter import PatternRewriteRule, RewriteRuleSet, rewrite
 import onnxruntime as onnxrt
 
-from onnxscript.utils.pattern_builder_jsm import build_loop_replace_pattern
-from onnxscript.utils.pattern_builder_jsm import normalize_io_for_loop_rolling
-from onnxscript.utils.pattern_builder_jsm import LoopBodyTemplate
+from onnxscript.rewriter import rewrite, RewriteRuleSet
+
+from onnxscript.rewriter.pattern_builder_jsm import build_loop_replace_pattern
+from onnxscript.rewriter.pattern_builder_jsm import normalize_io_for_loop_rolling
+from onnxscript.rewriter.pattern_builder_jsm import LoopBodyTemplate
 
 from onnx import shape_inference
 

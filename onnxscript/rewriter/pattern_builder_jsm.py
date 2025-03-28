@@ -1,15 +1,14 @@
+print("***** IMPORTING JSM PATTERN BUILDER *****")
+
 import copy
 
 import numpy as np
 import onnx
 
-import pdb
-
 from onnxscript import ir
 from onnxscript import rewriter
 from onnxscript.rewriter.pattern import (
-    MatchResult, ValuePattern, GraphPattern, OpsetPatternBuilder, pattern_builder, NodeOutputPattern, ReplacementSubgraph
-
+    RewriterContext, MatchResult, ValuePattern, GraphPattern, OpsetPatternBuilder, pattern_builder, NodeOutputPattern, ReplacementSubgraph, ReplacementPatternFunction
 )
 
 
@@ -386,14 +385,14 @@ def vdisconnect(value):
     return value
 
 
-class ReplacementPatternGraph(rewriter.pattern.ReplacementPatternFunction):
+class ReplacementPatternGraph(ReplacementPatternFunction):
     def __init__(self, ir_graph):
         self._graph = ir_graph
 
 
     def get_replacement(self, match: MatchResult) -> ReplacementSubgraph | None:
 
-        context = rewriter.RewriterContext()
+        context = RewriterContext()
         # match.bindings is dictionary of value_name (str) in replacement subgraph pattern (i.e. ir_graph -> IR Value in actual graph)
         vvmap = {} # Dictionary mapping values in replacement subgraph pattern -> values in the replacement subgraph
 
@@ -417,7 +416,7 @@ class ReplacementPatternGraph(rewriter.pattern.ReplacementPatternFunction):
                 vvmap[node.outputs[cout.index()]] = cout
 
         new_outputs = [vvmap[x] for x in self._graph.outputs]
-        return rewriter.ReplacementSubgraph(
+        return ReplacementSubgraph(
             match, new_outputs, context.nodes, context.initializers, context.used_opsets
         )
 
