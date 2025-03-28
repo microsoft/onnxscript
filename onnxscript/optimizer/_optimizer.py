@@ -18,14 +18,14 @@ from onnxscript.rewriter import (
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_REWRITE_RULES = [
+_DEFAULT_REWRITE_RULES: tuple[rewriter.pattern.RewriteRule, ...] = (
     *no_op.rules.rules,  # TODO: merge this rule into constant folding?
     *broadcast_to_matmul.rules.rules,
-    gemm_to_matmul_add.rule,  # type: ignore[has-type]
+    gemm_to_matmul_add.rule,
     *cast_constant_of_shape.rules.rules,
     *collapse_slices.rules.rules,
     *llama_rule_sets.llama_p0_rule_set().rules,
-]
+)
 
 
 def optimize_ir(
