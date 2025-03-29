@@ -47,7 +47,7 @@ class _CopyReplace:
 
     def __init__(
         self,
-        inliner: _Inliner,
+        inliner: InlinePass,
         attr_map: dict[str, ir.Attr | ir.RefAttr],
         value_map: dict[ir.Value, ir.Value | None],
         metadata_props: dict[str, str],
@@ -188,14 +188,28 @@ def _abbreviate(
     return {id: id_abbreviation(id) for id in function_ids}
 
 
-class _Inliner:
-    def __init__(self, model: ir.Model) -> None:
-        self._functions = model.functions
-        self._function_id_abbreviations = _abbreviate(self._functions.keys())
-        self._opset_imports = model.opset_imports
+class InlinePass(ir.passes.InPlacePass):
+    def __init__(self) -> None:
+        self._functions = {}
+        self._function_id_abbreviations = {}
+        self._opset_imports = {}
         self.used_value_names: set[str] = set()
         self.used_node_names: set[str] = set()
         self.node_context: dict[ir.Node, CallStack] = {}
+
+    def _reset(self, model: ir.Model) -> None:
+        self._functions = model.functions
+        self._function_id_abbreviations = _abbreviate(self._functions.keys())
+        self._opset_imports = model.opset_imports
+        self.used_value_names = set()
+        self.used_node_names = set()
+        self.node_context = {}
+
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        self._reset(model)
+        modified = self.inline_calls_in(model.graph)
+        model.functions.clear()
+        return ir.passes.PassResult(model, modified)
 
     def _instantiate_call(self, node: ir.Node, call_site_id: CallSiteId) -> NodeReplacement:
         id = node.op_identifier()
@@ -249,7 +263,7 @@ class _Inliner:
         output_values = [value_map[output] for output in function.outputs]
         return nodes, output_values  # type: ignore
 
-    def inline_calls_in(self, graph: ir.Graph) -> None:
+    def inline_calls_in(self, graph: ir.Graph) -> bool:
         for input in graph.inputs:
             if input.name is not None:
                 self.used_value_names.add(input.name)
@@ -302,11 +316,10 @@ class _Inliner:
                     elif attr.type == ir.AttributeType.GRAPHS:
                         for graph in attr.as_graphs():
                             self.inline_calls_in(graph)
+        return bool(id_count)
 
 
 def inline(model: ir.Model) -> None:
     """Inline all function calls (recursively) in the model."""
     if model.functions:
-        inliner = _Inliner(model)
-        inliner.inline_calls_in(model.graph)
-        model.functions.clear()
+        InlinePass()(model)
