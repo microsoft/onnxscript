@@ -36,7 +36,6 @@ def ort_run(model_name: str, model, inputs):
 def assert_allclose(outputs, expected_outputs, rtol=1e-4, atol=1e-4):
     for i, (baseline_output, optimized_output) in enumerate(zip(expected_outputs, outputs)):
         try:
-            print(f"output {i} shapes: {baseline_output.shape}, {optimized_output.shape}")
             np.testing.assert_equal(baseline_output.shape, optimized_output.shape)
             np.testing.assert_allclose(baseline_output, optimized_output, rtol=rtol, atol=atol)
         except AssertionError as e:
