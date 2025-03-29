@@ -139,7 +139,7 @@ class GQA1(unittest.TestCase):
             attn_weight = op.Softmax(masked_attn_score, axis=-1)
             attention_BHSDh = op.MatMul(attn_weight, value_BHSDh)
 
-            # Reshape back to original shape:
+            # Reshape back to BSD format
             attention_BSHDh = op.Transpose(attention_BHSDh, perm=[0, 2, 1, 3])
             attention_BSD = op.Reshape(attention_BSHDh, shape_BSD)
             return attention_BSD, key_BHkvSDh, value_BHkvSDh
@@ -163,13 +163,13 @@ class GQA1(unittest.TestCase):
     def test_equivalence(self):
         inputs = self.random_inputs()
 
-        fused_model = self.to_proto(self.fused_model_script())  # self.fused_model()
+        fused_model = self.to_proto(self.fused_model_script())
         session = ort.InferenceSession(
             fused_model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
         outputs1 = session.run(None, inputs)
 
-        expanded_model = self.to_proto(self.expanded_model_script())  # self.expanded_model()
+        expanded_model = self.to_proto(self.expanded_model_script())
         session = ort.InferenceSession(
             expanded_model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
@@ -182,16 +182,42 @@ class GQA1(unittest.TestCase):
 class GQA2(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.batchsize = 1
+        # Config parameters
+        self.batchsize = 1  # Note: GQA (cpu) seems to require batch-size 1?
         self.seqlen = 8
         self.kv_seqlen = self.seqlen
         self.past_seqlen = 16
         self.headsize = 16
         self.num_heads = 20
         self.kv_num_heads = 10
+
+        # Computed config parameters
         self.hidden_size = self.headsize * self.num_heads
         self.kv_hidden_size = self.headsize * self.kv_num_heads
         self.num_groups = self.num_heads // self.kv_num_heads
+
+        # Abbreviations
+        D = self.hidden_size
+        Dkv = self.kv_hidden_size
+        Dh = self.headsize
+        Hkv = self.kv_num_heads
+
+        # Input/output types have some parameters as dynamic (even though the
+        # test case instance has specific values above).
+        self.input_types = (
+            FLOAT["B", "S", D],  # query
+            FLOAT["B", "S", Dkv],  # key
+            FLOAT["B", "S", Dkv],  # value
+            FLOAT["B", Hkv, "Skvp", Dh],  # past_key
+            FLOAT["B", Hkv, "Skvp", Dh],  # past_value
+            FLOAT["max_seqlen", Dh // 2],  # cos
+            FLOAT["max_seqlen", Dh // 2],  # sin
+        )
+        self.output_types = (
+            FLOAT["B", "S", D],  # attention
+            FLOAT["B", Hkv, "ST", Dh],  # present_key
+            FLOAT["B", Hkv, "ST", Dh],  # present_value
+        )
 
     def random_inputs(self):
         B = self.batchsize
@@ -333,7 +359,8 @@ class GQA2(unittest.TestCase):
             value_BHkvGSDh = op.Expand(value_BHkv1SDh, shape_BHkvGSDh)
             value_BHSDh = op.Reshape(value_BHkvGSDh, shape_BHSDh)
 
-            # Generate a causal mask where every row looks like [0, 0, ..., /*diagonal=*/ 0, minval, minval, ...]
+            # Generate causal mask:
+            # where every row looks like [0, 0, ..., /*diagonal=*/ 0, minval, minval, ...]
             all_min = op.ConstantOfShape(shape_ST, value=minval_tp)
             past_0D = op.Squeeze(past_seq_length)
             one = op.Constant(value_int=1)
@@ -350,46 +377,30 @@ class GQA2(unittest.TestCase):
             attn_weight = op.Softmax(masked_attn_score, axis=-1)
             attention_BHSDh = op.MatMul(attn_weight, value_BHSDh)
 
-            # Reshape back to original shape:
+            # Reshape back to BSD format
             attention_BSHDh = op.Transpose(attention_BHSDh, perm=[0, 2, 1, 3])
             attention_BSD = op.Reshape(attention_BSHDh, shape_BSD)
+
             return attention_BSD, key_seq_BHkvSkvDh, value_seq_BHkvSkvDh
 
         return gqa
 
-    def to_proto(self, model_script):
-        D = self.hidden_size
-        Dkv = self.kv_hidden_size
-        Dh = self.headsize
-        Hkv = self.kv_num_heads
-
-        return model_script.to_model_proto(
-            input_types=(
-                FLOAT["B", "S", D],
-                FLOAT["B", "S", Dkv],
-                FLOAT["B", "S", Dkv],
-                FLOAT["B", Hkv, "Skvp", Dh],
-                FLOAT["B", Hkv, "Skvp", Dh],
-                FLOAT["max_seqlen", Dh // 2],
-                FLOAT["max_seqlen", Dh // 2],
-            ),
-            output_types=(
-                FLOAT["B", "S", D],
-                FLOAT["B", Hkv, "ST", Dh],
-                FLOAT["B", Hkv, "ST", Dh],
-            ),
-        )
-
     def test_equivalence(self):
         inputs = self.random_inputs()
 
-        fused_model = self.to_proto(self.fused_model_script())  # self.fused_model()
+        fused_model = self.fused_model_script().to_model_proto(
+            input_types=self.input_types,
+            output_types=self.output_types,
+        )
         session = ort.InferenceSession(
             fused_model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
         outputs1 = session.run(None, inputs)
 
-        expanded_model = self.to_proto(self.expanded_model_script())  # self.expanded_model()
+        expanded_model = self.expanded_model_script().to_model_proto(
+            input_types=self.input_types,
+            output_types=self.output_types,
+        )
         session = ort.InferenceSession(
             expanded_model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
