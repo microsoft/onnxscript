@@ -36,6 +36,22 @@ class GQA1(unittest.TestCase):
         self.kv_hidden_size = self.headsize * self.kv_num_heads
         self.num_groups = self.num_heads // self.kv_num_heads
 
+        # Abbreviations
+        D = self.hidden_size
+        Dkv = self.kv_hidden_size
+        Dh = self.headsize
+        Hkv = self.kv_num_heads
+
+        query_type = FLOAT["B", "S", D]
+        key_type = FLOAT["B", "S", Dkv]
+        value_type = FLOAT["B", "S", Dkv]
+        self.input_types = (query_type, key_type, value_type)
+
+        attention_type = FLOAT["B", "S", D]
+        past_key_type = FLOAT["B", Hkv, "S", Dh]
+        past_value_type = FLOAT["B", Hkv, "S", Dh]
+        self.output_types = (attention_type, past_key_type, past_value_type)
+
     def random_inputs(self):
         B = self.batchsize
         S = self.seqlen
@@ -146,30 +162,22 @@ class GQA1(unittest.TestCase):
 
         return gqa
 
-    def to_proto(self, model_script):
-        D = self.hidden_size
-        Dkv = self.kv_hidden_size
-        Dh = self.headsize
-        Hkv = self.kv_num_heads
-        return model_script.to_model_proto(
-            input_types=(FLOAT["B", "S", D], FLOAT["B", "S", Dkv], FLOAT["B", "S", Dkv]),
-            output_types=(
-                FLOAT["B", "S", D],
-                FLOAT["B", Hkv, "S", Dh],
-                FLOAT["B", Hkv, "S", Dh],
-            ),
-        )
-
     def test_equivalence(self):
         inputs = self.random_inputs()
 
-        fused_model = self.to_proto(self.fused_model_script())
+        fused_model = self.fused_model_script().to_model_proto(
+            input_types=self.input_types,
+            output_types=self.output_types,
+        )
         session = ort.InferenceSession(
             fused_model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
         outputs1 = session.run(None, inputs)
 
-        expanded_model = self.to_proto(self.expanded_model_script())
+        expanded_model = self.expanded_model_script().to_model_proto(
+            input_types=self.input_types,
+            output_types=self.output_types,
+        )
         session = ort.InferenceSession(
             expanded_model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
