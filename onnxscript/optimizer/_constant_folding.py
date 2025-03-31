@@ -569,7 +569,7 @@ def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         return None
 
     # Eliminate zero-length operands from Concat
-    def has_non_zero_size(operand: ir.Value | None) -> bool:
+    def has_zero_size(operand: ir.Value | None) -> bool:
         if operand is None:
             return False  # Invalid model
         if (shape := operand.shape) is None:
@@ -579,9 +579,9 @@ def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
             dim_size = shape[axis]  # type: ignore[index]
         except IndexError:
             return False
-        return dim_size != 0  # Could be symbolic or None or non-zero int value
+        return dim_size == 0  # return False if symbolic or None or non-zero int value
 
-    new_inputs = [x for x in inputs if has_non_zero_size(x)]
+    new_inputs = [x for x in inputs if not has_zero_size(x)]
     if len(new_inputs) != len(inputs):
         if new_inputs:
             # Remove zero-length operands from Concat
