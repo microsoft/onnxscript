@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 
+import onnxscript.optimizer
 from onnxscript import ir, rewriter
 from onnxscript.optimizer import _constant_folding, _inliner
-from onnxscript.optimizer._remove_unused import remove_unused_nodes
 from onnxscript.rewriter import (
     broadcast_to_matmul,
     cast_constant_of_shape,
@@ -18,14 +18,14 @@ from onnxscript.rewriter import (
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_REWRITE_RULES = [
+_DEFAULT_REWRITE_RULES: tuple[rewriter.pattern.RewriteRule, ...] = (
     *no_op.rules.rules,  # TODO: merge this rule into constant folding?
     *broadcast_to_matmul.rules.rules,
-    gemm_to_matmul_add.rule,
+    gemm_to_matmul_add.rule,  # type: ignore[has-type]
     *cast_constant_of_shape.rules.rules,
     *collapse_slices.rules.rules,
     *llama_rule_sets.llama_p0_rule_set().rules,
-]
+)
 
 
 def optimize_ir(
@@ -51,6 +51,7 @@ def optimize_ir(
             outer optimization loop if no change is detected in one iteration.
     """
     del stop_if_no_change  # Looks like rewriter doesn't support this yet.
+    # TODO(justinchuby): Update this to use a pass manager
     _inliner.inline(model)
     for _ in range(num_iterations):
         _constant_folding.fold_constants(
@@ -60,4 +61,4 @@ def optimize_ir(
             output_size_limit=output_size_limit,
         )
         rewriter.rewrite(model, pattern_rewrite_rules=_DEFAULT_REWRITE_RULES)
-    remove_unused_nodes(model)
+    onnxscript.optimizer.remove_unused_nodes(model)
