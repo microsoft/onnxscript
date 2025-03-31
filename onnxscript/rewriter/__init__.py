@@ -25,14 +25,13 @@ ModelProtoOrIr = TypeVar("ModelProtoOrIr", onnx.ModelProto, ir.Model)
 class RewritePass(ir.passes.InPlacePass):
     def __init__(
         self,
-        pattern_rewrite_rules: Union[
-            Sequence[PatternRewriteRule], pattern.RewriteRuleSet
-        ] = (),
+        pattern_rewrite_rules: Sequence[PatternRewriteRule] | pattern.RewriteRuleSet = (),
     ) -> None:
         if pattern_rewrite_rules:
             if not isinstance(pattern_rewrite_rules, pattern.RewriteRuleSet):
                 # Create a pattern rule-set using provided rules
                 pattern_rewrite_rules = pattern.RewriteRuleSet(pattern_rewrite_rules)
+        assert isinstance(pattern_rewrite_rules, pattern.RewriteRuleSet)
         self.pattern_rewrite_rules: pattern.RewriteRuleSet = pattern_rewrite_rules
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
