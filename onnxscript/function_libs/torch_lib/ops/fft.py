@@ -21,6 +21,12 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
+@torch_op(
+    ("aten::_fft_c2c", "aten::_fft_r2c"),
+    private=True,
+    complex=True,
+    trace_only=True,
+)
 def _fftn_onnx_normalization(
     self: TFloat,
     normalization: int,
@@ -41,6 +47,12 @@ def _fftn_onnx_normalization(
     return self
 
 
+@torch_op(
+    ("aten::_fft_c2c", "aten::_fft_c2r"),
+    private=True,
+    complex=True,
+    trace_only=True,
+)
 def _fftn_onnx_inverse_normalization(
     self: TFloat,
     normalization: int,
@@ -63,7 +75,7 @@ def _fftn_onnx_inverse_normalization(
 
 @torch_op("aten::_fft_c2c", trace_only=True, complex=True)
 def aten__fft_c2c(
-    self: TFloat, dim: Sequence[int], normalization: int, forward: bool
+    transformed: TFloat, dim: Sequence[int], normalization: int, forward: bool
 ) -> TFloat:
     """_fft_c2c(Tensor self, SymInt[] dim, int normalization, bool forward) -> Tensor
 
@@ -74,13 +86,18 @@ def aten__fft_c2c(
 
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
-    transformed = self
-    self_rank = len(self.shape)
+    self_rank = len(transformed.shape)
     signal_size = op.CastLike(op.Size(transformed), transformed)
 
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
     dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
+
+    unsqueeze_first_dim = 0 in dim
+    if unsqueeze_first_dim:
+        transformed = op.Unsqueeze(transformed, axes=[0])
+        # Add 1 to account for the batch dimension when counting axes from the left
+        dim = [dim_ + 1 if dim_ >= 0 else dim_ for dim_ in dim]
 
     for dimension in reversed(dim):
         transformed = op.DFT(transformed, axis=dimension, inverse=not forward, onesided=False)
@@ -91,12 +108,15 @@ def aten__fft_c2c(
                 transformed, normalization, signal_size
             )
 
+    if unsqueeze_first_dim:
+        transformed = op.Squeeze(transformed, axes=[0])
+
     return transformed
 
 
 @torch_op("aten::_fft_c2r", trace_only=True, complex=True)
 def aten__fft_c2r(
-    self: TFloat,
+    transformed: TFloat,
     dim: Sequence[int],
     normalization: int,
     last_dim_size: INT64,
@@ -105,13 +125,18 @@ def aten__fft_c2r(
 
     Complex to real inverse FFT.
     """
-    transformed = self
-    self_rank = len(self.shape)
+    self_rank = len(transformed.shape)
     signal_size = op.CastLike(op.Size(transformed), transformed)
 
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
     dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
+
+    unsqueeze_first_dim = 0 in dim
+    if unsqueeze_first_dim:
+        transformed = op.Unsqueeze(transformed, axes=[0])
+        # Add 1 to account for the batch dimension when counting axes from the left
+        dim = [dim_ + 1 if dim_ >= 0 else dim_ for dim_ in dim]
 
     for dimension in reversed(dim):
         transformed = op.DFT(transformed, axis=dimension, inverse=True, onesided=False)
@@ -126,33 +151,43 @@ def aten__fft_c2r(
         )
     elif transformed.shape[-1] > last_dim_size:
         starts = [0] * (self_rank - 1)
-        ends = list(self.shape)
+        ends = list(transformed.shape)
         ends[-1] = last_dim_size
         transformed = op.Slice(data=transformed, starts=starts, ends=ends)
+
+    if unsqueeze_first_dim:
+        transformed = op.Squeeze(transformed, axes=[0])
 
     return transformed
 
 
 @torch_op("aten::_fft_r2c", trace_only=True)
 def aten__fft_r2c(
-    self: TFloat, dim: Sequence[int], normalization: int, onesided: bool
+    transformed: TFloat, dim: Sequence[int], normalization: int, onesided: bool
 ) -> TFloat:
     """_fft_r2c(Tensor self, int[] dim, int normalization, bool onesided) -> Tensor
 
     Real to complex forward FFT.
     """
 
-    # Add a new dimension at the end
-    transformed = op.Unsqueeze(self, axes=[-1])
     # No need to fill the imaginary part because ONNX DFT accepts real inputs
     # https://onnx.ai/onnx/operators/onnx__DFT.html#inputs
 
-    self_rank = len(self.shape)
+    self_rank = len(transformed.shape)
+
+    # Add a new dimension at the end
+    transformed = op.Unsqueeze(transformed, axes=[-1])
     signal_size = op.CastLike(op.Size(transformed), transformed)
 
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
     dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
+
+    unsqueeze_first_dim = 0 in dim
+    if unsqueeze_first_dim:
+        transformed = op.Unsqueeze(transformed, axes=[0])
+        # Add 1 to account for the batch dimension when counting axes from the left
+        dim = [dim_ + 1 if dim_ >= 0 else dim_ for dim_ in dim]
 
     # Torch computes one-sided FFT on the last dimension only.
     transformed = op.DFT(transformed, axis=dim[-1], inverse=False, onesided=onesided)
@@ -161,6 +196,9 @@ def aten__fft_r2c(
     for dimension in reversed(dim[:-1]):
         transformed = op.DFT(transformed, axis=dimension, inverse=False, onesided=False)
         transformed = _fftn_onnx_normalization(transformed, normalization, signal_size)
+
+    if unsqueeze_first_dim:
+        transformed = op.Squeeze(transformed, axes=[0])
 
     return transformed
 
