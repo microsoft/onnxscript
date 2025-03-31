@@ -2854,7 +2854,9 @@ def aten_div_mode(self: TFloat, other: TFloat, rounding_mode: Optional[str] = No
 
 
 @torch_op(("aten::div.Tensor_mode", "aten::div.Scalar_mode"), trace_only=True)
-def aten_div_mode_int(self: TInt, other: TInt, rounding_mode: Optional[str] = None) -> TInt:
+def aten_div_mode_int(
+    self: TInt, other: TInt, rounding_mode: Optional[str] = None
+) -> TensorType:
     """div.Tensor_mode(Tensor self, Tensor other, *, str? rounding_mode) -> Tensor
 
     Variant for integer inputs.
@@ -2863,15 +2865,16 @@ def aten_div_mode_int(self: TInt, other: TInt, rounding_mode: Optional[str] = No
 
     quotient = op.Div(op.Cast(self, to=FLOAT.dtype), op.Cast(other, to=FLOAT.dtype))
 
+    if rounding_mode is None:
+        # When rounding_mode is None, the return value is float
+        return quotient
+
     if rounding_mode == "trunc":
         # Rounds the results of the division towards zero.
         # Equivalent to C-style integer division
         result = aten_trunc(quotient)
     elif rounding_mode == "floor":
         result = op.Floor(quotient)
-    else:
-        # Do nothing when rounding_mode is None
-        result = quotient
 
     return op.CastLike(result, self)
 
