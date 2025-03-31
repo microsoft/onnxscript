@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import unittest
 
-import numpy as np
-
 from onnxscript import ir
 
 
@@ -24,7 +22,7 @@ class TestTape(unittest.TestCase):
 
         tape = ir.tape.Tape()
 
-        _output = tape.op("Add", inputs=inputs)
+        _ = tape.op("Add", inputs=inputs)
 
         self.assertEqual([n.op_type for n in tape.nodes], ["Add"])
 
@@ -48,7 +46,7 @@ class TestTape(unittest.TestCase):
             ir.tensor([[2, 3]], dtype=ir.DataType.FLOAT), name="initializer"
         )
         val_add = tape.op("Add", inputs=inputs)
-        _val_mul = tape.op("Mul", inputs=[val_add, initializer])
+        _ = tape.op("Mul", inputs=[val_add, initializer])
 
         self.assertEqual([n.op_type for n in tape.nodes], ["Add", "Mul"])
         self.assertEqual(tape.initializers, (initializer,))
@@ -68,8 +66,8 @@ class TestTape(unittest.TestCase):
 
         tape = ir.tape.Tape()
 
-        out1, out2, out3 = tape.op_multi_output("SomeOp", inputs=inputs, num_outputs=3)
-        _result = tape.op("SomeOtherOp", inputs=[out1, out2, out3])
+        out1, out2, out3 = tape.op_multi_output("SomeOp", inputs=inputs, num_outputs=3)  # pylint: disable=unbalanced-tuple-unpacking
+        _ = tape.op("SomeOtherOp", inputs=[out1, out2, out3])
 
         self.assertEqual([n.op_type for n in tape.nodes], ["SomeOp", "SomeOtherOp"])
 
