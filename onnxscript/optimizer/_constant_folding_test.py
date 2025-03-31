@@ -489,7 +489,7 @@ class FoldConstantsIrTest(unittest.TestCase):
         """
         optimized = self._fold(model)
         self.assertEqual(len(optimized.graph), 1)
-        self.assertEqual([x. name for x in optimized.graph.node(0).inputs], ["x1", "x3"])
+        self.assertEqual([x.name for x in optimized.graph.node(0).inputs], ["x1", "x3"])
 
     def test_concat_zero_length_identity(self):
         model = """
@@ -502,7 +502,7 @@ class FoldConstantsIrTest(unittest.TestCase):
         optimized = self._fold(model)
         self.assertEqual(len(optimized.graph), 1)
         self.assertEqual(optimized.graph.node(0).op_type, "Identity")
-        self.assertEqual([x. name for x in optimized.graph.node(0).inputs], ["x2"])
+        self.assertEqual([x.name for x in optimized.graph.node(0).inputs], ["x2"])
 
     def test_concat_zero_length_output(self):
         model = """
@@ -515,7 +515,7 @@ class FoldConstantsIrTest(unittest.TestCase):
         optimized = self._fold(model)
         self.assertEqual(len(optimized.graph), 1)
         self.assertEqual(optimized.graph.node(0).op_type, "Identity")
-        self.assertEqual([x. name for x in optimized.graph.node(0).inputs], ["x1"])
+        self.assertEqual([x.name for x in optimized.graph.node(0).inputs], ["x1"])
 
     def test_expand_identity(self):
         model = """

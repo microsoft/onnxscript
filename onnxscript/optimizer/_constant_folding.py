@@ -575,7 +575,8 @@ def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
         if (shape := operand.shape) is None:
             return False
         try:
-            dim_size = shape[axis]
+            # We have already checked that axis is an int value (!= None)
+            dim_size = shape[axis]  # type: ignore[index]
         except IndexError:
             return False
         return dim_size != 0  # Could be symbolic or None or non-zero int value
@@ -584,7 +585,9 @@ def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     if len(new_inputs) != len(inputs):
         if new_inputs:
             # Remove zero-length operands from Concat
-            logger.debug("Concat: removing zero-length operand(s) %s => %s", inputs, new_inputs)
+            logger.debug(
+                "Concat: removing zero-length operand(s) %s => %s", inputs, new_inputs
+            )
             return op.Concat(*new_inputs, axis=axis)
         elif inputs:
             # All operands are zero-length. Concat is a no-op, but we need to use one of the
