@@ -72,4 +72,5 @@ def optimize_ir(
         onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass(),
     )
     assert optimizer_pass.in_place
-    optimizer_pass(model)
+    result = optimizer_pass(model)
+    assert result.model is model
