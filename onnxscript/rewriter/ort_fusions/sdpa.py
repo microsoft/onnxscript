@@ -10,7 +10,7 @@ from onnxscript.rewriter import _ir_utils, pattern
 
 class SDPA(pattern.RewriteRuleClassBase):
     def __init__(self, name: str, *, use_mask: bool, pre_scale: bool, use_mul: bool):
-        super().__init__(name=name)
+        super().__init__(name=name, as_function=True)
         self._use_mask = use_mask
         self._pre_scale = pre_scale
         self._use_mul = use_mul
@@ -41,14 +41,17 @@ class SDPA(pattern.RewriteRuleClassBase):
         return attn_output
 
     def check(self, op, query, key_transposed, value, mask, query_scale, key_scale, qk_scale):
+        check_result = pattern.MatchResult()
         # Check that the scaling factors match what SDPA implements:
 
         # We need to know the hidden size to check the scaling factors.
         if query is None or query.shape is None or len(query.shape) < 2:
-            return False
+            return check_result.fail(
+                "Query shape is not known or has less than 2 dimensions.", query
+            )
         hidden_size = query.shape[-1]
         if not isinstance(hidden_size, int):
-            return False
+            return check_result.fail("Hidden size is not an integer.")
         expected_scaling_factor = math.sqrt(hidden_size)
         if self._use_mul:
             expected_scaling_factor = 1.0 / expected_scaling_factor
@@ -57,24 +60,51 @@ class SDPA(pattern.RewriteRuleClassBase):
             # Check if query_scale and key_scale are scalars == sqrt(expected_scaling_factor)
             sqrt_scaling_factor = math.sqrt(expected_scaling_factor)
             if not _ir_utils.is_singleton_value(query_scale, sqrt_scaling_factor, rtol=1e-3):
-                return False
+                return check_result.fail(
+                    "Query scale is not a scalar or does not match the expected scaling factor.",
+                    query_scale,
+                )
             if not _ir_utils.is_singleton_value(key_scale, sqrt_scaling_factor, rtol=1e-3):
-                return False
+                return check_result.fail(
+                    "Key scale is not a scalar or does not match the expected scaling factor.",
+                    key_scale,
+                )
         else:
             # Check if qk_scale is a scalar == expected_scaling_factor)
             if not _ir_utils.is_singleton_value(qk_scale, expected_scaling_factor, rtol=1e-3):
-                return False
+                return check_result.fail(
+                    "QK scale is not a scalar or does not match the expected scaling factor.",
+                    qk_scale,
+                )
 
         # check ranks/shapes
 
-        return True
+        return check_result
 
     def rewrite(self, op, query, key_transposed, value, mask, **_):
-        return op.SDPA(query, key_transposed, value, mask, _domain="ai.onnxruntime.fusion")
+        if self._use_mask:
+            return op.SDPA(query, key_transposed, value, mask, _domain="ai.onnxruntime.fusion")
+        else:
+            return op.SDPA(query, key_transposed, value, _domain="ai.onnxruntime.fusion")
 
 
+# Rules for SDPA without mask
+unmasked_pre_div_sdpa_rule = SDPA.rule(
+    "unmasked_pre_div_sdpa", use_mask=False, pre_scale=True, use_mul=False
+)
+unmasked_pre_mul_sdpa_rule = SDPA.rule(
+    "unmasked_pre_mul_sdpa", use_mask=False, pre_scale=True, use_mul=True
+)
+unmasked_post_div_sdpa_rule = SDPA.rule(
+    "unmasked_post_div_sdpa", use_mask=False, pre_scale=False, use_mul=False
+)
+unmasked_post_mul_sdpa_rule = SDPA.rule(
+    "unmasked_post_mul_sdpa", use_mask=False, pre_scale=False, use_mul=True
+)
+
+# Rules for SDPA with mask
 masked_pre_div_sdpa_rule = SDPA.rule(
-    "masked_pre_mul_sdpa", use_mask=True, pre_scale=True, use_mul=False
+    "masked_pre_div_sdpa", use_mask=True, pre_scale=True, use_mul=False
 )
 masked_pre_mul_sdpa_rule = SDPA.rule(
     "masked_pre_mul_sdpa", use_mask=True, pre_scale=True, use_mul=True
@@ -83,11 +113,15 @@ masked_post_div_sdpa_rule = SDPA.rule(
     "masked_post_div_sdpa", use_mask=True, pre_scale=False, use_mul=False
 )
 masked_post_mul_sdpa_rule = SDPA.rule(
-    "masked_post_div_sdpa", use_mask=True, pre_scale=False, use_mul=True
+    "masked_post_mul_sdpa", use_mask=True, pre_scale=False, use_mul=True
 )
 
 sdpa_rules = pattern.RewriteRuleSet(
     [
+        unmasked_pre_mul_sdpa_rule,
+        unmasked_post_div_sdpa_rule,
+        unmasked_post_mul_sdpa_rule,
+        unmasked_pre_div_sdpa_rule,
         masked_pre_mul_sdpa_rule,
         masked_post_div_sdpa_rule,
         masked_post_mul_sdpa_rule,
@@ -96,6 +130,10 @@ sdpa_rules = pattern.RewriteRuleSet(
 )
 
 
-def fuse_sdpa(model: ir.Model) -> int:
+def fuse_sdpa(model: ir.Model, debug: bool = False) -> int:
     count = sdpa_rules.apply_to_model(model)
+    if debug and count == 0:
+        tracer = pattern.MatchingTracer()
+        sdpa_rules.apply_to_model(model, tracer=tracer)
+        tracer.report()
     return count

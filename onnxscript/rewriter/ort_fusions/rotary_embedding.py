@@ -24,27 +24,35 @@ def _rotate_half_pattern(op, x, start1, end1, start2, end2):
 
 
 class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
+    def __init__(self):
+        super().__init__(name="RotaryEmbedding", as_function=True)
+
     def pattern(self, op, x, cos, sin, start1, end1, start2, end2):
         return x * cos + _rotate_half_pattern(op, x, start1, end1, start2, end2) * sin
 
-    def check(self, op, x, start1, end1, start2, end2, **_):
+    def check(self, op, x, start1, end1, start2, end2, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
+        check_result = pattern.MatchResult()
         # x needs to be a 4D tensor with known last dimension size (== head_size) and known second dimension (num_heads)
         if x is None or x.shape is None or len(x.shape) != 4:
-            return False
+            return check_result.fail("Input is not a 4D tensor.", x)
         if not isinstance(x.shape[1], int):
-            return False
+            return check_result.fail("Input dimension 1 is not an integer.", x)
         head_size = x.shape[3]
         if not isinstance(head_size, int):
-            return False
+            return check_result.fail("Head size is not an integer.", x)
         half_head_size = head_size // 2
 
         # Check that x is being split into two equal halves of size half_head_size
-        return (
+        if not (
             _ir_utils.is_singleton_value(start1, 0)
             and _ir_utils.is_singleton_value(end1, half_head_size)
             and _ir_utils.is_singleton_value(start2, half_head_size)
             and _ir_utils.is_singleton_value(end2, lambda x: x >= head_size)
-        )
+        ):
+            return check_result.fail(
+                "x is not being split into two equal halves of size half_head_size."
+            )
+        return check_result
 
     def rewrite(self, op, x, cos, sin, **_):
         num_heads = x.shape[1]
@@ -66,22 +74,27 @@ class PartialRotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
         )
         return op.Concat(x_part_1_rope, x_part_2, axis=-1)
 
-    def check(self, op, x, end1, start2, x_part_1_rope, **_):
+    def check(self, op, x, end1, start2, x_part_1_rope, **_) -> pattern.MatchResult:  # type: ignore[name-defined]
+        check_result = pattern.MatchResult()
         end1_value = _ir_utils.get_singleton_value(end1)
         start2_value = _ir_utils.get_singleton_value(start2)
         if not isinstance(end1_value, int) or not isinstance(start2_value, int):
-            return False
+            return check_result.fail(
+                "The end1 value of first slice and start2 value of second slice are not integers."
+            )
         if end1_value != start2_value:
-            return False
+            return check_result.fail(
+                "The end1 value of first slice and start2 value of second slice are not equal."
+            )
         rotary_embedding_attributes = x_part_1_rope.producer().attributes
         if "rotary_embedding_dim" in rotary_embedding_attributes:
-            return False
+            return check_result.fail("rotary_embedding_dim attribute already specified.")
         if (
             "interleaved" in rotary_embedding_attributes
             and rotary_embedding_attributes["interleaved"].value != 0
         ):
-            return False
-        return True
+            return check_result.fail("interleaved is not equal to 0.")
+        return check_result
 
     def rewrite(self, op, x, end1, x_part_1_rope, **_):
         # Create a modified version of the RotaryEmbedding op:

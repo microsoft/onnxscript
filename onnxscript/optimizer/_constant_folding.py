@@ -558,21 +558,59 @@ def sequence_construct(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
 @register("Concat")
 def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     """Replace a Concat node with a single input by Identity"""
+
+    # Replace Concat(x) by Identity(x)
     inputs = node.inputs
     if len(inputs) == 1:
         return op.Identity(inputs[0])
-    # Track value of tensors that carry a shape value:
-    output = node.outputs[0]
-    if output is None:
-        return None
-    # Check axis attribute is 0
+
     axis = _get_int_attribute(node, "axis", None)
+    if axis is None:
+        return None
+
+    # Eliminate zero-length operands from Concat
+    def has_zero_size(operand: ir.Value | None) -> bool:
+        if operand is None:
+            return False  # Invalid model
+        if (shape := operand.shape) is None:
+            return False
+        try:
+            # We have already checked that axis is an int value (!= None)
+            dim_size = shape[axis]  # type: ignore[index]
+        except IndexError:
+            return False
+        return dim_size == 0  # return False if symbolic or None or non-zero int value
+
+    new_inputs = [x for x in inputs if not has_zero_size(x)]
+    if len(new_inputs) != len(inputs):
+        if new_inputs:
+            # Remove zero-length operands from Concat
+            logger.debug(
+                "Concat: removing zero-length operand(s) %s => %s", inputs, new_inputs
+            )
+            return op.Concat(*new_inputs, axis=axis)
+        elif inputs:
+            # All operands are zero-length. Concat is a no-op, but we need to use one of the
+            # inputs to get the other dimensions correct:
+            logger.debug("Concat: removing all zero-length operands %s", inputs)
+            return op.Identity(inputs[0])
+        else:
+            # No inputs: invalid model.
+            return None
+
+    # Track value of tensors that carry a shape value:
+
+    # Check axis attribute is 0
+
     if axis != 0:
         return None
     shapes = [state.get_shape_value(input) for input in inputs]
     if any(shape is None for shape in shapes):
         return None
     concatenated = ir.Shape(dim for shape in shapes for dim in shape.dims)  # type: ignore[union-attr]
+    output = node.outputs[0]
+    if output is None:
+        return None
     state.set_sym_value(output, concatenated)
     return None
 
@@ -797,9 +835,7 @@ def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape 
     return ir.Shape([merge_dims(dim1, dim2) for dim1, dim2 in zip(shape1, shape2)])
 
 
-class ConstantFolder:
-    opset_imports: dict[str, int]
-
+class FoldConstantsPass(ir.passes.InPlacePass):
     def __init__(
         self,
         *,
@@ -812,11 +848,17 @@ class ConstantFolder:
         self._shape_inference = shape_inference
         self._input_size_limit = input_size_limit
         self._output_size_limit = output_size_limit
-        self._init()
-
-    def _init(self) -> None:
+        self.opset_imports: dict[str, int] = {}
         self.counts: dict[str, int] = {}
         self.sizes: dict[str, int] = {}
+        self.modified: bool = False
+        self._state = OptimizerState()
+        self._reset()
+
+    def _reset(self) -> None:
+        """Reset internal states for a new run."""
+        self.counts = {}
+        self.sizes = {}
         self.modified = False
         self._state = OptimizerState()
 
@@ -931,6 +973,7 @@ class ConstantFolder:
                     sym_value.name,
                 )
                 node.replace_input_with(i, sym_value)
+                self.modified = True
                 # TODO(rama): consider merging type/other info from both values
 
         # Do incremental shape inference
@@ -1007,6 +1050,8 @@ class ConstantFolder:
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
 
+        self.modified = True
+
         # TODO: what about new opset_imports?
         # TODO: track statistics about replaced nodes and sizes of new constants
 
@@ -1045,13 +1090,14 @@ class ConstantFolder:
         for node in function:
             self.visit_node(node, function)
 
-    def visit_model(self, model: ir.Model) -> None:
-        self._init()
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        self._reset()
         self.opset_imports = model.opset_imports
         self.visit_graph(model.graph)
         for function in model.functions.values():
             # TODO(rama): Should we specialize functions?
             self.visit_function(function)
+        return ir.passes.PassResult(model, self.modified)
 
 
 def fold_constants(
@@ -1066,18 +1112,18 @@ def fold_constants(
     Applies constant folding optimization to the model.
     Returns true iff the model was modified.
     """
-    folder = ConstantFolder(
+    folder_pass = FoldConstantsPass(
         external_data_folder=external_data_folder,
         shape_inference=onnx_shape_inference,
         input_size_limit=input_size_limit,
         output_size_limit=output_size_limit,
     )
-    folder.visit_model(model)
-    for op in folder.counts:
+    folder_pass(model)
+    for op in folder_pass.counts:
         logger.info(
             "Constant-folded '%s' %s times, with %s size.",
             op,
-            folder.counts[op],
-            folder.sizes[op],
+            folder_pass.counts[op],
+            folder_pass.sizes[op],
         )
-    return folder.modified
+    return folder_pass.modified
