@@ -2869,7 +2869,9 @@ def aten_div_mode_int(self: TInt, other: TInt, rounding_mode: Optional[str] = No
         result = aten_trunc(quotient)
     elif rounding_mode == "floor":
         result = op.Floor(quotient)
-    # Do nothing when rounding_mode is None
+    else:
+        # Do nothing when rounding_mode is None
+        result = quotient
 
     return op.CastLike(result, self)
 
