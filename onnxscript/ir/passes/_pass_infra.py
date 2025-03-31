@@ -249,7 +249,8 @@ class PassManager(Sequential):
         overall_modified = False
         for step in range(self.steps):
             try:
-                step_result = super().__call__(model)
+                # Call the call method of Sequential
+                step_result = super().call(model)
             except Exception as e:
                 raise PassError(f"An error occurred at step {step}") from e
             model = step_result.model

@@ -52,26 +52,27 @@ class RmsNormFusion(pattern.RewriteRuleClassBase):
             normalized = op.Cast(normalized, to=target_dtype)
         return op.Mul(scale, normalized)
 
-    def check(self, op, x, scale, epsilon, compute_dtype, target_dtype):
+    def check(self, op, x, scale, epsilon, compute_dtype, target_dtype) -> pattern.MatchResult:  # type: ignore[name-defined]
         """Check if the pattern matches conditions for use of SimplifiedLayerNormalization op."""
+        check_result = pattern.MatchResult()
         # epsilon must be a scalar
         epsilon_value = _ir_utils.get_singleton_value(epsilon)
         if not isinstance(epsilon_value, float):  # TODO: support other types
-            return False
+            return check_result.fail("Epsilon is not a float value.", epsilon)
         # input and output must be same dtype
         if x.dtype not in float_types:
-            return False
+            return check_result.fail("Input is not a float type.", x)
         if scale.dtype not in float_types:
-            return False
+            return check_result.fail("Scale is not a float type.", scale)
         stash_dtype = compute_dtype.value if self._cast_input else x.dtype
         if stash_dtype not in fp_float_types:
-            return False
-        return True
+            return check_result.fail("Normalization precision is not a float or double type.")
+        return check_result
 
     def rewrite(self, op, x, scale, epsilon, compute_dtype, target_dtype):
         stash_dtype = compute_dtype.value if self._cast_input else x.dtype
         # Note: ORT's SimplifiedLayerNormalization was placed in onnx domain by mistake.
-        # No need to use com.microsoft domain here.
+        # No need to use com.microsoft domain here; but this is a custom op in ORT.
         return op.SimplifiedLayerNormalization(
             x,
             scale,

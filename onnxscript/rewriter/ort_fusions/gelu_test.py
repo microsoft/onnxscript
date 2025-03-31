@@ -47,7 +47,7 @@ class GeluFusionTest(unittest.TestCase):
         remove_unused_nodes(model)
 
         self.assertEqual(len(model.graph), 1)
-        self.assertEqual(model.graph.node(0).op_type, "Gelu")
+        self.assertEqual(model.graph.node(0).op_type, "FastGelu")
 
         optimized_output = test_utils.ort_run("Optimized", model, input)
         test_utils.assert_allclose(original_output, optimized_output)

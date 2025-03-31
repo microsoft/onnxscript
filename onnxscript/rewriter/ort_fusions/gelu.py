@@ -25,7 +25,7 @@ class GeluTanhFusion(pattern.RewriteRuleClassBase):
         return result
 
     def rewrite(self, op, x):
-        return op.Gelu(x, _domain="com.microsoft")
+        return op.FastGelu(x, _domain="com.microsoft")
 
 
 _rule = GeluTanhFusion.rule()
