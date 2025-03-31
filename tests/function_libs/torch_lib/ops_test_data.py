@@ -760,10 +760,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         # Numbers match sometimes but not other times
         reason="fixme: off-by-one. https://github.com/microsoft/onnxscript/issues/990",
     ),
-    TorchLibOpInfo("div_mode_int", core_ops.aten_div_mode_int).skip(
-        variant_name="no_rounding_mode",
-        reason="this variation requires the rounding_mode argument",
-    ),
+    TorchLibOpInfo("div_mode_int", core_ops.aten_div_mode_int),
     TorchLibOpInfo("dot", core_ops.aten_dot),
     TorchLibOpInfo(
         "empty",
