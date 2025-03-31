@@ -2787,10 +2787,6 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2.0) -> TensorType
     (
         "aten::div.Tensor",
         "aten::div.Scalar",
-        # When rounding_mode is None, performs a true division
-        # https://pytorch.org/docs/stable/generated/torch.div.html
-        "aten::div.Tensor_mode",
-        "aten::div.Scalar_mode",
         "aten::divide.Tensor",
         "aten::divide.Scalar",
         "aten::true_divide.Tensor",
@@ -2845,30 +2841,30 @@ def aten_div_complex(self: TFloat, other: TFloat) -> TFloat:
 
 
 @torch_op(("aten::div.Tensor_mode", "aten::div.Scalar_mode"), trace_only=True)
-def aten_div_mode(self: TFloat, other: TFloat, rounding_mode: str) -> TFloat:
+def aten_div_mode(self: TFloat, other: TFloat, rounding_mode: Optional[str] = None) -> TFloat:
     """div.Tensor_mode(Tensor self, Tensor other, *, str? rounding_mode) -> Tensor"""
 
-    # TODO(justinchuby): trace_only=False when we use opset19 which supports string comparison
-    assert rounding_mode in {"trunc", "floor"}
+    assert rounding_mode in {"trunc", "floor", None}
 
     if rounding_mode == "trunc":
         # Rounds the results of the division towards zero.
         # Equivalent to C-style integer division
-        result = aten_trunc(op.Div(self, other))
-    else:  # rounding_mode == "floor"
-        result = op.Floor(op.Div(self, other))
+        return aten_trunc(op.Div(self, other))
+    if rounding_mode == "floor":
+        return op.Floor(op.Div(self, other))
 
-    return result
+    return op.Div(self, other)
 
 
 @torch_op(("aten::div.Tensor_mode", "aten::div.Scalar_mode"), trace_only=True)
-def aten_div_mode_int(self: TInt, other: TInt, rounding_mode: str) -> TInt:
+def aten_div_mode_int(
+    self: TInt, other: TInt, rounding_mode: Optional[str] = None
+) -> TensorType:
     """div.Tensor_mode(Tensor self, Tensor other, *, str? rounding_mode) -> Tensor
 
     Variant for integer inputs.
     """
-    # TODO(justinchuby): trace_only=False when we use opset19 which supports string comparison
-    assert rounding_mode in {"trunc", "floor"}
+    assert rounding_mode in {"trunc", "floor", None}
 
     quotient = op.Div(op.Cast(self, to=FLOAT.dtype), op.Cast(other, to=FLOAT.dtype))
 
@@ -2876,10 +2872,14 @@ def aten_div_mode_int(self: TInt, other: TInt, rounding_mode: str) -> TInt:
         # Rounds the results of the division towards zero.
         # Equivalent to C-style integer division
         result = aten_trunc(quotient)
-    else:  # rounding_mode == "floor"
+        return op.CastLike(result, self)
+    if rounding_mode == "floor":
         result = op.Floor(quotient)
+        return op.CastLike(result, self)
 
-    return op.CastLike(result, self)
+    assert rounding_mode is None
+    # When rounding_mode is None, the return type is float32
+    return quotient
 
 
 @torch_op("aten::dot", trace_only=True)
@@ -8563,7 +8563,7 @@ def aten_triu_indices(row: int, col: int, offset: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::trunc")
+@torch_op("aten::trunc", trace_only=True)
 def aten_trunc(self: TFloat) -> TFloat:
     """trunc(Tensor self) -> Tensor"""
     # Reference https://github.com/onnx/onnx/issues/4588#issuecomment-2658170591
