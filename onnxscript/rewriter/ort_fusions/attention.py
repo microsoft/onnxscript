@@ -224,6 +224,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 _domain="com.microsoft",
                 _outputs=2,
             )
+            # TODO: Switch back order of outputs
             return present, attention
         else:
             return op.Attention(
@@ -277,6 +278,6 @@ def fuse_attention(model: ir.Model, *, debug: bool = False) -> int:
     count = attention_rules.apply_to_model(model)
     if debug and count == 0:
         tracer = pattern.MatchingTracer()
-        attention_rules.apply_to_model(model, verbose=3, tracer=tracer)
+        attention_rules.apply_to_model(model, tracer=tracer)
         tracer.report()
     return count
