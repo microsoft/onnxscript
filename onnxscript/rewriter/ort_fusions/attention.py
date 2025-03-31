@@ -24,9 +24,9 @@ def _check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]) 
     return True
 
 
-class Attention(pattern.RewriteRuleClassBase):
+class AttentionFusion(pattern.RewriteRuleClassBase):
     def __init__(self, name, *, has_input_bias: bool):
-        super().__init__(name, remove_nodes=False)
+        super().__init__(name)
         # TODO: We can just pass bias to MultiHeadAttention
         # and let it handle the bias addition, once that pattern is added to MHA
         self._has_input_bias = has_input_bias
@@ -71,18 +71,31 @@ class Attention(pattern.RewriteRuleClassBase):
 
         # Split past into past_key and past_value
         # past_key and past_value are of shape (B, H, S, D/H)
-        past_key, past_value = op.Split(past, axis=0, split=[1, 1])
+        '''
+        past_key = op.Slice(
+            past,
+            _allow_other_inputs=True,
+            _allow_other_attributes=True,
+            _outputs=["past_key_sliced"],
+        )
+        past_value = op.Slice(
+            past,
+            _allow_other_inputs=True,
+            _allow_other_attributes=True,
+            _outputs=["past_value_sliced"],
+        )
+        '''
 
         # TODO: Pass other attributes
-        attention, present_key, present_value = op.MultiHeadAttention(
+        attention = op.MultiHeadAttention(
             query_BSD,
             key_BSD,
             value_BSD,
             None,  # bias
             None,  # key_padding_mask
             attention_bias,
-            past_key,
-            past_value,
+            # past_key,
+            # past_value,
             num_heads=num_heads,
             scale=scale,
             _domain="com.microsoft",
@@ -90,8 +103,8 @@ class Attention(pattern.RewriteRuleClassBase):
         )
 
         # Concat present_key and present_value to form present
-        present = op.Concat(present_key, present_value, axis=0)
-        return attention, present
+        # present = op.Concat(present_key, present_value, axis=0)
+        return attention#, present
 
     def check(
         self,
@@ -102,6 +115,8 @@ class Attention(pattern.RewriteRuleClassBase):
         query_mm_sliced,
         key_mm_sliced,
         value_mm_sliced,
+        past_key_sliced,
+        past_value_sliced,
         **_,
     ):
         bindings: dict[str, Dim] = {}
@@ -133,6 +148,13 @@ class Attention(pattern.RewriteRuleClassBase):
 
         if Dh != Dh_q + Dh_k + Dh_v:  # type: ignore[operator]
             return False  # Hidden size mismatch
+        
+        # Check that past is being split into two equal halves
+        if no_match(past_key_sliced, ["B", "N", "S_past", "H"]):
+            return False
+        if no_match(past_value_sliced, ["B", "N", "S_past", "H"]):
+            return False
+
         # TODO: Add mask check once mask is added to the pattern
 
         return True
@@ -155,7 +177,7 @@ class Attention(pattern.RewriteRuleClassBase):
             qkv_weight,
             qkv_bias,
             # mask_index
-            past,
+            # past,
             attention_bias,
             # past_sequence_length
             num_heads=num_heads,
@@ -166,8 +188,8 @@ class Attention(pattern.RewriteRuleClassBase):
         )
 
 
-attention_with_input_bias_rule = Attention.rule("attention_input_bias", has_input_bias=True)
-attention_with_no_input_bias_rule = Attention.rule(
+attention_with_input_bias_rule = AttentionFusion.rule("attention_input_bias", has_input_bias=True)
+attention_with_no_input_bias_rule = AttentionFusion.rule(
     "attention_no_input_bias", has_input_bias=False
 )
 
