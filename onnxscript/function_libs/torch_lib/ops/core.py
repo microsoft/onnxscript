@@ -2865,18 +2865,18 @@ def aten_div_mode_int(
 
     quotient = op.Div(op.Cast(self, to=FLOAT.dtype), op.Cast(other, to=FLOAT.dtype))
 
-    if rounding_mode is None:
-        # When rounding_mode is None, the return value is float
-        return quotient
-
     if rounding_mode == "trunc":
         # Rounds the results of the division towards zero.
         # Equivalent to C-style integer division
         result = aten_trunc(quotient)
-    elif rounding_mode == "floor":
+        return op.CastLike(result, self)
+    if rounding_mode == "floor":
         result = op.Floor(quotient)
+        return op.CastLike(result, self)
 
-    return op.CastLike(result, self)
+    assert rounding_mode is None
+    # When rounding_mode is None, the return value is float
+    return quotient
 
 
 @torch_op("aten::dot", trace_only=True)
