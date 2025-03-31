@@ -2875,7 +2875,7 @@ def aten_div_mode_int(
         return op.CastLike(result, self)
 
     assert rounding_mode is None
-    # When rounding_mode is None, the return value is float
+    # When rounding_mode is None, the return type is float32
     return quotient
 
 
