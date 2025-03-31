@@ -479,6 +479,44 @@ class FoldConstantsIrTest(unittest.TestCase):
         self.assertEqual(len(optimized.graph), 1)
         self.assertEqual(optimized.graph.node(0).op_type, "Identity")
 
+    def test_concat_zero_length(self):
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N, 128] x1, float[N, 0] x2, float[N, 128] x3) => (float[N, M] z)
+            {
+                z = Concat <axis=-1> (x1, x2, x3)
+            }
+        """
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph), 1)
+        self.assertEqual([x. name for x in optimized.graph.node(0).inputs], ["x1", "x3"])
+
+    def test_concat_zero_length_identity(self):
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N, 0] x1, float[N, 128] x2, float[N, 0] x3) => (float[N, M] z)
+            {
+                z = Concat <axis=-1> (x1, x2, x3)
+            }
+        """
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph), 1)
+        self.assertEqual(optimized.graph.node(0).op_type, "Identity")
+        self.assertEqual([x. name for x in optimized.graph.node(0).inputs], ["x2"])
+
+    def test_concat_zero_length_output(self):
+        model = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N, 0] x1, float[N, 0] x2, float[N, 0] x3) => (float[N, M] z)
+            {
+                z = Concat <axis=-1> (x1, x2, x3)
+            }
+        """
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph), 1)
+        self.assertEqual(optimized.graph.node(0).op_type, "Identity")
+        self.assertEqual([x. name for x in optimized.graph.node(0).inputs], ["x1"])
+
     def test_expand_identity(self):
         model = """
             <ir_version: 7, opset_import: [ "" : 17]>

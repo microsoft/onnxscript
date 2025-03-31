@@ -582,9 +582,18 @@ def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
 
     new_inputs = [x for x in inputs if has_non_zero_size(x)]
     if len(new_inputs) != len(inputs):
-        # Remove zero-length operands from Concat
-        logger.debug("Concat: removing zero-length operand(s) %s => %s", inputs, new_inputs)
-        return op.Concat(*new_inputs, axis=axis)
+        if new_inputs:
+            # Remove zero-length operands from Concat
+            logger.debug("Concat: removing zero-length operand(s) %s => %s", inputs, new_inputs)
+            return op.Concat(*new_inputs, axis=axis)
+        elif inputs:
+            # All operands are zero-length. Concat is a no-op, but we need to use one of the
+            # inputs to get the other dimensions correct:
+            logger.debug("Concat: removing all zero-length operands %s", inputs)
+            return op.Identity(inputs[0])
+        else:
+            # No inputs: invalid model.
+            return None
 
     # Track value of tensors that carry a shape value:
 
