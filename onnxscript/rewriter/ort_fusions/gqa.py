@@ -45,6 +45,39 @@ def _check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]) 
     return True
 
 
+def causal_mask_pattern(op, input_ids, past_kv_cache, shape_B111):
+    seq_len = op.Shape(input_ids, end=2, start=1)
+    seq_len_0D = op.Squeeze(seq_len)
+
+    past_seq_len = op.Shape(past_kv_cache, end=3, start=2)
+    past_seq_len_0D = op.Squeeze(past_seq_len)
+
+    total_seq_len_0D = op.Add(past_seq_len_0D, seq_len_0D)
+    total_seq_len = op.Reshape(total_seq_len_0D, [-1])
+
+    # The Phi modeling code generates the following +1 as the target-length, which seems
+    # unnecessary in this context. But using it for pattern-matching against
+    # generated onnx model.
+    total_seq_len_plus_1_0D = op.Add(total_seq_len_0D, 1)
+    total_seq_len_plus_1 = op.Reshape(total_seq_len_plus_1_0D, [-1])
+
+    current_range = op.Range(past_seq_len_0D, total_seq_len_0D, 1)
+    mask_shape = op.Concat(seq_len, total_seq_len_plus_1, axis=0)
+    mask_all_min = op.Expand(-3.4028235e38, mask_shape)
+    total_range_as_row = op.Range(0, total_seq_len_plus_1_0D, 1)
+    current_range_as_column = op.Reshape(current_range, [-1, 1])
+    boolean_mask = op.Greater(total_range_as_row, current_range_as_column)
+    float_0_1_mask = op.Cast(boolean_mask, to=1)
+    float_0_min_mask = op.Mul(mask_all_min, float_0_1_mask)
+    mask_4d = op.Unsqueeze(float_0_min_mask, [0, 1])
+    mask_B1ST_plus = op.Expand(mask_4d, shape_B111)
+
+    # Get rid of the extra +1 added above: total_seq_len is enough, no
+    # need for total_seq_len+1.
+    mask_B1ST = op.Slice(mask_B1ST_plus, [0], total_seq_len, [3], [1])
+    return mask_B1ST
+
+
 class GroupQueryAttention(pattern.RewriteRuleClassBase):
     def __init__(self):
         super().__init__("GQA")
@@ -56,14 +89,15 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         query_BSD,
         key_BSDkv,
         value_BSDkv,
-        mask,
         past_key,
         past_value,
-        # position_ids,
+        input_ids,
         past_seq_length,
         total_seq_length,
         cos,
         sin,
+        some_kv_cache,
+        shape_B111,
     ):
         # Reshape query from (B, S, D) to (B, S, H, D/H)
         query_BSHDh = op.Reshape(
@@ -137,6 +171,8 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         value_seq_BHSkvDh = op.Reshape(
             value_seq_BHkvGSkvDh, _allow_other_inputs=True, _outputs=["value_seq_BHSkvDh"]
         )
+
+        mask = causal_mask_pattern(op, input_ids, some_kv_cache, shape_B111)
 
         attention_BHSDh = op.SDPA(
             query_BHSDh_rope,
