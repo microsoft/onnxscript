@@ -59,9 +59,9 @@ class TestAttentionFusion(unittest.TestCase):
             QKV_no_bias = op.MatMul(input, weight)
             QKV = op.Add(QKV_no_bias, bias)
 
-            query_BSDh = op.Slice(QKV, axes=[2], starts=[0], ends=[160])
-            key_BSDh = op.Slice(QKV, axes=[2], starts=[160], ends=[320])
-            value_BSDh = op.Slice(QKV, axes=[2], starts=[320], ends=[480])
+            query_BSDh = op.Slice(QKV, [0], [160], [2])
+            key_BSDh = op.Slice(QKV, [160], [320], [2])
+            value_BSDh = op.Slice(QKV, [320], [480], [2])
 
             mha = msft_op.MultiHeadAttention(
                 query_BSDh,
@@ -76,13 +76,13 @@ class TestAttentionFusion(unittest.TestCase):
             QKV_no_bias = op.MatMul(input, weight)
             QKV = op.Add(QKV_no_bias, bias)
 
-            query_BSDh = op.Slice(QKV, axes=[2], starts=[0], ends=[160])
-            key_BSDh = op.Slice(QKV, axes=[2], starts=[160], ends=[320])
-            value_BSDh = op.Slice(QKV, axes=[2], starts=[320], ends=[480])
+            query_BSDh = op.Slice(QKV, [0], [160], [2])
+            key_BSDh = op.Slice(QKV, [160], [320], [2])
+            value_BSDh = op.Slice(QKV, [320], [480], [2])
 
-            past_key_5d = op.Slice(past, axes=[0], starts=[0], ends=[1])
+            past_key_5d = op.Slice(past, [0], [1], [0])
+            past_value_5d = op.Slice(past, [1], [2], [0])
             past_key = op.Squeeze(past_key_5d, [0])
-            past_value_5d = op.Slice(past, axes=[0], starts=[1], ends=[2])
             past_value = op.Squeeze(past_value_5d, [0])
 
             mha, present_key, present_value = msft_op.MultiHeadAttention(
@@ -112,8 +112,6 @@ class TestAttentionFusion(unittest.TestCase):
         if with_past:
             input_types += (FLOAT[2, "B", self.num_heads, "S", self.headsize],)
             output_types += (FLOAT[2, "B", self.num_heads, "NS", self.headsize],)
-
-        if with_past:
             model_proto = model_with_mha_past.to_model_proto(
                 input_types=input_types,
                 output_types=output_types,
