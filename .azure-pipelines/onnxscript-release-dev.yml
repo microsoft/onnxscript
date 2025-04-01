@@ -1,0 +1,30 @@
+trigger: none
+name: onnxscript-release-dev.$(Date:yyyyMMdd).$(Rev:r)
+resources:
+  pipelines:
+  - pipeline: onnxscript-release-dev
+    source: onnxscript-release-dev
+    trigger: true
+stages:
+- stage: Python_Publishing_DML
+  dependsOn: []
+  jobs:
+  - job: Python_Publishing_DML
+    pool:
+      name: 'onnxruntime-Win-CPU-2022'
+    steps:
+    - download: onnxscript-release-dev
+      artifact: drop
+    - task: SFP.release-tasks.custom-build-release-task.EsrpRelease@8
+      displayName: 'ESRP Release'
+      inputs:
+        connectedservicename: esrprelease
+        keyvaultname: buildkeyvault
+        authcertname: '53d54d02-SSL-AutoRotate'
+        signcertname: '53d54d02-978d-4305-8572-583cf6711c4f'
+        clientid: '53d54d02-978d-4305-8572-583cf6711c4f'
+        contenttype: PyPi
+        folderlocation: '$(System.DefaultWorkingDirectory)/drop/drop'
+        owners: 'justinchu@microsoft.com'
+        approvers: 'grama@microsoft.com'
+        mainpublisher: AIFrameworks
