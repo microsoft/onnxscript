@@ -39,9 +39,14 @@ class PatternMatchResult:
             assert graph_node.op_identifier() == pattern_node.op_identifier(), (
                 f"Unexpected type mismatch {graph_node.op_identifier()!r} != {pattern_node.op_identifier()!r}"
             )
-            assert len(graph_node.inputs) == len(pattern_node.inputs), (
-                f"Unexpected number of inputs for type {graph_node.op_identifier()}"
-            )
+            if pattern_node.allow_other_inputs:
+                assert len(graph_node.inputs) > len(pattern_node.inputs), (
+                    f"Unexpected number of inputs for type {graph_node.op_identifier()}"
+                )
+            else:
+                assert len(graph_node.inputs) == len(pattern_node.inputs), (
+                    f"Unexpected number of inputs for type {graph_node.op_identifier()}"
+                )
             for a, b in zip(graph_node.inputs, pattern_node.inputs):
                 if b is None:
                     # optional input or not an interesting input
@@ -53,6 +58,9 @@ class PatternMatchResult:
             )
             for a, b in zip(graph_node.outputs, pattern_node.outputs):
                 self._bind(b, a)
+            
+            # Bind attributes
+            self._bind_attributes(pattern_node, graph_node)
 
     def _bind(self, value_pattern: orp.ValuePattern, value: ir.Value) -> None:
         map = self.matched_pattern_to_model_value
@@ -286,18 +294,43 @@ class GenericPatternMatcher(orp.PatternMatcher):
         match_count = 0
 
         # predecessors
-        if len(graph_node.inputs) != len(pattern_node.inputs):
-            # not the same number of inputs
-            self._hint(
-                "BACKWARD: not the same number of inputs",
-                "-- pattern",
-                pattern_node,
-                "-- model",
-                graph_node,
-            )
-            return self.none(starting_node, inspect.currentframe().f_lineno)
+        if pattern_node.allow_other_inputs:
+            if len(graph_node.inputs) < len(pattern_node.inputs):
+                # not the same number of inputs
+                self._hint(
+                    "BACKWARD: number of inputs less than expected",
+                    "-- pattern",
+                    pattern_node,
+                    "-- model",
+                    graph_node,
+                )
+                return self.none(starting_node, inspect.currentframe().f_lineno)
+        else:
+            if len(graph_node.inputs) != len(pattern_node.inputs):
+                # not the same number of inputs
+                self._hint(
+                    "BACKWARD: not the same number of inputs",
+                    "-- pattern",
+                    pattern_node,
+                    "-- model",
+                    graph_node,
+                )
+                return self.none(starting_node, inspect.currentframe().f_lineno)
 
         for graph_input, pattern_input in zip(graph_node.inputs, pattern_node.inputs):
+            if pattern_input is None:
+                if graph_input is None:
+                    continue
+                else:
+                    # not the same number of inputs
+                    self._hint(
+                        "BACKWARD: not the same number of inputs",
+                        "-- pattern",
+                        pattern_node,
+                        "-- model",
+                        graph_node,
+                    )
+                    return self.none(starting_node, inspect.currentframe().f_lineno)
             if len(graph_input.uses()) != len(pattern_input.uses()):
                 self._hint(
                     "BACKWARD: one input is used outside the pattern",
@@ -310,6 +343,19 @@ class GenericPatternMatcher(orp.PatternMatcher):
 
         for graph_value, pattern_value in zip(graph_node.inputs, pattern_node.inputs):
             # TODO(rama): Handle constant-pattern
+            if pattern_value is None:
+                if graph_value is None:
+                    continue
+                else:
+                    # not the same number of inputs
+                    self._hint(
+                        "BACKWARD: not the same number of inputs",
+                        "-- pattern",
+                        pattern_node,
+                        "-- model",
+                        graph_node,
+                    )
+                    return self.none(starting_node, inspect.currentframe().f_lineno)
             pattern_pred = pattern_value.producer()
             if pattern_pred is None:
                 # pattern_pred is None means the pattern backward search ends here.
