@@ -62,3 +62,4 @@ def optimize_ir(
         )
         rewriter.rewrite(model, pattern_rewrite_rules=_DEFAULT_REWRITE_RULES)
     onnxscript.optimizer.remove_unused_nodes(model)
+    ir.passes.common.lift_constants_to_initializers.LiftConstantsToInitializersPass()(model)
