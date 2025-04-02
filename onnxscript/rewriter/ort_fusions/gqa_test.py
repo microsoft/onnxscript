@@ -70,7 +70,7 @@ class GQA1(unittest.TestCase):
             "value": value,
         }
 
-    def fused_model_script(self):
+    def target_model_script(self):
         H = self.num_heads
         Hkv = self.kv_num_heads
 
@@ -100,7 +100,7 @@ class GQA1(unittest.TestCase):
 
         return gqa
 
-    def expanded_model_script(self):
+    def source_model_script(self):
         scale_factor = math.sqrt(math.sqrt(self.head_size))
         minval = torch.finfo(torch.float32).min
         minval_tp = onnx.helper.make_tensor("minval", onnx.TensorProto.FLOAT, [1], [minval])
@@ -169,26 +169,26 @@ class GQA1(unittest.TestCase):
     def test_equivalence(self):
         inputs = self.random_inputs()
 
-        fused_model = self.fused_model_script().to_model_proto(
+        source_model = self.source_model_script().to_model_proto(
             input_types=self.input_types,
             output_types=self.output_types,
         )
         session = ort.InferenceSession(
-            fused_model.SerializeToString(), providers=("CPUExecutionProvider",)
+            source_model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
-        outputs1 = session.run(None, inputs)
+        source_model_outputs = session.run(None, inputs)
 
-        expanded_model = self.expanded_model_script().to_model_proto(
+        target_model = self.target_model_script().to_model_proto(
             input_types=self.input_types,
             output_types=self.output_types,
         )
         session = ort.InferenceSession(
-            expanded_model.SerializeToString(), providers=("CPUExecutionProvider",)
+            target_model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
-        outputs2 = session.run(None, inputs)
+        target_model_outputs = session.run(None, inputs)
 
-        self.assertEqual(len(outputs1), len(outputs2))
-        assert_allclose(outputs1, outputs2)
+        self.assertEqual(len(target_model_outputs), len(source_model_outputs))
+        assert_allclose(target_model_outputs, source_model_outputs)
 
 
 class GQA2(unittest.TestCase):
@@ -244,25 +244,18 @@ class GQA2(unittest.TestCase):
         Hkv = self.kv_num_heads
         total_seqlen = S + Skvp
         max_seqlen = total_seqlen
-        query = np.random.rand(B, S, D).astype(np.float32)
-        key = np.random.rand(B, S, Dkv).astype(np.float32)
-        value = np.random.rand(B, S, Dkv).astype(np.float32)
-        past_key = np.random.rand(B, Hkv, Skvp, Dh).astype(np.float32)
-        past_value = np.random.rand(B, Hkv, Skvp, Dh).astype(np.float32)
-        cos = np.random.rand(max_seqlen, Dh // 2).astype(np.float32)
-        sin = np.random.rand(max_seqlen, Dh // 2).astype(np.float32)
 
         return {
-            "query": query,
-            "key": key,
-            "value": value,
-            "past_key": past_key,
-            "past_value": past_value,
-            "cos": cos,
-            "sin": sin,
+            "query": np.random.rand(B, S, D).astype(np.float32),
+            "key": np.random.rand(B, S, Dkv).astype(np.float32),
+            "value": np.random.rand(B, S, Dkv).astype(np.float32),
+            "past_key": np.random.rand(B, Hkv, Skvp, Dh).astype(np.float32),
+            "past_value": np.random.rand(B, Hkv, Skvp, Dh).astype(np.float32),
+            "cos": np.random.rand(max_seqlen, Dh // 2).astype(np.float32),
+            "sin": np.random.rand(max_seqlen, Dh // 2).astype(np.float32),
         }
 
-    def fused_model_script(self):
+    def target_model_script(self):
         H = self.num_heads
         Hkv = self.kv_num_heads
 
@@ -296,7 +289,7 @@ class GQA2(unittest.TestCase):
 
         return gqa
 
-    def expanded_model_script(self):
+    def source_model_script(self):
         scale_factor = math.sqrt(math.sqrt(self.head_size))
         minval = torch.finfo(torch.float32).min
         minval_tp = onnx.helper.make_tensor("minval", onnx.TensorProto.FLOAT, [1], [minval])
@@ -430,31 +423,47 @@ class GQA2(unittest.TestCase):
         return gqa
 
     def test_equivalence(self):
+        """Test that the source and target models produce the same outputs."""
         inputs = self.random_inputs()
 
-        fused_model = self.fused_model_script().to_model_proto(
+        source_model = self.source_model_script().to_model_proto(
             input_types=self.input_types,
             output_types=self.output_types,
         )
         session = ort.InferenceSession(
-            fused_model.SerializeToString(), providers=("CPUExecutionProvider",)
+            source_model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
-        outputs1 = session.run(None, inputs)
+        source_model_outputs = session.run(None, inputs)
 
-        expanded_model = self.expanded_model_script().to_model_proto(
+        target_model = self.target_model_script().to_model_proto(
             input_types=self.input_types,
             output_types=self.output_types,
         )
         session = ort.InferenceSession(
-            expanded_model.SerializeToString(), providers=("CPUExecutionProvider",)
+            target_model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
-        outputs2 = session.run(None, inputs)
+        target_model_outputs = session.run(None, inputs)
 
-        self.assertEqual(len(outputs2), len(outputs1))
-        assert_allclose(outputs2, outputs1)
+        self.assertEqual(len(source_model_outputs), len(target_model_outputs))
+        assert_allclose(source_model_outputs, target_model_outputs)
 
-        # Shape inference doesn't handle ORT contrib ops: so, provide type/shape
-        # for outputs of RotaryEmbedding op.
+    def test_fusion(self):
+        """Test that GQA fusion is successful on source model and produces an equivalent model."""
+        inputs = self.random_inputs()
+
+        source_model = self.source_model_script().to_model_proto(
+            input_types=self.input_types,
+            output_types=self.output_types,
+        )
+        session = ort.InferenceSession(
+            source_model.SerializeToString(), providers=("CPUExecutionProvider",)
+        )
+        source_model_outputs = session.run(None, inputs)
+
+        # Some shapes need to be present in input model for fusion to be successful.
+        # (i) Shape inference doesn't handle handle ORT contrib ops.
+        # (ii) TODO: investigate if Reshape(..., ["B", "S", -1, Dh]) handled precisely
+        # by shape inference.
         query_BHSDh_rope_value_info = onnx.helper.make_tensor_value_info(
             "query_BHSDh_rope",
             onnx.TensorProto.FLOAT,
@@ -475,7 +484,7 @@ class GQA2(unittest.TestCase):
             onnx.TensorProto.FLOAT,
             ["B", self.seqlen, self.kv_num_heads, self.head_size],
         )
-        expanded_model.graph.value_info.extend(
+        source_model.graph.value_info.extend(
             [
                 query_BHSDh_rope_value_info,
                 key_BHkvSDh_rope_value_info,
@@ -484,8 +493,8 @@ class GQA2(unittest.TestCase):
             ]
         )
 
-        expanded_model_ir = ir.serde.from_proto(expanded_model)
-        inferred_model = shape_inference.infer_shapes(expanded_model_ir)
+        source_model_ir = ir.serde.from_proto(source_model)
+        inferred_model = shape_inference.infer_shapes(source_model_ir)
         onnxscript.optimizer.optimize(inferred_model)
 
         count = fuse_sdpa(inferred_model, debug=True)
@@ -493,6 +502,15 @@ class GQA2(unittest.TestCase):
 
         count = fuse_gqa(inferred_model, debug=True)
         self.assertEqual(count, 1)
+
+        fused_model = ir.serde.to_proto(inferred_model)
+        session = ort.InferenceSession(
+            fused_model.SerializeToString(), providers=("CPUExecutionProvider",)
+        )
+        outputs3 = session.run(None, inputs)
+
+        self.assertEqual(len(outputs3), len(source_model_outputs))
+        assert_allclose(outputs3, source_model_outputs)
 
 
 if __name__ == "__main__":
