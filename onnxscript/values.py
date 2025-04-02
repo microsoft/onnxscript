@@ -109,8 +109,6 @@ class Opset:
             raise AttributeError(f"Attribute {attr} not found.") from exc
 
     def add_function_def(self, fun):
-        if fun.name in self.function_defs:
-            logger.warning("%s: Already defined.", fun.name)
         self.function_defs[fun.name] = fun
 
     def _prepare_inputs(self, _: onnx.defs.OpSchema, *inputs):
