@@ -147,7 +147,6 @@ class GQAFusionTest(unittest.TestCase):
             shape_BHkvGSDh = op.Concat(B, Hkv, G, total_seq_length, Dh, axis=0)
 
             shape_BHSDh = op.Concat(B, H, total_seq_length, Dh, axis=0)
-            shape_ST = op.Concat(S, total_seq_length, axis=0)
 
             # First, get Q, K, V into right shapes. Inputs are 3D tensors in the BSD format.
             # D is different for Q and K/V (not reflected in the names, unfortunately).

@@ -80,8 +80,7 @@ def causal_mask_pattern(op, input_ids, past_kv_cache, shape_B111):
 
 class GroupQueryAttention(pattern.RewriteRuleClassBase):
     def __init__(self):
-        super().__init__("GQA")
-        self.remove_nodes = False
+        super().__init__("GQA", remove_nodes=False)
 
     def pattern(
         self,
