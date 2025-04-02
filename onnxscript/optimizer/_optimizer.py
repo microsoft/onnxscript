@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+import onnxscript.ir.passes.common.lift_constants_to_initializers
 import onnxscript.ir.passes.common.unused_removal
 import onnxscript.optimizer
 from onnxscript import ir, rewriter
