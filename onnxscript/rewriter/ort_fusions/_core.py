@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+from typing import Dict, Tuple
+
 import onnxscript.ir as ir
 from onnxscript.ir.passes.common import shape_inference
 from onnxscript.optimizer import optimize
@@ -45,21 +47,33 @@ def _pre_optimize(model: ir.Model) -> ir.Model:
     return model
 
 
-def fuse_xformers(model: ir.Model) -> ir.Model:
+def fuse_xformers(model: ir.Model) -> Tuple[ir.Model, Dict[str, int]]:
+    """
+    Apply transformer-specific fusions to the given model.
+
+    Args:
+        model: The input ONNX model represented as an `ir.Model`.
+
+    Returns:
+        A tuple containing:
+        - The optimized `ir.Model` after applying transformer-specific fusions.
+        - A dictionary with a count of each of the fusions applied.
+    """
+    fusion_count = dict()
+
     model = _pre_optimize(model)
-    fuse_rms_normalization(model)
-    fuse_normalization(model)
-    fuse_rotary_embedding(model)
-    fuse_partial_rotary_embedding(model)
-    fuse_cos_sin_cache(model)
-    fuse_sdpa(model)
-    fuse_mha(model)
-    fuse_attention(model)
-    fuse_gelu(model)
+    fusion_count["rms_normalization"] = fuse_rms_normalization(model)
+    fusion_count["rms_and_skip_normalization"] = fuse_normalization(model)
+    fusion_count["rotary_embedding"] = fuse_rotary_embedding(model)
+    fusion_count["partial_rotary_embedding"] = fuse_partial_rotary_embedding(model)
+    fusion_count["cos_sin_cache"] = fuse_cos_sin_cache(model)
+    fusion_count["sdpa"] = fuse_sdpa(model)
+    fusion_count["mha"] = fuse_mha(model)
+    fusion_count["gelu"] = fuse_gelu(model)
     # Finally: inline any intermediate fusion functions introduced that were not
     # consumed by other fusions, and eliminate any remaining unused nodes.
     optimize(model)
-    return model
+    return model, fusion_count
 
 
 def optimize_for_ort(model: ir.Model, config_name: str | None = None) -> ir.Model:

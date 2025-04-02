@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+import onnxscript.ir as ir
 from onnxscript.rewriter import pattern
 from onnxscript.rewriter.ort_fusions.rms_normalization import rms_normalization_rules
 
@@ -41,6 +42,10 @@ normalization_rules = rms_normalization_rules + skip_normalization_rules
 normalization_ruleset = pattern.RewriteRuleSet(normalization_rules)
 
 
-def fuse_normalization(model):
+def fuse_normalization(model: ir.Model, debug: bool = False) -> int:
     count = normalization_ruleset.apply_to_model(model)
-    print(f"Normalization count: {count}")
+    if count == 0 and debug:
+        tracer = pattern.MatchingTracer()
+        normalization_ruleset.apply_to_model(model, tracer=tracer)
+        tracer.report()
+    return count

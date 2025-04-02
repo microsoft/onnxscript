@@ -17,7 +17,18 @@ class TestFuseXformers(unittest.TestCase):
         onnxscript.optimizer.optimize(model)
         inputs = test.get_ort_inputs()
         original_outputs = ort_run("original", model, inputs)
-        model = fuse_xformers(model)
+        model, fusion_count = fuse_xformers(model)
+
+        # Check if the number of fusions applied for each fusion is correct
+        self.assertEqual(fusion_count["rms_normalization"], 3)
+        self.assertEqual(fusion_count["rms_and_skip_normalization"], 2)
+        self.assertEqual(fusion_count["rotary_embedding"], 2)
+        self.assertEqual(fusion_count["partial_rotary_embedding"], 0)
+        self.assertEqual(fusion_count["cos_sin_cache"], 2)
+        self.assertEqual(fusion_count["sdpa"], 1)
+        self.assertEqual(fusion_count["mha"], 0)
+        self.assertEqual(fusion_count["gelu"], 0)
+
         new_outputs = ort_run("optimized", model, inputs)
         assert_allclose(new_outputs, original_outputs)
 

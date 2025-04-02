@@ -33,5 +33,10 @@ _rule = GeluTanhFusion.rule()
 gelu_rules = pattern.RewriteRuleSet([_rule])
 
 
-def fuse_gelu(model: ir.Model) -> None:
-    gelu_rules.apply_to_model(model)
+def fuse_gelu(model: ir.Model, debug: bool = False) -> int:
+    count = gelu_rules.apply_to_model(model)
+    if count == 0 and debug:
+        tracer = pattern.MatchingTracer()
+        gelu_rules.apply_to_model(model, tracer=tracer)
+        tracer.report()
+    return count

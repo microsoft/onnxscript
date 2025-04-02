@@ -91,6 +91,10 @@ rms_normalization_rules = [_rule_0, _rule_1, _rule_2, _rule_3]
 rms_normalization_ruleset = pattern.RewriteRuleSet(rms_normalization_rules)
 
 
-def fuse_rms_normalization(model: ir.Model) -> None:
+def fuse_rms_normalization(model: ir.Model, debug: bool = False) -> int:
     count = rms_normalization_ruleset.apply_to_model(model)
-    print(f"RMS Normalization count: {count}")
+    if count == 0 and debug:
+        tracer = pattern.MatchingTracer()
+        rms_normalization_ruleset.apply_to_model(model, tracer=tracer)
+        tracer.report()
+    return count
