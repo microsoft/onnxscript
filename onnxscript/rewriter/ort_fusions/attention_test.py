@@ -24,6 +24,7 @@ class TestAttentionFusion(unittest.TestCase):
         super().__init__(*args, **kwargs)
         self.batchsize = 2
         self.seqlen = 8
+        self.max_seqlen = 32
         self.headsize = 16
         self.num_heads = 10
         self.input_hidden_size = self.headsize * self.num_heads
@@ -35,6 +36,7 @@ class TestAttentionFusion(unittest.TestCase):
         """Generate random inputs for the model."""
         B = self.batchsize
         S = self.seqlen
+        M = self.max_seqlen
         D = self.input_hidden_size
         N = self.num_heads
         H = self.headsize
@@ -46,7 +48,7 @@ class TestAttentionFusion(unittest.TestCase):
             "bias": np.random.rand(D_qkv).astype(np.float32),
         }
         if with_past:
-            inputs["past"] = np.random.rand(2, B, N, S, H).astype(np.float32)
+            inputs["past"] = np.random.rand(2, B, N, M, H).astype(np.float32)
         return inputs
 
     def create_model(self, with_past=False):

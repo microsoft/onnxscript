@@ -54,19 +54,16 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         query_BSD = op.Slice(
             projected,
             _allow_other_inputs=True,
-            _allow_other_attributes=True,
             _outputs=["query_mm_sliced"],
         )
         key_BSD = op.Slice(
             projected,
             _allow_other_inputs=True,
-            _allow_other_attributes=True,
             _outputs=["key_mm_sliced"],
         )
         value_BSD = op.Slice(
             projected,
             _allow_other_inputs=True,
-            _allow_other_attributes=True,
             _outputs=["value_mm_sliced"],
         )
 
@@ -78,14 +75,12 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
             past_key = op.Slice(
                 past,
                 _allow_other_inputs=True,
-                _allow_other_attributes=True,
                 _outputs=["past_key_sliced"],
             )
             past_key = op.Squeeze(past_key, [0])
             past_value = op.Slice(
                 past,
                 _allow_other_inputs=True,
-                _allow_other_attributes=True,
                 _outputs=["past_value_sliced"],
             )
             past_value = op.Squeeze(past_value, [0])
@@ -138,10 +133,10 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         **_,
     ):
         check_result = pattern.MatchResult()
-        bindings: dict[str, Dim] = {}
+        self.bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-            return not _check_shape(bindings, val, dims)
+            return not _check_shape(self.bindings, val, dims)
 
         if no_match(input, ["B", "S", "D"]):
             return check_result.fail(
@@ -175,10 +170,10 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
             )
 
         # Ensure Dh = Dh_q + Dh_k + Dh_v
-        Dh = bindings.get("Dh")
-        Dh_q = bindings.get("Dh_q")
-        Dh_k = bindings.get("Dh_k")
-        Dh_v = bindings.get("Dh_v")
+        Dh = self.bindings.get("Dh")
+        Dh_q = self.bindings.get("Dh_q")
+        Dh_k = self.bindings.get("Dh_k")
+        Dh_v = self.bindings.get("Dh_v")
 
         if (
             not isinstance(Dh, int)
@@ -186,7 +181,9 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
             or not isinstance(Dh_k, int)
             or not isinstance(Dh_v, int)
         ):
-            return False  # Missing bindings, cannot verify
+            return check_result.fail(
+                "Could not determine the hidden sizes of query, key, and value.",
+            )
 
         if Dh != Dh_q + Dh_k + Dh_v:  # type: ignore[operator]
             return check_result.fail(
@@ -209,6 +206,13 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         # scale,
         **_,
     ):
+        # Use bindings to get the values of Dh_q, Dh_k, and Dh_v
+        # and construct qkv_hidden_sizes
+        Dh_q = self.bindings.get("Dh_q")
+        Dh_k = self.bindings.get("Dh_k")
+        Dh_v = self.bindings.get("Dh_v")
+        qkv_hidden_sizes=[Dh_q, Dh_k, Dh_v]
+
         if self._has_past:
             attention, present = op.Attention(
                 input,
@@ -219,12 +223,12 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 # attention_bias,
                 # past_sequence_length
                 num_heads=num_heads,
-                # qkv_hidden_sizes=qkv_hidden_sizes,
+                qkv_hidden_sizes=qkv_hidden_sizes,
                 # scale=scale,
                 _domain="com.microsoft",
                 _outputs=2,
             )
-            # TODO: Switch back order of outputs
+            # Return present output first as it captures the complete rewrite pattern graph
             return present, attention
         else:
             return op.Attention(
@@ -236,40 +240,40 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 # attention_bias,
                 # past_sequence_length
                 num_heads=num_heads,
-                # qkv_hidden_sizes=qkv_hidden_sizes,
+                qkv_hidden_sizes=qkv_hidden_sizes,
                 # scale=scale,
                 _domain="com.microsoft",
                 _outputs=1,
             )
 
 
-attention_with_input_bias_rule = AttentionFusion.rule(
-    "attention_input_bias",
-    has_input_bias=True,
-    has_past=False,
-)
-attention_with_no_input_bias_rule = AttentionFusion.rule(
-    "attention_no_input_bias",
+attention = AttentionFusion.rule(
+    "attention",
     has_input_bias=False,
     has_past=False,
 )
-attention_with_input_bias_with_past_rule = AttentionFusion.rule(
-    "attention_input_bias_with_past",
+attention_with_bias = AttentionFusion.rule(
+    "attention_with_bias",
     has_input_bias=True,
+    has_past=False,
+)
+attention_with_past = AttentionFusion.rule(
+    "attention_with_past",
+    has_input_bias=False,
     has_past=True,
 )
-attention_with_no_input_bias_with_past_rule = AttentionFusion.rule(
-    "attention_no_input_bias_with_past",
-    has_input_bias=False,
+attention_with_bias_and_past = AttentionFusion.rule(
+    "attention_with_bias_and_past",
+    has_input_bias=True,
     has_past=True,
 )
 
 attention_rules = pattern.RewriteRuleSet(
     [
-        attention_with_input_bias_rule,
-        attention_with_no_input_bias_rule,
-        attention_with_input_bias_with_past_rule,
-        attention_with_no_input_bias_with_past_rule,
+        attention,
+        attention_with_bias,
+        attention_with_past,
+        attention_with_bias_and_past,
     ]
 )
 
