@@ -196,13 +196,12 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         query_BSD,
         key_BSDkv,
         value_BSDkv,
-        mask,
         past_key,
         past_value,
         query_BHSDh_rope,
         key_BHkvSDh_rope,
-        # query_BSHDh,
-        # key_BSHkvDh,
+        query_BSHDh,
+        key_BSHkvDh,
         # value_BSHkvDh,
         **_,
     ):
@@ -239,6 +238,16 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # and bindings["H"] * bindings["Dh"] == bindings["H*Dh"]:
         # or check Reshape's shape-input value
 
+        result = pattern.MatchResult()
+        num_heads = _ir_utils.get_dim(query_BSHDh, 2)
+        kv_num_heads = _ir_utils.get_dim(key_BSHkvDh, 2)
+        if not isinstance(num_heads, int):
+            return result.fail("Unable to determine num_heads value", query_BSHDh)
+        if not isinstance(kv_num_heads, int):
+            return result.fail("Unable to determine kv_num_heads value", key_BSHkvDh)
+        self.num_heads = num_heads
+        self.kv_num_heads = kv_num_heads
+
         # Rotary embedding attributes
         query_rotary_attributes = query_BHSDh_rope.producer().attributes
         key_rotary_attributes = key_BHkvSDh_rope.producer().attributes
@@ -258,18 +267,11 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         value_BSDkv,
         past_key,
         past_value,
-        query_BSHDh,
-        key_BSHkvDh,
         total_seq_length,
         cos,
         sin,
         **_,
     ):
-        num_heads = _ir_utils.get_dim(query_BSHDh, 2)
-        kv_num_heads = _ir_utils.get_dim(key_BSHkvDh, 2)
-        if not isinstance(num_heads, int) or not isinstance(kv_num_heads, int):
-            return None
-
         total_seq_length_int32 = op.Cast(total_seq_length, to=ir.DataType.INT32)
         one_0D = op.Constant(value_int=1)
         one_0D_int32 = op.Cast(one_0D, to=ir.DataType.INT32)
@@ -288,10 +290,10 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
             cos,
             sin,
             # mask, # TODO: this is not a valid input for GQA
-            num_heads=num_heads,
-            kv_num_heads=kv_num_heads,
+            num_heads=self.num_heads,
+            kv_num_heads=self.kv_num_heads,
             do_rotary=1,
-            rotary_interleaved=self._interleaved.value,
+            rotary_interleaved=self._interleaved,
             # skipped optional attributes: local_window_size, scale, smooth_softmax, softcap
             _domain="com.microsoft",
             _outputs=3,
@@ -303,8 +305,10 @@ _rule1 = GroupQueryAttention.rule()
 gqa_rules = pattern.RewriteRuleSet([_rule1])
 
 
-def fuse_gqa(model: ir.Model) -> int:
+def fuse_gqa(model: ir.Model, debug: bool = False) -> int:
     count = gqa_rules.apply_to_model(model)
-    print(f"GQA count: {count}")
-    # remove_unused_nodes(model)
+    if debug and count == 0:
+        tracer = pattern.MatchingTracer()
+        gqa_rules.apply_to_model(model, tracer=tracer)
+        tracer.report()
     return count
