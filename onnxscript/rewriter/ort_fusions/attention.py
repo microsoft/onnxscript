@@ -211,7 +211,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         Dh_q = self.bindings.get("Dh_q")
         Dh_k = self.bindings.get("Dh_k")
         Dh_v = self.bindings.get("Dh_v")
-        qkv_hidden_sizes=[Dh_q, Dh_k, Dh_v]
+        qkv_hidden_sizes = [Dh_q, Dh_k, Dh_v]
 
         if self._has_past:
             attention, present = op.Attention(
