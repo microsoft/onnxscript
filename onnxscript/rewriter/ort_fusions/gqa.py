@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import onnxscript.ir as ir
+from onnxscript.optimizer import remove_unused_nodes
 from onnxscript.rewriter import _fusion_utils, pattern
 
 
@@ -150,4 +151,6 @@ gqa_rules = pattern.RewriteRuleSet([_rule1])
 
 
 def fuse_gqa(model: ir.Model, debug: bool = False) -> int:
-    return _fusion_utils.apply_fusion_rules(gqa_rules, model, debug=debug)
+    count = _fusion_utils.apply_fusion_rules(gqa_rules, model, debug=debug)
+    remove_unused_nodes(model)
+    return count
