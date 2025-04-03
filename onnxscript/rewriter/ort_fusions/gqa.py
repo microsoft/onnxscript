@@ -201,36 +201,24 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         key_BHkvSDh_rope,
         query_BSHDh,
         key_BSHkvDh,
-        # value_BSHkvDh,
         **_,
     ):
-        # bindings: dict[str, Dim] = {}
+        bindings: dict[str, Dim] = {}
 
-        # def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-        #     return not _check_shape(bindings, val, dims)
+        def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
+            return not _check_shape(bindings, val, dims)
 
-        # if no_match(query_BSD, ["B", "S", "D"]):
-        #     return False
-        # if no_match(key_BSDkv, ["B", "Skv", "D"]):
-        #     return False
-        # if no_match(value_BSDkv, ["B", "Skv", "D"]):
-        #     return False
+        if no_match(query_BSD, ["B", "S", "D"]):
+            return False
+        if no_match(key_BSDkv, ["B", "S", "Dkv"]):
+            return False
+        if no_match(value_BSDkv, ["B", "S", "Dkv"]):
+            return False
 
-        # if no_match(past_key, ["B", "H", "Spast", "Dh"]):
-        #     return False
-        # if no_match(past_value, ["B", "H", "Spast", "Dv"]):
-        #     return False
-        # if no_match(query_BSHDh, ["B", "S", "H", "Dh"]):
-        #     return False
-        # if no_match(key_BSHkvDh, ["B", "S", "H", "Dh"]):
-        #     return False
-        # if no_match(value_BSHkvDh, ["B", "S", "H", "Dh"]):
-        #     return False
-
-        # TODO: mask shape check: ideally, it should be (1 or B, 1 or H, S, St)
-        # But this also, unforunately, depends on ORT version.
-        # TODO: check that mask is causal. Latest ORT is adding support for
-        # non-causal masks, but not yet for all EPs.
+        if no_match(past_key, ["B", "Hkv", "P", "Dh"]):
+            return False
+        if no_match(past_value, ["B", "Hkv", "P", "Dv"]):
+            return False
 
         # TODO: verify Reshapes:
         # eg.: verify bindings["B"] * bindings["H"] == bindings["B*H"]:
