@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import onnxscript.ir as ir
-from onnxscript.rewriter import _ir_utils, pattern
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 """
 The MultiHeadAttention pattern: generate an instance
@@ -29,19 +29,6 @@ The suffix "BH_Skv_Dh" indicates that the tensor has the shape (B*H, Skv, Dh).
 """
 
 Dim = Union[int, ir.SymbolicDim]
-
-
-def _check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]) -> bool:
-    if val.shape is None:
-        return False
-    if val.shape.rank() != len(shape):
-        return False
-    for actual, expected in zip(val.shape, shape):
-        if expected not in bindings:
-            bindings[expected] = actual  # type: ignore[assignment]
-        elif actual != bindings[expected]:
-            return False
-    return True
 
 
 class MultiHeadAttention(pattern.RewriteRuleClassBase):
@@ -168,7 +155,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-            return not _check_shape(bindings, val, dims)
+            return not _fusion_utils._check_shape(bindings, val, dims)
 
         if no_match(query_BSD, ["B", "S", "D"]):
             return check_result.fail(

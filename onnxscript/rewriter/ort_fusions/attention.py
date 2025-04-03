@@ -5,23 +5,12 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import onnxscript.ir as ir
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter import _fusion_utils, pattern
 
 Dim = Union[int, ir.SymbolicDim]
 
 
 # TODO: Maybe add this check to utilities
-def _check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]) -> bool:
-    if val.shape is None:
-        return False
-    if val.shape.rank() != len(shape):
-        return False
-    for actual, expected in zip(val.shape, shape):
-        if expected not in bindings:
-            bindings[expected] = actual  # type: ignore[assignment]
-        elif actual != bindings[expected]:
-            return False
-    return True
 
 
 class AttentionFusion(pattern.RewriteRuleClassBase):
@@ -103,6 +92,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
             present_key = op.Unsqueeze(present_key, [0])
             present_value = op.Unsqueeze(present_value, [0])
             present = op.Concat(present_key, present_value, axis=0)
+            # Return present output first as it captures the complete pattern graph
             return present, attention
         else:
             attention = op.MultiHeadAttention(
@@ -136,7 +126,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         self.bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-            return not _check_shape(self.bindings, val, dims)
+            return not _fusion_utils._check_shape(self.bindings, val, dims)
 
         if no_match(input, ["B", "S", "D"]):
             return check_result.fail(
@@ -228,7 +218,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 _domain="com.microsoft",
                 _outputs=2,
             )
-            # Return present output first as it captures the complete rewrite pattern graph
+            # Use same output ordering as in pattern
             return present, attention
         else:
             return op.Attention(

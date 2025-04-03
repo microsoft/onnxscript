@@ -24,7 +24,7 @@ class TestAttentionFusion(unittest.TestCase):
         super().__init__(*args, **kwargs)
         self.batchsize = 2
         self.seqlen = 8
-        self.max_seqlen = 32
+        self.past_seqlen = 32
         self.headsize = 16
         self.num_heads = 10
         self.input_hidden_size = self.headsize * self.num_heads
@@ -36,7 +36,7 @@ class TestAttentionFusion(unittest.TestCase):
         """Generate random inputs for the model."""
         B = self.batchsize
         S = self.seqlen
-        M = self.max_seqlen
+        Sp = self.past_seqlen
         D = self.input_hidden_size
         N = self.num_heads
         H = self.headsize
@@ -48,22 +48,22 @@ class TestAttentionFusion(unittest.TestCase):
             "bias": np.random.rand(D_qkv).astype(np.float32),
         }
         if with_past:
-            inputs["past"] = np.random.rand(2, B, N, M, H).astype(np.float32)
+            inputs["past"] = np.random.rand(2, B, N, Sp, H).astype(np.float32)
         return inputs
 
     def create_model(self, with_past=False):
         """Create a model with or without past inputs."""
         D = self.input_hidden_size
-        Dh_qkv = self.q_hidden_size + self.k_hidden_size + self.v_hidden_size
+        D_qkv = self.q_hidden_size + self.k_hidden_size + self.v_hidden_size
 
         @script()
         def model_with_mha(input, weight, bias):
-            QKV_no_bias = op.MatMul(input, weight)
-            QKV = op.Add(QKV_no_bias, bias)
+            qkv_no_bias = op.MatMul(input, weight)
+            qkv = op.Add(qkv_no_bias, bias)
 
-            query_BSDh = op.Slice(QKV, [0], [160], [2])
-            key_BSDh = op.Slice(QKV, [160], [320], [2])
-            value_BSDh = op.Slice(QKV, [320], [480], [2])
+            query_BSDh = op.Slice(qkv, [0], [160], [2])
+            key_BSDh = op.Slice(qkv, [160], [320], [2])
+            value_BSDh = op.Slice(qkv, [320], [480], [2])
 
             mha = msft_op.MultiHeadAttention(
                 query_BSDh,
@@ -75,12 +75,12 @@ class TestAttentionFusion(unittest.TestCase):
 
         @script()
         def model_with_mha_past(input, weight, bias, past):
-            QKV_no_bias = op.MatMul(input, weight)
-            QKV = op.Add(QKV_no_bias, bias)
+            qkv_no_bias = op.MatMul(input, weight)
+            qkv = op.Add(qkv_no_bias, bias)
 
-            query_BSDh = op.Slice(QKV, [0], [160], [2])
-            key_BSDh = op.Slice(QKV, [160], [320], [2])
-            value_BSDh = op.Slice(QKV, [320], [480], [2])
+            query_BSDh = op.Slice(qkv, [0], [160], [2])
+            key_BSDh = op.Slice(qkv, [160], [320], [2])
+            value_BSDh = op.Slice(qkv, [320], [480], [2])
 
             past_key_5d = op.Slice(past, [0], [1], [0])
             past_value_5d = op.Slice(past, [1], [2], [0])
@@ -106,14 +106,15 @@ class TestAttentionFusion(unittest.TestCase):
 
         input_types = (
             FLOAT["B", "S", D],
-            FLOAT[D, Dh_qkv],
-            FLOAT[Dh_qkv],
+            FLOAT[D, D_qkv],
+            FLOAT[D_qkv],
         )
         output_types = (FLOAT["B", "S", self.v_hidden_size],)
 
         if with_past:
+            # "T" indicates total sequence length (after concatenation of past and current key/value)
             input_types += (FLOAT[2, "B", self.num_heads, "S", self.headsize],)
-            output_types += (FLOAT[2, "B", self.num_heads, "NS", self.headsize],)
+            output_types += (FLOAT[2, "B", self.num_heads, "T", self.headsize],)
             model_proto = model_with_mha_past.to_model_proto(
                 input_types=input_types,
                 output_types=output_types,
