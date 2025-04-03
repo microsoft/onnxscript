@@ -20,13 +20,6 @@ from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
-
-@torch_op(
-    ("aten::_fft_c2c", "aten::_fft_r2c"),
-    private=True,
-    complex=True,
-    trace_only=True,
-)
 def _fftn_onnx_normalization(
     self: TFloat,
     normalization: int,
@@ -46,13 +39,6 @@ def _fftn_onnx_normalization(
         self = op.Div(self, signal_size)
     return self
 
-
-@torch_op(
-    ("aten::_fft_c2c", "aten::_fft_c2r"),
-    private=True,
-    complex=True,
-    trace_only=True,
-)
 def _fftn_onnx_inverse_normalization(
     self: TFloat,
     normalization: int,
@@ -142,16 +128,17 @@ def aten__fft_c2r(
         transformed = op.DFT(transformed, axis=dimension, inverse=True, onesided=False)
         transformed = _fftn_onnx_inverse_normalization(transformed, normalization, signal_size)
 
-    if transformed.shape[-1] < last_dim_size:
-        pads = [0, last_dim_size - transformed.shape[-1]]
+    transformedShape = op.Shape(transformed)
+    if transformedShape[-1] < last_dim_size:
+        pads = [0, last_dim_size - transformedShape[-1]]
         mode = "constant"
         constant_value = 0.0
         transformed = op.Pad(
             mode=mode, data=transformed, pads=pads, constant_value=constant_value, axes=[-1]
         )
-    elif transformed.shape[-1] > last_dim_size:
+    elif transformedShape[-1] > last_dim_size:
         starts = [0] * (self_rank - 1)
-        ends = list(transformed.shape)
+        ends = list(transformedShape)
         ends[-1] = last_dim_size
         transformed = op.Slice(data=transformed, starts=starts, ends=ends)
 
@@ -174,10 +161,10 @@ def aten__fft_r2c(
     # https://onnx.ai/onnx/operators/onnx__DFT.html#inputs
 
     self_rank = len(transformed.shape)
+    signal_size = op.CastLike(op.Size(transformed), transformed)
 
     # Add a new dimension at the end
     transformed = op.Unsqueeze(transformed, axes=[-1])
-    signal_size = op.CastLike(op.Size(transformed), transformed)
 
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
