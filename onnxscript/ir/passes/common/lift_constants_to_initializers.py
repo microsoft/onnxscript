@@ -20,7 +20,7 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
         """Convert constant nodes in main graph to initializers."""
         count = 0
         for node in model.graph:
-            if node.op_type != "Constant":
+            if node.op_type != "Constant" or node.domain not in ("", "onnx.ai"):
                 continue
             if "value" not in node.attributes:
                 logger.debug("Constant node '%s' has no 'value' attribute", node.name)
@@ -37,6 +37,8 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
                 type=ir.TensorType(tensor.dtype),
                 const_value=tensor,
             )
+            # TODO(titaiwang): Is it possible that the initializer name has
+            # been taken?
             model.graph.initializers[initializer_name] = initializer
             # Replace the constant node with the initilizer
             ir.convenience.replace_all_uses_with(node.outputs[0], initializer)
