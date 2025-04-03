@@ -92,4 +92,5 @@ rms_normalization_ruleset = pattern.RewriteRuleSet(rms_normalization_rules)
 
 
 def fuse_rms_normalization(model: ir.Model, debug: bool = False) -> int:
-    return _fusion_utils.apply_fusion_rules(rms_normalization_ruleset, model, debug=debug)
+    fuse_rms_normalization = _fusion_utils.apply_fusion_rules(rms_normalization_ruleset)
+    return fuse_rms_normalization(model, debug=debug)

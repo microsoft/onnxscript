@@ -34,4 +34,5 @@ gelu_rules = pattern.RewriteRuleSet([_rule])
 
 
 def fuse_gelu(model: ir.Model, debug: bool = False) -> int:
-    return _fusion_utils.apply_fusion_rules(gelu_rules, model, debug=debug)
+    fuse_gelu = _fusion_utils.apply_fusion_rules(gelu_rules)
+    return fuse_gelu(model, debug=debug)

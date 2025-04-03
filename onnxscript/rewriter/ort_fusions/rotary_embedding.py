@@ -121,8 +121,10 @@ partial_embedding_rules = pattern.RewriteRuleSet([_partial_embedding_rule])
 
 
 def fuse_rotary_embedding(model: ir.Model, debug: bool = False) -> int:
-    return _fusion_utils.apply_fusion_rules(rotary_embedding_rules, model, debug=debug)
+    fuse_rotary_embedding = _fusion_utils.apply_fusion_rules(rotary_embedding_rules)
+    return fuse_rotary_embedding(model, debug=debug)
 
 
 def fuse_partial_rotary_embedding(model: ir.Model, debug: bool = False) -> int:
-    return _fusion_utils.apply_fusion_rules(partial_embedding_rules, model, debug=debug)
+    fuse_partial_rotary_embedding = _fusion_utils.apply_fusion_rules(partial_embedding_rules)
+    return fuse_partial_rotary_embedding(model, debug=debug)

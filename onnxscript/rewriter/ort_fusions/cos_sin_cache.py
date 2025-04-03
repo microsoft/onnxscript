@@ -170,7 +170,8 @@ cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _cast_const_freqs, _const_f
 
 
 def fuse_cos_sin_cache(model: ir.Model, debug: bool = False) -> int:
-    count = _fusion_utils.apply_fusion_rules(cos_sin_cache_rules, model, debug=debug)
+    fuse_cos_sin_cache = _fusion_utils.apply_fusion_rules(cos_sin_cache_rules)
+    count = fuse_cos_sin_cache(model, debug=debug)
     if count != 0:
         remove_unused_nodes(model)
     return count

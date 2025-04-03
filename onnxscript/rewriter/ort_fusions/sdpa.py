@@ -131,4 +131,5 @@ sdpa_rules = pattern.RewriteRuleSet(
 
 
 def fuse_sdpa(model: ir.Model, debug: bool = False) -> int:
-    return _fusion_utils.apply_fusion_rules(sdpa_rules, model, debug=debug)
+    fuse_sdpa = _fusion_utils.apply_fusion_rules(sdpa_rules)
+    return fuse_sdpa(model, debug=debug)

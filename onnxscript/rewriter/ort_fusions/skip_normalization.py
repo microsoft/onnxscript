@@ -6,7 +6,7 @@ import onnxscript.ir as ir
 from onnxscript.rewriter import _fusion_utils, pattern
 
 
-def _skip_rmsnorm_pattern(op, input, skip, gamma, epsilon, stash_type):
+def _skip_rms_norm_pattern(op, input, skip, gamma, epsilon, stash_type):
     skip_sum = op.Add(input, skip)
     normalized = op.SimplifiedLayerNormalization(
         skip_sum,
@@ -33,14 +33,14 @@ def _skip_rms_normalization(op, input, skip, gamma, epsilon, stash_type):
 
 
 _skip_rms_rule = pattern.RewriteRule(
-    _skip_rmsnorm_pattern, _skip_rms_normalization, matcher=pattern.SimplePatternMatcher
+    _skip_rms_norm_pattern, _skip_rms_normalization, matcher=pattern.SimplePatternMatcher
 )
 
 skip_rms_normalization_rules = [_skip_rms_rule]
 skip_rms_normalization_ruleset = pattern.RewriteRuleSet(skip_rms_normalization_rules)
 
 
-def _skip_layernorm_pattern(op, input, skip, gamma, beta, epsilon, stash_type):
+def _skip_layer_norm_pattern(op, input, skip, gamma, beta, epsilon, stash_type):
     skip_sum = op.Add(input, skip)
     normalized = op.LayerNormalization(
         skip_sum,
@@ -69,7 +69,7 @@ def _skip_layer_normalization(op, input, skip, gamma, beta, epsilon, stash_type)
 
 
 _skip_layer_rule = pattern.RewriteRule(
-    _skip_layernorm_pattern, _skip_layer_normalization, matcher=pattern.SimplePatternMatcher
+    _skip_layer_norm_pattern, _skip_layer_normalization, matcher=pattern.SimplePatternMatcher
 )
 
 skip_layer_normalization_rules = [_skip_layer_rule]
@@ -77,10 +77,14 @@ skip_layer_normalization_ruleset = pattern.RewriteRuleSet(skip_layer_normalizati
 
 
 def fuse_skip_rms_normalization(model: ir.Model, debug: bool = False) -> int:
-    return _fusion_utils.apply_fusion_rules(skip_rms_normalization_ruleset, model, debug=debug)
+    fuse_skip_rms_normalization = _fusion_utils.apply_fusion_rules(
+        skip_rms_normalization_ruleset
+    )
+    return fuse_skip_rms_normalization(model, debug=debug)
 
 
 def fuse_skip_layer_normalization(model: ir.Model, debug: bool = False) -> int:
-    return _fusion_utils.apply_fusion_rules(
-        skip_layer_normalization_ruleset, model, debug=debug
+    fuse_skip_layer_normalization = _fusion_utils.apply_fusion_rules(
+        skip_layer_normalization_ruleset
     )
+    return fuse_skip_layer_normalization(model, debug=debug)

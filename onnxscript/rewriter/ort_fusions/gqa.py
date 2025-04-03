@@ -151,6 +151,7 @@ gqa_rules = pattern.RewriteRuleSet([_rule1])
 
 
 def fuse_gqa(model: ir.Model, debug: bool = False) -> int:
-    count = _fusion_utils.apply_fusion_rules(gqa_rules, model, debug=debug)
+    fuse_gqa = _fusion_utils.apply_fusion_rules(gqa_rules)
+    count = fuse_gqa(model, debug=debug)
     remove_unused_nodes(model)
     return count
