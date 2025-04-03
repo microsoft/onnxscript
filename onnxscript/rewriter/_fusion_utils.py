@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Sequence, Union
 
-
 from onnxscript import ir
 
 Dim = Union[int, ir.SymbolicDim]
+
 
 def _check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]) -> bool:
     if val.shape is None:
