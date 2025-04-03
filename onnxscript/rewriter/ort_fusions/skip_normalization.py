@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import onnxscript.ir as ir
-from onnxscript.rewriter import pattern
-from onnxscript.rewriter.ort_fusions.rms_normalization import rms_normalization_rules
+from onnxscript.rewriter import _fusion_utils, pattern
 
 
-def _skip_norm_pattern(op, input, skip, gamma, epsilon, stash_type):
+def _skip_rmsnorm_pattern(op, input, skip, gamma, epsilon, stash_type):
     skip_sum = op.Add(input, skip)
     normalized = op.SimplifiedLayerNormalization(
         skip_sum,
@@ -19,7 +18,7 @@ def _skip_norm_pattern(op, input, skip, gamma, epsilon, stash_type):
     return normalized, skip_sum
 
 
-def _skip_normalization(op, input, skip, gamma, epsilon, stash_type):
+def _skip_rms_normalization(op, input, skip, gamma, epsilon, stash_type):
     if stash_type.value != 1:  # FLOAT type
         return None
     normalized, _mean, _inv_std_var, skip_sum = op.SkipSimplifiedLayerNormalization(
@@ -33,19 +32,55 @@ def _skip_normalization(op, input, skip, gamma, epsilon, stash_type):
     return normalized, skip_sum
 
 
-_rule = pattern.RewriteRule(
-    _skip_norm_pattern, _skip_normalization, matcher=pattern.SimplePatternMatcher
+_skip_rms_rule = pattern.RewriteRule(
+    _skip_rmsnorm_pattern, _skip_rms_normalization, matcher=pattern.SimplePatternMatcher
 )
 
-skip_normalization_rules = [_rule]
-normalization_rules = rms_normalization_rules + skip_normalization_rules
-normalization_ruleset = pattern.RewriteRuleSet(normalization_rules)
+skip_rms_normalization_rules = [_skip_rms_rule]
+skip_rms_normalization_ruleset = pattern.RewriteRuleSet(skip_rms_normalization_rules)
 
 
-def fuse_normalization(model: ir.Model, debug: bool = False) -> int:
-    count = normalization_ruleset.apply_to_model(model)
-    if count == 0 and debug:
-        tracer = pattern.MatchingTracer()
-        normalization_ruleset.apply_to_model(model, tracer=tracer)
-        tracer.report()
-    return count
+def _skip_layernorm_pattern(op, input, skip, gamma, beta, epsilon, stash_type):
+    skip_sum = op.Add(input, skip)
+    normalized = op.LayerNormalization(
+        skip_sum,
+        gamma,
+        beta,
+        axis=-1,
+        epsilon=epsilon,
+        stash_type=stash_type,
+    )
+    return normalized
+
+
+def _skip_layer_normalization(op, input, skip, gamma, beta, epsilon, stash_type):
+    if stash_type.value != 1:  # FLOAT type
+        return None
+    normalized, _mean, _inv_std_var = op.SkipLayerNormalization(
+        input,
+        skip,
+        gamma,
+        beta,
+        epsilon=epsilon,
+        _outputs=3,
+        _domain="com.microsoft",
+    )
+    return normalized
+
+
+_skip_layer_rule = pattern.RewriteRule(
+    _skip_layernorm_pattern, _skip_layer_normalization, matcher=pattern.SimplePatternMatcher
+)
+
+skip_layer_normalization_rules = [_skip_layer_rule]
+skip_layer_normalization_ruleset = pattern.RewriteRuleSet(skip_layer_normalization_rules)
+
+
+def fuse_skip_rms_normalization(model: ir.Model, debug: bool = False) -> int:
+    return _fusion_utils.apply_fusion_rules(skip_rms_normalization_ruleset, model, debug=debug)
+
+
+def fuse_skip_layer_normalization(model: ir.Model, debug: bool = False) -> int:
+    return _fusion_utils.apply_fusion_rules(
+        skip_layer_normalization_ruleset, model, debug=debug
+    )

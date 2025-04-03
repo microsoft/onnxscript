@@ -261,9 +261,4 @@ mha_rules = pattern.RewriteRuleSet([_mha_4d_transpose, _mha_3d_transpose])
 
 
 def fuse_mha(model: ir.Model, *, debug: bool = False) -> int:
-    count = mha_rules.apply_to_model(model)
-    if debug and count == 0:
-        tracer = pattern.MatchingTracer()
-        mha_rules.apply_to_model(model, tracer=tracer)
-        tracer.report()
-    return count
+    return _fusion_utils.apply_fusion_rules(mha_rules, model, debug=debug)

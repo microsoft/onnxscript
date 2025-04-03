@@ -2,8 +2,6 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from typing import Dict, Tuple
-
 import onnxscript.ir as ir
 from onnxscript.ir.passes.common import shape_inference
 from onnxscript.optimizer import optimize
@@ -24,7 +22,10 @@ from onnxscript.rewriter.ort_fusions.rotary_embedding import (
     fuse_rotary_embedding,
 )
 from onnxscript.rewriter.ort_fusions.sdpa import fuse_sdpa
-from onnxscript.rewriter.ort_fusions.skip_normalization import fuse_normalization
+from onnxscript.rewriter.ort_fusions.skip_normalization import (
+    fuse_skip_layer_normalization,
+    fuse_skip_rms_normalization,
+)
 
 ORT_PATTERN_REWRITE_RULES = [
     *softmax.rules.rules,
@@ -47,7 +48,7 @@ def _pre_optimize(model: ir.Model) -> ir.Model:
     return model
 
 
-def fuse_xformers(model: ir.Model) -> Tuple[ir.Model, Dict[str, int]]:
+def fuse_xformers(model: ir.Model) -> tuple[ir.Model, dict[str, int]]:
     """
     Apply transformer-specific fusions to the given model.
 
@@ -63,7 +64,8 @@ def fuse_xformers(model: ir.Model) -> Tuple[ir.Model, Dict[str, int]]:
 
     model = _pre_optimize(model)
     fusion_count["rms_normalization"] = fuse_rms_normalization(model)
-    fusion_count["rms_and_skip_normalization"] = fuse_normalization(model)
+    fusion_count["skip_layer_normalization"] = fuse_skip_layer_normalization(model)
+    fusion_count["skip_rms_normalization"] = fuse_skip_rms_normalization(model)
     fusion_count["rotary_embedding"] = fuse_rotary_embedding(model)
     fusion_count["partial_rotary_embedding"] = fuse_partial_rotary_embedding(model)
     fusion_count["cos_sin_cache"] = fuse_cos_sin_cache(model)
@@ -76,7 +78,9 @@ def fuse_xformers(model: ir.Model) -> Tuple[ir.Model, Dict[str, int]]:
     return model, fusion_count
 
 
-def optimize_for_ort(model: ir.Model, config_name: str | None = None) -> ir.Model:
+def optimize_for_ort(
+    model: ir.Model, config_name: str | None = None
+) -> tuple[ir.Model, dict[str, int]]:
     """
     Optimize the model for ORT backend.
 
@@ -90,9 +94,11 @@ def optimize_for_ort(model: ir.Model, config_name: str | None = None) -> ir.Mode
             If None, the default configuration will be used.
 
     Returns:
-        The optimized model.
+        A tuple containing:
+        - The optimized `ir.Model` after applying transformer-specific fusions.
+        - A dictionary with a count of each of the fusions applied.
     """
 
-    fuse_xformers(model)
+    model, fusion_count = fuse_xformers(model)
     rewrite(model, ORT_PATTERN_REWRITE_RULES)
-    return model
+    return model, fusion_count

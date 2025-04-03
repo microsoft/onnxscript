@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 
 from onnxscript import ir
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter import _fusion_utils, pattern
 
 _sqrt_two_over_pi = math.sqrt(2.0 / math.pi)
 
@@ -34,9 +34,4 @@ gelu_rules = pattern.RewriteRuleSet([_rule])
 
 
 def fuse_gelu(model: ir.Model, debug: bool = False) -> int:
-    count = gelu_rules.apply_to_model(model)
-    if count == 0 and debug:
-        tracer = pattern.MatchingTracer()
-        gelu_rules.apply_to_model(model, tracer=tracer)
-        tracer.report()
-    return count
+    return _fusion_utils.apply_fusion_rules(gelu_rules, model, debug=debug)

@@ -6,7 +6,7 @@ import numpy as np
 
 import onnxscript.ir as ir
 from onnxscript.optimizer import remove_unused_nodes
-from onnxscript.rewriter import _ir_utils, pattern
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 # Rewrite the computation of cos/sin cache into the form expected by ORT's custom ops.
 
@@ -170,11 +170,7 @@ cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _cast_const_freqs, _const_f
 
 
 def fuse_cos_sin_cache(model: ir.Model, debug: bool = False) -> int:
-    count = cos_sin_cache_rules.apply_to_model(model)
-    if count == 0 and debug:
-        tracer = pattern.MatchingTracer()
-        cos_sin_cache_rules.apply_to_model(model, tracer=tracer)
-        tracer.report()
+    count = _fusion_utils.apply_fusion_rules(cos_sin_cache_rules, model, debug=debug)
     if count != 0:
         remove_unused_nodes(model)
     return count

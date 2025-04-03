@@ -21,7 +21,8 @@ class TestFuseXformers(unittest.TestCase):
 
         # Check if the number of fusions applied for each fusion is correct
         self.assertEqual(fusion_count["rms_normalization"], 3)
-        self.assertEqual(fusion_count["rms_and_skip_normalization"], 2)
+        self.assertEqual(fusion_count["skip_layer_normalization"], 0)
+        self.assertEqual(fusion_count["skip_rms_normalization"], 2)
         self.assertEqual(fusion_count["rotary_embedding"], 2)
         self.assertEqual(fusion_count["partial_rotary_embedding"], 0)
         self.assertEqual(fusion_count["cos_sin_cache"], 2)

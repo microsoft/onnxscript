@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import onnxscript.ir as ir
-from onnxscript.optimizer import remove_unused_nodes
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter import _fusion_utils, pattern
 
 
 class GroupQueryAttention(pattern.RewriteRuleClassBase):
@@ -150,8 +149,5 @@ _rule1 = GroupQueryAttention.rule("MHA_2dmm", use_2d_matmul=False)
 gqa_rules = pattern.RewriteRuleSet([_rule1])
 
 
-def fuse_gqa(model: ir.Model) -> int:
-    count = gqa_rules.apply_to_model(model)
-    print(f"GQA count: {count}")
-    remove_unused_nodes(model)
-    return count
+def fuse_gqa(model: ir.Model, debug: bool = False) -> int:
+    return _fusion_utils.apply_fusion_rules(gqa_rules, model, debug=debug)
