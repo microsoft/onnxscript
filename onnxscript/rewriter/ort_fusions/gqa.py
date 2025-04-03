@@ -23,10 +23,7 @@ Dh: head size or embedding dimension per head
 D: input embedding dimension (hidden size) = H * Dh
 Dkv: key/value hidden size = Hkv * Dh
 
-Skv: key/value sequence length (after concatenation of past and current key/value)
-
-In the sequel, the suffix "_BHSDh" indicates that the tensor has the shape (B, H, S, Dh).
-The suffix "BH_Skv_Dh" indicates that the tensor has the shape (B*H, Skv, Dh).
+T: total sequence length (after concatenation of past and current key/value)
 """
 
 Dim = Union[int, ir.SymbolicDim]
@@ -99,31 +96,18 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         shape_B111,
     ):
         # Reshape query from (B, S, D) to (B, S, H, D/H)
-        query_BSHDh = op.Reshape(
-            query_BSD,
-            _allow_other_inputs=True,
-            _allow_other_attributes=True,
-            _outputs=["query_BSHDh"],
-        )
+        query_BSHDh = op.Reshape(query_BSD, _allow_other_inputs=True, _outputs=["query_BSHDh"])
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
         query_BHSDh = op.Transpose(query_BSHDh, perm=[0, 2, 1, 3])
 
         # Reshape key from (B, S, Dkv) to (B, S, Hkv, D/H)
-        key_BSHkvDh = op.Reshape(
-            key_BSDkv,
-            _allow_other_inputs=True,
-            _allow_other_attributes=True,
-            _outputs=["key_BSHkvDh"],
-        )
+        key_BSHkvDh = op.Reshape(key_BSDkv, _allow_other_inputs=True, _outputs=["key_BSHkvDh"])
         # Transpose from (B, S, Hkv, D/H) to (B, Hkv, S, D/H)
         key_BHkvSDh = op.Transpose(key_BSHkvDh, perm=[0, 2, 1, 3])
 
         # Reshape value from (B, S, Dkv) to (B, S, Hkv, D/H)
         value_BSHkvDh = op.Reshape(
-            value_BSDkv,
-            _allow_other_inputs=True,
-            _allow_other_attributes=True,
-            _outputs=["value_BSHkvDh"],
+            value_BSDkv, _allow_other_inputs=True, _outputs=["value_BSHkvDh"]
         )
         # Transpose from (B, S, Hkv, D/H) to (B, Hkv, S, D/H)
         value_BHkvSDh = op.Transpose(value_BSHkvDh, perm=[0, 2, 1, 3])
@@ -150,33 +134,31 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         )
 
         # Concatenate past_key cache and current key, expand across heads
-        # that share key/value and transpose to enable dot-product attention computation.
+        # that share key/value.
 
-        key_seq_BHkvSkvDh = op.Concat(past_key, key_BHkvSDh_rope, axis=-2)
-        key_seq_BHkv1SkvDh = op.Unsqueeze(key_seq_BHkvSkvDh, 2)
-        key_seq_BHkvGSkvDh = op.Expand(key_seq_BHkv1SkvDh, _allow_other_inputs=True)
-        key_seq_BHSkvDh = op.Reshape(
-            key_seq_BHkvGSkvDh, _allow_other_inputs=True, _outputs=["key_seq_BHSkvDh"]
-        )
-        key_seq_BHDhSkv = op.Transpose(
-            key_seq_BHSkvDh, _allow_other_inputs=True, _outputs=["key_seq_BHDhSkv"]
+        key_seq_BHkvTDh = op.Concat(past_key, key_BHkvSDh_rope, axis=-2)
+        key_seq_BHkv1TDh = op.Unsqueeze(key_seq_BHkvTDh, 2)
+        key_seq_BHkvGTDh = op.Expand(key_seq_BHkv1TDh, _allow_other_inputs=True)
+        key_seq_BHTDh = op.Reshape(
+            key_seq_BHkvGTDh, _allow_other_inputs=True, _outputs=["key_seq_BHTDh"]
         )
 
         # Concatenate past_value cache and current value, expand across heads
         # that share key/value.
-        value_seq_BHkvSkvDh = op.Concat(past_value, value_BHkvSDh, axis=-2)
-        value_seq_BHkv1SkvDh = op.Unsqueeze(value_seq_BHkvSkvDh, 2)
-        value_seq_BHkvGSkvDh = op.Expand(value_seq_BHkv1SkvDh, _allow_other_inputs=True)
-        value_seq_BHSkvDh = op.Reshape(
-            value_seq_BHkvGSkvDh, _allow_other_inputs=True, _outputs=["value_seq_BHSkvDh"]
+        value_seq_BHkvTDh = op.Concat(past_value, value_BHkvSDh, axis=-2)
+        value_seq_BHkv1TDh = op.Unsqueeze(value_seq_BHkvTDh, 2)
+        value_seq_BHkvGTDh = op.Expand(value_seq_BHkv1TDh, _allow_other_inputs=True)
+        value_seq_BHTDh = op.Reshape(
+            value_seq_BHkvGTDh, _allow_other_inputs=True, _outputs=["value_seq_BHTDh"]
         )
 
         mask = causal_mask_pattern(op, input_ids, some_kv_cache, shape_B111)
 
+        key_seq_BHDhT = op.Transpose(key_seq_BHTDh, perm=[0, 1, 3, 2])
         attention_BHSDh = op.SDPA(
             query_BHSDh_rope,
-            key_seq_BHDhSkv,
-            value_seq_BHSkvDh,
+            key_seq_BHDhT,
+            value_seq_BHTDh,
             mask,
             _domain="ai.onnxruntime.fusion",
         )
@@ -187,7 +169,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         attention_BSD = op.Reshape(
             attention_BSHDh, _allow_other_inputs=True, _outputs=["attention_BSD"]
         )
-        return attention_BSD, key_seq_BHkvSkvDh, value_seq_BHkvSkvDh
+        return attention_BSD, key_seq_BHkvTDh, value_seq_BHkvTDh
 
     def check(
         self,
