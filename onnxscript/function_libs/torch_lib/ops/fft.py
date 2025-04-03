@@ -20,6 +20,7 @@ from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
+
 def _fftn_onnx_normalization(
     self: TFloat,
     normalization: int,
@@ -38,6 +39,7 @@ def _fftn_onnx_normalization(
     elif normalization == 2:
         self = op.Div(self, signal_size)
     return self
+
 
 def _fftn_onnx_inverse_normalization(
     self: TFloat,
@@ -89,10 +91,16 @@ def aten__fft_c2c(
     for dimension in reversed(dim):
         transformed = op.DFT(transformed, axis=dimension, inverse=not forward, onesided=False)
         if forward:
-            transformed = _fftn_onnx_normalization(transformed, normalization, op.CastLike(self.shape[dimension - unsqueeze_first_dim], transformed))
+            transformed = _fftn_onnx_normalization(
+                transformed,
+                normalization,
+                op.CastLike(self.shape[dimension - unsqueeze_first_dim], transformed),
+            )
         else:
             transformed = _fftn_onnx_inverse_normalization(
-                transformed, normalization, op.CastLike(self.shape[dimension - unsqueeze_first_dim], transformed)
+                transformed,
+                normalization,
+                op.CastLike(self.shape[dimension - unsqueeze_first_dim], transformed),
             )
 
     if unsqueeze_first_dim:
@@ -129,11 +137,21 @@ def aten__fft_c2r(
     for index, dimension in enumerate(reversed(dim)):
         if index > 0:
             transformed = op.DFT(transformed, axis=dimension, inverse=False, onesided=False)
-            transformed = _fftn_onnx_normalization(transformed, normalization, op.CastLike(self.shape[dimension - unsqueeze_first_dim], transformed))
+            transformed = _fftn_onnx_normalization(
+                transformed,
+                normalization,
+                op.CastLike(self.shape[dimension - unsqueeze_first_dim], transformed),
+            )
         else:
-            onesided = (last_dim_size == op.CastLike(self.shape[dimension - unsqueeze_first_dim], last_dim_size))
+            onesided = last_dim_size == op.CastLike(
+                self.shape[dimension - unsqueeze_first_dim], last_dim_size
+            )
             transformed = op.DFT(transformed, axis=dimension, inverse=False, onesided=onesided)
-            transformed = _fftn_onnx_normalization(transformed, normalization, op.CastLike(self.shape[dimension - unsqueeze_first_dim], transformed))
+            transformed = _fftn_onnx_normalization(
+                transformed,
+                normalization,
+                op.CastLike(self.shape[dimension - unsqueeze_first_dim], transformed),
+            )
 
     if unsqueeze_first_dim:
         transformed = op.Squeeze(transformed, axes=[0])
@@ -174,7 +192,11 @@ def aten__fft_r2c(
         else:
             # Torch computes one-sided FFT on the last dimension only.
             transformed = op.DFT(transformed, axis=dimension, inverse=False, onesided=onesided)
-        transformed = _fftn_onnx_normalization(transformed, normalization, op.CastLike(self.shape[dimension - unsqueeze_first_dim], transformed))
+        transformed = _fftn_onnx_normalization(
+            transformed,
+            normalization,
+            op.CastLike(self.shape[dimension - unsqueeze_first_dim], transformed),
+        )
 
     if unsqueeze_first_dim:
         transformed = op.Squeeze(transformed, axes=[0])
