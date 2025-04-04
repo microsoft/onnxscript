@@ -39,5 +39,8 @@ def assert_allclose(outputs, expected_outputs, rtol=1e-4, atol=1e-4):
             np.testing.assert_equal(baseline_output.shape, optimized_output.shape)
             np.testing.assert_allclose(baseline_output, optimized_output, rtol=rtol, atol=atol)
         except AssertionError as e:
+            diff_mask = ~np.isclose(baseline_output, optimized_output, rtol=rtol, atol=atol)
+            diff = np.where(diff_mask, "X", " ")
+            print(diff)
             print(f"Failed for output {i} with rtol={rtol} and atol={atol}\n{e}")
             raise

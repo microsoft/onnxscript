@@ -405,17 +405,13 @@ def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     shape = _get_input(node, 1)
     if input is None or shape is None:
         return None
+
     input_shape = input.shape
-    if input_shape is None:
-        return None
-    # input_shape_dims = list(input_shape.dims)
-    # if any(isinstance(dim, ir.SymbolicDim) and dim.value is None for dim in input_shape_dims):
-    #     return None
     shape_value = state.get_shape_value(shape)
-    if shape_value is None:
+
+    if shape_value is None or input_shape is None:
         return None
-    # target_shape_dims = list(shape_value.dims)
-    # if input_shape_dims == target_shape_dims:
+
     # No need to check for special values like -1, 0, etc. here
     if _same_shape(input_shape, shape_value):
         return op.Identity(input)
