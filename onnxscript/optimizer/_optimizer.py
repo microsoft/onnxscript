@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-import onnxscript.ir.passes.common.lift_constants_to_initializers
+import onnxscript.ir.passes.common.constant_manipulation
 import onnxscript.ir.passes.common.unused_removal
 import onnxscript.optimizer
 from onnxscript import ir, rewriter
@@ -71,7 +71,7 @@ def optimize_ir(
             early_stop=stop_if_no_change,
         ),
         onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass(),
-        onnxscript.ir.passes.common.lift_constants_to_initializers.LiftConstantsToInitializersPass(),
+        onnxscript.ir.passes.common.constant_manipulation.LiftConstantsToInitializersPass(),
     )
     assert optimizer_pass.in_place
     result = optimizer_pass(model)

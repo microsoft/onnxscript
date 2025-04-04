@@ -39,7 +39,7 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
             )
             # TODO(titaiwang): Is it possible that the initializer name has
             # been taken?
-            model.graph.initializers[initializer_name] = initializer
+            model.graph.register_initializer(initializer)
             # Replace the constant node with the initilizer
             ir.convenience.replace_all_uses_with(node.outputs[0], initializer)
             model.graph.remove(node, safe=True)

@@ -1924,9 +1924,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         # Be sure the initialize the name authority before extending the nodes
         # because it is used to name the nodes and their outputs
         self._name_authority = _name_authority.NameAuthority()
-        # NOTE: input and initializer value names could be duplicated
-        # to auto-generated value names from name authority and crash ort
-        # https://github.com/microsoft/onnxruntime/blob/bc7b07dbb41a2f441dbed1a91855563ba0dd8a31/onnxruntime/core/graph/graph.cc#L1536
+        # TODO(justinchuby): Trigger again if inputs or initializers are modified.
         self._set_input_and_initializer_value_names_into_name_authority()
         # Call self.extend not self._nodes.extend so the graph reference is added to the nodes
         self.extend(nodes)

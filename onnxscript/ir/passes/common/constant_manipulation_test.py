@@ -7,8 +7,9 @@ import unittest
 import numpy as np
 
 from onnxscript import ir
-from onnxscript.ir.passes.common import lift_constants_to_initializers
+from onnxscript.ir.passes.common import constant_manipulation
 
+import onnx
 
 class TestLiftConstantsToInitializersPass(unittest.TestCase):
     def test_pass_with_lifting_constants_to_initializers(self):
@@ -45,10 +46,15 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
         self.assertEqual(len([node for node in model.graph if node.op_type == "Constant"]), 1)
 
         # Perform lift constants to initializers
-        result = lift_constants_to_initializers.LiftConstantsToInitializersPass()(model)
+        result = constant_manipulation.LiftConstantsToInitializersPass()(model)
         self.assertTrue(result.modified)
         # Check that the constant node is lifted to an initializer
         self.assertEqual(len(result.model.graph.initializers), 1)
+        # Check the value
+        self.assertEqual(
+            result.model.graph.initializers["val_0"].const_value,  # name created by name_authority
+            constant_tensor,
+        )
         # And 0 constant node
         self.assertEqual(
             len([node for node in result.model.graph if node.op_type == "Constant"]), 0
