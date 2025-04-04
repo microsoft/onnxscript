@@ -260,6 +260,4 @@ _mha_3d_transpose = MultiHeadAttention.rule("MHA_3D_Transpose", transpose_4d=Fal
 mha_rules = pattern.RewriteRuleSet([_mha_4d_transpose, _mha_3d_transpose])
 
 
-def fuse_mha(model: ir.Model, *, debug: bool = False) -> int:
-    fuse_mha = _fusion_utils.apply_fusion_rules(mha_rules)
-    return fuse_mha(model, debug=debug)
+fuse_mha = _fusion_utils.apply_fusion_rules(mha_rules)

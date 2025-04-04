@@ -28,6 +28,7 @@ class TestFuseXformers(unittest.TestCase):
         self.assertEqual(fusion_count["cos_sin_cache"], 2)
         self.assertEqual(fusion_count["sdpa"], 1)
         self.assertEqual(fusion_count["mha"], 0)
+        self.assertEqual(fusion_count["attention"], 0)
         self.assertEqual(fusion_count["gelu"], 0)
 
         new_outputs = ort_run("optimized", model, inputs)

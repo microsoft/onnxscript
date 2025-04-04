@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 
-from onnxscript import ir
 from onnxscript.rewriter import _fusion_utils, pattern
 
 _sqrt_two_over_pi = math.sqrt(2.0 / math.pi)
@@ -33,6 +32,4 @@ _rule = GeluTanhFusion.rule()
 gelu_rules = pattern.RewriteRuleSet([_rule])
 
 
-def fuse_gelu(model: ir.Model, debug: bool = False) -> int:
-    fuse_gelu = _fusion_utils.apply_fusion_rules(gelu_rules)
-    return fuse_gelu(model, debug=debug)
+fuse_gelu = _fusion_utils.apply_fusion_rules(gelu_rules)

@@ -71,6 +71,7 @@ def fuse_xformers(model: ir.Model) -> tuple[ir.Model, dict[str, int]]:
     fusion_count["cos_sin_cache"] = fuse_cos_sin_cache(model)
     fusion_count["sdpa"] = fuse_sdpa(model)
     fusion_count["mha"] = fuse_mha(model)
+    fusion_count["attention"] = fuse_attention(model)
     fusion_count["gelu"] = fuse_gelu(model)
     # Finally: inline any intermediate fusion functions introduced that were not
     # consumed by other fusions, and eliminate any remaining unused nodes.

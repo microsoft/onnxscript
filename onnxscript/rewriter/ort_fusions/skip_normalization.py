@@ -2,7 +2,6 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import onnxscript.ir as ir
 from onnxscript.rewriter import _fusion_utils, pattern
 
 
@@ -76,15 +75,9 @@ skip_layer_normalization_rules = [_skip_layer_rule]
 skip_layer_normalization_ruleset = pattern.RewriteRuleSet(skip_layer_normalization_rules)
 
 
-def fuse_skip_rms_normalization(model: ir.Model, debug: bool = False) -> int:
-    fuse_skip_rms_normalization = _fusion_utils.apply_fusion_rules(
-        skip_rms_normalization_ruleset
-    )
-    return fuse_skip_rms_normalization(model, debug=debug)
+fuse_skip_rms_normalization = _fusion_utils.apply_fusion_rules(skip_rms_normalization_ruleset)
 
 
-def fuse_skip_layer_normalization(model: ir.Model, debug: bool = False) -> int:
-    fuse_skip_layer_normalization = _fusion_utils.apply_fusion_rules(
-        skip_layer_normalization_ruleset
-    )
-    return fuse_skip_layer_normalization(model, debug=debug)
+fuse_skip_layer_normalization = _fusion_utils.apply_fusion_rules(
+    skip_layer_normalization_ruleset
+)

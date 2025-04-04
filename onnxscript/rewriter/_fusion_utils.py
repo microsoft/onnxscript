@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Callable, Sequence, Union
 
-
 import onnxscript.ir as ir
 from onnxscript.rewriter import pattern
 

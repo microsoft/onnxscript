@@ -2,7 +2,6 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import onnxscript.ir as ir
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 # Add first version of the RotaryEmbeddingFusion rule. This considers only one simple pattern
@@ -120,11 +119,7 @@ rotary_embedding_rules = pattern.RewriteRuleSet([_rule])
 partial_embedding_rules = pattern.RewriteRuleSet([_partial_embedding_rule])
 
 
-def fuse_rotary_embedding(model: ir.Model, debug: bool = False) -> int:
-    fuse_rotary_embedding = _fusion_utils.apply_fusion_rules(rotary_embedding_rules)
-    return fuse_rotary_embedding(model, debug=debug)
+fuse_rotary_embedding = _fusion_utils.apply_fusion_rules(rotary_embedding_rules)
 
 
-def fuse_partial_rotary_embedding(model: ir.Model, debug: bool = False) -> int:
-    fuse_partial_rotary_embedding = _fusion_utils.apply_fusion_rules(partial_embedding_rules)
-    return fuse_partial_rotary_embedding(model, debug=debug)
+fuse_partial_rotary_embedding = _fusion_utils.apply_fusion_rules(partial_embedding_rules)

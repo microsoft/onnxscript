@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 
-import onnxscript.ir as ir
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 
@@ -130,6 +129,4 @@ sdpa_rules = pattern.RewriteRuleSet(
 )
 
 
-def fuse_sdpa(model: ir.Model, debug: bool = False) -> int:
-    fuse_sdpa = _fusion_utils.apply_fusion_rules(sdpa_rules)
-    return fuse_sdpa(model, debug=debug)
+fuse_sdpa = _fusion_utils.apply_fusion_rules(sdpa_rules)
