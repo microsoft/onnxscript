@@ -31,9 +31,7 @@ def _skip_rms_normalization(op, input, skip, gamma, epsilon, stash_type):
     return normalized, skip_sum
 
 
-_skip_rms_rule = pattern.RewriteRule(
-    _skip_rms_norm_pattern, _skip_rms_normalization, matcher=pattern.SimplePatternMatcher
-)
+_skip_rms_rule = pattern.RewriteRule(_skip_rms_norm_pattern, _skip_rms_normalization)
 
 skip_rms_normalization_rules = [_skip_rms_rule]
 skip_rms_normalization_ruleset = pattern.RewriteRuleSet(skip_rms_normalization_rules)
@@ -67,9 +65,7 @@ def _skip_layer_normalization(op, input, skip, gamma, beta, epsilon, stash_type)
     return normalized
 
 
-_skip_layer_rule = pattern.RewriteRule(
-    _skip_layer_norm_pattern, _skip_layer_normalization, matcher=pattern.SimplePatternMatcher
-)
+_skip_layer_rule = pattern.RewriteRule(_skip_layer_norm_pattern, _skip_layer_normalization)
 
 skip_layer_normalization_rules = [_skip_layer_rule]
 skip_layer_normalization_ruleset = pattern.RewriteRuleSet(skip_layer_normalization_rules)

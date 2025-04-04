@@ -5,7 +5,6 @@ from __future__ import annotations
 import numpy as np
 
 import onnxscript.ir as ir
-from onnxscript.optimizer import remove_unused_nodes
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 # Rewrite the computation of cos/sin cache into the form expected by ORT's custom ops.
@@ -169,9 +168,4 @@ _basic = CosSinCacheFusion.rule("CosSinCache", 2048, cast=False)
 cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _cast_const_freqs, _const_freqs, _basic])
 
 
-def fuse_cos_sin_cache(model: ir.Model, debug: bool = False) -> int:
-    fuse_cos_sin_cache = _fusion_utils.apply_fusion_rules(cos_sin_cache_rules)
-    count = fuse_cos_sin_cache(model, debug=debug)
-    if count != 0:
-        remove_unused_nodes(model)
-    return count
+fuse_cos_sin_cache = _fusion_utils.apply_fusion_rules(cos_sin_cache_rules)
