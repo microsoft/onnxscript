@@ -268,10 +268,4 @@ attention_rules = pattern.RewriteRuleSet(
 )
 
 
-def fuse_attention(model: ir.Model, *, debug: bool = False) -> int:
-    count = attention_rules.apply_to_model(model)
-    if debug and count == 0:
-        tracer = pattern.MatchingTracer()
-        attention_rules.apply_to_model(model, tracer=tracer)
-        tracer.report()
-    return count
+fuse_attention = _fusion_utils.apply_fusion_rules(attention_rules)

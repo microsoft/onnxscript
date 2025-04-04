@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import onnxscript.ir as ir
-from onnxscript.rewriter import _ir_utils, pattern
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 """
 RMS Normalization: This is referred to as SimplifiedLayerNormalization in the ORT codebase.
@@ -91,6 +91,4 @@ rms_normalization_rules = [_rule_0, _rule_1, _rule_2, _rule_3]
 rms_normalization_ruleset = pattern.RewriteRuleSet(rms_normalization_rules)
 
 
-def fuse_rms_normalization(model: ir.Model) -> None:
-    count = rms_normalization_ruleset.apply_to_model(model)
-    print(f"RMS Normalization count: {count}")
+fuse_rms_normalization = _fusion_utils.apply_fusion_rules(rms_normalization_ruleset)

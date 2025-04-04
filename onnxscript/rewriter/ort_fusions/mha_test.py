@@ -19,7 +19,7 @@ class TestMultiHeadAttention(unittest.TestCase):
         model = smollm_test.get_onnx_model()
         onnxscript.optimizer.optimize(model)
         xformers.fuse_rms_normalization(model)
-        xformers.fuse_normalization(model)
+        xformers.fuse_skip_rms_normalization(model)
         xformers.fuse_rotary_embedding(model)
         xformers.fuse_cos_sin_cache(model)
 
