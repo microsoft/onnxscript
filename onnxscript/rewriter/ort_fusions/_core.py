@@ -12,6 +12,7 @@ from onnxscript.rewriter.ort_fusions import (
     instance_to_group_normalization,
     softmax,
 )
+from onnxscript.rewriter.ort_fusions.attention import fuse_attention
 from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
 from onnxscript.rewriter.ort_fusions.gelu import fuse_gelu
 from onnxscript.rewriter.ort_fusions.mha import fuse_mha
@@ -53,6 +54,7 @@ def fuse_xformers(model: ir.Model) -> ir.Model:
     fuse_cos_sin_cache(model)
     fuse_sdpa(model)
     fuse_mha(model)
+    fuse_attention(model)
     fuse_gelu(model)
     # Finally: inline any intermediate fusion functions introduced that were not
     # consumed by other fusions, and eliminate any remaining unused nodes.
