@@ -2,8 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import onnxscript.ir as ir
-from onnxscript.rewriter import _ir_utils, pattern
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 # Add first version of the RotaryEmbeddingFusion rule. This considers only one simple pattern
 # for full rotation without interleaving.
@@ -120,15 +119,7 @@ rotary_embedding_rules = pattern.RewriteRuleSet([_rule])
 partial_embedding_rules = pattern.RewriteRuleSet([_partial_embedding_rule])
 
 
-def fuse_rotary_embedding(model: ir.Model) -> int:
-    count = rotary_embedding_rules.apply_to_model(model)
-    return count
+fuse_rotary_embedding = _fusion_utils.apply_fusion_rules(rotary_embedding_rules)
 
 
-def fuse_partial_rotary_embedding(model: ir.Model, debug: bool = False) -> int:
-    count = partial_embedding_rules.apply_to_model(model)
-    if count == 0 and debug:
-        tracer = pattern.MatchingTracer()
-        partial_embedding_rules.apply_to_model(model, tracer=tracer)
-        tracer.report()
-    return count
+fuse_partial_rotary_embedding = _fusion_utils.apply_fusion_rules(partial_embedding_rules)
