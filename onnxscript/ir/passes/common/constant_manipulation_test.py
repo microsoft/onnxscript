@@ -9,7 +9,6 @@ import numpy as np
 from onnxscript import ir
 from onnxscript.ir.passes.common import constant_manipulation
 
-import onnx
 
 class TestLiftConstantsToInitializersPass(unittest.TestCase):
     def test_pass_with_lifting_constants_to_initializers(self):
@@ -52,7 +51,9 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
         self.assertEqual(len(result.model.graph.initializers), 1)
         # Check the value
         self.assertEqual(
-            result.model.graph.initializers["val_0"].const_value,  # name created by name_authority
+            result.model.graph.initializers[
+                "val_0"
+            ].const_value,  # name created by name_authority
             constant_tensor,
         )
         # And 0 constant node
