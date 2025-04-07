@@ -2,9 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import onnxscript.ir as ir
-from onnxscript.optimizer import remove_unused_nodes
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter import _fusion_utils, pattern
 
 
 class GroupQueryAttention(pattern.RewriteRuleClassBase):
@@ -94,7 +92,8 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # key_transposed,
         # attention_reshaped,
         **_,
-    ):
+    ) -> pattern.MatchResult:  # type: ignore[name-defined]
+        check_result = pattern.MatchResult()
         # bindings: dict[str, int] = {}
         # status = (
         #     _check_shape(bindings, query_mm_reshaped, ["B", "S", "H", "d_h"])
@@ -110,7 +109,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         #     return False
         # if bindings["H"] * bindings["d_h"] != bindings["H*d_h"]:
         #     return False
-        return True
+        return check_result
 
     def rewrite(
         self,
@@ -149,8 +148,4 @@ _rule1 = GroupQueryAttention.rule("MHA_2dmm", use_2d_matmul=False)
 gqa_rules = pattern.RewriteRuleSet([_rule1])
 
 
-def fuse_gqa(model: ir.Model) -> int:
-    count = gqa_rules.apply_to_model(model)
-    print(f"GQA count: {count}")
-    remove_unused_nodes(model)
-    return count
+fuse_gqa = _fusion_utils.apply_fusion_rules(gqa_rules)
