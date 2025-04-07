@@ -25,12 +25,12 @@ ModelProtoOrIr = TypeVar("ModelProtoOrIr", onnx.ModelProto, ir.Model)
 class RewritePass(ir.passes.InPlacePass):
     def __init__(
         self,
-        pattern_rewrite_rules: Sequence[PatternRewriteRule] | pattern.RewriteRuleSet = (),
+        pattern_rewrite_rules: Sequence[PatternRewriteRule] | pattern.RewriteRuleSet,
     ) -> None:
-        if pattern_rewrite_rules:
-            if not isinstance(pattern_rewrite_rules, pattern.RewriteRuleSet):
-                # Create a pattern rule-set using provided rules
-                pattern_rewrite_rules = pattern.RewriteRuleSet(pattern_rewrite_rules)
+        super().__init__()
+        if isinstance(pattern_rewrite_rules, Sequence):
+            # Create a pattern rule-set using provided rules
+            pattern_rewrite_rules = pattern.RewriteRuleSet(pattern_rewrite_rules)
         assert isinstance(pattern_rewrite_rules, pattern.RewriteRuleSet)
         self.pattern_rewrite_rules: pattern.RewriteRuleSet = pattern_rewrite_rules
 
@@ -45,6 +45,18 @@ def rewrite(
     model: ModelProtoOrIr,
     pattern_rewrite_rules: Union[Sequence[PatternRewriteRule], pattern.RewriteRuleSet] = (),
 ) -> ModelProtoOrIr:
+    """Rewrite the model using the provided pattern rewrite rules.
+
+    Unused nodes, functions, and opsets will be removed after the rewrite.
+
+    Args:
+        model: The model to be rewritten. Can be an ONNX ModelProto or an ir.Model.
+        pattern_rewrite_rules: A sequence of pattern rewrite rules or a RewriteRuleSet.
+            If not provided or empty, only clean up passes will be applied.
+
+    Returns:
+        The rewritten model, either as an ONNX ModelProto or an ir.Model.
+    """
     if isinstance(model, onnx.ModelProto):
         model_ir = ir.serde.deserialize_model(model)
         proto = True
@@ -52,9 +64,11 @@ def rewrite(
         model_ir = model
         proto = False
 
+    rewrite_or_empty = [RewritePass(pattern_rewrite_rules)] if pattern_rewrite_rules else ()
+
     rewrite_pass = ir.passes.PassManager(
         (
-            RewritePass(pattern_rewrite_rules),
+            *rewrite_or_empty,
             unused_removal.RemoveUnusedNodesPass(),
             unused_removal.RemoveUnusedFunctionsPass(),
             unused_removal.RemoveUnusedOpsetsPass(),

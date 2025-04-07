@@ -1664,6 +1664,8 @@ def _get_new_overload(model: ir.Model, domain: str, name: str) -> str:
 
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
+        if not rules:
+            raise ValueError("rules must contain at least one rule")
         if commute:
             rules = list(itertools.chain.from_iterable([rule.commute() for rule in rules]))
         self.rules = rules
