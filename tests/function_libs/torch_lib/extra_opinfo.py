@@ -689,7 +689,16 @@ def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
     for normalization in (0, 1, 2):
         # 1-D
         yield opinfo_core.SampleInput(
-            oned_tensor(), dim=(0,), normalization=normalization, last_dim_size=12
+            oned_tensor(),
+            dim=(0,),
+            normalization=normalization,
+            last_dim_size=oned_tensor().shape[0],
+        )
+        yield opinfo_core.SampleInput(
+            oned_tensor(),
+            dim=(0,),
+            normalization=normalization,
+            last_dim_size=(oned_tensor().shape[0]//2 + 1),
         )
         # N-D
         for dim in [
@@ -700,13 +709,19 @@ def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
             (0, 1),
             (0, 1, 2),
         ]:
-            # Slice
+            # Two-sided
             yield opinfo_core.SampleInput(
-                nd_tensor(), dim=dim, normalization=normalization, last_dim_size=6
+                nd_tensor(),
+                dim=dim,
+                normalization=normalization,
+                last_dim_size=nd_tensor().shape[dim[-1]],
             )
-            # Pad
+            # One-sided
             yield opinfo_core.SampleInput(
-                nd_tensor(), dim=dim, normalization=normalization, last_dim_size=64
+                nd_tensor(),
+                dim=dim,
+                normalization=normalization,
+                last_dim_size=(nd_tensor().shape[dim[-1]]//2 + 1),
             )
 
 
