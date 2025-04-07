@@ -5,10 +5,9 @@ from __future__ import annotations
 from typing import Sequence, TypeVar, Union
 
 __all__ = [
-    # Modules
     "pattern",
-    # Functions
     "rewrite",
+    "RewritePass",
 ]
 
 import onnx
@@ -17,18 +16,18 @@ from onnxscript import ir
 from onnxscript.ir.passes.common import unused_removal
 from onnxscript.rewriter import pattern
 
-PatternRewriteRule = pattern.RewriteRule
-
 ModelProtoOrIr = TypeVar("ModelProtoOrIr", onnx.ModelProto, ir.Model)
 
 
 class RewritePass(ir.passes.InPlacePass):
     def __init__(
         self,
-        pattern_rewrite_rules: Sequence[PatternRewriteRule] | pattern.RewriteRuleSet,
+        pattern_rewrite_rules: Sequence[pattern.RewriteRule] | pattern.RewriteRuleSet,
     ) -> None:
         super().__init__()
         if isinstance(pattern_rewrite_rules, Sequence):
+            if not pattern_rewrite_rules:
+                raise ValueError("pattern_rewrite_rules must not be empty")
             # Create a pattern rule-set using provided rules
             pattern_rewrite_rules = pattern.RewriteRuleSet(pattern_rewrite_rules)
         assert isinstance(pattern_rewrite_rules, pattern.RewriteRuleSet)
@@ -43,7 +42,7 @@ class RewritePass(ir.passes.InPlacePass):
 
 def rewrite(
     model: ModelProtoOrIr,
-    pattern_rewrite_rules: Union[Sequence[PatternRewriteRule], pattern.RewriteRuleSet] = (),
+    pattern_rewrite_rules: Union[Sequence[pattern.RewriteRule], pattern.RewriteRuleSet] = (),
 ) -> ModelProtoOrIr:
     """Rewrite the model using the provided pattern rewrite rules.
 
