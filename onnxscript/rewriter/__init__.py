@@ -16,7 +16,7 @@ from onnxscript import ir
 from onnxscript.ir.passes.common import unused_removal
 from onnxscript.rewriter import pattern
 
-ModelProtoOrIr = TypeVar("ModelProtoOrIr", onnx.ModelProto, ir.Model)
+_ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
 
 
 class RewritePass(ir.passes.InPlacePass):
@@ -41,9 +41,9 @@ class RewritePass(ir.passes.InPlacePass):
 
 
 def rewrite(
-    model: ModelProtoOrIr,
+    model: _ModelProtoOrIr,
     pattern_rewrite_rules: Union[Sequence[pattern.RewriteRule], pattern.RewriteRuleSet] = (),
-) -> ModelProtoOrIr:
+) -> _ModelProtoOrIr:
     """Rewrite the model using the provided pattern rewrite rules.
 
     Unused nodes, functions, and opsets will be removed after the rewrite.
