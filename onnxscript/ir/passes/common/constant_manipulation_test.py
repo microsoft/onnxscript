@@ -5,25 +5,30 @@ from __future__ import annotations
 import unittest
 
 import numpy as np
+import parameterized
 
 from onnxscript import ir
 from onnxscript.ir.passes.common import constant_manipulation
 
 
 class TestLiftConstantsToInitializersPass(unittest.TestCase):
-    def test_pass_with_lifting_constants_to_initializers(self):
+    @parameterized.parameterized.expand(
+        [
+            (ir.DataType.FLOAT, np.float32),
+            (ir.DataType.INT64, np.int64),
+        ]
+    )
+    def test_pass_with_lifting_constants_to_initializers(self, ir_dtype, numpy_dtype):
         inputs = [
-            ir.Value(
-                name="input_a", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
-            ),
+            ir.Value(name="input_a", type=ir.TensorType(ir_dtype), shape=ir.Shape((2, 3))),
             ir.Value(
                 name="input_b",
-                type=ir.TensorType(ir.DataType.FLOAT),
+                type=ir.TensorType(ir_dtype),
                 shape=ir.Shape((2, 3)),
             ),
         ]
 
-        constant_tensor = ir.tensor(np.random.rand(2, 3).astype(np.float32))
+        constant_tensor = ir.tensor(np.random.rand(2, 3).astype(numpy_dtype))
         attribute = ir.convenience.convert_attributes({"value": constant_tensor})
         const_node = ir.Node("", "Constant", inputs=[], attributes=attribute, num_outputs=1)
         add_node = ir.Node("", "Add", inputs=[inputs[0], const_node.outputs[0]])

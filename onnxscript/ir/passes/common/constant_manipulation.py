@@ -25,58 +25,24 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
             if node.op_type != "Constant" or node.domain not in ("", "onnx.ai"):
                 continue
 
-            allowed_constant_attributes = {
-                "value",
-                "value_int",
-                "value_ints",
-                "value_float",
-                "value_floats",
-                "value_string",
-                "value_strings",
-            }
             constant_node_attribute = set(node.attributes.keys())
             if len(constant_node_attribute) != 1:
                 logger.debug(
                     "Invalid constant node '%s' has more than one attribute", node.name
                 )
                 continue
-            if constant_node_attribute not in allowed_constant_attributes:
-                logger.debug("Invalid constant node '%s' has unsupported attribute", node.name)
-                continue
 
+            attr_name, attr_value = next(iter(node.attributes.items()))
             initializer_name = node.outputs[0].name
             assert initializer_name is not None
-            # The value of attribute can only be ir.Attr, as
-            # ir.RefAttr is only defined in Functions.
-            attr_value = node.attributes[constant_node_attribute]
-            if constant_node_attribute == "value":
-                tensor = attr_value.as_tensor()  # type: ignore[union-attr]
-            elif constant_node_attribute == "value_int":
-                tensor = ir.Tensor(
-                    np.array(attr_value.as_int(), dtype=np.int64), name=initializer_name
+            assert isinstance(attr_value, ir.Attr)
+            tensor = _constant_node_attribute_to_tensor(
+                attr_name, attr_value, initializer_name
+            )
+            if tensor is None:
+                logger.debug(
+                    "Invalid constant node '%s' has unsupported attribute value", node.name
                 )
-            elif constant_node_attribute == "value_ints":
-                tensor = ir.Tensor(
-                    np.array(attr_value.as_ints(), dtype=np.int64), name=initializer_name
-                )
-            elif constant_node_attribute == "value_float":
-                tensor = ir.Tensor(
-                    np.array(attr_value.as_float(), dtype=np.float32), name=initializer_name
-                )
-            elif constant_node_attribute == "value_floats":
-                tensor = ir.Tensor(
-                    np.array(attr_value.as_floats(), dtype=np.float32), name=initializer_name
-                )
-            elif constant_node_attribute == "value_string":
-                tensor = ir.Tensor(
-                    np.array(attr_value.as_string(), dtype=np.object_), name=initializer_name
-                )
-            elif constant_node_attribute == "value_strings":
-                tensor = ir.Tensor(
-                    np.array(attr_value.as_strings(), dtype=np.object_), name=initializer_name
-                )
-            else:
-                logger.debug("Invalid constant node '%s' has unsupported attribute", node.name)
                 continue
             # Register an initializer with the tensor value
             initializer = ir.Value(
@@ -98,3 +64,38 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
         if count:
             logger.info("Lifted %s constants to initializers", count)
         return ir.passes.PassResult(model, modified=bool(count))
+
+
+def _constant_node_attribute_to_tensor(
+    attr_name: str, attr_value: ir.Attr, initializer_name: str
+) -> ir.Tensor | None:
+    """Convert constant node attribute to tensor."""
+    if attr_name == "value":
+        tensor = attr_value.as_tensor()  # type: ignore[union-attr]
+    elif attr_name == "value_int":
+        tensor = ir.Tensor(
+            np.array(attr_value.as_int(), dtype=np.int64), name=initializer_name
+        )
+    elif attr_name == "value_ints":
+        tensor = ir.Tensor(
+            np.array(attr_value.as_ints(), dtype=np.int64), name=initializer_name
+        )
+    elif attr_name == "value_float":
+        tensor = ir.Tensor(
+            np.array(attr_value.as_float(), dtype=np.float32), name=initializer_name
+        )
+    elif attr_name == "value_floats":
+        tensor = ir.Tensor(
+            np.array(attr_value.as_floats(), dtype=np.float32), name=initializer_name
+        )
+    elif attr_name == "value_string":
+        tensor = ir.Tensor(
+            np.array(attr_value.as_string(), dtype=np.object_), name=initializer_name
+        )
+    elif attr_name == "value_strings":
+        tensor = ir.Tensor(
+            np.array(attr_value.as_strings(), dtype=np.object_), name=initializer_name
+        )
+    else:
+        tensor = None
+    return tensor  # type: ignore[return-value]
