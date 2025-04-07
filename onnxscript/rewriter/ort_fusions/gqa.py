@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Sequence, Union
 
+import numpy as np
+
 import onnxscript.ir as ir
+import onnxscript.rewriter._fusion_utils as _fusion_utils
 from onnxscript.rewriter import _ir_utils, pattern
 
 """
@@ -29,19 +32,6 @@ T: total sequence length (after concatenation of past and current key/value)
 Dim = Union[int, ir.SymbolicDim]
 
 
-def _check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]) -> bool:
-    if val.shape is None:
-        return False
-    if val.shape.rank() != len(shape):
-        return False
-    for actual, expected in zip(val.shape, shape):
-        if expected not in bindings:
-            bindings[expected] = actual  # type: ignore[assignment]
-        elif actual != bindings[expected]:
-            return False
-    return True
-
-
 def causal_mask_pattern(op, input_ids, past_kv_cache, shape_B111):
     seq_len = op.Shape(input_ids, end=2, start=1)
     seq_len_0D = op.Squeeze(seq_len)
@@ -60,7 +50,8 @@ def causal_mask_pattern(op, input_ids, past_kv_cache, shape_B111):
 
     current_range = op.Range(past_seq_len_0D, total_seq_len_0D, 1)
     mask_shape = op.Concat(seq_len, total_seq_len_plus_1, axis=0)
-    mask_all_min = op.Expand(-3.4028235e38, mask_shape)
+    min_float32 = float(np.finfo(np.float32).min)
+    mask_all_min = op.Expand(min_float32, mask_shape)
     total_range_as_row = op.Range(0, total_seq_len_plus_1_0D, 1)
     current_range_as_column = op.Reshape(current_range, [-1, 1])
     boolean_mask = op.Greater(total_range_as_row, current_range_as_column)
@@ -188,7 +179,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-            return not _check_shape(bindings, val, dims)
+            return not _fusion_utils._check_shape(bindings, val, dims)
 
         if no_match(query_BSD, ["B", "S", "D"]):
             return False
@@ -223,7 +214,10 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         query_interleaved = query_rotary_attributes.get("interleaved", 0)
         key_interleaved = key_rotary_attributes.get("interleaved", 0)
         if query_interleaved != key_interleaved:
-            return False
+            return pattern.MatchResult().fail(
+                "Rotary embedding interleaved attribute mismatch",
+                [query_BHSDh_rope.producer(), key_BHkvSDh_rope.producer()],
+            )
         self._interleaved = query_interleaved
 
         return True
@@ -274,10 +268,4 @@ _rule1 = GroupQueryAttention.rule()
 gqa_rules = pattern.RewriteRuleSet([_rule1])
 
 
-def fuse_gqa(model: ir.Model, debug: bool = False) -> int:
-    count = gqa_rules.apply_to_model(model)
-    if debug and count == 0:
-        tracer = pattern.MatchingTracer()
-        gqa_rules.apply_to_model(model, tracer=tracer)
-        tracer.report()
-    return count
+fuse_gqa = _fusion_utils.apply_fusion_rules(gqa_rules)
