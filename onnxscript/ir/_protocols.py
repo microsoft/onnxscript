@@ -320,11 +320,15 @@ class GraphProtocol(Protocol):
         """Remove a node from the graph."""
         ...
 
-    def insert_after(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol] | NodeProtocol, /) -> None:
+    def insert_after(
+        self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol] | NodeProtocol, /
+    ) -> None:
         """Insert new nodes after the given node."""
         ...
 
-    def insert_before(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol] | NodeProtocol, /) -> None:
+    def insert_before(
+        self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol] | NodeProtocol, /
+    ) -> None:
         """Insert new nodes before the given node."""
         ...
 
@@ -589,11 +593,15 @@ class FunctionProtocol(Protocol):
         """Remove a node from the function."""
         ...
 
-    def insert_after(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol] | NodeProtocol, /) -> None:
+    def insert_after(
+        self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol] | NodeProtocol, /
+    ) -> None:
         """Insert new nodes after the given node."""
         ...
 
-    def insert_before(self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol] | NodeProtocol, /) -> None:
+    def insert_before(
+        self, node: NodeProtocol, new_nodes: Iterator[NodeProtocol] | NodeProtocol, /
+    ) -> None:
         """Insert new nodes before the given node."""
         ...
 
