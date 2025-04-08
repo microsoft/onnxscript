@@ -2553,6 +2553,21 @@ Model(
     graph={textwrap.indent(repr(self.graph), " " * 4).strip()}
 )"""
 
+    def sort(self) -> None:
+        """Perform a topological sort of all graphs and functions in O(#nodes + #values) time.
+
+        This sort is stable. It preserves the original order as much as possible.
+
+        Reference: https://github.com/madelson/MedallionTopologicalSort#stable-sort
+
+        Raises:
+            ValueError: If the graph contains a cycle, making topological sorting impossible.
+        """
+        self.graph.sort()
+        # Sort all functions
+        for func in self.functions.values():
+            func.sort()
+
 
 class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrintable):
     """IR functions.
