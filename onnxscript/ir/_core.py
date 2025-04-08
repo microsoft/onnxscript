@@ -2162,7 +2162,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
 
         This sort is stable. It preserves the original order as much as possible.
 
-        Referece: https://github.com/madelson/MedallionTopologicalSort#stable-sort
+        Reference: https://github.com/madelson/MedallionTopologicalSort#stable-sort
 
         Raises:
             ValueError: If the graph contains a cycle, making topological sorting impossible.
@@ -2170,7 +2170,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         # Obtain all nodes from the graph and its subgraphs for sorting
         nodes = list(onnxscript.ir.traversal.RecursiveGraphIterator(self))
         # Store the sorted nodes of each subgraph
-        sorted_nodes_by_graph: dict[Graph, list[Node]] = {
+        sorted_nodes_by_graph: dict[Graph | Function, list[Node]] = {
             graph: [] for graph in {node.graph for node in nodes if node.graph is not None}
         }
         # TODO: Explain why we need to store direct predecessors and children and why
@@ -2193,7 +2193,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             node_depth[predecessor] += 1
 
         # 1. Build the direct predecessors of each node and the depth of each node
-        # for sorting topolocally using Kahn's algorithm.
+        # for sorting topologically using Kahn's algorithm.
         # Note that when a node contains graph attributes (aka. has subgraphs),
         # we consider all nodes in the subgraphs *predecessors* of this node. This
         # way we ensure the implicit dependencies of the subgraphs are captured
