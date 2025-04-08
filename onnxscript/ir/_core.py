@@ -2718,11 +2718,11 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         """
         self._graph.remove(nodes, safe=safe)
 
-    def insert_after(self, node: Node, new_nodes: Iterable[Node], /) -> None:
+    def insert_after(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
         """Insert new nodes after the given node in O(#new_nodes) time."""
         self._graph.insert_after(node, new_nodes)
 
-    def insert_before(self, node: Node, new_nodes: Iterable[Node], /) -> None:
+    def insert_before(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
         """Insert new nodes before the given node in O(#new_nodes) time."""
         self._graph.insert_before(node, new_nodes)
 
