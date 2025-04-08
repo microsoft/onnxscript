@@ -8,6 +8,7 @@ __all__ = [
     "traversal",
     "convenience",
     "external_data",
+    "tape",
     # IR classes
     "Tensor",
     "ExternalTensor",
@@ -80,7 +81,7 @@ __all__ = [
     "save",
 ]
 
-from onnxscript.ir import convenience, external_data, passes, serde, traversal
+from onnxscript.ir import convenience, external_data, passes, serde, tape, traversal
 from onnxscript.ir._convenience._constructors import node, tensor
 from onnxscript.ir._core import (
     Attr,

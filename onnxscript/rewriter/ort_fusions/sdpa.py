@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import math
 
-import onnxscript.ir as ir
-from onnxscript.rewriter import _ir_utils, pattern
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 
 class SDPA(pattern.RewriteRuleClassBase):
@@ -130,10 +129,4 @@ sdpa_rules = pattern.RewriteRuleSet(
 )
 
 
-def fuse_sdpa(model: ir.Model, debug: bool = False) -> int:
-    count = sdpa_rules.apply_to_model(model)
-    if debug and count == 0:
-        tracer = pattern.MatchingTracer()
-        sdpa_rules.apply_to_model(model, tracer=tracer)
-        tracer.report()
-    return count
+fuse_sdpa = _fusion_utils.apply_fusion_rules(sdpa_rules)
