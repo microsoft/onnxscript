@@ -15,6 +15,7 @@ from onnxscript.rewriter.ort_fusions import (
 from onnxscript.rewriter.ort_fusions.attention import fuse_attention
 from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
 from onnxscript.rewriter.ort_fusions.gelu import fuse_gelu
+from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
 from onnxscript.rewriter.ort_fusions.mha import fuse_mha
 from onnxscript.rewriter.ort_fusions.rms_normalization import fuse_rms_normalization
 from onnxscript.rewriter.ort_fusions.rotary_embedding import (
@@ -70,8 +71,16 @@ def fuse_xformers(model: ir.Model) -> tuple[ir.Model, dict[str, int]]:
     fusion_count["partial_rotary_embedding"] = fuse_partial_rotary_embedding(model)
     fusion_count["cos_sin_cache"] = fuse_cos_sin_cache(model)
     fusion_count["sdpa"] = fuse_sdpa(model)
+    # Optimize to avoid trying multiple attention-based fusions
     fusion_count["mha"] = fuse_mha(model)
-    fusion_count["attention"] = fuse_attention(model)
+    if fusion_count["mha"] == 0:
+        # If no MHA fusion was applied, we can try the GQA fusion.
+        # and avoid trying the attention fusion.
+        fusion_count["gqa"] = fuse_gqa(model)
+        fusion_count["attention"] = 0
+    else:
+        fusion_count["attention"] = fuse_attention(model)
+        fusion_count["gqa"] = 0
     fusion_count["gelu"] = fuse_gelu(model)
     # Finally: inline any intermediate fusion functions introduced that were not
     # consumed by other fusions, and eliminate any remaining unused nodes.
