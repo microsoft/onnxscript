@@ -20,7 +20,7 @@ changelog:
         - "module: IR"
     - title: Torch Lib
       labels:
-        - "module: IR"
+        - "module: torchlib"
         - "topic: passes"
     - title: Documentation
       labels:
