@@ -2561,7 +2561,7 @@ Model(
         Reference: https://github.com/madelson/MedallionTopologicalSort#stable-sort
 
         Raises:
-            ValueError: If the graph contains a cycle, making topological sorting impossible.
+            ValueError: If any graph contains a cycle, making topological sorting impossible.
         """
         self.graph.sort()
         # Sort all functions
