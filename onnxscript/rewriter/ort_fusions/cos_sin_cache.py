@@ -44,20 +44,20 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         # pass to remove unused nodes.
         super().__init__(name, remove_nodes=False)
         # TODO: Determine what should be the default max_pos_id value
-        self._max_pos_id = 2048  # Set a default max_pos_id value
-        self._max_pos_id_from_model = False
+        self._max_pos_id = None
         # map from inv_freq to (cos, sin) values for transformed graph
         self._inv_freq_cos_sin_cache: dict[ir.Value, tuple[ir.Value, ir.Value]] = {}
         self._reshape = reshape
         self._cast = cast
         self._const_freqs = const_freqs
 
-    def _set_max_position_ids_from_model(self, model: ir.Model):
-        """Extract max_position_ids value from the metadata of an ONNX model."""
-        # TODO: Determine what the correct metadata key is for max_position_ids
-        if model.metadata_props["max_position_id"] is not None:
-            self._max_pos_id = model.metadata_props["max_position_id"]  # type: ignore[assignment]
-            self._max_pos_id_from_model = True
+    @property
+    def max_pos_id(self) -> int | None:
+        return self._max_pos_id
+
+    @max_pos_id.setter
+    def max_pos_id(self, max_pos_id: int):
+        self._max_pos_id = max_pos_id  # type: ignore[assignment]
 
     def _compute_const_freqs(self, op, freqs):
         """Compute cos/sin values when frequencies are constant."""
@@ -70,18 +70,16 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
 
     def _compute_dynamic_freqs(self, op, inv_freq, position_ids, dtype):
         """Compute cos/sin values dynamically based on inv_freq and position_ids."""
-        if self._max_pos_id_from_model:
+        if self._max_pos_id is not None:
             # Use max_pos_id from the model metadata
             max_pos_id = self._max_pos_id
         elif position_ids.const_value is not None:
             # Calculate max_pos_id from the position_ids tensor
             max_pos_id = int(np.max(position_ids.const_value.numpy()))
-            self._max_pos_id = max_pos_id
         else:
             # Dynamically compute max_pos_id from position_ids using ONNX ops
             inv_freq = op.Reshape(inv_freq, op.Constant(value_ints=[1, -1]))
-            max_pos_id = op.ReduceMax(position_ids)
-            max_pos_id = op.Squeeze(max_pos_id, op.Constant(value_ints=[0]))
+            max_pos_id = op.ReduceMax(position_ids, keepdims=0)
             max_pos_id = op.Add(max_pos_id, op.Constant(value_int=1))
             pos_id_range = op.Range(
                 op.Constant(value_int=0),
@@ -210,8 +208,4 @@ _basic = CosSinCacheFusion.rule("CosSinCache", cast=False)
 cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _cast_const_freqs, _const_freqs, _basic])
 
 
-def fuse_cos_sin_cache(model: ir.Model) -> int:
-    for rule in cos_sin_cache_rules:
-        if isinstance(rule, CosSinCacheFusion):
-            rule._set_max_position_ids_from_model(model)
-    return _fusion_utils.apply_fusion_rules(cos_sin_cache_rules)(model)
+fuse_cos_sin_cache = _fusion_utils.apply_fusion_rules(cos_sin_cache_rules)
