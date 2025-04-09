@@ -104,9 +104,9 @@ class PackedQKVForGQAFusion(pattern.RewriteRuleClassBase):
             and _ir_utils.is_singleton_value(end3, hidden_size)
         ):
             return check_result.fail(
-                "packed_qkv is not being split into q, k, v correctly based on hidden sizes.", packed_qkv
+                "packed_qkv is not being split into q, k, v correctly based on hidden sizes.",
+                packed_qkv,
             )
-
 
         # Check packed_qkv shape (B, S, D)
         if no_match(packed_qkv, ["B", "S", "D"]):
