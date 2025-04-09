@@ -1,0 +1,30 @@
+changelog:
+  exclude:
+    authors:
+      - dependabot
+  categories:
+    - title: Breaking Changes
+      labels:
+        - "topic: breaking changes"
+    - title: Core ONNX Script
+      labels:
+        - "topic: onnxscript core"
+        - "topic: ast converter"
+    - title: Optimizer and rewriter
+      labels:
+        - "module: rewriter"
+        - "module: optimizer"
+        - "topic: ort-fusions"
+    - title: ONNX IR
+      labels:
+        - "module: IR"
+    - title: Torch Lib
+      labels:
+        - "module: torchlib"
+        - "topic: passes"
+    - title: Documentation
+      labels:
+        - "topic: documentation"
+    - title: Other Changes
+      labels:
+        - "*"
