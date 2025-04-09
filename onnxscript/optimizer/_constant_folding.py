@@ -1147,4 +1147,4 @@ def fold_constants(
         input_size_limit=input_size_limit,
         output_size_limit=output_size_limit,
     )
-    return folder_pass(model)
+    return folder_pass(model)  # type: ignore[return-value]
