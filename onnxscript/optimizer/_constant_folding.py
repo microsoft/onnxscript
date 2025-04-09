@@ -405,17 +405,13 @@ def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     shape = _get_input(node, 1)
     if input is None or shape is None:
         return None
+
     input_shape = input.shape
-    if input_shape is None:
-        return None
-    # input_shape_dims = list(input_shape.dims)
-    # if any(isinstance(dim, ir.SymbolicDim) and dim.value is None for dim in input_shape_dims):
-    #     return None
     shape_value = state.get_shape_value(shape)
-    if shape_value is None:
+
+    if shape_value is None or input_shape is None:
         return None
-    # target_shape_dims = list(shape_value.dims)
-    # if input_shape_dims == target_shape_dims:
+
     # No need to check for special values like -1, 0, etc. here
     if _same_shape(input_shape, shape_value):
         return op.Identity(input)
@@ -558,21 +554,59 @@ def sequence_construct(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
 @register("Concat")
 def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     """Replace a Concat node with a single input by Identity"""
+
+    # Replace Concat(x) by Identity(x)
     inputs = node.inputs
     if len(inputs) == 1:
         return op.Identity(inputs[0])
-    # Track value of tensors that carry a shape value:
-    output = node.outputs[0]
-    if output is None:
-        return None
-    # Check axis attribute is 0
+
     axis = _get_int_attribute(node, "axis", None)
+    if axis is None:
+        return None
+
+    # Eliminate zero-length operands from Concat
+    def has_zero_size(operand: ir.Value | None) -> bool:
+        if operand is None:
+            return False  # Invalid model
+        if (shape := operand.shape) is None:
+            return False
+        try:
+            # We have already checked that axis is an int value (!= None)
+            dim_size = shape[axis]  # type: ignore[index]
+        except IndexError:
+            return False
+        return dim_size == 0  # return False if symbolic or None or non-zero int value
+
+    new_inputs = [x for x in inputs if not has_zero_size(x)]
+    if len(new_inputs) != len(inputs):
+        if new_inputs:
+            # Remove zero-length operands from Concat
+            logger.debug(
+                "Concat: removing zero-length operand(s) %s => %s", inputs, new_inputs
+            )
+            return op.Concat(*new_inputs, axis=axis)
+        elif inputs:
+            # All operands are zero-length. Concat is a no-op, but we need to use one of the
+            # inputs to get the other dimensions correct:
+            logger.debug("Concat: removing all zero-length operands %s", inputs)
+            return op.Identity(inputs[0])
+        else:
+            # No inputs: invalid model.
+            return None
+
+    # Track value of tensors that carry a shape value:
+
+    # Check axis attribute is 0
+
     if axis != 0:
         return None
     shapes = [state.get_shape_value(input) for input in inputs]
     if any(shape is None for shape in shapes):
         return None
     concatenated = ir.Shape(dim for shape in shapes for dim in shape.dims)  # type: ignore[union-attr]
+    output = node.outputs[0]
+    if output is None:
+        return None
     state.set_sym_value(output, concatenated)
     return None
 
@@ -829,9 +863,10 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 
         # TODO: handle optional inputs
         def get_constant_value(x: ir.Value) -> onnx.TensorProto | None:
-            value = _get_numpy_value(x)
-            if isinstance(value, np.ndarray) and value.size < 20:
-                return onnx.numpy_helper.from_array(value, x.name)
+            value = _get_numpy_value(x, size_limit=20)
+            if value is not None:
+                assert x.const_value is not None
+                return ir.serde.serialize_tensor(x.const_value)
             return None
 
         def get_type(value: ir.Value) -> onnx.TypeProto | None:

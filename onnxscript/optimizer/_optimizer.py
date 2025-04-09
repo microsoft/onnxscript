@@ -4,28 +4,11 @@ from __future__ import annotations
 
 import logging
 
+import onnxscript.ir.passes.common.unused_removal
 from onnxscript import ir, rewriter
 from onnxscript.optimizer import _constant_folding, _inliner
-from onnxscript.optimizer._remove_unused import remove_unused_nodes
-from onnxscript.rewriter import (
-    broadcast_to_matmul,
-    cast_constant_of_shape,
-    collapse_slices,
-    gemm_to_matmul_add,
-    llama_rule_sets,
-    no_op,
-)
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_REWRITE_RULES = [
-    *no_op.rules.rules,  # TODO: merge this rule into constant folding?
-    *broadcast_to_matmul.rules.rules,
-    gemm_to_matmul_add.rule,
-    *cast_constant_of_shape.rules.rules,
-    *collapse_slices.rules.rules,
-    *llama_rule_sets.llama_p0_rule_set().rules,
-]
 
 
 def optimize_ir(
@@ -50,14 +33,26 @@ def optimize_ir(
         stop_if_no_change: Not supported currently (has no effect). Meant to stop the
             outer optimization loop if no change is detected in one iteration.
     """
-    del stop_if_no_change  # Looks like rewriter doesn't support this yet.
-    _inliner.inline(model)
-    for _ in range(num_iterations):
-        _constant_folding.fold_constants(
-            model,
-            onnx_shape_inference=onnx_shape_inference,
-            input_size_limit=input_size_limit,
-            output_size_limit=output_size_limit,
-        )
-        rewriter.rewrite(model, pattern_rewrite_rules=_DEFAULT_REWRITE_RULES)
-    remove_unused_nodes(model)
+    optimizer_pass = ir.passes.Sequential(
+        _inliner.InlinePass(),
+        ir.passes.PassManager(
+            [
+                _constant_folding.FoldConstantsPass(
+                    external_data_folder="",
+                    shape_inference=onnx_shape_inference,
+                    input_size_limit=input_size_limit,
+                    output_size_limit=output_size_limit,
+                ),
+                rewriter.RewritePass(rewriter._DEFAULT_REWRITE_RULES),
+                onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass(),
+                onnxscript.ir.passes.common.unused_removal.RemoveUnusedFunctionsPass(),
+                onnxscript.ir.passes.common.unused_removal.RemoveUnusedOpsetsPass(),
+            ],
+            steps=num_iterations,
+            early_stop=stop_if_no_change,
+        ),
+        onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass(),
+    )
+    assert optimizer_pass.in_place
+    result = optimizer_pass(model)
+    assert result.model is model

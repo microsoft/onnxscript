@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import onnxscript.ir as ir
-from onnxscript.rewriter import _ir_utils, pattern
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 """
 RMS Normalization: This is referred to as SimplifiedLayerNormalization in the ORT codebase.
@@ -52,21 +52,22 @@ class RmsNormFusion(pattern.RewriteRuleClassBase):
             normalized = op.Cast(normalized, to=target_dtype)
         return op.Mul(scale, normalized)
 
-    def check(self, op, x, scale, epsilon, compute_dtype, target_dtype):
+    def check(self, op, x, scale, epsilon, compute_dtype, target_dtype) -> pattern.MatchResult:  # type: ignore[name-defined]
         """Check if the pattern matches conditions for use of SimplifiedLayerNormalization op."""
+        check_result = pattern.MatchResult()
         # epsilon must be a scalar
         epsilon_value = _ir_utils.get_singleton_value(epsilon)
         if not isinstance(epsilon_value, float):  # TODO: support other types
-            return False
+            return check_result.fail("Epsilon is not a float value.", epsilon)
         # input and output must be same dtype
         if x.dtype not in float_types:
-            return False
+            return check_result.fail("Input is not a float type.", x)
         if scale.dtype not in float_types:
-            return False
+            return check_result.fail("Scale is not a float type.", scale)
         stash_dtype = compute_dtype.value if self._cast_input else x.dtype
         if stash_dtype not in fp_float_types:
-            return False
-        return True
+            return check_result.fail("Normalization precision is not a float or double type.")
+        return check_result
 
     def rewrite(self, op, x, scale, epsilon, compute_dtype, target_dtype):
         stash_dtype = compute_dtype.value if self._cast_input else x.dtype
@@ -90,6 +91,4 @@ rms_normalization_rules = [_rule_0, _rule_1, _rule_2, _rule_3]
 rms_normalization_ruleset = pattern.RewriteRuleSet(rms_normalization_rules)
 
 
-def fuse_rms_normalization(model: ir.Model) -> None:
-    count = rms_normalization_ruleset.apply_to_model(model)
-    print(f"RMS Normalization count: {count}")
+fuse_rms_normalization = _fusion_utils.apply_fusion_rules(rms_normalization_ruleset)

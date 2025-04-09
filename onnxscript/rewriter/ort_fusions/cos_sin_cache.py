@@ -5,8 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 import onnxscript.ir as ir
-from onnxscript.optimizer import remove_unused_nodes
-from onnxscript.rewriter import _ir_utils, pattern
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 # Rewrite the computation of cos/sin cache into the form expected by ORT's custom ops.
 
@@ -96,10 +95,16 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
             _domain="ai.onnxruntime.fusion",
         )
 
-    def check(self, context, inv_freq, position_ids, freqs, extra_dims, **_):
+    def check(
+        self, context, inv_freq, position_ids, freqs, extra_dims, **_
+    ) -> pattern.MatchResult:  # type: ignore[name-defined]
+        check_result = pattern.MatchResult()
         # TODO(rama): handle redundant reshape/expand
         if self._const_freqs:
-            return (freqs.const_value is not None) and _ir_utils.has_rank(freqs, 3)
+            if (freqs.const_value is None) or not _ir_utils.has_rank(freqs, 3):
+                return check_result.fail("freqs is not a constant or not 3D.", freqs)
+            else:
+                return check_result
         if (
             _ir_utils.has_rank(position_ids, 2) and _ir_utils.is_singleton_value(extra_dims, 1)
         ) or (
@@ -107,13 +112,15 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         ):
             pass
         else:
-            return False
+            return check_result.fail("position_ids is not a 1D or 2D tensor.", position_ids)
         if not _ir_utils.has_rank(inv_freq, 3):
-            return False
+            return check_result.fail("inv_freq is not 3D.", inv_freq)
         inv_freq_shape = inv_freq.shape
         if inv_freq.const_value is None:  # TODO: should this be inv_freq_shape?
-            return False
-        return inv_freq_shape[0] == 1 and inv_freq_shape[2] == 1
+            return check_result.fail("inv_freq is not a constant.", inv_freq)
+        if inv_freq_shape[0] != 1 or inv_freq_shape[2] != 1:
+            return check_result.fail("inv_freq is not of shape [1, ., 1].", inv_freq)
+        return check_result
 
     def rewrite(
         self, op, x, inv_freq, position_ids, interleaved, num_heads, freqs, dtype, **_
@@ -161,12 +168,4 @@ _basic = CosSinCacheFusion.rule("CosSinCache", 2048, cast=False)
 cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _cast_const_freqs, _const_freqs, _basic])
 
 
-def fuse_cos_sin_cache(model: ir.Model, debug: bool = False) -> int:
-    count = cos_sin_cache_rules.apply_to_model(model)
-    if count == 0 and debug:
-        tracer = pattern.MatchingTracer()
-        cos_sin_cache_rules.apply_to_model(model, tracer=tracer)
-        tracer.report()
-    if count != 0:
-        remove_unused_nodes(model)
-    return count
+fuse_cos_sin_cache = _fusion_utils.apply_fusion_rules(cos_sin_cache_rules)

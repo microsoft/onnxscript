@@ -942,7 +942,6 @@ class Converter:
             opname = node.attr
             if opname in module:
                 return values.Op(module, node.attr)
-            warn(f"'{opname}' is not a known op in '{module}'")
             return values.Op(module, node.attr)
         if isinstance(node, ast.Name):
             function_name = node.id
