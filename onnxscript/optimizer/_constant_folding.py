@@ -1125,15 +1125,15 @@ def fold_constants(
     Applies constant folding optimization to the model.
 
     Args:
-        model (ir.Model): The ONNX model to optimize.
-        external_data_folder (str, optional): Path to the folder containing external data
+        model: The ONNX model to optimize.
+        external_data_folder: Path to the folder containing external data
             for the model. Defaults to an empty string.
-        onnx_shape_inference (bool, optional): Whether to enable ONNX shape inference during
+        onnx_shape_inference: Whether to enable ONNX shape inference during
             constant folding. Defaults to False.
-        input_size_limit (int, optional): The maximum size (in bytes) of input tensors
+        input_size_limit: The maximum size (in bytes) of input tensors
             that can be considered for constant folding. Defaults to
             `DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT`.
-        output_size_limit (int, optional): The maximum size (in bytes) of output tensors
+        output_size_limit: The maximum size (in bytes) of output tensors
             that can be stored after constant folding. Defaults to
             `DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT`.
 

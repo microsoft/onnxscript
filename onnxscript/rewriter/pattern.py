@@ -1664,12 +1664,17 @@ def _get_new_overload(model: ir.Model, domain: str, name: str) -> str:
 
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
+        if not rules:
+            raise ValueError("rules must contain at least one rule")
         if commute:
             rules = list(itertools.chain.from_iterable([rule.commute() for rule in rules]))
         self.rules = rules
         # We call remove_unused_nodes at end of rewriting if there is any rule that does
         # NOT remove nodes (immediately when it is applied)
         self.remove_unused_nodes = any(not rule.remove_nodes for rule in rules)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.rules})"
 
     def _apply_to_graph_or_function(
         self,

@@ -190,6 +190,7 @@ def _abbreviate(
 
 class InlinePass(ir.passes.InPlacePass):
     def __init__(self) -> None:
+        super().__init__()
         self._functions: dict[ir.OperatorIdentifier, ir.Function] = {}
         self._function_id_abbreviations: dict[ir.OperatorIdentifier, str] = {}
         self._opset_imports: dict[str, int] = {}
