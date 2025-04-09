@@ -65,9 +65,6 @@ class PackedQKVForGQAFusion(pattern.RewriteRuleClassBase):
         value_sliced,
         **_,
     ):
-        """
-        Check if the detected pattern matches the expected structure.
-        """
         check_result = pattern.MatchResult()
         self.bindings: dict[str, Dim] = {}
 
@@ -97,22 +94,18 @@ class PackedQKVForGQAFusion(pattern.RewriteRuleClassBase):
                 f"Shape mismatch: {value_sliced} does not match expected dimensions ['B', 'S', 'Dkv']",
                 value_sliced,
             )
-        
+
         # Ensure Dh = Dg + 2*Dkv
         D = self.bindings.get("D")
         Dq = self.bindings.get("Dq")
         Dkv = self.bindings.get("Dkv")
 
-        if (
-            not isinstance(D, int)
-            or not isinstance(Dq, int)
-            or not isinstance(Dkv, int)
-        ):
+        if not isinstance(D, int) or not isinstance(Dq, int) or not isinstance(Dkv, int):
             return check_result.fail(
                 "Could not determine the hidden sizes of query, key, and value.",
             )
 
-        if D != Dq + (2 * Dkv):  # type: ignore[operator]
+        if Dq + (2 * Dkv) != D:  # type: ignore[operator]
             return check_result.fail(
                 f"Hidden size of query, key and value do not add up to hidden size: {D} != {Dq} + (2 * {Dkv})",
             )
