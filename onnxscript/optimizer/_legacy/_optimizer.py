@@ -15,7 +15,6 @@ from onnxscript.optimizer._legacy._simple_function_folding import (
     inline_simple_functions,
 )
 from onnxscript.optimizer._legacy.constant_folding import fold_constants
-from onnxscript.optimizer._optimizer import _DEFAULT_REWRITE_RULES
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +74,7 @@ def optimize(
         onnxscript.optimizer.remove_unused_functions(model)
         inline_functions_with_unused_outputs(model)
         # NOTE: This is general rewrite rules
-        model = rewriter.rewrite(model, pattern_rewrite_rules=_DEFAULT_REWRITE_RULES)
+        model = rewriter.rewrite(model)
         if stop_if_no_change and not modified:
             logger.debug("Stopping after %d iterations.", _)
             break
