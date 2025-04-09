@@ -69,20 +69,23 @@ def rewrite(
     Args:
         model: The model to be rewritten. Can be an ONNX ModelProto or an ir.Model.
         pattern_rewrite_rules: A sequence of pattern rewrite rules or a RewriteRuleSet.
-            If not provided or empty, default rules will be applied.
+            If not provided, default rules will be applied. If empty, no rules will be applied
+            and the original model will be returned.
 
     Returns:
-        The rewritten model, either as an ONNX ModelProto or an ir.Model.
+        The rewritten model as the same type as the input model.
     """
+    if pattern_rewrite_rules is None:
+        pattern_rewrite_rules = _DEFAULT_REWRITE_RULES
+    elif not pattern_rewrite_rules:
+        return model
+
     if isinstance(model, onnx.ModelProto):
         model_ir = ir.serde.deserialize_model(model)
         proto = True
     else:
         model_ir = model
         proto = False
-
-    if not pattern_rewrite_rules:
-        pattern_rewrite_rules = _DEFAULT_REWRITE_RULES
 
     rewrite_pass = ir.passes.PassManager(
         (
