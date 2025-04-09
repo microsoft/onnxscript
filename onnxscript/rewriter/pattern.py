@@ -634,6 +634,20 @@ def _is_pattern_variable(x: Any) -> bool:
     return type(x) is ValuePattern
 
 
+class AnyValue(ValuePattern):
+    """Represents a pattern that matches against any value."""
+
+    def __init__(self) -> None:
+        super().__init__(None)
+
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> AnyValue:
+        # A single instance of AnyValue suffices.
+        return self
+
+
+any_value = AnyValue()
+
+
 class Constant(ValuePattern):
     """Represents a pattern that matches against a scalar constant value."""
 
@@ -1108,6 +1122,9 @@ class SimplePatternMatcher(PatternMatcher):
 
     def _match_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
         """Match an IR value against a ValuePattern instance."""
+        if isinstance(pattern_value, AnyValue):
+            return True
+
         if not self._bind_value(pattern_value, value):
             return False
 
