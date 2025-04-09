@@ -38,8 +38,8 @@ _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
 class RewritePass(ir.passes.InPlacePass):
     def __init__(
         self,
-        /,
         rules: Sequence[pattern.RewriteRule] | pattern.RewriteRuleSet,
+        /,
     ) -> None:
         super().__init__()
         if isinstance(rules, Sequence):
