@@ -14,6 +14,7 @@ from onnxscript.rewriter.ort_fusions import (
 )
 from onnxscript.rewriter.ort_fusions.attention import fuse_attention
 from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
+from onnxscript.rewriter.ort_fusions.fuse_qkv import fuse_qkv_gqa
 from onnxscript.rewriter.ort_fusions.gelu import fuse_gelu
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
 from onnxscript.rewriter.ort_fusions.mha import fuse_mha
@@ -77,6 +78,7 @@ def fuse_xformers(model: ir.Model) -> tuple[ir.Model, dict[str, int]]:
         # If no MHA fusion was applied, we can try the GQA fusion.
         # and avoid trying the attention fusion.
         fusion_count["gqa"] = fuse_gqa(model)
+        fusion_count["packed_qkv_for_gqa"] = fuse_qkv_gqa(model)
         fusion_count["attention"] = 0
     else:
         fusion_count["attention"] = fuse_attention(model)
