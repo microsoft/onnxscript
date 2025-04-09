@@ -148,22 +148,24 @@ class Replacement:
 # Currently, we assume that symbolic dimensions are also guaranteed to be non-negative.
 # TODO: Add support for negative symbolic dimensions.
 
+SymbolicValue = Union[ir.Value, list[ir.Value], ir.Shape]
+
 
 class OptimizerState:
     def __init__(self):
-        self._sym_value_map: dict[ir.Value, Any] = {}
+        self._sym_value_map: dict[ir.Value, SymbolicValue] = {}
         self._initializer_inputs: list[set[ir.Value]] = []
 
     @property
-    def symbolic_value_map(self) -> dict[ir.Value, Any]:
+    def symbolic_value_map(self) -> dict[ir.Value, SymbolicValue]:
         return self._sym_value_map
 
-    def get_sym_value(self, value: ir.Value | None) -> Any:
+    def get_sym_value(self, value: ir.Value | None) -> SymbolicValue | None:
         if value is None:
             return None
         return self._sym_value_map.get(value)
 
-    def set_sym_value(self, value: ir.Value, sym_value: Any) -> None:
+    def set_sym_value(self, value: ir.Value, sym_value: SymbolicValue) -> None:
         self._sym_value_map[value] = sym_value
 
     def push_initializer_inputs(self) -> None:
@@ -1103,8 +1105,10 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 
 @dataclasses.dataclass
 class FoldConstantsResult(ir.passes.PassResult):
-    symbolic_value_map: dict[ir.Value, Any]
+    symbolic_value_map: dict[ir.Value, SymbolicValue]
 
+    # Add conversion to bool for backward compatibility. The previously returned value
+    # for the fold_constants method was a boolean indicating whether the model was modified.
     def __bool__(self) -> bool:
         return self.modified
 
