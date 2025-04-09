@@ -1098,12 +1098,11 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         for function in model.functions.values():
             # TODO(rama): Should we specialize functions?
             self.visit_function(function)
-        return ir.passes.PassResult(model, self.modified)
+        return FoldConstantsResult(model, self.modified, self._state.symbolic_value_map)
 
 
 @dataclasses.dataclass
-class FoldConstantsResult:
-    modified: bool
+class FoldConstantsResult(ir.passes.PassResult):
     symbolic_value_map: dict[ir.Value, Any]
 
     def __bool__(self) -> bool:
@@ -1135,9 +1134,8 @@ def fold_constants(
             `DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT`.
 
     Returns:
-        An instance of `FoldConstantsResult` containing the modified flag,
-        and the symbolic value map.
-    
+        An instance of `FoldConstantsResult`.
+
     """
     folder_pass = FoldConstantsPass(
         external_data_folder=external_data_folder,
@@ -1145,12 +1143,4 @@ def fold_constants(
         input_size_limit=input_size_limit,
         output_size_limit=output_size_limit,
     )
-    result = folder_pass(model)
-    for op in folder_pass.counts:
-        logger.info(
-            "Constant-folded '%s' %s times, with %s size.",
-            op,
-            folder_pass.counts[op],
-            folder_pass.sizes[op],
-        )
-    return result
+    return folder_pass(model)
