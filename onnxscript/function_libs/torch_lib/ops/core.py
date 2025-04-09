@@ -4364,7 +4364,7 @@ def aten_index_put(
             # Example: self shape: (10, 3), indices[i] shape: (2, 4), values shape: (2, 4, 3)
             # Indices -> (2*4,) and values shape (2*4, 32)
             if len(idx.shape) > 1:
-                values_shape = (reshape_update,) + values_shape[len(idx.shape) :]
+                values_shape = (reshape_update, *values_shape[len(idx.shape) :])
 
             # Flatten index (always working with 1D index in each dim)
             idx = op.Reshape(idx, [-1])
