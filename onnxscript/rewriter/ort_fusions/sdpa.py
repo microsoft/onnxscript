@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import math
 
-import onnxscript.ir as ir
-from onnxscript.rewriter import _ir_utils, pattern
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 
 class SDPA(pattern.RewriteRuleClassBase):
@@ -41,14 +40,17 @@ class SDPA(pattern.RewriteRuleClassBase):
         return attn_output
 
     def check(self, op, query, key_transposed, value, mask, query_scale, key_scale, qk_scale):
+        check_result = pattern.MatchResult()
         # Check that the scaling factors match what SDPA implements:
 
         # We need to know the hidden size to check the scaling factors.
         if query is None or query.shape is None or len(query.shape) < 2:
-            return False
+            return check_result.fail(
+                "Query shape is not known or has less than 2 dimensions.", query
+            )
         hidden_size = query.shape[-1]
         if not isinstance(hidden_size, int):
-            return False
+            return check_result.fail("Hidden size is not an integer.")
         expected_scaling_factor = math.sqrt(hidden_size)
         if self._use_mul:
             expected_scaling_factor = 1.0 / expected_scaling_factor
@@ -57,17 +59,26 @@ class SDPA(pattern.RewriteRuleClassBase):
             # Check if query_scale and key_scale are scalars == sqrt(expected_scaling_factor)
             sqrt_scaling_factor = math.sqrt(expected_scaling_factor)
             if not _ir_utils.is_singleton_value(query_scale, sqrt_scaling_factor, rtol=1e-3):
-                return False
+                return check_result.fail(
+                    "Query scale is not a scalar or does not match the expected scaling factor.",
+                    query_scale,
+                )
             if not _ir_utils.is_singleton_value(key_scale, sqrt_scaling_factor, rtol=1e-3):
-                return False
+                return check_result.fail(
+                    "Key scale is not a scalar or does not match the expected scaling factor.",
+                    key_scale,
+                )
         else:
             # Check if qk_scale is a scalar == expected_scaling_factor)
             if not _ir_utils.is_singleton_value(qk_scale, expected_scaling_factor, rtol=1e-3):
-                return False
+                return check_result.fail(
+                    "QK scale is not a scalar or does not match the expected scaling factor.",
+                    qk_scale,
+                )
 
         # check ranks/shapes
 
-        return True
+        return check_result
 
     def rewrite(self, op, query, key_transposed, value, mask, **_):
         if self._use_mask:
@@ -118,6 +129,4 @@ sdpa_rules = pattern.RewriteRuleSet(
 )
 
 
-def fuse_sdpa(model: ir.Model) -> int:
-    count = sdpa_rules.apply_to_model(model)
-    return count
+fuse_sdpa = _fusion_utils.apply_fusion_rules(sdpa_rules)
