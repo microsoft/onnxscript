@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import onnxscript.ir as ir
-from onnxscript.rewriter import _fusion_utils, pattern
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 Dim = Union[int, ir.SymbolicDim]
 
@@ -27,13 +27,19 @@ class PackedQKVForGQAFusion(pattern.RewriteRuleClassBase):
         q_num_heads,
         kv_num_heads,
         interleaved,
+        start1,
+        end1,
+        start2,
+        end2,
+        start3,
+        end3,
     ):
         """Pattern to detect sliced Q, K, V passed to GQA and replace with packed QKV."""
 
         # Slice packed QKV into query, key, and value
-        query_BSD = op.Slice(packed_qkv, _allow_other_inputs=True, _outputs=["query_sliced"])
-        key_BSDkv = op.Slice(packed_qkv, _allow_other_inputs=True, _outputs=["key_sliced"])
-        value_BSDkv = op.Slice(packed_qkv, _allow_other_inputs=True, _outputs=["value_sliced"])
+        query_BSD = op.Slice(packed_qkv, start1, end1, [2], [1], _outputs=["query_sliced"])
+        key_BSDkv = op.Slice(packed_qkv, start2, end2, [2], [1], _outputs=["key_sliced"])
+        value_BSDkv = op.Slice(packed_qkv, start3, end3, [2], [1], _outputs=["value_sliced"])
 
         # Pass sliced Q, K, V to GroupQueryAttention
         return op.GroupQueryAttention(
@@ -63,6 +69,14 @@ class PackedQKVForGQAFusion(pattern.RewriteRuleClassBase):
         query_sliced,
         key_sliced,
         value_sliced,
+        q_num_heads,
+        kv_num_heads,
+        start1,
+        end1,
+        start2,
+        end2,
+        start3,
+        end3,
         **_,
     ):
         check_result = pattern.MatchResult()
@@ -70,6 +84,29 @@ class PackedQKVForGQAFusion(pattern.RewriteRuleClassBase):
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
             return not _fusion_utils._check_shape(self.bindings, val, dims)
+
+        # Check that if x is being split into q, k, v correctly
+        # based on hidden sizes
+        if packed_qkv is None or packed_qkv.shape is None or len(packed_qkv.shape) != 3:
+            return check_result.fail("packed_qkv is not a 3D tensor.", packed_qkv)
+        hidden_size = packed_qkv.shape[2]
+        if not isinstance(hidden_size, int):
+            return check_result.fail("Hidden size is not an integer.", packed_qkv)
+        head_size = hidden_size // (q_num_heads + (2 * kv_num_heads))
+        q_hidden_size = head_size * q_num_heads
+        kv_hidden_size = head_size * kv_num_heads
+        if not (
+            _ir_utils.is_singleton_value(start1, 0)
+            and _ir_utils.is_singleton_value(end1, q_hidden_size)
+            and _ir_utils.is_singleton_value(start2, q_hidden_size)
+            and _ir_utils.is_singleton_value(end2, (q_hidden_size + kv_hidden_size))
+            and _ir_utils.is_singleton_value(start3, (q_hidden_size + kv_hidden_size))
+            and _ir_utils.is_singleton_value(end3, hidden_size)
+        ):
+            return check_result.fail(
+                "packed_qkv is not being split into q, k, v correctly based on hidden sizes.", packed_qkv
+            )
+
 
         # Check packed_qkv shape (B, S, D)
         if no_match(packed_qkv, ["B", "S", "D"]):
