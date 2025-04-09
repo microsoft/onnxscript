@@ -1674,7 +1674,7 @@ class RewriteRuleSet:
         self.remove_unused_nodes = any(not rule.remove_nodes for rule in rules)
 
     def __repr__(self) -> str:
-        return f"RewriteRuleSet({self.rules})"
+        return f"{self.__class__.__name__}({self.rules})"
 
     def _apply_to_graph_or_function(
         self,
