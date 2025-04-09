@@ -38,19 +38,20 @@ _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
 class RewritePass(ir.passes.InPlacePass):
     def __init__(
         self,
-        pattern_rewrite_rules: Sequence[pattern.RewriteRule] | pattern.RewriteRuleSet,
+        /,
+        rules: Sequence[pattern.RewriteRule] | pattern.RewriteRuleSet,
     ) -> None:
         super().__init__()
-        if isinstance(pattern_rewrite_rules, Sequence):
-            if not pattern_rewrite_rules:
-                raise ValueError("pattern_rewrite_rules must not be empty")
+        if isinstance(rules, Sequence):
+            if not rules:
+                raise ValueError("rules must not be empty")
             # Create a pattern rule-set using provided rules
-            pattern_rewrite_rules = pattern.RewriteRuleSet(pattern_rewrite_rules)
-        assert isinstance(pattern_rewrite_rules, pattern.RewriteRuleSet)
-        self.pattern_rewrite_rules: pattern.RewriteRuleSet = pattern_rewrite_rules
+            rules = pattern.RewriteRuleSet(rules)
+        assert isinstance(rules, pattern.RewriteRuleSet)
+        self.rules: pattern.RewriteRuleSet = rules
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
-        count = self.pattern_rewrite_rules.apply_to_model(model)
+        count = self.rules.apply_to_model(model)
         if count:
             print(f"Applied {count} of general pattern rewrite rules.")
         return ir.passes.PassResult(model, bool(count))
