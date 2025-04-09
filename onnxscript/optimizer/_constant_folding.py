@@ -154,6 +154,10 @@ class OptimizerState:
         self._sym_value_map: dict[ir.Value, Any] = {}
         self._initializer_inputs: list[set[ir.Value]] = []
 
+    @property
+    def symbolic_value_map(self) -> dict[ir.Value, Any]:
+        return self._sym_value_map
+
     def get_sym_value(self, value: ir.Value | None) -> Any:
         if value is None:
             return None
@@ -1097,6 +1101,15 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         return ir.passes.PassResult(model, self.modified)
 
 
+@dataclasses.dataclass
+class FoldConstantsResult:
+    modified: bool
+    symbolic_value_map: dict[ir.Value, Any]
+
+    def __bool__(self) -> bool:
+        return self.modified
+
+
 def fold_constants(
     model: ir.Model,
     external_data_folder: str = "",
@@ -1104,10 +1117,27 @@ def fold_constants(
     onnx_shape_inference: bool = False,
     input_size_limit: int = DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
     output_size_limit: int = DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
-) -> bool:
+) -> FoldConstantsResult:
     """
     Applies constant folding optimization to the model.
-    Returns true iff the model was modified.
+
+    Args:
+        model (ir.Model): The ONNX model to optimize.
+        external_data_folder (str, optional): Path to the folder containing external data
+            for the model. Defaults to an empty string.
+        onnx_shape_inference (bool, optional): Whether to enable ONNX shape inference during
+            constant folding. Defaults to False.
+        input_size_limit (int, optional): The maximum size (in bytes) of input tensors
+            that can be considered for constant folding. Defaults to
+            `DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT`.
+        output_size_limit (int, optional): The maximum size (in bytes) of output tensors
+            that can be stored after constant folding. Defaults to
+            `DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT`.
+
+    Returns:
+        An instance of `FoldConstantsResult` containing the modified flag,
+        and the symbolic value map.
+    
     """
     folder_pass = FoldConstantsPass(
         external_data_folder=external_data_folder,
@@ -1115,7 +1145,7 @@ def fold_constants(
         input_size_limit=input_size_limit,
         output_size_limit=output_size_limit,
     )
-    folder_pass(model)
+    result = folder_pass(model)
     for op in folder_pass.counts:
         logger.info(
             "Constant-folded '%s' %s times, with %s size.",
@@ -1123,4 +1153,4 @@ def fold_constants(
             folder_pass.counts[op],
             folder_pass.sizes[op],
         )
-    return folder_pass.modified
+    return result
