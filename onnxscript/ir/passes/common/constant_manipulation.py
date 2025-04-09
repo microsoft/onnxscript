@@ -19,9 +19,9 @@ logger = logging.getLogger(__name__)
 
 class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
     def call(self, model: ir.Model) -> ir.passes.PassResult:
-        """Convert constant nodes in main graph to initializers."""
+        """Convert constant nodes from node belonged graph to its initializers."""
         count = 0
-        for node in model.graph:
+        for node in ir.traversal.RecursiveGraphIterator(model.graph):
             if node.op_type != "Constant" or node.domain not in ("", "onnx.ai"):
                 continue
 
@@ -51,18 +51,17 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
                 type=ir.TensorType(tensor.dtype),
                 const_value=tensor,
             )
-            # TODO(titaiwang): Is it possible that the initializer name has
-            # been taken?
-            model.graph.register_initializer(initializer)
+            assert node.graph is not None
+            node.graph.register_initializer(initializer)
             # Replace the constant node with the initilizer
             ir.convenience.replace_all_uses_with(node.outputs[0], initializer)
-            model.graph.remove(node, safe=True)
+            node.graph.remove(node, safe=True)
             count += 1
-            logger.info(
+            logger.debug(
                 "Converted constant node '%s' to initializer '%s'", node.name, initializer_name
             )
         if count:
-            logger.info("Lifted %s constants to initializers", count)
+            logger.debug("Lifted %s constants to initializers", count)
         return ir.passes.PassResult(model, modified=bool(count))
 
 
@@ -73,28 +72,22 @@ def _constant_node_attribute_to_tensor(
     if attr_name == "value":
         tensor = attr_value.as_tensor()  # type: ignore[union-attr]
     elif attr_name == "value_int":
-        tensor = ir.Tensor(
-            np.array(attr_value.as_int(), dtype=np.int64), name=initializer_name
-        )
+        tensor = ir.tensor(attr_value.as_int(), dtype=ir.DataType.INT64, name=initializer_name)
     elif attr_name == "value_ints":
-        tensor = ir.Tensor(
-            np.array(attr_value.as_ints(), dtype=np.int64), name=initializer_name
+        tensor = ir.tensor(
+            attr_value.as_ints(), dtype=ir.DataType.INT64, name=initializer_name
         )
     elif attr_name == "value_float":
-        tensor = ir.Tensor(
-            np.array(attr_value.as_float(), dtype=np.float32), name=initializer_name
+        tensor = ir.tensor(
+            attr_value.as_float(), dtype=ir.DataType.FLOAT, name=initializer_name
         )
     elif attr_name == "value_floats":
-        tensor = ir.Tensor(
-            np.array(attr_value.as_floats(), dtype=np.float32), name=initializer_name
+        tensor = ir.tensor(
+            attr_value.as_floats(), dtype=ir.DataType.FLOAT, name=initializer_name
         )
-    elif attr_name == "value_string":
-        tensor = ir.Tensor(
-            np.array(attr_value.as_string(), dtype=np.object_), name=initializer_name
-        )
-    elif attr_name == "value_strings":
-        tensor = ir.Tensor(
-            np.array(attr_value.as_strings(), dtype=np.object_), name=initializer_name
+    elif attr_name in ("value_string", "value_strings"):
+        tensor = ir.StringTensor(
+            np.array(attr_value.value, dtype=np.bytes_), name=initializer_name
         )
     else:
         tensor = None
