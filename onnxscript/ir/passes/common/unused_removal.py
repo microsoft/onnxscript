@@ -198,13 +198,15 @@ class RemoveUnusedMetadataAndDocStringPass(ir.passes.InPlacePass):
                 logger.debug("Removed metadata from %s nodes", node.name)
             node.metadata_props.clear()
 
-        # 2. Clean up the main graph metadata properties
-        # and doc_string
-        if len(model.graph.metadata_props) > 0 or model.graph.doc_string is not None:
-            modified = True
-            logger.debug("Removed metadata from main graph")
-        model.graph.metadata_props.clear()
-        model.graph.doc_string = None
+            # TODO: Use model.graphs to get the graph instead of node.graph
+            # 2. Clean up the main graph metadata properties
+            # and doc_string
+            assert node.graph is not None
+            if len(node.graph.metadata_props) > 0 or node.graph.doc_string is not None:
+                modified = True
+                logger.debug("Removed metadata from %s graph", node.graph.name)
+            node.graph.metadata_props.clear()
+            node.graph.doc_string = None
 
         # 3. Clean up all of the functions metadata properties
         for function in model.functions.values():
