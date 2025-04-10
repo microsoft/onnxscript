@@ -174,18 +174,16 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
         )
 
         # Check that the initializer is not in the graph yet
-        assert len(model.graph.initializers) == 0
+        self.assertEqual(len(model.graph.initializers), 0)
         # And 1 constant node
-        assert len([node for node in model.graph if node.op_type == "Constant"]) == 1
+        self.assertEqual(len([node for node in model.graph if node.op_type == "Constant"]), 1)
 
         # Perform lift constants to initializers
         result = constant_manipulation.LiftConstantsToInitializersPass()(model)
-        assert result.modified
+        self.assertTrue(result.modified)
         # Check that the constant node is lifted to an initializer
-        assert len(result.model.graph.initializers) == 1
-        self.assertTrue(
-            np.array_equal(
-                result.model.graph.initializers["val_1"].const_value.raw,
-                np.array(constant_value, dtype=np_dtype),
-            )
+        self.assertEqual(len(result.model.graph.initializers), 1)
+        np.testing.assert_array_equal(
+            result.model.graph.initializers["val_1"].const_value.raw,
+            np.array(constant_value, dtype=np_dtype),
         )
