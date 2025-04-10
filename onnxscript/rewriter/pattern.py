@@ -645,7 +645,7 @@ class AnyValue(ValuePattern):
         return self
 
 
-any_value = AnyValue()
+ANY_VALUE = AnyValue()
 
 
 class Constant(ValuePattern):

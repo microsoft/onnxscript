@@ -87,17 +87,17 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         shape_B111,
     ):
         # Reshape query from (B, S, D) to (B, S, H, D/H)
-        query_BSHDh = op.Reshape(query_BSD, pattern.any_value, _outputs=["query_BSHDh"])
+        query_BSHDh = op.Reshape(query_BSD, pattern.ANY_VALUE, _outputs=["query_BSHDh"])
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
         query_BHSDh = op.Transpose(query_BSHDh, perm=[0, 2, 1, 3])
 
         # Reshape key from (B, S, Dkv) to (B, S, Hkv, D/H)
-        key_BSHkvDh = op.Reshape(key_BSDkv, pattern.any_value, _outputs=["key_BSHkvDh"])
+        key_BSHkvDh = op.Reshape(key_BSDkv, pattern.ANY_VALUE, _outputs=["key_BSHkvDh"])
         # Transpose from (B, S, Hkv, D/H) to (B, Hkv, S, D/H)
         key_BHkvSDh = op.Transpose(key_BSHkvDh, perm=[0, 2, 1, 3])
 
         # Reshape value from (B, S, Dkv) to (B, S, Hkv, D/H)
-        value_BSHkvDh = op.Reshape(value_BSDkv, pattern.any_value, _outputs=["value_BSHkvDh"])
+        value_BSHkvDh = op.Reshape(value_BSDkv, pattern.ANY_VALUE, _outputs=["value_BSHkvDh"])
         # Transpose from (B, S, Hkv, D/H) to (B, Hkv, S, D/H)
         value_BHkvSDh = op.Transpose(value_BSHkvDh, perm=[0, 2, 1, 3])
 
@@ -127,18 +127,18 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
 
         key_seq_BHkvTDh = op.Concat(past_key, key_BHkvSDh_rope, axis=-2)
         key_seq_BHkv1TDh = op.Unsqueeze(key_seq_BHkvTDh, 2)
-        key_seq_BHkvGTDh = op.Expand(key_seq_BHkv1TDh, pattern.any_value)
+        key_seq_BHkvGTDh = op.Expand(key_seq_BHkv1TDh, pattern.ANY_VALUE)
         key_seq_BHTDh = op.Reshape(
-            key_seq_BHkvGTDh, pattern.any_value, _outputs=["key_seq_BHTDh"]
+            key_seq_BHkvGTDh, pattern.ANY_VALUE, _outputs=["key_seq_BHTDh"]
         )
 
         # Concatenate past_value cache and current value, expand across heads
         # that share key/value.
         value_seq_BHkvTDh = op.Concat(past_value, value_BHkvSDh, axis=-2)
         value_seq_BHkv1TDh = op.Unsqueeze(value_seq_BHkvTDh, 2)
-        value_seq_BHkvGTDh = op.Expand(value_seq_BHkv1TDh, pattern.any_value)
+        value_seq_BHkvGTDh = op.Expand(value_seq_BHkv1TDh, pattern.ANY_VALUE)
         value_seq_BHTDh = op.Reshape(
-            value_seq_BHkvGTDh, pattern.any_value, _outputs=["value_seq_BHTDh"]
+            value_seq_BHkvGTDh, pattern.ANY_VALUE, _outputs=["value_seq_BHTDh"]
         )
 
         mask = causal_mask_pattern(op, input_ids, some_kv_cache, shape_B111)
@@ -156,7 +156,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         attention_BSHDh = op.Transpose(attention_BHSDh, perm=[0, 2, 1, 3])
         # Reshape back to (B, S, D)
         attention_BSD = op.Reshape(
-            attention_BSHDh, pattern.any_value, _outputs=["attention_BSD"]
+            attention_BSHDh, pattern.ANY_VALUE, _outputs=["attention_BSD"]
         )
         return attention_BSD, key_seq_BHkvTDh, value_seq_BHkvTDh
 
