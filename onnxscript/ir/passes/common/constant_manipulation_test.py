@@ -184,6 +184,6 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
         # Check that the constant node is lifted to an initializer
         self.assertEqual(len(result.model.graph.initializers), 1)
         np.testing.assert_array_equal(
-            result.model.graph.initializers["val_1"].const_value.raw,
+            result.model.graph.initializers["val_1"].const_value.numpy(),
             np.array(constant_value, dtype=np_dtype),
         )
