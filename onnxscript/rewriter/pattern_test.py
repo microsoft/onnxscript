@@ -669,7 +669,7 @@ class RewriteRuleTest(unittest.TestCase):
 
     def test_any_value(self):
         def source_pattern(op, x):
-            return op.Add(x, op.Mul(0, pattern.any_value))
+            return op.Add(x, op.Mul(0, pattern.ANY_VALUE))
 
         def replacement(op, x):
             return op.Identity(x)
