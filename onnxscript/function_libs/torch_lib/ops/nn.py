@@ -483,10 +483,10 @@ def _aten_gelu_approximate_none(self: TReal) -> TReal:
     """gelu(Tensor self, *, str approximate='none') -> Tensor"""
 
     # GELU(x) = 0.5 * x * [1 + ERF(x/sqrt(2)]
-    inner = op.Div(self, 1.4142135623730951)
+    inner = op.Div(self, ir.tensor(1.4142135623730951, dtype=self.dtype))
     erf = op.Erf(inner)
-    inner = op.Add(erf, 1)
-    inner = op.Mul(0.5, inner)
+    inner = op.Add(erf, ir.tensor(1, dtype=self.dtype))
+    inner = op.Mul(ir.tensor(0.5, dtype=self.dtype), inner)
     result = op.Mul(self, inner)
     return result
 
@@ -495,15 +495,15 @@ def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
     """gelu(Tensor self, *, str approximate='none') -> Tensor"""
 
     # GELU(x) = 0.5 * x * {1 + Tanh[\sqrt(2/pi) * (x + 0.044715 * x^3)]}
-    cubed = op.Pow(self, 3)
-    inner = op.Mul(0.044715, cubed)
+    cubed = op.Pow(self, ir.tensor(3, dtype=self.dtype))
+    inner = op.Mul(ir.tensor(0.044715, dtype=self.dtype), cubed)
     inner = op.Add(self, inner)
     # math.sqrt(2.0/math.pi) = 0.7978845608028654
-    sqrt_two_over_pi = op.CastLike(0.7978845608028654, self)
+    sqrt_two_over_pi = ir.tensor(0.7978845608028654, dtype=self.dtype)
     inner = op.Mul(sqrt_two_over_pi, inner)
     inner = op.Tanh(inner)
-    inner = op.Add(inner, 1)
-    inner = op.Mul(0.5, inner)
+    inner = op.Add(inner, ir.tensor(1, dtype=self.dtype))
+    inner = op.Mul(ir.tensor(0.5, dtype=self.dtype), inner)
     result = op.Mul(self, inner)
     return result
 
