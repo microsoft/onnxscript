@@ -2,46 +2,66 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+from typing import TypeVar
+
 __all__ = [
-    "fold_constants",
-    "fold_constants_ir",
-    "remove_unused_nodes",
-    "optimize",
-    "optimize_ir",
     "basic_constant_propagation",
+    "fold_constants_ir",
+    "fold_constants",
     "inline",
+    "optimize_ir",
+    "optimize",
+    "remove_unused_nodes",
 ]
 
 import onnx
 
 import onnxscript.ir.passes.common.unused_removal
 import onnxscript.optimizer._constant_folding as constant_folding
-import onnxscript.optimizer._legacy._optimizer as legacy_optimizer
-import onnxscript.optimizer._legacy.constant_folding as legacy_constant_folding
 from onnxscript import ir
+from onnxscript.optimizer._constant_folding import (
+    basic_constant_propagation,
+)
+from onnxscript.optimizer._constant_folding import (
+    fold_constants as fold_constants_ir,
+)
 from onnxscript.optimizer._inliner import inline
 from onnxscript.optimizer._optimizer import optimize_ir
 
-basic_constant_propagation = constant_folding.basic_constant_propagation
-fold_constants_ir = constant_folding.fold_constants
+_ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
 
 
-def optimize(model: ir.Model, *args, **kwargs) -> ir.Model:
+def optimize(model: _ModelProtoOrIr, *args, **kwargs) -> _ModelProtoOrIr:
     if isinstance(model, ir.Model):
-        # In that case, this is done inplace.
+        # In this case, optimize is done inplace.
+        # TODO(justinchuby): Maybe make functional
         optimize_ir(model, *args, **kwargs)
         return model
     else:
-        return legacy_optimizer.optimize(model, *args, **kwargs)
+        assert isinstance(model, onnx.ModelProto)
+        model_ir = ir.serde.deserialize_model(model)
+        optimize_ir(model_ir, *args, **kwargs)
+        # Move the model back to the proto
+        new_proto = ir.serde.serialize_model(model_ir)
+        return new_proto
 
 
 def fold_constants(
     model: ir.Model | onnx.ModelProto, *args, **kwargs
-) -> constant_folding.FoldConstantsResult | bool:
+) -> constant_folding.FoldConstantsResult:
+    """Fold constants in a model in place."""
     if isinstance(model, ir.Model):
         return constant_folding.fold_constants(model, *args, **kwargs)
     else:
-        return legacy_constant_folding.fold_constants(model, *args, **kwargs)
+        assert isinstance(model, onnx.ModelProto)
+        model_proto = model
+        model = ir.serde.deserialize_model(model_proto)
+        result = constant_folding.fold_constants(model, *args, **kwargs)
+        # Move the model back to the proto
+        new_proto = ir.serde.serialize_model(model)
+        model_proto.Clear()
+        model_proto.CopyFrom(new_proto)
+        return result
 
 
 def remove_unused_nodes(model: ir.Model | onnx.ModelProto) -> None:
