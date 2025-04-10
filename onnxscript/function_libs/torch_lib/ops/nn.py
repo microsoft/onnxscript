@@ -479,7 +479,6 @@ def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
     return result
 
 
-@torch_op("aten::gelu", private=True)
 def _aten_gelu_approximate_none(self: TReal) -> TReal:
     """gelu(Tensor self, *, str approximate='none') -> Tensor"""
 
@@ -492,7 +491,6 @@ def _aten_gelu_approximate_none(self: TReal) -> TReal:
     return result
 
 
-@torch_op("aten::gelu", private=True)
 def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
     """gelu(Tensor self, *, str approximate='none') -> Tensor"""
 
@@ -500,9 +498,9 @@ def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
     cubed = op.Pow(self, 3)
     inner = op.Mul(0.044715, cubed)
     inner = op.Add(self, inner)
-    # Prefer explicit graph construction over precomputed constants for clarity.
-    two_over_pi = op.CastLike(op.Div(2.0, _MATH_PI), self)
-    inner = op.Mul(op.Sqrt(two_over_pi), inner)
+    # math.sqrt(2.0/math.pi) = 0.7978845608028654
+    sqrt_two_over_pi = op.CastLike(0.7978845608028654, self)
+    inner = op.Mul(sqrt_two_over_pi, inner)
     inner = op.Tanh(inner)
     inner = op.Add(inner, 1)
     inner = op.Mul(0.5, inner)
