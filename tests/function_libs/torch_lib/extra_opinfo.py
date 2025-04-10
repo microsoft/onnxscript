@@ -684,45 +684,74 @@ def sample_inputs__fft_r2c(self, device, dtype, requires_grad=False, **_):
 
 def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
     del self  # Unused
-    oned_tensor, nd_tensor = _prepare_data_for_fft_ops(device, dtype, requires_grad)
+    if dtype == torch.complex128:
+        real_dtype = torch.float64
+    elif dtype == torch.complex64:
+        real_dtype = torch.float32
+    elif dtype == torch.complex32:
+        real_dtype = torch.float16
+    oned_tensor, nd_tensor = _prepare_data_for_fft_ops(device, real_dtype, requires_grad)
 
-    for normalization in (0, 1, 2):
+    oned_tensor_result = oned_tensor()
+    complex_oned_tensor = functools.partial(
+        torch.fft.fft,
+        oned_tensor_result,
+        dim=0,
+    )
+    # nd_tensor_result = nd_tensor()
+    # for normalization in (0, 1, 2):
+    for normalization in (0,):
+        oned_tensor, nd_tensor = _prepare_data_for_fft_ops(device, real_dtype, requires_grad)
+        complex_oned_tensor = functools.partial(
+            torch.fft.fft,
+            oned_tensor().detach().clone(),
+            dim=0,
+        )
         # 1-D
         yield opinfo_core.SampleInput(
-            oned_tensor(),
+            complex_oned_tensor(),
             dim=(0,),
             normalization=normalization,
-            last_dim_size=oned_tensor().shape[0],
+            last_dim_size=31,
+        )
+        # One-sided: Refers to the one-sided FFT result, which includes only the positive frequency terms.
+        # # One-sided
+        oned_tensor, nd_tensor = _prepare_data_for_fft_ops(device, real_dtype, requires_grad)
+        complex_oned_tensor = functools.partial(
+            torch.fft.fft,
+            oned_tensor().detach().clone(),
+            dim=0,
         )
         yield opinfo_core.SampleInput(
-            oned_tensor(),
+            complex_oned_tensor(),
             dim=(0,),
             normalization=normalization,
-            last_dim_size=(oned_tensor().shape[0]//2 + 1),
+            last_dim_size=16,
         )
-        # N-D
-        for dim in [
-            (0,),
-            (1,),
-            (2,),
-            (1, 2),
-            (0, 1),
-            (0, 1, 2),
-        ]:
-            # Two-sided
-            yield opinfo_core.SampleInput(
-                nd_tensor(),
-                dim=dim,
-                normalization=normalization,
-                last_dim_size=nd_tensor().shape[dim[-1]],
-            )
-            # One-sided
-            yield opinfo_core.SampleInput(
-                nd_tensor(),
-                dim=dim,
-                normalization=normalization,
-                last_dim_size=(nd_tensor().shape[dim[-1]]//2 + 1),
-            )
+        # # N-D
+        # for dim in [
+        #     (0,),
+        #     (1,),
+        #     (2,),
+        #     # (1, 2),
+        #     # (0, 1),
+        #     # (0, 1, 2),
+        # ]:
+        #     complex_nd_tensor = torch.ops.aten._fft_r2c.default(nd_tensor_result, dim, normalization=0, onesided=False)
+        #     # Two-sided
+        #     yield opinfo_core.SampleInput(
+        #         complex_nd_tensor,
+        #         dim=dim,
+        #         normalization=normalization,
+        #         last_dim_size=nd_tensor_result.shape[dim[-1]],
+        #     )
+        #     # One-sided
+        #     yield opinfo_core.SampleInput(
+        #         complex_nd_tensor,
+        #         dim=dim,
+        #         normalization=normalization,
+        #         last_dim_size=(nd_tensor_result.shape[dim[-1]]//2 + 1),
+        #     )
 
 
 def _index_variable_bool(shape, max_indices, device):

@@ -134,27 +134,24 @@ def aten__fft_c2r(
     else:
         transformed = self
 
-    for index, dimension in enumerate(reversed(dim)):
-        if index > 0:
-            transformed = op.DFT(transformed, axis=dimension, inverse=False, onesided=False)
-            transformed = _fftn_onnx_normalization(
-                transformed,
-                normalization,
-                op.CastLike(self.shape[dimension - unsqueeze_first_dim], transformed),
-            )
-        else:
-            onesided = last_dim_size == op.CastLike(
-                self.shape[dimension - unsqueeze_first_dim], last_dim_size
-            )
-            transformed = op.DFT(transformed, axis=dimension, inverse=False, onesided=onesided)
-            transformed = _fftn_onnx_normalization(
-                transformed,
-                normalization,
-                op.CastLike(self.shape[dimension - unsqueeze_first_dim], transformed),
-            )
+    for dimension in reversed(dim):
+        transformed = op.DFT(
+            transformed, last_dim_size, axis=dimension, inverse=True, onesided=False
+        )
+        transformed = _fftn_onnx_inverse_normalization(
+            transformed,
+            normalization,
+            op.CastLike(self.shape[dimension - unsqueeze_first_dim], transformed),
+        )
 
     if unsqueeze_first_dim:
         transformed = op.Squeeze(transformed, axes=[0])
+
+    start = [0]
+    end = [1]
+    axes = [-1]
+    transformed = op.Slice(transformed, start, end, axes)
+    transformed = op.Squeeze(transformed, axes=[-1])
 
     return transformed
 
