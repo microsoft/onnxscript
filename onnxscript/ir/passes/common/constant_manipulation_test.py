@@ -18,7 +18,9 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
             (ir.DataType.INT64, np.int64),
         ]
     )
-    def test_pass_with_lifting_constants_to_initializers(self, ir_dtype, numpy_dtype):
+    def test_pass_with_lifting_float_and_int_constants_to_initializers(
+        self, ir_dtype, numpy_dtype
+    ):
         inputs = [
             ir.Value(name="input_a", type=ir.TensorType(ir_dtype), shape=ir.Shape((2, 3))),
             ir.Value(
@@ -29,10 +31,11 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
         ]
 
         constant_tensor = ir.tensor(np.random.rand(2, 3).astype(numpy_dtype))
-        attribute = ir.convenience.convert_attributes({"value": constant_tensor})
-        const_node = ir.Node("", "Constant", inputs=[], attributes=attribute, num_outputs=1)
-        add_node = ir.Node("", "Add", inputs=[inputs[0], const_node.outputs[0]])
-        mul_node = ir.Node("", "Mul", inputs=[add_node.outputs[0], inputs[1]])
+        const_node = ir.node(
+            "Constant", inputs=[], attributes={"value": constant_tensor}, num_outputs=1
+        )
+        add_node = ir.node("Add", inputs=[inputs[0], const_node.outputs[0]])
+        mul_node = ir.node("Mul", inputs=[add_node.outputs[0], inputs[1]])
 
         model = ir.Model(
             graph=ir.Graph(
@@ -72,13 +75,12 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
         )
 
         then_constant_tensor = ir.tensor(np.random.rand(2, 3).astype(np.float32))
-        attribute = ir.convenience.convert_attributes({"value": then_constant_tensor})
-        then_const_node = ir.Node(
-            "", "Constant", inputs=[], attributes=attribute, num_outputs=1
+        then_const_node = ir.node(
+            "Constant", inputs=[], attributes={"value": then_constant_tensor}, num_outputs=1
         )
         # then branch adds the constant to the input
         # else branch multiplies the input by the constant
-        add_node = ir.Node("", "Add", inputs=[input_value, then_const_node.outputs[0]])
+        add_node = ir.node("Add", inputs=[input_value, then_const_node.outputs[0]])
         then_graph = ir.Graph(
             inputs=[input_value],
             outputs=[add_node.outputs[0]],
@@ -86,11 +88,10 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
             opset_imports={"": 20},
         )
         else_constant_tensor = ir.tensor(np.random.rand(2, 3).astype(np.float32))
-        attribute = ir.convenience.convert_attributes({"value": else_constant_tensor})
-        else_const_node = ir.Node(
-            "", "Constant", inputs=[], attributes=attribute, num_outputs=1
+        else_const_node = ir.node(
+            "Constant", inputs=[], attributes={"value": else_constant_tensor}, num_outputs=1
         )
-        mul_node = ir.Node("", "Mul", inputs=[input_value, else_const_node.outputs[0]])
+        mul_node = ir.node("Mul", inputs=[input_value, else_const_node.outputs[0]])
         else_graph = ir.Graph(
             inputs=[input_value],
             outputs=[mul_node.outputs[0]],
@@ -98,14 +99,10 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
             opset_imports={"": 20},
         )
         # create a conditional node that uses the then and else graphs
-        attribute = ir.convenience.convert_attributes(
-            {"then_branch": then_graph, "else_branch": else_graph}
-        )
-        cond_node = ir.Node(
-            "",
+        cond_node = ir.node(
             "If",
             inputs=[input_value],
-            attributes=attribute,
+            attributes={"then_branch": then_graph, "else_branch": else_graph},
             num_outputs=1,
         )
         # construnct the model
@@ -128,15 +125,69 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
                 raise AssertionError(
                     f"Constant node '{node.name}' was not lifted to initializers"
                 )
-            if node.op_type == "Add":
-                self.assertEqual(len(node.graph.initializers), 1)
-                self.assertEqual(
-                    node.graph.initializers["val_0"].const_value,
-                    then_constant_tensor,
-                )
-            if node.op_type == "Mul":
-                self.assertEqual(len(node.graph.initializers), 1)
-                self.assertEqual(
-                    node.graph.initializers["val_0"].const_value,
-                    else_constant_tensor,
-                )
+        self.assertEqual(len(else_graph.initializers), 1)
+        self.assertEqual(len(then_graph.initializers), 1)
+        self.assertEqual(
+            else_graph.initializers["val_0"].const_value,
+            else_constant_tensor,
+        )
+        self.assertEqual(
+            then_graph.initializers["val_0"].const_value,
+            then_constant_tensor,
+        )
+
+    @parameterized.parameterized.expand(
+        [
+            (1.0, "value_float", np.float32),
+            (1, "value_int", np.int64),
+            ("hello world!", "value_string", np.bytes_),
+            ([1.0, 2.0, 3.0], "value_floats", np.float32),
+            ([1, 2, 3], "value_ints", np.int64),
+            (["hello world!", "thank you."], "value_strings", np.bytes_),
+        ]
+    )
+    def test_pass_with_lifting_constants_to_initializers_with_floats_ints_strings(
+        self, value, constant_attribute, np_dtype
+    ):
+        input_value = ir.Value(
+            name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
+        )
+
+        constant_value = value
+        const_node = ir.node(
+            "Constant",
+            inputs=[],
+            attributes={constant_attribute: constant_value},
+            num_outputs=1,
+        )
+        identity_node_constant = ir.node(
+            "Identity", inputs=[const_node.outputs[0]], num_outputs=1
+        )
+        identity_node_input = ir.node("Identity", inputs=[input_value], num_outputs=1)
+
+        model = ir.Model(
+            graph=ir.Graph(
+                inputs=[input_value],
+                outputs=[identity_node_input.outputs[0], identity_node_constant.outputs[0]],
+                nodes=[identity_node_input, const_node, identity_node_constant],
+                opset_imports={"": 20},
+            ),
+            ir_version=10,
+        )
+
+        # Check that the initializer is not in the graph yet
+        assert len(model.graph.initializers) == 0
+        # And 1 constant node
+        assert len([node for node in model.graph if node.op_type == "Constant"]) == 1
+
+        # Perform lift constants to initializers
+        result = constant_manipulation.LiftConstantsToInitializersPass()(model)
+        assert result.modified
+        # Check that the constant node is lifted to an initializer
+        assert len(result.model.graph.initializers) == 1
+        self.assertTrue(
+            np.array_equal(
+                result.model.graph.initializers["val_1"].const_value.raw,
+                np.array(constant_value, dtype=np_dtype),
+            )
+        )

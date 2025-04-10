@@ -52,6 +52,7 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
                 const_value=tensor,
             )
             assert node.graph is not None
+            assert isinstance(node.graph, ir.Graph)
             node.graph.register_initializer(initializer)
             # Replace the constant node with the initilizer
             ir.convenience.replace_all_uses_with(node.outputs[0], initializer)
