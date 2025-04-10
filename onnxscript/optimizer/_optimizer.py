@@ -20,6 +20,7 @@ def optimize_ir(
     stop_if_no_change: bool = True,
     input_size_limit: int = _constant_folding.DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
     output_size_limit: int = _constant_folding.DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
+    inline: bool = True,
 ) -> None:
     """Optimizes a model.
 
@@ -33,9 +34,9 @@ def optimize_ir(
             of the output tensor is greater than this.
         stop_if_no_change: Not supported currently (has no effect). Meant to stop the
             outer optimization loop if no change is detected in one iteration.
+        inline: If True, inlines all functions in the model.
     """
-    optimizer_pass = ir.passes.Sequential(
-        _inliner.InlinePass(),
+    passes = [
         ir.passes.PassManager(
             [
                 _constant_folding.FoldConstantsPass(
@@ -54,7 +55,11 @@ def optimize_ir(
         ),
         onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass(),
         onnxscript.ir.passes.common.constant_manipulation.LiftConstantsToInitializersPass(),
-    )
+    ]
+    if inline:
+        # Inline all functions first before optimizing
+        passes.insert(0, _inliner.InlinePass())
+    optimizer_pass = ir.passes.Sequential(*passes)
     assert optimizer_pass.in_place
     result = optimizer_pass(model)
     assert result.model is model
