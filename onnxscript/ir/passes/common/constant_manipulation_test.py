@@ -14,13 +14,11 @@ from onnxscript.ir.passes.common import constant_manipulation
 class TestLiftConstantsToInitializersPass(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
-            (ir.DataType.FLOAT, np.float32),
-            (ir.DataType.INT64, np.int64),
+            (ir.DataType.FLOAT,),
+            (ir.DataType.INT64,),
         ]
     )
-    def test_pass_with_lifting_float_and_int_constants_to_initializers(
-        self, ir_dtype, numpy_dtype
-    ):
+    def test_pass_with_lifting_float_and_int_constants_to_initializers(self, ir_dtype):
         inputs = [
             ir.Value(name="input_a", type=ir.TensorType(ir_dtype), shape=ir.Shape((2, 3))),
             ir.Value(
@@ -30,7 +28,7 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
             ),
         ]
 
-        constant_tensor = ir.tensor(np.random.rand(2, 3).astype(numpy_dtype))
+        constant_tensor = ir.tensor(np.random.rand(2, 3).astype(ir_dtype.numpy()))
         const_node = ir.node(
             "Constant", inputs=[], attributes={"value": constant_tensor}, num_outputs=1
         )
@@ -127,11 +125,11 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
                 )
         self.assertEqual(len(else_graph.initializers), 1)
         self.assertEqual(len(then_graph.initializers), 1)
-        self.assertEqual(
+        self.assertIs(
             else_graph.initializers["val_0"].const_value,
             else_constant_tensor,
         )
-        self.assertEqual(
+        self.assertIs(
             then_graph.initializers["val_0"].const_value,
             then_constant_tensor,
         )
