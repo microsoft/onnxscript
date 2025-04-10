@@ -14,7 +14,7 @@ from onnxscript.rewriter.ort_fusions import (
 )
 from onnxscript.rewriter.ort_fusions.attention import fuse_attention
 from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
-from onnxscript.rewriter.ort_fusions.fuse_packed_qkv_qga import fuse_qkv_gqa
+from onnxscript.rewriter.ort_fusions.fuse_packed_qkv_gqa import fuse_qkv_gqa
 from onnxscript.rewriter.ort_fusions.gelu import fuse_gelu
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
 from onnxscript.rewriter.ort_fusions.mha import fuse_mha

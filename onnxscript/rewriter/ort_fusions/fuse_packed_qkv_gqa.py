@@ -101,7 +101,7 @@ class PackedQKVForGQAFusion(pattern.RewriteRuleClassBase):
             and _ir_utils.is_singleton_value(start2, q_hidden_size)
             and _ir_utils.is_singleton_value(end2, (q_hidden_size + kv_hidden_size))
             and _ir_utils.is_singleton_value(start3, (q_hidden_size + kv_hidden_size))
-            and _ir_utils.is_singleton_value(end3, hidden_size)
+            and _ir_utils.is_singleton_value(end3, lambda x: x >= hidden_size)
         ):
             return check_result.fail(
                 "packed_qkv is not being split into q, k, v correctly based on hidden sizes.",
