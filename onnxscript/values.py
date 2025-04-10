@@ -578,7 +578,7 @@ class OnnxFunction(Op, Generic[_P, _R]):
         # FIXME(after #225): Move import to the top of the file.
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        return evaluator.default().eval_function(self, args, kwargs)  # type: ignore[return-value]
+        return evaluator.default().eval_function(self, args, kwargs)  # type: ignore[arg-type, return-value]
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.function!r})"
