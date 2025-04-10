@@ -186,3 +186,31 @@ class RemoveUnusedOpsetsPass(ir.passes.InPlacePass):
                 modified |= self._process_graph_like(function, used_domains=set())
 
         return ir.passes.PassResult(model, modified=modified)
+
+
+class RemoveUnusedMetadataAndDocStringPass(ir.passes.InPlacePass):
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        modified = False
+        # 1. Clean up all of the nodes metadata properties
+        for node in ir.traversal.RecursiveGraphIterator(model.graph):
+            if len(node.metadata_props) > 0:
+                modified = True
+                logger.debug("Removed metadata from %s nodes", node.name)
+            node.metadata_props.clear()
+
+        # 2. Clean up the main graph metadata properties
+        # and doc_string
+        if len(model.graph.metadata_props) > 0 or model.graph.doc_string is not None:
+            modified = True
+            logger.debug("Removed metadata from main graph")
+        model.graph.metadata_props.clear()
+        model.graph.doc_string = None
+
+        # 3. Clean up all of the functions metadata properties
+        for function in model.functions.values():
+            if len(function.metadata_props) > 0 or function.doc_string is not None:
+                modified = True
+                logger.debug("Removed metadata from %s function", function.name)
+            function.metadata_props.clear()
+            function.doc_string = None
+        return ir.passes.PassResult(model, modified=modified)
