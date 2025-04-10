@@ -6,28 +6,10 @@ import logging
 
 import onnxscript.ir.passes.common.constant_manipulation
 import onnxscript.ir.passes.common.unused_removal
-import onnxscript.optimizer
 from onnxscript import ir, rewriter
 from onnxscript.optimizer import _constant_folding, _inliner
-from onnxscript.rewriter import (
-    broadcast_to_matmul,
-    cast_constant_of_shape,
-    collapse_slices,
-    gemm_to_matmul_add,
-    llama_rule_sets,
-    no_op,
-)
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_REWRITE_RULES: tuple[rewriter.pattern.RewriteRule, ...] = (
-    *no_op.rules.rules,  # TODO: merge this rule into constant folding?
-    *broadcast_to_matmul.rules.rules,
-    gemm_to_matmul_add.rule,  # type: ignore[has-type]
-    *cast_constant_of_shape.rules.rules,
-    *collapse_slices.rules.rules,
-    *llama_rule_sets.llama_p0_rule_set().rules,
-)
 
 
 def optimize_ir(
@@ -62,7 +44,7 @@ def optimize_ir(
                     input_size_limit=input_size_limit,
                     output_size_limit=output_size_limit,
                 ),
-                rewriter.RewritePass(_DEFAULT_REWRITE_RULES),
+                rewriter.RewritePass(rewriter._DEFAULT_REWRITE_RULES),
                 onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass(),
                 onnxscript.ir.passes.common.unused_removal.RemoveUnusedFunctionsPass(),
                 onnxscript.ir.passes.common.unused_removal.RemoveUnusedOpsetsPass(),
