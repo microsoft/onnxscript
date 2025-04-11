@@ -1002,7 +1002,7 @@ def _aten_max_pool_onnx(
 ) -> TFloatOrUInt8:
     self_rank_is_unbatched_rank = Rank(self) == unbatched_rank
     if self_rank_is_unbatched_rank:  # C,H,W -> N,C,H,W and N=1
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+        self = op.Unsqueeze(self, [0])
 
     pool_result, _ = op.MaxPool(
         self,
@@ -1014,7 +1014,7 @@ def _aten_max_pool_onnx(
     )
 
     if self_rank_is_unbatched_rank:
-        pool_result = op.Squeeze(pool_result, op.Constant(value_ints=[0]))
+        pool_result = op.Squeeze(pool_result, [0])
 
     return pool_result
 
@@ -1136,7 +1136,7 @@ def _aten_max_pool_with_indices_onnx(
 ) -> Tuple[TFloatOrUInt8, INT64]:
     self_rank_is_unbatched_rank = Rank(self) == unbatched_rank
     if self_rank_is_unbatched_rank:
-        self = op.Unsqueeze(self, axes=0)
+        self = op.Unsqueeze(self, axes=[0])
 
     pool_result, indices = op.MaxPool(
         self,
@@ -1191,8 +1191,8 @@ def _aten_max_pool_with_indices_onnx(
     indices = op.Sub(indices, delta)
 
     if self_rank_is_unbatched_rank:
-        pool_result = op.Squeeze(pool_result, op.Constant(value_ints=[0]))
-        indices = op.Squeeze(indices, op.Constant(value_ints=[0]))
+        pool_result = op.Squeeze(pool_result, [0])
+        indices = op.Squeeze(indices, [0])
 
     return (pool_result, indices)
 
@@ -1365,11 +1365,11 @@ def aten_nll_loss(
 
     self_rank_is_1 = Rank(self) == 1
     if self_rank_is_1:  # self rank should be at least 2
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+        self = op.Unsqueeze(self, [0])
 
     rank_target = Rank(target)
     if rank_target == 0:  # target rank should be at least 1
-        target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
+        target = op.Unsqueeze(target, [0])
 
     if reduction == 0:
         reduction_str = "none"
