@@ -440,9 +440,7 @@ class Converter:
                 ast.Attribute,
                 ast.List,
                 ast.Load,
-                ast.NameConstant,
                 ast.Constant,
-                ast.Str,
             ),
         ):
             return all(self._is_constant_expr(c) for c in ast.iter_child_nodes(node))
@@ -580,7 +578,7 @@ class Converter:
         """Translation of an expression where "None" is permitted (eg., for an optional argument).
         None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9.
         """
-        if isinstance(node, (ast.NameConstant, ast.Constant)) and (node.value is None):
+        if isinstance(node, ast.Constant) and (node.value is None):
             return None
         return self._translate_expr(node)
 
