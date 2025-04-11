@@ -435,8 +435,6 @@ class Converter:
                 ast.BinOp,
                 ast.UnaryOp,
                 ast.Compare,
-                ast.Num,
-                ast.Str,
                 ast.Attribute,
                 ast.List,
                 ast.Load,
