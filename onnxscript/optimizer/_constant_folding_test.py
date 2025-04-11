@@ -13,23 +13,14 @@ import onnxscript.ir as ir
 import onnxscript.optimizer as optimizer
 from onnxscript.ir import serde
 from onnxscript.optimizer import _constant_folding
-from onnxscript.optimizer._legacy import constant_folding
 
 
-@parameterized.parameterized_class(("using_ir",), [(False,), (True,)])
 class FoldConstantsTest(unittest.TestCase):
     def _fold(self, model: onnx.ModelProto, onnx_shape_inference=False):
-        if self.using_ir:
-            ir_model = serde.deserialize_model(model)
-            _constant_folding.fold_constants(
-                ir_model, onnx_shape_inference=onnx_shape_inference
-            )
-            optimizer.remove_unused_nodes(ir_model)
-            return serde.serialize_model(ir_model)
-        else:
-            constant_folding.fold_constants(model, onnx_shape_inference=onnx_shape_inference)
-            optimizer.remove_unused_nodes(model)
-            return model
+        ir_model = serde.deserialize_model(model)
+        _constant_folding.fold_constants(ir_model, onnx_shape_inference=onnx_shape_inference)
+        optimizer.remove_unused_nodes(ir_model)
+        return serde.serialize_model(ir_model)
 
     def test_fold_add(self):
         model = onnx.parser.parse_model(
@@ -167,7 +158,6 @@ class FoldConstantsTest(unittest.TestCase):
         """
         )
         optimized = self._fold(model)
-        print(onnx.printer.to_text(optimized))
         self.assertEqual(len(optimized.graph.node), 2)
         self.assertEqual(optimized.graph.node[0].output[0], "m_square")
         self.assertEqual(optimized.graph.node[0].op_type, "Constant")
@@ -245,7 +235,6 @@ class FoldConstantsTest(unittest.TestCase):
         """
         )
         optimized = self._fold(model, onnx_shape_inference=True)
-        print(onnx.printer.to_text(optimized))
         self.assertEqual(len(optimized.graph.node), 2)
         self.assertEqual(optimized.graph.node[0].output[0], "C")
 
