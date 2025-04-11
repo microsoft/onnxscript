@@ -14,11 +14,15 @@ from onnxscript.ir.passes.common import constant_manipulation
 class TestLiftConstantsToInitializersPass(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
-            (ir.DataType.FLOAT,),
-            (ir.DataType.INT64,),
+            (ir.DataType.FLOAT, True),
+            (ir.DataType.FLOAT, False),
+            (ir.DataType.INT64, True),
+            (ir.DataType.INT64, False),
         ]
     )
-    def test_pass_with_lifting_float_and_int_constants_to_initializers(self, ir_dtype):
+    def test_pass_with_lifting_float_and_int_constants_to_initializers(
+        self, ir_dtype, lift_all_constants
+    ):
         inputs = [
             ir.Value(name="input_a", type=ir.TensorType(ir_dtype), shape=ir.Shape((2, 3))),
             ir.Value(
@@ -51,7 +55,9 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
         self.assertEqual(len([node for node in model.graph if node.op_type == "Constant"]), 1)
 
         # Perform lift constants to initializers
-        result = constant_manipulation.LiftConstantsToInitializersPass()(model)
+        result = constant_manipulation.LiftConstantsToInitializersPass(
+            lift_all_constants=lift_all_constants
+        )(model)
         self.assertTrue(result.modified)
         # Check that the constant node is lifted to an initializer
         self.assertEqual(len(result.model.graph.initializers), 1)
@@ -67,7 +73,15 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
             len([node for node in result.model.graph if node.op_type == "Constant"]), 0
         )
 
-    def test_pass_with_lifting_constants_to_initializers_within_subgraph(self):
+    @parameterized.parameterized.expand(
+        [
+            (True,),
+            (False,),
+        ]
+    )
+    def test_pass_with_lifting_constants_to_initializers_within_subgraph(
+        self, lift_all_constants
+    ):
         input_value = ir.Value(
             name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
         )
@@ -115,7 +129,9 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
             graph=main_graph,
             ir_version=10,
         )
-        result = constant_manipulation.LiftConstantsToInitializersPass()(model)
+        result = constant_manipulation.LiftConstantsToInitializersPass(
+            lift_all_constants=lift_all_constants
+        )(model)
         self.assertTrue(result.modified)
         # Check that the constant node is lifted to the subgraph initializers
         for node in ir.traversal.RecursiveGraphIterator(result.model.graph):
@@ -136,16 +152,22 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         [
-            (1.0, "value_float", np.float32),
-            (1, "value_int", np.int64),
-            ("hello world!", "value_string", np.bytes_),
-            ([1.0, 2.0, 3.0], "value_floats", np.float32),
-            ([1, 2, 3], "value_ints", np.int64),
-            (["hello world!", "thank you."], "value_strings", np.bytes_),
+            (1.0, "value_float", np.float32, True),
+            (1.0, "value_float", np.float32, False),
+            (1, "value_int", np.int64, True),
+            (1, "value_int", np.int64, False),
+            ("hello world!", "value_string", np.bytes_, True),
+            ("hello world!", "value_string", np.bytes_, False),
+            ([1.0, 2.0, 3.0], "value_floats", np.float32, True),
+            ([1.0, 2.0, 3.0], "value_floats", np.float32, False),
+            ([1, 2, 3], "value_ints", np.int64, True),
+            ([1, 2, 3], "value_ints", np.int64, False),
+            (["hello world!", "thank you."], "value_strings", np.bytes_, True),
+            (["hello world!", "thank you."], "value_strings", np.bytes_, False),
         ]
     )
     def test_pass_with_lifting_constants_to_initializers_with_floats_ints_strings(
-        self, value, constant_attribute, np_dtype
+        self, value, constant_attribute, np_dtype, lift_all_constants
     ):
         input_value = ir.Value(
             name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
@@ -179,11 +201,47 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
         self.assertEqual(len([node for node in model.graph if node.op_type == "Constant"]), 1)
 
         # Perform lift constants to initializers
-        result = constant_manipulation.LiftConstantsToInitializersPass()(model)
-        self.assertTrue(result.modified)
-        # Check that the constant node is lifted to an initializer
-        self.assertEqual(len(result.model.graph.initializers), 1)
-        np.testing.assert_array_equal(
-            result.model.graph.initializers["val_1"].const_value.numpy(),
-            np.array(constant_value, dtype=np_dtype),
+        result = constant_manipulation.LiftConstantsToInitializersPass(
+            lift_all_constants=lift_all_constants
+        )(model)
+        if lift_all_constants:
+            self.assertTrue(result.modified)
+            # Check that the constant node is lifted to an initializer
+            self.assertEqual(len(result.model.graph.initializers), 1)
+            np.testing.assert_array_equal(
+                result.model.graph.initializers["val_1"].const_value.numpy(),
+                np.array(constant_value, dtype=np_dtype),
+            )
+        else:
+            self.assertFalse(result.modified)
+            # Check that the constant node is not lifted to an initializer
+            self.assertEqual(len(result.model.graph.initializers), 0)
+
+    def test_not_lifting_constants_to_initializers_when_it_is_output(self):
+        input_value = ir.Value(
+            name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
         )
+        identity_node_input = ir.node("Identity", inputs=[input_value], num_outputs=1)
+
+        constant_value = ir.tensor(np.random.rand(2, 3).astype(np.float32))
+        const_node = ir.node(
+            "Constant",
+            inputs=[],
+            attributes={"value": constant_value},
+            num_outputs=1,
+        )
+
+        model = ir.Model(
+            graph=ir.Graph(
+                inputs=[input_value],
+                outputs=[identity_node_input.outputs[0], const_node.outputs[0]],
+                nodes=[identity_node_input, const_node],
+                opset_imports={"": 20},
+            ),
+            ir_version=10,
+        )
+
+        result = constant_manipulation.LiftConstantsToInitializersPass()(model)
+        self.assertFalse(result.modified)
+        # Check that the constant node is not lifted to an initializer
+        self.assertEqual(len(result.model.graph.initializers), 0)
