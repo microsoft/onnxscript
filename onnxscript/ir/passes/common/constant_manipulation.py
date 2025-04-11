@@ -21,7 +21,7 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
     """Lift constants to initializers.
 
     Attributes:
-        lift_all_constants: Whether to lift all constants, including non-tensor values.
+        lift_all_constants: Whether to lift all Constant nodes, including those that does not contain a tensor attribute (e.g. with value_ints etc.)
             Default to False, where only tensor constants are lifted.
     """
 
