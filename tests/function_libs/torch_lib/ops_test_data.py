@@ -1790,11 +1790,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_conv3d,
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
     ),
-    TorchLibOpInfo(
-        "nn.functional.gelu",
-        nn_ops.aten_gelu,
-        tolerance={torch.float16: (8e-2, 1e-4)},
-    ),
+    TorchLibOpInfo("nn.functional.gelu", nn_ops.aten_gelu),
     TorchLibOpInfo("nn.functional.glu", nn_ops.aten_glu),
     TorchLibOpInfo(
         "nn.functional.linear", nn_ops.aten_linear, tolerance={torch.float16: (1e-2, 1e-3)}
