@@ -919,7 +919,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                     e,
                 )
 
-    def new_constant(self, node: ir.Node, value):
+    def new_constant(self, node: ir.Node, value) -> ir.Node | None:
         irvalue = node.outputs[0]
         if not isinstance(value, np.ndarray):
             # ONNX does not have a way to represent non-tensor constants, eg. a sequence.
@@ -965,7 +965,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         node = ir.Node("", "Constant", inputs=[], attributes=attributes, num_outputs=1)
         return node
 
-    def process_node(self, node: ir.Node):
+    def process_node(self, node: ir.Node) -> Replacement | None:
         for i, value in enumerate(node.inputs):
             sym_value = self._state.get_sym_value(value)
             if isinstance(sym_value, ir.Value):
@@ -1046,7 +1046,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             )
         return None
 
-    def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function):
+    def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function) -> None:
         logger.debug("Replacing node: %s::%s %s", node.domain, node.op_type, node.name)
 
         ir.convenience.replace_nodes_and_values(
@@ -1066,13 +1066,13 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 for graph in attr.as_graphs():
                     self.visit_graph(graph)
 
-    def visit_node(self, node: ir.Node, root: ir.Graph | ir.Function):
+    def visit_node(self, node: ir.Node, root: ir.Graph | ir.Function) -> None:
         replacement = self.process_node(node)
         if replacement is None:
             # No change. Process attributes.
             for attr in node.attributes.values():
                 self.visit_attribute(attr)
-            return None
+            return
         else:
             self.replace_node(node, replacement, root)
 
