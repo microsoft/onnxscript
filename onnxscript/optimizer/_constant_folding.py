@@ -1087,6 +1087,23 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         for node in graph:
             self.visit_node(node, graph)
 
+        # Replace outputs if output nodes can be folded. This is typically outputs from
+        # Identity nodes
+        for i, output in enumerate(graph.outputs):
+            if output is None:
+                continue
+            sym_value = self._state.get_sym_value(output)
+            if not isinstance(sym_value, ir.Value):
+                # An output must be a Value
+                continue
+            if sym_value in graph.inputs:
+                # ONNX does not allow a graph output to be a graph input
+                continue
+            # Rename sym_value to match the output name
+            sym_value.name = output.name
+            graph.outputs[i] = sym_value
+            self.modified = True
+
         self._state.pop_initializer_inputs()
 
     def visit_function(self, function: ir.Function) -> None:

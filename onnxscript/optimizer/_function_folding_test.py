@@ -5,8 +5,7 @@ import unittest
 import onnx
 
 import onnxscript.testing
-from onnxscript import optimizer
-from onnxscript import ir
+from onnxscript import ir, optimizer
 
 
 def _create_model(model_text: str) -> ir.Model:
@@ -44,7 +43,6 @@ class FunctionFoldingTest(unittest.TestCase):
         optimized = optimizer.optimize(
             model, onnx_shape_inference=False, num_iterations=1, inline=True
         )
-        print(optimized)
         self.assertEqual(len(optimized.functions), 0)
         self.assertEqual(len(optimized.graph), 2)
 
@@ -89,8 +87,7 @@ class FunctionFoldingTest(unittest.TestCase):
             """
             <ir_version: 7, opset_import: ["" : 17]>
             agraph (float[N] x) => (float[M] z) {
-                t0 = Add (x, x)
-                z = Identity (t0)
+                z = Add (x, x)
             }"""
         )
         # TODO(justinchuby): Implement assert_isomorphic_graph for IR objects
