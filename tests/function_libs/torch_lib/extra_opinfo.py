@@ -685,7 +685,7 @@ def sample_inputs__fft_r2c(self, device, dtype, requires_grad=False, **_):
 def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
     del self  # Unused
     real_dtype = torch.float
-    if dtype == torch.cdouble:
+    if dtype == torch.complex128:
         real_dtype = torch.double
     oned_tensor, nd_tensor = _prepare_data_for_fft_ops(device, real_dtype, requires_grad)
     oned_tensor_result = oned_tensor()
