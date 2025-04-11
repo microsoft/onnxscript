@@ -7705,7 +7705,7 @@ def aten_select_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::select_scatter")
+@torch_op("aten::select_scatter", trace_only=True)
 def aten_select_scatter(self: TensorType, src: TensorType, dim: int, index: int) -> TensorType:
     """select_scatter(Tensor self, Tensor src, int dim, int index) -> Tensor"""
 
