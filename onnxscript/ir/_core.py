@@ -2605,7 +2605,6 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         # and not from an outer scope
         graph: Graph,
         attributes: Sequence[Attr],
-        metadata_props: dict[str, str] | None = None,
     ) -> None:
         self._domain = domain
         self._name = name
@@ -2613,7 +2612,6 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         self._graph = graph
         self._attributes = OrderedDict((attr.name, attr) for attr in attributes)
         self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = metadata_props
 
     def identifier(self) -> _protocols.OperatorIdentifier:
         return self.domain, self.name, self.overload
@@ -2691,9 +2689,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
 
     @property
     def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
+        return self._graph.metadata_props
 
     # Mutation methods
     def append(self, node: Node, /) -> None:
