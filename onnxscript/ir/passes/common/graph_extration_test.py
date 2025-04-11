@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 import unittest
+import numpy as np
 
 from onnxscript import ir
 from onnxscript.ir.passes.common.graph_extration import ExtractGraphPass
@@ -119,6 +120,34 @@ class TestExtractGraphPass(unittest.TestCase):
         self.assertEqual(result.model.graph.nodes[0].op_type, "If")
         self.assertEqual(len(result.model.graph.nodes[0].attributes["then_branch"].nodes), 2)
         self.assertEqual(len(result.model.graph.nodes[0].attributes["else_branch"].nodes), 2)
+
+    def test_extract_partial_subgraph(self):
+        inputs = [
+            ir.Value(name="input_a", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))),
+            ir.Value(name="input_b", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))),
+        ]
+
+        add_node = ir.node("Add", inputs=inputs)
+        mul_node = ir.node("Mul", inputs=[add_node.outputs[0], inputs[1]])
+        sub_node = ir.node("Sub", inputs=[mul_node.outputs[0], inputs[0]])
+
+        model = ir.Model(
+            graph=ir.Graph(
+                inputs=inputs,
+                outputs=sub_node.outputs,
+                nodes=[add_node, mul_node, sub_node],
+                opset_imports={"": 20},
+            ),
+            ir_version=10,
+        )
+
+        # Perform extract graph pass
+        extract_pass = ExtractGraphPass(input_names=["input_a"], output_names=[mul_node.outputs[0].name])
+        result = extract_pass(model)
+        self.assertTrue(result.modified)
+        self.assertEqual(len(result.model.graph.nodes), 2)
+        self.assertEqual(result.model.graph.nodes[0].op_type, "Add")
+        self.assertEqual(result.model.graph.nodes[1].op_type, "Mul")
 
 
 if __name__ == "__main__":
