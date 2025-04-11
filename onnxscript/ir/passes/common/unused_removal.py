@@ -188,12 +188,20 @@ class RemoveUnusedOpsetsPass(ir.passes.InPlacePass):
         return ir.passes.PassResult(model, modified=modified)
 
 
-class RemoveUnusedMetadataAndDocStringPass(ir.passes.InPlacePass):
+class RemoveMetadataAndDocStringPass(ir.passes.InPlacePass):
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         modified = False
+        # 0. Clean up all of the model metadata properties
+        if model.metadata_props or model.doc_string:
+            modified = True
+            logger.debug("Removed metadata from model")
+            model.metadata_props.clear()
+            model.doc_string = None
+
+        checked_graphs = set()
         # 1. Clean up all of the nodes metadata properties
         for node in ir.traversal.RecursiveGraphIterator(model.graph):
-            if len(node.metadata_props) > 0:
+            if node.metadata_props:
                 modified = True
                 logger.debug("Removed metadata from %s nodes", node.name)
             node.metadata_props.clear()
@@ -202,11 +210,14 @@ class RemoveUnusedMetadataAndDocStringPass(ir.passes.InPlacePass):
             # 2. Clean up the main graph metadata properties
             # and doc_string
             assert node.graph is not None
-            if len(node.graph.metadata_props) > 0 or node.graph.doc_string is not None:
+            if node.graph not in checked_graphs and (
+                node.graph.metadata_props or node.graph.doc_string
+            ):
                 modified = True
                 logger.debug("Removed metadata from %s graph", node.graph.name)
-            node.graph.metadata_props.clear()
-            node.graph.doc_string = None
+                node.graph.metadata_props.clear()
+                node.graph.doc_string = None
+                checked_graphs.add(node.graph)
 
         # 3. Clean up all of the functions metadata properties
         for function in model.functions.values():
