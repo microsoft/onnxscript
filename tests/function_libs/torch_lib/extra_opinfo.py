@@ -684,24 +684,38 @@ def sample_inputs__fft_r2c(self, device, dtype, requires_grad=False, **_):
 
 def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
     del self  # Unused
-    oned_tensor, nd_tensor = _prepare_data_for_fft_ops(device, dtype, requires_grad)
-
+    real_dtype = torch.float
+    if dtype == torch.complex128:
+        real_dtype = torch.double
+    oned_tensor, nd_tensor = _prepare_data_for_fft_ops(device, real_dtype, requires_grad)
+    oned_tensor_result = oned_tensor()
+    nd_tensor_result = nd_tensor()
+    complex_oned_tensor = torch.ops.aten._fft_r2c.default(  # pylint: disable=protected-access
+        oned_tensor_result, [0], normalization=0, onesided=False
+    )
+    # for normalization in (0, 1, 2):
     for normalization in (0, 1, 2):
         # 1-D
         yield opinfo_core.SampleInput(
-            oned_tensor(), dim=(0,), normalization=normalization, last_dim_size=12
+            complex_oned_tensor,
+            dim=(0,),
+            normalization=normalization,
+            last_dim_size=31,
         )
         # N-D
         for dim in [
             (0,),
             (1,),
             (2,),
-            (1, 2),
-            (0, 1),
-            (0, 1, 2),
         ]:
+            complex_nd_tensor = torch.ops.aten._fft_r2c.default(  # pylint: disable=protected-access
+                nd_tensor_result, dim, normalization=0, onesided=False
+            )
             yield opinfo_core.SampleInput(
-                nd_tensor(), dim=dim, normalization=normalization, last_dim_size=6
+                complex_nd_tensor,
+                dim=dim,
+                normalization=normalization,
+                last_dim_size=complex_nd_tensor.shape[dim[-1]],
             )
 
 
