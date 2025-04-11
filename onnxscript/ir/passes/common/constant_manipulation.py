@@ -35,7 +35,7 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
             assert node.graph is not None
             if node.op_type != "Constant" or node.domain not in ("", "onnx.ai"):
                 continue
-            if node.outputs[0] in node.graph.outputs:
+            if node.outputs[0].is_graph_output():
                 logger.debug(
                     "Constant node '%s' is used as output, so it can't be lifted.", node.name
                 )
