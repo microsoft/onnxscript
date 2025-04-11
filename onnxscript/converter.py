@@ -23,9 +23,6 @@ from onnxscript import irbuilder, onnx_types, sourceinfo, values
 from onnxscript import type_annotation as ta
 from onnxscript._internal import analysis, ast_utils, autocast, param_manipulation
 
-PY_VERSION_GE_39 = ast_utils.PY_VERSION_GE_39
-
-
 logger = logging.getLogger("onnxscript")
 
 
@@ -625,7 +622,7 @@ class Converter:
             target = f"{var_name}_subscripted"
         target = self.generate_unique_name(target)
         indices = ast_utils.normalize_subscript_expr(node)
-        info = self._source_of(node.slice if PY_VERSION_GE_39 else node)
+        info = self._source_of(node.slice)
 
         # Create cached int constants:
         # TODO: Do this at a graph-scope level.

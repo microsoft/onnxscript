@@ -5,7 +5,6 @@ import ast
 import inspect
 import os
 import pathlib
-import sys
 import textwrap
 import types
 import typing
