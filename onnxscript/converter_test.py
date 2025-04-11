@@ -5,7 +5,6 @@ import ast
 import inspect
 import os
 import pathlib
-import sys
 import textwrap
 import types
 import typing
@@ -437,8 +436,7 @@ class TestConverter(testutils.TestBase):
             r = A[index]
             return r
 
-        ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
-        self.check_failure(f1, f"Left term must be a tuple not '<class '{ast_name}.Name'>'")
+        self.check_failure(f1, "Left term must be a tuple not '<class 'ast.Name'>'")
 
     def check_run(self, onnxfn, inputs, expected_output):
         # Test by converting to model and running with ORT
