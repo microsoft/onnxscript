@@ -120,6 +120,9 @@ def aten__fft_c2r(
 
     Complex to real inverse FFT.
     """
+    if len(dim) != 1:
+        raise NotImplementedError("Only one dimension is supported for inverse FFT")
+
     self_rank = len(self.shape)
 
     # ONNX DFT input assumes the last dimension is the complex dimension.
@@ -134,23 +137,25 @@ def aten__fft_c2r(
     else:
         transformed = self
 
-    for dimension in reversed(dim):
-        transformed = op.DFT(
-            transformed, last_dim_size, axis=dimension, inverse=True, onesided=False
-        )
+    for idx, dimension in enumerate(reversed(dim)):
+        if idx > 0:
+            transformed = op.DFT(transformed, axis=dimension, inverse=True, onesided=False)
+        else:
+            # Torch truncates/pads on the last dimension only. Typically, the only valid values that can be passed
+            # into PyTorch are n or n//2+1, where n is self.shape[dim[-1]], but this is not always the case, so we
+            # place no such restriction on the ONNX side.
+            transformed = op.DFT(transformed, dft_length=last_dim_size, axis=dimension, inverse=True, onesided=False)
         transformed = _fftn_onnx_inverse_normalization(
             transformed,
             normalization,
-            op.CastLike(self.shape[dimension - unsqueeze_first_dim], transformed),
+            op.CastLike(op.Shape(transformed, start=dimension, end=dimension + 1), transformed),
         )
 
     if unsqueeze_first_dim:
         transformed = op.Squeeze(transformed, axes=[0])
 
-    start = [0]
-    end = [1]
-    axes = [-1]
-    transformed = op.Slice(transformed, start, end, axes)
+    # Remove the imaginary part
+    transformed = op.Slice(transformed, [0], [1], [-1])
     transformed = op.Squeeze(transformed, axes=[-1])
 
     return transformed
