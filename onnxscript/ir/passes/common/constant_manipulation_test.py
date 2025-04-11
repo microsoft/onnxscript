@@ -21,7 +21,7 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
         ]
     )
     def test_pass_with_lifting_float_and_int_constants_to_initializers(
-        self, ir_dtype, lift_all_constants
+        self, ir_dtype: ir.DataType, lift_all_constants: bool
     ):
         inputs = [
             ir.Value(name="input_a", type=ir.TensorType(ir_dtype), shape=ir.Shape((2, 3))),
@@ -80,7 +80,7 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
         ]
     )
     def test_pass_with_lifting_constants_to_initializers_within_subgraph(
-        self, lift_all_constants
+        self, lift_all_constants: bool
     ):
         input_value = ir.Value(
             name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
@@ -167,7 +167,11 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
         ]
     )
     def test_pass_with_lifting_constants_to_initializers_with_floats_ints_strings(
-        self, value, constant_attribute, np_dtype, lift_all_constants
+        self,
+        value: float | int | str | list[float] | list[int] | list[str],
+        constant_attribute: str,
+        np_dtype: type[np.dtype],
+        lift_all_constants: bool,
     ):
         input_value = ir.Value(
             name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))

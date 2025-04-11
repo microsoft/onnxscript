@@ -87,33 +87,28 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
             )
             return None
 
-        # Dispatch table for attribute-to-tensor conversion
-        tensor_converters = {
-            "value": lambda: attr_value.as_tensor(),  # pylint: disable=unnecessary-lambda`
-            "value_int": lambda: ir.tensor(
+        if attr_name == "value":
+            tensor = attr_value.as_tensor()  # type: ignore[union-attr]
+        elif attr_name == "value_int":
+            tensor = ir.tensor(
                 attr_value.as_int(), dtype=ir.DataType.INT64, name=initializer_name
-            ),
-            "value_ints": lambda: ir.tensor(
-                attr_value.as_ints(), dtype=ir.DataType.INT64, name=initializer_name
-            ),
-            "value_float": lambda: ir.tensor(
-                attr_value.as_float(), dtype=ir.DataType.FLOAT, name=initializer_name
-            ),
-            "value_floats": lambda: ir.tensor(
-                attr_value.as_floats(), dtype=ir.DataType.FLOAT, name=initializer_name
-            ),
-            "value_string": lambda: ir.StringTensor(
-                np.array(attr_value.value, dtype=np.bytes_), name=initializer_name
-            ),
-            "value_strings": lambda: ir.StringTensor(
-                np.array(attr_value.value, dtype=np.bytes_), name=initializer_name
-            ),
-        }
-        converter = tensor_converters.get(attr_name)
-        if converter is None:
-            logger.debug(
-                "Unsupported constant node attribute '%s' in node '%s'", attr_name, node.name
             )
-            return None
-
-        return converter()  # type: ignore[return-value]
+        elif attr_name == "value_ints":
+            tensor = ir.tensor(
+                attr_value.as_ints(), dtype=ir.DataType.INT64, name=initializer_name
+            )
+        elif attr_name == "value_float":
+            tensor = ir.tensor(
+                attr_value.as_float(), dtype=ir.DataType.FLOAT, name=initializer_name
+            )
+        elif attr_name == "value_floats":
+            tensor = ir.tensor(
+                attr_value.as_floats(), dtype=ir.DataType.FLOAT, name=initializer_name
+            )
+        elif attr_name in ("value_string", "value_strings"):
+            tensor = ir.StringTensor(
+                np.array(attr_value.value, dtype=np.bytes_), name=initializer_name
+            )
+        else:
+            tensor = None
+        return tensor  # type: ignore[return-value]
