@@ -144,11 +144,19 @@ def aten__fft_c2r(
             # Torch truncates/pads on the last dimension only. Typically, the only valid values that can be passed
             # into PyTorch are n or n//2+1, where n is self.shape[dim[-1]], but this is not always the case, so we
             # place no such restriction on the ONNX side.
-            transformed = op.DFT(transformed, dft_length=last_dim_size, axis=dimension, inverse=True, onesided=False)
+            transformed = op.DFT(
+                transformed,
+                dft_length=last_dim_size,
+                axis=dimension,
+                inverse=True,
+                onesided=False,
+            )
         transformed = _fftn_onnx_inverse_normalization(
             transformed,
             normalization,
-            op.CastLike(op.Shape(transformed, start=dimension, end=dimension + 1), transformed),
+            op.CastLike(
+                op.Shape(transformed, start=dimension, end=dimension + 1), transformed
+            ),
         )
 
     if unsqueeze_first_dim:

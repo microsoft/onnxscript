@@ -690,7 +690,9 @@ def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
     oned_tensor, nd_tensor = _prepare_data_for_fft_ops(device, real_dtype, requires_grad)
     oned_tensor_result = oned_tensor()
     nd_tensor_result = nd_tensor()
-    complex_oned_tensor = torch.ops.aten._fft_r2c.default(oned_tensor_result, [0], normalization=0, onesided=False)
+    complex_oned_tensor = torch.ops.aten._fft_r2c.default(  # pylint: disable=protected-access`
+        oned_tensor_result, [0], normalization=0, onesided=False
+    )
     # for normalization in (0, 1, 2):
     for normalization in (0, 1, 2):
         # 1-D
@@ -706,7 +708,9 @@ def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
             (1,),
             (2,),
         ]:
-            complex_nd_tensor = torch.ops.aten._fft_r2c.default(nd_tensor_result, dim, normalization=0, onesided=False)
+            complex_nd_tensor = torch.ops.aten._fft_r2c.default(  # pylint: disable=protected-access`
+                nd_tensor_result, dim, normalization=0, onesided=False
+            )
             yield opinfo_core.SampleInput(
                 complex_nd_tensor,
                 dim=dim,
