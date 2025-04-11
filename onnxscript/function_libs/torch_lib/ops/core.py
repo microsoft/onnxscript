@@ -2992,7 +2992,7 @@ def _aten_embedding_bag_onnx(
     # Get weight out according to indices_1d,
     new_weight = op.Gather(weight, indices_1d)
     # This happends after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
-    new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=1))
+    new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=[1]))
     weight_dim_1 = op.Reshape(op.Shape(weight, start=1), neg_1)
     indices_size = op.Shape(indices_1d)
 
@@ -3132,7 +3132,7 @@ def _aten_embedding_bag_1d_padding_idx_onnx(
     # e.g. indices=[3,1,4,5,3] means get weight[[3,1,4,5,3]]
     indices_weight = op.Gather(weight, indices)
     # This happends after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
-    indices_weight = op.Mul(indices_weight, op.Unsqueeze(per_sample_weights, axes=1))
+    indices_weight = op.Mul(indices_weight, op.Unsqueeze(per_sample_weights, axes=[1]))
 
     # The element in sequence must be FLOAT32 dtype due to ORT bug
     indices_weight = op.Cast(indices_weight, to=FLOAT.dtype)
@@ -4145,7 +4145,6 @@ def _shape_of_broadcast_tensors(*args: TensorType) -> INT64:
     return op.Shape(broadcasted)
 
 
-@torch_op("aten::index.Tensor", private=True, trace_only=True)
 def _aten_index_onnx(
     self: TensorType,
     indices: Sequence[Optional[INT64]],
@@ -4173,7 +4172,7 @@ def _aten_index_onnx(
     not_none_indices = [idx for idx in indices if idx is not None]
     broadcast_shape = _shape_of_broadcast_tensors(*not_none_indices)
     final_index = op.Concat(
-        *(op.Unsqueeze(op.Expand(idx, broadcast_shape), -1) for idx in not_none_indices),
+        *(op.Unsqueeze(op.Expand(idx, broadcast_shape), [-1]) for idx in not_none_indices),
         axis=-1,
     )
 
@@ -7712,7 +7711,7 @@ def aten_select_scatter(self: TensorType, src: TensorType, dim: int, index: int)
 
     # Change src rank to self rank according to dim
     # e.g. if self is [2,3,4], src is [2,4], dim=1, then update is [2,1,4]
-    update = op.Unsqueeze(src, axes=dim)
+    update = op.Unsqueeze(src, axes=[dim])
     # Change index rank to the same as 'update' [2,1,4]
     indices = op.Expand(index, op.Shape(update))
     return op.ScatterElements(self, indices, update, axis=dim, reduction="none")
@@ -7880,7 +7879,7 @@ def aten_slice_scatter(
         zero,
         op.Unsqueeze(step, zero),
     )
-    index_base = op.Unsqueeze(index_base, -1)
+    index_base = op.Unsqueeze(index_base, [-1])
 
     # Use trace only to construct the perm attribute in Transpose
     dims = None
@@ -8623,7 +8622,7 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
 
     self_rank = len(self.shape)
     if self_rank == 0:
-        result = op.Unsqueeze(self, 0)
+        result = op.Unsqueeze(self, [0])
     else:
         # Handle negative dimension
         if dimension < 0:
@@ -8792,8 +8791,7 @@ def aten_unsafe_split_with_sizes(
 def aten_unsqueeze(self: TTensor, dim: int) -> TTensor:
     """unsqueeze(Tensor(a) self, int dim) -> Tensor(a)"""
 
-    dim = op.Cast(dim, to=INT64.dtype)
-    return op.Unsqueeze(self, dim)
+    return op.Unsqueeze(self, [dim])
 
 
 def aten_unsqueeze_copy(self: TensorType, dim: int) -> TensorType:
