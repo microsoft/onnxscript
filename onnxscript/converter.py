@@ -574,7 +574,7 @@ class Converter:
 
     def _translate_opt_expr(self, node: ast.expr) -> Optional[Variable]:
         """Translation of an expression where "None" is permitted (eg., for an optional argument).
-        None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9.
+        None is represented as a Constant in Python 3.9+.
         """
         if isinstance(node, ast.Constant) and (node.value is None):
             return None
