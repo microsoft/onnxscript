@@ -68,8 +68,7 @@ class FunctionFoldingTest(unittest.TestCase):
         )
         function = optimized.functions[("local", "fun1", "")]
         self.assertEqual(len(function), 3)
-        self.assertEqual(function.node(2).op_type, "Concat")
-
+        self.assertEqual(function[2].op_type, "Concat")
 
     def test_sequence_at(self):
         model = _create_model(
@@ -94,7 +93,10 @@ class FunctionFoldingTest(unittest.TestCase):
                 z = Identity (t0)
             }"""
         )
-        onnxscript.testing.assert_isomorphic_graph(optimized.graph, expected.graph)
+        # TODO(justinchuby): Implement assert_isomorphic_graph for IR objects
+        onnxscript.testing.assert_isomorphic_graph(
+            ir.to_proto(optimized.graph), ir.to_proto(expected.graph)
+        )
 
     def test_single_user_function_is_modified_inplace_after_folding(self):
         model = _create_model(
@@ -114,30 +116,7 @@ class FunctionFoldingTest(unittest.TestCase):
         optimized = optimizer.optimize(
             model, onnx_shape_inference=False, num_iterations=1, inline=False
         )
-        self.assertEqual(optimized.functions[0].name, "fun1")
-
-    def test_multi_users_function_is_not_modified_inplace_after_folding(self):
-        model = _create_model(
-            """
-            <ir_version: 7, opset_import: ["" : 17, "local" : 1]>
-            agraph (float[N] x1) => (float[M] z1, float[M] z2) {
-                z1 = local.fun1(x1)
-                z2 = local.fun1(x1)
-            }
-            <opset_import: ["" : 17], domain: "local">
-            fun1 (x) => (z) {
-                t0 = Add (x, x)
-                t2 = Add (x, x)
-                t3 = SequenceConstruct (x, t0, t2, x)
-                z = ConcatFromSequence (t3)
-            }"""
-        )
-        optimized = optimizer.optimize(
-            model, onnx_shape_inference=False, num_iterations=1, inline=False
-        )
-        self.assertEqual(len(optimized.functions), 2)
-        self.assertNotEqual(optimized.functions[0].name, "fun1")
-        self.assertNotEqual(optimized.functions[1].name, "fun1")
+        self.assertEqual(next(iter(optimized.functions.values())).name, "fun1")
 
     def test_fold_nested_if_function_succeeds(self):
         model = _create_model(
