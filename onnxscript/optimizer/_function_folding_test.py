@@ -55,7 +55,7 @@ class FunctionFoldingTest(unittest.TestCase):
                 t0 = Add (x, x)
                 t2 = Add (x, x)
                 t3 = SequenceConstruct (x, t0, t2, x)
-                z = ConcatFromSequence (t3)
+                z = ConcatFromSequence <axis=0> (t3)
             }
         """
         )
@@ -145,7 +145,7 @@ class FunctionFoldingTest(unittest.TestCase):
             """
 <
    ir_version: 9,
-   opset_import: ["this" : 1, "" : 21]
+   opset_import: ["this" : 1, "" : 18]
 >
 func (float[1,512] x, float[1,512] y) => ( out) {
    out = this.foldable_func (x, y)
