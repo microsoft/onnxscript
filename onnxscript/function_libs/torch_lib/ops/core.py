@@ -2991,7 +2991,7 @@ def _aten_embedding_bag_onnx(
     indices_1d = op.Reshape(indices, neg_1)
     # Get weight out according to indices_1d,
     new_weight = op.Gather(weight, indices_1d)
-    # This happends after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
+    # This happens after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
     new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=[1]))
     weight_dim_1 = op.Reshape(op.Shape(weight, start=1), neg_1)
     indices_size = op.Shape(indices_1d)
