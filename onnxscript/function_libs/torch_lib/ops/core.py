@@ -3131,7 +3131,7 @@ def _aten_embedding_bag_1d_padding_idx_onnx(
     # Get weight out according to indices,
     # e.g. indices=[3,1,4,5,3] means get weight[[3,1,4,5,3]]
     indices_weight = op.Gather(weight, indices)
-    # This happends after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
+    # This happens after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
     indices_weight = op.Mul(indices_weight, op.Unsqueeze(per_sample_weights, axes=[1]))
 
     # The element in sequence must be FLOAT32 dtype due to ORT bug
