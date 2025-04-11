@@ -63,8 +63,9 @@ class FunctionFoldingTest(unittest.TestCase):
             model, onnx_shape_inference=False, num_iterations=1, inline=False
         )
         function_node = optimized.functions[0].node
-        self.assertEqual(function_node[2].op_type, "Concat")
         self.assertEqual(len(function_node), 3)
+        self.assertEqual(function_node[2].op_type, "Concat")
+
 
     def test_sequence_at(self):
         model = onnx.parser.parse_model(
