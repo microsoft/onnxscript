@@ -667,6 +667,27 @@ class RewriteRuleTest(unittest.TestCase):
         onnxscript.optimizer.inline(model)
         self.assertEqual([x.op_type for x in model.graph], ["Add", "Mul", "Add", "Mul"])
 
+    def test_any_value(self):
+        def source_pattern(op, x):
+            return op.Add(x, op.Mul(0, pattern.ANY_VALUE))
+
+        def replacement(op, x):
+            return op.Identity(x)
+
+        rule = pattern.RewriteRule(source_pattern, replacement)
+
+        @script()
+        def test_model(x: FLOAT[1024], y: FLOAT[1024]) -> FLOAT[1024]:
+            zero = op.Constant(value_float=0.0)
+            return op.Add(x, op.Mul(zero, y))
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        self.assertEqual([x.op_type for x in model.graph], ["Constant", "Mul", "Add"])
+        rule.apply_to_model(model)
+        self.assertEqual(len(model.graph), 2)
+        self.assertEqual([x.op_type for x in model.graph], ["Constant", "Identity"])
+
 
 class PatternBuilderTest(unittest.TestCase):
     def test_pattern_builder_context(self):
