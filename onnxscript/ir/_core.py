@@ -2589,8 +2589,6 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         "_attributes",
         "_domain",
         "_graph",
-        "_metadata",
-        "_metadata_props",
         "_name",
         "_overload",
     )
@@ -2612,8 +2610,8 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         self._overload = overload
         self._graph = graph
         self._attributes = OrderedDict((attr.name, attr) for attr in attributes)
-        self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = metadata_props
+        if metadata_props is not None:
+            self._graph.metadata_props.update(metadata_props)
 
     def identifier(self) -> _protocols.OperatorIdentifier:
         return self.domain, self.name, self.overload
@@ -2685,15 +2683,11 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
+        return self._graph.meta
 
     @property
     def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
+        return self._graph.metadata_props
 
     # Mutation methods
     def append(self, node: Node, /) -> None:
