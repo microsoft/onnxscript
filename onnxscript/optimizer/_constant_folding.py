@@ -1087,7 +1087,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         for node in graph:
             self.visit_node(node, graph)
 
-        # Replace outputs if output nodes can be folded. This is typically outputs from
+        # Replace outputs if output nodes can be folded. This are typically outputs from
         # Identity nodes
         for i, output in enumerate(graph.outputs):
             if output is None:
