@@ -22,7 +22,7 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
 
     Attributes:
         lift_all_constants: Whether to lift all Constant nodes, including those that does not contain a tensor attribute (e.g. with value_ints etc.)
-            Default to False, where only tensor constants are lifted.
+            Default to False, where only Constants with the ``value`` attribute are lifted.
     """
 
     def __init__(self, lift_all_constants: bool = False):
