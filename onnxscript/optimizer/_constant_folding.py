@@ -1100,8 +1100,8 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 # ONNX does not allow a graph output to be a graph input
                 continue
             if sym_value.is_graph_output():
-                # If the sym_value is already an output of a graph, we cannot
-                # rename it to the output name. Otherwise the previous graph output
+                # If the sym_value is already an output of a graph, we cannot rename it
+                # to this output name. Otherwise the graph output represented by sym_value
                 # will lose its name.
                 continue
             # Rename sym_value to match the output name
