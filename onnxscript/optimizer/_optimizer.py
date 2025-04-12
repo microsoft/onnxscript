@@ -32,8 +32,7 @@ def optimize_ir(
             greater than this. Does not apply to special ops like Shape() and Size().
         output_size_limit: Will not rewrite any foldable-op into a Constant op if the size
             of the output tensor is greater than this.
-        stop_if_no_change: Not supported currently (has no effect). Meant to stop the
-            outer optimization loop if no change is detected in one iteration.
+        stop_if_no_change: Stop the optimization loop if no change is detected in an iteration.
         inline: If True, inlines all functions in the model.
     """
     passes = [
