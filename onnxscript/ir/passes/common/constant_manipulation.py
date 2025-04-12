@@ -24,7 +24,7 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
         lift_all_constants: Whether to lift all Constant nodes, including those that does not contain a tensor attribute (e.g. with value_ints etc.)
             Default to False, where only Constants with the ``value`` attribute are lifted.
         size_limit: The minimum size of the tensor to be lifted. If the tensor contains
-            less than this number of elements, it will not be lifted.
+            number of elements less than size_limit, it will not be lifted.
     """
 
     def __init__(self, lift_all_constants: bool = False, size_limit: int = 16):
