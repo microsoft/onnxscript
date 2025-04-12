@@ -1122,13 +1122,10 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 def _sym_value_can_replace_graph_output(
     graph: ir.Graph, sym_value: ir.Value, output: ir.Value
 ) -> bool:
-    if sym_value in graph.inputs:
-        # ONNX does not allow a graph output to be a graph input
+    if (producer := sym_value.producer()) is None:
+        # If the sym_value has no producer, it is some graph's input
+        # ONNX does not allow a graph input to be a graph output
         return False
-    producer = sym_value.producer()
-    assert producer is not None, (
-        "Bug: sym_value should have a producer if it is not a graph input"
-    )
     if producer.graph is not graph:
         # The sym_value must be produced by a node in the graph to be an output of this graph
         return False
