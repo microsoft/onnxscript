@@ -58,7 +58,7 @@ def optimize_ir(
     ]
     if inline:
         # Inline all functions first before optimizing
-        passes = [inliner.InlinePass(), *passes]
+        passes = [_inliner.InlinePass(), *passes]
     optimizer_pass = ir.passes.Sequential(*passes)
     assert optimizer_pass.in_place
     result = optimizer_pass(model)
