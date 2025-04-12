@@ -568,6 +568,22 @@ func (float[1,3] x) => (float[1,3] return_val) {
         ops = [node.op_type for node in optimized.graph]
         self.assertEqual(ops, ["Constant", "MatMul"])
 
+    def test_multi_graph_identity_output_preserves_output_name(self):
+        model = """
+            <ir_version: 10, opset_import: ["" : 20]>
+            agraph (float[N] x) => (float[N] graph_output1, float[N] graph_output2) {
+                t = Identity(x)
+                graph_output1 = Identity(t)
+                graph_output2 = Identity(t)
+            }"""
+        optimized = self._fold(model)
+        self.assertEqual(len(optimized.graph), 2)
+        self.assertEqual([n.op_type for n in optimized.graph], ["Identity", "Identity"])
+        self.assertEqual(
+            [n.outputs[0].name for n in optimized.graph], ["graph_output1", "graph_output2"]
+        )
+        self.assertEqual([input.name for input in optimized.graph.inputs], ["x"])
+
 
 if __name__ == "__main__":
     unittest.main()
