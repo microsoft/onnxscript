@@ -90,34 +90,39 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
             )
             return None
 
+        tensor: ir.TensorProtocol
         if attr_name == "value":
             tensor = attr_value.as_tensor()
-            if tensor.size < self.size_limit:
-                logger.debug(
-                    "Tensor from node '%s' has less than %s elements",
-                    node.name,
-                    self.size_limit,
-                )
-                return None
-            return tensor
-        if attr_name == "value_int":
-            return ir.tensor(
+        elif attr_name == "value_int":
+            tensor = ir.tensor(
                 attr_value.as_int(), dtype=ir.DataType.INT64, name=initializer_name
             )
-        if attr_name == "value_ints":
-            return ir.tensor(
+        elif attr_name == "value_ints":
+            tensor = ir.tensor(
                 attr_value.as_ints(), dtype=ir.DataType.INT64, name=initializer_name
             )
-        if attr_name == "value_float":
-            return ir.tensor(
+        elif attr_name == "value_float":
+            tensor = ir.tensor(
                 attr_value.as_float(), dtype=ir.DataType.FLOAT, name=initializer_name
             )
-        if attr_name == "value_floats":
-            return ir.tensor(
+        elif attr_name == "value_floats":
+            tensor = ir.tensor(
                 attr_value.as_floats(), dtype=ir.DataType.FLOAT, name=initializer_name
             )
-        if attr_name in ("value_string", "value_strings"):
-            return ir.StringTensor(
+        elif attr_name in ("value_string", "value_strings"):
+            tensor = ir.StringTensor(
                 np.array(attr_value.value, dtype=np.bytes_), name=initializer_name
             )
-        return None
+        else:
+            raise ValueError(
+                f"Unsupported constant node '{node.name}' attribute '{attr_name}'"
+            )
+
+        if tensor.size < self.size_limit:
+            logger.debug(
+                "Tensor from node '%s' has less than %s elements",
+                node.name,
+                self.size_limit,
+            )
+            return None
+        return tensor
