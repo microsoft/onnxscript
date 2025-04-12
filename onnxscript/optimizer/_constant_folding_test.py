@@ -7,10 +7,9 @@ import unittest
 import numpy as np
 import onnx
 import parameterized
-import pytest
 
-from onnxscript import ir
 import onnxscript.optimizer as optimizer
+from onnxscript import ir
 from onnxscript.optimizer import _constant_folding
 
 
@@ -227,7 +226,7 @@ class FoldConstantsTest(unittest.TestCase):
    ir_version: 8,
    opset_import: ["" : 18]
 >
-func (float[1,512] x) => ( return_val) {
+func (float[1,512] x) => (float[1,512] return_val) {
    int64_128 = Constant <value: tensor = int64 int64_128 {128}> ()
    splits = SplitToSequence <axis: int = 1> (x, int64_128)
    int64_0 = Constant <value: tensor = int64 int64_0 {0}> ()
@@ -262,7 +261,6 @@ func (float[1,512] x) => ( return_val) {
         #    int64_3 = Constant <value: tensor = int64 int64_3 {3}> ()
         #    split_3 = SequenceAt (splits, int64_3)
         # }
-
         optimized = self._fold(model)
         self.assertEqual(len(optimized.graph), 2)
         self.assertEqual(len(optimized.graph[-2].outputs), 4)
@@ -276,7 +274,7 @@ func (float[1,512] x) => ( return_val) {
    ir_version: 8,
    opset_import: ["" : 18]
 >
-func (float[1,512] x) => ( return_val) {
+func (float[1,512] x) => (float[1,N] return_val) {
    const = Constant <value: tensor = int64[3] const {256,128,128}> ()
    splits = SplitToSequence <axis: int = 1> (x, const)
    int64_0 = Constant <value: tensor = int64 int64_0 {0}> ()
@@ -301,7 +299,7 @@ func (float[1,512] x) => ( return_val) {
    ir_version: 8,
    opset_import: ["" : 18]
 >
-func (float[1,3] x) => ( return_val) {
+func (float[1,3] x) => (float[1,3] return_val) {
    const = Constant <value: tensor = int64[3] const {1,1,1}> ()
    splits = SplitToSequence <axis: int = 1, keepdims: int = 0> (x, const)
    int64_0 = Constant <value: tensor = int64 int64_0 {0}> ()
@@ -312,7 +310,6 @@ func (float[1,3] x) => ( return_val) {
    split_2 = SequenceAt (splits, int64_2)
    return_val = Concat <axis: int = 1> (split_0, split_1, split_2)
 }"""
-
         optimized = self._fold(model)
         self.assertEqual(len(optimized.graph), 7)
         self.assertEqual(len(optimized.graph[1].outputs), 3)
