@@ -23,11 +23,14 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
     Attributes:
         lift_all_constants: Whether to lift all Constant nodes, including those that does not contain a tensor attribute (e.g. with value_ints etc.)
             Default to False, where only Constants with the ``value`` attribute are lifted.
+        size_limit: The minimum size of the tensor to be lifted. If the tensor contains
+            less than this number of elements, it will not be lifted.
     """
 
-    def __init__(self, lift_all_constants: bool = False):
+    def __init__(self, lift_all_constants: bool = False, size_limit: int = 16):
         super().__init__()
-        self._lift_all_constants = lift_all_constants
+        self.lift_all_constants = lift_all_constants
+        self.size_limit = size_limit
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         count = 0
@@ -79,36 +82,42 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
 
     def _constant_node_attribute_to_tensor(
         self, node, attr_name: str, attr_value: ir.Attr, initializer_name: str
-    ) -> ir.Tensor | None:
+    ) -> ir.TensorProtocol | None:
         """Convert constant node attribute to tensor."""
-        if not self._lift_all_constants and attr_name != "value":
+        if not self.lift_all_constants and attr_name != "value":
             logger.debug(
                 "Constant node '%s' has non-tensor attribute '%s'", node.name, attr_name
             )
             return None
 
         if attr_name == "value":
-            tensor = attr_value.as_tensor()  # type: ignore[union-attr]
-        elif attr_name == "value_int":
-            tensor = ir.tensor(
+            tensor = attr_value.as_tensor()
+            if tensor.size < self.size_limit:
+                logger.debug(
+                    "Tensor from node '%s' has less than %s elements",
+                    node.name,
+                    self.size_limit,
+                )
+                return None
+            return tensor
+        if attr_name == "value_int":
+            return ir.tensor(
                 attr_value.as_int(), dtype=ir.DataType.INT64, name=initializer_name
             )
-        elif attr_name == "value_ints":
-            tensor = ir.tensor(
+        if attr_name == "value_ints":
+            return ir.tensor(
                 attr_value.as_ints(), dtype=ir.DataType.INT64, name=initializer_name
             )
-        elif attr_name == "value_float":
-            tensor = ir.tensor(
+        if attr_name == "value_float":
+            return ir.tensor(
                 attr_value.as_float(), dtype=ir.DataType.FLOAT, name=initializer_name
             )
-        elif attr_name == "value_floats":
-            tensor = ir.tensor(
+        if attr_name == "value_floats":
+            return ir.tensor(
                 attr_value.as_floats(), dtype=ir.DataType.FLOAT, name=initializer_name
             )
-        elif attr_name in ("value_string", "value_strings"):
-            tensor = ir.StringTensor(
+        if attr_name in ("value_string", "value_strings"):
+            return ir.StringTensor(
                 np.array(attr_value.value, dtype=np.bytes_), name=initializer_name
             )
-        else:
-            tensor = None
-        return tensor  # type: ignore[return-value]
+        return None
