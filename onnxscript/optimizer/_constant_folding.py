@@ -1099,7 +1099,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             if sym_value in graph.inputs:
                 # ONNX does not allow a graph output to be a graph input
                 continue
-            if sym_value.producer() is not graph:
+            if sym_value.producer().graph is not graph:
                 # The sym_value must be produced by the graph to be an output of this graph
                 continue
             if sym_value.is_graph_output():
