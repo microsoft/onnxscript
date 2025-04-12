@@ -92,9 +92,15 @@ class PackedQKVForGQAFusion(pattern.RewriteRuleClassBase):
         hidden_size = packed_qkv.shape[2]
         if not isinstance(hidden_size, int):
             return check_result.fail("Hidden size is not an integer.", packed_qkv)
-        head_size = hidden_size // (q_num_heads + (2 * kv_num_heads))
-        q_hidden_size = head_size * q_num_heads
-        kv_hidden_size = head_size * kv_num_heads
+        q_nh = q_num_heads.value
+        kv_nh = kv_num_heads.value
+        if not isinstance(q_nh, int) or not isinstance(kv_nh, int):
+            return check_result.fail(
+                "Could not determine the number of heads for query, key and value.",
+            )
+        head_size = hidden_size // (q_nh + (2 * kv_nh))
+        q_hidden_size = head_size * q_nh
+        kv_hidden_size = head_size * kv_nh
         if not (
             _ir_utils.is_singleton_value(start1, 0)
             and _ir_utils.is_singleton_value(end1, q_hidden_size)
