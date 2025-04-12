@@ -5,9 +5,7 @@ from __future__ import annotations
 import unittest
 
 import numpy as np
-import onnx
 import onnxruntime as ort
-import torch
 
 import onnxscript
 import onnxscript.ir as ir
@@ -87,7 +85,7 @@ class PackedQKVforGQAFusionTest(unittest.TestCase):
             total_seqlen_int32_minus_1 = op.Sub(total_seqlen_int32, 1)
             batchsize = op.Shape(packed_qkv, start=0, end=1)
             seqlens_k = op.Tile(total_seqlen_int32_minus_1, batchsize)
-            
+
             # Slice packed_qkv into query, key and value
             query_BSD = op.Slice(packed_qkv, [0], [320], [2], [1])
             key_BSDkv = op.Slice(packed_qkv, [320], [480], [2], [1])
@@ -111,7 +109,7 @@ class PackedQKVforGQAFusionTest(unittest.TestCase):
             return attn, past_key, past_value
 
         return gqa
-    
+
     def test_fuse_packed_qkv_for_gqa(self):
         """
         Test that fusion from query, key and value to a packed QKV for GQA
