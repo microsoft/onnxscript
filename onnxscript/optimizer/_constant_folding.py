@@ -1096,16 +1096,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             if not isinstance(sym_value, ir.Value):
                 # An output must be a Value
                 continue
-            if sym_value in graph.inputs:
-                # ONNX does not allow a graph output to be a graph input
-                continue
-            if sym_value.producer().graph is not graph:
-                # The sym_value must be produced by a node in the graph to be an output of this graph
-                continue
-            if sym_value.is_graph_output():
-                # If the sym_value is already an output of a graph, we cannot rename it
-                # to this output name. Otherwise the graph output represented by sym_value
-                # will lose its name.
+            if not _sym_value_can_replace_graph_output(graph, sym_value, output):
                 continue
             # Rename sym_value to match the output name
             sym_value.name = output.name
@@ -1126,6 +1117,27 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             # TODO(rama): Should we specialize functions?
             self.visit_function(function)
         return FoldConstantsResult(model, self.modified, self._state.symbolic_value_map)
+
+
+def _sym_value_can_replace_graph_output(
+    graph: ir.Graph, sym_value: ir.Value, output: ir.Value
+) -> bool:
+    if sym_value in graph.inputs:
+        # ONNX does not allow a graph output to be a graph input
+        return False
+    producer = sym_value.producer()
+    assert producer is not None, (
+        "Bug: sym_value should have a producer if it is not a graph input"
+    )
+    if producer.graph is not graph:
+        # The sym_value must be produced by a node in the graph to be an output of this graph
+        return False
+    if sym_value.is_graph_output():
+        # If the sym_value is already an output of a graph, we cannot rename it
+        # to this output name. Otherwise the graph output represented by sym_value
+        # will lose its name.
+        return False
+    return True
 
 
 @dataclasses.dataclass
