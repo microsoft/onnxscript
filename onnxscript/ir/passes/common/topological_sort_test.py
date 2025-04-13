@@ -22,10 +22,10 @@ class TopologicalSortPassTest(unittest.TestCase):
             name="test_graph",
         )
         model = ir.Model(graph, ir_version=10)
-        pass_result = topological_sort.TopologicalSortPass()(model)
-        self.assertTrue(pass_result.modified)
+        result = topological_sort.TopologicalSortPass()(model)
+        self.assertTrue(result.modified)
         self.assertEqual(
-            tuple(pass_result.model.graph),
+            tuple(result.model.graph),
             (self.node_a, self.node_b, self.node_c),
         )
 
@@ -38,10 +38,10 @@ class TopologicalSortPassTest(unittest.TestCase):
             name="test_graph",
         )
         sorted_model = ir.Model(sorted_graph, ir_version=10)
-        pass_result = topological_sort.TopologicalSortPass()(sorted_model)
-        self.assertFalse(pass_result.modified)
+        result = topological_sort.TopologicalSortPass()(sorted_model)
+        self.assertFalse(result.modified)
         self.assertEqual(
-            tuple(pass_result.model.graph),
+            tuple(result.model.graph),
             (self.node_a, self.node_b, self.node_c),
         )
 
