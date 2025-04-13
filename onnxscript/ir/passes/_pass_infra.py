@@ -141,14 +141,14 @@ class PassBase(abc.ABC):
         if self.in_place and result.model is not model:
             raise PassError(
                 f"The pass '{self.__class__.__name__}' is declared in-place, "
-                "but the model returned is not the same object as the input model. "
-                "Pass should return the same model object or self.in_place should return False."
+                "but the model returned is *not* the same object as the input model. "
+                "Pass developer: Pass should return the same model object or the in_place property should return False."
             )
         if not self.in_place and result.model is model:
             raise PassError(
                 f"The pass '{self.__class__.__name__}' is declared not in-place, "
-                "but the model returned is the same object as the input model. "
-                "Pass should return a new model object or self.in_place should return True."
+                "but the model returned *is* the same object as the input model. "
+                "Pass developer: Pass should return a new model object or the in_place property should return True."
             )
         return result
 
