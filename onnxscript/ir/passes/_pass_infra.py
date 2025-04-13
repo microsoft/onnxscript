@@ -140,13 +140,13 @@ class PassBase(abc.ABC):
         # Checks that the declared in-place property is respected
         if self.in_place and result.model is not model:
             raise PassError(
-                f"The pass '{self.__class__.__name__}' declared in place, "
+                f"The pass '{self.__class__.__name__}' is declared in-place, "
                 "but the model returned is not the same object as the input model. "
                 "Pass should return the same model object or self.in_place should return False."
             )
         if not self.in_place and result.model is model:
             raise PassError(
-                f"The pass '{self.__class__.__name__}' declared not in place, "
+                f"The pass '{self.__class__.__name__}' is declared not in-place, "
                 "but the model returned is the same object as the input model. "
                 "Pass should return a new model object or self.in_place should return True."
             )
