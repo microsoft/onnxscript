@@ -24,7 +24,7 @@ from onnxscript.onnx_types import TensorType
 def _fftn_onnx_normalization(
     self: TFloat,
     normalization: int,
-    signal_size,
+    signal_size: INT64,
     inverse: bool = False,
 ) -> TFloat:
     """Normalize in forward or backward direction."""
