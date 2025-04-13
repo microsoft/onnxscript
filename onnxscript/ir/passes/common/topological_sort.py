@@ -16,17 +16,17 @@ class TopologicalSortPass(ir.passes.InPlacePass):
     """Topologically sort graphs and functions in a model."""
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
-        nodes = list(model.graph)
+        original_nodes = list(model.graph)
         model.graph.sort()
-        new_nodes = list(model.graph)
+        sorted_nodes = list(model.graph)
         for function in model.functions.values():
-            nodes.extend(function)
+            original_nodes.extend(function)
             function.sort()
-            new_nodes.extend(function)
+            sorted_nodes.extend(function)
 
         # Compare node orders to determine if any changes were made
         modified = False
-        for node, new_node in zip(nodes, new_nodes):
+        for node, new_node in zip(original_nodes, sorted_nodes):
             if node is not new_node:
                 modified = True
                 break
