@@ -11,8 +11,8 @@ from onnxscript.ir.passes.common import topological_sort
 class TopologicalSortPassTest(unittest.TestCase):
     def setUp(self):
         self.node_a = ir.node("A", inputs=[], name="node_a")
-        self.node_b = ir.node("B", inputs=[self.node_a.outputs[0]], name="node_b")
-        self.node_c = ir.node("C", inputs=[self.node_b.outputs[0]], name="node_c")
+        self.node_b = ir.node("B", inputs=self.node_a.outputs, name="node_b")
+        self.node_c = ir.node("C", inputs=self.node_b.outputs, name="node_c")
 
     def test_topological_sort_modified_true(self):
         graph = ir.Graph(
