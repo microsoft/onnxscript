@@ -2581,16 +2581,14 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         outputs: The output values of the function.
         opset_imports: Opsets imported by the function.
         doc_string: Documentation string.
-        metadata_props: Metadata that will be serialized to the ONNX file.
         meta: Metadata store for graph transform passes.
+        metadata_props: Metadata that will be serialized to the ONNX file.
     """
 
     __slots__ = (
         "_attributes",
         "_domain",
         "_graph",
-        "_metadata",
-        "_metadata_props",
         "_name",
         "_overload",
     )
@@ -2611,7 +2609,6 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         self._overload = overload
         self._graph = graph
         self._attributes = OrderedDict((attr.name, attr) for attr in attributes)
-        self._metadata: _metadata.MetadataStore | None = None
 
     def identifier(self) -> _protocols.OperatorIdentifier:
         return self.domain, self.name, self.overload
@@ -2683,9 +2680,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
+        return self._graph.meta
 
     @property
     def metadata_props(self) -> dict[str, str]:
