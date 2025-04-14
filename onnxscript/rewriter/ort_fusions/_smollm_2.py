@@ -459,7 +459,7 @@ class _SmollmTest2:
         if not hasattr(self, "_ort_inputs"):
             inputs = {
                 "input_ids": numpy.random.randint(0, 49152, (1, 30)).astype(numpy.int64),
-                "position_ids": numpy.ones((1, 30), dtype=numpy.int64),
+                "position_ids": numpy.arange(30).reshape(1, 30).astype(numpy.int64),
                 "past_key_values_0_0": numpy.random.rand(1, 32, 16, 64).astype(numpy.float32),
                 "past_key_values_0_1": numpy.random.rand(1, 32, 16, 64).astype(numpy.float32),
             }
