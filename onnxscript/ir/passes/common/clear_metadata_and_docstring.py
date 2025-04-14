@@ -22,9 +22,11 @@ class ClearMetadataAndDocStringPass(ir.passes.InPlacePass):
         # 1. Clean up the graph and the belonged nodes metadata properties
         modified = self._clear_graph_or_function_metadata_and_docstring(model.graph)
 
-        # 3. Clean up all of the functions metadata properties
+        # 2. Clean up all of the functions metadata properties
         for function in model.functions.values():
-            modified = self._clear_graph_or_function_metadata_and_docstring(function) or modified
+            modified = (
+                self._clear_graph_or_function_metadata_and_docstring(function) or modified
+            )
         return ir.passes.PassResult(model, modified=modified)
 
     def _clear_graph_or_function_metadata_and_docstring(
@@ -32,7 +34,7 @@ class ClearMetadataAndDocStringPass(ir.passes.InPlacePass):
         graph_or_function: ir.Graph | ir.Function,
     ) -> bool:
         """Clear metadata and docstring from the graph or function."""
-        checked_graphs_or_functions = set()
+        checked_graphs_or_functions: set[ir.Graph | ir.Function] = set()
         modified = False
         # Clean up all of the nodes metadata properties
         for node in ir.traversal.RecursiveGraphIterator(graph_or_function):
