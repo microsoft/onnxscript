@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Passes for debugging purposes."""
 
 from __future__ import annotations

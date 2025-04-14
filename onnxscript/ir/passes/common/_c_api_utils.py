@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Utilities for interfacing with onnx C APIs."""
 
 from __future__ import annotations
