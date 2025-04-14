@@ -699,6 +699,7 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
             if hasattr(proto, "overload") and proto.overload
             else ""
         ),
+        metadata_props=deserialize_metadata_props(proto.metadata_props),
     )
     attributes = [_deserialize_attribute(attr, []) for attr in proto.attribute_proto]
     # Attributes without defaults
@@ -711,7 +712,6 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
         overload=getattr(proto, "overload", ""),
         graph=graph,
         attributes=typing.cast(List[_core.Attr], attributes),
-        metadata_props=deserialize_metadata_props(proto.metadata_props),
     )
 
 
