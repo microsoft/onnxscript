@@ -1,5 +1,7 @@
 from onnxscript import ir
-import onnx
+
+import ast
+
 
 def is_initializer(value):
     return input.producer() == None
@@ -92,6 +94,141 @@ def bGraphView(name, nodes):
 ########################################
 # rebuild_pytorch_dynamo_instance_code #
 ########################################
+
+from typing import List
+
+
+class PytorchMetadataNode:
+    def __init__(self, node):
+        self._node = node
+
+        if self.check_node_metadata_exists():
+            self.instance_metadata = ast.literal_eval(self._node.metadata_props['pkg.torch.onnx.name_scopes'])
+            self.class_metadata = ast.literal_eval(self._node.metadata_props['pkg.torch.onnx.class_hierarchy'])
+            print(f'self.node.metadata_props: {self._node.metadata_props}')
+        else:
+            raise ValueError(f"Node {self._node.name} does not have the required metadata properties")
+
+    def check_node_metadata_exists(self):
+        if 'pkg.torch.onnx.name_scopes' in self._node.metadata_props and \
+           'pkg.torch.onnx.class_hierarchy' in self._node.metadata_props:
+            return True
+        else:
+            return False
+
+    def is_last_level(self, level):
+        if len(self.instance_metadata) - 1 == level:
+            return True
+        else:
+            return False
+
+    def get_instance_name(self, depth=0):
+        if depth >= len(self.instance_metadata):
+            return None
+        else:
+            return self.instance_metadata[depth]
+
+    def get_class_name(self, depth=0):
+        if depth >= len(self.instance_metadata):
+            return None
+        else:
+            return self.class_metadata[depth]
+
+class PytorchHierarchyNode:
+    def __init__(self):
+        self.instance_name = None
+        self.module_type   = None
+        self.children      = []
+        self.nodes         = []
+
+    def print_hierarchy(self, instance_hierarchy: List[str] = None):
+        if instance_hierarchy is None:
+            instance_hierarchy = []
+        instance_hierarchy.append(self.instance_name)
+
+        for child in self.children:
+            child.print_hierarchy(list(instance_hierarchy))
+
+        for node in self.nodes:
+            print(f"Node: {node._node.name}, Instance: {'/'.join(instance_hierarchy)}, Module: {self.module_type}")
+
+
+    def get_unwrapped_nodes(self):
+        # Return _node from self._nodes
+        return [node._node for node in self.nodes]
+
+    # Checks if the search hierarchy matches the instance hierarchy
+    def hierarchy_matches(self, search_hierarchy: List[str], instance_hierarchy: List[str] = []):
+        search_length = min(len(search_hierarchy), len(instance_hierarchy))
+        for i in range(search_length):
+            if search_hierarchy[i] != instance_hierarchy[i]:
+                return False
+        return True
+
+    # Return all nodes from the given name hierarchy on down
+    def get_nodes(self, search_hierarchy: List[str], instance_hierarchy: List[str] = None):
+        if instance_hierarchy is None:
+            instance_hierarchy = []
+
+        nodes_to_return = []
+        # base case for recursion
+        # 1 - search_hierarchy does not match instance_hierarchy
+        instance_hierarchy.append(self.instance_name)
+        print(f"search_hierarchy: {search_hierarchy}")
+        print(f"instance_hierarchy: {instance_hierarchy}")
+
+        if not self.hierarchy_matches(search_hierarchy, instance_hierarchy):
+            return []
+
+        for child in self.children:
+                child_nodes = child.get_nodes(search_hierarchy, list(instance_hierarchy))
+                nodes_to_return.extend(child_nodes)
+
+        if len(instance_hierarchy) >= len(search_hierarchy):
+            nodes_to_return.extend(self.get_unwrapped_nodes())
+
+        return nodes_to_return
+
+    def add_nodes(self, nodes):
+        for node in nodes:
+            self.add_node(node)
+
+    def add_node(self, node, level=0):
+
+        print("calling add_node")
+        if not isinstance(node, PytorchMetadataNode):
+            node = PytorchMetadataNode(node)
+
+        if self.instance_name is None:
+            print(f"setting instance name to {node.get_instance_name(level)}")
+            self.instance_name = node.get_instance_name(level)
+        if self.module_type is None:
+            self.module_type = node.get_class_name(level)
+
+        # check that instance name and module type match
+        if self.instance_name != node.get_instance_name(level):
+            raise ValueError(f"Instance name mismatch: {self.instance_name} != {node.get_instance_name(level)}")
+        if self.module_type   != node.get_class_name(level):
+            raise ValueError(f"Module type mismatch: {self.module_type} != {node.get_class_name(level)}")
+
+        # if this is the last level of the hierarchy, add the node to this node
+        # otherwise find the child node that matches the next level of the hierarchy
+        # and add the node to that child
+        if node.is_last_level(level):
+            print(f"Adding node {node} to {self.instance_name}")
+            self.nodes.append(node)
+        else:
+            for child in self.children:
+                if child.instance_name == node.get_instance_name(level + 1):
+                    child.add_node(node, level + 1)
+                    return
+
+            # if no child matches the next level of the hierarchy, create a new child node
+            new_child = PytorchHierarchyNode()
+            new_child.instance_name = node.get_instance_name(level + 1)
+            new_child.module_type   = node.get_class_name(level + 1)
+            self.children.append(new_child)
+            new_child.add_node(node, level + 1)
 
 ##################################################
 ## TODO (JSM): encapsulte this into a function  ##
