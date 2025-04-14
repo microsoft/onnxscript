@@ -81,9 +81,7 @@ class TorchTensor(_core.Tensor):
 
         self.raw: torch.Tensor
         if self.dtype == ir.DataType.BFLOAT16:
-            return (
-                self.raw.view(torch.uint16).numpy(force=True).view(self.dtype.numpy())
-            )
+            return self.raw.view(torch.uint16).numpy(force=True).view(self.dtype.numpy())
         if self.dtype in {
             ir.DataType.FLOAT8E4M3FN,
             ir.DataType.FLOAT8E4M3FNUZ,
