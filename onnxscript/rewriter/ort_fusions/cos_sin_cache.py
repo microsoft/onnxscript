@@ -96,6 +96,8 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
 
         # If we do not compute max_pos_id using ONNX ops, use inv_freq and position_ids
         # to compute angles and cos/sin values
+        # Note: The one is added to max_pos_id as position_ids are 0-indexed
+        # and the range of position ids should be [0, max_pos_id], max_pos_id inclusive.
         inv_freq_values = inv_freq.const_value.numpy().reshape(1, -1)
         pos_id_range = np.arange(max_pos_id + 1, dtype=np.float32).reshape(-1, 1)
         angles = np.matmul(pos_id_range, inv_freq_values)
