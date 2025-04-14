@@ -56,7 +56,7 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
 
         # Perform lift constants to initializers
         result = constant_manipulation.LiftConstantsToInitializersPass(
-            lift_all_constants=lift_all_constants
+            lift_all_constants=lift_all_constants, size_limit=0
         )(model)
         self.assertTrue(result.modified)
         # Check that the constant node is lifted to an initializer
@@ -130,7 +130,7 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
             ir_version=10,
         )
         result = constant_manipulation.LiftConstantsToInitializersPass(
-            lift_all_constants=lift_all_constants
+            lift_all_constants=lift_all_constants, size_limit=0
         )(model)
         self.assertTrue(result.modified)
         # Check that the constant node is lifted to the subgraph initializers
@@ -206,7 +206,7 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
 
         # Perform lift constants to initializers
         result = constant_manipulation.LiftConstantsToInitializersPass(
-            lift_all_constants=lift_all_constants
+            lift_all_constants=lift_all_constants, size_limit=0
         )(model)
         if lift_all_constants:
             self.assertTrue(result.modified)
@@ -249,3 +249,7 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
         self.assertFalse(result.modified)
         # Check that the constant node is not lifted to an initializer
         self.assertEqual(len(result.model.graph.initializers), 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
