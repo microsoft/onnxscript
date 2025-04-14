@@ -62,21 +62,17 @@ def aten__fft_c2c(
     # NOTE: SymInt dim is not supported because DFT-17 needs a static axis
 
     # ONNX DFT input assumes the last dimension is the complex dimension.
-    # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
-    self_rank = len(self.shape)
 
     unsqueeze_first_dim = 0 in dim
     # 1. Add a new dimension for the end and batch dimension, if needed
     # 2. ONNX DFT input assumes the last dimension is the complex dimension.
-    # Thus dim=-1 in PyTorch is dim=-2 in ONNX, so subtract 1 when counting axes from the right.
-    # If needed, add 1 to account for the batch dimension when counting axes from the left
+    #       If needed, add 1 to account for the batch dimension.
 
     if unsqueeze_first_dim:
         transformed = op.Unsqueeze(self, axes=[0])
-        dim = [(d - 1) + self_rank if d < 0 else (d + 1) for d in dim]
+        dim = [d + 1 for d in dim]
     else:
         transformed = self
-        dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
 
     for dimension in reversed(dim):
         transformed = op.DFT(transformed, axis=dimension, inverse=not forward, onesided=False)
@@ -107,21 +103,17 @@ def aten__fft_c2r(
     if len(dim) != 1:
         raise NotImplementedError("Only one dimension is supported for inverse FFT")
 
-    self_rank = len(self.shape)
     dimension = dim[0]
     unsqueeze_first_dim = dimension == 0
     # 1. Add a new dimension for batch dimension, if needed
     # 2. ONNX DFT input assumes the last dimension is the complex dimension.
-    # Thus dim=-1 in PyTorch is dim=-2 in ONNX, so subtract 1 when counting axes from the right.
-    # If needed, add 1 to account for the batch dimension when counting axes from the left
+    #       If needed, add 1 to account for the batch dimension.
 
     if unsqueeze_first_dim:
         transformed = op.Unsqueeze(self, axes=[0])
-        dimension += 1
+        dimension = 1
     else:
         transformed = self
-        if dimension < 0:
-            dimension = (dimension - 1) + self_rank
 
     # Torch truncates/pads on the last dimension only. Typically, the only valid values that can be passed
     # into PyTorch are n or n//2+1, where n is self.shape[dim[-1]], but this is not always the case, so we
@@ -162,20 +154,16 @@ def aten__fft_r2c(
     # No need to fill the imaginary part because ONNX DFT accepts real inputs
     # https://onnx.ai/onnx/operators/onnx__DFT.html#inputs
 
-    self_rank = len(self.shape)
-
     unsqueeze_first_dim = 0 in dim
     # 1. Add a new dimension for the end and batch dimension, if needed
     # 2. ONNX DFT input assumes the last dimension is the complex dimension.
-    # Thus dim=-1 in PyTorch is dim=-2 in ONNX, so subtract 1 when counting axes from the right.
-    # If needed, add 1 to account for the batch dimension when counting axes from the left
+    #       If needed, add 1 to account for the batch dimension.
 
     if unsqueeze_first_dim:
         transformed = op.Unsqueeze(self, axes=[0, -1])
-        dim = [(d - 1) + self_rank if d < 0 else (d + 1) for d in dim]
+        dim = [d + 1 for d in dim]
     else:
         transformed = op.Unsqueeze(self, axes=[-1])
-        dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
 
     for idx, dimension in enumerate(reversed(dim)):
         transformed = _fftn_onnx_normalization(
