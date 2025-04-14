@@ -50,7 +50,6 @@ from onnxscript.ir import (
     _name_authority,
     _protocols,
     _type_casting,
-    traversal,
 )
 
 if typing.TYPE_CHECKING:
@@ -2576,7 +2575,7 @@ Model(
         # I created this method as a core method instead of an iterator in
         # `traversal.py`.
         seen_graphs: set[Graph] = set()
-        for node in traversal.RecursiveGraphIterator(self.graph):
+        for node in onnxscript.ir.traversal.RecursiveGraphIterator(self.graph):
             if node.graph is not None and node.graph not in seen_graphs:
                 seen_graphs.add(node.graph)
                 yield node.graph
