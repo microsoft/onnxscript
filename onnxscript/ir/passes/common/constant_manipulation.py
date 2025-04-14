@@ -23,11 +23,14 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
     Attributes:
         lift_all_constants: Whether to lift all Constant nodes, including those that does not contain a tensor attribute (e.g. with value_ints etc.)
             Default to False, where only Constants with the ``value`` attribute are lifted.
+        size_limit: The minimum size of the tensor to be lifted. If the tensor contains
+            number of elements less than size_limit, it will not be lifted. Default is 16.
     """
 
-    def __init__(self, lift_all_constants: bool = False):
+    def __init__(self, lift_all_constants: bool = False, size_limit: int = 16):
         super().__init__()
-        self._lift_all_constants = lift_all_constants
+        self.lift_all_constants = lift_all_constants
+        self.size_limit = size_limit
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         count = 0
@@ -64,9 +67,9 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
                 type=ir.TensorType(tensor.dtype),
                 const_value=tensor,
             )
-            assert isinstance(node.graph, ir.Graph)
+            assert node.graph is not None
             node.graph.register_initializer(initializer)
-            # Replace the constant node with the initilizer
+            # Replace the constant node with the initializer
             ir.convenience.replace_all_uses_with(node.outputs[0], initializer)
             node.graph.remove(node, safe=True)
             count += 1
@@ -79,16 +82,17 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
 
     def _constant_node_attribute_to_tensor(
         self, node, attr_name: str, attr_value: ir.Attr, initializer_name: str
-    ) -> ir.Tensor | None:
+    ) -> ir.TensorProtocol | None:
         """Convert constant node attribute to tensor."""
-        if not self._lift_all_constants and attr_name != "value":
+        if not self.lift_all_constants and attr_name != "value":
             logger.debug(
                 "Constant node '%s' has non-tensor attribute '%s'", node.name, attr_name
             )
             return None
 
+        tensor: ir.TensorProtocol
         if attr_name == "value":
-            tensor = attr_value.as_tensor()  # type: ignore[union-attr]
+            tensor = attr_value.as_tensor()
         elif attr_name == "value_int":
             tensor = ir.tensor(
                 attr_value.as_int(), dtype=ir.DataType.INT64, name=initializer_name
@@ -110,5 +114,15 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
                 np.array(attr_value.value, dtype=np.bytes_), name=initializer_name
             )
         else:
-            tensor = None
-        return tensor  # type: ignore[return-value]
+            raise ValueError(
+                f"Unsupported constant node '{node.name}' attribute '{attr_name}'"
+            )
+
+        if tensor.size < self.size_limit:
+            logger.debug(
+                "Tensor from node '%s' has less than %s elements",
+                node.name,
+                self.size_limit,
+            )
+            return None
+        return tensor
