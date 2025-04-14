@@ -155,7 +155,7 @@ In order to apply this method to the example above, first create the two separat
 :::{note}
 :name: rule-application-order-matters
 
-When you pass multiple rules in `pattern_rewrite_rules`, the **order in which they appear is important**. 
+When you pass multiple rules in `pattern_rewrite_rules`, the **order in which they appear is important**.
 This is because some rules may depend on patterns created or modified by earlier rules. For example, if `rule2` can only match after `rule1` has made a specific change in the model, then `rule1` must come **before** `rule2` in the list.
 If you're not seeing expected results, try adjusting the order or applying the rule set in a loop until no more changes occur.
 :::
