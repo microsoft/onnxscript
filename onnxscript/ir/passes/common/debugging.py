@@ -38,7 +38,7 @@ class CheckerPass(ir.passes.PassBase):
         self.skip_opset_compatibility_check = skip_opset_compatibility_check
         self.check_custom_domain = check_custom_domain
 
-    def call(self, model: ir.Model) -> ir.Model:
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
         """Run the onnx checker on the model."""
 
         def _partial_check_model(proto: onnx.ModelProto) -> onnx.ModelProto:
@@ -58,4 +58,4 @@ class CheckerPass(ir.passes.PassBase):
             merge_func=lambda m, proto: (m, False),
         )
         # The model is not modified
-        return model
+        return ir.passes.PassResult(model, False)
