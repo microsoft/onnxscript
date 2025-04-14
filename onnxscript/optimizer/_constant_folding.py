@@ -148,18 +148,24 @@ class Replacement:
 # Currently, we assume that symbolic dimensions are also guaranteed to be non-negative.
 # TODO: Add support for negative symbolic dimensions.
 
+SymbolicValue = Union[ir.Value, list[ir.Value], ir.Shape]
+
 
 class OptimizerState:
     def __init__(self):
-        self._sym_value_map: dict[ir.Value, Any] = {}
+        self._sym_value_map: dict[ir.Value, SymbolicValue] = {}
         self._initializer_inputs: list[set[ir.Value]] = []
 
-    def get_sym_value(self, value: ir.Value | None) -> Any:
+    @property
+    def symbolic_value_map(self) -> dict[ir.Value, SymbolicValue]:
+        return self._sym_value_map
+
+    def get_sym_value(self, value: ir.Value | None) -> SymbolicValue | None:
         if value is None:
             return None
         return self._sym_value_map.get(value)
 
-    def set_sym_value(self, value: ir.Value, sym_value: Any) -> None:
+    def set_sym_value(self, value: ir.Value, sym_value: SymbolicValue) -> None:
         self._sym_value_map[value] = sym_value
 
     def push_initializer_inputs(self) -> None:
@@ -405,17 +411,13 @@ def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     shape = _get_input(node, 1)
     if input is None or shape is None:
         return None
+
     input_shape = input.shape
-    if input_shape is None:
-        return None
-    # input_shape_dims = list(input_shape.dims)
-    # if any(isinstance(dim, ir.SymbolicDim) and dim.value is None for dim in input_shape_dims):
-    #     return None
     shape_value = state.get_shape_value(shape)
-    if shape_value is None:
+
+    if shape_value is None or input_shape is None:
         return None
-    # target_shape_dims = list(shape_value.dims)
-    # if input_shape_dims == target_shape_dims:
+
     # No need to check for special values like -1, 0, etc. here
     if _same_shape(input_shape, shape_value):
         return op.Identity(input)
@@ -1098,7 +1100,17 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         for function in model.functions.values():
             # TODO(rama): Should we specialize functions?
             self.visit_function(function)
-        return ir.passes.PassResult(model, self.modified)
+        return FoldConstantsResult(model, self.modified, self._state.symbolic_value_map)
+
+
+@dataclasses.dataclass
+class FoldConstantsResult(ir.passes.PassResult):
+    symbolic_value_map: dict[ir.Value, SymbolicValue]
+
+    # Add conversion to bool for backward compatibility. The previously returned value
+    # for the fold_constants method was a boolean indicating whether the model was modified.
+    def __bool__(self) -> bool:
+        return self.modified
 
 
 def fold_constants(
@@ -1108,10 +1120,26 @@ def fold_constants(
     onnx_shape_inference: bool = False,
     input_size_limit: int = DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
     output_size_limit: int = DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
-) -> bool:
+) -> FoldConstantsResult:
     """
     Applies constant folding optimization to the model.
-    Returns true iff the model was modified.
+
+    Args:
+        model: The ONNX model to optimize.
+        external_data_folder: Path to the folder containing external data
+            for the model. Defaults to an empty string.
+        onnx_shape_inference: Whether to enable ONNX shape inference during
+            constant folding. Defaults to False.
+        input_size_limit: The maximum size (in bytes) of input tensors
+            that can be considered for constant folding. Defaults to
+            `DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT`.
+        output_size_limit: The maximum size (in bytes) of output tensors
+            that can be stored after constant folding. Defaults to
+            `DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT`.
+
+    Returns:
+        An instance of `FoldConstantsResult`.
+
     """
     folder_pass = FoldConstantsPass(
         external_data_folder=external_data_folder,
@@ -1119,12 +1147,4 @@ def fold_constants(
         input_size_limit=input_size_limit,
         output_size_limit=output_size_limit,
     )
-    folder_pass(model)
-    for op in folder_pass.counts:
-        logger.info(
-            "Constant-folded '%s' %s times, with %s size.",
-            op,
-            folder_pass.counts[op],
-            folder_pass.sizes[op],
-        )
-    return folder_pass.modified
+    return folder_pass(model)  # type: ignore[return-value]

@@ -634,6 +634,20 @@ def _is_pattern_variable(x: Any) -> bool:
     return type(x) is ValuePattern
 
 
+class AnyValue(ValuePattern):
+    """Represents a pattern that matches against any value."""
+
+    def __init__(self) -> None:
+        super().__init__(None)
+
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> AnyValue:
+        # A single instance of AnyValue suffices.
+        return self
+
+
+ANY_VALUE = AnyValue()
+
+
 class Constant(ValuePattern):
     """Represents a pattern that matches against a scalar constant value."""
 
@@ -1108,6 +1122,9 @@ class SimplePatternMatcher(PatternMatcher):
 
     def _match_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
         """Match an IR value against a ValuePattern instance."""
+        if isinstance(pattern_value, AnyValue):
+            return True
+
         if not self._bind_value(pattern_value, value):
             return False
 
@@ -1664,12 +1681,17 @@ def _get_new_overload(model: ir.Model, domain: str, name: str) -> str:
 
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
+        if not rules:
+            raise ValueError("rules must contain at least one rule")
         if commute:
             rules = list(itertools.chain.from_iterable([rule.commute() for rule in rules]))
         self.rules = rules
         # We call remove_unused_nodes at end of rewriting if there is any rule that does
         # NOT remove nodes (immediately when it is applied)
         self.remove_unused_nodes = any(not rule.remove_nodes for rule in rules)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.rules})"
 
     def _apply_to_graph_or_function(
         self,

@@ -13,19 +13,26 @@ from typing import (  # type: ignore[attr-defined]
     Any,
     Callable,
     ClassVar,
+    Generic,
     Optional,
     Protocol,
     Sequence,
+    TypeVar,
     _GenericAlias,
 )
 
 import onnx
 import onnx.defs
+from typing_extensions import ParamSpec
 
 from onnxscript import converter as converter_module
 from onnxscript import irbuilder, sourceinfo, type_annotation
 from onnxscript._internal import ast_utils, deprecation
 from onnxscript.ir import _schemas
+
+_R = TypeVar("_R")
+_P = ParamSpec("_P")
+
 
 _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
     onnx.defs.OpSchema.AttrType.FLOAT: float,
@@ -464,7 +471,7 @@ def _op_schema_from_function_ir(
     )
 
 
-class OnnxFunction(Op):
+class OnnxFunction(Op, Generic[_P, _R]):
     """Represents an ONNX op for which a function-body has been defined in onnxscript.
 
     Attributes:
@@ -566,12 +573,12 @@ class OnnxFunction(Op):
 
         return fun
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: _P.args, **kwargs: _P.kwargs) -> _R:
         """Implements an eager-mode execution of an onnxscript function."""
         # FIXME(after #225): Move import to the top of the file.
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        return evaluator.default().eval_function(self, args, kwargs)
+        return evaluator.default().eval_function(self, args, kwargs)  # type: ignore[arg-type, return-value]
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.function!r})"

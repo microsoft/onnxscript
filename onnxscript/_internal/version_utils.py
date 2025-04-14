@@ -43,26 +43,6 @@ def transformers_older_than(version: str) -> bool | None:
     )
 
 
-def is_onnxruntime_training() -> bool:
-    """Returns True if the onnxruntime is onnxruntime-training."""
-    try:
-        from onnxruntime import training  # pylint: disable=import-outside-toplevel
-
-        assert training
-    except ImportError:
-        # onnxruntime not training
-        return False
-
-    try:
-        from onnxruntime.capi.onnxruntime_pybind11_state import (  # pylint: disable=import-outside-toplevel
-            OrtValueVector,
-        )
-    except ImportError:
-        return False
-
-    return hasattr(OrtValueVector, "push_back_batch")
-
-
 def onnxruntime_older_than(version: str) -> bool:
     """Returns True if the onnxruntime version is older than the given version."""
     import onnxruntime  # pylint: disable=import-outside-toplevel
