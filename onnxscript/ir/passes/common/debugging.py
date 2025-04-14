@@ -8,14 +8,10 @@ __all__ = [
     "CheckerPass",
 ]
 
-import logging
-
 import onnx
 
 from onnxscript import ir
 from onnxscript.ir.passes.common import _c_api_utils
-
-logger = logging.getLogger(__name__)
 
 
 class CheckerPass(ir.passes.PassBase):
