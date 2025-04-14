@@ -152,6 +152,20 @@ In order to apply this method to the example above, first create the two separat
 :pyobject: erf_gelu_pattern_2
 ```
 
+:::{note}
+:name: rule-application-order-matters
+
+### Order of Rewrite Rules Matters
+
+When you pass multiple rules in `pattern_rewrite_rules`, the **order in which they appear is important**. 
+
+This is because some rules may depend on patterns created or modified by earlier rules. For example, if `rule1` can only match after `rule2` has made a specific change in the model, then `rule2` must come **before** `rule1` in the list.
+
+If you're not seeing expected results, try adjusting the order or applying the rule set in a loop until no more changes occur.
+
+:::
+
+
 Then, create two separate `PatternRewriteRule`s, one for each target pattern. Pack these rules into a `RewriteRuleSet` object and apply rewrites by passing the created `RewriteRuleSet` for the `pattern_rewrite_rules` parameter.
 
 ```{literalinclude} examples/erfgelu.py
