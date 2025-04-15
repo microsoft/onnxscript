@@ -297,7 +297,7 @@ def _get_numpy_value(
         if size_limit is not None and const_value.size > size_limit:
             return None
         try:
-            array = const_value.numpy()
+            array = const_value.numpy().view(const_value.dtype.numpy())
         except FileNotFoundError:
             # External data is not available.
             return None
