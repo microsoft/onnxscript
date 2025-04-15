@@ -32,7 +32,7 @@ def _merge_func(model: ir.Model, inferred_proto: onnx.ModelProto) -> tuple[ir.Mo
     """
     inferred_model = ir.serde.deserialize_model(inferred_proto)
     modified = False
-    for original_graph, inferred_graph in (model.graphs(), inferred_model.graphs()):
+    for original_graph, inferred_graph in zip(model.graphs(), inferred_model.graphs()):
         original_values = ir.convenience.create_value_mapping(original_graph)
         inferred_values = ir.convenience.create_value_mapping(inferred_graph)
         for name, value in original_values.items():
