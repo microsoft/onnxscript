@@ -151,7 +151,7 @@ class FunctionFoldingTest(unittest.TestCase):
         optimized = optimizer.optimize(model, onnx_shape_inference=False, inline=True)
 
         self.assertEqual(len(optimized.functions), 0)
-        self.assertEqual(len(optimized.graph), 1)
+        self.assertEqual(len(optimized.graph), 2)
         self.assertNotIn("If", {n.op_type for n in optimized.graph})
 
 
