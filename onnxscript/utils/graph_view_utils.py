@@ -190,8 +190,11 @@ class PytorchHierarchyNode:
     # def add_nodes(self, nodes):
     #     for node in nodes:
     #         self.add_node(node)
-
     def add_node(self, node, level=0):
+
+        # if node.name == 'node_Constant_2153':
+        #     import pdb
+        #     pdb.set_trace()
 
         print("calling add_node")
         if not isinstance(node, PytorchMetadataNode):
@@ -230,3 +233,46 @@ class PytorchHierarchyNode:
             new_child.module_type   = node.get_class_name(level + 1)
             self.children.append(new_child)
             return new_child.add_node(node, level + 1)
+
+def add_metadata_to_unannotated_constant_nodes(graph):
+    for node in graph._nodes:
+        if node.op_type == 'Constant' and not node.metadata_props:
+            # search all of the uses to determine which hierarhcy to add
+            # to the constant node
+            # if all users have the same hierarchy, add that hierarchy to the constant node
+            # if the users have different hierarchies, use the one level above the highest
+            # level in the hierarchy
+            metadata = set()
+            for output in node.outputs:
+                for user in output.uses():
+                    user_node = user[0]
+                    if user_node.metadata_props:
+                        metadata.add((user_node.metadata_props['pkg.torch.onnx.name_scopes'],
+                                      user_node.metadata_props['pkg.torch.onnx.class_hierarchy']))
+
+            if len(metadata) == 1:
+                name, class_hier = metadata.pop()
+                node.metadata_props['pkg.torch.onnx.name_scopes'] = name
+                node.metadata_props['pkg.torch.onnx.class_hierarchy'] = class_hier
+            else:
+                # convert the metadata_namescope set to a list of lists
+                metadata_list = [(ast.literal_eval(x[0]),ast.literal_eval(x[1])) for x in list(metadata)]
+
+                # find the index of namescope_list with the shortest length
+                min_index = min(range(len(metadata_list)), key=lambda i: len(metadata_list[i][0]))
+
+                # get the shortest namescope
+                shortest_hierarchy = metadata_list[min_index]
+
+                # remove the last level of the hierarchy
+                target_name  = shortest_hierarchy[0][:len(shortest_hierarchy[0]) - 1]
+                target_class = shortest_hierarchy[1][:len(shortest_hierarchy[1]) - 1]
+
+                # convert the target_hierarchy to a string
+                target_name_str = str(target_name)
+                target_class_str = str(target_class)
+
+                # add the target_hierarchy to the node
+                node.metadata_props['pkg.torch.onnx.name_scopes'] = target_name_str
+                node.metadata_props['pkg.torch.onnx.class_hierarchy'] = target_class_str
+    return graph

@@ -166,19 +166,25 @@ def test_mistral_pytorch_with_metadata():
     model       = ir.serde.deserialize_model(model_proto)
     graph       = model.graph
 
+    graph = gvu.add_metadata_to_unannotated_constant_nodes(graph)
 
     P = gvu.PytorchHierarchyNode()
-    count_not_added = 0
+    unadded_nodes = []
     for node in graph._nodes:
         added = P.add_node(node)
         if not added:
-            count_not_added += 1
+            unadded_nodes.append(node)
 
+    print(f"Number of nodes not added: {len(unadded_nodes)}")
+    print(f"unadded nodes: {unadded_nodes}")
+    for node in unadded_nodes:
+        print(f"unadded node: {node}")
+        print(f"unadded node metadata: {node.metadata_props}")
     golden = build_golden_results(graph._nodes)
     for key, gnodes in golden.items():
         key = key.rstrip("/")
         nodes = P.get_nodes(key.split("/"))
         # check if the nodes in the result are in the list of nodes for that key
-        print(f"got nodes for key {key}: {nodes}")
+        #print(f"got nodes for key {key}: {nodes}")
         for gnode in gnodes:
             assert gnode in nodes, f"Node {gnode.metadata_props.get('pkg.torch.onnx.name_scopes')} not found in nodes for key {key}"
