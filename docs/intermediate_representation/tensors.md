@@ -192,8 +192,11 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
     import ctypes
     from typing import Any
 
+    import numpy.typing as npt
     import torch
+
     from onnxscript import ir
+
 
     class TorchTensor(ir.Tensor):
         def __init__(
@@ -227,12 +230,9 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
             )
 
         def numpy(self) -> npt.NDArray:
-
             self.raw: torch.Tensor
             if self.dtype == ir.DataType.BFLOAT16:
-                return (
-                    self.raw.view(torch.uint16).numpy(force=True).view(self.dtype.numpy())
-                )
+                return self.raw.view(torch.uint16).numpy(force=True).view(self.dtype.numpy())
             if self.dtype in {
                 ir.DataType.FLOAT8E4M3FN,
                 ir.DataType.FLOAT8E4M3FNUZ,
@@ -273,7 +273,7 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
             )
 
     # Test the implementation
-    torch_tensor = torch.tensor([1,2,3], dtype=torch.bfloat16)
+    torch_tensor = torch.tensor([1, 2, 3], dtype=torch.bfloat16)
     tensor = TorchTensor(torch_tensor)
     print("tensor: ", tensor)
     print("numpy: ", tensor.numpy())
