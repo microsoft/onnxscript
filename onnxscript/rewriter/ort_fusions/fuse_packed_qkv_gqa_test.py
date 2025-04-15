@@ -11,7 +11,7 @@ import onnxscript
 import onnxscript.ir as ir
 import onnxscript.ir.passes.common.shape_inference as shape_inference
 import onnxscript.optimizer
-from onnxscript import FLOAT, script
+from onnxscript import FLOAT, INT32, script
 from onnxscript import opset18 as op
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose
 from onnxscript.rewriter.ort_fusions.fuse_packed_qkv_gqa import fuse_qkv_gqa
@@ -53,6 +53,8 @@ class PackedQKVforGQAFusionTest(unittest.TestCase):
             FLOAT["B", "S", D],  # packed_qkv
             FLOAT["B", Hkv, "P", Dh],  # past_key
             FLOAT["B", Hkv, "P", Dh],  # past_value
+            INT32["B"],  # seqlens_k
+            INT32[1],  # total_sequence_length
             FLOAT["max_seqlen", Dh // 2],  # cos
             FLOAT["max_seqlen", Dh // 2],  # sin
         )
@@ -66,6 +68,8 @@ class PackedQKVforGQAFusionTest(unittest.TestCase):
             "packed_qkv": np.random.rand(B, S, D).astype(np.float32),
             "past_key": np.random.rand(B, Hkv, P, Dh).astype(np.float32),
             "past_value": np.random.rand(B, Hkv, P, Dh).astype(np.float32),
+            "seqlens_k": np.full((B,), total_seqlen - 1, dtype=np.int32),
+            "total_sequence_length": np.array([total_seqlen], dtype=np.int32),
             "cos": np.random.rand(max_seqlen, Dh // 2).astype(np.float32),
             "sin": np.random.rand(max_seqlen, Dh // 2).astype(np.float32),
         }
@@ -75,17 +79,7 @@ class PackedQKVforGQAFusionTest(unittest.TestCase):
         Hkv = self.kv_num_heads
 
         @script()
-        def gqa(packed_qkv, past_key, past_value, cos, sin):
-            # Generate seqlens_k and total_seqlen inputs for GQA:
-            # In this test case, all batch elements have same sequence length.
-            S = op.Shape(packed_qkv, start=1, end=2)
-            past_seq_length = op.Shape(past_key, start=2, end=3)
-            total_seq_length = op.Add(past_seq_length, S)
-            total_seqlen_int32 = op.Cast(total_seq_length, to=6)
-            total_seqlen_int32_minus_1 = op.Sub(total_seqlen_int32, 1)
-            batchsize = op.Shape(packed_qkv, start=0, end=1)
-            seqlens_k = op.Tile(total_seqlen_int32_minus_1, batchsize)
-
+        def gqa(packed_qkv, past_key, past_value, seqlens_k, total_sequence_length, cos, sin):
             # Slice packed_qkv into query, key and value
             query_BSD = op.Slice(packed_qkv, [0], [320], [2], [1])
             key_BSDkv = op.Slice(packed_qkv, [320], [480], [2], [1])
@@ -98,7 +92,7 @@ class PackedQKVforGQAFusionTest(unittest.TestCase):
                 past_key,
                 past_value,
                 seqlens_k,
-                total_seqlen_int32,
+                total_sequence_length,
                 cos,
                 sin,
                 num_heads=Hq,
