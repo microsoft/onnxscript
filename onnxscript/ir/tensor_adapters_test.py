@@ -7,6 +7,7 @@ from __future__ import annotations
 import importlib.util
 import unittest
 
+import ml_dtypes
 import numpy as np
 import parameterized
 import torch
@@ -25,17 +26,17 @@ def skip_if_no(module_name: str):
 class TorchTensorTest(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
-            (torch.bfloat16, np.uint16),
+            (torch.bfloat16, ml_dtypes.bfloat16),
             (torch.bool, np.bool_),
             (torch.complex128, np.complex128),
             (torch.complex64, np.complex64),
             (torch.float16, np.float16),
             (torch.float32, np.float32),
             (torch.float64, np.float64),
-            (torch.float8_e4m3fn, np.uint8),
-            (torch.float8_e4m3fnuz, np.uint8),
-            (torch.float8_e5m2, np.uint8),
-            (torch.float8_e5m2fnuz, np.uint8),
+            (torch.float8_e4m3fn, ml_dtypes.float8_e4m3fn),
+            (torch.float8_e4m3fnuz, ml_dtypes.float8_e4m3fnuz),
+            (torch.float8_e5m2, ml_dtypes.float8_e5m2),
+            (torch.float8_e5m2fnuz, ml_dtypes.float8_e5m2fnuz),
             (torch.int16, np.int16),
             (torch.int32, np.int32),
             (torch.int64, np.int64),
