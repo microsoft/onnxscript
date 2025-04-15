@@ -195,7 +195,7 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
     import torch
     from onnxscript import ir
 
-    class TorchTensor(_core.Tensor):
+    class TorchTensor(ir.Tensor):
         def __init__(
             self, tensor: torch.Tensor, name: str | None = None, doc_string: str | None = None
         ):
