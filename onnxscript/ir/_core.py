@@ -2563,6 +2563,25 @@ Model(
     graph={textwrap.indent(repr(self.graph), " " * 4).strip()}
 )"""
 
+    def graphs(self) -> Iterable[Graph]:
+        """Get all graphs and subgraphs in the model.
+
+        This is a convenience method to traverse the model. Consider using
+        `onnxscript.ir.traversal.RecursiveGraphIterator` for more advanced
+        traversals on nodes.
+        """
+        # NOTE(justinchuby): Given
+        # (1) how useful the method is
+        # (2) I couldn't find an appropriate name for it in `traversal.py`
+        # (3) Users familiar with onnxruntime optimization tools expect this method
+        # I created this method as a core method instead of an iterator in
+        # `traversal.py`.
+        seen_graphs: set[Graph] = set()
+        for node in onnxscript.ir.traversal.RecursiveGraphIterator(self.graph):
+            if node.graph is not None and node.graph not in seen_graphs:
+                seen_graphs.add(node.graph)
+                yield node.graph
+
 
 class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrintable):
     """IR functions.
