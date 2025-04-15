@@ -1,5 +1,7 @@
 import pytest
+import ast
 
+import onnx
 from onnxscript import script
 from typing import List, Tuple
 
@@ -136,3 +138,47 @@ def test_non_hierarchical_node():
 
     assert len(P.get_nodes([""])) == 0
     assert len(P.children) == 0
+
+def build_golden_results(nodes):
+    golden_get_node_results = {}
+    for node in nodes:
+        metadata = node.metadata_props
+        if metadata:
+            new_key = "/".join(ast.literal_eval(metadata.get("pkg.torch.onnx.name_scopes"))) + "/"
+
+            # search the hierarchy_dict for entries that are a prefix of the key
+            # add the current node to the list of nodes for that key
+            for key in golden_get_node_results:
+                if new_key != key and new_key.startswith(key):
+                    golden_get_node_results[key].append(node)
+
+            # check if the new_key is already in the hierarchy_dict
+            if new_key not in golden_get_node_results:
+                golden_get_node_results[new_key] = []
+
+            # add the current node to the list of nodes for the new_key
+            golden_get_node_results[new_key].append(node)
+
+    return golden_get_node_results
+
+def test_mistral_pytorch_with_metadata():
+    model_proto = onnx.load('/home/joshmonson/Projects/experiments/finn_mlo_graphs/demo/mistral.onnx')
+    model       = ir.serde.deserialize_model(model_proto)
+    graph       = model.graph
+
+
+    P = gvu.PytorchHierarchyNode()
+    count_not_added = 0
+    for node in graph._nodes:
+        added = P.add_node(node)
+        if not added:
+            count_not_added += 1
+
+    golden = build_golden_results(graph._nodes)
+    for key, gnodes in golden.items():
+        key = key.rstrip("/")
+        nodes = P.get_nodes(key.split("/"))
+        # check if the nodes in the result are in the list of nodes for that key
+        print(f"got nodes for key {key}: {nodes}")
+        for gnode in gnodes:
+            assert gnode in nodes, f"Node {gnode.metadata_props.get('pkg.torch.onnx.name_scopes')} not found in nodes for key {key}"
