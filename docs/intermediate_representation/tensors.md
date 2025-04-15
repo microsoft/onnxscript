@@ -200,7 +200,6 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
             self, tensor: torch.Tensor, name: str | None = None, doc_string: str | None = None
         ):
             # Pass the tensor as the raw data to ir.Tensor's constructor
-            import torch
 
             _TORCH_DTYPE_TO_ONNX: dict[torch.dtype, ir.DataType] = {
                 torch.bfloat16: ir.DataType.BFLOAT16,
@@ -228,7 +227,6 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
             )
 
         def numpy(self) -> npt.NDArray:
-            import torch
 
             self.raw: torch.Tensor
             if self.dtype == ir.DataType.BFLOAT16:
