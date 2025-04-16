@@ -11,7 +11,7 @@ import onnx
 from onnx import parser
 
 from onnxscript import ir
-from onnxscript.optimizer._inliner import inline
+from onnxscript.ir.passes.common import inliner
 
 
 def _name_checker(renameable: Sequence[str] | None) -> Callable[[str, str], bool]:
@@ -46,7 +46,7 @@ class InlinerTest(unittest.TestCase):
         name_check = _name_checker(renameable)
         model_proto = parser.parse_model(input_model)
         model_ir = ir.serde.deserialize_model(model_proto)
-        inline(model_ir)
+        inliner.InlinePass()(model_ir)
         proto = ir.serde.serialize_model(model_ir)
         text = onnx.printer.to_text(proto)
         print(text)

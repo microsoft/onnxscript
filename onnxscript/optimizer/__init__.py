@@ -14,8 +14,8 @@ __all__ = [
 
 import onnx
 
-import onnxscript.ir.passes.common.unused_removal
 import onnxscript.ir.passes.common.inliner
+import onnxscript.ir.passes.common.unused_removal
 import onnxscript.optimizer._constant_folding as constant_folding
 import onnxscript.optimizer._legacy._optimizer as legacy_optimizer
 import onnxscript.optimizer._legacy.constant_folding as legacy_constant_folding

@@ -3,6 +3,7 @@
 """Implementation of an inliner for onnxscript.ir"""
 
 from __future__ import annotations
+
 import dataclasses
 
 __all__ = ["InlinePass"]
@@ -194,7 +195,6 @@ def _abbreviate(
 @dataclasses.dataclass
 class InlinePassResult(ir.passes.PassResult):
     id_count: dict[ir.OperatorIdentifier, int]
-
 
 
 class InlinePass(ir.passes.InPlacePass):
