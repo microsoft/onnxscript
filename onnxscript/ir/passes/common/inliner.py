@@ -26,7 +26,7 @@ CallSiteId = str
 CallStack = List[CallSiteId]
 
 
-def _make_unique_name(name: str, callstack: CallStack, used_names: set[str]) -> str:
+def _make_unique_name(name: str, callstack: CallStack, used_names: set[str]) -> str:  # pylint: disable=unused-argument
     """Generate a unique name from a name, calling-context, and set of used names.
 
     If there is a name clash, we add a numeric suffix to the name to make
@@ -244,7 +244,7 @@ class InlinePass(ir.passes.InPlacePass):
         if default_attr_values:
             attributes = {**attributes, **default_attr_values}
         if any(
-            attr.type == ir.AttributeType.GRAPH or attr.type == ir.AttributeType.GRAPHS
+            attr.type in {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}
             for attr in attributes.values()
         ):
             raise ValueError(
@@ -324,6 +324,6 @@ class InlinePass(ir.passes.InPlacePass):
                     if attr.type == ir.AttributeType.GRAPH:
                         self._inline_calls_in(attr.as_graph())
                     elif attr.type == ir.AttributeType.GRAPHS:
-                        for graph in attr.as_graphs():
-                            self._inline_calls_in(graph)
+                        for g in attr.as_graphs():
+                            self._inline_calls_in(g)
         return id_count

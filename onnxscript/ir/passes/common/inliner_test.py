@@ -68,10 +68,7 @@ class InlinerTest(unittest.TestCase):
                 self.assertTrue(isinstance(value, ir.Attr))
                 self.assertTrue(isinstance(expected_value, ir.Attr))
                 self.assertEqual(value.type, expected_value.type)
-                if (
-                    value.type != ir.AttributeType.GRAPH
-                    and value.type != ir.AttributeType.GRAPHS
-                ):
+                if value.type not in (ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS):
                     self.assertEqual(value.value, expected_value.value)
                 else:
                     self.fail("Graph attributes are not supported yet")
