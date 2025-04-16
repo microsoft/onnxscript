@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+import onnxscript.ir.passes.common.constant_manipulation
 import onnxscript.ir.passes.common.unused_removal
 from onnxscript import ir, rewriter
 from onnxscript.optimizer import _constant_folding, _inliner
@@ -52,6 +53,7 @@ def optimize_ir(
             early_stop=stop_if_no_change,
         ),
         onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass(),
+        onnxscript.ir.passes.common.constant_manipulation.LiftConstantsToInitializersPass(),
     )
     assert optimizer_pass.in_place
     result = optimizer_pass(model)

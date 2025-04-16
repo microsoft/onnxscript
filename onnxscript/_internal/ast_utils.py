@@ -6,11 +6,8 @@ from __future__ import annotations
 
 import ast
 import inspect
-import sys
 import textwrap
 from typing import Callable
-
-PY_VERSION_GE_39 = sys.version_info >= (3, 9)
 
 
 def get_src_and_ast(func: Callable, /) -> tuple[str, ast.FunctionDef]:
@@ -35,17 +32,10 @@ def normalize_subscript_expr(expr: ast.Subscript):
     # Returns a list of expressions, denoting the indices, after stripping the extraneous "Index"
     # wrapper present in python versions before 3.9
     index_expr = expr.slice
-    if PY_VERSION_GE_39:
-        if isinstance(index_expr, ast.Tuple):
-            return index_expr.elts  # multiple indices
-        else:
-            return [index_expr]  # single index
+    if isinstance(index_expr, ast.Tuple):
+        return index_expr.elts  # multiple indices
     else:
-        if isinstance(index_expr, ast.ExtSlice):
-            indices = index_expr.dims  # type: ignore[attr-defined]
-        else:
-            indices = [index_expr]  # single slice-index
-        return [x.value if isinstance(x, ast.Index) else x for x in indices]  # type: ignore[attr-defined]
+        return [index_expr]  # single index
 
 
 def is_print_call(stmt: ast.stmt) -> bool:

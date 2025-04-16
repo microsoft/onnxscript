@@ -15,7 +15,7 @@ VERSION_FILE = ROOT_DIR / "VERSION"
 version = VERSION_FILE.read_text().strip()
 
 project_urls = {
-    "Homepage": "https://onnxscript.ai/",
+    "Homepage": "https://microsoft.github.io/onnxscript/",
     "Repository": "https://github.com/microsoft/onnxscript",
 }
 if os.environ.get("ONNX_SCRIPT_RELEASE") != "1":

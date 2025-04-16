@@ -452,9 +452,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         fft_ops.aten__fft_c2r,
         tolerance={torch.complex64: (3e-3, 1.8e-4)},
         complex=True,
-    ).xfail(
-        dtypes=(torch.complex64,),
-        reason="fixme: the result is wrong: https://github.com/microsoft/onnxscript/pull/926",
     ),
     TorchLibOpInfo(
         "ops.aten._fft_r2c",  # Custom from extra_opinfo
@@ -1790,11 +1787,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_conv3d,
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
     ),
-    TorchLibOpInfo(
-        "nn.functional.gelu",
-        nn_ops.aten_gelu,
-        tolerance={torch.float16: (8e-2, 1e-4)},
-    ),
+    TorchLibOpInfo("nn.functional.gelu", nn_ops.aten_gelu),
     TorchLibOpInfo("nn.functional.glu", nn_ops.aten_glu),
     TorchLibOpInfo(
         "nn.functional.linear", nn_ops.aten_linear, tolerance={torch.float16: (1e-2, 1e-3)}
