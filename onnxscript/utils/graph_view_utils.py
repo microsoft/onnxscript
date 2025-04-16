@@ -105,7 +105,6 @@ class PytorchMetadataNode:
         if self.check_node_metadata_exists():
             self.instance_metadata = ast.literal_eval(self._node.metadata_props['pkg.torch.onnx.name_scopes'])
             self.class_metadata = ast.literal_eval(self._node.metadata_props['pkg.torch.onnx.class_hierarchy'])
-            print(f'self.node.metadata_props: {self._node.metadata_props}')
 
     def check_node_metadata_exists(self):
         if 'pkg.torch.onnx.name_scopes' in self._node.metadata_props and \
@@ -172,8 +171,6 @@ class PytorchHierarchyNode:
         # base case for recursion
         # 1 - search_hierarchy does not match instance_hierarchy
         instance_hierarchy.append(self.instance_name)
-        #print(f"search_hierarchy: {search_hierarchy}")
-        #print(f"instance_hierarchy: {instance_hierarchy}")
 
         if not self.hierarchy_matches(search_hierarchy, instance_hierarchy):
             return []
