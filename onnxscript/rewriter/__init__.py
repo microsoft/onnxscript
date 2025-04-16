@@ -21,12 +21,14 @@ from onnxscript.rewriter import (
     llama_rule_sets,
     no_op,
     pattern,
+    reshape_gemm_reshape,
 )
 
 _ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
 _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
     *no_op.rules.rules,  # TODO: merge this rule into constant folding?
     *broadcast_to_matmul.rules.rules,
+    reshape_gemm_reshape.rule,
     *cast_constant_of_shape.rules.rules,
     *collapse_slices.rules.rules,
     *llama_rule_sets.llama_p0_rule_set().rules,
