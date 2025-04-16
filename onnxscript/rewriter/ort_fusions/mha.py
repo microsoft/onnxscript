@@ -32,9 +32,13 @@ Dim = Union[int, ir.SymbolicDim]
 
 
 class MultiHeadAttention(pattern.RewriteRuleClassBase):
-    def __init__(self, name, *, transpose_4d: bool):
+    def __init__(self, name, *, transpose_4d: bool, is_rotary: bool, has_past_present: bool, is_sdpa_3d: bool, is_cross_attention: bool):
         super().__init__(name)
         self._transpose_4d = transpose_4d
+        self._is_rotary = is_rotary
+        self._has_past_present = has_past_present
+        self._is_sdpa_3d = is_sdpa_3d
+        self._is_cross_attention = is_cross_attention
 
     def pattern(
         self,
@@ -93,49 +97,79 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             position_ids_q = position_ids
             position_ids_k = position_ids
 
-        query_BHSDh_rope = op.RotaryEmbedding(
-            query_BHSDh, position_ids_q, cos, sin, _domain="com.microsoft"
-        )
-
-        key_BHSDh_rope = op.RotaryEmbedding(
-            key_BHSDh, position_ids_k, cos, sin, _domain="com.microsoft"
-        )
+        if self._is_rotary:
+            query_BHSDh_emb = op.RotaryEmbedding(
+                query_BHSDh, position_ids_q, cos, sin, _domain="com.microsoft"
+            )
+            key_BHSDh_emb = op.RotaryEmbedding(
+                key_BHSDh, position_ids_k, cos, sin, _domain="com.microsoft"
+            )
+        else:
+            query_BHSDh_emb = query_BHSDh
+            key_BHSDh_emb = key_BHSDh
 
         # Concatenate past_key cache and current key, and transpose to enable
         # dot-product attention computation.
+        if self._has_past_present:
+            key_seq = op.Concat(past_key, key_BHSDh_emb, axis=2)
+        else:
+            if self._is_cross_attention:
+                key_seq = past_key
+            else:
+                key_seq = key_BHSDh_emb
 
-        key_seq = op.Concat(past_key, key_BHSDh_rope, axis=-2)
+        # Concatenate past_value cache and current value
+        if self._has_past_present:
+            value_seq = op.Concat(past_value, value_BHSDh, axis=2)
+        else:
+            if self._is_cross_attention:
+                value_seq = past_value
+            else:
+                value_seq = value_BHSDh
+
+        if self._is_sdpa_3d:
+            query_BHSDh_emb = op.Reshape(query_BHSDh_emb, _allow_other_inputs=True)
+            key_seq_to_sdpa = op.Reshape(key_seq, _allow_other_inputs=True)
+            value_seq_to_sdpa = op.Reshape(value_seq, _allow_other_inputs=True)
+        else:
+            key_seq_to_sdpa = key_seq
+            value_seq_to_sdpa = value_seq
+        
         # Transpose last two axes of key_seq to compute dot-product via matmul.
         if self._transpose_4d:
-            key_seq_B_H_Dh_Skv = op.Transpose(key_seq, perm=[0, 1, 3, 2])
+            if self._is_sdpa_3d:
+                key_seq_B_H_Dh_Skv = op.Transpose(key_seq_to_sdpa, perm=[0, 2, 1])
+            else:
+                key_seq_B_H_Dh_Skv = op.Transpose(key_seq_to_sdpa, perm=[0, 1, 3, 2])
         else:
             # Transpose after converting to 3D
             key_seq_BH_Skv_Dh = op.Reshape(
-                key_seq, _allow_other_inputs=True, _outputs=["key_seq_BH_Skv_Dh"]
+                key_seq_to_sdpa, _allow_other_inputs=True, _outputs=["key_seq_BH_Skv_Dh"]
             )
             key_seq_BH_Dh_Skv = op.Transpose(key_seq_BH_Skv_Dh, perm=[0, 2, 1])
             key_seq_B_H_Dh_Skv = op.Reshape(
                 key_seq_BH_Dh_Skv, _allow_other_inputs=True, _outputs=["key_seq_B_H_Dh_Skv"]
             )
-
-        # Concatenate past_value cache and current value
-        value_seq = op.Concat(past_value, value_BHSDh, axis=-2)
-
+        
         attention = op.SDPA(
-            query_BHSDh_rope,
+            query_BHSDh_emb,
             key_seq_B_H_Dh_Skv,
-            value_seq,
-            mask,
+            value_seq_to_sdpa,
             _domain="ai.onnxruntime.fusion",
         )
 
+        attention_reshaped = op.Reshape(attention, _allow_other_inputs=True)
+
         # Transpose attention back to (B, S, H, D/H)
-        attention_transposed = op.Transpose(attention, perm=[0, 2, 1, 3])
+        attention_transposed = op.Transpose(attention_reshaped, perm=[0, 2, 1, 3])
         # Reshape back to (B, S, D)
         attention_reshaped = op.Reshape(
             attention_transposed, _allow_other_inputs=True, _outputs=["attention_reshaped"]
         )
-        return attention_reshaped, key_seq, value_seq
+        if self._has_past_present:
+            return attention_reshaped, key_seq, value_seq
+        else:
+            return attention_reshaped
 
     def check(
         self,
@@ -147,13 +181,13 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         past_key,
         past_value,
         query_BSHDh,
-        key_BSHDh,
-        value_BSHDh,
+        #key_BSHDh,
+        #value_BSHDh,
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
         bindings: dict[str, Dim] = {}
-
+        
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
             return not _fusion_utils._check_shape(bindings, val, dims)
 
@@ -162,42 +196,47 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 f"Shape mismatch: {query_BSD} does not match expected dimensions ['B', 'S', 'D']",
                 query_BSD,
             )
-        if no_match(key_BSD, ["B", "Skv", "D"]):
-            return check_result.fail(
-                f"Shape mismatch: {key_BSD} does not match expected dimensions ['B', 'Skv', 'D']",
-                query_BSD,
-            )
-        if no_match(value_BSD, ["B", "Skv", "D"]):
-            return check_result.fail(
-                f"Shape mismatch: {value_BSD} does not match expected dimensions ['B', 'Skv', 'D']",
-                value_BSD,
-            )
+        if not self._is_cross_attention:
+            if no_match(key_BSD, ["B", "Skv", "D"]):
+                return check_result.fail(
+                    f"Shape mismatch: {key_BSD} does not match expected dimensions ['B', 'Skv', 'D']",
+                    query_BSD,
+                )
+            if no_match(value_BSD, ["B", "Skv", "D"]):
+                return check_result.fail(
+                    f"Shape mismatch: {value_BSD} does not match expected dimensions ['B', 'Skv', 'D']",
+                    value_BSD,
+                )
 
-        if no_match(past_key, ["B", "H", "Spast", "Dh"]):
-            return check_result.fail(
-                f"Shape mismatch: {past_key} does not match expected dimensions ['B', 'H', 'Spast', 'Dh']",
-                past_key,
-            )
-        if no_match(past_value, ["B", "H", "Spast", "Dv"]):
-            return check_result.fail(
-                f"Shape mismatch: {past_value} does not match expected dimensions ['B', 'H', 'Spast', 'Dv']",
-                past_value,
-            )
+        if self._has_past_present:
+            if no_match(past_key, ["B", "H", "Spast", "Dh"]):
+                return check_result.fail(
+                    f"Shape mismatch: {past_key} does not match expected dimensions ['B', 'H', 'Spast', 'Dh']",
+                    past_key,
+                )
+            if no_match(past_value, ["B", "H", "Spast", "Dv"]):
+                return check_result.fail(
+                    f"Shape mismatch: {past_value} does not match expected dimensions ['B', 'H', 'Spast', 'Dv']",
+                    past_value,
+                )
         if no_match(query_BSHDh, ["B", "S", "H", "Dh"]):
             return check_result.fail(
                 f"Shape mismatch: {query_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
                 query_BSHDh,
             )
-        if no_match(key_BSHDh, ["B", "S", "H", "Dh"]):
-            return check_result.fail(
-                f"Shape mismatch: {key_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
-                query_BSHDh,
-            )
-        if no_match(value_BSHDh, ["B", "S", "H", "Dh"]):
-            return check_result.fail(
-                f"Shape mismatch: {value_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
-                query_BSHDh,
-            )
+        '''
+        if not self.is_cross_attention:
+            if no_match(key_BSHDh, ["B", "S", "H", "Dh"]):
+                return check_result.fail(
+                    f"Shape mismatch: {key_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
+                    query_BSHDh,
+                )
+            if no_match(value_BSHDh, ["B", "S", "H", "Dh"]):
+                return check_result.fail(
+                    f"Shape mismatch: {value_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
+                    query_BSHDh,
+                )
+        '''
         # TODO: mask shape check: ideally, it should be (1 or B, 1 or H, S, St)
         # But this also, unforunately, depends on ORT version.
 
@@ -216,13 +255,13 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         mask,
         past_key,
         past_value,
-        key_BSHDh,
+        query_BSHDh,
         position_ids,
         cos,
         sin,
         **_,
     ):
-        num_heads = _ir_utils.get_dim(key_BSHDh, 2)
+        num_heads = _ir_utils.get_dim(query_BSHDh, 2)
         if not isinstance(num_heads, int):
             return None
 
@@ -232,16 +271,38 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         if self._transpose_4d:
             zero_1d = op.Constant(value_ints=[0])
             position_ids = op.Unsqueeze(position_ids, zero_1d)
-        query_BSD_rope = op.RotaryEmbedding(
-            query_BSD, position_ids, cos, sin, _domain="com.microsoft"
-        )
-        key_BSD_rope = op.RotaryEmbedding(
-            key_BSD, position_ids, cos, sin, _domain="com.microsoft"
+        
+        if self._is_rotary:
+            query_BSD_emb = op.RotaryEmbedding(
+                query_BSD, position_ids, cos, sin, _domain="com.microsoft"
+            )
+            key_BSD_emb = op.RotaryEmbedding(
+                key_BSD, position_ids, cos, sin, _domain="com.microsoft"
+            )
+        else:
+            query_BSD_emb = query_BSD
+            key_BSD_emb = key_BSD
+
+        num_outputs = 1 + (2 * self._has_past_present)
+        # Special case for cross-attention
+        if self._is_cross_attention:
+            return op.MultiHeadAttention(
+            query_BSD_emb,
+            past_key,
+            past_value,
+            None,  # bias
+            None,  # key padding mask
+            mask,  # attention mask/bias
+            None,
+            None,
+            num_heads=num_heads,
+            _domain="com.microsoft",
+            _outputs=num_outputs,
         )
 
         return op.MultiHeadAttention(
-            query_BSD_rope,
-            key_BSD_rope,
+            query_BSD_emb,
+            key_BSD_emb,
             value_BSD,
             None,  # bias
             None,  # key padding mask
@@ -250,14 +311,30 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             past_value,
             num_heads=num_heads,
             _domain="com.microsoft",
-            _outputs=3,
+            _outputs=num_outputs,
         )
 
+parameter_combinations = [
+    {"transpose_4d": transpose_4d, "is_rotary": is_rotary, "has_past_present": has_past_present, "is_sdpa_3d": is_sdpa_3d, "is_cross_attention": is_cross_attention}
+    for transpose_4d in [True, False]
+    for is_rotary in [True, False]
+    for has_past_present in [True, False]
+    for is_sdpa_3d in [True, False]
+    for is_cross_attention in [False, True]
+]
 
-_mha_4d_transpose = MultiHeadAttention.rule("MHA_4D_Transpose", transpose_4d=True)
-_mha_3d_transpose = MultiHeadAttention.rule("MHA_3D_Transpose", transpose_4d=False)
-
-mha_rules = pattern.RewriteRuleSet([_mha_4d_transpose, _mha_3d_transpose])
+# Dynamically create the rules
+mha_rules = pattern.RewriteRuleSet([
+    MultiHeadAttention.rule(
+        f"MHA_{'4D' if params['transpose_4d'] else '3D'}_Transpose"
+        f"{'_Rotary' if params['is_rotary'] else ''}"
+        f"{'_Past' if params['has_past_present'] else ''}"
+        f"{'_SDPA_3D' if params['is_sdpa_3d'] else ''}"
+        f"{'_CrossAttention' if params['is_cross_attention'] else ''}",
+        **params
+    )
+    for params in parameter_combinations
+])
 
 
 fuse_mha = _fusion_utils.apply_fusion_rules(mha_rules)
