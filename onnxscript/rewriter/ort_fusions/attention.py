@@ -14,12 +14,14 @@ Dim = Union[int, ir.SymbolicDim]
 
 
 class AttentionFusion(pattern.RewriteRuleClassBase):
-    def __init__(self, name, *, has_input_bias: bool, has_past: bool = False):
+    def __init__(self, name, *, has_input_bias: bool, has_past: bool = False, is_cross_attention: bool, no_slice: bool):
         super().__init__(name)
         # TODO: We can just pass bias to MultiHeadAttention
         # and let it handle the bias addition, once that pattern is added to MHA
         self._has_input_bias = has_input_bias
         self._has_past = has_past
+        self._is_cross_attention = is_cross_attention
+        self._no_slice = no_slice
 
     def pattern(
         self,
@@ -237,35 +239,33 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
             )
 
 
-attention = AttentionFusion.rule(
-    "attention",
-    has_input_bias=False,
-    has_past=False,
-)
-attention_with_bias = AttentionFusion.rule(
-    "attention_with_bias",
-    has_input_bias=True,
-    has_past=False,
-)
-attention_with_past = AttentionFusion.rule(
-    "attention_with_past",
-    has_input_bias=False,
-    has_past=True,
-)
-attention_with_bias_and_past = AttentionFusion.rule(
-    "attention_with_bias_and_past",
-    has_input_bias=True,
-    has_past=True,
-)
+# Define all combinations of parameters
+parameter_combinations = [
+    {
+        "name": f"attention_{'with_bias_' if has_input_bias else ''}{'with_past_' if has_past else ''}{'cross_' if is_cross_attention else ''}{'no_slice' if no_slice else ''}".strip("_"),
+        "has_input_bias": has_input_bias,
+        "has_past": has_past,
+        "is_cross_attention": is_cross_attention,
+        "no_slice": no_slice,
+    }
+    for has_input_bias in [False, True]
+    for has_past in [False, True]
+    for is_cross_attention in [False, True]
+    for no_slice in [False, True]
+]
 
-attention_rules = pattern.RewriteRuleSet(
-    [
-        attention,
-        attention_with_bias,
-        attention_with_past,
-        attention_with_bias_and_past,
-    ]
-)
+# Dynamically create the rules
+attention_rules = pattern.RewriteRuleSet([
+    AttentionFusion.rule(
+        params["name"],
+        has_input_bias=params["has_input_bias"],
+        has_past=params["has_past"],
+        is_cross_attention=params["is_cross_attention"],
+        no_slice=params["no_slice"],
+    )
+    for params in parameter_combinations
+])
+
 
 
 fuse_attention = _fusion_utils.apply_fusion_rules(attention_rules)

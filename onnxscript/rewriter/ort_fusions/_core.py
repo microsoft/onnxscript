@@ -66,14 +66,14 @@ def fuse_xformers(model: ir.Model) -> tuple[ir.Model, dict[str, int]]:
 
     model = _pre_optimize(model)
     fusion_count["rms_normalization"] = fuse_rms_normalization(model)
-    fusion_count["skip_layer_normalization"] = fuse_skip_layer_normalization(model)
+    fusion_count["skip_layer_normalization"] = fuse_skip_layer_normalization(model, debug=True)
     fusion_count["skip_rms_normalization"] = fuse_skip_rms_normalization(model)
     fusion_count["rotary_embedding"] = fuse_rotary_embedding(model)
     fusion_count["partial_rotary_embedding"] = fuse_partial_rotary_embedding(model)
     fusion_count["cos_sin_cache"] = fuse_cos_sin_cache(model)
-    fusion_count["sdpa"] = fuse_sdpa(model)
+    fusion_count["sdpa"] = fuse_sdpa(model, debug=True)
     # Optimize to avoid trying multiple attention-based fusions
-    fusion_count["mha"] = fuse_mha(model)
+    fusion_count["mha"] = fuse_mha(model, debug=True)
     if fusion_count["mha"] == 0:
         # If no MHA fusion was applied, we can try the GQA fusion.
         # and avoid trying the attention fusion.

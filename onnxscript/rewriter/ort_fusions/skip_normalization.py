@@ -47,22 +47,22 @@ def _skip_layer_norm_pattern(op, input, skip, gamma, beta, epsilon, stash_type):
         epsilon=epsilon,
         stash_type=stash_type,
     )
-    return normalized
+    return normalized, skip_sum
 
 
 def _skip_layer_normalization(op, input, skip, gamma, beta, epsilon, stash_type):
     if stash_type.value != 1:  # FLOAT type
         return None
-    normalized, _mean, _inv_std_var = op.SkipLayerNormalization(
+    normalized, _mean, _inv_std_var, skip_sum= op.SkipLayerNormalization(
         input,
         skip,
         gamma,
         beta,
         epsilon=epsilon,
-        _outputs=3,
+        _outputs=4,
         _domain="com.microsoft",
     )
-    return normalized
+    return normalized, skip_sum
 
 
 _skip_layer_rule = pattern.RewriteRule(_skip_layer_norm_pattern, _skip_layer_normalization)
