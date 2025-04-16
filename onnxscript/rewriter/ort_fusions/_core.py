@@ -5,7 +5,7 @@ from __future__ import annotations
 import onnxscript.ir as ir
 from onnxscript.ir.passes.common import shape_inference
 from onnxscript.optimizer import optimize
-from onnxscript.rewriter import rewrite
+from onnxscript.rewriter import gemm_to_matmul_add, rewrite
 from onnxscript.rewriter.ort_fusions import (
     fused_matmul_rule_sets,
     # group_normalization_merge_silu,
@@ -30,6 +30,7 @@ from onnxscript.rewriter.ort_fusions.skip_normalization import (
 )
 
 ORT_PATTERN_REWRITE_RULES = [
+    gemm_to_matmul_add.rule,
     *softmax.rules.rules,
     *instance_to_group_normalization.rules.rules,
     # NOTE: group normalization merge silu should be applied after instance to group normalization
