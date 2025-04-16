@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Tests for onnxscript.optimizer._inliner"""
+"""Tests for the inliner pass."""
 
 from __future__ import annotations
 
