@@ -11,8 +11,8 @@ __all__ = ["InlinePass", "InlinePassResult"]
 from collections import defaultdict
 from typing import Iterable, List, Sequence, Tuple
 
-import onnxscript.ir as ir
-import onnxscript.ir.convenience as ir_convenience
+import onnxscript.ir.convenience as _ir_convenience
+from onnxscript import ir
 
 # A replacement for a node specifies a list of nodes that replaces the original node,
 # and a list of values that replaces the original node's outputs.
@@ -309,7 +309,7 @@ class InlinePass(ir.passes.InPlacePass):
                     self._function_id_abbreviations[id] + call_site_prefix
                 )
                 nodes, values = self._instantiate_call(node, call_site)
-                ir_convenience.replace_nodes_and_values(
+                _ir_convenience.replace_nodes_and_values(
                     graph,
                     insertion_point=node,
                     old_nodes=[node],
