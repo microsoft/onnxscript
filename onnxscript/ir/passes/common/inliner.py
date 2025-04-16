@@ -3,6 +3,9 @@
 """Implementation of an inliner for onnxscript.ir"""
 
 from __future__ import annotations
+import dataclasses
+
+__all__ = ["InlinePass"]
 
 from collections import defaultdict
 from typing import Iterable, List, Sequence, Tuple
@@ -188,6 +191,12 @@ def _abbreviate(
     return {id: id_abbreviation(id) for id in function_ids}
 
 
+@dataclasses.dataclass
+class InlinePassResult(ir.passes.PassResult):
+    id_count: dict[ir.OperatorIdentifier, int]
+
+
+
 class InlinePass(ir.passes.InPlacePass):
     def __init__(self) -> None:
         super().__init__()
@@ -208,9 +217,9 @@ class InlinePass(ir.passes.InPlacePass):
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         self._reset(model)
-        modified = self.inline_calls_in(model.graph)
+        id_count = self._inline_calls_in(model.graph)
         model.functions.clear()
-        return ir.passes.PassResult(model, modified)
+        return InlinePassResult(model, modified=bool(id_count), id_count=id_count)
 
     def _instantiate_call(self, node: ir.Node, call_site_id: CallSiteId) -> NodeReplacement:
         id = node.op_identifier()
@@ -264,7 +273,7 @@ class InlinePass(ir.passes.InPlacePass):
         output_values = [value_map[output] for output in function.outputs]
         return nodes, output_values  # type: ignore
 
-    def inline_calls_in(self, graph: ir.Graph) -> bool:
+    def _inline_calls_in(self, graph: ir.Graph) -> dict[ir.OperatorIdentifier, int]:
         for input in graph.inputs:
             if input.name is not None:
                 self.used_value_names.add(input.name)
@@ -313,14 +322,8 @@ class InlinePass(ir.passes.InPlacePass):
                     if not isinstance(attr, ir.Attr):
                         continue
                     if attr.type == ir.AttributeType.GRAPH:
-                        self.inline_calls_in(attr.as_graph())
+                        self._inline_calls_in(attr.as_graph())
                     elif attr.type == ir.AttributeType.GRAPHS:
                         for graph in attr.as_graphs():
-                            self.inline_calls_in(graph)
-        return bool(id_count)
-
-
-def inline(model: ir.Model) -> None:
-    """Inline all function calls (recursively) in the model."""
-    if model.functions:
-        InlinePass()(model)
+                            self._inline_calls_in(graph)
+        return id_count

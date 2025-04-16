@@ -15,11 +15,11 @@ __all__ = [
 import onnx
 
 import onnxscript.ir.passes.common.unused_removal
+import onnxscript.ir.passes.common.inliner
 import onnxscript.optimizer._constant_folding as constant_folding
 import onnxscript.optimizer._legacy._optimizer as legacy_optimizer
 import onnxscript.optimizer._legacy.constant_folding as legacy_constant_folding
 from onnxscript import ir
-from onnxscript.optimizer._inliner import inline
 from onnxscript.optimizer._optimizer import optimize_ir
 
 basic_constant_propagation = constant_folding.basic_constant_propagation
@@ -33,6 +33,12 @@ def optimize(model: ir.Model, *args, **kwargs) -> ir.Model:
         return model
     else:
         return legacy_optimizer.optimize(model, *args, **kwargs)
+
+
+def inline(model: ir.Model) -> None:
+    """Inline all function calls (recursively) in the model."""
+    if model.functions:
+        onnxscript.ir.passes.common.inliner.InlinePass()(model)
 
 
 def fold_constants(
