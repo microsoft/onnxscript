@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import dataclasses
 
-__all__ = ["InlinePass"]
+__all__ = ["InlinePass", "InlinePassResult"]
 
 from collections import defaultdict
 from typing import Iterable, List, Sequence, Tuple
@@ -215,7 +215,7 @@ class InlinePass(ir.passes.InPlacePass):
         self.used_node_names = set()
         self.node_context = {}
 
-    def call(self, model: ir.Model) -> ir.passes.PassResult:
+    def call(self, model: ir.Model) -> InlinePassResult:
         self._reset(model)
         id_count = self._inline_calls_in(model.graph)
         model.functions.clear()
