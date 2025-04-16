@@ -5,9 +5,10 @@ from __future__ import annotations
 import logging
 
 import onnxscript.ir.passes.common.constant_manipulation
+import onnxscript.ir.passes.common.inliner
 import onnxscript.ir.passes.common.unused_removal
 from onnxscript import ir, rewriter
-from onnxscript.optimizer import _constant_folding, _inliner
+from onnxscript.optimizer import _constant_folding
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ def optimize_ir(
             outer optimization loop if no change is detected in one iteration.
     """
     optimizer_pass = ir.passes.Sequential(
-        _inliner.InlinePass(),
+        onnxscript.ir.passes.common.inliner.InlinePass(),
         ir.passes.PassManager(
             [
                 _constant_folding.FoldConstantsPass(

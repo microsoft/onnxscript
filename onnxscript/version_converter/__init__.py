@@ -7,8 +7,8 @@ __all__ = [
     "convert_version",
 ]
 
+import onnxscript.optimizer
 from onnxscript import ir
-from onnxscript.optimizer import _inliner
 from onnxscript.version_converter import _version_converter
 
 
@@ -17,5 +17,5 @@ def convert_version(model: ir.Model, target_version: int) -> None:
 
     # In functions, we can have attribute-parameters, which means we don't know the value of the attribute.
     # Hence, we inline all the functions.
-    _inliner.inline(model)
+    onnxscript.optimizer.inline(model)
     _version_converter.convert_version(model, target_version)

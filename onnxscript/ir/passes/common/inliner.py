@@ -4,11 +4,15 @@
 
 from __future__ import annotations
 
+import dataclasses
+
+__all__ = ["InlinePass", "InlinePassResult"]
+
 from collections import defaultdict
 from typing import Iterable, List, Sequence, Tuple
 
-import onnxscript.ir as ir
-import onnxscript.ir.convenience as ir_convenience
+import onnxscript.ir.convenience as _ir_convenience
+from onnxscript import ir
 
 # A replacement for a node specifies a list of nodes that replaces the original node,
 # and a list of values that replaces the original node's outputs.
@@ -22,7 +26,7 @@ CallSiteId = str
 CallStack = List[CallSiteId]
 
 
-def _make_unique_name(name: str, callstack: CallStack, used_names: set[str]) -> str:
+def _make_unique_name(name: str, callstack: CallStack, used_names: set[str]) -> str:  # pylint: disable=unused-argument
     """Generate a unique name from a name, calling-context, and set of used names.
 
     If there is a name clash, we add a numeric suffix to the name to make
@@ -188,6 +192,11 @@ def _abbreviate(
     return {id: id_abbreviation(id) for id in function_ids}
 
 
+@dataclasses.dataclass
+class InlinePassResult(ir.passes.PassResult):
+    id_count: dict[ir.OperatorIdentifier, int]
+
+
 class InlinePass(ir.passes.InPlacePass):
     def __init__(self) -> None:
         super().__init__()
@@ -206,11 +215,11 @@ class InlinePass(ir.passes.InPlacePass):
         self.used_node_names = set()
         self.node_context = {}
 
-    def call(self, model: ir.Model) -> ir.passes.PassResult:
+    def call(self, model: ir.Model) -> InlinePassResult:
         self._reset(model)
-        modified = self.inline_calls_in(model.graph)
+        id_count = self._inline_calls_in(model.graph)
         model.functions.clear()
-        return ir.passes.PassResult(model, modified)
+        return InlinePassResult(model, modified=bool(id_count), id_count=id_count)
 
     def _instantiate_call(self, node: ir.Node, call_site_id: CallSiteId) -> NodeReplacement:
         id = node.op_identifier()
@@ -235,7 +244,7 @@ class InlinePass(ir.passes.InPlacePass):
         if default_attr_values:
             attributes = {**attributes, **default_attr_values}
         if any(
-            attr.type == ir.AttributeType.GRAPH or attr.type == ir.AttributeType.GRAPHS
+            attr.type in {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}
             for attr in attributes.values()
         ):
             raise ValueError(
@@ -264,7 +273,7 @@ class InlinePass(ir.passes.InPlacePass):
         output_values = [value_map[output] for output in function.outputs]
         return nodes, output_values  # type: ignore
 
-    def inline_calls_in(self, graph: ir.Graph) -> bool:
+    def _inline_calls_in(self, graph: ir.Graph) -> dict[ir.OperatorIdentifier, int]:
         for input in graph.inputs:
             if input.name is not None:
                 self.used_value_names.add(input.name)
@@ -300,7 +309,7 @@ class InlinePass(ir.passes.InPlacePass):
                     self._function_id_abbreviations[id] + call_site_prefix
                 )
                 nodes, values = self._instantiate_call(node, call_site)
-                ir_convenience.replace_nodes_and_values(
+                _ir_convenience.replace_nodes_and_values(
                     graph,
                     insertion_point=node,
                     old_nodes=[node],
@@ -313,14 +322,8 @@ class InlinePass(ir.passes.InPlacePass):
                     if not isinstance(attr, ir.Attr):
                         continue
                     if attr.type == ir.AttributeType.GRAPH:
-                        self.inline_calls_in(attr.as_graph())
+                        self._inline_calls_in(attr.as_graph())
                     elif attr.type == ir.AttributeType.GRAPHS:
-                        for graph in attr.as_graphs():
-                            self.inline_calls_in(graph)
-        return bool(id_count)
-
-
-def inline(model: ir.Model) -> None:
-    """Inline all function calls (recursively) in the model."""
-    if model.functions:
-        InlinePass()(model)
+                        for g in attr.as_graphs():
+                            self._inline_calls_in(g)
+        return id_count
