@@ -187,39 +187,27 @@ class PytorchHierarchyNode:
 
         return nodes_to_return
 
-    # def add_nodes(self, nodes):
-    #     for node in nodes:
-    #         self.add_node(node)
     def add_node(self, node, level=0):
 
-        # if node.name == 'node_Constant_2153':
-        #     import pdb
-        #     pdb.set_trace()
-
-        print("calling add_node")
         if not isinstance(node, PytorchMetadataNode):
             node = PytorchMetadataNode(node)
             if node.check_node_metadata_exists() is False:
                 return False
 
         if self.instance_name is None:
-            print(f"setting instance name to {node.get_instance_name(level)}")
             self.instance_name = node.get_instance_name(level)
         if self.module_type is None:
             self.module_type = node.get_class_name(level)
 
         # check that instance name and module type match
         if self.instance_name != node.get_instance_name(level):
-            #raise ValueError(f"Instance name mismatch: {self.instance_name} != {node.get_instance_name(level)}")
             return False
         if self.module_type   != node.get_class_name(level):
-            #raise ValueError(f"Module type mismatch: {self.module_type} != {node.get_class_name(level)}")
             return False
         # if this is the last level of the hierarchy, add the node to this node
         # otherwise find the child node that matches the next level of the hierarchy
         # and add the node to that child
         if node.is_last_level(level):
-            print(f"Adding node {node} to {self.instance_name}")
             self.nodes.append(node)
             return True
         else:
