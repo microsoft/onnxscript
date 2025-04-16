@@ -40,7 +40,6 @@ def optimize_ir(
         ir.passes.PassManager(
             [
                 _constant_folding.FoldConstantsPass(
-                    external_data_folder="",
                     shape_inference=onnx_shape_inference,
                     input_size_limit=input_size_limit,
                     output_size_limit=output_size_limit,
