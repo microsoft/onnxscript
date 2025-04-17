@@ -98,7 +98,7 @@ class RemoveUnusedNodesPass(ir.passes.InPlacePass):
         graph_outputs = frozenset(model.graph.outputs)
         initializers = model.graph.initializers
         graph_inputs = model.graph.inputs
-        for num, input in list( enumerate( graph_inputs ) )[::-1]:
+        for num, input in reversed(list(enumerate(graph_inputs))):
             if input.name in initializers and not (input in graph_outputs or input.uses()):
                 del graph_inputs[num]
                 count += 1                
