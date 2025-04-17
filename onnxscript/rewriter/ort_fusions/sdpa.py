@@ -74,6 +74,13 @@ class SDPA(pattern.RewriteRuleClassBase):
                     key_scale,
                 )
             if not _ir_utils.is_singleton_value(key_scale, sqrt_scaling_factor, rtol=1e-3):
+                if _ir_utils.get_singleton_value(query_scale) != _ir_utils.get_singleton_value(
+                    key_scale
+                ):
+                    return check_result.fail(
+                        "Query and key scales are not equal.",
+                        query_scale,
+                    )
                 self._custom_scale = True
         else:
             # Check if qk_scale is a scalar == expected_scaling_factor)

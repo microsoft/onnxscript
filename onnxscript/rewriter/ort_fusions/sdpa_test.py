@@ -99,6 +99,19 @@ def _custom_scale_pre_mul_sdpa_script(query, key, value):
 
 
 @script()
+def _custom_multi_scale_pre_mul_sdpa_script(query, key, value):
+    key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
+    multiplier_q = op.Constant(value_float=0.5)
+    multiplier_k = op.Constant(value_float=0.5)
+    scaled_query = op.Mul(query, multiplier_q)
+    scaled_key = op.Mul(key_transposed, multiplier_k)
+    attn_score = op.MatMul(scaled_query, scaled_key)
+    attn_weight = op.Softmax(attn_score, axis=-1)
+    attn_output = op.MatMul(attn_weight, value)
+    return attn_output
+
+
+@script()
 def _custom_scale_post_div_sdpa_script(query, key, value):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
     divisor = op.Constant(value_float=0.1)
@@ -265,6 +278,7 @@ class TestSDPAFusion(unittest.TestCase):
             ("custom_scale_post_div_masked", _custom_scale_post_div_sdpa_script),
             ("custom_scale_pre_mul_masked", _custom_scale_pre_mul_sdpa_script),
             ("custom_scale_pre_div_masked", _custom_scale_pre_div_sdpa_script),
+            (_custom_multi_scale_pre_mul_sdpa_script, _custom_multi_scale_pre_mul_sdpa_script),
         ]
     )
     def test_sdpa_fusion(self, name, script_func):
