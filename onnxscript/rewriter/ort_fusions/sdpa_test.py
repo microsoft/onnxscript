@@ -75,6 +75,52 @@ def _unmasked_post_mul_sdpa_script(query, key, value):
 
 
 @script()
+def _custom_scale_pre_div_sdpa_script(query, key, value):
+    key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
+    divisor = op.Constant(value_float=2.0)
+    scaled_query = op.Div(query, divisor)
+    scaled_key = op.Div(key_transposed, divisor)
+    attn_score = op.MatMul(scaled_query, scaled_key)
+    attn_weight = op.Softmax(attn_score, axis=-1)
+    attn_output = op.MatMul(attn_weight, value)
+    return attn_output
+
+
+@script()
+def _custom_scale_pre_mul_sdpa_script(query, key, value):
+    key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
+    multiplier = op.Constant(value_float=0.5)
+    scaled_query = op.Mul(query, multiplier)
+    scaled_key = op.Mul(key_transposed, multiplier)
+    attn_score = op.MatMul(scaled_query, scaled_key)
+    attn_weight = op.Softmax(attn_score, axis=-1)
+    attn_output = op.MatMul(attn_weight, value)
+    return attn_output
+
+
+@script()
+def _custom_scale_post_div_sdpa_script(query, key, value):
+    key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
+    divisor = op.Constant(value_float=0.1)
+    attn_score = op.MatMul(query, key_transposed)
+    scaled_attn_score = op.Div(attn_score, divisor)
+    attn_weight = op.Softmax(scaled_attn_score, axis=-1)
+    attn_output = op.MatMul(attn_weight, value)
+    return attn_output
+
+
+@script()
+def _custom_scale_post_mul_sdpa_script(query, key, value):
+    key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
+    multiplier = op.Constant(value_float=0.125)
+    attn_score = op.MatMul(query, key_transposed)
+    scaled_attn_score = op.Mul(attn_score, multiplier)
+    attn_weight = op.Softmax(scaled_attn_score, axis=-1)
+    attn_output = op.MatMul(attn_weight, value)
+    return attn_output
+
+
+@script()
 def _masked_pre_div_sdpa_script(query, key, value, mask):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
     divisor = op.Constant(value_float=SQRT_SCALE_FACTOR)
@@ -124,6 +170,56 @@ def _masked_post_mul_sdpa_script(query, key, value, mask):
     return attn_output
 
 
+@script()
+def _custom_scale_pre_div_sdpa_script(query, key, value, mask):
+    key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
+    divisor = op.Constant(value_float=2.0)
+    scaled_query = op.Div(query, divisor)
+    scaled_key = op.Div(key_transposed, divisor)
+    attn_score = op.MatMul(scaled_query, scaled_key)
+    masked_attn_score = op.Add(attn_score, mask)
+    attn_weight = op.Softmax(masked_attn_score, axis=-1)
+    attn_output = op.MatMul(attn_weight, value)
+    return attn_output
+
+
+@script()
+def _custom_scale_mul_sdpa_script(query, key, value, mask):
+    key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
+    multiplier = op.Constant(value_float=0.5)
+    scaled_query = op.Mul(query, multiplier)
+    scaled_key = op.Mul(key_transposed, multiplier)
+    attn_score = op.MatMul(scaled_query, scaled_key)
+    masked_attn_score = op.Add(attn_score, mask)
+    attn_weight = op.Softmax(masked_attn_score, axis=-1)
+    attn_output = op.MatMul(attn_weight, value)
+    return attn_output
+
+
+@script()
+def _custom_scale_post_div_sdpa_script(query, key, value, mask):
+    key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
+    divisor = op.Constant(value_float=0.1)
+    attn_score = op.MatMul(query, key_transposed)
+    scaled_attn_score = op.Div(attn_score, divisor)
+    masked_attn_score = op.Add(scaled_attn_score, mask)
+    attn_weight = op.Softmax(masked_attn_score, axis=-1)
+    attn_output = op.MatMul(attn_weight, value)
+    return attn_output
+
+
+@script()
+def _custom_scale_post_mul_sdpa_script(query, key, value, mask):
+    key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
+    multiplier = op.Constant(value_float=0.125)
+    attn_score = op.MatMul(query, key_transposed)
+    scaled_attn_score = op.Mul(attn_score, multiplier)
+    masked_attn_score = op.Add(scaled_attn_score, mask)
+    attn_weight = op.Softmax(masked_attn_score, axis=-1)
+    attn_output = op.MatMul(attn_weight, value)
+    return attn_output
+
+
 class SDPATestCase:
     def __init__(self, script_func):
         self.script_func = script_func
@@ -161,6 +257,14 @@ class TestSDPAFusion(unittest.TestCase):
             ("pre_mul", _masked_pre_mul_sdpa_script),
             ("post_div", _masked_post_div_sdpa_script),
             ("post_mul", _masked_post_mul_sdpa_script),
+            ("custom_scale_post_mul", _custom_scale_post_mul_sdpa_script),
+            ("custom_scale_post_div", _custom_scale_post_div_sdpa_script),
+            ("custom_scale_pre_mul", _custom_scale_pre_mul_sdpa_script),
+            ("custom_scale_pre_div", _custom_scale_pre_div_sdpa_script),
+            ("custom_scale_post_mul_masked", _custom_scale_post_mul_sdpa_script),
+            ("custom_scale_post_div_masked", _custom_scale_post_div_sdpa_script),
+            ("custom_scale_pre_mul_masked", _custom_scale_pre_mul_sdpa_script),
+            ("custom_scale_pre_div_masked", _custom_scale_pre_div_sdpa_script),
         ]
     )
     def test_sdpa_fusion(self, name, script_func):
