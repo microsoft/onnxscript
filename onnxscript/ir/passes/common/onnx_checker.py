@@ -49,11 +49,6 @@ class CheckerPass(ir.passes.PassBase):
             )
             return proto
 
-        _c_api_utils.call_onnx_api(
-            func=_partial_check_model,
-            model=model,
-            # Since we do not modify the model. merge_func is not used but provided for completeness
-            merge_func=lambda m, proto: (m, False),
-        )
+        _c_api_utils.call_onnx_api(func=_partial_check_model, model=model)
         # The model is not modified
         return ir.passes.PassResult(model, False)

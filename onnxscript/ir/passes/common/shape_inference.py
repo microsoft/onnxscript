@@ -20,12 +20,12 @@ from onnxscript.ir.passes.common import _c_api_utils
 logger = logging.getLogger(__name__)
 
 
-def _merge_func(model: ir.Model, inferred_proto: onnx.ModelProto) -> tuple[ir.Model, bool]:
-    """Merge the inferred model with the original model.
+def _merge_func(model: ir.Model, inferred_proto: onnx.ModelProto) -> bool:
+    """Merge the shape inferred model with the original model.
 
     Args:
         model: The original IR model.
-        inferred_proto: The inferred ONNX model.
+        inferred_proto: The ONNX model with shapes and types inferred.
 
     Returns:
         A tuple containing the modified model and a boolean indicating whether the model was modified.
@@ -48,7 +48,7 @@ def _merge_func(model: ir.Model, inferred_proto: onnx.ModelProto) -> tuple[ir.Mo
                 logger.warning(
                     "Value %s not found in inferred graph %s", name, inferred_graph.name
                 )
-    return model, modified
+    return modified
 
 
 class ShapeInferencePass(ir.passes.InPlacePass):
@@ -58,6 +58,8 @@ class ShapeInferencePass(ir.passes.InPlacePass):
         self, check_type: bool = True, strict_mode: bool = True, data_prop: bool = True
     ) -> None:
         """Initialize the shape inference pass.
+
+        If inference fails, the model is left unchanged.
 
         Args:
             check_type: If True, check the types of the inputs and outputs.
@@ -76,14 +78,14 @@ class ShapeInferencePass(ir.passes.InPlacePass):
             strict_mode=self.strict_mode,
             data_prop=self.data_prop,
         )
+        try:
+            inferred_model_proto = _c_api_utils.call_onnx_api(onnx_infer_shapes, model)
+        except Exception as e:
+            logger.warning("Shape inference failed: %s. Model is left unchanged", exc_info=e)
+            return ir.passes.PassResult(model, False)
 
-        inferred_model, modified = _c_api_utils.call_onnx_api(
-            onnx_infer_shapes,
-            model,
-            merge_func=_merge_func,
-        )
-
-        return ir.passes.PassResult(inferred_model, modified=modified)
+        modified = _merge_func(model, inferred_model_proto)
+        return ir.passes.PassResult(model, modified=modified)
 
 
 def infer_shapes(
