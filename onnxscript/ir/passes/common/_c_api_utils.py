@@ -58,8 +58,10 @@ def call_onnx_api(func: Callable[[onnx.ModelProto], _R], model: ir.Model) -> _R:
             assert initializer.name is not None
             model.graph.initializers.pop(initializer.name)
 
+    proto = ir.serde.serialize_model(model)
+
     try:
-        proto = ir.serde.serialize_model(model)
+        # Call the ONNX C API function
         result = func(proto)
     finally:
         # Restore the original initializer values so the model is unchanged
