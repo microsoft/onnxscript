@@ -72,7 +72,7 @@ class ShapeInferencePass(ir.passes.InPlacePass):
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         def partial_infer_shapes(proto: onnx.ModelProto) -> onnx.ModelProto:
-            onnx.shape_inference.infer_shapes(
+            return onnx.shape_inference.infer_shapes(
                 proto,
                 check_type=self.check_type,
                 strict_mode=self.strict_mode,
