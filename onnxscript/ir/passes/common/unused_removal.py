@@ -97,16 +97,16 @@ class RemoveUnusedNodesPass(ir.passes.InPlacePass):
         count = _remove_unused_nodes_in_graph_like(model.graph)
         graph_outputs = frozenset(model.graph.outputs)
         initializers = model.graph.initializers
+        graph_inputs = model.graph.inputs
+        for num, input in list( enumerate( graph_inputs ) )[::-1]:
+            if input.name in initializers and not (input in graph_outputs or input.uses()):
+                del graph_inputs[num]
+                count += 1                
         for init in list(initializers.values()):
             if not (init in graph_outputs or init.uses()):
                 assert init.name is not None
                 del initializers[init.name]
                 count += 1
-        graph_inputs = model.graph.inputs
-        for num, input in list( enumerate( graph_inputs ) )[::-1]:
-            if not (input in graph_outputs or input.uses()):
-                del graph_inputs[num]
-                count += 1                
         for function in model.functions.values():
             count += _remove_unused_nodes_in_graph_like(function)
         if count:
