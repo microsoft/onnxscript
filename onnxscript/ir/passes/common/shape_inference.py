@@ -81,7 +81,7 @@ class ShapeInferencePass(ir.passes.InPlacePass):
 
         try:
             inferred_model_proto = _c_api_utils.call_onnx_api(partial_infer_shapes, model)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning("Shape inference failed: %s. Model is left unchanged", exc_info=e)
             return ir.passes.PassResult(model, False)
 
