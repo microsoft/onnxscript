@@ -102,6 +102,11 @@ class RemoveUnusedNodesPass(ir.passes.InPlacePass):
                 assert init.name is not None
                 del initializers[init.name]
                 count += 1
+        graph_inputs = model.graph.inputs
+        for num, input in list( enumerate( graph_inputs ) )[::-1]:
+            if not (input in graph_outputs or input.uses()):
+                del graph_inputs[num]
+                count += 1                
         for function in model.functions.values():
             count += _remove_unused_nodes_in_graph_like(function)
         if count:
