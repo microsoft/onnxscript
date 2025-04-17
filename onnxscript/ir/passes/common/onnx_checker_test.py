@@ -69,7 +69,9 @@ class TestCheckerPass(unittest.TestCase):
             ir_version=10,
         )
 
-        with self.assertRaisesRegex(Exception, "Field 'name' of 'graph' is required to be non-empty"):
+        with self.assertRaisesRegex(
+            Exception, "Field 'name' of 'graph' is required to be non-empty"
+        ):
             onnx_checker.CheckerPass()(model)
 
 

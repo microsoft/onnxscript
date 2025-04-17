@@ -9,7 +9,6 @@ __all__ = [
     "infer_shapes",
 ]
 
-import functools
 import logging
 
 import onnx
@@ -72,14 +71,16 @@ class ShapeInferencePass(ir.passes.InPlacePass):
         self.data_prop = data_prop
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
-        onnx_infer_shapes = functools.partial(
-            onnx.shape_inference.infer_shapes,
-            check_type=self.check_type,
-            strict_mode=self.strict_mode,
-            data_prop=self.data_prop,
-        )
+        def partial_infer_shapes(proto: onnx.ModelProto) -> onnx.ModelProto:
+            onnx.shape_inference.infer_shapes(
+                proto,
+                check_type=self.check_type,
+                strict_mode=self.strict_mode,
+                data_prop=self.data_prop,
+            )
+
         try:
-            inferred_model_proto = _c_api_utils.call_onnx_api(onnx_infer_shapes, model)
+            inferred_model_proto = _c_api_utils.call_onnx_api(partial_infer_shapes, model)
         except Exception as e:
             logger.warning("Shape inference failed: %s. Model is left unchanged", exc_info=e)
             return ir.passes.PassResult(model, False)
