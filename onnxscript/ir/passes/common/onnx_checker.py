@@ -39,7 +39,7 @@ class CheckerPass(ir.passes.PassBase):
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         """Run the onnx checker on the model."""
 
-        def _partial_check_model(proto: onnx.ModelProto) -> onnx.ModelProto:
+        def _partial_check_model(proto: onnx.ModelProto) -> None:
             """Partial function to check the model."""
             onnx.checker.check_model(
                 proto,
@@ -47,7 +47,6 @@ class CheckerPass(ir.passes.PassBase):
                 skip_opset_compatibility_check=self.skip_opset_compatibility_check,
                 check_custom_domain=self.check_custom_domain,
             )
-            return proto
 
         _c_api_utils.call_onnx_api(func=_partial_check_model, model=model)
         # The model is not modified

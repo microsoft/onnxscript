@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, TypeVar
 
 from onnxscript import ir
 
@@ -17,11 +17,10 @@ logger = logging.getLogger(__name__)
 # Temporarily remove initializers larger than this size to keep model size down
 # for the onnx.shape_inference call because it needs to serialize the model
 _BIG_TENSOR_SIZE_LIMIT = 1000  # 1KB
+_R = TypeVar("_R")
 
 
-def call_onnx_api(
-    func: Callable[[onnx.ModelProto], onnx.ModelProto], model: ir.Model
-) -> onnx.ModelProto:
+def call_onnx_api(func: Callable[[onnx.ModelProto], _R], model: ir.Model) -> _R:
     """Call an ONNX C API function by temporarily removing initializers.
 
     This is necessary because the ONNX C API does not support large models
@@ -29,7 +28,7 @@ def call_onnx_api(
     unchanged no matter the call succeeds or not.
 
     Args:
-        func: Partially applied function that takes a model proto and returns a model proto.
+        func: Partially applied function that takes a model proto and returns anything.
         model: The IR model to pass to the API function.
 
     Returns:
@@ -61,7 +60,7 @@ def call_onnx_api(
 
     try:
         proto = ir.serde.serialize_model(model)
-        result_proto = func(proto)
+        result = func(proto)
     finally:
         # Restore the original initializer values so the model is unchanged
         for initializer in initializer_values:
@@ -73,4 +72,4 @@ def call_onnx_api(
         model.graph.inputs.clear()
         model.graph.inputs.extend(inputs)
 
-    return result_proto
+    return result
