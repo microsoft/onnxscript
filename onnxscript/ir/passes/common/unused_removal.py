@@ -93,15 +93,26 @@ def _remove_unused_nodes_in_graph_like(function_or_graph: ir.Function | ir.Graph
 
 
 class RemoveUnusedNodesPass(ir.passes.InPlacePass):
+    def __init__(self, remove_initialized_inputs: bool =True ):
+        """
+        :param remove_initialized_inputs: if `True` (default) remove unused inputs, in case
+            where is corresponding initializer, (those are typically rather initializers than inputs)
+            if changed to `False`, unused inputs remain, even if it has default initializer
+            Note: usual inputs will remain anyhow
+        """
+        super().__init__()
+        self.remove_initialized_inputs = remove_initialized_inputs
+
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         count = _remove_unused_nodes_in_graph_like(model.graph)
         graph_outputs = frozenset(model.graph.outputs)
         initializers = model.graph.initializers
-        graph_inputs = model.graph.inputs
-        for i, input in reversed(list(enumerate(graph_inputs))):
-            if input.name in initializers and not (input in graph_outputs or input.uses()):
-                del graph_inputs[i]
-                count += 1
+        if self.remove_initialized_inputs:
+            graph_inputs = model.graph.inputs
+            for i, input in reversed(list(enumerate(graph_inputs))):
+                if input.name in initializers and not (input in graph_outputs or input.uses()):
+                    del graph_inputs[i]
+                    count += 1
         for init in list(initializers.values()):
             if not (init in graph_outputs or init.uses()):
                 assert init.name is not None
