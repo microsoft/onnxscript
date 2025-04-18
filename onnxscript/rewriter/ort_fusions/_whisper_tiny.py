@@ -29,7 +29,7 @@ def make_decoder_model(
 class TestMultiHeadAttention(unittest.TestCase):
     def test_whisper_tiny(self):
         # Generate encoder model
-        whisper_encoder_model = onnx.load("/workspace/whisper-tiny/whisper-tiny_encoder.onnx")
+        whisper_encoder_model = onnx.load("/workspace/testing/whisper-opt/whisper-tiny-4.42/whisper-tiny_encoder.onnx")
         encoder_model = ir.serde.deserialize_model(whisper_encoder_model)
 
         onnxscript.optimizer.optimize(encoder_model)
@@ -43,10 +43,10 @@ class TestMultiHeadAttention(unittest.TestCase):
 
         new_encoder_onnx_model = ir.serde.serialize_model(encoder_model)
         convert_model_to_external_data(new_encoder_onnx_model, all_tensors_to_one_file=True, location="whisper-tiny_encoder_optimized.onnx.data", size_threshold=1024, convert_attribute=False)
-        onnx.save(new_encoder_onnx_model, "/workspace/whisper-tiny/whisper-tiny_encoder_optimized.onnx")
+        onnx.save(new_encoder_onnx_model, "/workspace/testing/whisper-opt/whisper-tiny-4.42/whisper-tiny_encoder_optimized.onnx")
 
         # Generate decoder model
-        whisper_decoder_model = onnx.load("/workspace/whisper-tiny/whisper-tiny_decoder.onnx")
+        whisper_decoder_model = onnx.load("/workspace/testing/whisper-opt/whisper-tiny-4.42/whisper-tiny_decoder.onnx")
         decoder_model = ir.serde.deserialize_model(whisper_decoder_model)
 
         onnxscript.optimizer.optimize(decoder_model)
@@ -61,7 +61,7 @@ class TestMultiHeadAttention(unittest.TestCase):
 
         new_decoder_onnx_model = ir.serde.serialize_model(decoder_model)
         convert_model_to_external_data(new_decoder_onnx_model, all_tensors_to_one_file=True, location="whisper-tiny_decoder_optimized.onnx.data", size_threshold=1024, convert_attribute=False)
-        onnx.save(new_decoder_onnx_model, "/workspace/whisper-tiny/whisper-tiny_decoder_optimized.onnx")
+        onnx.save(new_decoder_onnx_model, "/workspace/testing/whisper-opt/whisper-tiny-4.42/whisper-tiny_decoder_optimized.onnx")
 
         '''
         test_with_ort = packaging.version.Version("1.20") <= ORT_VERSION
