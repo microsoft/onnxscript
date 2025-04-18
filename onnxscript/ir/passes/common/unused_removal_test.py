@@ -54,6 +54,62 @@ class RemoveUnusedTest(unittest.TestCase):
         self.assertEqual(model.graph.node[0].op_type, "Mul")
         self.assertEqual(len(model.graph.initializer), 0)
 
+def test_remove_unused_inputs_initializers():
+    # remove inputs in case they are initializers
+    # https://github.com/microsoft/onnxscript/issues/2211
+    model = onnx.parser.parse_model(
+        """
+        <ir_version: 10, opset_import: [ "" : 17]>
+        agraph (float[N] x, float[N] two) => (float[N] z)
+        <float two = {2.0,2.0}> {
+            four = Add(two, two)
+            z = Mul(x, x)
+        }
+    """
+    )
+    ir_model = onnxscript.ir.serde.deserialize_model(model)
+    remove_unused_nodes(ir_model)
+    assert (len(ir_model.graph._nodes)== 1)
+    assert (len(ir_model.graph.inputs)== 1)
+    assert (ir_model.graph.node(0).op_type== "Mul")
+
+def test_avoid_remove_unused_inputs_initializers():
+    # supress remove inputs in case they are initializers
+    # if explicitly said
+    model = onnx.parser.parse_model(
+        """
+        <ir_version: 10, opset_import: [ "" : 17]>
+        agraph (float[N] x, float[N] two) => (float[N] z)
+        <float two = {2.0,2.0}> {
+            four = Add(two, two)
+            z = Mul(x, x)
+        }
+    """
+    )
+    ir_model = onnxscript.ir.serde.deserialize_model(model)
+    remove_unused_nodes(ir_model,False)
+    assert (len(ir_model.graph._nodes)== 1)
+    assert (len(ir_model.graph.inputs)== 2)
+    assert (ir_model.graph.node(0).op_type== "Mul")
+
+def test_avoid_remove_unused_inputs():
+    # preserve inputs as part of interface
+    model = onnx.parser.parse_model(
+        """
+        <ir_version: 10, opset_import: [ "" : 17]>
+        agraph (float[N] x, float[N] two) => (float[N] z)
+        {
+            four = Add(two, two)
+            z = Mul(x, x)
+        }
+    """
+    )
+    ir_model = onnxscript.ir.serde.deserialize_model(model)
+    remove_unused_nodes(ir_model)
+    assert (len(ir_model.graph._nodes)== 1)
+    assert (len(ir_model.graph.inputs)== 2)
+    assert (ir_model.graph.node(0).op_type== "Mul")
+
     def test_partially_used_nodes(self):
         model = onnx.parser.parse_model(
             """
