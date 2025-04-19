@@ -16,7 +16,8 @@ from onnxscript import ir
 logger = logging.getLogger(__name__)
 
 
-CURRENT_MAX_ONNX_OPSET = 23
+SUPPORTED_MAX_ONNX_OPSET = 23
+SUPPORTED_MIN_ONNX_OPSET = 18
 
 
 class VersionConverterError(RuntimeError):
@@ -36,6 +37,20 @@ class Replacement:
 
 ReturnValue = Union[Sequence[ir.Value], ir.Value, None]
 AdapterFunction = Callable[[ir.Node, orp.RewriterContext], ReturnValue]
+
+
+def version_supported(model: ir.Model, target_version: int) -> bool:
+    """Check if the target version is supported by the current version."""
+    if "" in model.graph.opset_imports:
+        current_version = model.graph.opset_imports[""]
+    else:
+        return True
+    return (
+        SUPPORTED_MIN_ONNX_OPSET
+        <= current_version
+        <= target_version
+        <= SUPPORTED_MAX_ONNX_OPSET
+    )
 
 
 class AdapterRegistry:
@@ -262,7 +277,7 @@ class _VersionConverter:
         return None
 
     def visit_graph(self, graph: ir.Graph) -> None:
-        if self.target_version > CURRENT_MAX_ONNX_OPSET:
+        if self.target_version > SUPPORTED_MAX_ONNX_OPSET:
             logger.warning(
                 "Conversion to target opset: %s not currently supported.",
                 self.target_version,

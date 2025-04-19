@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import unittest
 
-import onnx.checker
 import onnx.defs
 import onnx.parser
-import onnx.shape_inference
 
 from onnxscript import ir, version_converter
 
 
-class ApapterCoverageTest(unittest.TestCase):
+class AdapterCoverageTest(unittest.TestCase):
     def get_all_unique_schema_versions(self) -> dict[str, list]:
         """Collect all unique versions of ONNX standard domain ops"""
         op_version_dict = {}
