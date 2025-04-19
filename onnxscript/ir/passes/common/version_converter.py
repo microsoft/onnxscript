@@ -42,21 +42,17 @@ class ConvertVersionPass(ir.passes.InPlacePass):
         self.inliner = _inliner.InlinePass()
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
-        # Normalize the opset import
-        if "ai.onnx" in model.graph.opset_imports:
-            model.graph.opset_imports[""] = model.graph.opset_imports["ai.onnx"]
-            del model.graph.opset_imports["ai.onnx"]
-
-        model_opset_version = model.graph.opset_imports[""]
-        if model_opset_version == self.target_version:
-            # No need to convert the version
-            return ir.passes.PassResult(model, False)
+        if "" in model.graph.opset_imports:
+            onnx_opset_version = model.graph.opset_imports[""]
+            if onnx_opset_version == self.target_version:
+                # No need to convert the version
+                return ir.passes.PassResult(model, False)
 
         # In functions, we can have attribute-parameters, which means we don't know the value of the attribute.
         # Hence, we inline all the functions.
         self.inliner(model)
 
-        if _version_converter.version_supported(model_opset_version, self.target_version):
+        if _version_converter.version_supported(model, self.target_version):
             _version_converter.convert_version(
                 model,
                 target_version=self.target_version,
@@ -67,9 +63,8 @@ class ConvertVersionPass(ir.passes.InPlacePass):
             logger.info(
                 "The model version conversion is not supported by the onnxscript version converter "
                 "and fallback is disabled. The model was not modified"
-                " (current version: %d, target version: %d). "
+                " (target version: %d). "
                 "Set fallback=True to enable fallback to the onnx c-api version converter.",
-                model_opset_version,
                 self.target_version,
             )
             return ir.passes.PassResult(model, False)

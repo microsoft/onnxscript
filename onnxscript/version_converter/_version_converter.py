@@ -39,14 +39,19 @@ ReturnValue = Union[Sequence[ir.Value], ir.Value, None]
 AdapterFunction = Callable[[ir.Node, orp.RewriterContext], ReturnValue]
 
 
-def version_supported(current_version: int, target_version: int) -> bool:
+def version_supported(model: ir.Model, target_version: int) -> bool:
     """Check if the target version is supported by the current version."""
+    if "" in model.graph.opset_imports:
+        current_version = model.graph.opset_imports[""]
+    else:
+        return True
     return (
         SUPPORTED_MIN_ONNX_OPSET
         <= current_version
         <= target_version
         <= SUPPORTED_MAX_ONNX_OPSET
     )
+
 
 class AdapterRegistry:
     """A class that maintains a registry of adapters for ops."""
