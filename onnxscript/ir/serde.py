@@ -625,9 +625,6 @@ def _deserialize_graph(
         if value.name in quantization_annotations:
             _deserialize_quantization_annotation(quantization_annotations[value.name], value)
 
-    # Build the value info dictionary to allow for quick lookup for this graph scope
-    value_info = {info.name: info for info in proto.value_info}
-
     # Initialize the values dictionary for this graph scope with the inputs and initializers
     values: dict[str, _core.Value] = {v.name: v for v in inputs}  # type: ignore[misc]
 
@@ -653,21 +650,21 @@ def _deserialize_graph(
                 None,
                 index=None,
                 name=initializer_name,
-                # Do not include shape or type as we need to respect the ONNX file
-                # if the shape or type is not provided as ValueInfoProto
-                # The shape/type information will be filled in in the subsequent ValueInfoProto
-                # deserialization step (deserialize_value_info_proto)
+                # Include shape and type even if the shape or type is not provided as ValueInfoProto.
+                # Users expect initialized values to have shape and type information.
+                type=_core.TensorType(tensor.dtype),
+                shape=tensor.shape,  # type: ignore[arg-type]
                 const_value=tensor,
             )
-            if initializer_name in value_info:
-                # This is where we fill in the shape and type information for the initializer
-                deserialize_value_info_proto(value_info[initializer_name], initializer_value)
             if initializer_value.name in quantization_annotations:
                 _deserialize_quantization_annotation(
                     quantization_annotations[initializer_value.name], initializer_value
                 )
             values[initializer_name] = initializer_value
         initializer_values.append(initializer_value)
+
+    # Build the value info dictionary to allow for quick lookup for this graph scope
+    value_info = {info.name: info for info in proto.value_info}
 
     # Deserialize nodes with all known values
     nodes = [
