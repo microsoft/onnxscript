@@ -78,7 +78,7 @@ class ConvertVersionPass(ir.passes.InPlacePass):
             )
 
         try:
-            converted_model = _c_api_utils.call_onnx_api(
+            converted_proto = _c_api_utils.call_onnx_api(
                 func=_partial_convert_version, model=model
             )
         except Exception as e:
@@ -90,7 +90,7 @@ class ConvertVersionPass(ir.passes.InPlacePass):
             )
             return ir.passes.PassResult(model, False)
 
-        converted_model = ir.from_proto(converted_model)
+        converted_model = ir.from_proto(converted_proto)
 
         # Recover the initializers in the converted model
         for input in converted_model.graph.inputs:
