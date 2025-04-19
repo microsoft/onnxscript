@@ -1218,24 +1218,24 @@ def _serialize_opset_imports_into(
         opset_ids.add(domain=domain, version=version)
 
 
-def _serialize_metadata_props_into(
+def _serialize_string_string_maps(
     string_string_entries: proto_containers.RepeatedCompositeFieldContainer[
         onnx.StringStringEntryProto
     ],
     from_: Mapping[str, str],
 ) -> None:
-    """Serialize metadata properties into a repeated field of string-string entries.
+    """Serialize a <str, str> mapping into a repeated field of string-string entries.
 
     Args:
         string_string_entries: The repeated field to serialize into.
-        from_: The mapping of metadata properties to serialize.
+        from_: The mapping of a <str, str> mapping to serialize.
     """
     # Sort names for deterministic serialization
     for key in sorted(from_):
         string_string_entries.add(key=key, value=from_[key])
 
 
-_serialize_string_string_maps = _serialize_metadata_props_into
+_serialize_metadata_props_into = _serialize_string_string_maps
 
 
 def _maybe_add_quantization_annotation(
