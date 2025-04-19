@@ -656,17 +656,17 @@ def _deserialize_graph(
                 # Do not include shape or type as we need to respect the ONNX file
                 # if the shape or type is not provided as ValueInfoProto
                 # The shape/type information will be filled in in the subsequent ValueInfoProto
-                # deserialization step
+                # deserialization step (deserialize_value_info_proto)
                 const_value=tensor,
             )
             if initializer_name in value_info:
                 # This is where we fill in the shape and type information for the initializer
                 deserialize_value_info_proto(value_info[initializer_name], initializer_value)
-            values[initializer_name] = initializer_value  # type: ignore[index]
             if initializer_value.name in quantization_annotations:
                 _deserialize_quantization_annotation(
                     quantization_annotations[initializer_value.name], initializer_value
                 )
+            values[initializer_name] = initializer_value
         initializer_values.append(initializer_value)
 
     # Deserialize nodes with all known values
