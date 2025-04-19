@@ -94,7 +94,6 @@ def inline(model: ir.Model) -> None:
         onnxscript.ir.passes.common.inliner.InlinePass()(model)
 
 
-
 def fold_constants(
     model: ir.Model | onnx.ModelProto, *args, **kwargs
 ) -> constant_folding.FoldConstantsResult:
