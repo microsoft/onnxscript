@@ -5,8 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 import onnxscript.ir as ir
-from onnxscript.optimizer import remove_unused_nodes
-from onnxscript.rewriter import _ir_utils, pattern
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 # Rewrite the computation of cos/sin cache into the form expected by ORT's custom ops.
 
@@ -30,15 +29,11 @@ from onnxscript.rewriter import _ir_utils, pattern
 #
 # This produces cos/sin values in a form that can be used by ORT's custom ops.
 
-# TODO: To apply the pattern-rewrite, we need to know the maximum position id.
-# Need to find a way to get this information from the model or its config.
-
 
 class CosSinCacheFusion(pattern.RewriteRuleClassBase):
     def __init__(
         self,
         name: str,
-        max_pos_id: int,
         *,
         cast: bool = False,
         reshape: bool = False,
@@ -48,12 +43,65 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         # matched nodes as part of the rewrite-step. We apply a separate final
         # pass to remove unused nodes.
         super().__init__(name, remove_nodes=False)
-        self._max_pos_id = max_pos_id
+        # TODO: Determine what should be the default max_pos_id value
+        self._max_pos_id = None
         # map from inv_freq to (cos, sin) values for transformed graph
         self._inv_freq_cos_sin_cache: dict[ir.Value, tuple[ir.Value, ir.Value]] = {}
         self._reshape = reshape
         self._cast = cast
         self._const_freqs = const_freqs
+
+    @property
+    def max_pos_id(self) -> int | None:
+        return self._max_pos_id
+
+    @max_pos_id.setter
+    def max_pos_id(self, max_pos_id: int):
+        self._max_pos_id = max_pos_id  # type: ignore[assignment]
+
+    def _compute_const_freqs(self, op, freqs):
+        """Compute cos/sin values when frequencies are constant."""
+        angles = freqs.const_value.numpy()
+        cos_value = np.cos(angles)
+        sin_value = np.sin(angles)
+        cos_2d = op.Constant(value=ir.tensor(cos_value))
+        sin_2d = op.Constant(value=ir.tensor(sin_value))
+        return cos_2d, sin_2d
+
+    def _compute_dynamic_freqs(self, op, inv_freq, position_ids, dtype):
+        """Compute cos/sin values dynamically based on inv_freq and position_ids."""
+        if self._max_pos_id is not None:
+            # Use max_pos_id from the model metadata
+            max_pos_id = self._max_pos_id
+        elif position_ids.const_value is not None:
+            # Calculate max_pos_id from the position_ids tensor
+            max_pos_id = int(np.max(position_ids.const_value.numpy()))
+        else:
+            # Dynamically compute max_pos_id from position_ids using ONNX ops
+            inv_freq = op.Reshape(inv_freq, op.Constant(value_ints=[1, -1]))
+            max_pos_id = op.ReduceMax(position_ids, keepdims=0)
+            max_pos_id = op.Add(max_pos_id, op.Constant(value_int=1))
+            pos_id_range = op.Range(
+                op.Constant(value_int=0),
+                max_pos_id,
+                op.Constant(value_int=1),
+            )
+            pos_id_range = op.Reshape(pos_id_range, op.Constant(value_ints=[-1, 1]))
+            pos_id_range = op.Cast(pos_id_range, to=ir.DataType.FLOAT)
+            # Compute angles and cos/sin values
+            angles = op.MatMul(pos_id_range, inv_freq)
+            cos_2d = op.Cos(angles)
+            sin_2d = op.Sin(angles)
+            return cos_2d, sin_2d
+
+        # If we do not compute max_pos_id using ONNX ops, use inv_freq and position_ids
+        # to compute angles and cos/sin values
+        # Note: The one is added to max_pos_id as position_ids are 0-indexed
+        # and the range of position ids should be [0, max_pos_id], max_pos_id inclusive.
+        inv_freq_values = inv_freq.const_value.numpy().reshape(1, -1)
+        pos_id_range = np.arange(max_pos_id + 1, dtype=np.float32).reshape(-1, 1)
+        angles = np.matmul(pos_id_range, inv_freq_values)
+        return self._compute_const_freqs(op, angles)
 
     def cleanup(self):
         self._inv_freq_cos_sin_cache.clear()
@@ -96,10 +144,16 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
             _domain="ai.onnxruntime.fusion",
         )
 
-    def check(self, context, inv_freq, position_ids, freqs, extra_dims, **_):
+    def check(
+        self, context, inv_freq, position_ids, freqs, extra_dims, **_
+    ) -> pattern.MatchResult:  # type: ignore[name-defined]
+        check_result = pattern.MatchResult()
         # TODO(rama): handle redundant reshape/expand
         if self._const_freqs:
-            return (freqs.const_value is not None) and _ir_utils.has_rank(freqs, 3)
+            if (freqs.const_value is None) or not _ir_utils.has_rank(freqs, 3):
+                return check_result.fail("freqs is not a constant or not 3D.", freqs)
+            else:
+                return check_result
         if (
             _ir_utils.has_rank(position_ids, 2) and _ir_utils.is_singleton_value(extra_dims, 1)
         ) or (
@@ -107,13 +161,15 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         ):
             pass
         else:
-            return False
+            return check_result.fail("position_ids is not a 1D or 2D tensor.", position_ids)
         if not _ir_utils.has_rank(inv_freq, 3):
-            return False
+            return check_result.fail("inv_freq is not 3D.", inv_freq)
         inv_freq_shape = inv_freq.shape
         if inv_freq.const_value is None:  # TODO: should this be inv_freq_shape?
-            return False
-        return inv_freq_shape[0] == 1 and inv_freq_shape[2] == 1
+            return check_result.fail("inv_freq is not a constant.", inv_freq)
+        if inv_freq_shape[0] != 1 or inv_freq_shape[2] != 1:
+            return check_result.fail("inv_freq is not of shape [1, ., 1].", inv_freq)
+        return check_result
 
     def rewrite(
         self, op, x, inv_freq, position_ids, interleaved, num_heads, freqs, dtype, **_
@@ -121,16 +177,11 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         if inv_freq in self._inv_freq_cos_sin_cache:
             cos_2d, sin_2d = self._inv_freq_cos_sin_cache[inv_freq]
         else:
+            # Compute cos/sin values based on whether frequencies are constant
             if self._const_freqs:
-                angles = freqs.const_value.numpy()
+                cos_2d, sin_2d = self._compute_const_freqs(op, freqs)
             else:
-                inv_freq_values = inv_freq.const_value.numpy().reshape(1, -1)
-                pos_id_range = np.arange(self._max_pos_id, dtype=np.float32).reshape(-1, 1)
-                angles = np.matmul(pos_id_range, inv_freq_values)
-            cos_value = np.cos(angles)
-            sin_value = np.sin(angles)
-            cos_2d = op.Constant(value=ir.tensor(cos_value))
-            sin_2d = op.Constant(value=ir.tensor(sin_value))
+                cos_2d, sin_2d = self._compute_dynamic_freqs(op, inv_freq, position_ids, dtype)
             if self._cast:
                 cos_2d = op.Cast(cos_2d, to=dtype)
                 sin_2d = op.Cast(sin_2d, to=dtype)
@@ -150,23 +201,13 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
 
 
 _cast_const_freqs = CosSinCacheFusion.rule(
-    "CosSinCache_cast_const_freqs", 2048, cast=True, const_freqs=True
+    "CosSinCache_cast_const_freqs", cast=True, const_freqs=True
 )
-_cast = CosSinCacheFusion.rule("CosSinCache_cast", 2048, cast=True, const_freqs=False)
-_const_freqs = CosSinCacheFusion.rule(
-    "CosSinCache_const_freqs", 2048, cast=False, const_freqs=True
-)
-_basic = CosSinCacheFusion.rule("CosSinCache", 2048, cast=False)
+_cast = CosSinCacheFusion.rule("CosSinCache_cast", cast=True, const_freqs=False)
+_const_freqs = CosSinCacheFusion.rule("CosSinCache_const_freqs", cast=False, const_freqs=True)
+_basic = CosSinCacheFusion.rule("CosSinCache", cast=False)
 
 cos_sin_cache_rules = pattern.RewriteRuleSet([_cast, _cast_const_freqs, _const_freqs, _basic])
 
 
-def fuse_cos_sin_cache(model: ir.Model, debug: bool = False) -> int:
-    count = cos_sin_cache_rules.apply_to_model(model)
-    if count == 0 and debug:
-        tracer = pattern.MatchingTracer()
-        cos_sin_cache_rules.apply_to_model(model, tracer=tracer)
-        tracer.report()
-    if count != 0:
-        remove_unused_nodes(model)
-    return count
+fuse_cos_sin_cache = _fusion_utils.apply_fusion_rules(cos_sin_cache_rules)

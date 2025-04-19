@@ -330,17 +330,24 @@ class MatchResult:
         self.outputs: list[ir.Value] = []
         # For a failed match, _reason is a string that describes the reason for the failure.
         self._reason: str = ""
-        # Track the node that caused the failure.
-        # TODO: May be useful to extend this to be a collection of Nodes and Values.
-        self._failure_node: ir.Node | None = None
+        # Track the node(s) or value(s) that caused the failure.
+        self._failure_nodes_and_values: list[Union[ir.Node, ir.Value]] = []
 
     def __bool__(self):
         return self._success
 
-    def fail(self, reason: str = "", node: ir.Node | None = None) -> MatchResult:
+    def fail(
+        self,
+        reason: str = "",
+        failure_source: Union[ir.Node, ir.Value, list[Union[ir.Node, ir.Value]]] | None = None,
+    ) -> MatchResult:
         self._success = False
         self._reason = reason
-        self._failure_node = node
+        if failure_source is not None:
+            if isinstance(failure_source, list):
+                self._failure_nodes_and_values.extend(failure_source)
+            else:
+                self._failure_nodes_and_values.append(failure_source)
         return self
 
     @property
@@ -625,6 +632,20 @@ Var = ValuePattern
 def _is_pattern_variable(x: Any) -> bool:
     # The derived classes of ValuePattern represent constant patterns and node-output patterns.
     return type(x) is ValuePattern
+
+
+class AnyValue(ValuePattern):
+    """Represents a pattern that matches against any value."""
+
+    def __init__(self) -> None:
+        super().__init__(None)
+
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> AnyValue:
+        # A single instance of AnyValue suffices.
+        return self
+
+
+ANY_VALUE = AnyValue()
 
 
 class Constant(ValuePattern):
@@ -1101,6 +1122,9 @@ class SimplePatternMatcher(PatternMatcher):
 
     def _match_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
         """Match an IR value against a ValuePattern instance."""
+        if isinstance(pattern_value, AnyValue):
+            return True
+
         if not self._bind_value(pattern_value, value):
             return False
 
@@ -1371,7 +1395,14 @@ class RewriteRule:
                 if var.name is not None:
                     if var.name not in match.bindings:
                         match.bindings[var.name] = None
-            if not self._condition_function(context, **match.bindings):
+            check_match_result = self._condition_function(context, **match.bindings)
+            if not check_match_result:
+                # If check function was provided, but it failed, return the reason for failure to the tracer.
+                if isinstance(check_match_result, MatchResult):
+                    match.fail(
+                        check_match_result.reason,
+                        check_match_result._failure_nodes_and_values,
+                    )
                 if tracer:
                     tracer.log(
                         self, graph_or_function, node, match, MatchStatus.CONDITION_FAILED
@@ -1449,8 +1480,8 @@ class RewriteRuleAsClass:
         raise NotImplementedError("Method 'rewrite' must be overwritten.")
 
     @classmethod
-    def check(cls, context, *_, **__) -> bool:
-        return True
+    def check(cls, context, *_, **__) -> bool | MatchResult:
+        return MatchResult()
 
 
 def make_rewrite_rule_from_class(
@@ -1532,8 +1563,9 @@ class RewriteRuleClassBase:
         raise NotImplementedError("Method 'pattern' must be implemented by derived class.")
 
     def check(self, op, *args, **kwargs):
-        # Default check function that always returns True.
-        return True
+        # Default check function that returns a
+        # MatchResult object with success always set to True.
+        return MatchResult()
 
     def rewrite(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'rewrite' must be implemented by derived class.")
@@ -1649,12 +1681,17 @@ def _get_new_overload(model: ir.Model, domain: str, name: str) -> str:
 
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
+        if not rules:
+            raise ValueError("rules must contain at least one rule")
         if commute:
             rules = list(itertools.chain.from_iterable([rule.commute() for rule in rules]))
         self.rules = rules
         # We call remove_unused_nodes at end of rewriting if there is any rule that does
         # NOT remove nodes (immediately when it is applied)
         self.remove_unused_nodes = any(not rule.remove_nodes for rule in rules)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.rules})"
 
     def _apply_to_graph_or_function(
         self,
@@ -1826,13 +1863,17 @@ class MatchInfo:
         if self.status != MatchStatus.SUCCESS:
             reason = self.match_result.reason
             if reason:
-                print(f"Graph matching failed: {reason}")
+                if self.status == MatchStatus.CONDITION_FAILED:
+                    print(f"Graph matching failed due to failing check condition : {reason}")
+                else:
+                    print(f"Graph matching failed: {reason}")
             else:
                 print("Graph matching failed.")
-            failure_node = self.match_result._failure_node
-            if failure_node:
-                print("Failure at or around node:")
-                failure_node.display()
+            failure_nodes_and_values = self.match_result._failure_nodes_and_values
+            print("Failure at or around nodes/values:")
+            if failure_nodes_and_values:
+                for failure_cause in failure_nodes_and_values:
+                    failure_cause.display()
         print("Matched nodes:")
         import onnxscript.rewriter._ir_utils as ir_utils
 

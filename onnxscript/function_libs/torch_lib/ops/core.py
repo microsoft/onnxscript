@@ -14,6 +14,9 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
+import numpy as np
+import torch
+
 from onnxscript import (
     BFLOAT16,
     BOOL,
@@ -2784,10 +2787,6 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2.0) -> TensorType
     (
         "aten::div.Tensor",
         "aten::div.Scalar",
-        # When rounding_mode is None, performs a true division
-        # https://pytorch.org/docs/stable/generated/torch.div.html
-        "aten::div.Tensor_mode",
-        "aten::div.Scalar_mode",
         "aten::divide.Tensor",
         "aten::divide.Scalar",
         "aten::true_divide.Tensor",
@@ -2842,30 +2841,30 @@ def aten_div_complex(self: TFloat, other: TFloat) -> TFloat:
 
 
 @torch_op(("aten::div.Tensor_mode", "aten::div.Scalar_mode"), trace_only=True)
-def aten_div_mode(self: TFloat, other: TFloat, rounding_mode: str) -> TFloat:
+def aten_div_mode(self: TFloat, other: TFloat, rounding_mode: Optional[str] = None) -> TFloat:
     """div.Tensor_mode(Tensor self, Tensor other, *, str? rounding_mode) -> Tensor"""
 
-    # TODO(justinchuby): trace_only=False when we use opset19 which supports string comparison
-    assert rounding_mode in {"trunc", "floor"}
+    assert rounding_mode in {"trunc", "floor", None}
 
     if rounding_mode == "trunc":
         # Rounds the results of the division towards zero.
         # Equivalent to C-style integer division
-        result = aten_trunc(op.Div(self, other))
-    else:  # rounding_mode == "floor"
-        result = op.Floor(op.Div(self, other))
+        return aten_trunc(op.Div(self, other))
+    if rounding_mode == "floor":
+        return op.Floor(op.Div(self, other))
 
-    return result
+    return op.Div(self, other)
 
 
 @torch_op(("aten::div.Tensor_mode", "aten::div.Scalar_mode"), trace_only=True)
-def aten_div_mode_int(self: TInt, other: TInt, rounding_mode: str) -> TInt:
+def aten_div_mode_int(
+    self: TInt, other: TInt, rounding_mode: Optional[str] = None
+) -> TensorType:
     """div.Tensor_mode(Tensor self, Tensor other, *, str? rounding_mode) -> Tensor
 
     Variant for integer inputs.
     """
-    # TODO(justinchuby): trace_only=False when we use opset19 which supports string comparison
-    assert rounding_mode in {"trunc", "floor"}
+    assert rounding_mode in {"trunc", "floor", None}
 
     quotient = op.Div(op.Cast(self, to=FLOAT.dtype), op.Cast(other, to=FLOAT.dtype))
 
@@ -2873,10 +2872,14 @@ def aten_div_mode_int(self: TInt, other: TInt, rounding_mode: str) -> TInt:
         # Rounds the results of the division towards zero.
         # Equivalent to C-style integer division
         result = aten_trunc(quotient)
-    else:  # rounding_mode == "floor"
+        return op.CastLike(result, self)
+    if rounding_mode == "floor":
         result = op.Floor(quotient)
+        return op.CastLike(result, self)
 
-    return op.CastLike(result, self)
+    assert rounding_mode is None
+    # When rounding_mode is None, the return type is float32
+    return quotient
 
 
 @torch_op("aten::dot", trace_only=True)
@@ -2988,8 +2991,8 @@ def _aten_embedding_bag_onnx(
     indices_1d = op.Reshape(indices, neg_1)
     # Get weight out according to indices_1d,
     new_weight = op.Gather(weight, indices_1d)
-    # This happends after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
-    new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=1))
+    # This happens after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
+    new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=[1]))
     weight_dim_1 = op.Reshape(op.Shape(weight, start=1), neg_1)
     indices_size = op.Shape(indices_1d)
 
@@ -3128,8 +3131,8 @@ def _aten_embedding_bag_1d_padding_idx_onnx(
     # Get weight out according to indices,
     # e.g. indices=[3,1,4,5,3] means get weight[[3,1,4,5,3]]
     indices_weight = op.Gather(weight, indices)
-    # This happends after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
-    indices_weight = op.Mul(indices_weight, op.Unsqueeze(per_sample_weights, axes=1))
+    # This happens after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
+    indices_weight = op.Mul(indices_weight, op.Unsqueeze(per_sample_weights, axes=[1]))
 
     # The element in sequence must be FLOAT32 dtype due to ORT bug
     indices_weight = op.Cast(indices_weight, to=FLOAT.dtype)
@@ -4142,7 +4145,6 @@ def _shape_of_broadcast_tensors(*args: TensorType) -> INT64:
     return op.Shape(broadcasted)
 
 
-@torch_op("aten::index.Tensor", private=True, trace_only=True)
 def _aten_index_onnx(
     self: TensorType,
     indices: Sequence[Optional[INT64]],
@@ -4170,7 +4172,7 @@ def _aten_index_onnx(
     not_none_indices = [idx for idx in indices if idx is not None]
     broadcast_shape = _shape_of_broadcast_tensors(*not_none_indices)
     final_index = op.Concat(
-        *(op.Unsqueeze(op.Expand(idx, broadcast_shape), -1) for idx in not_none_indices),
+        *(op.Unsqueeze(op.Expand(idx, broadcast_shape), [-1]) for idx in not_none_indices),
         axis=-1,
     )
 
@@ -4361,7 +4363,7 @@ def aten_index_put(
             # Example: self shape: (10, 3), indices[i] shape: (2, 4), values shape: (2, 4, 3)
             # Indices -> (2*4,) and values shape (2*4, 32)
             if len(idx.shape) > 1:
-                values_shape = (reshape_update,) + values_shape[len(idx.shape) :]
+                values_shape = (reshape_update, *values_shape[len(idx.shape) :])
 
             # Flatten index (always working with 1D index in each dim)
             idx = op.Reshape(idx, [-1])
@@ -7599,13 +7601,62 @@ def aten_scatter_reduce(
         "amax": "max",
     }
     onnx_reduce = reduce_mode[reduce]
+    dtype = src.dtype or self.dtype
+    assert dtype is not None, "dtype should be not None"
+
     self_is_scalar = len(self.shape) == 0
     if self_is_scalar:  # assert (index_rank == 0 and rank_src == 0)
         neg_1 = op.Constant(value_ints=[-1])
         self = op.Reshape(self, neg_1)
         index = op.Reshape(index, neg_1)
         src = op.Reshape(src, neg_1)
+
+    if not include_self:
+        # onnx standard always assume the value from self is part of the reduction.
+        # A first step is added to replace the impacted value by another one
+        # chosen in a way that the results of the reduction is not changed
+        # whether or not it takes part in it.
+        # It is -inf if the reduction is max, inf for min, 0 for add, 1 for mul.
+        # mean is not supported.
+        if onnx_reduce == "max":
+            if dtype in {
+                ir.DataType.FLOAT16,
+                ir.DataType.FLOAT,
+                ir.DataType.DOUBLE,
+            }:
+                value = ir.tensor([np.finfo(dtype.numpy()).min], dtype=dtype)
+            elif dtype == ir.DataType.BFLOAT16:
+                value = ir.tensor([torch.finfo(torch.bfloat16).min], dtype=dtype)
+            else:
+                value = ir.tensor([np.iinfo(dtype.numpy()).min], dtype=dtype)
+            reduction_init = "min"
+        elif onnx_reduce == "min":
+            if dtype in {
+                ir.DataType.FLOAT16,
+                ir.DataType.FLOAT,
+                ir.DataType.DOUBLE,
+            }:
+                value = ir.tensor([np.finfo(dtype.numpy()).max], dtype=dtype)
+            elif dtype == ir.DataType.BFLOAT16:
+                value = ir.tensor([torch.finfo(torch.bfloat16).min], dtype=dtype)
+            else:
+                value = ir.tensor([np.iinfo(dtype.numpy()).max], dtype=dtype)
+            reduction_init = "max"
+        elif onnx_reduce == "add":
+            value = ir.tensor([0], dtype=dtype)
+            reduction_init = "none"
+        elif onnx_reduce == "mul":
+            value = ir.tensor([1], dtype=dtype)
+            reduction_init = "none"
+        else:
+            value = 0
+            reduction_init = "none"
+
+        cst = op.ConstantOfShape(op.Shape(src), value=value)
+        self = op.ScatterElements(self, index, cst, axis=dim, reduction=reduction_init)
+
     result = op.ScatterElements(self, index, src, axis=dim, reduction=onnx_reduce)
+
     if self_is_scalar:
         result = op.Squeeze(result)
     return result
@@ -7654,13 +7705,13 @@ def aten_select_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::select_scatter")
+@torch_op("aten::select_scatter", trace_only=True)
 def aten_select_scatter(self: TensorType, src: TensorType, dim: int, index: int) -> TensorType:
     """select_scatter(Tensor self, Tensor src, int dim, int index) -> Tensor"""
 
     # Change src rank to self rank according to dim
     # e.g. if self is [2,3,4], src is [2,4], dim=1, then update is [2,1,4]
-    update = op.Unsqueeze(src, axes=dim)
+    update = op.Unsqueeze(src, axes=[dim])
     # Change index rank to the same as 'update' [2,1,4]
     indices = op.Expand(index, op.Shape(update))
     return op.ScatterElements(self, indices, update, axis=dim, reduction="none")
@@ -7828,7 +7879,7 @@ def aten_slice_scatter(
         zero,
         op.Unsqueeze(step, zero),
     )
-    index_base = op.Unsqueeze(index_base, -1)
+    index_base = op.Unsqueeze(index_base, [-1])
 
     # Use trace only to construct the perm attribute in Transpose
     dims = None
@@ -8511,7 +8562,7 @@ def aten_triu_indices(row: int, col: int, offset: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::trunc")
+@torch_op("aten::trunc", trace_only=True)
 def aten_trunc(self: TFloat) -> TFloat:
     """trunc(Tensor self) -> Tensor"""
     # Reference https://github.com/onnx/onnx/issues/4588#issuecomment-2658170591
@@ -8571,7 +8622,7 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
 
     self_rank = len(self.shape)
     if self_rank == 0:
-        result = op.Unsqueeze(self, 0)
+        result = op.Unsqueeze(self, [0])
     else:
         # Handle negative dimension
         if dimension < 0:
@@ -8740,8 +8791,7 @@ def aten_unsafe_split_with_sizes(
 def aten_unsqueeze(self: TTensor, dim: int) -> TTensor:
     """unsqueeze(Tensor(a) self, int dim) -> Tensor(a)"""
 
-    dim = op.Cast(dim, to=INT64.dtype)
-    return op.Unsqueeze(self, dim)
+    return op.Unsqueeze(self, [dim])
 
 
 def aten_unsqueeze_copy(self: TensorType, dim: int) -> TensorType:

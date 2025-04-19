@@ -4,11 +4,15 @@
 
 from __future__ import annotations
 
+import dataclasses
+
+__all__ = ["InlinePass", "InlinePassResult"]
+
 from collections import defaultdict
 from typing import Iterable, List, Sequence, Tuple
 
-import onnxscript.ir as ir
-import onnxscript.ir.convenience as ir_convenience
+import onnxscript.ir.convenience as _ir_convenience
+from onnxscript import ir
 
 # A replacement for a node specifies a list of nodes that replaces the original node,
 # and a list of values that replaces the original node's outputs.
@@ -22,7 +26,7 @@ CallSiteId = str
 CallStack = List[CallSiteId]
 
 
-def _make_unique_name(name: str, callstack: CallStack, used_names: set[str]) -> str:
+def _make_unique_name(name: str, callstack: CallStack, used_names: set[str]) -> str:  # pylint: disable=unused-argument
     """Generate a unique name from a name, calling-context, and set of used names.
 
     If there is a name clash, we add a numeric suffix to the name to make
@@ -47,7 +51,7 @@ class _CopyReplace:
 
     def __init__(
         self,
-        inliner: _Inliner,
+        inliner: InlinePass,
         attr_map: dict[str, ir.Attr | ir.RefAttr],
         value_map: dict[ir.Value, ir.Value | None],
         metadata_props: dict[str, str],
@@ -188,14 +192,34 @@ def _abbreviate(
     return {id: id_abbreviation(id) for id in function_ids}
 
 
-class _Inliner:
-    def __init__(self, model: ir.Model) -> None:
-        self._functions = model.functions
-        self._function_id_abbreviations = _abbreviate(self._functions.keys())
-        self._opset_imports = model.opset_imports
+@dataclasses.dataclass
+class InlinePassResult(ir.passes.PassResult):
+    id_count: dict[ir.OperatorIdentifier, int]
+
+
+class InlinePass(ir.passes.InPlacePass):
+    def __init__(self) -> None:
+        super().__init__()
+        self._functions: dict[ir.OperatorIdentifier, ir.Function] = {}
+        self._function_id_abbreviations: dict[ir.OperatorIdentifier, str] = {}
+        self._opset_imports: dict[str, int] = {}
         self.used_value_names: set[str] = set()
         self.used_node_names: set[str] = set()
         self.node_context: dict[ir.Node, CallStack] = {}
+
+    def _reset(self, model: ir.Model) -> None:
+        self._functions = model.functions
+        self._function_id_abbreviations = _abbreviate(self._functions.keys())
+        self._opset_imports = model.opset_imports
+        self.used_value_names = set()
+        self.used_node_names = set()
+        self.node_context = {}
+
+    def call(self, model: ir.Model) -> InlinePassResult:
+        self._reset(model)
+        id_count = self._inline_calls_in(model.graph)
+        model.functions.clear()
+        return InlinePassResult(model, modified=bool(id_count), id_count=id_count)
 
     def _instantiate_call(self, node: ir.Node, call_site_id: CallSiteId) -> NodeReplacement:
         id = node.op_identifier()
@@ -220,7 +244,7 @@ class _Inliner:
         if default_attr_values:
             attributes = {**attributes, **default_attr_values}
         if any(
-            attr.type == ir.AttributeType.GRAPH or attr.type == ir.AttributeType.GRAPHS
+            attr.type in {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}
             for attr in attributes.values()
         ):
             raise ValueError(
@@ -249,7 +273,7 @@ class _Inliner:
         output_values = [value_map[output] for output in function.outputs]
         return nodes, output_values  # type: ignore
 
-    def inline_calls_in(self, graph: ir.Graph) -> None:
+    def _inline_calls_in(self, graph: ir.Graph) -> dict[ir.OperatorIdentifier, int]:
         for input in graph.inputs:
             if input.name is not None:
                 self.used_value_names.add(input.name)
@@ -285,7 +309,7 @@ class _Inliner:
                     self._function_id_abbreviations[id] + call_site_prefix
                 )
                 nodes, values = self._instantiate_call(node, call_site)
-                ir_convenience.replace_nodes_and_values(
+                _ir_convenience.replace_nodes_and_values(
                     graph,
                     insertion_point=node,
                     old_nodes=[node],
@@ -298,15 +322,8 @@ class _Inliner:
                     if not isinstance(attr, ir.Attr):
                         continue
                     if attr.type == ir.AttributeType.GRAPH:
-                        self.inline_calls_in(attr.as_graph())
+                        self._inline_calls_in(attr.as_graph())
                     elif attr.type == ir.AttributeType.GRAPHS:
-                        for graph in attr.as_graphs():
-                            self.inline_calls_in(graph)
-
-
-def inline(model: ir.Model) -> None:
-    """Inline all function calls (recursively) in the model."""
-    if model.functions:
-        inliner = _Inliner(model)
-        inliner.inline_calls_in(model.graph)
-        model.functions.clear()
+                        for g in attr.as_graphs():
+                            self._inline_calls_in(g)
+        return id_count

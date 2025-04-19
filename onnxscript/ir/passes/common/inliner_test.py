@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Tests for onnxscript.optimizer._inliner"""
+"""Tests for the inliner pass."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import onnx
 from onnx import parser
 
 from onnxscript import ir
-from onnxscript.optimizer._inliner import inline
+from onnxscript.ir.passes.common import inliner
 
 
 def _name_checker(renameable: Sequence[str] | None) -> Callable[[str, str], bool]:
@@ -46,7 +46,7 @@ class InlinerTest(unittest.TestCase):
         name_check = _name_checker(renameable)
         model_proto = parser.parse_model(input_model)
         model_ir = ir.serde.deserialize_model(model_proto)
-        inline(model_ir)
+        inliner.InlinePass()(model_ir)
         proto = ir.serde.serialize_model(model_ir)
         text = onnx.printer.to_text(proto)
         print(text)
@@ -68,10 +68,7 @@ class InlinerTest(unittest.TestCase):
                 self.assertTrue(isinstance(value, ir.Attr))
                 self.assertTrue(isinstance(expected_value, ir.Attr))
                 self.assertEqual(value.type, expected_value.type)
-                if (
-                    value.type != ir.AttributeType.GRAPH
-                    and value.type != ir.AttributeType.GRAPHS
-                ):
+                if value.type not in (ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS):
                     self.assertEqual(value.value, expected_value.value)
                 else:
                     self.fail("Graph attributes are not supported yet")
