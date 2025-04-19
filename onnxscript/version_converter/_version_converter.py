@@ -46,6 +46,7 @@ def version_supported(current_version: int, target_version: int) -> bool:
         <= current_version
         <= target_version
         <= SUPPORTED_MAX_ONNX_OPSET
+    )
 
 class AdapterRegistry:
     """A class that maintains a registry of adapters for ops."""
