@@ -18,7 +18,7 @@ def convert_version(model: ir.Model, target_version: int, fallback=False) -> Non
         model: The model to convert.
         target_version: The target ONNX opset version.
         fallback: Whether to fallback to the onnx version converter if the
-            target version is not supported. Default is True.
+            target version is not supported.
     """
     # In functions, we can have attribute-parameters, which means we don't know the value of the attribute.
     # Hence, we inline all the functions.
