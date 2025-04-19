@@ -22,4 +22,6 @@ def convert_version(model: ir.Model, target_version: int, fallback=False) -> Non
     """
     # In functions, we can have attribute-parameters, which means we don't know the value of the attribute.
     # Hence, we inline all the functions.
-    _version_converter_pass.ConvertVersionPass(target_version=target_version, fallback=fallback)(model)
+    _version_converter_pass.ConvertVersionPass(
+        target_version=target_version, fallback=fallback
+    )(model)
