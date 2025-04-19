@@ -81,7 +81,7 @@ class ConvertVersionPass(ir.passes.InPlacePass):
             converted_proto = _c_api_utils.call_onnx_api(
                 func=_partial_convert_version, model=model
             )
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning(
                 "Failed to convert the model to the target version %d using the ONNX C API. "
                 "The model was not modified",
