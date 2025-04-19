@@ -297,7 +297,9 @@ def _get_numpy_value(
         if size_limit is not None and const_value.size > size_limit:
             return None
         try:
-            array = const_value.numpy()
+            # Reinterpret the array with `.view()` because some implementations of
+            # ir.TensorProtocol (e.g. PyTorch<=2.7) do not use ml_dtypes for bfloat16 etc.
+            array = const_value.numpy().view(const_value.dtype.numpy())
         except FileNotFoundError:
             # External data is not available.
             return None
@@ -841,12 +843,10 @@ class FoldConstantsPass(ir.passes.InPlacePass):
     def __init__(
         self,
         *,
-        external_data_folder: str,
         shape_inference: bool,
         input_size_limit: int,
         output_size_limit: int,
     ) -> None:
-        self._external_data_folder = external_data_folder
         self._shape_inference = shape_inference
         self._input_size_limit = input_size_limit
         self._output_size_limit = output_size_limit
@@ -1149,7 +1149,6 @@ class FoldConstantsResult(ir.passes.PassResult):
 
 def fold_constants(
     model: ir.Model,
-    external_data_folder: str = "",
     *,
     onnx_shape_inference: bool = False,
     input_size_limit: int = DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
@@ -1160,8 +1159,6 @@ def fold_constants(
 
     Args:
         model: The ONNX model to optimize.
-        external_data_folder: Path to the folder containing external data
-            for the model. Defaults to an empty string.
         onnx_shape_inference: Whether to enable ONNX shape inference during
             constant folding. Defaults to False.
         input_size_limit: The maximum size (in bytes) of input tensors
@@ -1176,7 +1173,6 @@ def fold_constants(
 
     """
     folder_pass = FoldConstantsPass(
-        external_data_folder=external_data_folder,
         shape_inference=onnx_shape_inference,
         input_size_limit=input_size_limit,
         output_size_limit=output_size_limit,

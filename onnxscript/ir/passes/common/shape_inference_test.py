@@ -7,10 +7,13 @@ import unittest
 import numpy as np
 
 from onnxscript import ir
-from onnxscript.ir.passes.common import shape_inference
+from onnxscript.ir.passes.common import _c_api_utils, shape_inference
 
 
 class TestShapeInferencePass(unittest.TestCase):
+    def test_pass_is_in_place(self):
+        self.assertTrue(shape_inference.ShapeInferencePass().in_place)
+
     def test_pass(self):
         # Create a simple ONNX model with shape inference
         # Define the model
@@ -51,7 +54,7 @@ class TestShapeInferencePass(unittest.TestCase):
         # _BIG_TENSOR_SIZE_LIMIT is in bytes, but we create big_dim as size
         # of a tensor. This is fine as we just need to create a big tensor whose size
         # passes _BIG_TENSOR_SIZE_LIMIT
-        big_dim = shape_inference._BIG_TENSOR_SIZE_LIMIT * 2  # pylint: disable=protected-access
+        big_dim = _c_api_utils._BIG_TENSOR_SIZE_LIMIT * 2  # pylint: disable=protected-access
         inputs = [
             ir.Value(
                 name="input_a", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((1, 2))
@@ -127,22 +130,6 @@ class TestShapeInferencePass(unittest.TestCase):
         self.assertEqual(
             result.model.graph.initializers["initializer"].const_value.dtype,
             ir.DataType.FLOAT,
-        )
-
-        # Check that the original model is not modified
-        self.assertIsNone(val_add.shape)
-        self.assertIsNone(val_add.dtype)
-        self.assertIsNone(val_mul.shape)
-        self.assertIsNone(val_mul.dtype)
-        self.assertEqual(len(model.graph.inputs), 2)
-        self.assertEqual(len(model.graph.initializers), 2)
-        self.assertIs(model.graph.initializers["input_b"].const_value, inputs[1].const_value)
-        self.assertEqual(len(model.graph.outputs), 1)
-        self.assertEqual(model.graph.outputs[0].shape, None)
-        self.assertEqual(model.graph.outputs[0].dtype, None)
-        # Check that the initializer is not modified
-        self.assertIs(
-            model.graph.initializers["initializer"].const_value, initializer.const_value
         )
 
 

@@ -2563,6 +2563,25 @@ Model(
     graph={textwrap.indent(repr(self.graph), " " * 4).strip()}
 )"""
 
+    def graphs(self) -> Iterable[Graph]:
+        """Get all graphs and subgraphs in the model.
+
+        This is a convenience method to traverse the model. Consider using
+        `onnxscript.ir.traversal.RecursiveGraphIterator` for more advanced
+        traversals on nodes.
+        """
+        # NOTE(justinchuby): Given
+        # (1) how useful the method is
+        # (2) I couldn't find an appropriate name for it in `traversal.py`
+        # (3) Users familiar with onnxruntime optimization tools expect this method
+        # I created this method as a core method instead of an iterator in
+        # `traversal.py`.
+        seen_graphs: set[Graph] = set()
+        for node in onnxscript.ir.traversal.RecursiveGraphIterator(self.graph):
+            if node.graph is not None and node.graph not in seen_graphs:
+                seen_graphs.add(node.graph)
+                yield node.graph
+
 
 class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrintable):
     """IR functions.
@@ -2583,16 +2602,14 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         outputs: The output values of the function.
         opset_imports: Opsets imported by the function.
         doc_string: Documentation string.
-        metadata_props: Metadata that will be serialized to the ONNX file.
         meta: Metadata store for graph transform passes.
+        metadata_props: Metadata that will be serialized to the ONNX file.
     """
 
     __slots__ = (
         "_attributes",
         "_domain",
         "_graph",
-        "_metadata",
-        "_metadata_props",
         "_name",
         "_overload",
     )
@@ -2607,15 +2624,12 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         # and not from an outer scope
         graph: Graph,
         attributes: Sequence[Attr],
-        metadata_props: dict[str, str] | None = None,
     ) -> None:
         self._domain = domain
         self._name = name
         self._overload = overload
         self._graph = graph
         self._attributes = OrderedDict((attr.name, attr) for attr in attributes)
-        self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = metadata_props
 
     def identifier(self) -> _protocols.OperatorIdentifier:
         return self.domain, self.name, self.overload
@@ -2687,15 +2701,11 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
+        return self._graph.meta
 
     @property
     def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
+        return self._graph.metadata_props
 
     # Mutation methods
     def append(self, node: Node, /) -> None:

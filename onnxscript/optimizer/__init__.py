@@ -16,6 +16,7 @@ __all__ = [
 
 import onnx
 
+import onnxscript.ir.passes.common.inliner
 import onnxscript.ir.passes.common.unused_removal
 import onnxscript.optimizer._constant_folding as constant_folding
 from onnxscript import ir
@@ -25,7 +26,6 @@ from onnxscript.optimizer._constant_folding import (
 from onnxscript.optimizer._constant_folding import (
     fold_constants as fold_constants_ir,
 )
-from onnxscript.optimizer._inliner import inline
 from onnxscript.optimizer._optimizer import optimize_ir
 
 _ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
@@ -86,6 +86,13 @@ def optimize(
         # Move the model back to the proto
         new_proto = ir.serde.serialize_model(model_ir)
         return new_proto
+
+
+def inline(model: ir.Model) -> None:
+    """Inline all function calls (recursively) in the model."""
+    if model.functions:
+        onnxscript.ir.passes.common.inliner.InlinePass()(model)
+
 
 
 def fold_constants(
