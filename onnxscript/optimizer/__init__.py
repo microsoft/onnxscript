@@ -51,7 +51,7 @@ def fold_constants(
 
 
 def remove_unused_nodes(model: ir.Model | onnx.ModelProto,
-                        remove_initialized_inputs: bool=True
+                        remove_initialized_inputs: bool=False
                        ) -> None:
     """Removes unused nodes from a model inplace."""
     if isinstance(model, ir.Model):
