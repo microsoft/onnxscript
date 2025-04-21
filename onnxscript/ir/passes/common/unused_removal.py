@@ -93,13 +93,13 @@ def _remove_unused_nodes_in_graph_like(function_or_graph: ir.Function | ir.Graph
 
 
 class RemoveUnusedNodesPass(ir.passes.InPlacePass):
+    """Pass for removing unused nodes and initializers.
+
+    Attributes:
+        remove_initialized_inputs: When an unused initializer is simultaneously a graph input,
+            remove that input as well. Note that this will change the model input signature. 
+    """
     def __init__(self, remove_initialized_inputs: bool =True ):
-        """
-        :param remove_initialized_inputs: if `True` (default) remove unused inputs, in case
-            where is corresponding initializer, (those are typically rather initializers than inputs)
-            if changed to `False`, unused inputs remain, even if it has default initializer
-            Note: usual inputs will remain anyhow
-        """
         super().__init__()
         self.remove_initialized_inputs = remove_initialized_inputs
 
