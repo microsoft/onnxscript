@@ -18,6 +18,7 @@ import time
 import traceback
 
 import onnx
+import onnxruntime as ort
 import tqdm
 from onnx import hub
 
@@ -46,6 +47,8 @@ def test_model(model_info: hub.ModelInfo) -> float:
         serialized, model, ignore_initializer_value_proto=True
     )
     onnx.checker.check_model(serialized)
+    # Check the model can be loaded with onnxruntime
+    ort.InferenceSession(serialized.SerializeToString())
     return end - start
 
 
