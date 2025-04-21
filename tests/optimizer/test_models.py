@@ -16,7 +16,10 @@ from onnxscript import optimizer
 from onnxscript.rewriter import onnxruntime as ort_rewriter
 from onnxscript.utils import evaluation_utils
 
-_SKIP_TABLE = {}
+_SKIP_TABLE = {
+    "resnet18": "fixme: ORT aborts when loading the model - https://github.com/microsoft/onnxruntime/issues/24473",
+    "mobilenetv2_100": "fixme: ORT aborts when loading the model - https://github.com/microsoft/onnxruntime/issues/24473",
+}
 
 model_folder_path = (
     pathlib.Path(__file__).resolve().parent.parent.parent / "testdata" / "e2e_models"
