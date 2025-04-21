@@ -409,7 +409,7 @@ def assert_onnx_proto_equal(
 
     # Record and report all errors
     errors = []
-    for field in all_fields:
+    for field in all_fields:  # pylint: disable=too-many-nested-blocks
         # Obtain the default value if the field is not set. This way we can compare the two fields.
         a_value = getattr(actual, field)
         b_value = getattr(expected, field)
