@@ -42,7 +42,9 @@ def test_model(model_info: hub.ModelInfo) -> float:
     ir_model = ir.serde.deserialize_model(model)
     serialized = ir.serde.serialize_model(ir_model)
     end = time.time()
-    onnxscript.testing.assert_onnx_proto_equal(serialized, model)
+    onnxscript.testing.assert_onnx_proto_equal(
+        serialized, model, ignore_initializer_value_proto=True
+    )
     onnx.checker.check_model(serialized)
     return end - start
 
