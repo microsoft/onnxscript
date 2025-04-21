@@ -394,6 +394,7 @@ def assert_onnx_proto_equal(
     a_fields = {field.name: value for field, value in a.ListFields()}
     b_fields = {field.name: value for field, value in b.ListFields()}
     all_fields = sorted(set(a_fields.keys()) | set(b_fields.keys()))
+    errors = []
     for field in all_fields:
         # Obtain the default value if the field is not set. This way we can compare the two fields.
         a_value = getattr(a, field)
@@ -431,40 +432,42 @@ def assert_onnx_proto_equal(
                     f"Field type: {type(a_value)}. "
                     f"Duplicated a_keys: {_find_duplicates(a_keys)}, duplicated b_keys: {_find_duplicates(b_keys)}"
                 )
-                raise AssertionError(error_message)
-            if len(a_value) != len(b_value):
+                errors.append(error_message)
+            elif len(a_value) != len(b_value):
                 error_message = (
                     f"Field {field} not equal: len(a)={len(a_value)}, len(b)={len(b_value)} "
                     f"Field type: {type(a_value)}"
                 )
-                raise AssertionError(error_message)
-            # Check every element
-            for i in range(len(a_value)):  # pylint: disable=consider-using-enumerate
-                a_value_i = a_value[i]
-                b_value_i = b_value[i]
-                if isinstance(a_value_i, google.protobuf.message.Message) and isinstance(
-                    b_value_i, google.protobuf.message.Message
-                ):
-                    try:
-                        assert_onnx_proto_equal(a_value_i, b_value_i)
-                    except AssertionError as e:
-                        error_message = f"Field {field} index {i} in sequence not equal. type(a_value_i): {type(a_value_i)}, type(b_value_i): {type(b_value_i)}, a_value_i: {a_value_i}, b_value_i: {b_value_i}"
-                        raise AssertionError(error_message) from e
-                elif a_value_i != b_value_i:
-                    if (
-                        isinstance(a_value_i, float)
-                        and isinstance(b_value_i, float)
-                        and math.isnan(a_value_i)
-                        and math.isnan(b_value_i)
+                errors.append(error_message)
+            else:
+                # Check every element
+                for i in range(len(a_value)):  # pylint: disable=consider-using-enumerate
+                    a_value_i = a_value[i]
+                    b_value_i = b_value[i]
+                    if isinstance(a_value_i, google.protobuf.message.Message) and isinstance(
+                        b_value_i, google.protobuf.message.Message
                     ):
-                        # Consider NaNs equal
-                        continue
-                    error_message = f"Field {field} index {i} in sequence not equal. type(a_value_i): {type(a_value_i)}, type(b_value_i): {type(b_value_i)}"
-                    for line in difflib.ndiff(
-                        str(a_value_i).splitlines(), str(b_value_i).splitlines()
-                    ):
-                        error_message += "\n" + line
-                    raise AssertionError(error_message)
+                        try:
+                            assert_onnx_proto_equal(a_value_i, b_value_i)
+                        except AssertionError as e:
+                            error_message = f"Field {field} index {i} in sequence not equal. type(a_value_i): {type(a_value_i)}, type(b_value_i): {type(b_value_i)}, a_value_i: {a_value_i}, b_value_i: {b_value_i}"
+                            error_message = str(e) + "\n\nCaused by the above error\n\n" + error_message
+                            errors.append(error_message)
+                    elif a_value_i != b_value_i:
+                        if (
+                            isinstance(a_value_i, float)
+                            and isinstance(b_value_i, float)
+                            and math.isnan(a_value_i)
+                            and math.isnan(b_value_i)
+                        ):
+                            # Consider NaNs equal
+                            continue
+                        error_message = f"Field {field} index {i} in sequence not equal. type(a_value_i): {type(a_value_i)}, type(b_value_i): {type(b_value_i)}"
+                        for line in difflib.ndiff(
+                            str(a_value_i).splitlines(), str(b_value_i).splitlines()
+                        ):
+                            error_message += "\n" + line
+                        errors.append(error_message)
         elif isinstance(a_value, google.protobuf.message.Message) and isinstance(
             b_value, google.protobuf.message.Message
         ):
@@ -479,4 +482,8 @@ def assert_onnx_proto_equal(
                 # Consider NaNs equal
                 continue
             error_message = f"Field {field} not equal. field_a: {a_value}, field_b: {b_value}"
-            raise AssertionError(error_message)
+            errors.append(error_message)
+    if errors:
+        raise AssertionError(
+            f"Protos not equal: {type(a)} != {type(b)}\n" + "\n".join(errors)
+        )
