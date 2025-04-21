@@ -13,13 +13,13 @@ from onnxscript import ir
 class RemoveUnusedTest(unittest.TestCase):
     using_ir: bool
 
-    def remove_unused_nodes(self, model: onnx.ModelProto):
+    def remove_unused_nodes(self, model: onnx.ModelProto, remove_initialized_inputs: bool=False):
         if self.using_ir:
             model_ir = ir.serde.deserialize_model(model)
-            onnxscript.optimizer.remove_unused_nodes(model_ir)
+            onnxscript.optimizer.remove_unused_nodes(model_ir, remove_initialized_inputs)
             model = ir.serde.serialize_model(model_ir)
             return model
-        onnxscript.optimizer.remove_unused_nodes(model)
+        onnxscript.optimizer.remove_unused_nodes(model, remove_initialized_inputs)
         return model
 
     def test_remove_unused_nodes(self):
@@ -54,61 +54,61 @@ class RemoveUnusedTest(unittest.TestCase):
         self.assertEqual(model.graph.node[0].op_type, "Mul")
         self.assertEqual(len(model.graph.initializer), 0)
 
-def test_remove_unused_inputs_initializers():
-    # remove inputs in case they are initializers
-    # https://github.com/microsoft/onnxscript/issues/2211
-    model = onnx.parser.parse_model(
+    def test_remove_unused_inputs_initializers():
+        # remove inputs in case they are initializers
+        # if explicitly said
+        # https://github.com/microsoft/onnxscript/issues/2211
+        model = onnx.parser.parse_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 17]>
+            agraph (float[N] x, float[N] two) => (float[N] z)
+            <float two = {2.0,2.0}> {
+                four = Add(two, two)
+                z = Mul(x, x)
+            }
         """
-        <ir_version: 10, opset_import: [ "" : 17]>
-        agraph (float[N] x, float[N] two) => (float[N] z)
-        <float two = {2.0,2.0}> {
-            four = Add(two, two)
-            z = Mul(x, x)
-        }
-    """
-    )
-    ir_model = onnxscript.ir.serde.deserialize_model(model)
-    remove_unused_nodes(ir_model)
-    assert (len(ir_model.graph._nodes)== 1)
-    assert (len(ir_model.graph.inputs)== 1)
-    assert (ir_model.graph.node(0).op_type== "Mul")
-
-def test_avoid_remove_unused_inputs_initializers():
-    # supress remove inputs in case they are initializers
-    # if explicitly said
-    model = onnx.parser.parse_model(
+        )
+        ir_model = onnxscript.ir.serde.deserialize_model(model)
+        ir_model = self.remove_unused_nodes(ir_model,True)
+        assert (len(ir_model.graph._nodes)== 1)
+        assert (len(ir_model.graph.inputs)== 1)
+        assert (ir_model.graph.node(0).op_type== "Mul")
+    
+    def test_avoid_remove_unused_inputs_initializers():
+        # supress remove inputs in case they are initializers until explicitly said
+        model = onnx.parser.parse_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 17]>
+            agraph (float[N] x, float[N] two) => (float[N] z)
+            <float two = {2.0,2.0}> {
+                four = Add(two, two)
+                z = Mul(x, x)
+            }
         """
-        <ir_version: 10, opset_import: [ "" : 17]>
-        agraph (float[N] x, float[N] two) => (float[N] z)
-        <float two = {2.0,2.0}> {
-            four = Add(two, two)
-            z = Mul(x, x)
-        }
-    """
-    )
-    ir_model = onnxscript.ir.serde.deserialize_model(model)
-    remove_unused_nodes(ir_model,False)
-    assert (len(ir_model.graph._nodes)== 1)
-    assert (len(ir_model.graph.inputs)== 2)
-    assert (ir_model.graph.node(0).op_type== "Mul")
-
-def test_avoid_remove_unused_inputs():
-    # preserve inputs as part of interface
-    model = onnx.parser.parse_model(
+        )
+        ir_model = onnxscript.ir.serde.deserialize_model(model)
+        ir_model = self.remove_unused_nodes(ir_model)
+        assert (len(ir_model.graph._nodes)== 1)
+        assert (len(ir_model.graph.inputs)== 2)
+        assert (ir_model.graph.node(0).op_type== "Mul")
+    
+    def test_avoid_remove_unused_inputs():
+        # preserve inputs as part of interface
+        model = onnx.parser.parse_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 17]>
+            agraph (float[N] x, float[N] two) => (float[N] z)
+            {
+                four = Add(two, two)
+                z = Mul(x, x)
+            }
         """
-        <ir_version: 10, opset_import: [ "" : 17]>
-        agraph (float[N] x, float[N] two) => (float[N] z)
-        {
-            four = Add(two, two)
-            z = Mul(x, x)
-        }
-    """
-    )
-    ir_model = onnxscript.ir.serde.deserialize_model(model)
-    remove_unused_nodes(ir_model)
-    assert (len(ir_model.graph._nodes)== 1)
-    assert (len(ir_model.graph.inputs)== 2)
-    assert (ir_model.graph.node(0).op_type== "Mul")
+        )
+        ir_model = onnxscript.ir.serde.deserialize_model(model)
+        ir_model = self.remove_unused_nodes(ir_model,True)
+        assert (len(ir_model.graph._nodes)== 1)
+        assert (len(ir_model.graph.inputs)== 2)
+        assert (ir_model.graph.node(0).op_type== "Mul")
 
     def test_partially_used_nodes(self):
         model = onnx.parser.parse_model(
