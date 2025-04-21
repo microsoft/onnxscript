@@ -428,7 +428,11 @@ def assert_onnx_proto_equal(
                 a_keys = [_opset_import_key(opset_import) for opset_import in a_value]
                 b_keys = [_opset_import_key(opset_import) for opset_import in b_value]
             elif field == "value_info":
-                if ignore_initializer_value_proto:
+                if (
+                    ignore_initializer_value_proto
+                    and isinstance(actual, onnx.GraphProto)
+                    and isinstance(expected, onnx.GraphProto)
+                ):
                     # Filter out initializers from the value_info list
                     a_value = [
                         value_info
@@ -474,7 +478,11 @@ def assert_onnx_proto_equal(
                         actual_value_i, google.protobuf.message.Message
                     ) and isinstance(expected_value_i, google.protobuf.message.Message):
                         try:
-                            assert_onnx_proto_equal(actual_value_i, expected_value_i)
+                            assert_onnx_proto_equal(
+                                actual_value_i,
+                                expected_value_i,
+                                ignore_initializer_value_proto=ignore_initializer_value_proto,
+                            )
                         except AssertionError as e:
                             error_message = f"Field {field} index {i} in sequence not equal. type(actual_value_i): {type(actual_value_i)}, type(expected_value_i): {type(expected_value_i)}, actual_value_i: {actual_value_i}, expected_value_i: {expected_value_i}"
                             error_message = (
@@ -500,7 +508,9 @@ def assert_onnx_proto_equal(
         elif isinstance(a_value, google.protobuf.message.Message) and isinstance(
             b_value, google.protobuf.message.Message
         ):
-            assert_onnx_proto_equal(a_value, b_value)
+            assert_onnx_proto_equal(
+                a_value, b_value, ignore_initializer_value_proto=ignore_initializer_value_proto
+            )
         elif a_value != b_value:
             if (
                 isinstance(a_value, float)
