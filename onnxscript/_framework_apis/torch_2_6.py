@@ -35,7 +35,7 @@ def convert_version(model: ir.Model, target_version: int) -> ir.Model:
     """Convert the model to the specified ONNX opset version."""
     if target_version < 18:
         return model
-    version_converter.convert_version(model, target_version)
+    version_converter.convert_version(model, target_version, fallback=True)
     return model
 
 
