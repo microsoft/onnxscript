@@ -97,7 +97,7 @@ class RemoveUnusedNodesPass(ir.passes.InPlacePass):
 
     Attributes:
         remove_initialized_inputs: When an unused initializer is simultaneously a graph input,
-            remove that input as well. Note that this will change the model input signature. 
+            remove that input as well. Note that this will change the model input signature.
     """
     def __init__(self, remove_initialized_inputs: bool =False ):
         super().__init__()
