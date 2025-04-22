@@ -108,7 +108,11 @@ class PassBase(abc.ABC):
         """
         return not self.in_place and self.changes_input
 
-    def __call__(self, model: ir.Model) -> PassResult:
+    def __call__(self, model_or_result: ir.Model | PassResult, /) -> PassResult:
+        if isinstance(model_or_result, PassResult):
+            model = model_or_result.model
+        else:
+            model = model_or_result
         # Check preconditions
         try:
             self.requires(model)
