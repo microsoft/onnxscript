@@ -73,7 +73,7 @@ class RemoveUnusedTest(unittest.TestCase):
         model = self.remove_unused_nodes(model, True)
         self.assertEqual(len(model.graph.node), 1)
         self.assertEqual(model.graph.node[0].op_type, "Mul")
-        self.assertEqual(len(model.graph.inputs), 1)
+        self.assertEqual(len(model.graph.input), 1)
 
     def test_avoid_remove_unused_inputs_initializers(self):
         # supress remove inputs in case they are initializers until explicitly said
@@ -90,7 +90,7 @@ class RemoveUnusedTest(unittest.TestCase):
         model = self.remove_unused_nodes(model)
         self.assertEqual(len(model.graph.node), 1)
         self.assertEqual(model.graph.node[0].op_type, "Mul")
-        self.assertEqual(len(model.graph.inputs), 2)
+        self.assertEqual(len(model.graph.input), 2)
 
     def test_avoid_remove_unused_inputs(self):
         # preserve inputs as part of interface
@@ -107,7 +107,7 @@ class RemoveUnusedTest(unittest.TestCase):
         model = self.remove_unused_nodes(model, True)
         self.assertEqual(len(model.graph.node), 1)
         self.assertEqual(model.graph.node[0].op_type, "Mul")
-        self.assertEqual(len(model.graph.inputs), 2)
+        self.assertEqual(len(model.graph.input), 2)
 
     def test_partially_used_nodes(self):
         model = onnx.parser.parse_model(
