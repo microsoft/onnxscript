@@ -12,6 +12,7 @@ __all__ = [
     "save_model_with_external_data",
     "torchlib_opset",
 ]
+import logging
 from typing import TYPE_CHECKING
 
 from onnxscript import ir, optimizer, version_converter
@@ -25,6 +26,9 @@ if TYPE_CHECKING:
     from onnxscript.onnx_opset._impl.opset18 import Opset18
 
 
+logger = logging.getLogger(__name__)
+
+
 def optimize(model: ir.Model) -> ir.Model:
     """Optimize the model."""
     optimizer.optimize_ir(model)
@@ -34,8 +38,9 @@ def optimize(model: ir.Model) -> ir.Model:
 def convert_version(model: ir.Model, target_version: int) -> ir.Model:
     """Convert the model to the specified ONNX opset version."""
     if target_version < 18:
+        logger.warning("Conversion to opset < 18 is not supported.")
         return model
-    version_converter.convert_version(model, target_version)
+    version_converter.convert_version(model, target_version, fallback=True)
     return model
 
 
