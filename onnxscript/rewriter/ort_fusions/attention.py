@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from typing import Sequence, Union
+from typing import Union
 
 import onnxscript.ir as ir
 from onnxscript.rewriter import _fusion_utils, pattern
@@ -14,7 +14,15 @@ Dim = Union[int, ir.SymbolicDim]
 
 
 class AttentionFusion(pattern.RewriteRuleClassBase):
-    def __init__(self, name, *, has_input_bias: bool, has_past: bool = False, is_cross_attention: bool, no_slice: bool):
+    def __init__(
+        self,
+        name,
+        *,
+        has_input_bias: bool,
+        has_past: bool = False,
+        is_cross_attention: bool,
+        no_slice: bool,
+    ):
         super().__init__(name)
         # TODO: We can just pass bias to MultiHeadAttention
         # and let it handle the bias addition, once that pattern is added to MHA
@@ -34,29 +42,43 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         # attention_bias,
         num_heads,
         # scale,
+        q_mul,
+        k_mul,
+        v_mul,
+        q_add,
+        v_add,
+        k_add,
     ):
-        projected = op.MatMul(input, qkv_weight)
-        # Add bias if present
-        if self._has_input_bias:
-            projected = op.Add(projected, qkv_bias)
+        if self._no_slice:
+            q = op.MatMul(input, q_mul)
+            query_BSD = op.Add(q, q_add)
+            key_BSD = op.MatMul(input, k_mul)
+            # key_BSD = op.Add(k, allow_other_inputs=True)
+            v = op.MatMul(input, v_mul)
+            value_BSD = op.Add(v, v_add)
+        else:
+            projected = op.MatMul(input, qkv_weight)
+            # Add bias if present
+            if self._has_input_bias:
+                projected = op.Add(projected, qkv_bias)
 
-        # Slice packed Matmul QKV into Q, K, and V
-        # Q, K, and V are of shape (B, S, D)
-        query_BSD = op.Slice(
-            projected,
-            _allow_other_inputs=True,
-            _outputs=["query_mm_sliced"],
-        )
-        key_BSD = op.Slice(
-            projected,
-            _allow_other_inputs=True,
-            _outputs=["key_mm_sliced"],
-        )
-        value_BSD = op.Slice(
-            projected,
-            _allow_other_inputs=True,
-            _outputs=["value_mm_sliced"],
-        )
+            # Slice packed Matmul QKV into Q, K, and V
+            # Q, K, and V are of shape (B, S, D)
+            query_BSD = op.Slice(
+                projected,
+                _allow_other_inputs=True,
+                _outputs=["query_mm_sliced"],
+            )
+            key_BSD = op.Slice(
+                projected,
+                _allow_other_inputs=True,
+                _outputs=["key_mm_sliced"],
+            )
+            value_BSD = op.Slice(
+                projected,
+                _allow_other_inputs=True,
+                _outputs=["value_mm_sliced"],
+            )
 
         # TODO: Add other attributes
 
@@ -101,11 +123,11 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 query_BSD,
                 key_BSD,
                 value_BSD,
-                # bias
-                # key_padding_mask
-                # attention_bias,
-                # past_key
-                # past_value
+                None,
+                None,
+                None,
+                None,
+                None,
                 num_heads=num_heads,
                 # scale=scale,
                 _domain="com.microsoft",
@@ -119,14 +141,14 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         input,
         qkv_weight,
         qkv_bias,
-        query_mm_sliced,
-        key_mm_sliced,
-        value_mm_sliced,
+        # query_mm_sliced,
+        # key_mm_sliced,
+        # value_mm_sliced,
         **_,
     ):
         check_result = pattern.MatchResult()
         self.bindings: dict[str, Dim] = {}
-
+        """
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
             return not _fusion_utils._check_shape(self.bindings, val, dims)
 
@@ -183,6 +205,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
             )
 
         # TODO: Add mask check once mask is added to the pattern
+        """
         return check_result
 
     def rewrite(
@@ -200,10 +223,10 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
     ):
         # Use bindings to get the values of Dh_q, Dh_k, and Dh_v
         # and construct qkv_hidden_sizes
-        Dh_q = self.bindings.get("Dh_q")
-        Dh_k = self.bindings.get("Dh_k")
-        Dh_v = self.bindings.get("Dh_v")
-        qkv_hidden_sizes = [Dh_q, Dh_k, Dh_v]
+        # Dh_q = self.bindings.get("Dh_q")
+        # Dh_k = self.bindings.get("Dh_k")
+        # Dh_v = self.bindings.get("Dh_v")
+        # qkv_hidden_sizes = [Dh_q, Dh_k, Dh_v]
 
         if self._has_past:
             attention, present = op.Attention(
@@ -215,7 +238,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 # attention_bias,
                 # past_sequence_length
                 num_heads=num_heads,
-                qkv_hidden_sizes=qkv_hidden_sizes,
+                # qkv_hidden_sizes=qkv_hidden_sizes,
                 # scale=scale,
                 _domain="com.microsoft",
                 _outputs=2,
@@ -232,7 +255,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 # attention_bias,
                 # past_sequence_length
                 num_heads=num_heads,
-                qkv_hidden_sizes=qkv_hidden_sizes,
+                # qkv_hidden_sizes=qkv_hidden_sizes,
                 # scale=scale,
                 _domain="com.microsoft",
                 _outputs=1,
@@ -242,7 +265,9 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
 # Define all combinations of parameters
 parameter_combinations = [
     {
-        "name": f"attention_{'with_bias_' if has_input_bias else ''}{'with_past_' if has_past else ''}{'cross_' if is_cross_attention else ''}{'no_slice' if no_slice else ''}".strip("_"),
+        "name": f"attention_{'with_bias_' if has_input_bias else ''}{'with_past_' if has_past else ''}{'cross_' if is_cross_attention else ''}{'no_slice' if no_slice else ''}".strip(
+            "_"
+        ),
         "has_input_bias": has_input_bias,
         "has_past": has_past,
         "is_cross_attention": is_cross_attention,
@@ -251,21 +276,22 @@ parameter_combinations = [
     for has_input_bias in [False, True]
     for has_past in [False, True]
     for is_cross_attention in [False, True]
-    for no_slice in [False, True]
+    for no_slice in [True, True]
 ]
 
 # Dynamically create the rules
-attention_rules = pattern.RewriteRuleSet([
-    AttentionFusion.rule(
-        params["name"],
-        has_input_bias=params["has_input_bias"],
-        has_past=params["has_past"],
-        is_cross_attention=params["is_cross_attention"],
-        no_slice=params["no_slice"],
-    )
-    for params in parameter_combinations
-])
-
+attention_rules = pattern.RewriteRuleSet(
+    [
+        AttentionFusion.rule(
+            params["name"],
+            has_input_bias=params["has_input_bias"],
+            has_past=params["has_past"],
+            is_cross_attention=params["is_cross_attention"],
+            no_slice=params["no_slice"],
+        )
+        for params in parameter_combinations
+    ]
+)
 
 
 fuse_attention = _fusion_utils.apply_fusion_rules(attention_rules)

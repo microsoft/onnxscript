@@ -18,6 +18,7 @@ from onnxscript.rewriter import (
     broadcast_to_matmul,
     cast_constant_of_shape,
     collapse_slices,
+    erfgelu,
     gemm_to_matmul_add,
     llama_rule_sets,
     no_op,
@@ -28,6 +29,7 @@ _ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
 _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
     *no_op.rules.rules,  # TODO: merge this rule into constant folding?
     *broadcast_to_matmul.rules.rules,
+    *erfgelu.rules.rules,  # type: ignore[has-type]
     gemm_to_matmul_add.rule,  # type: ignore[has-type]
     *cast_constant_of_shape.rules.rules,
     *collapse_slices.rules.rules,

@@ -8,24 +8,67 @@ from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 
 class SDPA(pattern.RewriteRuleClassBase):
-    def __init__(self, name: str, *, use_mask: bool, pre_scale: bool, use_mul: bool):
-        super().__init__(name=name, as_function=True)
+    def __init__(
+        self,
+        name: str,
+        *,
+        use_mask: bool,
+        pre_scale: bool,
+        pre_scale_q: bool,
+        use_mul: bool,
+        has_3d_inputs: bool,
+    ):
+        super().__init__(name=name)
         self._use_mask = use_mask
         self._pre_scale = pre_scale
+        # There are some patterns where only the query is scaled before the dot product
+        # and essentially (query * qk_scale) * key is equivalent to (query * key) * qk_scale
+        # TODO: Capture patterns where only the key is scaled before the dot product
+        self._pre_scale_q = pre_scale_q
         self._use_mul = use_mul
+        # Capture patterns where the query is reshaped from 3D to 4D
+        # after scaling has been applied to query.
+        self._has_3d_inputs = has_3d_inputs
         self._scale: float | None = None
 
     def pattern(
-        self, op, query, key_transposed, value, mask, query_scale, key_scale, qk_scale
+        self,
+        op,
+        query,
+        key_transposed,
+        value,
+        mask,
+        query_scale,
+        key_scale,
+        qk_scale,
+        # Shape used for reshaping the query in patterns where query is reshaped
+        # from 3D to 4D and scaling is applied after before the reshaping.
+        query_reshape,
     ):
         if self._pre_scale:
             # Some implementations scale the query and key before computing the dot product
             if self._use_mul:
-                query = op.Mul(query, query_scale)
-                key_transposed = op.Mul(key_transposed, key_scale)
+                if self._pre_scale_q:
+                    query = op.Mul(query, qk_scale)
+                else:
+                    query = op.Mul(query, query_scale)
+                    key_transposed = op.Mul(key_transposed, key_scale)
             else:
-                query = op.Div(query, query_scale)
-                key_transposed = op.Div(key_transposed, key_scale)
+                if self._pre_scale_q:
+                    query = op.Div(query, qk_scale)
+                else:
+                    query = op.Div(query, query_scale)
+                    key_transposed = op.Div(key_transposed, key_scale)
+
+        # There might be patterns where the reshape and transpose are done
+        # after the pre-scaling. If the inputs are 3D, we need to reshape them to 4D
+        # and apply the approriate transposes to query.
+        if self._has_3d_inputs:
+            # Reshape and transpose 3D input of shape (B, S, D)
+            # to 4D input of shape (B, N, S, H)
+            queryBNSH = op.Reshape(query, query_reshape)
+            query = op.Transpose(queryBNSH, perm=[0, 2, 1, 3])
+
         attn_score = op.MatMul(query, key_transposed)
         if not self._pre_scale:
             # Some implementations scale the dot product.
@@ -40,7 +83,10 @@ class SDPA(pattern.RewriteRuleClassBase):
         attn_output = op.MatMul(attn_weight, value)
         return attn_output
 
-    def check(self, op, query, key_transposed, value, mask, query_scale, key_scale, qk_scale):
+    def check(
+        self, op, query, key_transposed, value, mask, query_scale, key_scale, qk_scale, **_
+    ):
+        
         check_result = pattern.MatchResult()
         # Check that the scaling factors match what SDPA implements:
 
@@ -52,6 +98,7 @@ class SDPA(pattern.RewriteRuleClassBase):
         hidden_size = query.shape[-1]
         if not isinstance(hidden_size, int):
             return check_result.fail("Hidden size is not an integer.")
+
         expected_scaling_factor = math.sqrt(hidden_size)
         if self._use_mul:
             expected_scaling_factor = 1.0 / expected_scaling_factor
@@ -100,7 +147,22 @@ class SDPA(pattern.RewriteRuleClassBase):
 
         return check_result
 
-    def rewrite(self, op, query, key_transposed, value, mask, **_):
+    def rewrite(
+        self,
+        op,
+        query,
+        key_transposed,
+        value,
+        mask,
+        query_reshape,
+        **_,
+    ):
+        if self._has_3d_inputs:
+            # Reshape and transpose 3D input of shape (B, S, D)
+            # to 4D input of shape (B, N, S, H)
+            queryBNSH = op.Reshape(query, query_reshape)
+            query = op.Transpose(queryBNSH, perm=[0, 2, 1, 3])
+
         sdpa_args = [query, key_transposed, value]
         if self._use_mask:
             sdpa_args.append(mask)
@@ -137,14 +199,15 @@ masked_post_mul_sdpa_rule = SDPA.rule(
 
 sdpa_rules = pattern.RewriteRuleSet(
     [
-        unmasked_pre_mul_sdpa_rule,
-        unmasked_post_div_sdpa_rule,
-        unmasked_post_mul_sdpa_rule,
-        unmasked_pre_div_sdpa_rule,
-        masked_pre_mul_sdpa_rule,
-        masked_post_div_sdpa_rule,
-        masked_post_mul_sdpa_rule,
-        masked_pre_div_sdpa_rule,
+        SDPA.rule(
+            params["name"],
+            use_mask=params["use_mask"],
+            pre_scale=params["pre_scale"],
+            pre_scale_q=params["pre_scale_q"],
+            use_mul=params["use_mul"],
+            has_3d_inputs=params["has_3d_inputs"],
+        )
+        for params in parameter_combinations
     ]
 )
 
