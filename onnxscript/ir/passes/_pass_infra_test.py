@@ -4,8 +4,9 @@
 from __future__ import annotations
 
 import unittest
-from onnxscript.ir.passes import _pass_infra
+
 from onnxscript import ir
+from onnxscript.ir.passes import _pass_infra
 
 
 class PassBaseTest(unittest.TestCase):
@@ -18,18 +19,13 @@ class PassBaseTest(unittest.TestCase):
             @property
             def changes_input(self) -> bool:
                 return False
+
             def call(self, model: ir.Model) -> _pass_infra.PassResult:
                 # This is a no-op pass
-                return _pass_infra.PassResult(
-                    model=model,
-                    modified=False
-                )
+                return _pass_infra.PassResult(model=model, modified=False)
 
         pass_ = TestPass()
-        model = ir.Model(
-            graph=ir.Graph([], [], nodes=[]),
-            ir_version=10
-        )
+        model = ir.Model(graph=ir.Graph([], [], nodes=[]), ir_version=10)
         result = pass_(model)
         self.assertIsInstance(result, _pass_infra.PassResult)
         # pass can take the result of another pass as input
