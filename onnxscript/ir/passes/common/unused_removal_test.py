@@ -102,7 +102,7 @@ class RemoveUnusedTest(unittest.TestCase):
             }
         """
         )
-        model = self.remove_unused_nodes(model,  remove_initialized_inputs=True)
+        model = self.remove_unused_nodes(model, remove_initialized_inputs=remove_initialized_inputs)
         self.assertEqual(len(model.graph.node), 1)
         self.assertEqual(model.graph.node[0].op_type, "Mul")
         self.assertEqual(len(model.graph.input), 2)
