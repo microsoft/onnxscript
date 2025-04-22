@@ -66,10 +66,10 @@ class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
     Attributes:
         target_version: The target ONNX opset version to convert the model to.
         fallback: Whether to fallback to the onnx version converter if the
-            target version is not supported. Default is False.
+            target version is not supported.
     """
 
-    def __init__(self, target_version: int, fallback: bool = False) -> None:
+    def __init__(self, target_version: int, fallback: bool) -> None:
         super().__init__()
         self.target_version = target_version
         self.fallback = fallback
