@@ -54,7 +54,7 @@ class RemoveUnusedTest(unittest.TestCase):
         self.assertEqual(model.graph.node[0].op_type, "Mul")
         self.assertEqual(len(model.graph.initializer), 0)
 
-    def test_remove_unused_inputs_initializers():
+    def test_remove_unused_inputs_initializers(self):
         # remove inputs in case they are initializers
         # if explicitly said
         # https://github.com/microsoft/onnxscript/issues/2211
