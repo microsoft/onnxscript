@@ -57,8 +57,6 @@ class RemoveUnusedTest(unittest.TestCase):
         self.assertEqual(len(model.graph.initializer), 0)
 
     def test_unused_initialized_inputs_are_removed_when_requested(self):
-        # remove inputs in case they are initializers
-        # if explicitly said
         # https://github.com/microsoft/onnxscript/issues/2211
         model = onnx.parser.parse_model(
             """
