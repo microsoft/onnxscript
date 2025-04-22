@@ -32,7 +32,7 @@ class ConvertVersionPass(ir.passes.InPlacePass):
     Attributes:
         target_version: The target ONNX opset version to convert the model to.
         fallback: Whether to fallback to the onnx version converter if the
-            target version is not supported. Default is True.
+            target version is not supported. Default is False.
     """
 
     def __init__(self, target_version: int, fallback: bool = False) -> None:
@@ -154,6 +154,6 @@ def convert_version(model: ir.Model, target_version: int, fallback=False) -> Non
         model: The model to convert.
         target_version: The target ONNX opset version.
         fallback: Whether to fallback to the onnx version converter if the
-            target version is not supported.
+            target version is not supported. Default is False.
     """
     ConvertVersionPass(target_version=target_version, fallback=fallback)(model)
