@@ -13,7 +13,9 @@ from onnxscript import ir
 class RemoveUnusedTest(unittest.TestCase):
     using_ir: bool
 
-    def remove_unused_nodes(self, model: onnx.ModelProto, remove_initialized_inputs: bool=False):
+    def remove_unused_nodes(
+        self, model: onnx.ModelProto, remove_initialized_inputs: bool = False
+    ):
         if self.using_ir:
             model_ir = ir.serde.deserialize_model(model)
             onnxscript.optimizer.remove_unused_nodes(model_ir, remove_initialized_inputs)
@@ -69,7 +71,7 @@ class RemoveUnusedTest(unittest.TestCase):
         """
         )
         ir_model = onnxscript.ir.serde.deserialize_model(model)
-        ir_model = self.remove_unused_nodes(ir_model,True)
+        ir_model = self.remove_unused_nodes(ir_model, True)
         self.assertEqual(len(ir_model.graph.node), 1)
         self.assertEqual(ir_model.graph.node[0].op_type, "Mul")
         self.assertEqual(len(ir_model.graph.inputs), 1)
@@ -105,7 +107,7 @@ class RemoveUnusedTest(unittest.TestCase):
         """
         )
         ir_model = onnxscript.ir.serde.deserialize_model(model)
-        ir_model = self.remove_unused_nodes(ir_model,True)
+        ir_model = self.remove_unused_nodes(ir_model, True)
         self.assertEqual(len(ir_model.graph.node), 1)
         self.assertEqual(ir_model.graph.node[0].op_type, "Mul")
         self.assertEqual(len(ir_model.graph.inputs), 2)
