@@ -70,11 +70,11 @@ class RemoveUnusedTest(unittest.TestCase):
         )
         ir_model = onnxscript.ir.serde.deserialize_model(model)
         ir_model = self.remove_unused_nodes(ir_model,True)
-        assert (len(ir_model.graph._nodes)== 1)
-        assert (len(ir_model.graph.inputs)== 1)
-        assert (ir_model.graph.node(0).op_type== "Mul")
-    
-    def test_avoid_remove_unused_inputs_initializers():
+        self.assertEqual(len(ir_model.graph.node), 1)
+        self.assertEqual(ir_model.graph.node[0].op_type, "Mul")
+        self.assertEqual(len(ir_model.graph.inputs), 1)
+
+    def test_avoid_remove_unused_inputs_initializers(self):
         # supress remove inputs in case they are initializers until explicitly said
         model = onnx.parser.parse_model(
             """
@@ -88,11 +88,11 @@ class RemoveUnusedTest(unittest.TestCase):
         )
         ir_model = onnxscript.ir.serde.deserialize_model(model)
         ir_model = self.remove_unused_nodes(ir_model)
-        assert (len(ir_model.graph._nodes)== 1)
-        assert (len(ir_model.graph.inputs)== 2)
-        assert (ir_model.graph.node(0).op_type== "Mul")
-    
-    def test_avoid_remove_unused_inputs():
+        self.assertEqual(len(ir_model.graph.node), 1)
+        self.assertEqual(ir_model.graph.node[0].op_type, "Mul")
+        self.assertEqual(len(ir_model.graph.inputs), 2)
+
+    def test_avoid_remove_unused_inputs(self):
         # preserve inputs as part of interface
         model = onnx.parser.parse_model(
             """
@@ -106,9 +106,9 @@ class RemoveUnusedTest(unittest.TestCase):
         )
         ir_model = onnxscript.ir.serde.deserialize_model(model)
         ir_model = self.remove_unused_nodes(ir_model,True)
-        assert (len(ir_model.graph._nodes)== 1)
-        assert (len(ir_model.graph.inputs)== 2)
-        assert (ir_model.graph.node(0).op_type== "Mul")
+        self.assertEqual(len(ir_model.graph.node), 1)
+        self.assertEqual(ir_model.graph.node[0].op_type, "Mul")
+        self.assertEqual(len(ir_model.graph.inputs), 2)
 
     def test_partially_used_nodes(self):
         model = onnx.parser.parse_model(
