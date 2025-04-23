@@ -61,40 +61,36 @@ class SDPA(pattern.RewriteRuleClassBase):
             # If they are scalars but != sqrt(expected_scaling_factor), a custom scale is being used.
             sqrt_scaling_factor = math.sqrt(expected_scaling_factor)
             # Calculate the scaling factor for query
-            if _ir_utils.get_singleton_value(query_scale) is None:
+            if (query_scale_value := _ir_utils.get_singleton_value(query_scale)) is None:
                 return check_result.fail(
                     "Query scale is not a scalar.",
                     query_scale,
                 )
-            if not _ir_utils.is_singleton_value(query_scale, sqrt_scaling_factor, rtol=1e-3):
-                query_scale_value = _ir_utils.get_singleton_value(query_scale)
+            if not math.isclose(query_scale_value, sqrt_scaling_factor, rel_tol=1e-3): 
                 self._scale = query_scale_value * query_scale_value
             else:
                 self._scale = expected_scaling_factor
             # Ensure the scaling factor for key is the same as for query
-            if _ir_utils.get_singleton_value(key_scale) is None:
+            if (key_scale_value := _ir_utils.get_singleton_value(key_scale)) is None:
                 return check_result.fail(
                     "Key scale is not a scalar.",
                     key_scale,
                 )
-            if not _ir_utils.is_singleton_value(key_scale, sqrt_scaling_factor, rtol=1e-3):
-                if _ir_utils.get_singleton_value(query_scale) != _ir_utils.get_singleton_value(
-                    key_scale
-                ):
-                    return check_result.fail(
-                        "Query and key scales are not equal.",
-                        query_scale,
-                    )
+            if not math.isclose(query_scale_value, key_scale_value, rel_tol=1e-3):
+                return check_result.fail(
+                    "Query and key scales are not equal.",
+                    query_scale,
+                )
         else:
             # Check if qk_scale is a scalar == expected_scaling_factor)
             # If it is a scalar but != sqrt(expected_scaling_factor), a custom scale is being used
-            if _ir_utils.get_singleton_value(qk_scale) is None:
+            if (qk_scale_value := _ir_utils.get_singleton_value(qk_scale)) is None:
                 return check_result.fail(
                     "QK scale is not a scalar.",
                     qk_scale,
                 )
-            if not _ir_utils.is_singleton_value(qk_scale, expected_scaling_factor, rtol=1e-3):
-                self._scale = _ir_utils.get_singleton_value(qk_scale)
+            if not math.isclose(qk_scale_value, expected_scaling_factor, rel_tol=1e-3):
+                self._scale = qk_scale_value
             else:
                 self._scale = expected_scaling_factor
 
