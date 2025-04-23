@@ -672,8 +672,27 @@ def _deserialize_graph(
         for node in proto.node
     ]
 
-    # Fill in values for graph outputs
-    outputs = [deserialize_value_info_proto(info, values[info.name]) for info in proto.output]
+    outputs = []
+    for info in proto.output:
+        # Fill in values for graph outputs
+        output_name = info.name
+        if output_name not in values:
+            # Handle (invalid) graph outputs that do not have any producers
+            logger.warning(
+                "Output '%s' is not produced by any node. The graph has an invalid output",
+                output_name
+            )
+            value = _core.Value(name=output_name)
+            # Fill in shape/type information
+            deserialize_value_info_proto(info, value)
+            if output_name in quantization_annotations:
+                _deserialize_quantization_annotation(
+                    quantization_annotations[output_name], value
+                )
+        else:
+            # A valid, normal graph output
+            value = values[output_name]
+        outputs.append(value)
 
     # Exit the graph scope by popping the values for this scope from the stack
     scoped_values.pop()
