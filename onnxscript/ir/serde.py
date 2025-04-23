@@ -680,7 +680,7 @@ def _deserialize_graph(
             # Handle (invalid) graph outputs that do not have any producers
             logger.warning(
                 "Output '%s' is not produced by any node. The graph has an invalid output",
-                output_name
+                output_name,
             )
             value = _core.Value(name=output_name)
             # Fill in shape/type information

@@ -290,6 +290,23 @@ class DeserializeGraphTest(unittest.TestCase):
         self.assertEqual(deserialized_graph[0].op_type, "Op_1")
         self.assertEqual(deserialized_graph[1].op_type, "Op_0")
 
+    def test_deserialize_graph_handles_invalid_output(self):
+        # The graph has an output that is not connected to any node, and it does not
+        # have shape/type information.
+        graph_with_invalid_output = ir.Graph(
+            inputs=[],
+            outputs=[ir.Value(name="invalid_output")],
+            nodes=[],
+            name="graph_with_invalid_output",
+        )
+        graph_proto = serde.serialize_graph(graph_with_invalid_output)
+        deserialized_graph = serde.deserialize_graph(graph_proto)
+        self.assertEqual(len(deserialized_graph.outputs), 1)
+        self.assertEqual(deserialized_graph.outputs[0].name, "invalid_output")
+        self.assertEqual(deserialized_graph.outputs[0].type, None)
+        self.assertEqual(deserialized_graph.outputs[0].shape, None)
+        self.assertEqual(deserialized_graph.outputs[0].dtype, None)
+
 
 class QuantizationAnnotationTest(unittest.TestCase):
     """Test that quantization annotations are correctly serialized and deserialized."""
