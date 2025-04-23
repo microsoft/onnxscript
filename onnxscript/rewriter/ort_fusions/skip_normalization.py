@@ -47,27 +47,66 @@ def _skip_layer_norm_pattern(op, input, skip, gamma, beta, epsilon, stash_type):
         epsilon=epsilon,
         stash_type=stash_type,
     )
-    return normalized
+    return normalized, skip_sum
 
 
 def _skip_layer_normalization(op, input, skip, gamma, beta, epsilon, stash_type):
     if stash_type.value != 1:  # FLOAT type
         return None
-    normalized, _mean, _inv_std_var = op.SkipLayerNormalization(
+    normalized, _mean, _inv_std_var, skip_sum = op.SkipLayerNormalization(
         input,
         skip,
         gamma,
         beta,
         epsilon=epsilon,
-        _outputs=3,
+        _outputs=4,
         _domain="com.microsoft",
     )
-    return normalized
+    return normalized, skip_sum
 
 
-_skip_layer_rule = pattern.RewriteRule(_skip_layer_norm_pattern, _skip_layer_normalization)
+# Fusion rule for Add + SkipLayerNormalization
+def _skip_layer_norm_add_bias_pattern(op, input, skip, gamma, beta, bias, epsilon, stash_type):
+    bias_sum = op.Add(input, bias)
+    normalized, _mean, _inv_std_var, skip_sum = op.SkipLayerNormalization(
+        bias_sum,
+        skip,
+        gamma,
+        beta,
+        epsilon=epsilon,
+        _outputs=4,
+        _domain="com.microsoft",
+    )
+    return normalized, skip_sum
 
-skip_layer_normalization_rules = [_skip_layer_rule]
+
+def _skip_layer_normalization_add_bias(
+    op, input, skip, gamma, beta, bias, epsilon, stash_type
+):
+    normalized, _mean, _inv_std_var, skip_sum = op.SkipLayerNormalization(
+        input,
+        skip,
+        gamma,
+        beta,
+        bias,
+        epsilon=epsilon,
+        _outputs=4,
+        _domain="com.microsoft",
+    )
+    return normalized, skip_sum
+
+
+_skip_layer_rule = pattern.RewriteRule(
+    _skip_layer_norm_pattern, _skip_layer_normalization, name="SkipLayerNorm"
+)
+_skip_layer_add_bias_rule = pattern.RewriteRule(
+    _skip_layer_norm_add_bias_pattern,
+    _skip_layer_normalization_add_bias,
+    name="SkipLayerNormAddBias",
+)
+
+
+skip_layer_normalization_rules = [_skip_layer_rule, _skip_layer_add_bias_rule]
 skip_layer_normalization_ruleset = pattern.RewriteRuleSet(skip_layer_normalization_rules)
 
 
