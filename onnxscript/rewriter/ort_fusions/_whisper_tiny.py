@@ -55,7 +55,7 @@ class TestMultiHeadAttention(unittest.TestCase):
             "/workspace/testing/whisper-opt/whisper-tiny-4.48/whisper-tiny_encoder_optimized.onnx",
         )
 
-        '''
+        
         # Generate decoder model
         whisper_decoder_model = onnx.load(
             "/workspace/testing/whisper-opt/whisper-tiny-4.48/whisper-tiny_decoder.onnx"
@@ -68,7 +68,7 @@ class TestMultiHeadAttention(unittest.TestCase):
         decoder_model.opset_imports["ai.onnxruntime.fusion"] = 1
 
         print(f"Fused {fusion_count_d} ops")
-        self.assertEqual(fusion_count_d["skip_layer_normalization"], 13)
+        self.assertEqual(fusion_count_d["skip_layer_normalization"], 25)
         self.assertEqual(fusion_count_d["sdpa"], 8)
         # 4 self-attention + 4 cross-attention
         self.assertEqual(fusion_count_d["mha"], 8)
@@ -85,7 +85,7 @@ class TestMultiHeadAttention(unittest.TestCase):
             new_decoder_onnx_model,
             "/workspace/testing/whisper-opt/whisper-tiny-4.48/whisper-tiny_decoder_optimized.onnx",
         )
-        '''
+        
 
         """
         test_with_ort = packaging.version.Version("1.20") <= ORT_VERSION

@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from typing import Union, Sequence
+from typing import Sequence, Union
 
 import numpy
 
@@ -60,7 +60,6 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
         past_key,
         past_value,
         num_heads,
-
     ):
         if not self._q_no_bias:
             query_BSD = op.Add(query_matmul, q_bias)
@@ -87,7 +86,6 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
             num_heads=num_heads,
             _domain="com.microsoft",
         )
-        
 
     def check(
         self,
@@ -98,12 +96,12 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
-        
+
         self.bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
             return not _fusion_utils._check_shape(self.bindings, val, dims)
-        
+
         if no_match(query_matmul, ["B", "S", "D"]):
             return check_result.fail(
                 f"Shape mismatch: {query_matmul} does not match expected dimensions ['B', 'S', 'D']",
@@ -132,7 +130,7 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
             return check_result.fail(
                 "Could not determine the hidden sizes of query, key, and value.",
             )
-        
+
         return check_result
 
     def rewrite(
@@ -151,11 +149,17 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
         **_,
     ):
         if self._q_no_bias:
-            q_bias = op.Constant(value=ir.tensor(numpy.zeros((self.Dh_q,), dtype=numpy.float32)))
+            q_bias = op.Constant(
+                value=ir.tensor(numpy.zeros((self.Dh_q,), dtype=numpy.float32))
+            )
         if self._k_no_bias:
-            k_bias = op.Constant(value=ir.tensor(numpy.zeros((self.Dh_k,), dtype=numpy.float32)))
+            k_bias = op.Constant(
+                value=ir.tensor(numpy.zeros((self.Dh_k,), dtype=numpy.float32))
+            )
         if self._v_no_bias:
-            v_bias = op.Constant(value=ir.tensor(numpy.zeros((self.Dh_v,), dtype=numpy.float32)))
+            v_bias = op.Constant(
+                value=ir.tensor(numpy.zeros((self.Dh_v,), dtype=numpy.float32))
+            )
         bias = op.Concat(q_bias, k_bias, v_bias, axis=0)
         return op.MultiHeadAttention(
             query_matmul,
@@ -169,7 +173,6 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
             num_heads=num_heads,
             _domain="com.microsoft",
         )
-        
 
 
 parameter_combinations = [

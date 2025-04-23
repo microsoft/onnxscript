@@ -132,7 +132,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
     ):
         check_result = pattern.MatchResult()
         self.bindings: dict[str, Dim] = {}
-        '''
+
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
             return not _fusion_utils._check_shape(self.bindings, val, dims)
 
@@ -183,7 +183,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 return check_result.fail(
                     f"Hidden size of query, key and value do not add up to hidden size: {Dh} != {Dh_q} + {Dh_k} + {Dh_v}",
                 )
-        '''
+
         # TODO: Add mask check once mask is added to the pattern
         return check_result
 
@@ -229,10 +229,10 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 input,
                 qkv_weight,
                 qkv_bias,
-                None, # mask_index
-                None, # past
+                None,  # mask_index
+                None,  # past
                 None,
-                None, # past_sequence_length
+                None,  # past_sequence_length
                 num_heads=num_heads,
                 # qkv_hidden_sizes=qkv_hidden_sizes,
                 # scale=scale,

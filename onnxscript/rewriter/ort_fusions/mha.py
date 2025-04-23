@@ -2,10 +2,10 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from typing import Union, Sequence
+from typing import Sequence, Union
 
 import onnxscript.ir as ir
-from onnxscript.rewriter import _fusion_utils, pattern
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 """
 The MultiHeadAttention pattern: generate an instance
@@ -47,6 +47,9 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         self._is_rotary = is_rotary
         self._use_mask = use_mask
         self._has_past_present = has_past_present
+        # Currently, we only support cross-attention when cross
+        # query and key originate from past_key and past_value.
+        # TODO: Support patterns where any key/value can be used for cross-attention.
         self._is_cross_attention = is_cross_attention
 
     def pattern(
@@ -82,7 +85,11 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             _outputs=["key_BSHDh"],
         )
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
-        key_BHSDh = op.Transpose(key_BSHDh, perm=[0, 2, 3, 1])
+        # TODO: Fix condition
+        if not self._is_cross_attention and self._has_past_present:
+            key_BHSDh = op.Transpose(key_BSHDh, perm=[0, 2, 1, 3])
+        else:
+            key_BHSDh = op.Transpose(key_BSHDh, perm=[0, 2, 3, 1])
 
         # Reshape from (B, S, D) to (B, S, H, D/H)
         value_BSHDh = op.Reshape(
@@ -94,19 +101,19 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
         value_BHSDh = op.Transpose(value_BSHDh, perm=[0, 2, 1, 3])
 
-        # This is workaround for examples where there is a duplication of Unsqueeze op
-        # to generate a 2D positions-ids from a 1D position-ids. This can be eliminated
-        # if we have CSE-optimization to eliminate the duplicate Unsqueeze ops.
-        # For now, same flag (transpose_4d) controls this variation. A different flag
-        # can be added if we see instances that mix the two.
-        if self._transpose_4d:
-            position_ids_q = op.Unsqueeze(position_ids, [0])
-            position_ids_k = op.Unsqueeze(position_ids, [0])
-        else:
-            position_ids_q = position_ids
-            position_ids_k = position_ids
-
         if self._is_rotary:
+            # This is workaround for examples where there is a duplication of Unsqueeze op
+            # to generate a 2D positions-ids from a 1D position-ids. This can be eliminated
+            # if we have CSE-optimization to eliminate the duplicate Unsqueeze ops.
+            # For now, same flag (transpose_4d) controls this variation. A different flag
+            # can be added if we see instances that mix the two.
+            if self._transpose_4d:
+                position_ids_q = op.Unsqueeze(position_ids, [0])
+                position_ids_k = op.Unsqueeze(position_ids, [0])
+            else:
+                position_ids_q = position_ids
+                position_ids_k = position_ids
+
             query_BHSDh_emb = op.RotaryEmbedding(
                 query_BHSDh, position_ids_q, cos, sin, _domain="com.microsoft"
             )
@@ -114,12 +121,14 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 key_BHSDh, position_ids_k, cos, sin, _domain="com.microsoft"
             )
         else:
+            # If rotary embedding is not used, we fuse with positional_embeddings
             query_BHSDh_emb = query_BHSDh
             key_BHSDh_emb = key_BHSDh
 
         # Concatenate past_key cache and current key, and transpose to enable
         # dot-product attention computation.
         if self._has_past_present:
+            # For patterns where cross-attention key/value originates from past_key/past_value
             if self._is_cross_attention:
                 key_seq = past_key
             else:
@@ -129,16 +138,18 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
 
         # Concatenate past_value cache and current value
         if self._has_past_present:
+            # For patterns where cross-attention key/value originates from past_key/past_value
             if self._is_cross_attention:
                 value_seq = past_value
             else:
                 value_seq = op.Concat(past_value, value_BHSDh, axis=-2)
         else:
             value_seq = value_BHSDh
-        
+
+        # Key/value to be used for dot-product attention computation
         key_seq_to_sdpa = key_seq
         value_seq_to_sdpa = value_seq
-        
+
         # Transpose last two axes of key_seq to compute dot-product via matmul.
         if self._transpose_4d:
             if self._has_past_present:
@@ -149,10 +160,11 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 key_seq_to_sdpa, _allow_other_inputs=True, _outputs=["key_seq_BH_Skv_Dh"]
             )
             key_seq_BH_Dh_Skv = op.Transpose(key_seq_BH_Skv_Dh, perm=[0, 2, 1])
-            key_seq = op.Reshape(
+            key_seq_to_sdpa = op.Reshape(
                 key_seq_BH_Dh_Skv, _allow_other_inputs=True, _outputs=["key_seq_B_H_Dh_Skv"]
             )
 
+        # TODO: Remove use_mask once SDPA op is usable
         if self._use_mask:
             sdpa = op.SDPA(
                 query_BHSDh_emb,
@@ -168,7 +180,6 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 value_seq_to_sdpa,
                 _domain="ai.onnxruntime.fusion",
             )
-
 
         # Transpose attention back to (B, S, H, D/H)
         attention_transposed = op.Transpose(sdpa, perm=[0, 2, 1, 3])
@@ -194,7 +205,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
-        
+
         bindings: dict[str, Dim] = {}
 
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
@@ -228,7 +239,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                     f"Shape mismatch: {past_value} does not match expected dimensions ['B', 'H', 'Spast', 'Dv']",
                     past_value,
                 )
-        '''
+        """
         if no_match(query_BSHDh, ["B", "S", "H", "Dh"]):
             return check_result.fail(
                 f"Shape mismatch: {query_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
@@ -246,8 +257,8 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                     f"Shape mismatch: {value_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
                     query_BSHDh,
                 )
-        '''
-        
+        """
+
         # TODO: mask shape check: ideally, it should be (1 or B, 1 or H, S, St)
         # But this also, unforunately, depends on ORT version.
 
@@ -273,7 +284,8 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         **_,
     ):
         num_heads = 64
-        # num_heads = _ir_utils.get_dim(query_BSHDh, 2)
+        # TODO: (fix) Error caused by incorrect SDPA fusion for pre-scaling case
+        #num_heads = _ir_utils.get_dim(query_BSHDh, 2)
         if not isinstance(num_heads, int):
             return None
 

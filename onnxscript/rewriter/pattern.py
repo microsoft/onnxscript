@@ -1306,8 +1306,6 @@ class SimplePatternMatcher(PatternMatcher):
                     f"Number of inputs ({len(node.inputs)}) is less than expected ({len(pattern_node.inputs)})"
                 )
         else:
-            
-            #print(node.inputs, pattern_node.inputs)
             if len(node.inputs) != len(pattern_node.inputs):
                 return self.fail(
                     f"Input nums mismatch. {len(node.inputs)} vs {len(pattern_node.inputs)}"

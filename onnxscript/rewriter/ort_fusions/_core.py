@@ -16,11 +16,11 @@ from onnxscript.rewriter.ort_fusions.attention import fuse_attention
 from onnxscript.rewriter.ort_fusions.bias_gelu import fuse_bias_gelu
 from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
 from onnxscript.rewriter.ort_fusions.erfgelu import fuse_erfgelu
+from onnxscript.rewriter.ort_fusions.fuse_mha_bias import fuse_mha_bias
 from onnxscript.rewriter.ort_fusions.fuse_packed_qkv_gqa import fuse_qkv_gqa
 from onnxscript.rewriter.ort_fusions.gelu import fuse_gelu
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
 from onnxscript.rewriter.ort_fusions.mha import fuse_mha
-from onnxscript.rewriter.ort_fusions.fuse_mha_bias import fuse_mha_bias
 from onnxscript.rewriter.ort_fusions.rms_normalization import fuse_rms_normalization
 from onnxscript.rewriter.ort_fusions.rotary_embedding import (
     fuse_partial_rotary_embedding,
@@ -88,11 +88,11 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
         # and avoid trying the attention fusion.
         fusion_count["gqa"] = fuse(fuse_gqa)
         fusion_count["packed_qkv_for_gqa"] = fuse(fuse_qkv_gqa)
-        fusion_count['mha_bias'] = 0
+        fusion_count["mha_bias"] = 0
         fusion_count["attention"] = 0
     else:
-        fusion_count['mha_bias'] = fuse_mha_bias(model)
-        fusion_count["attention"] = fuse_attention(model)
+        fusion_count["mha_bias"] = fuse(fuse_mha_bias)
+        fusion_count["attention"] = fuse(fuse_attention)
         fusion_count["gqa"] = 0
     fusion_count["gelu"] = fuse(fuse_gelu)
     fusion_count["bias_gelu"] = fuse(fuse_bias_gelu)

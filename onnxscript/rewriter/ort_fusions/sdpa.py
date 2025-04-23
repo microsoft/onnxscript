@@ -2,9 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import math
-
-from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
+from onnxscript.rewriter import _fusion_utils, pattern
 
 
 class SDPA(pattern.RewriteRuleClassBase):
@@ -42,7 +40,7 @@ class SDPA(pattern.RewriteRuleClassBase):
         key_scale,
         qk_scale,
         # Shape used for reshaping the query in patterns where query is reshaped
-        # from 3D to 4D and scaling is applied after before the reshaping.
+        # from 3D to 4D and scaling is applied before the reshaping.
         query_reshape,
     ):
         if self._pre_scale:
@@ -63,7 +61,7 @@ class SDPA(pattern.RewriteRuleClassBase):
         # There might be patterns where the reshape and transpose are done
         # after the pre-scaling. If the inputs are 3D, we need to reshape them to 4D
         # and apply the approriate transposes to query.
-        if self._has_3d_inputs:
+        if self._has_3d_inputs and self._pre_scale_q:
             # Reshape and transpose 3D input of shape (B, S, D)
             # to 4D input of shape (B, N, S, H)
             queryBNSH = op.Reshape(query, query_reshape)
@@ -86,7 +84,6 @@ class SDPA(pattern.RewriteRuleClassBase):
     def check(
         self, op, query, key_transposed, value, mask, query_scale, key_scale, qk_scale, **_
     ):
-        
         check_result = pattern.MatchResult()
         # Check that the scaling factors match what SDPA implements:
 
@@ -157,7 +154,7 @@ class SDPA(pattern.RewriteRuleClassBase):
         query_reshape,
         **_,
     ):
-        if self._has_3d_inputs:
+        if self._has_3d_inputs and self._pre_scale_q:
             # Reshape and transpose 3D input of shape (B, S, D)
             # to 4D input of shape (B, N, S, H)
             queryBNSH = op.Reshape(query, query_reshape)
