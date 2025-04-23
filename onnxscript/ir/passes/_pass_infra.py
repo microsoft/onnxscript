@@ -108,7 +108,11 @@ class PassBase(abc.ABC):
         """
         return not self.in_place and self.changes_input
 
-    def __call__(self, model: ir.Model) -> PassResult:
+    def __call__(self, model_or_result: ir.Model | PassResult, /) -> PassResult:
+        if isinstance(model_or_result, PassResult):
+            model = model_or_result.model
+        else:
+            model = model_or_result
         # Check preconditions
         try:
             self.requires(model)
@@ -135,6 +139,20 @@ class PassBase(abc.ABC):
             raise TypeError(
                 f"The result of the pass '{self.__class__.__name__}' should be type PassResult. "
                 "Please create one with ir.passes.PassResult()."
+            )
+
+        # Checks that the declared in-place property is respected
+        if self.in_place and result.model is not model:
+            raise PassError(
+                f"The pass '{self.__class__.__name__}' is declared in-place, "
+                "but the model returned is *not* the same object as the input model. "
+                "Pass developer: Pass should return the same model object or the in_place property should return False."
+            )
+        if not self.in_place and result.model is model:
+            raise PassError(
+                f"The pass '{self.__class__.__name__}' is declared not in-place, "
+                "but the model returned *is* the same object as the input model. "
+                "Pass developer: Pass should return a new model object or the in_place property should return True."
             )
         return result
 
