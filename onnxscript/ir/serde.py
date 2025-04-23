@@ -683,15 +683,11 @@ def _deserialize_graph(
                 output_name,
             )
             value = _core.Value(name=output_name)
-            # Fill in shape/type information
-            deserialize_value_info_proto(info, value)
-            if output_name in quantization_annotations:
-                _deserialize_quantization_annotation(
-                    quantization_annotations[output_name], value
-                )
         else:
             # A valid, normal graph output
             value = values[output_name]
+        # Fill in shape/type information
+        deserialize_value_info_proto(info, value)
         outputs.append(value)
 
     # Exit the graph scope by popping the values for this scope from the stack
