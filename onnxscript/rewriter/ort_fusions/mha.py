@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import onnxscript.ir as ir
-from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
+from onnxscript.rewriter import _fusion_utils, pattern
 
 """
 The MultiHeadAttention pattern: generate an instance
@@ -285,7 +285,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
     ):
         num_heads = 64
         # TODO: (fix) Error caused by incorrect SDPA fusion for pre-scaling case
-        #num_heads = _ir_utils.get_dim(query_BSHDh, 2)
+        # num_heads = _ir_utils.get_dim(query_BSHDh, 2)
         if not isinstance(num_heads, int):
             return None
 

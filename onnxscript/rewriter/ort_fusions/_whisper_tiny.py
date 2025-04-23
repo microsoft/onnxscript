@@ -55,7 +55,6 @@ class TestMultiHeadAttention(unittest.TestCase):
             "/workspace/testing/whisper-opt/whisper-tiny-4.48/whisper-tiny_encoder_optimized.onnx",
         )
 
-        
         # Generate decoder model
         whisper_decoder_model = onnx.load(
             "/workspace/testing/whisper-opt/whisper-tiny-4.48/whisper-tiny_decoder.onnx"
@@ -85,7 +84,6 @@ class TestMultiHeadAttention(unittest.TestCase):
             new_decoder_onnx_model,
             "/workspace/testing/whisper-opt/whisper-tiny-4.48/whisper-tiny_decoder_optimized.onnx",
         )
-        
 
         """
         test_with_ort = packaging.version.Version("1.20") <= ORT_VERSION
