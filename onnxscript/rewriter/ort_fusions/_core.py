@@ -13,6 +13,7 @@ from onnxscript.rewriter.ort_fusions import (
     softmax,
 )
 from onnxscript.rewriter.ort_fusions.attention import fuse_attention
+from onnxscript.rewriter.ort_fusions.bias_gelu import fuse_bias_gelu
 from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
 from onnxscript.rewriter.ort_fusions.fuse_packed_qkv_gqa import fuse_qkv_gqa
 from onnxscript.rewriter.ort_fusions.gelu import fuse_gelu
@@ -84,6 +85,7 @@ def fuse_xformers(model: ir.Model) -> tuple[ir.Model, dict[str, int]]:
         fusion_count["attention"] = fuse_attention(model)
         fusion_count["gqa"] = 0
     fusion_count["gelu"] = fuse_gelu(model)
+    fusion_count["bias_gelu"] = fuse_bias_gelu(model)
     # Finally: inline any intermediate fusion functions introduced that were not
     # consumed by other fusions, and eliminate any remaining unused nodes.
     optimize(model)
