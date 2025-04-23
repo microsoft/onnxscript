@@ -33,14 +33,14 @@ class TestMultiHeadAttention(unittest.TestCase):
         encoder_model = ir.serde.deserialize_model(whisper_encoder_model)
 
         onnxscript.optimizer.optimize(encoder_model)
-        #encoder_model, fusion_count_e = xformers.fuse_xformers(encoder_model)
+        encoder_model, fusion_count_e = xformers.fuse_xformers(encoder_model)
         encoder_model.opset_imports["ai.onnxruntime.fusion"] = 1
 
-        #print(f"Fused {fusion_count_e} ops")
-        #self.assertEqual(fusion_count_e["skip_layer_normalization"], 9)
-        #self.assertEqual(fusion_count_e["sdpa"], 4)
-        #self.assertEqual(fusion_count_e["mha"], 4)
-        #self.assertEqual(fusion_count_e["attention"], 4)
+        print(f"Fused {fusion_count_e} ops")
+        self.assertEqual(fusion_count_e["skip_layer_normalization"], 17)
+        self.assertEqual(fusion_count_e["sdpa"], 4)
+        self.assertEqual(fusion_count_e["mha"], 4)
+        self.assertEqual(fusion_count_e["attention"], 4)
 
         new_encoder_onnx_model = ir.serde.serialize_model(encoder_model)
         convert_model_to_external_data(
@@ -55,6 +55,7 @@ class TestMultiHeadAttention(unittest.TestCase):
             "/workspace/testing/whisper-opt/whisper-tiny-4.48/whisper-tiny_encoder_optimized.onnx",
         )
 
+        '''
         # Generate decoder model
         whisper_decoder_model = onnx.load(
             "/workspace/testing/whisper-opt/whisper-tiny-4.48/whisper-tiny_decoder.onnx"
@@ -84,6 +85,7 @@ class TestMultiHeadAttention(unittest.TestCase):
             new_decoder_onnx_model,
             "/workspace/testing/whisper-opt/whisper-tiny-4.48/whisper-tiny_decoder_optimized.onnx",
         )
+        '''
 
         """
         test_with_ort = packaging.version.Version("1.20") <= ORT_VERSION

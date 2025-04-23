@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from typing import Union
+from typing import Sequence, Union
 
 import onnxscript.ir as ir
 from onnxscript.rewriter import _fusion_utils, pattern
@@ -18,17 +18,11 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         self,
         name,
         *,
-        has_input_bias: bool,
-        has_past: bool = False,
-        is_cross_attention: bool,
+        has_past: bool,
         no_slice: bool,
     ):
         super().__init__(name)
-        # TODO: We can just pass bias to MultiHeadAttention
-        # and let it handle the bias addition, once that pattern is added to MHA
-        self._has_input_bias = has_input_bias
         self._has_past = has_past
-        self._is_cross_attention = is_cross_attention
         self._no_slice = no_slice
 
     def pattern(
@@ -39,28 +33,19 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         qkv_bias,
         # mask_index,
         past,
-        # attention_bias,
+        bias,
         num_heads,
         # scale,
         q_mul,
         k_mul,
         v_mul,
-        q_add,
-        v_add,
-        k_add,
     ):
         if self._no_slice:
-            q = op.MatMul(input, q_mul)
-            query_BSD = op.Add(q, q_add)
+            query_BSD = op.MatMul(input, q_mul)
             key_BSD = op.MatMul(input, k_mul)
-            # key_BSD = op.Add(k, allow_other_inputs=True)
-            v = op.MatMul(input, v_mul)
-            value_BSD = op.Add(v, v_add)
+            value_BSD = op.MatMul(input, v_mul)
         else:
             projected = op.MatMul(input, qkv_weight)
-            # Add bias if present
-            if self._has_input_bias:
-                projected = op.Add(projected, qkv_bias)
 
             # Slice packed Matmul QKV into Q, K, and V
             # Q, K, and V are of shape (B, S, D)
@@ -102,7 +87,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 query_BSD,
                 key_BSD,
                 value_BSD,
-                None,  # bias
+                qkv_bias,
                 None,  # key_padding_mask
                 None,  # attention_bias,
                 past_key,
@@ -123,7 +108,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 query_BSD,
                 key_BSD,
                 value_BSD,
-                None,
+                qkv_bias,
                 None,
                 None,
                 None,
@@ -140,15 +125,14 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         op,
         input,
         qkv_weight,
-        qkv_bias,
-        # query_mm_sliced,
-        # key_mm_sliced,
-        # value_mm_sliced,
+        query_mm_sliced=None,
+        key_mm_sliced=None,
+        value_mm_sliced=None,
         **_,
     ):
         check_result = pattern.MatchResult()
         self.bindings: dict[str, Dim] = {}
-        """
+        '''
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
             return not _fusion_utils._check_shape(self.bindings, val, dims)
 
@@ -157,55 +141,50 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 f"Shape mismatch: {input} does not match expected dimensions ['B', 'S', 'D']",
                 input,
             )
-        if no_match(qkv_weight, ["D", "Dh"]):
-            return check_result.fail(
-                f"Shape mismatch: {qkv_weight} does not match expected dimensions ['D', 'Dh']",
-                qkv_weight,
-            )
-        if no_match(qkv_bias, ["Dh"]):
-            return check_result.fail(
-                f"Shape mismatch: {qkv_bias} does not match expected dimensions ['Dh']",
-                qkv_bias,
-            )
-        if no_match(query_mm_sliced, ["B", "S", "Dh_q"]):
-            return check_result.fail(
-                f"Shape mismatch: {query_mm_sliced} does not match expected dimensions ['B', 'S', 'Dh_q']",
-                query_mm_sliced,
-            )
-        if no_match(key_mm_sliced, ["B", "S", "Dh_k"]):
-            return check_result.fail(
-                f"Shape mismatch: {key_mm_sliced} does not match expected dimensions ['B', 'S', 'Dh_k']",
-                key_mm_sliced,
-            )
-        if no_match(value_mm_sliced, ["B", "S", "Dh_v"]):
-            return check_result.fail(
-                f"Shape mismatch: {value_mm_sliced} does not match expected dimensions ['B', 'S', 'Dh_v']",
-                value_mm_sliced,
-            )
+        if not self._no_slice:
+            if no_match(qkv_weight, ["D", "Dh"]):
+                return check_result.fail(
+                    f"Shape mismatch: {qkv_weight} does not match expected dimensions ['D', 'Dh']",
+                    qkv_weight,
+                )
+            if no_match(query_mm_sliced, ["B", "S", "Dh_q"]):
+                return check_result.fail(
+                    f"Shape mismatch: {query_mm_sliced} does not match expected dimensions ['B', 'S', 'Dh_q']",
+                    query_mm_sliced,
+                )
+            if no_match(key_mm_sliced, ["B", "S", "Dh_k"]):
+                return check_result.fail(
+                    f"Shape mismatch: {key_mm_sliced} does not match expected dimensions ['B', 'S', 'Dh_k']",
+                    key_mm_sliced,
+                )
+            if no_match(value_mm_sliced, ["B", "S", "Dh_v"]):
+                return check_result.fail(
+                    f"Shape mismatch: {value_mm_sliced} does not match expected dimensions ['B', 'S', 'Dh_v']",
+                    value_mm_sliced,
+                )
 
-        # Ensure Dh = Dh_q + Dh_k + Dh_v
-        Dh = self.bindings.get("Dh")
-        Dh_q = self.bindings.get("Dh_q")
-        Dh_k = self.bindings.get("Dh_k")
-        Dh_v = self.bindings.get("Dh_v")
+            # Ensure Dh = Dh_q + Dh_k + Dh_v
+            Dh = self.bindings.get("Dh")
+            Dh_q = self.bindings.get("Dh_q")
+            Dh_k = self.bindings.get("Dh_k")
+            Dh_v = self.bindings.get("Dh_v")
 
-        if (
-            not isinstance(Dh, int)
-            or not isinstance(Dh_q, int)
-            or not isinstance(Dh_k, int)
-            or not isinstance(Dh_v, int)
-        ):
-            return check_result.fail(
-                "Could not determine the hidden sizes of query, key, and value.",
-            )
+            if (
+                not isinstance(Dh, int)
+                or not isinstance(Dh_q, int)
+                or not isinstance(Dh_k, int)
+                or not isinstance(Dh_v, int)
+            ):
+                return check_result.fail(
+                    "Could not determine the hidden sizes of query, key, and value.",
+                )
 
-        if Dh != Dh_q + Dh_k + Dh_v:  # type: ignore[operator]
-            return check_result.fail(
-                f"Hidden size of query, key and value do not add up to hidden size: {Dh} != {Dh_q} + {Dh_k} + {Dh_v}",
-            )
-
+            if Dh != Dh_q + Dh_k + Dh_v:  # type: ignore[operator]
+                return check_result.fail(
+                    f"Hidden size of query, key and value do not add up to hidden size: {Dh} != {Dh_q} + {Dh_k} + {Dh_v}",
+                )
+        '''
         # TODO: Add mask check once mask is added to the pattern
-        """
         return check_result
 
     def rewrite(
@@ -250,10 +229,10 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 input,
                 qkv_weight,
                 qkv_bias,
-                # mask_index
-                # past
-                # attention_bias,
-                # past_sequence_length
+                None, # mask_index
+                None, # past
+                None,
+                None, # past_sequence_length
                 num_heads=num_heads,
                 # qkv_hidden_sizes=qkv_hidden_sizes,
                 # scale=scale,
@@ -265,18 +244,14 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
 # Define all combinations of parameters
 parameter_combinations = [
     {
-        "name": f"attention_{'with_bias_' if has_input_bias else ''}{'with_past_' if has_past else ''}{'cross_' if is_cross_attention else ''}{'no_slice' if no_slice else ''}".strip(
+        "name": f"attention_{'with_past_' if has_past else ''}{'no_slice' if no_slice else ''}".strip(
             "_"
         ),
-        "has_input_bias": has_input_bias,
         "has_past": has_past,
-        "is_cross_attention": is_cross_attention,
         "no_slice": no_slice,
     }
-    for has_input_bias in [False, True]
     for has_past in [False, True]
-    for is_cross_attention in [False, True]
-    for no_slice in [True, True]
+    for no_slice in [False, True]
 ]
 
 # Dynamically create the rules
@@ -284,9 +259,7 @@ attention_rules = pattern.RewriteRuleSet(
     [
         AttentionFusion.rule(
             params["name"],
-            has_input_bias=params["has_input_bias"],
             has_past=params["has_past"],
-            is_cross_attention=params["is_cross_attention"],
             no_slice=params["no_slice"],
         )
         for params in parameter_combinations

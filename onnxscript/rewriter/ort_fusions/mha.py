@@ -82,7 +82,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             _outputs=["key_BSHDh"],
         )
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
-        key_BHSDh = op.Transpose(key_BSHDh, perm=[0, 2, 1, 3])
+        key_BHSDh = op.Transpose(key_BSHDh, perm=[0, 2, 3, 1])
 
         # Reshape from (B, S, D) to (B, S, H, D/H)
         value_BSHDh = op.Reshape(
