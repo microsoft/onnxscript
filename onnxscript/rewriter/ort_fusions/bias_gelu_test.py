@@ -38,6 +38,7 @@ class BiasGeluFusionTest(unittest.TestCase):
                 onnx.helper.make_opsetid("", 18),
                 onnx.helper.make_opsetid("com.microsoft", 1),
             ],
+            ir_version=10,
         )
         model = ir.serde.deserialize_model(model_proto)
         optimize(model)
