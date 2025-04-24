@@ -105,8 +105,8 @@ class Opset9(Opset8):
         mean: T_BatchNormalization,
         var: T_BatchNormalization,
         *,
-        momentum: float = 0.8999999761581421,
         epsilon: float = 9.999999747378752e-06,
+        momentum: float = 0.8999999761581421,
     ) -> Tuple[
         T_BatchNormalization,
         T_BatchNormalization,
@@ -147,18 +147,18 @@ class Opset9(Opset8):
             var: (differentiable) running (training) or estimated (testing) variance
                 tensor of shape (C).
 
+            epsilon: The epsilon value to use to avoid division by zero.
+
             momentum: Factor used in computing the running mean and variance.e.g.,
                 running_mean = running_mean * momentum + mean * (1 - momentum).
-
-            epsilon: The epsilon value to use to avoid division by zero.
         """
 
         schema = get_schema("BatchNormalization", 9, "")
         op = Op(self, "BatchNormalization", schema)
         return op(
             *self._prepare_inputs(schema, X, scale, B, mean, var),
-            momentum=momentum,
             epsilon=epsilon,
+            momentum=momentum,
         )
 
     T1_Cast = TypeVar(
@@ -487,10 +487,10 @@ class Opset9(Opset8):
         B: T_Gemm,
         C: T_Gemm,
         *,
-        beta: float = 1.0,
-        transB: int = 0,
         alpha: float = 1.0,
+        beta: float = 1.0,
         transA: int = 0,
+        transB: int = 0,
     ) -> T_Gemm:
         r"""[🌐 Gemm(9)](https://onnx.ai/onnx/operators/onnx__Gemm.html#gemm-9 "Online Documentation")
 
@@ -517,23 +517,23 @@ class Opset9(Opset8):
             C: Input tensor C. The shape of C should be unidirectional broadcastable to
                 (M, N).
 
-            beta: Scalar multiplier for input tensor C.
-
-            transB: Whether B should be transposed
-
             alpha: Scalar multiplier for the product of input tensors A * B.
 
+            beta: Scalar multiplier for input tensor C.
+
             transA: Whether A should be transposed
+
+            transB: Whether B should be transposed
         """
 
         schema = get_schema("Gemm", 9, "")
         op = Op(self, "Gemm", schema)
         return op(
             *self._prepare_inputs(schema, A, B, C),
-            beta=beta,
-            transB=transB,
             alpha=alpha,
+            beta=beta,
             transA=transA,
+            transB=transB,
         )
 
     T_Greater = TypeVar(
@@ -656,9 +656,9 @@ class Opset9(Opset8):
         I: T2_MaxUnpool,
         output_shape: Optional[T2_MaxUnpool] = None,
         *,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
-        kernel_shape: Sequence[int],
     ) -> T1_MaxUnpool:
         r"""[🌐 MaxUnpool(9)](https://onnx.ai/onnx/operators/onnx__MaxUnpool.html#maxunpool-9 "Online Documentation")
 
@@ -706,6 +706,8 @@ class Opset9(Opset8):
                 will cause pads values to be auto generated. If 'output_shape' is
                 specified, 'pads' values are ignored.
 
+            kernel_shape: The size of the kernel along each axis.
+
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
                 number of pixels added to the beginning and end part of the
@@ -717,17 +719,15 @@ class Opset9(Opset8):
                 defaults to 0 along start and end of each spatial axis.
 
             strides: Stride along each spatial axis.
-
-            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("MaxUnpool", 9, "")
         op = Op(self, "MaxUnpool", schema)
         return op(
             *self._prepare_inputs(schema, X, I, output_shape),
+            kernel_shape=kernel_shape,
             pads=pads,
             strides=strides,
-            kernel_shape=kernel_shape,
         )
 
     T_MeanVarianceNormalization = TypeVar(
@@ -938,12 +938,12 @@ class Opset9(Opset8):
     def Scan(
         self,
         *initial_state_and_scan_inputs: V_Scan,
+        body: GraphProto,
+        num_scan_inputs: int,
         scan_input_axes: Optional[Sequence[int]] = None,
+        scan_input_directions: Optional[Sequence[int]] = None,
         scan_output_axes: Optional[Sequence[int]] = None,
         scan_output_directions: Optional[Sequence[int]] = None,
-        scan_input_directions: Optional[Sequence[int]] = None,
-        num_scan_inputs: int,
-        body: GraphProto,
     ) -> V_Scan:
         r"""[🌐 Scan(9)](https://onnx.ai/onnx/operators/onnx__Scan.html#scan-9 "Online Documentation")
 
@@ -1075,10 +1075,25 @@ class Opset9(Opset8):
             initial_state_and_scan_inputs: (variadic, heterogeneous) Initial values of
                 the loop's N state variables followed by M scan_inputs
 
+            body: The graph run each iteration. It has N+M inputs: (loop state
+                variables..., scan_input_elts...). It has N+K outputs: (loop state
+                variables..., scan_output_elts...). Each scan_output is created by
+                concatenating the value of the specified scan_output_elt value at the
+                end of each iteration of the loop. It is an error if the dimensions of
+                these values change across loop iterations.
+
+            num_scan_inputs: An attribute specifying the number of scan_inputs M.
+
             scan_input_axes: An optional list of M flags. The i-th element of the list
                 specifies the axis to be scanned (the sequence axis) for the i-th
                 scan_input. If omitted, 0 will be used as the scan axis for every
                 scan_input.
+
+            scan_input_directions: An optional list of M flags. The i-th element of the
+                list specifies the direction to be scanned for the i-th scan_input
+                tensor: 0 indicates forward direction and 1 indicates reverse direction.
+                If omitted, all scan_input tensors will be scanned in the forward
+                direction.
 
             scan_output_axes: An optional list of K flags. The i-th element of the list
                 specifies the axis for the i-th scan_output. The scan outputs are
@@ -1091,33 +1106,18 @@ class Opset9(Opset8):
                 in each iteration: 0 indicates appending and 1 indicates prepending. If
                 omitted, all scan_output tensors will be produced by appending a value
                 in each iteration.
-
-            scan_input_directions: An optional list of M flags. The i-th element of the
-                list specifies the direction to be scanned for the i-th scan_input
-                tensor: 0 indicates forward direction and 1 indicates reverse direction.
-                If omitted, all scan_input tensors will be scanned in the forward
-                direction.
-
-            num_scan_inputs: An attribute specifying the number of scan_inputs M.
-
-            body: The graph run each iteration. It has N+M inputs: (loop state
-                variables..., scan_input_elts...). It has N+K outputs: (loop state
-                variables..., scan_output_elts...). Each scan_output is created by
-                concatenating the value of the specified scan_output_elt value at the
-                end of each iteration of the loop. It is an error if the dimensions of
-                these values change across loop iterations.
         """
 
         schema = get_schema("Scan", 9, "")
         op = Op(self, "Scan", schema)
         return op(
             *self._prepare_inputs(schema, *initial_state_and_scan_inputs),
+            body=body,
+            num_scan_inputs=num_scan_inputs,
             scan_input_axes=scan_input_axes,
+            scan_input_directions=scan_input_directions,
             scan_output_axes=scan_output_axes,
             scan_output_directions=scan_output_directions,
-            scan_input_directions=scan_input_directions,
-            num_scan_inputs=num_scan_inputs,
-            body=body,
         )
 
     T_Scatter = TypeVar(
@@ -1288,15 +1288,15 @@ class Opset9(Opset8):
         self,
         X: T_TfIdfVectorizer,
         *,
-        mode: str,
-        ngram_indexes: Sequence[int],
-        weights: Optional[Sequence[float]] = None,
-        ngram_counts: Sequence[int],
-        pool_int64s: Optional[Sequence[int]] = None,
-        pool_strings: Optional[Sequence[str]] = None,
+        max_gram_length: int,
         max_skip_count: int,
         min_gram_length: int,
-        max_gram_length: int,
+        mode: str,
+        ngram_counts: Sequence[int],
+        ngram_indexes: Sequence[int],
+        pool_int64s: Optional[Sequence[int]] = None,
+        pool_strings: Optional[Sequence[str]] = None,
+        weights: Optional[Sequence[float]] = None,
     ) -> T1_TfIdfVectorizer:
         r"""[🌐 TfIdfVectorizer(9)](https://onnx.ai/onnx/operators/onnx__TfIdfVectorizer.html#tfidfvectorizer-9 "Online Documentation")
 
@@ -1333,20 +1333,21 @@ class Opset9(Opset8):
         Args:
             X: (non-differentiable) Input for n-gram extraction
 
+            max_gram_length: Maximum n-gram length. If this value is 3, 3-grams will be
+                used to generate the output.
+
+            max_skip_count: Maximum number of items (integers/strings) to be skipped
+                when constructing an n-gram from X. If max_skip_count=1,
+                min_gram_length=2, max_gram_length=3, this operator may generate 2-grams
+                with skip_count=0 and skip_count=1, and 3-grams with skip_count=0 and
+                skip_count=1
+
+            min_gram_length: Minimum n-gram length. If this value is 2 and
+                max_gram_length is 3, output may contain counts of 2-grams and 3-grams.
+
             mode: The weighting criteria. It can be one of "TF" (term frequency), "IDF"
                 (inverse document frequency), and "TFIDF" (the combination of TF and
                 IDF)
-
-            ngram_indexes: list of int64s (type: AttributeProto::INTS). This list is
-                parallel to the specified 'pool_*' attribute. The i-th element in
-                ngram_indexes indicate the coordinate of the i-th n-gram in the output
-                tensor.
-
-            weights: list of floats. This attribute stores the weight of each n-gram in
-                pool. The i-th element in weights is the weight of the i-th n-gram in
-                pool. Its length equals to the size of ngram_indexes. By default,
-                weights is an all-one tensor.This attribute is used when mode is "IDF"
-                or "TFIDF" to scale the associated word counts.
 
             ngram_counts: The starting indexes of 1-grams, 2-grams, and so on in pool.
                 It is useful when determining the boundary between two consecutive
@@ -1354,6 +1355,11 @@ class Opset9(Opset8):
                 first index (zero-based) of 1-gram/2-gram/3-gram in pool are 0/17/36.
                 This format is essentially identical to CSR (or CSC) sparse matrix
                 format, and we choose to use this due to its popularity.
+
+            ngram_indexes: list of int64s (type: AttributeProto::INTS). This list is
+                parallel to the specified 'pool_*' attribute. The i-th element in
+                ngram_indexes indicate the coordinate of the i-th n-gram in the output
+                tensor.
 
             pool_int64s: List of int64 n-grams learned from the training set. Either
                 this or pool_strings attributes must be present but not both. It's an
@@ -1368,32 +1374,26 @@ class Opset9(Opset8):
                 collections of n-grams. The i-th element in pool stores the n-gram that
                 should be mapped to coordinate ngram_indexes[i] in the output vector.
 
-            max_skip_count: Maximum number of items (integers/strings) to be skipped
-                when constructing an n-gram from X. If max_skip_count=1,
-                min_gram_length=2, max_gram_length=3, this operator may generate 2-grams
-                with skip_count=0 and skip_count=1, and 3-grams with skip_count=0 and
-                skip_count=1
-
-            min_gram_length: Minimum n-gram length. If this value is 2 and
-                max_gram_length is 3, output may contain counts of 2-grams and 3-grams.
-
-            max_gram_length: Maximum n-gram length. If this value is 3, 3-grams will be
-                used to generate the output.
+            weights: list of floats. This attribute stores the weight of each n-gram in
+                pool. The i-th element in weights is the weight of the i-th n-gram in
+                pool. Its length equals to the size of ngram_indexes. By default,
+                weights is an all-one tensor.This attribute is used when mode is "IDF"
+                or "TFIDF" to scale the associated word counts.
         """
 
         schema = get_schema("TfIdfVectorizer", 9, "")
         op = Op(self, "TfIdfVectorizer", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            mode=mode,
-            ngram_indexes=ngram_indexes,
-            weights=weights,
-            ngram_counts=ngram_counts,
-            pool_int64s=pool_int64s,
-            pool_strings=pool_strings,
+            max_gram_length=max_gram_length,
             max_skip_count=max_skip_count,
             min_gram_length=min_gram_length,
-            max_gram_length=max_gram_length,
+            mode=mode,
+            ngram_counts=ngram_counts,
+            ngram_indexes=ngram_indexes,
+            pool_int64s=pool_int64s,
+            pool_strings=pool_strings,
+            weights=weights,
         )
 
     T_Upsample = TypeVar(

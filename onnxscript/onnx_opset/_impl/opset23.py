@@ -82,13 +82,13 @@ class Opset23(Opset22):
         past_key: Optional[T1_Attention] = None,
         past_value: Optional[T2_Attention] = None,
         *,
-        qk_matmul_output_mode: int = 0,
-        softcap: float = 0.0,
-        softmax_precision: Optional[int] = None,
+        is_causal: int = 0,
         kv_num_heads: Optional[int] = None,
         q_num_heads: Optional[int] = None,
+        qk_matmul_output_mode: int = 0,
         scale: Optional[float] = None,
-        is_causal: int = 0,
+        softcap: float = 0.0,
+        softmax_precision: Optional[int] = None,
     ) -> Tuple[T1_Attention, T1_Attention, T2_Attention, T1_Attention]:
         r"""[🌐 Attention(23)](https://onnx.ai/onnx/operators/onnx__Attention.html#attention-23 "Online Documentation")
 
@@ -169,18 +169,9 @@ class Opset23(Opset22):
             past_value: (optional) past state cache for value with shape `(batch_size,
                 kv_num_heads, past_sequence_length, v_head_size)`
 
-            qk_matmul_output_mode: If set to `0`, qk_matmul_output is the output of qk
-                matmul. If set to `1`, qk_matmul_output includes the addition of the
-                attention mask to the output of qk matmul. If set to `2`,
-                qk_matmul_output is the output after the softcap operation. If set to
-                `3`, qk_matmul_output is the output after the softmax operation. Default
-                value is 0.
-
-            softcap: Softcap value for attention weights. Default value is 0.
-
-            softmax_precision: The floating-point precision used in softmax computation.
-                If softmax precision is not provided, the same precision as the input of
-                softmax (Q and K) is used.
+            is_causal: If set to `1`, the attention masking is a lower triangular matrix
+                when the mask is a square matrix. The attention masking has the form of
+                the upper left causal bias due to the alignment.
 
             kv_num_heads: Number of heads of key and value. Must be used with 3D inputs
                 of Q, K and V.
@@ -188,26 +179,35 @@ class Opset23(Opset22):
             q_num_heads: Number of heads of query. Must be used with 3D inputs of Q, K
                 and V.
 
+            qk_matmul_output_mode: If set to `0`, qk_matmul_output is the output of qk
+                matmul. If set to `1`, qk_matmul_output includes the addition of the
+                attention mask to the output of qk matmul. If set to `2`,
+                qk_matmul_output is the output after the softcap operation. If set to
+                `3`, qk_matmul_output is the output after the softmax operation. Default
+                value is 0.
+
             scale: Scaling factor applied. Scale q, k before matmul for stability see
                 https://tinyurl.com/sudb9s96 for math. Default value is
                 `1/sqrt(head_size)`
 
-            is_causal: If set to `1`, the attention masking is a lower triangular matrix
-                when the mask is a square matrix. The attention masking has the form of
-                the upper left causal bias due to the alignment.
+            softcap: Softcap value for attention weights. Default value is 0.
+
+            softmax_precision: The floating-point precision used in softmax computation.
+                If softmax precision is not provided, the same precision as the input of
+                softmax (Q and K) is used.
         """
 
         schema = get_schema("Attention", 23, "")
         op = Op(self, "Attention", schema)
         return op(
             *self._prepare_inputs(schema, Q, K, V, attn_mask, past_key, past_value),
-            qk_matmul_output_mode=qk_matmul_output_mode,
-            softcap=softcap,
-            softmax_precision=softmax_precision,
+            is_causal=is_causal,
             kv_num_heads=kv_num_heads,
             q_num_heads=q_num_heads,
+            qk_matmul_output_mode=qk_matmul_output_mode,
             scale=scale,
-            is_causal=is_causal,
+            softcap=softcap,
+            softmax_precision=softmax_precision,
         )
 
     T1_Cast = TypeVar(
@@ -453,14 +453,14 @@ class Opset23(Opset22):
     def Constant(
         self,
         *,
-        value_strings: Optional[Sequence[str]] = None,
-        value_string: Optional[str] = None,
-        value_floats: Optional[Sequence[float]] = None,
-        value_float: Optional[float] = None,
-        value_ints: Optional[Sequence[int]] = None,
-        value_int: Optional[int] = None,
         sparse_value: Optional[SparseTensorProto] = None,
         value: Optional[TensorProto] = None,
+        value_float: Optional[float] = None,
+        value_floats: Optional[Sequence[float]] = None,
+        value_int: Optional[int] = None,
+        value_ints: Optional[Sequence[int]] = None,
+        value_string: Optional[str] = None,
+        value_strings: Optional[Sequence[str]] = None,
     ) -> T_Constant:
         r"""[🌐 Constant(23)](https://onnx.ai/onnx/operators/onnx__Constant.html#constant-23 "Online Documentation")
 
@@ -470,40 +470,40 @@ class Opset23(Opset22):
 
 
         Args:
-            value_strings: The values for the elements for the 1D, UTF-8 string, output
-                tensor.
-
-            value_string: The value for the sole element for the scalar, UTF-8 string,
-                output tensor.
-
-            value_floats: The values for the elements for the 1D, float32, output
-                tensor.
-
-            value_float: The value for the sole element for the scalar, float32, output
-                tensor.
-
-            value_ints: The values for the elements for the 1D, int64, output tensor.
-
-            value_int: The value for the sole element for the scalar, int64, output
-                tensor.
-
             sparse_value: The value for the elements of the output tensor in sparse
                 format.
 
             value: The value for the elements of the output tensor.
+
+            value_float: The value for the sole element for the scalar, float32, output
+                tensor.
+
+            value_floats: The values for the elements for the 1D, float32, output
+                tensor.
+
+            value_int: The value for the sole element for the scalar, int64, output
+                tensor.
+
+            value_ints: The values for the elements for the 1D, int64, output tensor.
+
+            value_string: The value for the sole element for the scalar, UTF-8 string,
+                output tensor.
+
+            value_strings: The values for the elements for the 1D, UTF-8 string, output
+                tensor.
         """
 
         schema = get_schema("Constant", 23, "")
         op = Op(self, "Constant", schema)
         return op(
-            value_strings=value_strings,
-            value_string=value_string,
-            value_floats=value_floats,
-            value_float=value_float,
-            value_ints=value_ints,
-            value_int=value_int,
             sparse_value=sparse_value,
             value=value,
+            value_float=value_float,
+            value_floats=value_floats,
+            value_int=value_int,
+            value_ints=value_ints,
+            value_string=value_string,
+            value_strings=value_strings,
         )
 
     T1_ConstantOfShape: TypeAlias = INT64
@@ -579,9 +579,9 @@ class Opset23(Opset22):
         x_scale: T2_DequantizeLinear,
         x_zero_point: Optional[T1_DequantizeLinear] = None,
         *,
-        output_dtype: int = 0,
-        block_size: int = 0,
         axis: int = 1,
+        block_size: int = 0,
+        output_dtype: int = 0,
     ) -> T3_DequantizeLinear:
         r"""[🌐 DequantizeLinear(23)](https://onnx.ai/onnx/operators/onnx__DequantizeLinear.html#dequantizelinear-23 "Online Documentation")
 
@@ -611,8 +611,10 @@ class Opset23(Opset22):
             x_zero_point: (optional) Zero point for input `x`. Shape must match x_scale.
                 It's optional. Zero point is 0 when it's not specified.
 
-            output_dtype: (Optional) The output data type. If not supplied, the output
-                data type is inferred from `x_scale` data type (`T2`)
+            axis: (Optional) The axis of the dequantizing dimension of the input tensor.
+                Used for per-axis and blocked quantization. Negative value means
+                counting dimensions from the back. Accepted range is `[-r, r-1]` where
+                `r = rank(input)`.
 
             block_size: (Optional) The size of the quantization block (number of times
                 every scale is replicated). Used only for blocked quantization. The
@@ -620,19 +622,17 @@ class Opset23(Opset22):
                 Dn)`, `y_scale` shape `(S0, ... Si, ...Sn)` and `axis=i`, the accepted
                 range is `[ceil(Di/Si), ceil(Di/(Si-1))-1]`
 
-            axis: (Optional) The axis of the dequantizing dimension of the input tensor.
-                Used for per-axis and blocked quantization. Negative value means
-                counting dimensions from the back. Accepted range is `[-r, r-1]` where
-                `r = rank(input)`.
+            output_dtype: (Optional) The output data type. If not supplied, the output
+                data type is inferred from `x_scale` data type (`T2`)
         """
 
         schema = get_schema("DequantizeLinear", 23, "")
         op = Op(self, "DequantizeLinear", schema)
         return op(
             *self._prepare_inputs(schema, x, x_scale, x_zero_point),
-            output_dtype=output_dtype,
-            block_size=block_size,
             axis=axis,
+            block_size=block_size,
+            output_dtype=output_dtype,
         )
 
     T_Flatten = TypeVar(
@@ -1351,11 +1351,11 @@ class Opset23(Opset22):
         y_scale: T2_QuantizeLinear,
         y_zero_point: Optional[T3_QuantizeLinear] = None,
         *,
-        precision: int = 0,
-        output_dtype: int = 0,
-        block_size: int = 0,
-        saturate: int = 1,
         axis: int = 1,
+        block_size: int = 0,
+        output_dtype: int = 0,
+        precision: int = 0,
+        saturate: int = 1,
     ) -> T3_QuantizeLinear:
         r"""[🌐 QuantizeLinear(23)](https://onnx.ai/onnx/operators/onnx__QuantizeLinear.html#quantizelinear-23 "Online Documentation")
 
@@ -1401,15 +1401,12 @@ class Opset23(Opset22):
                 must match `y_scale`.Default is uint8 with zero point of 0 if it's not
                 specified.
 
-            precision: (Optional) The precision of the division operation between `x`
-                and `y_scale`. If not provided, it will be the same as the type of
-                `y_scale`.
-
-            output_dtype: (Optional) The output data type. If not supplied, the output
-                data type is inferred from `y_zero_point` data type (`T3`). If neither
-                `output_dtype` nor `y_zero_point` are supplied, output data type is
-                uint8. If both `output_dtype` and `y_zero_point` are specified,
-                `output_dtype` must be `T3`.
+            axis: (Optional) The axis of the dequantizing dimension of the input tensor.
+                Used only for per-axis and blocked quantization. Negative value means
+                counting dimensions from the back. Accepted range is `[-r, r-1]` where
+                `r = rank(input)`. When the rank of the input is 1, per-tensor
+                quantization is applied, rendering the axis unnecessary in this
+                scenario.
 
             block_size: (Optional) The size of the quantization block (number of times
                 every scale is replicated). Used only for blocked quantization. The
@@ -1417,29 +1414,32 @@ class Opset23(Opset22):
                 Dn)`, `y_scale` shape `(S0, ... Si, ...Sn)` and `axis=i`, the accepted
                 range is `[ceil(Di/Si), ceil(Di/(Si-1))-1]`
 
+            output_dtype: (Optional) The output data type. If not supplied, the output
+                data type is inferred from `y_zero_point` data type (`T3`). If neither
+                `output_dtype` nor `y_zero_point` are supplied, output data type is
+                uint8. If both `output_dtype` and `y_zero_point` are specified,
+                `output_dtype` must be `T3`.
+
+            precision: (Optional) The precision of the division operation between `x`
+                and `y_scale`. If not provided, it will be the same as the type of
+                `y_scale`.
+
             saturate: The parameter defines how the conversion behaves if an input value
                 is out of range of the destination type. It only applies for float 8
                 quantization (float8e4m3fn, float8e4m3fnuz, float8e5m2, float8e5m2fnuz).
                 It is true by default. All cases are fully described in two tables
                 inserted in the operator description.
-
-            axis: (Optional) The axis of the dequantizing dimension of the input tensor.
-                Used only for per-axis and blocked quantization. Negative value means
-                counting dimensions from the back. Accepted range is `[-r, r-1]` where
-                `r = rank(input)`. When the rank of the input is 1, per-tensor
-                quantization is applied, rendering the axis unnecessary in this
-                scenario.
         """
 
         schema = get_schema("QuantizeLinear", 23, "")
         op = Op(self, "QuantizeLinear", schema)
         return op(
             *self._prepare_inputs(schema, x, y_scale, y_zero_point),
-            precision=precision,
-            output_dtype=output_dtype,
-            block_size=block_size,
-            saturate=saturate,
             axis=axis,
+            block_size=block_size,
+            output_dtype=output_dtype,
+            precision=precision,
+            saturate=saturate,
         )
 
     T_RMSNormalization = TypeVar("T_RMSNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
@@ -1451,9 +1451,9 @@ class Opset23(Opset22):
         X: T_RMSNormalization,
         scale: V_RMSNormalization,
         *,
-        stash_type: int = 1,
-        epsilon: float = 9.999999747378752e-06,
         axis: int = -1,
+        epsilon: float = 9.999999747378752e-06,
+        stash_type: int = 1,
     ) -> V_RMSNormalization:
         r"""[🌐 RMSNormalization(23)](https://onnx.ai/onnx/operators/onnx__RMSNormalization.html#rmsnormalization-23 "Online Documentation")
 
@@ -1496,23 +1496,23 @@ class Opset23(Opset22):
             scale: Scale tensor. Scale tensor shape should be broadcastable to the
                 normalized shape.
 
-            stash_type: The floating-point precision used in stage one of the
-                computation.
-
-            epsilon: The epsilon value to use to avoid division by zero.
-
             axis: The first normalization dimension. If rank(X) is r, axis' allowed
                 range is [-r, r). Negative value means counting dimensions from the
                 back.
+
+            epsilon: The epsilon value to use to avoid division by zero.
+
+            stash_type: The floating-point precision used in stage one of the
+                computation.
         """
 
         schema = get_schema("RMSNormalization", 23, "")
         op = Op(self, "RMSNormalization", schema)
         return op(
             *self._prepare_inputs(schema, X, scale),
-            stash_type=stash_type,
-            epsilon=epsilon,
             axis=axis,
+            epsilon=epsilon,
+            stash_type=stash_type,
         )
 
     T_Reshape = TypeVar(
@@ -1588,9 +1588,9 @@ class Opset23(Opset22):
         sin_cache: T_RotaryEmbedding,
         position_ids: Optional[M_RotaryEmbedding] = None,
         *,
+        interleaved: int = 0,
         num_heads: Optional[int] = None,
         rotary_embedding_dim: int = 0,
-        interleaved: int = 0,
     ) -> T_RotaryEmbedding:
         r"""[🌐 RotaryEmbedding(23)](https://onnx.ai/onnx/operators/onnx__RotaryEmbedding.html#rotaryembedding-23 "Online Documentation")
 
@@ -1714,22 +1714,22 @@ class Opset23(Opset22):
             position_ids: (optional) The position indices for the tokens. 2D tensor with
                 shape `(batch_size, sequence_length)`
 
+            interleaved: Rotate using interleaved pattern. Default value is 0 (False).
+
             num_heads: Number of attention heads. Must be provided when input is a 3D
                 tensor.
 
             rotary_embedding_dim: Rotary embedding dimension used to apply partial
                 rotary embeddings.
-
-            interleaved: Rotate using interleaved pattern. Default value is 0 (False).
         """
 
         schema = get_schema("RotaryEmbedding", 23, "")
         op = Op(self, "RotaryEmbedding", schema)
         return op(
             *self._prepare_inputs(schema, X, cos_cache, sin_cache, position_ids),
+            interleaved=interleaved,
             num_heads=num_heads,
             rotary_embedding_dim=rotary_embedding_dim,
-            interleaved=interleaved,
         )
 
     V_Scan = TypeVar(
@@ -1762,12 +1762,12 @@ class Opset23(Opset22):
     def Scan(
         self,
         *initial_state_and_scan_inputs: V_Scan,
+        body: GraphProto,
+        num_scan_inputs: int,
         scan_input_axes: Optional[Sequence[int]] = None,
+        scan_input_directions: Optional[Sequence[int]] = None,
         scan_output_axes: Optional[Sequence[int]] = None,
         scan_output_directions: Optional[Sequence[int]] = None,
-        scan_input_directions: Optional[Sequence[int]] = None,
-        num_scan_inputs: int,
-        body: GraphProto,
     ) -> V_Scan:
         r"""[🌐 Scan(23)](https://onnx.ai/onnx/operators/onnx__Scan.html#scan-23 "Online Documentation")
 
@@ -1899,11 +1899,26 @@ class Opset23(Opset22):
             initial_state_and_scan_inputs: (variadic, heterogeneous) Initial values of
                 the loop's N state variables followed by M scan_inputs
 
+            body: The graph run each iteration. It has N+M inputs: (loop state
+                variables..., scan_input_elts...). It has N+K outputs: (loop state
+                variables..., scan_output_elts...). Each scan_output is created by
+                concatenating the value of the specified scan_output_elt value at the
+                end of each iteration of the loop. It is an error if the dimensions of
+                these values change across loop iterations.
+
+            num_scan_inputs: An attribute specifying the number of scan_inputs M.
+
             scan_input_axes: An optional list of M flags. The i-th element of the list
                 specifies the axis to be scanned (the sequence axis) for the i-th
                 scan_input. If omitted, 0 will be used as the scan axis for every
                 scan_input. Negative value for an axis means counting dimensions from
                 the back. Accepted range is [-r, r-1] where r = rank(input).
+
+            scan_input_directions: An optional list of M flags. The i-th element of the
+                list specifies the direction to be scanned for the i-th scan_input
+                tensor: 0 indicates forward direction and 1 indicates reverse direction.
+                If omitted, all scan_input tensors will be scanned in the forward
+                direction.
 
             scan_output_axes: An optional list of K flags. The i-th element of the list
                 specifies the axis for the i-th scan_output. The scan outputs are
@@ -1917,33 +1932,18 @@ class Opset23(Opset22):
                 in each iteration: 0 indicates appending and 1 indicates prepending. If
                 omitted, all scan_output tensors will be produced by appending a value
                 in each iteration.
-
-            scan_input_directions: An optional list of M flags. The i-th element of the
-                list specifies the direction to be scanned for the i-th scan_input
-                tensor: 0 indicates forward direction and 1 indicates reverse direction.
-                If omitted, all scan_input tensors will be scanned in the forward
-                direction.
-
-            num_scan_inputs: An attribute specifying the number of scan_inputs M.
-
-            body: The graph run each iteration. It has N+M inputs: (loop state
-                variables..., scan_input_elts...). It has N+K outputs: (loop state
-                variables..., scan_output_elts...). Each scan_output is created by
-                concatenating the value of the specified scan_output_elt value at the
-                end of each iteration of the loop. It is an error if the dimensions of
-                these values change across loop iterations.
         """
 
         schema = get_schema("Scan", 23, "")
         op = Op(self, "Scan", schema)
         return op(
             *self._prepare_inputs(schema, *initial_state_and_scan_inputs),
+            body=body,
+            num_scan_inputs=num_scan_inputs,
             scan_input_axes=scan_input_axes,
+            scan_input_directions=scan_input_directions,
             scan_output_axes=scan_output_axes,
             scan_output_directions=scan_output_directions,
-            scan_input_directions=scan_input_directions,
-            num_scan_inputs=num_scan_inputs,
-            body=body,
         )
 
     T_Shape = TypeVar(

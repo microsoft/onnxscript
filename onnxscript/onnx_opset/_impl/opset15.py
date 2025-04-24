@@ -60,9 +60,9 @@ class Opset15(Opset14):
         input_mean: T2_BatchNormalization,
         input_var: T2_BatchNormalization,
         *,
-        training_mode: int = 0,
-        momentum: float = 0.8999999761581421,
         epsilon: float = 9.999999747378752e-06,
+        momentum: float = 0.8999999761581421,
+        training_mode: int = 0,
     ) -> Tuple[T_BatchNormalization, T2_BatchNormalization, T2_BatchNormalization]:
         r"""[🌐 BatchNormalization(15)](https://onnx.ai/onnx/operators/onnx__BatchNormalization.html#batchnormalization-15 "Online Documentation")
 
@@ -132,22 +132,22 @@ class Opset15(Opset14):
             input_var: (differentiable) running (training) or estimated (testing)
                 variance tensor of shape (C).
 
-            training_mode: If set to true, it indicates BatchNormalization is being used
-                for training, and outputs 1 and 2 are to be computed.
+            epsilon: The epsilon value to use to avoid division by zero.
 
             momentum: Factor used in computing the running mean and variance.e.g.,
                 running_mean = running_mean * momentum + mean * (1 - momentum).
 
-            epsilon: The epsilon value to use to avoid division by zero.
+            training_mode: If set to true, it indicates BatchNormalization is being used
+                for training, and outputs 1 and 2 are to be computed.
         """
 
         schema = get_schema("BatchNormalization", 15, "")
         op = Op(self, "BatchNormalization", schema)
         return op(
             *self._prepare_inputs(schema, X, scale, B, input_mean, input_var),
-            training_mode=training_mode,
-            momentum=momentum,
             epsilon=epsilon,
+            momentum=momentum,
+            training_mode=training_mode,
         )
 
     T1_Bernoulli = TypeVar("T1_Bernoulli", DOUBLE, FLOAT, FLOAT16)

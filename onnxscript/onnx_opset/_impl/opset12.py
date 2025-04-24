@@ -60,7 +60,7 @@ class Opset12(Opset11):
     )
 
     def ArgMax(
-        self, data: T_ArgMax, *, select_last_index: int = 0, keepdims: int = 1, axis: int = 0
+        self, data: T_ArgMax, *, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
     ) -> INT64:
         r"""[🌐 ArgMax(12)](https://onnx.ai/onnx/operators/onnx__ArgMax.html#argmax-12 "Online Documentation")
 
@@ -76,23 +76,23 @@ class Opset12(Opset11):
         Args:
             data: An input tensor.
 
-            select_last_index: Whether to select the last index or the first index if
-                the {name} appears in multiple indices, default is False (first index).
+            axis: The axis in which to compute the arg indices. Accepted range is [-r,
+                r-1] where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
-            axis: The axis in which to compute the arg indices. Accepted range is [-r,
-                r-1] where r = rank(data).
+            select_last_index: Whether to select the last index or the first index if
+                the {name} appears in multiple indices, default is False (first index).
         """
 
         schema = get_schema("ArgMax", 12, "")
         op = Op(self, "ArgMax", schema)
         return op(
             *self._prepare_inputs(schema, data),
-            select_last_index=select_last_index,
-            keepdims=keepdims,
             axis=axis,
+            keepdims=keepdims,
+            select_last_index=select_last_index,
         )
 
     T_ArgMin = TypeVar(
@@ -111,7 +111,7 @@ class Opset12(Opset11):
     )
 
     def ArgMin(
-        self, data: T_ArgMin, *, select_last_index: int = 0, keepdims: int = 1, axis: int = 0
+        self, data: T_ArgMin, *, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
     ) -> INT64:
         r"""[🌐 ArgMin(12)](https://onnx.ai/onnx/operators/onnx__ArgMin.html#argmin-12 "Online Documentation")
 
@@ -127,23 +127,23 @@ class Opset12(Opset11):
         Args:
             data: An input tensor.
 
-            select_last_index: Whether to select the last index or the first index if
-                the {name} appears in multiple indices, default is False (first index).
+            axis: The axis in which to compute the arg indices. Accepted range is [-r,
+                r-1] where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
-            axis: The axis in which to compute the arg indices. Accepted range is [-r,
-                r-1] where r = rank(data).
+            select_last_index: Whether to select the last index or the first index if
+                the {name} appears in multiple indices, default is False (first index).
         """
 
         schema = get_schema("ArgMin", 12, "")
         op = Op(self, "ArgMin", schema)
         return op(
             *self._prepare_inputs(schema, data),
-            select_last_index=select_last_index,
-            keepdims=keepdims,
             axis=axis,
+            keepdims=keepdims,
+            select_last_index=select_last_index,
         )
 
     T_Celu: TypeAlias = FLOAT
@@ -235,14 +235,14 @@ class Opset12(Opset11):
     def Constant(
         self,
         *,
-        value_strings: Optional[Sequence[str]] = None,
-        value_string: Optional[str] = None,
-        value_floats: Optional[Sequence[float]] = None,
-        value_float: Optional[float] = None,
-        value_ints: Optional[Sequence[int]] = None,
-        value_int: Optional[int] = None,
         sparse_value: Optional[SparseTensorProto] = None,
         value: Optional[TensorProto] = None,
+        value_float: Optional[float] = None,
+        value_floats: Optional[Sequence[float]] = None,
+        value_int: Optional[int] = None,
+        value_ints: Optional[Sequence[int]] = None,
+        value_string: Optional[str] = None,
+        value_strings: Optional[Sequence[str]] = None,
     ) -> T_Constant:
         r"""[🌐 Constant(12)](https://onnx.ai/onnx/operators/onnx__Constant.html#constant-12 "Online Documentation")
 
@@ -252,40 +252,40 @@ class Opset12(Opset11):
 
 
         Args:
-            value_strings: The values for the elements for the 1D, UTF-8 string, output
-                tensor.
-
-            value_string: The value for the sole element for the scalar, UTF-8 string,
-                output tensor.
-
-            value_floats: The values for the elements for the 1D, float32, output
-                tensor.
-
-            value_float: The value for the sole element for the scalar, float32, output
-                tensor.
-
-            value_ints: The values for the elements for the 1D, int64, output tensor.
-
-            value_int: The value for the sole element for the scalar, int64, output
-                tensor.
-
             sparse_value: The value for the elements of the output tensor in sparse
                 format.
 
             value: The value for the elements of the output tensor.
+
+            value_float: The value for the sole element for the scalar, float32, output
+                tensor.
+
+            value_floats: The values for the elements for the 1D, float32, output
+                tensor.
+
+            value_int: The value for the sole element for the scalar, int64, output
+                tensor.
+
+            value_ints: The values for the elements for the 1D, int64, output tensor.
+
+            value_string: The value for the sole element for the scalar, UTF-8 string,
+                output tensor.
+
+            value_strings: The values for the elements for the 1D, UTF-8 string, output
+                tensor.
         """
 
         schema = get_schema("Constant", 12, "")
         op = Op(self, "Constant", schema)
         return op(
-            value_strings=value_strings,
-            value_string=value_string,
-            value_floats=value_floats,
-            value_float=value_float,
-            value_ints=value_ints,
-            value_int=value_int,
             sparse_value=sparse_value,
             value=value,
+            value_float=value_float,
+            value_floats=value_floats,
+            value_int=value_int,
+            value_ints=value_ints,
+            value_string=value_string,
+            value_strings=value_strings,
         )
 
     T_Dropout = TypeVar("T_Dropout", DOUBLE, FLOAT, FLOAT16)
@@ -649,13 +649,13 @@ class Opset12(Opset11):
         self,
         X: T_MaxPool,
         *,
-        storage_order: int = 0,
-        dilations: Optional[Sequence[int]] = None,
-        ceil_mode: int = 0,
-        pads: Optional[Sequence[int]] = None,
         auto_pad: str = "NOTSET",
-        strides: Optional[Sequence[int]] = None,
+        ceil_mode: int = 0,
+        dilations: Optional[Sequence[int]] = None,
         kernel_shape: Sequence[int],
+        pads: Optional[Sequence[int]] = None,
+        storage_order: int = 0,
+        strides: Optional[Sequence[int]] = None,
     ) -> Tuple[T_MaxPool, I_MaxPool]:
         r"""[🌐 MaxPool(12)](https://onnx.ai/onnx/operators/onnx__MaxPool.html#maxpool-12 "Online Documentation")
 
@@ -703,15 +703,22 @@ class Opset12(Opset11):
                 arrive with the dimension denotation of [DATA_BATCH, DATA_CHANNEL,
                 DATA_FEATURE, DATA_FEATURE ...].
 
-            storage_order: The storage order of the tensor. 0 is row major, and 1 is
-                column major. This attribute is used only to convert an n-tuple index
-                value into a single integer value for producing the second output.
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
+                ceil(input_shape[i] / strides[i])` for each axis `i`. The padding is
+                split between the two sides equally or almost equally (depending on
+                whether it is even or odd). In case the padding is an odd number, the
+                extra padding is added at the end for SAME_UPPER and at the beginning
+                for SAME_LOWER.
+
+            ceil_mode: Whether to use ceil or floor (default) to compute the output
+                shape.
 
             dilations: Dilation value along each spatial axis of filter. If not present,
                 the dilation defaults to 1 along each spatial axis.
 
-            ceil_mode: Whether to use ceil or floor (default) to compute the output
-                shape.
+            kernel_shape: The size of the kernel along each axis.
 
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
@@ -723,32 +730,25 @@ class Opset12(Opset11):
                 simultaneously with auto_pad attribute. If not present, the padding
                 defaults to 0 along start and end of each spatial axis.
 
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
-                ceil(input_shape[i] / strides[i])` for each axis `i`. The padding is
-                split between the two sides equally or almost equally (depending on
-                whether it is even or odd). In case the padding is an odd number, the
-                extra padding is added at the end for SAME_UPPER and at the beginning
-                for SAME_LOWER.
+            storage_order: The storage order of the tensor. 0 is row major, and 1 is
+                column major. This attribute is used only to convert an n-tuple index
+                value into a single integer value for producing the second output.
 
             strides: Stride along each spatial axis. If not present, the stride defaults
                 to 1 along each spatial axis.
-
-            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("MaxPool", 12, "")
         op = Op(self, "MaxPool", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            storage_order=storage_order,
-            dilations=dilations,
-            ceil_mode=ceil_mode,
-            pads=pads,
             auto_pad=auto_pad,
-            strides=strides,
+            ceil_mode=ceil_mode,
+            dilations=dilations,
             kernel_shape=kernel_shape,
+            pads=pads,
+            storage_order=storage_order,
+            strides=strides,
         )
 
     T_Min = TypeVar(
@@ -938,7 +938,7 @@ class Opset12(Opset11):
     )
 
     def ReduceMax(
-        self, data: T_ReduceMax, *, keepdims: int = 1, axes: Optional[Sequence[int]] = None
+        self, data: T_ReduceMax, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceMax:
         r"""[🌐 ReduceMax(12)](https://onnx.ai/onnx/operators/onnx__ReduceMax.html#reducemax-12 "Online Documentation")
 
@@ -953,24 +953,24 @@ class Opset12(Opset11):
         Args:
             data: An input tensor.
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             axes: A list of integers, along which to reduce. The default is to reduce
                 over all the dimensions of the input tensor. Accepted range is [-r, r-1]
                 where r = rank(data).
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceMax", 12, "")
         op = Op(self, "ReduceMax", schema)
-        return op(*self._prepare_inputs(schema, data), keepdims=keepdims, axes=axes)
+        return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
     T_ReduceMin = TypeVar(
         "T_ReduceMin", DOUBLE, FLOAT, FLOAT16, INT32, INT64, INT8, UINT32, UINT64, UINT8
     )
 
     def ReduceMin(
-        self, data: T_ReduceMin, *, keepdims: int = 1, axes: Optional[Sequence[int]] = None
+        self, data: T_ReduceMin, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceMin:
         r"""[🌐 ReduceMin(12)](https://onnx.ai/onnx/operators/onnx__ReduceMin.html#reducemin-12 "Online Documentation")
 
@@ -985,17 +985,17 @@ class Opset12(Opset11):
         Args:
             data: An input tensor.
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             axes: A list of integers, along which to reduce. The default is to reduce
                 over all the dimensions of the input tensor. Accepted range is [-r, r-1]
                 where r = rank(data).
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceMin", 12, "")
         op = Op(self, "ReduceMin", schema)
-        return op(*self._prepare_inputs(schema, data), keepdims=keepdims, axes=axes)
+        return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
     T_SoftmaxCrossEntropyLoss = TypeVar("T_SoftmaxCrossEntropyLoss", DOUBLE, FLOAT, FLOAT16)
 

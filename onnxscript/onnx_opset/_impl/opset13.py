@@ -116,7 +116,7 @@ class Opset13(Opset12):
     )
 
     def ArgMax(
-        self, data: T_ArgMax, *, select_last_index: int = 0, keepdims: int = 1, axis: int = 0
+        self, data: T_ArgMax, *, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
     ) -> INT64:
         r"""[🌐 ArgMax(13)](https://onnx.ai/onnx/operators/onnx__ArgMax.html#argmax-13 "Online Documentation")
 
@@ -132,23 +132,23 @@ class Opset13(Opset12):
         Args:
             data: (non-differentiable) An input tensor.
 
-            select_last_index: Whether to select the last index or the first index if
-                the {name} appears in multiple indices, default is False (first index).
+            axis: The axis in which to compute the arg indices. Accepted range is [-r,
+                r-1] where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
-            axis: The axis in which to compute the arg indices. Accepted range is [-r,
-                r-1] where r = rank(data).
+            select_last_index: Whether to select the last index or the first index if
+                the {name} appears in multiple indices, default is False (first index).
         """
 
         schema = get_schema("ArgMax", 13, "")
         op = Op(self, "ArgMax", schema)
         return op(
             *self._prepare_inputs(schema, data),
-            select_last_index=select_last_index,
-            keepdims=keepdims,
             axis=axis,
+            keepdims=keepdims,
+            select_last_index=select_last_index,
         )
 
     T_ArgMin = TypeVar(
@@ -168,7 +168,7 @@ class Opset13(Opset12):
     )
 
     def ArgMin(
-        self, data: T_ArgMin, *, select_last_index: int = 0, keepdims: int = 1, axis: int = 0
+        self, data: T_ArgMin, *, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
     ) -> INT64:
         r"""[🌐 ArgMin(13)](https://onnx.ai/onnx/operators/onnx__ArgMin.html#argmin-13 "Online Documentation")
 
@@ -184,23 +184,23 @@ class Opset13(Opset12):
         Args:
             data: (non-differentiable) An input tensor.
 
-            select_last_index: Whether to select the last index or the first index if
-                the {name} appears in multiple indices, default is False (first index).
+            axis: The axis in which to compute the arg indices. Accepted range is [-r,
+                r-1] where r = rank(data).
 
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
-            axis: The axis in which to compute the arg indices. Accepted range is [-r,
-                r-1] where r = rank(data).
+            select_last_index: Whether to select the last index or the first index if
+                the {name} appears in multiple indices, default is False (first index).
         """
 
         schema = get_schema("ArgMin", 13, "")
         op = Op(self, "ArgMin", schema)
         return op(
             *self._prepare_inputs(schema, data),
-            select_last_index=select_last_index,
-            keepdims=keepdims,
             axis=axis,
+            keepdims=keepdims,
+            select_last_index=select_last_index,
         )
 
     T1_Cast = TypeVar(
@@ -410,14 +410,14 @@ class Opset13(Opset12):
     def Constant(
         self,
         *,
-        value_strings: Optional[Sequence[str]] = None,
-        value_string: Optional[str] = None,
-        value_floats: Optional[Sequence[float]] = None,
-        value_float: Optional[float] = None,
-        value_ints: Optional[Sequence[int]] = None,
-        value_int: Optional[int] = None,
         sparse_value: Optional[SparseTensorProto] = None,
         value: Optional[TensorProto] = None,
+        value_float: Optional[float] = None,
+        value_floats: Optional[Sequence[float]] = None,
+        value_int: Optional[int] = None,
+        value_ints: Optional[Sequence[int]] = None,
+        value_string: Optional[str] = None,
+        value_strings: Optional[Sequence[str]] = None,
     ) -> T_Constant:
         r"""[🌐 Constant(13)](https://onnx.ai/onnx/operators/onnx__Constant.html#constant-13 "Online Documentation")
 
@@ -427,40 +427,40 @@ class Opset13(Opset12):
 
 
         Args:
-            value_strings: The values for the elements for the 1D, UTF-8 string, output
-                tensor.
-
-            value_string: The value for the sole element for the scalar, UTF-8 string,
-                output tensor.
-
-            value_floats: The values for the elements for the 1D, float32, output
-                tensor.
-
-            value_float: The value for the sole element for the scalar, float32, output
-                tensor.
-
-            value_ints: The values for the elements for the 1D, int64, output tensor.
-
-            value_int: The value for the sole element for the scalar, int64, output
-                tensor.
-
             sparse_value: The value for the elements of the output tensor in sparse
                 format.
 
             value: The value for the elements of the output tensor.
+
+            value_float: The value for the sole element for the scalar, float32, output
+                tensor.
+
+            value_floats: The values for the elements for the 1D, float32, output
+                tensor.
+
+            value_int: The value for the sole element for the scalar, int64, output
+                tensor.
+
+            value_ints: The values for the elements for the 1D, int64, output tensor.
+
+            value_string: The value for the sole element for the scalar, UTF-8 string,
+                output tensor.
+
+            value_strings: The values for the elements for the 1D, UTF-8 string, output
+                tensor.
         """
 
         schema = get_schema("Constant", 13, "")
         op = Op(self, "Constant", schema)
         return op(
-            value_strings=value_strings,
-            value_string=value_string,
-            value_floats=value_floats,
-            value_float=value_float,
-            value_ints=value_ints,
-            value_int=value_int,
             sparse_value=sparse_value,
             value=value,
+            value_float=value_float,
+            value_floats=value_floats,
+            value_int=value_int,
+            value_ints=value_ints,
+            value_string=value_string,
+            value_strings=value_strings,
         )
 
     T_DepthToSpace = TypeVar(
@@ -484,7 +484,7 @@ class Opset13(Opset12):
     )
 
     def DepthToSpace(
-        self, input: T_DepthToSpace, *, mode: str = "DCR", blocksize: int
+        self, input: T_DepthToSpace, *, blocksize: int, mode: str = "DCR"
     ) -> T_DepthToSpace:
         r"""[🌐 DepthToSpace(13)](https://onnx.ai/onnx/operators/onnx__DepthToSpace.html#depthtospace-13 "Online Documentation")
 
@@ -521,15 +521,15 @@ class Opset13(Opset12):
             input: (differentiable) Input tensor of [N,C,H,W], where N is the batch
                 axis, C is the channel or depth, H is the height and W is the width.
 
+            blocksize: Blocks of [blocksize, blocksize] are moved.
+
             mode: DCR (default) for depth-column-row order re-arrangement. Use CRD for
                 column-row-depth order.
-
-            blocksize: Blocks of [blocksize, blocksize] are moved.
         """
 
         schema = get_schema("DepthToSpace", 13, "")
         op = Op(self, "DepthToSpace", schema)
-        return op(*self._prepare_inputs(schema, input), mode=mode, blocksize=blocksize)
+        return op(*self._prepare_inputs(schema, input), blocksize=blocksize, mode=mode)
 
     T_DequantizeLinear = TypeVar("T_DequantizeLinear", INT32, INT8, UINT8)
 
@@ -1204,10 +1204,10 @@ class Opset13(Opset12):
         B: T_Gemm,
         C: Optional[T_Gemm] = None,
         *,
-        beta: float = 1.0,
-        transB: int = 0,
         alpha: float = 1.0,
+        beta: float = 1.0,
         transA: int = 0,
+        transB: int = 0,
     ) -> T_Gemm:
         r"""[🌐 Gemm(13)](https://onnx.ai/onnx/operators/onnx__Gemm.html#gemm-13 "Online Documentation")
 
@@ -1236,23 +1236,23 @@ class Opset13(Opset12):
                 computation is done as if C is a scalar 0. The shape of C should be
                 unidirectional broadcastable to (M, N).
 
-            beta: Scalar multiplier for input tensor C.
-
-            transB: Whether B should be transposed
-
             alpha: Scalar multiplier for the product of input tensors A * B.
 
+            beta: Scalar multiplier for input tensor C.
+
             transA: Whether A should be transposed
+
+            transB: Whether B should be transposed
         """
 
         schema = get_schema("Gemm", 13, "")
         op = Op(self, "Gemm", schema)
         return op(
             *self._prepare_inputs(schema, A, B, C),
-            beta=beta,
-            transB=transB,
             alpha=alpha,
+            beta=beta,
             transA=transA,
+            transB=transB,
         )
 
     T_Greater = TypeVar(
@@ -1439,9 +1439,9 @@ class Opset13(Opset12):
         self,
         X: T_LRN,
         *,
-        bias: float = 1.0,
-        beta: float = 0.75,
         alpha: float = 9.999999747378752e-05,
+        beta: float = 0.75,
+        bias: float = 1.0,
         size: int,
     ) -> T_LRN:
         r"""[🌐 LRN(13)](https://onnx.ai/onnx/operators/onnx__LRN.html#lrn-13 "Online Documentation")
@@ -1469,9 +1469,9 @@ class Opset13(Opset12):
                 arrive with the dimension denotation of [DATA_BATCH, DATA_CHANNEL,
                 DATA_FEATURE, DATA_FEATURE ...].
 
-            beta: The exponent.
-
             alpha: Scaling parameter.
+
+            beta: The exponent.
 
             size: The number of channels to sum over
         """
@@ -1479,7 +1479,7 @@ class Opset13(Opset12):
         schema = get_schema("LRN", 13, "")
         op = Op(self, "LRN", schema)
         return op(
-            *self._prepare_inputs(schema, X), bias=bias, beta=beta, alpha=alpha, size=size
+            *self._prepare_inputs(schema, X), alpha=alpha, beta=beta, bias=bias, size=size
         )
 
     T_Less = TypeVar(
@@ -2731,8 +2731,8 @@ class Opset13(Opset12):
         data: T_ReduceSum,
         axes: Optional[INT64] = None,
         *,
-        noop_with_empty_axes: int = 0,
         keepdims: int = 1,
+        noop_with_empty_axes: int = 0,
     ) -> T_ReduceSum:
         r"""[🌐 ReduceSum(13)](https://onnx.ai/onnx/operators/onnx__ReduceSum.html#reducesum-13 "Online Documentation")
 
@@ -2755,21 +2755,21 @@ class Opset13(Opset12):
                 op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
                 where r = rank(data).
 
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
+
             noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
                 with 'false' is to reduce all axes. When axes is empty and this
                 attribute is set to true, input tensor will not be reduced,and the
                 output tensor would be equivalent to input tensor.
-
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
         """
 
         schema = get_schema("ReduceSum", 13, "")
         op = Op(self, "ReduceSum", schema)
         return op(
             *self._prepare_inputs(schema, data, axes),
-            noop_with_empty_axes=noop_with_empty_axes,
             keepdims=keepdims,
+            noop_with_empty_axes=noop_with_empty_axes,
         )
 
     T_ReduceSumSquare = TypeVar(
@@ -2900,12 +2900,12 @@ class Opset13(Opset12):
         scales: Optional[FLOAT] = None,
         sizes: Optional[INT64] = None,
         *,
-        extrapolation_value: float = 0.0,
-        exclude_outside: int = 0,
-        nearest_mode: str = "round_prefer_floor",
         coordinate_transformation_mode: str = "half_pixel",
         cubic_coeff_a: float = -0.75,
+        exclude_outside: int = 0,
+        extrapolation_value: float = 0.0,
         mode: str = "nearest",
+        nearest_mode: str = "round_prefer_floor",
     ) -> T1_Resize:
         r"""[🌐 Resize(13)](https://onnx.ai/onnx/operators/onnx__Resize.html#resize-13 "Online Documentation")
 
@@ -2935,21 +2935,6 @@ class Opset13(Opset12):
             sizes: (optional, non-differentiable) The size of the output tensor. The
                 number of elements of 'sizes' should be the same as the rank of input
                 'X'. Only one of 'scales' and 'sizes' can be specified.
-
-            extrapolation_value: When coordinate_transformation_mode is
-                "tf_crop_and_resize" and x_original is outside the range [0,
-                length_original - 1], this value is used as the corresponding output
-                value. Default is 0.0f.
-
-            exclude_outside: If set to 1, the weight of sampling locations outside the
-                tensor will be set to 0 and the weight will be renormalized so that
-                their sum is 1.0. The default value is 0.
-
-            nearest_mode: Four modes: round_prefer_floor (default, as known as round
-                half down), round_prefer_ceil (as known as round half up), floor, ceil.
-                Only used by nearest interpolation. It indicates how to get "nearest"
-                pixel in input tensor from x_original, so this attribute is valid only
-                if "mode" is "nearest".
 
             coordinate_transformation_mode:
         This attribute describes how to transform
@@ -2995,24 +2980,39 @@ class Opset13(Opset12):
                 Check out Equation (4) in https://ieeexplore.ieee.org/document/1163711
                 for the details. This attribute is valid only if "mode" is "cubic".
 
+            exclude_outside: If set to 1, the weight of sampling locations outside the
+                tensor will be set to 0 and the weight will be renormalized so that
+                their sum is 1.0. The default value is 0.
+
+            extrapolation_value: When coordinate_transformation_mode is
+                "tf_crop_and_resize" and x_original is outside the range [0,
+                length_original - 1], this value is used as the corresponding output
+                value. Default is 0.0f.
+
             mode: Three interpolation modes: nearest (default), linear and cubic. The
                 "linear" mode includes linear interpolation for 1D tensor and N-linear
                 interpolation for N-D tensor (for example, bilinear interpolation for 2D
                 tensor). The "cubic" mode includes cubic interpolation for 1D tensor and
                 N-cubic interpolation for N-D tensor (for example, bicubic interpolation
                 for 2D tensor).
+
+            nearest_mode: Four modes: round_prefer_floor (default, as known as round
+                half down), round_prefer_ceil (as known as round half up), floor, ceil.
+                Only used by nearest interpolation. It indicates how to get "nearest"
+                pixel in input tensor from x_original, so this attribute is valid only
+                if "mode" is "nearest".
         """
 
         schema = get_schema("Resize", 13, "")
         op = Op(self, "Resize", schema)
         return op(
             *self._prepare_inputs(schema, X, roi, scales, sizes),
-            extrapolation_value=extrapolation_value,
-            exclude_outside=exclude_outside,
-            nearest_mode=nearest_mode,
             coordinate_transformation_mode=coordinate_transformation_mode,
             cubic_coeff_a=cubic_coeff_a,
+            exclude_outside=exclude_outside,
+            extrapolation_value=extrapolation_value,
             mode=mode,
+            nearest_mode=nearest_mode,
         )
 
     T_ScatterElements = TypeVar(

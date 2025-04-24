@@ -40,14 +40,14 @@ class Opset3(Opset2):
         sequence_lens: Optional[T1_GRU] = None,
         initial_h: Optional[T_GRU] = None,
         *,
-        clip: Optional[float] = None,
-        activation_beta: Optional[Sequence[float]] = None,
-        output_sequence: int = 0,
         activation_alpha: Optional[Sequence[float]] = None,
-        hidden_size: Optional[int] = None,
-        direction: str = "forward",
-        linear_before_reset: int = 0,
+        activation_beta: Optional[Sequence[float]] = None,
         activations: Optional[Sequence[str]] = None,
+        clip: Optional[float] = None,
+        direction: str = "forward",
+        hidden_size: Optional[int] = None,
+        linear_before_reset: int = 0,
+        output_sequence: int = 0,
     ) -> Tuple[T_GRU, T_GRU]:
         r"""[🌐 GRU(3)](https://onnx.ai/onnx/operators/onnx__GRU.html#gru-3 "Online Documentation")
 
@@ -151,49 +151,49 @@ class Opset3(Opset2):
                 - assumed to be 0. It has shape `[num_directions, batch_size,
                 hidden_size]`.
 
-            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
-                range of [-threshold, +threshold] and is applied to the input of
-                activations. No clip if not specified.
-
-            activation_beta: Optional scaling values used by some activation functions.
-                The values are consumed in the order of activation functions, for
-                example (f, g, h) in LSTM. Default values are the same as of
-                corresponding ONNX operators.
-
-            output_sequence: The sequence output for the hidden is optional if 0.
-                Default 0.
-
             activation_alpha: Optional scaling values used by some activation functions.
                 The values are consumed in the order of activation functions, for
                 example (f, g, h) in LSTM. Default values are the same as of
                 corresponding ONNX operators.For example with LeakyRelu, the default
                 alpha is 0.01.
 
-            hidden_size: Number of neurons in the hidden layer
-
-            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
-                one of forward (default), reverse, or bidirectional.
-
-            linear_before_reset: When computing the output of the hidden gate, apply the
-                linear transformation before multiplying by the output of the reset
-                gate.
+            activation_beta: Optional scaling values used by some activation functions.
+                The values are consumed in the order of activation functions, for
+                example (f, g, h) in LSTM. Default values are the same as of
+                corresponding ONNX operators.
 
             activations: A list of 2 (or 4 if bidirectional) activation functions for
                 update, reset, and hidden gates. The activation functions must be one of
                 the activation functions specified above. Optional: See the equations
                 for default if not specified.
+
+            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
+                range of [-threshold, +threshold] and is applied to the input of
+                activations. No clip if not specified.
+
+            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
+                one of forward (default), reverse, or bidirectional.
+
+            hidden_size: Number of neurons in the hidden layer
+
+            linear_before_reset: When computing the output of the hidden gate, apply the
+                linear transformation before multiplying by the output of the reset
+                gate.
+
+            output_sequence: The sequence output for the hidden is optional if 0.
+                Default 0.
         """
 
         schema = get_schema("GRU", 3, "")
         op = Op(self, "GRU", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h),
-            clip=clip,
-            activation_beta=activation_beta,
-            output_sequence=output_sequence,
             activation_alpha=activation_alpha,
-            hidden_size=hidden_size,
-            direction=direction,
-            linear_before_reset=linear_before_reset,
+            activation_beta=activation_beta,
             activations=activations,
+            clip=clip,
+            direction=direction,
+            hidden_size=hidden_size,
+            linear_before_reset=linear_before_reset,
+            output_sequence=output_sequence,
         )

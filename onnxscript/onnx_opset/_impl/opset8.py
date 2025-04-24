@@ -115,11 +115,11 @@ class Opset8(Opset7):
         self,
         X: T_MaxPool,
         *,
-        storage_order: int = 0,
-        pads: Optional[Sequence[int]] = None,
         auto_pad: str = "NOTSET",
-        strides: Optional[Sequence[int]] = None,
         kernel_shape: Sequence[int],
+        pads: Optional[Sequence[int]] = None,
+        storage_order: int = 0,
+        strides: Optional[Sequence[int]] = None,
     ) -> Tuple[T_MaxPool, I_MaxPool]:
         r"""[🌐 MaxPool(8)](https://onnx.ai/onnx/operators/onnx__MaxPool.html#maxpool-8 "Online Documentation")
 
@@ -157,8 +157,14 @@ class Opset8(Opset7):
                 dimension denotation of [DATA_BATCH, DATA_CHANNEL, DATA_FEATURE,
                 DATA_FEATURE ...].
 
-            storage_order: The storage order of the tensor. 0 is row major, and 1 is
-                column major.
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
+                size match the input.In case of odd number add the extra padding at the
+                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
+                padding.
+
+            kernel_shape: The size of the kernel along each axis.
 
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
@@ -170,27 +176,21 @@ class Opset8(Opset7):
                 simultaneously with auto_pad attribute. If not present, the padding
                 defaults to 0 along start and end of each spatial axis.
 
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
-                size match the input.In case of odd number add the extra padding at the
-                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
-                padding.
+            storage_order: The storage order of the tensor. 0 is row major, and 1 is
+                column major.
 
             strides: Stride along each spatial axis.
-
-            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("MaxPool", 8, "")
         op = Op(self, "MaxPool", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            storage_order=storage_order,
-            pads=pads,
             auto_pad=auto_pad,
-            strides=strides,
             kernel_shape=kernel_shape,
+            pads=pads,
+            storage_order=storage_order,
+            strides=strides,
         )
 
     T_Mean = TypeVar("T_Mean", DOUBLE, FLOAT, FLOAT16)
@@ -256,9 +256,9 @@ class Opset8(Opset7):
         self,
         sequence_lens: Optional[I_Scan],
         *initial_state_and_scan_inputs: V_Scan,
+        body: GraphProto,
         directions: Optional[Sequence[int]] = None,
         num_scan_inputs: int,
-        body: GraphProto,
     ) -> V_Scan:
         r"""[🌐 Scan(8)](https://onnx.ai/onnx/operators/onnx__Scan.html#scan-8 "Online Documentation")
 
@@ -399,6 +399,13 @@ class Opset8(Opset7):
             initial_state_and_scan_inputs: (variadic, heterogeneous) Initial values of
                 the loop's N state variables followed by M scan_inputs
 
+            body: The graph run each iteration. It has N+M inputs: (loop state
+                variables..., scan_input_elts...). It has N+K outputs: (loop state
+                variables..., scan_output_elts...). Each scan_output is created by
+                concatenating the value of the specified scan_output_elt value at the
+                end of each iteration of the loop. It is an error if the dimensions of
+                these values change across loop iterations.
+
             directions: An optional list of M flags. The i-th element of the list
                 specifies the direction to be scanned for the i-th scan_input tensor: 0
                 indicates forward direction and 1 indicates reverse direction. If
@@ -406,22 +413,15 @@ class Opset8(Opset7):
                 direction.
 
             num_scan_inputs: An attribute specifying the number of scan_inputs M.
-
-            body: The graph run each iteration. It has N+M inputs: (loop state
-                variables..., scan_input_elts...). It has N+K outputs: (loop state
-                variables..., scan_output_elts...). Each scan_output is created by
-                concatenating the value of the specified scan_output_elt value at the
-                end of each iteration of the loop. It is an error if the dimensions of
-                these values change across loop iterations.
         """
 
         schema = get_schema("Scan", 8, "")
         op = Op(self, "Scan", schema)
         return op(
             *self._prepare_inputs(schema, sequence_lens, *initial_state_and_scan_inputs),
+            body=body,
             directions=directions,
             num_scan_inputs=num_scan_inputs,
-            body=body,
         )
 
     T_Sum = TypeVar("T_Sum", DOUBLE, FLOAT, FLOAT16)

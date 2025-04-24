@@ -53,9 +53,9 @@ class Opset_ai_onnx_preview_training1(Opset):
         R: T1_Adagrad,
         T: T2_Adagrad,
         *inputs: T3_Adagrad,
-        norm_coefficient: float = 0.0,
         decay_factor: float = 0.0,
         epsilon: float = 9.999999974752427e-07,
+        norm_coefficient: float = 0.0,
     ) -> T3_Adagrad:
         r"""[🌐 ai.onnx.preview.training::Adagrad(1)](https://onnx.ai/onnx/operators/onnx_aionnxpreviewtraining_Adagrad.html#adagrad-1 "Online Documentation")
 
@@ -124,24 +124,24 @@ class Opset_ai_onnx_preview_training1(Opset):
                 gradient of "X_2", accumulated squared gradient of "X_1", accumulated
                 squared gradient of "X_2"].
 
-            norm_coefficient: Regularization coefficient in 0.5 * norm_coefficient *
-                ||X||_2^2. Default to 0, which means no regularization.
-
             decay_factor: The decay factor of learning rate after one update.The
                 effective learning rate is computed by r = R / (1 + T * decay_factor).
                 Default to 0 so that increasing update counts doesn't reduce the
                 learning rate.
 
             epsilon: Small scalar to avoid dividing by zero.
+
+            norm_coefficient: Regularization coefficient in 0.5 * norm_coefficient *
+                ||X||_2^2. Default to 0, which means no regularization.
         """
 
         schema = get_schema("Adagrad", 1, "ai.onnx.preview.training")
         op = Op(self, "Adagrad", schema)
         return op(
             *self._prepare_inputs(schema, R, T, *inputs),
-            norm_coefficient=norm_coefficient,
             decay_factor=decay_factor,
             epsilon=epsilon,
+            norm_coefficient=norm_coefficient,
         )
 
     T1_Adam = TypeVar("T1_Adam", DOUBLE, FLOAT)
@@ -155,11 +155,11 @@ class Opset_ai_onnx_preview_training1(Opset):
         R: T1_Adam,
         T: T2_Adam,
         *inputs: T3_Adam,
-        epsilon: float = 9.999999974752427e-07,
-        norm_coefficient_post: float = 0.0,
-        norm_coefficient: float = 0.0,
-        beta: float = 0.9990000128746033,
         alpha: float = 0.8999999761581421,
+        beta: float = 0.9990000128746033,
+        epsilon: float = 9.999999974752427e-07,
+        norm_coefficient: float = 0.0,
+        norm_coefficient_post: float = 0.0,
     ) -> T3_Adam:
         r"""[🌐 ai.onnx.preview.training::Adam(1)](https://onnx.ai/onnx/operators/onnx_aionnxpreviewtraining_Adam.html#adam-1 "Online Documentation")
 
@@ -241,30 +241,30 @@ class Opset_ai_onnx_preview_training1(Opset):
                 accumulated squared gradient of "X_1", accumulated squared gradient of
                 "X_2"].
 
-            epsilon: Small scalar to avoid dividing by zero.
-
-            norm_coefficient_post: Regularization coefficient of 0.5 * norm_coefficient
-                * ||X||_2^2. Default to 0, which means no regularization.
-
-            norm_coefficient: Regularization coefficient of 0.5 * norm_coefficient *
-                ||X||_2^2. Default to 0, which means no regularization.
+            alpha: Coefficient of previously accumulated gradient in running average.
+                Default to 0.9.
 
             beta: Coefficient of previously accumulated squared-gradient in running
                 average. Default to 0.999.
 
-            alpha: Coefficient of previously accumulated gradient in running average.
-                Default to 0.9.
+            epsilon: Small scalar to avoid dividing by zero.
+
+            norm_coefficient: Regularization coefficient of 0.5 * norm_coefficient *
+                ||X||_2^2. Default to 0, which means no regularization.
+
+            norm_coefficient_post: Regularization coefficient of 0.5 * norm_coefficient
+                * ||X||_2^2. Default to 0, which means no regularization.
         """
 
         schema = get_schema("Adam", 1, "ai.onnx.preview.training")
         op = Op(self, "Adam", schema)
         return op(
             *self._prepare_inputs(schema, R, T, *inputs),
-            epsilon=epsilon,
-            norm_coefficient_post=norm_coefficient_post,
-            norm_coefficient=norm_coefficient,
-            beta=beta,
             alpha=alpha,
+            beta=beta,
+            epsilon=epsilon,
+            norm_coefficient=norm_coefficient,
+            norm_coefficient_post=norm_coefficient_post,
         )
 
     T1_Gradient = TypeVar(
@@ -291,9 +291,9 @@ class Opset_ai_onnx_preview_training1(Opset):
     def Gradient(
         self,
         *Inputs: T1_Gradient,
+        xs: Sequence[str],
         y: str,
         zs: Optional[Sequence[str]] = None,
-        xs: Sequence[str],
     ) -> T2_Gradient:
         r"""[🌐 ai.onnx.preview.training::Gradient(1)](https://onnx.ai/onnx/operators/onnx_aionnxpreviewtraining_Gradient.html#gradient-1 "Online Documentation")
 
@@ -443,6 +443,11 @@ class Opset_ai_onnx_preview_training1(Opset):
                 the value of symbol "A" and the 3rd input is substituted for all the
                 occurrences of "C".
 
+            xs: Input tensor names of the differentiated sub-graph. It contains only the
+                necessary differentiated inputs of a (sub-)graph. Variables (usually
+                called intermediate variables) that can be generated from inputs cannot
+                be included in this attribute.
+
             y: The targeted tensor. It can be viewed as the output of the differentiated
                 function. The attribute "xs" and attribute "zs" are the minimal
                 independent variable set that determines the value of "y".
@@ -451,16 +456,11 @@ class Opset_ai_onnx_preview_training1(Opset):
                 necessary non-differentiated inputs of a (sub-)graph. Variables (usually
                 called intermediate variables) that can be generated from inputs cannot
                 be included in this attribute.
-
-            xs: Input tensor names of the differentiated sub-graph. It contains only the
-                necessary differentiated inputs of a (sub-)graph. Variables (usually
-                called intermediate variables) that can be generated from inputs cannot
-                be included in this attribute.
         """
 
         schema = get_schema("Gradient", 1, "ai.onnx.preview.training")
         op = Op(self, "Gradient", schema)
-        return op(*self._prepare_inputs(schema, *Inputs), y=y, zs=zs, xs=xs)
+        return op(*self._prepare_inputs(schema, *Inputs), xs=xs, y=y, zs=zs)
 
     T1_Momentum = TypeVar("T1_Momentum", DOUBLE, FLOAT)
 
@@ -473,10 +473,10 @@ class Opset_ai_onnx_preview_training1(Opset):
         R: T1_Momentum,
         T: T2_Momentum,
         *inputs: T3_Momentum,
-        norm_coefficient: float,
+        alpha: float,
         beta: float,
         mode: str,
-        alpha: float,
+        norm_coefficient: float,
     ) -> T3_Momentum:
         r"""[🌐 ai.onnx.preview.training::Momentum(1)](https://onnx.ai/onnx/operators/onnx_aionnxpreviewtraining_Momentum.html#momentum-1 "Online Documentation")
 
@@ -554,7 +554,7 @@ class Opset_ai_onnx_preview_training1(Opset):
                 optimized, The expected input list would be ["X_1", "X_2", gradient of
                 "X_1", gradient of "X_2", momentum of "X_1", momentum of "X_2"].
 
-            norm_coefficient: Coefficient of 0.5 * norm_coefficient * ||X||^2.
+            alpha: The decay factor of momentum. It should be a scalar.
 
             beta: The coefficient of gradient in computing new momentum. It should be a
                 scalar.
@@ -563,15 +563,15 @@ class Opset_ai_onnx_preview_training1(Opset):
                 "nesterov" leads to the use of Nesterov's momentum while "standard"
                 invokes stochastic gradient method using standard momentum
 
-            alpha: The decay factor of momentum. It should be a scalar.
+            norm_coefficient: Coefficient of 0.5 * norm_coefficient * ||X||^2.
         """
 
         schema = get_schema("Momentum", 1, "ai.onnx.preview.training")
         op = Op(self, "Momentum", schema)
         return op(
             *self._prepare_inputs(schema, R, T, *inputs),
-            norm_coefficient=norm_coefficient,
+            alpha=alpha,
             beta=beta,
             mode=mode,
-            alpha=alpha,
+            norm_coefficient=norm_coefficient,
         )

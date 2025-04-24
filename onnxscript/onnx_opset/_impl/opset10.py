@@ -49,12 +49,12 @@ class Opset10(Opset9):
         self,
         X: T_AveragePool,
         *,
-        count_include_pad: int = 0,
-        ceil_mode: int = 0,
-        pads: Optional[Sequence[int]] = None,
         auto_pad: str = "NOTSET",
-        strides: Optional[Sequence[int]] = None,
+        ceil_mode: int = 0,
+        count_include_pad: int = 0,
         kernel_shape: Sequence[int],
+        pads: Optional[Sequence[int]] = None,
+        strides: Optional[Sequence[int]] = None,
     ) -> T_AveragePool:
         r"""[🌐 AveragePool(10)](https://onnx.ai/onnx/operators/onnx__AveragePool.html#averagepool-10 "Online Documentation")
 
@@ -99,11 +99,20 @@ class Opset10(Opset9):
                 dimension denotation of [DATA_BATCH, DATA_CHANNEL, DATA_FEATURE,
                 DATA_FEATURE ...].
 
-            count_include_pad: Whether include pad pixels when calculating values for
-                the edges. Default is 0, doesn't count include pad.
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
+                size match the input.In case of odd number add the extra padding at the
+                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
+                padding.
 
             ceil_mode: Whether to use ceil or floor (default) to compute the output
                 shape.
+
+            count_include_pad: Whether include pad pixels when calculating values for
+                the edges. Default is 0, doesn't count include pad.
+
+            kernel_shape: The size of the kernel along each axis.
 
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
@@ -115,28 +124,19 @@ class Opset10(Opset9):
                 simultaneously with auto_pad attribute. If not present, the padding
                 defaults to 0 along start and end of each spatial axis.
 
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
-                size match the input.In case of odd number add the extra padding at the
-                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
-                padding.
-
             strides: Stride along each spatial axis.
-
-            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("AveragePool", 10, "")
         op = Op(self, "AveragePool", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            count_include_pad=count_include_pad,
-            ceil_mode=ceil_mode,
-            pads=pads,
             auto_pad=auto_pad,
-            strides=strides,
+            ceil_mode=ceil_mode,
+            count_include_pad=count_include_pad,
             kernel_shape=kernel_shape,
+            pads=pads,
+            strides=strides,
         )
 
     T1_ConvInteger = TypeVar("T1_ConvInteger", INT8, UINT8)
@@ -152,12 +152,12 @@ class Opset10(Opset9):
         x_zero_point: Optional[T1_ConvInteger] = None,
         w_zero_point: Optional[T2_ConvInteger] = None,
         *,
+        auto_pad: str = "NOTSET",
+        dilations: Optional[Sequence[int]] = None,
         group: int = 1,
+        kernel_shape: Optional[Sequence[int]] = None,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
-        dilations: Optional[Sequence[int]] = None,
-        kernel_shape: Optional[Sequence[int]] = None,
-        auto_pad: str = "NOTSET",
     ) -> T3_ConvInteger:
         r"""[🌐 ConvInteger(10)](https://onnx.ai/onnx/operators/onnx__ConvInteger.html#convinteger-10 "Online Documentation")
 
@@ -197,8 +197,23 @@ class Opset10(Opset9):
                 tensor, its number of elements should be equal to the number of output
                 channels (M)
 
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
+                ceil(input_shape[i] / strides[i])` for each axis `i`. The padding is
+                split between the two sides equally or almost equally (depending on
+                whether it is even or odd). In case the padding is an odd number, the
+                extra padding is added at the end for SAME_UPPER and at the beginning
+                for SAME_LOWER.
+
+            dilations: dilation value along each spatial axis of the filter. If not
+                present, the dilation defaults to 1 along each axis.
+
             group: number of groups input channels and output channels are divided into.
                 default is 1.
+
+            kernel_shape: The shape of the convolution kernel. If not present, should be
+                inferred from input 'w'.
 
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0.The value represent the number
@@ -212,33 +227,18 @@ class Opset10(Opset9):
 
             strides: Stride along each spatial axis. If not present, the stride defaults
                 to 1 along each axis.
-
-            dilations: dilation value along each spatial axis of the filter. If not
-                present, the dilation defaults to 1 along each axis.
-
-            kernel_shape: The shape of the convolution kernel. If not present, should be
-                inferred from input 'w'.
-
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
-                ceil(input_shape[i] / strides[i])` for each axis `i`. The padding is
-                split between the two sides equally or almost equally (depending on
-                whether it is even or odd). In case the padding is an odd number, the
-                extra padding is added at the end for SAME_UPPER and at the beginning
-                for SAME_LOWER.
         """
 
         schema = get_schema("ConvInteger", 10, "")
         op = Op(self, "ConvInteger", schema)
         return op(
             *self._prepare_inputs(schema, x, w, x_zero_point, w_zero_point),
+            auto_pad=auto_pad,
+            dilations=dilations,
             group=group,
+            kernel_shape=kernel_shape,
             pads=pads,
             strides=strides,
-            dilations=dilations,
-            kernel_shape=kernel_shape,
-            auto_pad=auto_pad,
         )
 
     T_DequantizeLinear = TypeVar("T_DequantizeLinear", INT32, INT8, UINT8)
@@ -384,13 +384,13 @@ class Opset10(Opset9):
         self,
         X: T_MaxPool,
         *,
-        storage_order: int = 0,
-        dilations: Optional[Sequence[int]] = None,
-        ceil_mode: int = 0,
-        pads: Optional[Sequence[int]] = None,
         auto_pad: str = "NOTSET",
-        strides: Optional[Sequence[int]] = None,
+        ceil_mode: int = 0,
+        dilations: Optional[Sequence[int]] = None,
         kernel_shape: Sequence[int],
+        pads: Optional[Sequence[int]] = None,
+        storage_order: int = 0,
+        strides: Optional[Sequence[int]] = None,
     ) -> Tuple[T_MaxPool, I_MaxPool]:
         r"""[🌐 MaxPool(10)](https://onnx.ai/onnx/operators/onnx__MaxPool.html#maxpool-10 "Online Documentation")
 
@@ -435,13 +435,19 @@ class Opset10(Opset9):
                 dimension denotation of [DATA_BATCH, DATA_CHANNEL, DATA_FEATURE,
                 DATA_FEATURE ...].
 
-            storage_order: The storage order of the tensor. 0 is row major, and 1 is
-                column major.
-
-            dilations: Dilation value along each spatial axis of filter.
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
+                size match the input.In case of odd number add the extra padding at the
+                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
+                padding.
 
             ceil_mode: Whether to use ceil or floor (default) to compute the output
                 shape.
+
+            dilations: Dilation value along each spatial axis of filter.
+
+            kernel_shape: The size of the kernel along each axis.
 
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
@@ -453,29 +459,23 @@ class Opset10(Opset9):
                 simultaneously with auto_pad attribute. If not present, the padding
                 defaults to 0 along start and end of each spatial axis.
 
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
-                size match the input.In case of odd number add the extra padding at the
-                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
-                padding.
+            storage_order: The storage order of the tensor. 0 is row major, and 1 is
+                column major.
 
             strides: Stride along each spatial axis.
-
-            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("MaxPool", 10, "")
         op = Op(self, "MaxPool", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            storage_order=storage_order,
-            dilations=dilations,
-            ceil_mode=ceil_mode,
-            pads=pads,
             auto_pad=auto_pad,
-            strides=strides,
+            ceil_mode=ceil_mode,
+            dilations=dilations,
             kernel_shape=kernel_shape,
+            pads=pads,
+            storage_order=storage_order,
+            strides=strides,
         )
 
     T_Mod = TypeVar(
@@ -608,12 +608,12 @@ class Opset10(Opset9):
         y_zero_point: T3_QLinearConv,
         B: Optional[T4_QLinearConv] = None,
         *,
+        auto_pad: str = "NOTSET",
+        dilations: Optional[Sequence[int]] = None,
         group: int = 1,
+        kernel_shape: Optional[Sequence[int]] = None,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
-        dilations: Optional[Sequence[int]] = None,
-        kernel_shape: Optional[Sequence[int]] = None,
-        auto_pad: str = "NOTSET",
     ) -> T3_QLinearConv:
         r"""[🌐 QLinearConv(10)](https://onnx.ai/onnx/operators/onnx__QLinearConv.html#qlinearconv-10 "Online Documentation")
 
@@ -674,8 +674,23 @@ class Opset10(Opset9):
                 M. Bias must be quantized using scale = x_scale * w_scale and zero_point
                 = 0
 
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
+                ceil(input_shape[i] / strides[i])` for each axis `i`. The padding is
+                split between the two sides equally or almost equally (depending on
+                whether it is even or odd). In case the padding is an odd number, the
+                extra padding is added at the end for SAME_UPPER and at the beginning
+                for SAME_LOWER.
+
+            dilations: dilation value along each spatial axis of the filter. If not
+                present, the dilation defaults to 1 along each spatial axis.
+
             group: number of groups input channels and output channels are divided into.
                 default is 1.
+
+            kernel_shape: The shape of the convolution kernel. If not present, should be
+                inferred from input 'w'.
 
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0.The value represent the number
@@ -689,21 +704,6 @@ class Opset10(Opset9):
 
             strides: Stride along each spatial axis. If not present, the stride defaults
                 to 1 along each spatial axis.
-
-            dilations: dilation value along each spatial axis of the filter. If not
-                present, the dilation defaults to 1 along each spatial axis.
-
-            kernel_shape: The shape of the convolution kernel. If not present, should be
-                inferred from input 'w'.
-
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
-                ceil(input_shape[i] / strides[i])` for each axis `i`. The padding is
-                split between the two sides equally or almost equally (depending on
-                whether it is even or odd). In case the padding is an odd number, the
-                extra padding is added at the end for SAME_UPPER and at the beginning
-                for SAME_LOWER.
         """
 
         schema = get_schema("QLinearConv", 10, "")
@@ -721,12 +721,12 @@ class Opset10(Opset9):
                 y_zero_point,
                 B,
             ),
+            auto_pad=auto_pad,
+            dilations=dilations,
             group=group,
+            kernel_shape=kernel_shape,
             pads=pads,
             strides=strides,
-            dilations=dilations,
-            kernel_shape=kernel_shape,
-            auto_pad=auto_pad,
         )
 
     T1_QLinearMatMul = TypeVar("T1_QLinearMatMul", INT8, UINT8)
@@ -971,8 +971,8 @@ class Opset10(Opset9):
         *,
         mode: str = "avg",
         output_height: int = 1,
-        sampling_ratio: int = 0,
         output_width: int = 1,
+        sampling_ratio: int = 0,
         spatial_scale: float = 1.0,
     ) -> T1_RoiAlign:
         r"""[🌐 RoiAlign(10)](https://onnx.ai/onnx/operators/onnx__RoiAlign.html#roialign-10 "Online Documentation")
@@ -1009,13 +1009,13 @@ class Opset10(Opset9):
 
             output_height: default 1; Pooled output Y's height.
 
+            output_width: default 1; Pooled output Y's width.
+
             sampling_ratio: Number of sampling points in the interpolation grid used to
                 compute the output value of each pooled output bin. If > 0, then exactly
                 sampling_ratio x sampling_ratio grid points are used. If == 0, then an
                 adaptive number of grid points are used (computed as ceil(roi_width /
                 output_width), and likewise for height). Default is 0.
-
-            output_width: default 1; Pooled output Y's width.
 
             spatial_scale: Multiplicative spatial scale factor to translate ROI
                 coordinates from their input spatial scale to the scale used when
@@ -1029,8 +1029,8 @@ class Opset10(Opset9):
             *self._prepare_inputs(schema, X, rois, batch_indices),
             mode=mode,
             output_height=output_height,
-            sampling_ratio=sampling_ratio,
             output_width=output_width,
+            sampling_ratio=sampling_ratio,
             spatial_scale=spatial_scale,
         )
 
@@ -1124,10 +1124,10 @@ class Opset10(Opset9):
         self,
         X: STRING,
         *,
-        stopwords: Optional[Sequence[str]] = None,
-        locale: Optional[str] = None,
-        is_case_sensitive: int = 0,
         case_change_action: str = "NONE",
+        is_case_sensitive: int = 0,
+        locale: Optional[str] = None,
+        stopwords: Optional[Sequence[str]] = None,
     ) -> STRING:
         r"""[🌐 StringNormalizer(10)](https://onnx.ai/onnx/operators/onnx__StringNormalizer.html#stringnormalizer-10 "Online Documentation")
 
@@ -1146,28 +1146,28 @@ class Opset10(Opset9):
         Args:
             X: UTF-8 strings to normalize
 
-            stopwords: List of stop words. If not set, no word would be removed from X.
+            case_change_action: string enum that cases output to be
+                lowercased/uppercases/unchanged. Valid values are "LOWER", "UPPER",
+                "NONE". Default is "NONE"
+
+            is_case_sensitive: Boolean. Whether the identification of stop words in X is
+                case-sensitive. Default is false
 
             locale: Environment dependent string that denotes the locale according to
                 which output strings needs to be upper/lowercased.Default en_US or
                 platform specific equivalent as decided by the implementation.
 
-            is_case_sensitive: Boolean. Whether the identification of stop words in X is
-                case-sensitive. Default is false
-
-            case_change_action: string enum that cases output to be
-                lowercased/uppercases/unchanged. Valid values are "LOWER", "UPPER",
-                "NONE". Default is "NONE"
+            stopwords: List of stop words. If not set, no word would be removed from X.
         """
 
         schema = get_schema("StringNormalizer", 10, "")
         op = Op(self, "StringNormalizer", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            stopwords=stopwords,
-            locale=locale,
-            is_case_sensitive=is_case_sensitive,
             case_change_action=case_change_action,
+            is_case_sensitive=is_case_sensitive,
+            locale=locale,
+            stopwords=stopwords,
         )
 
     T_ThresholdedRelu = TypeVar("T_ThresholdedRelu", DOUBLE, FLOAT, FLOAT16)

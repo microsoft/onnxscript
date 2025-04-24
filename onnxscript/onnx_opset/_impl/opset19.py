@@ -55,13 +55,13 @@ class Opset19(Opset18):
         self,
         X: T_AveragePool,
         *,
+        auto_pad: str = "NOTSET",
+        ceil_mode: int = 0,
         count_include_pad: int = 0,
         dilations: Optional[Sequence[int]] = None,
-        ceil_mode: int = 0,
-        pads: Optional[Sequence[int]] = None,
-        auto_pad: str = "NOTSET",
-        strides: Optional[Sequence[int]] = None,
         kernel_shape: Sequence[int],
+        pads: Optional[Sequence[int]] = None,
+        strides: Optional[Sequence[int]] = None,
     ) -> T_AveragePool:
         r"""[🌐 AveragePool(19)](https://onnx.ai/onnx/operators/onnx__AveragePool.html#averagepool-19 "Online Documentation")
 
@@ -109,14 +109,25 @@ class Opset19(Opset18):
                 arrive with the dimension denotation of [DATA_BATCH, DATA_CHANNEL,
                 DATA_FEATURE, DATA_FEATURE ...].
 
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
+                ceil(input_shape[i] / strides[i])` for each axis `i`. The padding is
+                split between the two sides equally or almost equally (depending on
+                whether it is even or odd). In case the padding is an odd number, the
+                extra padding is added at the end for SAME_UPPER and at the beginning
+                for SAME_LOWER.
+
+            ceil_mode: Whether to use ceil or floor (default) to compute the output
+                shape.
+
             count_include_pad: Whether include pad pixels when calculating values for
                 the edges. Default is 0, doesn't count include pad.
 
             dilations: Dilation value along each spatial axis of filter. If not present,
                 the dilation defaults to 1 along each spatial axis.
 
-            ceil_mode: Whether to use ceil or floor (default) to compute the output
-                shape.
+            kernel_shape: The size of the kernel along each axis.
 
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
@@ -128,32 +139,21 @@ class Opset19(Opset18):
                 simultaneously with auto_pad attribute. If not present, the padding
                 defaults to 0 along start and end of each spatial axis.
 
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
-                ceil(input_shape[i] / strides[i])` for each axis `i`. The padding is
-                split between the two sides equally or almost equally (depending on
-                whether it is even or odd). In case the padding is an odd number, the
-                extra padding is added at the end for SAME_UPPER and at the beginning
-                for SAME_LOWER.
-
             strides: Stride along each spatial axis. If not present, the stride defaults
                 to 1 along each spatial axis.
-
-            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("AveragePool", 19, "")
         op = Op(self, "AveragePool", schema)
         return op(
             *self._prepare_inputs(schema, X),
+            auto_pad=auto_pad,
+            ceil_mode=ceil_mode,
             count_include_pad=count_include_pad,
             dilations=dilations,
-            ceil_mode=ceil_mode,
-            pads=pads,
-            auto_pad=auto_pad,
-            strides=strides,
             kernel_shape=kernel_shape,
+            pads=pads,
+            strides=strides,
         )
 
     T1_Cast = TypeVar(
@@ -384,14 +384,14 @@ class Opset19(Opset18):
     def Constant(
         self,
         *,
-        value_strings: Optional[Sequence[str]] = None,
-        value_string: Optional[str] = None,
-        value_floats: Optional[Sequence[float]] = None,
-        value_float: Optional[float] = None,
-        value_ints: Optional[Sequence[int]] = None,
-        value_int: Optional[int] = None,
         sparse_value: Optional[SparseTensorProto] = None,
         value: Optional[TensorProto] = None,
+        value_float: Optional[float] = None,
+        value_floats: Optional[Sequence[float]] = None,
+        value_int: Optional[int] = None,
+        value_ints: Optional[Sequence[int]] = None,
+        value_string: Optional[str] = None,
+        value_strings: Optional[Sequence[str]] = None,
     ) -> T_Constant:
         r"""[🌐 Constant(19)](https://onnx.ai/onnx/operators/onnx__Constant.html#constant-19 "Online Documentation")
 
@@ -401,40 +401,40 @@ class Opset19(Opset18):
 
 
         Args:
-            value_strings: The values for the elements for the 1D, UTF-8 string, output
-                tensor.
-
-            value_string: The value for the sole element for the scalar, UTF-8 string,
-                output tensor.
-
-            value_floats: The values for the elements for the 1D, float32, output
-                tensor.
-
-            value_float: The value for the sole element for the scalar, float32, output
-                tensor.
-
-            value_ints: The values for the elements for the 1D, int64, output tensor.
-
-            value_int: The value for the sole element for the scalar, int64, output
-                tensor.
-
             sparse_value: The value for the elements of the output tensor in sparse
                 format.
 
             value: The value for the elements of the output tensor.
+
+            value_float: The value for the sole element for the scalar, float32, output
+                tensor.
+
+            value_floats: The values for the elements for the 1D, float32, output
+                tensor.
+
+            value_int: The value for the sole element for the scalar, int64, output
+                tensor.
+
+            value_ints: The values for the elements for the 1D, int64, output tensor.
+
+            value_string: The value for the sole element for the scalar, UTF-8 string,
+                output tensor.
+
+            value_strings: The values for the elements for the 1D, UTF-8 string, output
+                tensor.
         """
 
         schema = get_schema("Constant", 19, "")
         op = Op(self, "Constant", schema)
         return op(
-            value_strings=value_strings,
-            value_string=value_string,
-            value_floats=value_floats,
-            value_float=value_float,
-            value_ints=value_ints,
-            value_int=value_int,
             sparse_value=sparse_value,
             value=value,
+            value_float=value_float,
+            value_floats=value_floats,
+            value_int=value_int,
+            value_ints=value_ints,
+            value_string=value_string,
+            value_strings=value_strings,
         )
 
     T_DeformConv = TypeVar("T_DeformConv", DOUBLE, FLOAT, FLOAT16)
@@ -447,12 +447,12 @@ class Opset19(Opset18):
         B: Optional[T_DeformConv] = None,
         mask: Optional[T_DeformConv] = None,
         *,
-        strides: Optional[Sequence[int]] = None,
-        pads: Optional[Sequence[int]] = None,
-        offset_group: int = 1,
-        kernel_shape: Optional[Sequence[int]] = None,
-        group: int = 1,
         dilations: Optional[Sequence[int]] = None,
+        group: int = 1,
+        kernel_shape: Optional[Sequence[int]] = None,
+        offset_group: int = 1,
+        pads: Optional[Sequence[int]] = None,
+        strides: Optional[Sequence[int]] = None,
     ) -> T_DeformConv:
         r"""[🌐 DeformConv(19)](https://onnx.ai/onnx/operators/onnx__DeformConv.html#deformconv-19 "Online Documentation")
 
@@ -487,7 +487,17 @@ class Opset19(Opset18):
                 2D data or (N, offset_group * k1 * k2 * ... * kn * n, o1, o2, ... , on)
                 for nD data. Default is a tensor of ones.
 
-            strides: Stride along each spatial axis. Default is 1 along each axis.
+            dilations: Dilation value along each spatial axis of the kernel. Default is
+                1 along each axis.
+
+            group: Number of groups the input and output channels, C and oC, are divided
+                into. C and oC must both be divisible by group. Default is 1.
+
+            kernel_shape: Shape of the convolution kernel. If not present, it is
+                inferred from the shape of input W.
+
+            offset_group: Number of groups of offset. C must be divisible by
+                offset_group. Default is 1.
 
             pads: Padding for the beginning and end along each spatial axis. The values
                 represent the number of pixels added to the beginning and end of the
@@ -497,29 +507,19 @@ class Opset19(Opset18):
                 xi_end is the number of pixels added at the end of axis `i`. Default is
                 0 along each axis.
 
-            offset_group: Number of groups of offset. C must be divisible by
-                offset_group. Default is 1.
-
-            kernel_shape: Shape of the convolution kernel. If not present, it is
-                inferred from the shape of input W.
-
-            group: Number of groups the input and output channels, C and oC, are divided
-                into. C and oC must both be divisible by group. Default is 1.
-
-            dilations: Dilation value along each spatial axis of the kernel. Default is
-                1 along each axis.
+            strides: Stride along each spatial axis. Default is 1 along each axis.
         """
 
         schema = get_schema("DeformConv", 19, "")
         op = Op(self, "DeformConv", schema)
         return op(
             *self._prepare_inputs(schema, X, W, offset, B, mask),
-            strides=strides,
-            pads=pads,
-            offset_group=offset_group,
-            kernel_shape=kernel_shape,
-            group=group,
             dilations=dilations,
+            group=group,
+            kernel_shape=kernel_shape,
+            offset_group=offset_group,
+            pads=pads,
+            strides=strides,
         )
 
     T1_DequantizeLinear = TypeVar(
@@ -1246,8 +1246,8 @@ class Opset19(Opset18):
         y_scale: T1_QuantizeLinear,
         y_zero_point: Optional[T2_QuantizeLinear] = None,
         *,
-        saturate: int = 1,
         axis: int = 1,
+        saturate: int = 1,
     ) -> T2_QuantizeLinear:
         r"""[🌐 QuantizeLinear(19)](https://onnx.ai/onnx/operators/onnx__QuantizeLinear.html#quantizelinear-19 "Online Documentation")
 
@@ -1274,24 +1274,24 @@ class Opset19(Opset18):
                 must match y_scale. Default is uint8 with zero point of 0 if it's not
                 specified.
 
+            axis: (Optional) The axis of the quantization dimension of the input tensor.
+                Ignored for per-tensor quantization. Negative value means counting
+                dimensions from the back. Accepted range is [-r, r-1] where r =
+                rank(input).
+
             saturate: The parameter defines how the conversion behaves if an input value
                 is out of range of the destination type. It only applies for float 8
                 quantization (float8e4m3fn, float8e4m3fnuz, float8e5m2, float8e5m2fnuz).
                 It is true by default. All cases are fully described in two tables
                 inserted in the operator description.
-
-            axis: (Optional) The axis of the quantization dimension of the input tensor.
-                Ignored for per-tensor quantization. Negative value means counting
-                dimensions from the back. Accepted range is [-r, r-1] where r =
-                rank(input).
         """
 
         schema = get_schema("QuantizeLinear", 19, "")
         op = Op(self, "QuantizeLinear", schema)
         return op(
             *self._prepare_inputs(schema, x, y_scale, y_zero_point),
-            saturate=saturate,
             axis=axis,
+            saturate=saturate,
         )
 
     T_Reshape = TypeVar(
@@ -1382,15 +1382,15 @@ class Opset19(Opset18):
         scales: Optional[FLOAT] = None,
         sizes: Optional[INT64] = None,
         *,
-        keep_aspect_ratio_policy: str = "stretch",
-        axes: Optional[Sequence[int]] = None,
         antialias: int = 0,
-        extrapolation_value: float = 0.0,
-        exclude_outside: int = 0,
-        nearest_mode: str = "round_prefer_floor",
+        axes: Optional[Sequence[int]] = None,
         coordinate_transformation_mode: str = "half_pixel",
         cubic_coeff_a: float = -0.75,
+        exclude_outside: int = 0,
+        extrapolation_value: float = 0.0,
+        keep_aspect_ratio_policy: str = "stretch",
         mode: str = "nearest",
+        nearest_mode: str = "round_prefer_floor",
     ) -> T1_Resize:
         r"""[🌐 Resize(19)](https://onnx.ai/onnx/operators/onnx__Resize.html#resize-19 "Online Documentation")
 
@@ -1428,48 +1428,11 @@ class Opset19(Opset18):
                 'X', or the length of 'axes', if provided. Only one of 'scales' and
                 'sizes' can be specified.
 
-            keep_aspect_ratio_policy:
-        This attribute describes how to interpret the
-                `sizes` input with regard to keeping the original aspect ratio of the
-                input, and it is not applicable when
-        the `scales` input is used.
-
-        Given
-                a set of `sizes`, associated with a subset of `axes` (explicitly
-                provided or default), and assuming `d = axes[i]`, with `i` being the
-                index of the provided `sizes`.
-
-        If `keep_aspect_ratio_policy` is
-                `"stretch"`, the original aspect ratio is disregarded, and the input is
-                resized to the specified size:
-        `out_size[d] = sizes[i]`
-
-        If
-                `keep_aspect_ratio_policy` is `"not_larger"`, the sizes are adjusted so
-                that no extent of the output is larger than the specified size, while
-                keeping the original aspect ratio:
-        ```
-        scale = Min(sizes[i] /
-                in_size[d])
-        out_size[d] = round_int(scale * in_size[i])
-        ```
-
-        If
-                `keep_aspect_ratio_policy` is `"not_smaller"`, the sizes are adjusted so
-                that no extent of the output is smaller than the specified size, while
-                keeping the original aspect ratio:
-        ```
-        scale = Max(sizes[i] /
-                in_size[d])
-        out_size[d] = round_int(scale * in_size[i])
-        ```
-
-        For
-                non-resizable axes (those not specified in `axes`), the output size will
-                be equal to the input size.
-
-        Note: `round_int` stands for computing the
-                nearest integer value, rounding halfway cases up.
+            antialias: If set to 1, "linear" and "cubic" interpolation modes will use an
+                antialiasing filter when downscaling. Antialiasing is achieved by
+                stretching the resampling filter by a factor max(1, 1 / scale), which
+                means that when downsampling, more input pixels contribute to an output
+                pixel.
 
             axes: If provided, it specifies a subset of axes that 'roi', 'scales' and
                 'sizes' refer to. If not provided, all axes are assumed [0, 1, ...,
@@ -1477,27 +1440,6 @@ class Opset19(Opset18):
                 non-resizable. Negative value means counting dimensions from the back.
                 Accepted range is [-r, r-1], where r = rank(data). Behavior is undefined
                 if an axis is repeated.
-
-            antialias: If set to 1, "linear" and "cubic" interpolation modes will use an
-                antialiasing filter when downscaling. Antialiasing is achieved by
-                stretching the resampling filter by a factor max(1, 1 / scale), which
-                means that when downsampling, more input pixels contribute to an output
-                pixel.
-
-            extrapolation_value: When coordinate_transformation_mode is
-                "tf_crop_and_resize" and x_original is outside the range [0,
-                length_original - 1], this value is used as the corresponding output
-                value. Default is 0.0f.
-
-            exclude_outside: If set to 1, the weight of sampling locations outside the
-                tensor will be set to 0 and the weight will be renormalized so that
-                their sum is 1.0. The default value is 0.
-
-            nearest_mode: Four modes: "round_prefer_floor" (default, as known as round
-                half down), "round_prefer_ceil" (as known as round half up), "floor",
-                "ceil". Only used by nearest interpolation. It indicates how to get
-                "nearest" pixel in input tensor from x_original, so this attribute is
-                valid only if "mode" is "nearest".
 
             coordinate_transformation_mode:
         This attribute describes how to transform
@@ -1573,27 +1515,85 @@ class Opset19(Opset18):
                 Check out Equation (4) in https://ieeexplore.ieee.org/document/1163711
                 for the details. This attribute is valid only if mode is "cubic".
 
+            exclude_outside: If set to 1, the weight of sampling locations outside the
+                tensor will be set to 0 and the weight will be renormalized so that
+                their sum is 1.0. The default value is 0.
+
+            extrapolation_value: When coordinate_transformation_mode is
+                "tf_crop_and_resize" and x_original is outside the range [0,
+                length_original - 1], this value is used as the corresponding output
+                value. Default is 0.0f.
+
+            keep_aspect_ratio_policy:
+        This attribute describes how to interpret the
+                `sizes` input with regard to keeping the original aspect ratio of the
+                input, and it is not applicable when
+        the `scales` input is used.
+
+        Given
+                a set of `sizes`, associated with a subset of `axes` (explicitly
+                provided or default), and assuming `d = axes[i]`, with `i` being the
+                index of the provided `sizes`.
+
+        If `keep_aspect_ratio_policy` is
+                `"stretch"`, the original aspect ratio is disregarded, and the input is
+                resized to the specified size:
+        `out_size[d] = sizes[i]`
+
+        If
+                `keep_aspect_ratio_policy` is `"not_larger"`, the sizes are adjusted so
+                that no extent of the output is larger than the specified size, while
+                keeping the original aspect ratio:
+        ```
+        scale = Min(sizes[i] /
+                in_size[d])
+        out_size[d] = round_int(scale * in_size[i])
+        ```
+
+        If
+                `keep_aspect_ratio_policy` is `"not_smaller"`, the sizes are adjusted so
+                that no extent of the output is smaller than the specified size, while
+                keeping the original aspect ratio:
+        ```
+        scale = Max(sizes[i] /
+                in_size[d])
+        out_size[d] = round_int(scale * in_size[i])
+        ```
+
+        For
+                non-resizable axes (those not specified in `axes`), the output size will
+                be equal to the input size.
+
+        Note: `round_int` stands for computing the
+                nearest integer value, rounding halfway cases up.
+
             mode: Three interpolation modes: "nearest" (default), "linear" and "cubic".
                 The "linear" mode includes linear interpolation for 1D tensor and
                 N-linear interpolation for N-D tensor (for example, bilinear
                 interpolation for 2D tensor). The "cubic" mode includes cubic
                 interpolation for 1D tensor and N-cubic interpolation for N-D tensor
                 (for example, bicubic interpolation for 2D tensor).
+
+            nearest_mode: Four modes: "round_prefer_floor" (default, as known as round
+                half down), "round_prefer_ceil" (as known as round half up), "floor",
+                "ceil". Only used by nearest interpolation. It indicates how to get
+                "nearest" pixel in input tensor from x_original, so this attribute is
+                valid only if "mode" is "nearest".
         """
 
         schema = get_schema("Resize", 19, "")
         op = Op(self, "Resize", schema)
         return op(
             *self._prepare_inputs(schema, X, roi, scales, sizes),
-            keep_aspect_ratio_policy=keep_aspect_ratio_policy,
-            axes=axes,
             antialias=antialias,
-            extrapolation_value=extrapolation_value,
-            exclude_outside=exclude_outside,
-            nearest_mode=nearest_mode,
+            axes=axes,
             coordinate_transformation_mode=coordinate_transformation_mode,
             cubic_coeff_a=cubic_coeff_a,
+            exclude_outside=exclude_outside,
+            extrapolation_value=extrapolation_value,
+            keep_aspect_ratio_policy=keep_aspect_ratio_policy,
             mode=mode,
+            nearest_mode=nearest_mode,
         )
 
     V_Scan = TypeVar(
@@ -1623,12 +1623,12 @@ class Opset19(Opset18):
     def Scan(
         self,
         *initial_state_and_scan_inputs: V_Scan,
+        body: GraphProto,
+        num_scan_inputs: int,
         scan_input_axes: Optional[Sequence[int]] = None,
+        scan_input_directions: Optional[Sequence[int]] = None,
         scan_output_axes: Optional[Sequence[int]] = None,
         scan_output_directions: Optional[Sequence[int]] = None,
-        scan_input_directions: Optional[Sequence[int]] = None,
-        num_scan_inputs: int,
-        body: GraphProto,
     ) -> V_Scan:
         r"""[🌐 Scan(19)](https://onnx.ai/onnx/operators/onnx__Scan.html#scan-19 "Online Documentation")
 
@@ -1760,11 +1760,26 @@ class Opset19(Opset18):
             initial_state_and_scan_inputs: (variadic, heterogeneous) Initial values of
                 the loop's N state variables followed by M scan_inputs
 
+            body: The graph run each iteration. It has N+M inputs: (loop state
+                variables..., scan_input_elts...). It has N+K outputs: (loop state
+                variables..., scan_output_elts...). Each scan_output is created by
+                concatenating the value of the specified scan_output_elt value at the
+                end of each iteration of the loop. It is an error if the dimensions of
+                these values change across loop iterations.
+
+            num_scan_inputs: An attribute specifying the number of scan_inputs M.
+
             scan_input_axes: An optional list of M flags. The i-th element of the list
                 specifies the axis to be scanned (the sequence axis) for the i-th
                 scan_input. If omitted, 0 will be used as the scan axis for every
                 scan_input. Negative value for an axis means counting dimensions from
                 the back. Accepted range is [-r, r-1] where r = rank(input).
+
+            scan_input_directions: An optional list of M flags. The i-th element of the
+                list specifies the direction to be scanned for the i-th scan_input
+                tensor: 0 indicates forward direction and 1 indicates reverse direction.
+                If omitted, all scan_input tensors will be scanned in the forward
+                direction.
 
             scan_output_axes: An optional list of K flags. The i-th element of the list
                 specifies the axis for the i-th scan_output. The scan outputs are
@@ -1778,33 +1793,18 @@ class Opset19(Opset18):
                 in each iteration: 0 indicates appending and 1 indicates prepending. If
                 omitted, all scan_output tensors will be produced by appending a value
                 in each iteration.
-
-            scan_input_directions: An optional list of M flags. The i-th element of the
-                list specifies the direction to be scanned for the i-th scan_input
-                tensor: 0 indicates forward direction and 1 indicates reverse direction.
-                If omitted, all scan_input tensors will be scanned in the forward
-                direction.
-
-            num_scan_inputs: An attribute specifying the number of scan_inputs M.
-
-            body: The graph run each iteration. It has N+M inputs: (loop state
-                variables..., scan_input_elts...). It has N+K outputs: (loop state
-                variables..., scan_output_elts...). Each scan_output is created by
-                concatenating the value of the specified scan_output_elt value at the
-                end of each iteration of the loop. It is an error if the dimensions of
-                these values change across loop iterations.
         """
 
         schema = get_schema("Scan", 19, "")
         op = Op(self, "Scan", schema)
         return op(
             *self._prepare_inputs(schema, *initial_state_and_scan_inputs),
+            body=body,
+            num_scan_inputs=num_scan_inputs,
             scan_input_axes=scan_input_axes,
+            scan_input_directions=scan_input_directions,
             scan_output_axes=scan_output_axes,
             scan_output_directions=scan_output_directions,
-            scan_input_directions=scan_input_directions,
-            num_scan_inputs=num_scan_inputs,
-            body=body,
         )
 
     T_Shape = TypeVar(

@@ -281,8 +281,8 @@ class Opset20(Opset19):
         grid: T2_GridSample,
         *,
         align_corners: int = 0,
-        padding_mode: str = "zeros",
         mode: str = "linear",
+        padding_mode: str = "zeros",
     ) -> T1_GridSample:
         r"""[🌐 GridSample(20)](https://onnx.ai/onnx/operators/onnx__GridSample.html#gridsample-20 "Online Documentation")
 
@@ -329,6 +329,14 @@ class Opset20(Opset19):
                 the corner points of the input's corner pixels (voxels, etc.), making
                 the sampling more resolution agnostic.
 
+            mode: Three interpolation modes: linear (default), nearest and cubic. The
+                "linear" mode includes linear and N-linear interpolation modes depending
+                on the number of spatial dimensions of the input tensor (i.e. linear for
+                1 spatial dimension, bilinear for 2 spatial dimensions, etc.). The
+                "cubic" mode also includes N-cubic interpolation modes following the
+                same rules. The "nearest" mode rounds to the nearest even index when the
+                sampling point falls halfway between two indices.
+
             padding_mode: Support padding modes for outside grid values:
                 `zeros`(default), `border`, `reflection`. zeros: use 0 for out-of-bound
                 grid locations, border: use border values for out-of-bound grid
@@ -339,14 +347,6 @@ class Opset20(Opset19):
                 until becoming in bound. If pixel location x = -3.5 reflects by border
                 -1 and becomes x' = 1.5, then reflects by border 1 and becomes x'' =
                 0.5.
-
-            mode: Three interpolation modes: linear (default), nearest and cubic. The
-                "linear" mode includes linear and N-linear interpolation modes depending
-                on the number of spatial dimensions of the input tensor (i.e. linear for
-                1 spatial dimension, bilinear for 2 spatial dimensions, etc.). The
-                "cubic" mode also includes N-cubic interpolation modes following the
-                same rules. The "nearest" mode rounds to the nearest even index when the
-                sampling point falls halfway between two indices.
         """
 
         schema = get_schema("GridSample", 20, "")
@@ -354,8 +354,8 @@ class Opset20(Opset19):
         return op(
             *self._prepare_inputs(schema, X, grid),
             align_corners=align_corners,
-            padding_mode=padding_mode,
             mode=mode,
+            padding_mode=padding_mode,
         )
 
     T1_ImageDecoder: TypeAlias = UINT8
@@ -492,8 +492,8 @@ class Opset20(Opset19):
         data: T_ReduceMax,
         axes: Optional[INT64] = None,
         *,
-        noop_with_empty_axes: int = 0,
         keepdims: int = 1,
+        noop_with_empty_axes: int = 0,
     ) -> T_ReduceMax:
         r"""[🌐 ReduceMax(20)](https://onnx.ai/onnx/operators/onnx__ReduceMax.html#reducemax-20 "Online Documentation")
 
@@ -518,21 +518,21 @@ class Opset20(Opset19):
                 op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
                 where r = rank(data).
 
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
+
             noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
                 with 'false' is to reduce all axes. When axes is empty and this
                 attribute is set to true, input tensor will not be reduced,and the
                 output tensor would be equivalent to input tensor.
-
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
         """
 
         schema = get_schema("ReduceMax", 20, "")
         op = Op(self, "ReduceMax", schema)
         return op(
             *self._prepare_inputs(schema, data, axes),
-            noop_with_empty_axes=noop_with_empty_axes,
             keepdims=keepdims,
+            noop_with_empty_axes=noop_with_empty_axes,
         )
 
     T_ReduceMin = TypeVar(
@@ -555,8 +555,8 @@ class Opset20(Opset19):
         data: T_ReduceMin,
         axes: Optional[INT64] = None,
         *,
-        noop_with_empty_axes: int = 0,
         keepdims: int = 1,
+        noop_with_empty_axes: int = 0,
     ) -> T_ReduceMin:
         r"""[🌐 ReduceMin(20)](https://onnx.ai/onnx/operators/onnx__ReduceMin.html#reducemin-20 "Online Documentation")
 
@@ -581,21 +581,21 @@ class Opset20(Opset19):
                 op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
                 where r = rank(data).
 
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
+
             noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
                 with 'false' is to reduce all axes. When axes is empty and this
                 attribute is set to true, input tensor will not be reduced,and the
                 output tensor would be equivalent to input tensor.
-
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
         """
 
         schema = get_schema("ReduceMin", 20, "")
         op = Op(self, "ReduceMin", schema)
         return op(
             *self._prepare_inputs(schema, data, axes),
-            noop_with_empty_axes=noop_with_empty_axes,
             keepdims=keepdims,
+            noop_with_empty_axes=noop_with_empty_axes,
         )
 
     T1_RegexFullMatch: TypeAlias = STRING
@@ -646,8 +646,8 @@ class Opset20(Opset19):
         self,
         X: T1_StringSplit,
         *,
-        maxsplit: Optional[int] = None,
         delimiter: Optional[str] = None,
+        maxsplit: Optional[int] = None,
     ) -> Tuple[T2_StringSplit, T3_StringSplit]:
         r"""[🌐 StringSplit(20)](https://onnx.ai/onnx/operators/onnx__StringSplit.html#stringsplit-20 "Online Documentation")
 
@@ -660,16 +660,16 @@ class Opset20(Opset19):
         Args:
             X: (non-differentiable) Tensor of strings to split.
 
+            delimiter: Delimiter to split on. If left unset or set to the empty string
+                (""), the input is split on consecutive whitespace.
+
             maxsplit: Maximum number of splits (from left to right). If left unset (or
                 if the number of possible splits are less than maxsplit), it will make
                 as many splits as possible. Note that the maximum possible number of
                 substrings returned with `maxsplit` specified is `maxsplit+1` since the
                 remaining suffix after the `maxsplit`th split is included in the output.
-
-            delimiter: Delimiter to split on. If left unset or set to the empty string
-                (""), the input is split on consecutive whitespace.
         """
 
         schema = get_schema("StringSplit", 20, "")
         op = Op(self, "StringSplit", schema)
-        return op(*self._prepare_inputs(schema, X), maxsplit=maxsplit, delimiter=delimiter)
+        return op(*self._prepare_inputs(schema, X), delimiter=delimiter, maxsplit=maxsplit)

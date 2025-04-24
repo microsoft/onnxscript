@@ -34,21 +34,21 @@ class Opset_ai_onnx_ml5(Opset_ai_onnx_ml4):
         X: T_TreeEnsemble,
         *,
         aggregate_function: int = 1,
-        post_transform: int = 0,
-        tree_roots: Sequence[int],
+        leaf_targetids: Sequence[int],
+        leaf_weights: TensorProto,
+        membership_values: Optional[TensorProto] = None,
+        n_targets: Optional[int] = None,
+        nodes_falseleafs: Sequence[int],
+        nodes_falsenodeids: Sequence[int],
+        nodes_featureids: Sequence[int],
         nodes_hitrates: Optional[TensorProto] = None,
         nodes_missing_value_tracks_true: Optional[Sequence[int]] = None,
         nodes_modes: TensorProto,
-        leaf_weights: TensorProto,
-        leaf_targetids: Sequence[int],
-        nodes_falsenodeids: Sequence[int],
-        n_targets: Optional[int] = None,
-        nodes_trueleafs: Sequence[int],
-        nodes_featureids: Sequence[int],
         nodes_splits: TensorProto,
-        nodes_falseleafs: Sequence[int],
+        nodes_trueleafs: Sequence[int],
         nodes_truenodeids: Sequence[int],
-        membership_values: Optional[TensorProto] = None,
+        post_transform: int = 0,
+        tree_roots: Sequence[int],
     ) -> T_TreeEnsemble:
         r"""[🌐 ai.onnx.ml::TreeEnsemble(5)](https://onnx.ai/onnx/operators/onnx_aionnxml_TreeEnsemble.html#treeensemble-5 "Online Documentation")
 
@@ -75,12 +75,31 @@ class Opset_ai_onnx_ml5(Opset_ai_onnx_ml4):
                 <br>One of 'AVERAGE' (0) 'SUM' (1) 'MIN' (2) 'MAX (3) defaults to 'SUM'
                 (1)
 
-            post_transform: Indicates the transform to apply to the score. <br>One of
-                'NONE' (0), 'SOFTMAX' (1), 'LOGISTIC' (2), 'SOFTMAX_ZERO' (3) or
-                'PROBIT' (4), defaults to 'NONE' (0)
+            leaf_targetids: The index of the target that this leaf contributes to (this
+                must be in range `[0, n_targets)`).
 
-            tree_roots: Index into `nodes_*` for the root of each tree. The tree
-                structure is derived from the branching of each node.
+            leaf_weights: The weight for each leaf.
+
+            membership_values: Members to test membership of for each set membership
+                node. List all of the members to test again in the order that the
+                'BRANCH_MEMBER' mode appears in `node_modes`, delimited by `NaN`s. Will
+                have the same number of sets of values as nodes with mode
+                'BRANCH_MEMBER'. This may be omitted if the node doesn't contain any
+                'BRANCH_MEMBER' nodes.
+
+            n_targets: The total number of targets.
+
+            nodes_falseleafs: 1 if false branch is leaf for each node and 0 if an
+                interior node. To represent a tree that is a leaf (only has one node),
+                one can do so by having a single `nodes_*` entry with true and false
+                branches referencing the same `leaf_*` entry
+
+            nodes_falsenodeids: If `nodes_falseleafs` is false at an entry, this
+                represents the position of the false branch node. This position can be
+                used to index into a `nodes_*` entry. If `nodes_falseleafs` is false, it
+                is an index into the leaf_* attributes.
+
+            nodes_featureids: Feature id for each node.
 
             nodes_hitrates: Popularity of each node, used for performance and may be
                 omitted.
@@ -95,44 +114,25 @@ class Opset_ai_onnx_ml5(Opset_ai_onnx_ml4):
                 ('BRANCH_GTE'), 3 ('BRANCH_GT'), 4 ('BRANCH_EQ'), 5 ('BRANCH_NEQ'), and
                 6 ('BRANCH_MEMBER'). Note this is a tensor of type uint8.
 
-            leaf_weights: The weight for each leaf.
-
-            leaf_targetids: The index of the target that this leaf contributes to (this
-                must be in range `[0, n_targets)`).
-
-            nodes_falsenodeids: If `nodes_falseleafs` is false at an entry, this
-                represents the position of the false branch node. This position can be
-                used to index into a `nodes_*` entry. If `nodes_falseleafs` is false, it
-                is an index into the leaf_* attributes.
-
-            n_targets: The total number of targets.
+            nodes_splits: Thresholds to do the splitting on for each node with mode that
+                is not 'BRANCH_MEMBER'.
 
             nodes_trueleafs: 1 if true branch is leaf for each node and 0 an interior
                 node. To represent a tree that is a leaf (only has one node), one can do
                 so by having a single `nodes_*` entry with true and false branches
                 referencing the same `leaf_*` entry
 
-            nodes_featureids: Feature id for each node.
-
-            nodes_splits: Thresholds to do the splitting on for each node with mode that
-                is not 'BRANCH_MEMBER'.
-
-            nodes_falseleafs: 1 if false branch is leaf for each node and 0 if an
-                interior node. To represent a tree that is a leaf (only has one node),
-                one can do so by having a single `nodes_*` entry with true and false
-                branches referencing the same `leaf_*` entry
-
             nodes_truenodeids: If `nodes_trueleafs` is false at an entry, this
                 represents the position of the true branch node. This position can be
                 used to index into a `nodes_*` entry. If `nodes_trueleafs` is false, it
                 is an index into the leaf_* attributes.
 
-            membership_values: Members to test membership of for each set membership
-                node. List all of the members to test again in the order that the
-                'BRANCH_MEMBER' mode appears in `node_modes`, delimited by `NaN`s. Will
-                have the same number of sets of values as nodes with mode
-                'BRANCH_MEMBER'. This may be omitted if the node doesn't contain any
-                'BRANCH_MEMBER' nodes.
+            post_transform: Indicates the transform to apply to the score. <br>One of
+                'NONE' (0), 'SOFTMAX' (1), 'LOGISTIC' (2), 'SOFTMAX_ZERO' (3) or
+                'PROBIT' (4), defaults to 'NONE' (0)
+
+            tree_roots: Index into `nodes_*` for the root of each tree. The tree
+                structure is derived from the branching of each node.
         """
 
         schema = get_schema("TreeEnsemble", 5, "ai.onnx.ml")
@@ -140,19 +140,19 @@ class Opset_ai_onnx_ml5(Opset_ai_onnx_ml4):
         return op(
             *self._prepare_inputs(schema, X),
             aggregate_function=aggregate_function,
-            post_transform=post_transform,
-            tree_roots=tree_roots,
+            leaf_targetids=leaf_targetids,
+            leaf_weights=leaf_weights,
+            membership_values=membership_values,
+            n_targets=n_targets,
+            nodes_falseleafs=nodes_falseleafs,
+            nodes_falsenodeids=nodes_falsenodeids,
+            nodes_featureids=nodes_featureids,
             nodes_hitrates=nodes_hitrates,
             nodes_missing_value_tracks_true=nodes_missing_value_tracks_true,
             nodes_modes=nodes_modes,
-            leaf_weights=leaf_weights,
-            leaf_targetids=leaf_targetids,
-            nodes_falsenodeids=nodes_falsenodeids,
-            n_targets=n_targets,
-            nodes_trueleafs=nodes_trueleafs,
-            nodes_featureids=nodes_featureids,
             nodes_splits=nodes_splits,
-            nodes_falseleafs=nodes_falseleafs,
+            nodes_trueleafs=nodes_trueleafs,
             nodes_truenodeids=nodes_truenodeids,
-            membership_values=membership_values,
+            post_transform=post_transform,
+            tree_roots=tree_roots,
         )

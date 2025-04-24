@@ -289,14 +289,14 @@ class Opset21(Opset20):
     def Constant(
         self,
         *,
-        value_strings: Optional[Sequence[str]] = None,
-        value_string: Optional[str] = None,
-        value_floats: Optional[Sequence[float]] = None,
-        value_float: Optional[float] = None,
-        value_ints: Optional[Sequence[int]] = None,
-        value_int: Optional[int] = None,
         sparse_value: Optional[SparseTensorProto] = None,
         value: Optional[TensorProto] = None,
+        value_float: Optional[float] = None,
+        value_floats: Optional[Sequence[float]] = None,
+        value_int: Optional[int] = None,
+        value_ints: Optional[Sequence[int]] = None,
+        value_string: Optional[str] = None,
+        value_strings: Optional[Sequence[str]] = None,
     ) -> T_Constant:
         r"""[🌐 Constant(21)](https://onnx.ai/onnx/operators/onnx__Constant.html#constant-21 "Online Documentation")
 
@@ -306,40 +306,40 @@ class Opset21(Opset20):
 
 
         Args:
-            value_strings: The values for the elements for the 1D, UTF-8 string, output
-                tensor.
-
-            value_string: The value for the sole element for the scalar, UTF-8 string,
-                output tensor.
-
-            value_floats: The values for the elements for the 1D, float32, output
-                tensor.
-
-            value_float: The value for the sole element for the scalar, float32, output
-                tensor.
-
-            value_ints: The values for the elements for the 1D, int64, output tensor.
-
-            value_int: The value for the sole element for the scalar, int64, output
-                tensor.
-
             sparse_value: The value for the elements of the output tensor in sparse
                 format.
 
             value: The value for the elements of the output tensor.
+
+            value_float: The value for the sole element for the scalar, float32, output
+                tensor.
+
+            value_floats: The values for the elements for the 1D, float32, output
+                tensor.
+
+            value_int: The value for the sole element for the scalar, int64, output
+                tensor.
+
+            value_ints: The values for the elements for the 1D, int64, output tensor.
+
+            value_string: The value for the sole element for the scalar, UTF-8 string,
+                output tensor.
+
+            value_strings: The values for the elements for the 1D, UTF-8 string, output
+                tensor.
         """
 
         schema = get_schema("Constant", 21, "")
         op = Op(self, "Constant", schema)
         return op(
-            value_strings=value_strings,
-            value_string=value_string,
-            value_floats=value_floats,
-            value_float=value_float,
-            value_ints=value_ints,
-            value_int=value_int,
             sparse_value=sparse_value,
             value=value,
+            value_float=value_float,
+            value_floats=value_floats,
+            value_int=value_int,
+            value_ints=value_ints,
+            value_string=value_string,
+            value_strings=value_strings,
         )
 
     T1_ConstantOfShape: TypeAlias = INT64
@@ -411,8 +411,8 @@ class Opset21(Opset20):
         x_scale: T2_DequantizeLinear,
         x_zero_point: Optional[T1_DequantizeLinear] = None,
         *,
-        block_size: int = 0,
         axis: int = 1,
+        block_size: int = 0,
     ) -> T2_DequantizeLinear:
         r"""[🌐 DequantizeLinear(21)](https://onnx.ai/onnx/operators/onnx__DequantizeLinear.html#dequantizelinear-21 "Online Documentation")
 
@@ -439,24 +439,24 @@ class Opset21(Opset20):
             x_zero_point: (optional) Zero point for input `x`. Shape must match x_scale.
                 It's optional. Zero point is 0 when it's not specified.
 
+            axis: (Optional) The axis of the dequantizing dimension of the input tensor.
+                Used for per-axis and blocked quantization. Negative value means
+                counting dimensions from the back. Accepted range is `[-r, r-1]` where
+                `r = rank(input)`.
+
             block_size: (Optional) The size of the quantization block (number of times
                 every scale is replicated). Used only for blocked quantization. The
                 block size is a positive integer. Given `x` shape `(D0, ..., Di, ...,
                 Dn)`, `y_scale` shape `(S0, ... Si, ...Sn)` and `axis=i`, the accepted
                 range is `[ceil(Di/Si), ceil(Di/(Si-1))-1]`
-
-            axis: (Optional) The axis of the dequantizing dimension of the input tensor.
-                Used for per-axis and blocked quantization. Negative value means
-                counting dimensions from the back. Accepted range is `[-r, r-1]` where
-                `r = rank(input)`.
         """
 
         schema = get_schema("DequantizeLinear", 21, "")
         op = Op(self, "DequantizeLinear", schema)
         return op(
             *self._prepare_inputs(schema, x, x_scale, x_zero_point),
-            block_size=block_size,
             axis=axis,
+            block_size=block_size,
         )
 
     T_Flatten = TypeVar(
@@ -517,9 +517,9 @@ class Opset21(Opset20):
         scale: T_GroupNormalization,
         bias: T_GroupNormalization,
         *,
-        stash_type: int = 1,
-        num_groups: int,
         epsilon: float = 9.999999747378752e-06,
+        num_groups: int,
+        stash_type: int = 1,
     ) -> T_GroupNormalization:
         r"""[🌐 GroupNormalization(21)](https://onnx.ai/onnx/operators/onnx__GroupNormalization.html#groupnormalization-21 "Online Documentation")
 
@@ -563,22 +563,22 @@ class Opset21(Opset20):
 
             bias: (differentiable) Bias tensor of shape `(C)`.
 
-            stash_type: The floating-point precision used in stage one of the
-                computation.
+            epsilon: The epsilon value to use to avoid division by zero.
 
             num_groups: The number of groups of channels. It should be a divisor of the
                 number of channels `C`.
 
-            epsilon: The epsilon value to use to avoid division by zero.
+            stash_type: The floating-point precision used in stage one of the
+                computation.
         """
 
         schema = get_schema("GroupNormalization", 21, "")
         op = Op(self, "GroupNormalization", schema)
         return op(
             *self._prepare_inputs(schema, X, scale, bias),
-            stash_type=stash_type,
-            num_groups=num_groups,
             epsilon=epsilon,
+            num_groups=num_groups,
+            stash_type=stash_type,
         )
 
     V_Identity = TypeVar(
@@ -1328,10 +1328,10 @@ class Opset21(Opset20):
         y_scale: T1_QuantizeLinear,
         y_zero_point: Optional[T2_QuantizeLinear] = None,
         *,
-        output_dtype: int = 0,
-        block_size: int = 0,
-        saturate: int = 1,
         axis: int = 1,
+        block_size: int = 0,
+        output_dtype: int = 0,
+        saturate: int = 1,
     ) -> T2_QuantizeLinear:
         r"""[🌐 QuantizeLinear(21)](https://onnx.ai/onnx/operators/onnx__QuantizeLinear.html#quantizelinear-21 "Online Documentation")
 
@@ -1371,11 +1371,12 @@ class Opset21(Opset20):
                 must match `y_scale`.Default is uint8 with zero point of 0 if it's not
                 specified.
 
-            output_dtype: (Optional) The output data type. If not supplied, the output
-                data type is inferred from `y_zero_point` data type (`T2`). If neither
-                `output_dtype` nor `y_zero_point` are supplied, output data type is
-                uint8. If both `output_dtype` and `y_zero_point` are specified,
-                `output_dtype` must be `T2`.
+            axis: (Optional) The axis of the dequantizing dimension of the input tensor.
+                Used only for per-axis and blocked quantization. Negative value means
+                counting dimensions from the back. Accepted range is `[-r, r-1]` where
+                `r = rank(input)`. When the rank of the input is 1, per-tensor
+                quantization is applied, rendering the axis unnecessary in this
+                scenario.
 
             block_size: (Optional) The size of the quantization block (number of times
                 every scale is replicated). Used only for blocked quantization. The
@@ -1383,28 +1384,27 @@ class Opset21(Opset20):
                 Dn)`, `y_scale` shape `(S0, ... Si, ...Sn)` and `axis=i`, the accepted
                 range is `[ceil(Di/Si), ceil(Di/(Si-1))-1]`
 
+            output_dtype: (Optional) The output data type. If not supplied, the output
+                data type is inferred from `y_zero_point` data type (`T2`). If neither
+                `output_dtype` nor `y_zero_point` are supplied, output data type is
+                uint8. If both `output_dtype` and `y_zero_point` are specified,
+                `output_dtype` must be `T2`.
+
             saturate: The parameter defines how the conversion behaves if an input value
                 is out of range of the destination type. It only applies for float 8
                 quantization (float8e4m3fn, float8e4m3fnuz, float8e5m2, float8e5m2fnuz).
                 It is true by default. All cases are fully described in two tables
                 inserted in the operator description.
-
-            axis: (Optional) The axis of the dequantizing dimension of the input tensor.
-                Used only for per-axis and blocked quantization. Negative value means
-                counting dimensions from the back. Accepted range is `[-r, r-1]` where
-                `r = rank(input)`. When the rank of the input is 1, per-tensor
-                quantization is applied, rendering the axis unnecessary in this
-                scenario.
         """
 
         schema = get_schema("QuantizeLinear", 21, "")
         op = Op(self, "QuantizeLinear", schema)
         return op(
             *self._prepare_inputs(schema, x, y_scale, y_zero_point),
-            output_dtype=output_dtype,
-            block_size=block_size,
-            saturate=saturate,
             axis=axis,
+            block_size=block_size,
+            output_dtype=output_dtype,
+            saturate=saturate,
         )
 
     T_Reshape = TypeVar(
@@ -1497,12 +1497,12 @@ class Opset21(Opset20):
     def Scan(
         self,
         *initial_state_and_scan_inputs: V_Scan,
+        body: GraphProto,
+        num_scan_inputs: int,
         scan_input_axes: Optional[Sequence[int]] = None,
+        scan_input_directions: Optional[Sequence[int]] = None,
         scan_output_axes: Optional[Sequence[int]] = None,
         scan_output_directions: Optional[Sequence[int]] = None,
-        scan_input_directions: Optional[Sequence[int]] = None,
-        num_scan_inputs: int,
-        body: GraphProto,
     ) -> V_Scan:
         r"""[🌐 Scan(21)](https://onnx.ai/onnx/operators/onnx__Scan.html#scan-21 "Online Documentation")
 
@@ -1634,11 +1634,26 @@ class Opset21(Opset20):
             initial_state_and_scan_inputs: (variadic, heterogeneous) Initial values of
                 the loop's N state variables followed by M scan_inputs
 
+            body: The graph run each iteration. It has N+M inputs: (loop state
+                variables..., scan_input_elts...). It has N+K outputs: (loop state
+                variables..., scan_output_elts...). Each scan_output is created by
+                concatenating the value of the specified scan_output_elt value at the
+                end of each iteration of the loop. It is an error if the dimensions of
+                these values change across loop iterations.
+
+            num_scan_inputs: An attribute specifying the number of scan_inputs M.
+
             scan_input_axes: An optional list of M flags. The i-th element of the list
                 specifies the axis to be scanned (the sequence axis) for the i-th
                 scan_input. If omitted, 0 will be used as the scan axis for every
                 scan_input. Negative value for an axis means counting dimensions from
                 the back. Accepted range is [-r, r-1] where r = rank(input).
+
+            scan_input_directions: An optional list of M flags. The i-th element of the
+                list specifies the direction to be scanned for the i-th scan_input
+                tensor: 0 indicates forward direction and 1 indicates reverse direction.
+                If omitted, all scan_input tensors will be scanned in the forward
+                direction.
 
             scan_output_axes: An optional list of K flags. The i-th element of the list
                 specifies the axis for the i-th scan_output. The scan outputs are
@@ -1652,33 +1667,18 @@ class Opset21(Opset20):
                 in each iteration: 0 indicates appending and 1 indicates prepending. If
                 omitted, all scan_output tensors will be produced by appending a value
                 in each iteration.
-
-            scan_input_directions: An optional list of M flags. The i-th element of the
-                list specifies the direction to be scanned for the i-th scan_input
-                tensor: 0 indicates forward direction and 1 indicates reverse direction.
-                If omitted, all scan_input tensors will be scanned in the forward
-                direction.
-
-            num_scan_inputs: An attribute specifying the number of scan_inputs M.
-
-            body: The graph run each iteration. It has N+M inputs: (loop state
-                variables..., scan_input_elts...). It has N+K outputs: (loop state
-                variables..., scan_output_elts...). Each scan_output is created by
-                concatenating the value of the specified scan_output_elt value at the
-                end of each iteration of the loop. It is an error if the dimensions of
-                these values change across loop iterations.
         """
 
         schema = get_schema("Scan", 21, "")
         op = Op(self, "Scan", schema)
         return op(
             *self._prepare_inputs(schema, *initial_state_and_scan_inputs),
+            body=body,
+            num_scan_inputs=num_scan_inputs,
             scan_input_axes=scan_input_axes,
+            scan_input_directions=scan_input_directions,
             scan_output_axes=scan_output_axes,
             scan_output_directions=scan_output_directions,
-            scan_input_directions=scan_input_directions,
-            num_scan_inputs=num_scan_inputs,
-            body=body,
         )
 
     T_Shape = TypeVar(

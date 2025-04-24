@@ -72,8 +72,8 @@ class Opset1(Opset):
         B: T_Add,
         *,
         axis: Optional[int] = None,
-        consumed_inputs: Optional[Sequence[int]] = None,
         broadcast: int = 0,
+        consumed_inputs: Optional[Sequence[int]] = None,
     ) -> T_Add:
         r"""[🌐 Add(1)](https://onnx.ai/onnx/operators/onnx__Add.html#add-1 "Online Documentation")
 
@@ -108,9 +108,9 @@ class Opset1(Opset):
 
             axis: If set, defines the broadcast dimensions. See doc for details.
 
-            consumed_inputs: legacy optimization attribute.
-
             broadcast: Pass 1 to enable broadcasting
+
+            consumed_inputs: legacy optimization attribute.
         """
 
         schema = get_schema("Add", 1, "")
@@ -118,8 +118,8 @@ class Opset1(Opset):
         return op(
             *self._prepare_inputs(schema, A, B),
             axis=axis,
-            consumed_inputs=consumed_inputs,
             broadcast=broadcast,
+            consumed_inputs=consumed_inputs,
         )
 
     T_And: TypeAlias = BOOL
@@ -169,7 +169,7 @@ class Opset1(Opset):
         UINT8,
     )
 
-    def ArgMax(self, data: T_ArgMax, *, keepdims: int = 1, axis: int = 0) -> INT64:
+    def ArgMax(self, data: T_ArgMax, *, axis: int = 0, keepdims: int = 1) -> INT64:
         r"""[🌐 ArgMax(1)](https://onnx.ai/onnx/operators/onnx__ArgMax.html#argmax-1 "Online Documentation")
 
 
@@ -181,15 +181,15 @@ class Opset1(Opset):
         Args:
             data: An input tensor.
 
+            axis: The axis in which to compute the arg indices.
+
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
-
-            axis: The axis in which to compute the arg indices.
         """
 
         schema = get_schema("ArgMax", 1, "")
         op = Op(self, "ArgMax", schema)
-        return op(*self._prepare_inputs(schema, data), keepdims=keepdims, axis=axis)
+        return op(*self._prepare_inputs(schema, data), axis=axis, keepdims=keepdims)
 
     T_ArgMin = TypeVar(
         "T_ArgMin",
@@ -206,7 +206,7 @@ class Opset1(Opset):
         UINT8,
     )
 
-    def ArgMin(self, data: T_ArgMin, *, keepdims: int = 1, axis: int = 0) -> INT64:
+    def ArgMin(self, data: T_ArgMin, *, axis: int = 0, keepdims: int = 1) -> INT64:
         r"""[🌐 ArgMin(1)](https://onnx.ai/onnx/operators/onnx__ArgMin.html#argmin-1 "Online Documentation")
 
 
@@ -218,15 +218,15 @@ class Opset1(Opset):
         Args:
             data: An input tensor.
 
+            axis: The axis in which to compute the arg indices.
+
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
-
-            axis: The axis in which to compute the arg indices.
         """
 
         schema = get_schema("ArgMin", 1, "")
         op = Op(self, "ArgMin", schema)
-        return op(*self._prepare_inputs(schema, data), keepdims=keepdims, axis=axis)
+        return op(*self._prepare_inputs(schema, data), axis=axis, keepdims=keepdims)
 
     T_AveragePool = TypeVar("T_AveragePool", DOUBLE, FLOAT, FLOAT16)
 
@@ -234,10 +234,10 @@ class Opset1(Opset):
         self,
         X: T_AveragePool,
         *,
-        pads: Optional[Sequence[int]] = None,
         auto_pad: str = "NOTSET",
-        strides: Optional[Sequence[int]] = None,
         kernel_shape: Sequence[int],
+        pads: Optional[Sequence[int]] = None,
+        strides: Optional[Sequence[int]] = None,
     ) -> T_AveragePool:
         r"""[🌐 AveragePool(1)](https://onnx.ai/onnx/operators/onnx__AveragePool.html#averagepool-1 "Online Documentation")
 
@@ -275,6 +275,15 @@ class Opset1(Opset):
                 dimension denotation of [DATA_BATCH, DATA_CHANNEL, DATA_FEATURE,
                 DATA_FEATURE ...].
 
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
+                size match the input.In case of odd number add the extra padding at the
+                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
+                padding.
+
+            kernel_shape: The size of the kernel along each axis.
+
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
                 number of pixels added to the beginning and end part of the
@@ -285,26 +294,17 @@ class Opset1(Opset):
                 simultaneously with auto_pad attribute. If not present, the padding
                 defaults to 0 along start and end of each spatial axis.
 
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
-                size match the input.In case of odd number add the extra padding at the
-                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
-                padding.
-
             strides: Stride along each spatial axis.
-
-            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("AveragePool", 1, "")
         op = Op(self, "AveragePool", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            pads=pads,
             auto_pad=auto_pad,
-            strides=strides,
             kernel_shape=kernel_shape,
+            pads=pads,
+            strides=strides,
         )
 
     T_BatchNormalization = TypeVar("T_BatchNormalization", DOUBLE, FLOAT, FLOAT16)
@@ -318,9 +318,9 @@ class Opset1(Opset):
         var: T_BatchNormalization,
         *,
         consumed_inputs: Sequence[int],
-        momentum: float = 0.8999999761581421,
         epsilon: float = 9.999999747378752e-06,
         is_test: int = 0,
+        momentum: float = 0.8999999761581421,
         spatial: int = 1,
     ) -> Tuple[
         T_BatchNormalization,
@@ -356,15 +356,15 @@ class Opset1(Opset):
 
             consumed_inputs: legacy optimization attribute.
 
-            momentum: Factor used in computing the running mean and variance.e.g.,
-                running_mean = running_mean * momentum + mean * (1 - momentum), default
-                is 0.9f.
-
             epsilon: The epsilon value to use to avoid division by zero, default is
                 1e-5f.
 
             is_test: If set to nonzero, run spatial batch normalization in test mode,
                 default is 0.
+
+            momentum: Factor used in computing the running mean and variance.e.g.,
+                running_mean = running_mean * momentum + mean * (1 - momentum), default
+                is 0.9f.
 
             spatial: If true, compute the mean and variance across all spatial elements
                 If false, compute the mean and variance across per feature.Default is 1.
@@ -375,9 +375,9 @@ class Opset1(Opset):
         return op(
             *self._prepare_inputs(schema, X, scale, B, mean, var),
             consumed_inputs=consumed_inputs,
-            momentum=momentum,
             epsilon=epsilon,
             is_test=is_test,
+            momentum=momentum,
             spatial=spatial,
         )
 
@@ -521,12 +521,12 @@ class Opset1(Opset):
         W: T_Conv,
         B: Optional[T_Conv] = None,
         *,
-        group: int = 1,
-        pads: Optional[Sequence[int]] = None,
         auto_pad: str = "NOTSET",
-        strides: Optional[Sequence[int]] = None,
         dilations: Optional[Sequence[int]] = None,
+        group: int = 1,
         kernel_shape: Optional[Sequence[int]] = None,
+        pads: Optional[Sequence[int]] = None,
+        strides: Optional[Sequence[int]] = None,
     ) -> T_Conv:
         r"""[🌐 Conv(1)](https://onnx.ai/onnx/operators/onnx__Conv.html#conv-1 "Online Documentation")
 
@@ -558,7 +558,19 @@ class Opset1(Opset):
             B: (optional) Optional 1D bias to be added to the convolution, has size of
                 M.
 
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
+                size match the input.In case of odd number add the extra padding at the
+                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
+                padding.
+
+            dilations: dilation value along each spatial axis of the filter.
+
             group: number of groups input channels and output channels are divided into.
+
+            kernel_shape: The shape of the convolution kernel. If not present, should be
+                inferred from input W.
 
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
@@ -570,31 +582,19 @@ class Opset1(Opset):
                 simultaneously with auto_pad attribute. If not present, the padding
                 defaults to 0 along start and end of each spatial axis.
 
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
-                size match the input.In case of odd number add the extra padding at the
-                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
-                padding.
-
             strides: Stride along each spatial axis.
-
-            dilations: dilation value along each spatial axis of the filter.
-
-            kernel_shape: The shape of the convolution kernel. If not present, should be
-                inferred from input W.
         """
 
         schema = get_schema("Conv", 1, "")
         op = Op(self, "Conv", schema)
         return op(
             *self._prepare_inputs(schema, X, W, B),
-            group=group,
-            pads=pads,
             auto_pad=auto_pad,
-            strides=strides,
             dilations=dilations,
+            group=group,
             kernel_shape=kernel_shape,
+            pads=pads,
+            strides=strides,
         )
 
     T_ConvTranspose = TypeVar("T_ConvTranspose", DOUBLE, FLOAT, FLOAT16)
@@ -605,14 +605,14 @@ class Opset1(Opset):
         W: T_ConvTranspose,
         B: Optional[T_ConvTranspose] = None,
         *,
-        group: int = 1,
         auto_pad: str = "NOTSET",
-        strides: Optional[Sequence[int]] = None,
-        pads: Optional[Sequence[int]] = None,
-        output_padding: Optional[Sequence[int]] = None,
         dilations: Optional[Sequence[int]] = None,
-        output_shape: Optional[Sequence[int]] = None,
+        group: int = 1,
         kernel_shape: Optional[Sequence[int]] = None,
+        output_padding: Optional[Sequence[int]] = None,
+        output_shape: Optional[Sequence[int]] = None,
+        pads: Optional[Sequence[int]] = None,
+        strides: Optional[Sequence[int]] = None,
     ) -> T_ConvTranspose:
         r"""[🌐 ConvTranspose(1)](https://onnx.ai/onnx/operators/onnx__ConvTranspose.html#convtranspose-1 "Online Documentation")
 
@@ -649,8 +649,6 @@ class Opset1(Opset):
             B: (optional) Optional 1D bias to be added to the convolution, has size of
                 M.
 
-            group: number of groups input channels and output channels are divided into.
-
             auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
                 Where default value is NOTSET, which means explicit padding is used.
                 SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
@@ -658,7 +656,19 @@ class Opset1(Opset):
                 end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
                 padding.
 
-            strides: Stride along each spatial axis.
+            dilations: dilation value along each spatial axis of the filter.
+
+            group: number of groups input channels and output channels are divided into.
+
+            kernel_shape: The shape of the convolution kernel. If not present, should be
+                inferred from input W.
+
+            output_padding: The zero-padding added to one side of the output. This is
+                also called adjs/adjustment in some frameworks.
+
+            output_shape: The shape of the output can be explicitly set which will cause
+                pads values to be auto generated. If output_shape is specified pads
+                values are ignored. See doc for details for equations to generate pads
 
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
@@ -670,31 +680,21 @@ class Opset1(Opset):
                 simultaneously with auto_pad attribute. If not present, the padding
                 defaults to 0 along start and end of each spatial axis.
 
-            output_padding: The zero-padding added to one side of the output. This is
-                also called adjs/adjustment in some frameworks.
-
-            dilations: dilation value along each spatial axis of the filter.
-
-            output_shape: The shape of the output can be explicitly set which will cause
-                pads values to be auto generated. If output_shape is specified pads
-                values are ignored. See doc for details for equations to generate pads
-
-            kernel_shape: The shape of the convolution kernel. If not present, should be
-                inferred from input W.
+            strides: Stride along each spatial axis.
         """
 
         schema = get_schema("ConvTranspose", 1, "")
         op = Op(self, "ConvTranspose", schema)
         return op(
             *self._prepare_inputs(schema, X, W, B),
-            group=group,
             auto_pad=auto_pad,
-            strides=strides,
-            pads=pads,
-            output_padding=output_padding,
             dilations=dilations,
-            output_shape=output_shape,
+            group=group,
             kernel_shape=kernel_shape,
+            output_padding=output_padding,
+            output_shape=output_shape,
+            pads=pads,
+            strides=strides,
         )
 
     T_DepthToSpace = TypeVar(
@@ -744,8 +744,8 @@ class Opset1(Opset):
         B: T_Div,
         *,
         axis: Optional[int] = None,
-        consumed_inputs: Optional[Sequence[int]] = None,
         broadcast: int = 0,
+        consumed_inputs: Optional[Sequence[int]] = None,
     ) -> T_Div:
         r"""[🌐 Div(1)](https://onnx.ai/onnx/operators/onnx__Div.html#div-1 "Online Documentation")
 
@@ -780,9 +780,9 @@ class Opset1(Opset):
 
             axis: If set, defines the broadcast dimensions. See doc for details.
 
-            consumed_inputs: legacy optimization attribute.
-
             broadcast: Pass 1 to enable broadcasting
+
+            consumed_inputs: legacy optimization attribute.
         """
 
         schema = get_schema("Div", 1, "")
@@ -790,8 +790,8 @@ class Opset1(Opset):
         return op(
             *self._prepare_inputs(schema, A, B),
             axis=axis,
-            consumed_inputs=consumed_inputs,
             broadcast=broadcast,
+            consumed_inputs=consumed_inputs,
         )
 
     T_Dropout = TypeVar("T_Dropout", DOUBLE, FLOAT, FLOAT16)
@@ -800,8 +800,8 @@ class Opset1(Opset):
         self,
         data: T_Dropout,
         *,
-        is_test: int = 0,
         consumed_inputs: Optional[Sequence[int]] = None,
+        is_test: int = 0,
         ratio: float = 0.5,
     ) -> Tuple[T_Dropout, T_Dropout]:
         r"""[🌐 Dropout(1)](https://onnx.ai/onnx/operators/onnx__Dropout.html#dropout-1 "Online Documentation")
@@ -817,10 +817,10 @@ class Opset1(Opset):
         Args:
             data: The input data as Tensor.
 
+            consumed_inputs: legacy optimization attribute.
+
             is_test: (int, default 0) if nonzero, run dropout in test mode where the
                 output is simply Y = X.
-
-            consumed_inputs: legacy optimization attribute.
 
             ratio: (float, default 0.5) the ratio of random dropout
         """
@@ -829,15 +829,15 @@ class Opset1(Opset):
         op = Op(self, "Dropout", schema)
         return op(
             *self._prepare_inputs(schema, data),
-            is_test=is_test,
             consumed_inputs=consumed_inputs,
+            is_test=is_test,
             ratio=ratio,
         )
 
     T_Elu = TypeVar("T_Elu", DOUBLE, FLOAT, FLOAT16)
 
     def Elu(
-        self, X: T_Elu, *, consumed_inputs: Optional[Sequence[int]] = None, alpha: float = 1.0
+        self, X: T_Elu, *, alpha: float = 1.0, consumed_inputs: Optional[Sequence[int]] = None
     ) -> T_Elu:
         r"""[🌐 Elu(1)](https://onnx.ai/onnx/operators/onnx__Elu.html#elu-1 "Online Documentation")
 
@@ -851,15 +851,15 @@ class Opset1(Opset):
         Args:
             X: 1D input tensor
 
-            consumed_inputs: legacy optimization attribute.
-
             alpha: Coefficient of ELU default to 1.0.
+
+            consumed_inputs: legacy optimization attribute.
         """
 
         schema = get_schema("Elu", 1, "")
         op = Op(self, "Elu", schema)
         return op(
-            *self._prepare_inputs(schema, X), consumed_inputs=consumed_inputs, alpha=alpha
+            *self._prepare_inputs(schema, X), alpha=alpha, consumed_inputs=consumed_inputs
         )
 
     T_Equal = TypeVar("T_Equal", BOOL, INT32, INT64)
@@ -972,13 +972,13 @@ class Opset1(Opset):
         sequence_lens: Optional[T1_GRU] = None,
         initial_h: Optional[T_GRU] = None,
         *,
-        clip: Optional[float] = None,
-        activation_beta: Optional[Sequence[float]] = None,
-        output_sequence: int = 0,
         activation_alpha: Optional[Sequence[float]] = None,
-        hidden_size: Optional[int] = None,
-        direction: str = "foward",
+        activation_beta: Optional[Sequence[float]] = None,
         activations: Optional[Sequence[str]] = None,
+        clip: Optional[float] = None,
+        direction: str = "foward",
+        hidden_size: Optional[int] = None,
+        output_sequence: int = 0,
     ) -> Tuple[T_GRU, T_GRU]:
         r"""[🌐 GRU(1)](https://onnx.ai/onnx/operators/onnx__GRU.html#gru-1 "Online Documentation")
 
@@ -1082,43 +1082,43 @@ class Opset1(Opset):
                 - assumed to be 0. It has shape `[num_directions, batch_size,
                 hidden_size]`.
 
-            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
-                range of [-threshold, +threshold] and is applied to the input of
-                activations. No clip if not specified.
+            activation_alpha: Optional scaling values used by some activation functions.
+                The values are consumed in the order of activation functions, for
+                example (f, g, h) in LSTM.
 
             activation_beta: Optional scaling values used by some activation functions.
                 The values are consumed in the order of activation functions, for
                 example (f, g, h) in LSTM.
 
-            output_sequence: The sequence output for the hidden is optional if 0.
-                Default 0.
-
-            activation_alpha: Optional scaling values used by some activation functions.
-                The values are consumed in the order of activation functions, for
-                example (f, g, h) in LSTM.
-
-            hidden_size: Number of neurons in the hidden layer
-
-            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
-                one of forward (default), reverse, or bidirectional.
-
             activations: A list of 2 (or 4 if bidirectional) activation functions for
                 update, reset, and hidden gates. The activation functions must be one of
                 the activation functions specified above. Optional: See the equations
                 for default if not specified.
+
+            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
+                range of [-threshold, +threshold] and is applied to the input of
+                activations. No clip if not specified.
+
+            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
+                one of forward (default), reverse, or bidirectional.
+
+            hidden_size: Number of neurons in the hidden layer
+
+            output_sequence: The sequence output for the hidden is optional if 0.
+                Default 0.
         """
 
         schema = get_schema("GRU", 1, "")
         op = Op(self, "GRU", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h),
-            clip=clip,
-            activation_beta=activation_beta,
-            output_sequence=output_sequence,
             activation_alpha=activation_alpha,
-            hidden_size=hidden_size,
-            direction=direction,
+            activation_beta=activation_beta,
             activations=activations,
+            clip=clip,
+            direction=direction,
+            hidden_size=hidden_size,
+            output_sequence=output_sequence,
         )
 
     T_Gather = TypeVar(
@@ -1217,11 +1217,11 @@ class Opset1(Opset):
         B: T_Gemm,
         C: T_Gemm,
         *,
+        alpha: float = 1.0,
         beta: float = 1.0,
         broadcast: int = 0,
-        transB: int = 0,
-        alpha: float = 1.0,
         transA: int = 0,
+        transB: int = 0,
     ) -> T_Gemm:
         r"""[🌐 Gemm(1)](https://onnx.ai/onnx/operators/onnx__Gemm.html#gemm-1 "Online Documentation")
 
@@ -1242,27 +1242,27 @@ class Opset1(Opset):
 
             C: Input tensor C, can be inplace.
 
+            alpha: Scalar multiplier for the product of input tensors A * B, the default
+                value is 1.0.
+
             beta: Scalar multiplier for input tensor C, the default value is 1.0.
 
             broadcast: Whether C should be broadcasted
 
-            transB: Whether B should be transposed
-
-            alpha: Scalar multiplier for the product of input tensors A * B, the default
-                value is 1.0.
-
             transA: Whether A should be transposed
+
+            transB: Whether B should be transposed
         """
 
         schema = get_schema("Gemm", 1, "")
         op = Op(self, "Gemm", schema)
         return op(
             *self._prepare_inputs(schema, A, B, C),
+            alpha=alpha,
             beta=beta,
             broadcast=broadcast,
-            transB=transB,
-            alpha=alpha,
             transA=transA,
+            transB=transB,
         )
 
     T_GlobalAveragePool = TypeVar("T_GlobalAveragePool", DOUBLE, FLOAT, FLOAT16)
@@ -1371,9 +1371,9 @@ class Opset1(Opset):
         self,
         X: T_HardSigmoid,
         *,
-        consumed_inputs: Optional[Sequence[int]] = None,
-        beta: float = 0.5,
         alpha: float = 0.20000000298023224,
+        beta: float = 0.5,
+        consumed_inputs: Optional[Sequence[int]] = None,
     ) -> T_HardSigmoid:
         r"""[🌐 HardSigmoid(1)](https://onnx.ai/onnx/operators/onnx__HardSigmoid.html#hardsigmoid-1 "Online Documentation")
 
@@ -1386,20 +1386,20 @@ class Opset1(Opset):
         Args:
             X: Input tensor
 
-            consumed_inputs: legacy optimization attribute.
+            alpha: Value of alpha default to 0.2
 
             beta: Value of beta default to 0.5
 
-            alpha: Value of alpha default to 0.2
+            consumed_inputs: legacy optimization attribute.
         """
 
         schema = get_schema("HardSigmoid", 1, "")
         op = Op(self, "HardSigmoid", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            consumed_inputs=consumed_inputs,
-            beta=beta,
             alpha=alpha,
+            beta=beta,
+            consumed_inputs=consumed_inputs,
         )
 
     T_Hardmax = TypeVar("T_Hardmax", DOUBLE, FLOAT, FLOAT16)
@@ -1522,8 +1522,8 @@ class Opset1(Opset):
         scale: T_InstanceNormalization,
         B: T_InstanceNormalization,
         *,
-        epsilon: float = 9.999999747378752e-06,
         consumed_inputs: Optional[Sequence[int]] = None,
+        epsilon: float = 9.999999747378752e-06,
     ) -> T_InstanceNormalization:
         r"""[🌐 InstanceNormalization(1)](https://onnx.ai/onnx/operators/onnx__InstanceNormalization.html#instancenormalization-1 "Online Documentation")
 
@@ -1543,18 +1543,18 @@ class Opset1(Opset):
 
             B: The input 1-dimensional bias tensor of size C.
 
+            consumed_inputs: legacy optimization attribute.
+
             epsilon: The epsilon value to use to avoid division by zero, default is
                 1e-5f.
-
-            consumed_inputs: legacy optimization attribute.
         """
 
         schema = get_schema("InstanceNormalization", 1, "")
         op = Op(self, "InstanceNormalization", schema)
         return op(
             *self._prepare_inputs(schema, input, scale, B),
-            epsilon=epsilon,
             consumed_inputs=consumed_inputs,
+            epsilon=epsilon,
         )
 
     T_LRN = TypeVar("T_LRN", DOUBLE, FLOAT, FLOAT16)
@@ -1563,9 +1563,9 @@ class Opset1(Opset):
         self,
         X: T_LRN,
         *,
-        bias: float = 1.0,
-        beta: float = 0.75,
         alpha: float = 9.999999747378752e-05,
+        beta: float = 0.75,
+        bias: float = 1.0,
         size: int,
     ) -> T_LRN:
         r"""[🌐 LRN(1)](https://onnx.ai/onnx/operators/onnx__LRN.html#lrn-1 "Online Documentation")
@@ -1593,9 +1593,9 @@ class Opset1(Opset):
                 dimension denotation of [DATA_BATCH, DATA_CHANNEL, DATA_FEATURE,
                 DATA_FEATURE ...].
 
-            beta: The exponent.
-
             alpha: Scaling parameter.
+
+            beta: The exponent.
 
             size: The number of channels to sum over
         """
@@ -1603,7 +1603,7 @@ class Opset1(Opset):
         schema = get_schema("LRN", 1, "")
         op = Op(self, "LRN", schema)
         return op(
-            *self._prepare_inputs(schema, X), bias=bias, beta=beta, alpha=alpha, size=size
+            *self._prepare_inputs(schema, X), alpha=alpha, beta=beta, bias=bias, size=size
         )
 
     T_LSTM = TypeVar("T_LSTM", DOUBLE, FLOAT, FLOAT16)
@@ -1621,14 +1621,14 @@ class Opset1(Opset):
         initial_c: Optional[T_LSTM] = None,
         P: Optional[T_LSTM] = None,
         *,
-        clip: Optional[float] = None,
-        activation_beta: Optional[Sequence[float]] = None,
-        output_sequence: int = 0,
         activation_alpha: Optional[Sequence[float]] = None,
-        hidden_size: Optional[int] = None,
-        direction: str = "forward",
-        input_forget: int = 0,
+        activation_beta: Optional[Sequence[float]] = None,
         activations: Optional[Sequence[str]] = None,
+        clip: Optional[float] = None,
+        direction: str = "forward",
+        hidden_size: Optional[int] = None,
+        input_forget: int = 0,
+        output_sequence: int = 0,
     ) -> Tuple[T_LSTM, T_LSTM, T_LSTM]:
         r"""[🌐 LSTM(1)](https://onnx.ai/onnx/operators/onnx__LSTM.html#lstm-1 "Online Documentation")
 
@@ -1749,49 +1749,49 @@ class Opset1(Opset):
                 `[num_directions, 3*hidde_size]`. Optional: If not specified - assumed
                 to be 0.
 
-            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
-                range of [-threshold, +threshold] and is applied to the input of
-                activations. No clip if not specified.
-
-            activation_beta: Optional scaling values used by some activation functions.
-                The values are consumed in the order of activation functions, for
-                example (f, g, h) in LSTM. Default values are the same as of
-                corresponding ONNX operators.
-
-            output_sequence: The sequence output for the hidden is optional if 0.
-                Default 0.
-
             activation_alpha: Optional scaling values used by some activation functions.
                 The values are consumed in the order of activation functions, for
                 example (f, g, h) in LSTM. Default values are the same as of
                 corresponding ONNX operators.For example with LeakyRelu, the default
                 alpha is 0.01.
 
-            hidden_size: Number of neurons in the hidden layer
-
-            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
-                one of forward (default), reverse, or bidirectional.
-
-            input_forget: Couple the input and forget gates if 1, default 0.
+            activation_beta: Optional scaling values used by some activation functions.
+                The values are consumed in the order of activation functions, for
+                example (f, g, h) in LSTM. Default values are the same as of
+                corresponding ONNX operators.
 
             activations: A list of 3 (or 6 if bidirectional) activation functions for
                 input, output, forget, cell, and hidden. The activation functions must
                 be one of the activation functions specified above. Optional: See the
                 equations for default if not specified.
+
+            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
+                range of [-threshold, +threshold] and is applied to the input of
+                activations. No clip if not specified.
+
+            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
+                one of forward (default), reverse, or bidirectional.
+
+            hidden_size: Number of neurons in the hidden layer
+
+            input_forget: Couple the input and forget gates if 1, default 0.
+
+            output_sequence: The sequence output for the hidden is optional if 0.
+                Default 0.
         """
 
         schema = get_schema("LSTM", 1, "")
         op = Op(self, "LSTM", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h, initial_c, P),
-            clip=clip,
-            activation_beta=activation_beta,
-            output_sequence=output_sequence,
             activation_alpha=activation_alpha,
-            hidden_size=hidden_size,
-            direction=direction,
-            input_forget=input_forget,
+            activation_beta=activation_beta,
             activations=activations,
+            clip=clip,
+            direction=direction,
+            hidden_size=hidden_size,
+            input_forget=input_forget,
+            output_sequence=output_sequence,
         )
 
     T_LeakyRelu = TypeVar("T_LeakyRelu", DOUBLE, FLOAT, FLOAT16)
@@ -1800,8 +1800,8 @@ class Opset1(Opset):
         self,
         X: T_LeakyRelu,
         *,
-        consumed_inputs: Optional[Sequence[int]] = None,
         alpha: float = 0.009999999776482582,
+        consumed_inputs: Optional[Sequence[int]] = None,
     ) -> T_LeakyRelu:
         r"""[🌐 LeakyRelu(1)](https://onnx.ai/onnx/operators/onnx__LeakyRelu.html#leakyrelu-1 "Online Documentation")
 
@@ -1814,15 +1814,15 @@ class Opset1(Opset):
         Args:
             X: Input tensor
 
-            consumed_inputs: legacy optimization attribute.
-
             alpha: Coefficient of leakage default to 0.01.
+
+            consumed_inputs: legacy optimization attribute.
         """
 
         schema = get_schema("LeakyRelu", 1, "")
         op = Op(self, "LeakyRelu", schema)
         return op(
-            *self._prepare_inputs(schema, X), consumed_inputs=consumed_inputs, alpha=alpha
+            *self._prepare_inputs(schema, X), alpha=alpha, consumed_inputs=consumed_inputs
         )
 
     T_Less = TypeVar("T_Less", DOUBLE, FLOAT, FLOAT16)
@@ -2081,7 +2081,7 @@ class Opset1(Opset):
     T_LpNormalization = TypeVar("T_LpNormalization", DOUBLE, FLOAT, FLOAT16)
 
     def LpNormalization(
-        self, input: T_LpNormalization, *, p: int = 2, axis: int = -1
+        self, input: T_LpNormalization, *, axis: int = -1, p: int = 2
     ) -> T_LpNormalization:
         r"""[🌐 LpNormalization(1)](https://onnx.ai/onnx/operators/onnx__LpNormalization.html#lpnormalization-1 "Online Documentation")
 
@@ -2092,14 +2092,14 @@ class Opset1(Opset):
         Args:
             input: (differentiable) Input matrix
 
-            p: The order of the normalization, only 1 or 2 are supported.
-
             axis: The axis on which to apply normalization, -1 mean last axis.
+
+            p: The order of the normalization, only 1 or 2 are supported.
         """
 
         schema = get_schema("LpNormalization", 1, "")
         op = Op(self, "LpNormalization", schema)
-        return op(*self._prepare_inputs(schema, input), p=p, axis=axis)
+        return op(*self._prepare_inputs(schema, input), axis=axis, p=p)
 
     T_LpPool = TypeVar("T_LpPool", DOUBLE, FLOAT, FLOAT16)
 
@@ -2107,11 +2107,11 @@ class Opset1(Opset):
         self,
         X: T_LpPool,
         *,
+        auto_pad: str = "NOTSET",
+        kernel_shape: Optional[Sequence[int]] = None,
         p: float = 2.0,
         pads: Optional[Sequence[int]] = None,
-        auto_pad: str = "NOTSET",
         strides: Optional[Sequence[int]] = None,
-        kernel_shape: Optional[Sequence[int]] = None,
     ) -> T_LpPool:
         r"""[🌐 LpPool(1)](https://onnx.ai/onnx/operators/onnx__LpPool.html#lppool-1 "Online Documentation")
 
@@ -2129,6 +2129,17 @@ class Opset1(Opset):
                 image case, the dimension are in the form of (N x C x D1 x D2 ... Dn),
                 where N is the batch size.
 
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that the output size
+                match the input.In case of odd number add the extra padding at the end
+                for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
+                padding. DEPRECATION NOTE: auto_pad is only intended to support legacy
+                uses, and for framework authors, one is explicitly encouraged to use
+                explicit padding specified in the pads attribute.
+
+            kernel_shape: The size of the kernel along each axis.
+
             p: p value of the Lp norm used to pool over the input data, default is 2.0.
 
             pads: Padding for the beginning and ending along each axis, it can take any
@@ -2140,29 +2151,18 @@ class Opset1(Opset):
                 `i`. This attribute cannot be used simultaneously with auto_pad
                 attribute.
 
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that the output size
-                match the input.In case of odd number add the extra padding at the end
-                for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
-                padding. DEPRECATION NOTE: auto_pad is only intended to support legacy
-                uses, and for framework authors, one is explicitly encouraged to use
-                explicit padding specified in the pads attribute.
-
             strides: Stride along each axis.
-
-            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("LpPool", 1, "")
         op = Op(self, "LpPool", schema)
         return op(
             *self._prepare_inputs(schema, X),
+            auto_pad=auto_pad,
+            kernel_shape=kernel_shape,
             p=p,
             pads=pads,
-            auto_pad=auto_pad,
             strides=strides,
-            kernel_shape=kernel_shape,
         )
 
     T_MatMul = TypeVar("T_MatMul", DOUBLE, FLOAT, FLOAT16)
@@ -2210,10 +2210,10 @@ class Opset1(Opset):
         self,
         X: T_MaxPool,
         *,
-        pads: Optional[Sequence[int]] = None,
         auto_pad: str = "NOTSET",
-        strides: Optional[Sequence[int]] = None,
         kernel_shape: Sequence[int],
+        pads: Optional[Sequence[int]] = None,
+        strides: Optional[Sequence[int]] = None,
     ) -> T_MaxPool:
         r"""[🌐 MaxPool(1)](https://onnx.ai/onnx/operators/onnx__MaxPool.html#maxpool-1 "Online Documentation")
 
@@ -2251,6 +2251,15 @@ class Opset1(Opset):
                 dimension denotation of [DATA_BATCH, DATA_CHANNEL, DATA_FEATURE,
                 DATA_FEATURE ...].
 
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
+                size match the input.In case of odd number add the extra padding at the
+                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
+                padding.
+
+            kernel_shape: The size of the kernel along each axis.
+
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
                 number of pixels added to the beginning and end part of the
@@ -2261,26 +2270,17 @@ class Opset1(Opset):
                 simultaneously with auto_pad attribute. If not present, the padding
                 defaults to 0 along start and end of each spatial axis.
 
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
-                size match the input.In case of odd number add the extra padding at the
-                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
-                padding.
-
             strides: Stride along each spatial axis.
-
-            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("MaxPool", 1, "")
         op = Op(self, "MaxPool", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            pads=pads,
             auto_pad=auto_pad,
-            strides=strides,
             kernel_shape=kernel_shape,
+            pads=pads,
+            strides=strides,
         )
 
     T_MaxRoiPool = TypeVar("T_MaxRoiPool", DOUBLE, FLOAT, FLOAT16)
@@ -2290,8 +2290,8 @@ class Opset1(Opset):
         X: T_MaxRoiPool,
         rois: T_MaxRoiPool,
         *,
-        spatial_scale: float = 1.0,
         pooled_shape: Sequence[int],
+        spatial_scale: float = 1.0,
     ) -> T_MaxRoiPool:
         r"""[🌐 MaxRoiPool(1)](https://onnx.ai/onnx/operators/onnx__MaxRoiPool.html#maxroipool-1 "Online Documentation")
 
@@ -2310,18 +2310,18 @@ class Opset1(Opset):
                 be a 2-D tensor of shape (num_rois, 5) given as [[batch_id, x1, y1, x2,
                 y2], ...].
 
+            pooled_shape: ROI pool output shape (height, width).
+
             spatial_scale: Multiplicative spatial scale factor to translate ROI
                 coordinates from their input scale to the scale used when pooling.
-
-            pooled_shape: ROI pool output shape (height, width).
         """
 
         schema = get_schema("MaxRoiPool", 1, "")
         op = Op(self, "MaxRoiPool", schema)
         return op(
             *self._prepare_inputs(schema, X, rois),
-            spatial_scale=spatial_scale,
             pooled_shape=pooled_shape,
+            spatial_scale=spatial_scale,
         )
 
     T_Mean = TypeVar("T_Mean", DOUBLE, FLOAT, FLOAT16)
@@ -2372,8 +2372,8 @@ class Opset1(Opset):
         B: T_Mul,
         *,
         axis: Optional[int] = None,
-        consumed_inputs: Optional[Sequence[int]] = None,
         broadcast: int = 0,
+        consumed_inputs: Optional[Sequence[int]] = None,
     ) -> T_Mul:
         r"""[🌐 Mul(1)](https://onnx.ai/onnx/operators/onnx__Mul.html#mul-1 "Online Documentation")
 
@@ -2408,9 +2408,9 @@ class Opset1(Opset):
 
             axis: If set, defines the broadcast dimensions. See doc for details.
 
-            consumed_inputs: legacy optimization attribute.
-
             broadcast: Pass 1 to enable broadcasting
+
+            consumed_inputs: legacy optimization attribute.
         """
 
         schema = get_schema("Mul", 1, "")
@@ -2418,8 +2418,8 @@ class Opset1(Opset):
         return op(
             *self._prepare_inputs(schema, A, B),
             axis=axis,
-            consumed_inputs=consumed_inputs,
             broadcast=broadcast,
+            consumed_inputs=consumed_inputs,
         )
 
     T_Neg = TypeVar("T_Neg", DOUBLE, FLOAT, FLOAT16)
@@ -2524,9 +2524,9 @@ class Opset1(Opset):
         self,
         data: T_Pad,
         *,
-        value: float = 0.0,
         mode: str = "constant",
         paddings: Sequence[int],
+        value: float = 0.0,
     ) -> T_Pad:
         r"""[🌐 Pad(1)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-1 "Online Documentation")
 
@@ -2552,8 +2552,6 @@ class Opset1(Opset):
         Args:
             data: Input tensor.
 
-            value: One float, indicates the value to be filled, default is 0
-
             mode: Three modes: constant(default), reflect, edge
 
             paddings: List of integers indicate the padding element count at the
@@ -2562,12 +2560,14 @@ class Opset1(Opset):
                 should be as follow [x1_begin, x2_begin...x1_end, x2_end,...], where
                 xi_begin the number of pixels added at the beginning of axis `i` and
                 xi_end, the number of pixels added at the end of axis `i`.
+
+            value: One float, indicates the value to be filled, default is 0
         """
 
         schema = get_schema("Pad", 1, "")
         op = Op(self, "Pad", schema)
         return op(
-            *self._prepare_inputs(schema, data), value=value, mode=mode, paddings=paddings
+            *self._prepare_inputs(schema, data), mode=mode, paddings=paddings, value=value
         )
 
     T_Pow = TypeVar("T_Pow", DOUBLE, FLOAT, FLOAT16)
@@ -2630,13 +2630,13 @@ class Opset1(Opset):
         sequence_lens: Optional[T1_RNN] = None,
         initial_h: Optional[T_RNN] = None,
         *,
-        clip: Optional[float] = None,
-        activation_beta: Optional[Sequence[float]] = None,
-        output_sequence: int = 0,
         activation_alpha: Optional[Sequence[float]] = None,
-        hidden_size: Optional[int] = None,
-        direction: str = "forward",
+        activation_beta: Optional[Sequence[float]] = None,
         activations: Sequence[str] = ("Tanh", "Tanh"),
+        clip: Optional[float] = None,
+        direction: str = "forward",
+        hidden_size: Optional[int] = None,
+        output_sequence: int = 0,
     ) -> Tuple[T_RNN, T_RNN]:
         r"""[🌐 RNN(1)](https://onnx.ai/onnx/operators/onnx__RNN.html#rnn-1 "Online Documentation")
 
@@ -2728,45 +2728,45 @@ class Opset1(Opset):
                 - assumed to be 0. It has shape `[num_directions, batch_size,
                 hidden_size]`.
 
-            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
-                range of [-threshold, +threshold] and is applied to the input of
-                activations. No clip if not specified.
-
-            activation_beta: Optional scaling values used by some activation functions.
-                The values are consumed in the order of activation functions, for
-                example (f, g, h) in LSTM. Default values are the same as of
-                corresponding ONNX operators.
-
-            output_sequence: The sequence output for the hidden is optional if 0.
-                Default 0.
-
             activation_alpha: Optional scaling values used by some activation functions.
                 The values are consumed in the order of activation functions, for
                 example (f, g, h) in LSTM. Default values are the same as of
                 corresponding ONNX operators.For example with LeakyRelu, the default
                 alpha is 0.01.
 
-            hidden_size: Number of neurons in the hidden layer
-
-            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
-                one of forward (default), reverse, or bidirectional.
+            activation_beta: Optional scaling values used by some activation functions.
+                The values are consumed in the order of activation functions, for
+                example (f, g, h) in LSTM. Default values are the same as of
+                corresponding ONNX operators.
 
             activations: One (or two if bidirectional) activation function for input
                 gate. The activation function must be one of the activation functions
                 specified above. Optional: Default `Tanh` if not specified.
+
+            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
+                range of [-threshold, +threshold] and is applied to the input of
+                activations. No clip if not specified.
+
+            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
+                one of forward (default), reverse, or bidirectional.
+
+            hidden_size: Number of neurons in the hidden layer
+
+            output_sequence: The sequence output for the hidden is optional if 0.
+                Default 0.
         """
 
         schema = get_schema("RNN", 1, "")
         op = Op(self, "RNN", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h),
-            clip=clip,
-            activation_beta=activation_beta,
-            output_sequence=output_sequence,
             activation_alpha=activation_alpha,
-            hidden_size=hidden_size,
-            direction=direction,
+            activation_beta=activation_beta,
             activations=activations,
+            clip=clip,
+            direction=direction,
+            hidden_size=hidden_size,
+            output_sequence=output_sequence,
         )
 
     T_RandomNormal: TypeAlias = Union[DOUBLE, FLOAT, FLOAT16]
@@ -2774,11 +2774,11 @@ class Opset1(Opset):
     def RandomNormal(
         self,
         *,
-        shape: Sequence[int],
         dtype: int = 1,
-        seed: Optional[float] = None,
-        scale: float = 1.0,
         mean: float = 0.0,
+        scale: float = 1.0,
+        seed: Optional[float] = None,
+        shape: Sequence[int],
     ) -> T_RandomNormal:
         r"""[🌐 RandomNormal(1)](https://onnx.ai/onnx/operators/onnx__RandomNormal.html#randomnormal-1 "Online Documentation")
 
@@ -2793,22 +2793,22 @@ class Opset1(Opset):
 
 
         Args:
-            shape: The shape of the output tensor.
-
             dtype: The data type for the elements of the output tensor. Default is
                 TensorProto::FLOAT.
+
+            mean: The mean of the normal distribution.
+
+            scale: The standard deviation of the normal distribution.
 
             seed: (Optional) Seed to the random generator, if not specified we will auto
                 generate one.
 
-            scale: The standard deviation of the normal distribution.
-
-            mean: The mean of the normal distribution.
+            shape: The shape of the output tensor.
         """
 
         schema = get_schema("RandomNormal", 1, "")
         op = Op(self, "RandomNormal", schema)
-        return op(shape=shape, dtype=dtype, seed=seed, scale=scale, mean=mean)
+        return op(dtype=dtype, mean=mean, scale=scale, seed=seed, shape=shape)
 
     T1_RandomNormalLike = TypeVar(
         "T1_RandomNormalLike",
@@ -2836,9 +2836,9 @@ class Opset1(Opset):
         input: T1_RandomNormalLike,
         *,
         dtype: Optional[int] = None,
-        seed: Optional[float] = None,
-        scale: float = 1.0,
         mean: float = 0.0,
+        scale: float = 1.0,
+        seed: Optional[float] = None,
     ) -> T2_RandomNormalLike:
         r"""[🌐 RandomNormalLike(1)](https://onnx.ai/onnx/operators/onnx__RandomNormalLike.html#randomnormallike-1 "Online Documentation")
 
@@ -2858,12 +2858,12 @@ class Opset1(Opset):
             dtype: (Optional) The data type for the elements of the output tensor, if
                 not specified, we will use the data type of the input tensor.
 
-            seed: (Optional) Seed to the random generator, if not specified we will auto
-                generate one.
+            mean: The mean of the normal distribution.
 
             scale: The standard deviation of the normal distribution.
 
-            mean: The mean of the normal distribution.
+            seed: (Optional) Seed to the random generator, if not specified we will auto
+                generate one.
         """
 
         schema = get_schema("RandomNormalLike", 1, "")
@@ -2871,9 +2871,9 @@ class Opset1(Opset):
         return op(
             *self._prepare_inputs(schema, input),
             dtype=dtype,
-            seed=seed,
-            scale=scale,
             mean=mean,
+            scale=scale,
+            seed=seed,
         )
 
     T_RandomUniform: TypeAlias = Union[DOUBLE, FLOAT, FLOAT16]
@@ -2881,11 +2881,11 @@ class Opset1(Opset):
     def RandomUniform(
         self,
         *,
-        shape: Sequence[int],
         dtype: int = 1,
-        seed: Optional[float] = None,
         high: float = 1.0,
         low: float = 0.0,
+        seed: Optional[float] = None,
+        shape: Sequence[int],
     ) -> T_RandomUniform:
         r"""[🌐 RandomUniform(1)](https://onnx.ai/onnx/operators/onnx__RandomUniform.html#randomuniform-1 "Online Documentation")
 
@@ -2899,22 +2899,22 @@ class Opset1(Opset):
 
 
         Args:
-            shape: The shape of the output tensor.
-
             dtype: The data type for the elements of the output tensor. If not
                 specified, default is TensorProto::FLOAT.
-
-            seed: (Optional) Seed to the random generator, if not specified we will auto
-                generate one.
 
             high: Upper boundary of the output values.
 
             low: Lower boundary of the output values.
+
+            seed: (Optional) Seed to the random generator, if not specified we will auto
+                generate one.
+
+            shape: The shape of the output tensor.
         """
 
         schema = get_schema("RandomUniform", 1, "")
         op = Op(self, "RandomUniform", schema)
-        return op(shape=shape, dtype=dtype, seed=seed, high=high, low=low)
+        return op(dtype=dtype, high=high, low=low, seed=seed, shape=shape)
 
     T1_RandomUniformLike = TypeVar(
         "T1_RandomUniformLike",
@@ -2942,9 +2942,9 @@ class Opset1(Opset):
         input: T1_RandomUniformLike,
         *,
         dtype: Optional[int] = None,
-        seed: Optional[float] = None,
         high: float = 1.0,
         low: float = 0.0,
+        seed: Optional[float] = None,
     ) -> T2_RandomUniformLike:
         r"""[🌐 RandomUniformLike(1)](https://onnx.ai/onnx/operators/onnx__RandomUniformLike.html#randomuniformlike-1 "Online Documentation")
 
@@ -2964,18 +2964,18 @@ class Opset1(Opset):
             dtype: (Optional) The data type for the elements of the output tensor, if
                 not specified, we will use the data type of the input tensor.
 
-            seed: (Optional) Seed to the random generator, if not specified we will auto
-                generate one.
-
             high: Upper boundary of the output values.
 
             low: Lower boundary of the output values.
+
+            seed: (Optional) Seed to the random generator, if not specified we will auto
+                generate one.
         """
 
         schema = get_schema("RandomUniformLike", 1, "")
         op = Op(self, "RandomUniformLike", schema)
         return op(
-            *self._prepare_inputs(schema, input), dtype=dtype, seed=seed, high=high, low=low
+            *self._prepare_inputs(schema, input), dtype=dtype, high=high, low=low, seed=seed
         )
 
     T_Reciprocal = TypeVar("T_Reciprocal", DOUBLE, FLOAT, FLOAT16)
@@ -3004,7 +3004,7 @@ class Opset1(Opset):
     T_ReduceL1 = TypeVar("T_ReduceL1", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceL1(
-        self, data: T_ReduceL1, *, keepdims: int = 1, axes: Optional[Sequence[int]] = None
+        self, data: T_ReduceL1, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceL1:
         r"""[🌐 ReduceL1(1)](https://onnx.ai/onnx/operators/onnx__ReduceL1.html#reducel1-1 "Online Documentation")
 
@@ -3020,21 +3020,21 @@ class Opset1(Opset):
         Args:
             data: An input tensor.
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             axes: A list of integers, along which to reduce. The default is to reduce
                 over all the dimensions of the input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceL1", 1, "")
         op = Op(self, "ReduceL1", schema)
-        return op(*self._prepare_inputs(schema, data), keepdims=keepdims, axes=axes)
+        return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
     T_ReduceL2 = TypeVar("T_ReduceL2", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceL2(
-        self, data: T_ReduceL2, *, keepdims: int = 1, axes: Optional[Sequence[int]] = None
+        self, data: T_ReduceL2, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceL2:
         r"""[🌐 ReduceL2(1)](https://onnx.ai/onnx/operators/onnx__ReduceL2.html#reducel2-1 "Online Documentation")
 
@@ -3050,23 +3050,23 @@ class Opset1(Opset):
         Args:
             data: An input tensor.
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             axes: A list of integers, along which to reduce. The default is to reduce
                 over all the dimensions of the input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceL2", 1, "")
         op = Op(self, "ReduceL2", schema)
-        return op(*self._prepare_inputs(schema, data), keepdims=keepdims, axes=axes)
+        return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
     T_ReduceLogSum = TypeVar(
         "T_ReduceLogSum", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
     )
 
     def ReduceLogSum(
-        self, data: T_ReduceLogSum, *, keepdims: int = 1, axes: Optional[Sequence[int]] = None
+        self, data: T_ReduceLogSum, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceLogSum:
         r"""[🌐 ReduceLogSum(1)](https://onnx.ai/onnx/operators/onnx__ReduceLogSum.html#reducelogsum-1 "Online Documentation")
 
@@ -3082,16 +3082,16 @@ class Opset1(Opset):
         Args:
             data: An input tensor.
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             axes: A list of integers, along which to reduce. The default is to reduce
                 over all the dimensions of the input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceLogSum", 1, "")
         op = Op(self, "ReduceLogSum", schema)
-        return op(*self._prepare_inputs(schema, data), keepdims=keepdims, axes=axes)
+        return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
     T_ReduceLogSumExp = TypeVar(
         "T_ReduceLogSumExp", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
@@ -3101,8 +3101,8 @@ class Opset1(Opset):
         self,
         data: T_ReduceLogSumExp,
         *,
-        keepdims: int = 1,
         axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceLogSumExp:
         r"""[🌐 ReduceLogSumExp(1)](https://onnx.ai/onnx/operators/onnx__ReduceLogSumExp.html#reducelogsumexp-1 "Online Documentation")
 
@@ -3118,21 +3118,21 @@ class Opset1(Opset):
         Args:
             data: An input tensor.
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             axes: A list of integers, along which to reduce. The default is to reduce
                 over all the dimensions of the input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceLogSumExp", 1, "")
         op = Op(self, "ReduceLogSumExp", schema)
-        return op(*self._prepare_inputs(schema, data), keepdims=keepdims, axes=axes)
+        return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
     T_ReduceMax = TypeVar("T_ReduceMax", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceMax(
-        self, data: T_ReduceMax, *, keepdims: int = 1, axes: Optional[Sequence[int]] = None
+        self, data: T_ReduceMax, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceMax:
         r"""[🌐 ReduceMax(1)](https://onnx.ai/onnx/operators/onnx__ReduceMax.html#reducemax-1 "Online Documentation")
 
@@ -3148,23 +3148,23 @@ class Opset1(Opset):
         Args:
             data: An input tensor.
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             axes: A list of integers, along which to reduce. The default is to reduce
                 over all the dimensions of the input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceMax", 1, "")
         op = Op(self, "ReduceMax", schema)
-        return op(*self._prepare_inputs(schema, data), keepdims=keepdims, axes=axes)
+        return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
     T_ReduceMean = TypeVar(
         "T_ReduceMean", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
     )
 
     def ReduceMean(
-        self, data: T_ReduceMean, *, keepdims: int = 1, axes: Optional[Sequence[int]] = None
+        self, data: T_ReduceMean, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceMean:
         r"""[🌐 ReduceMean(1)](https://onnx.ai/onnx/operators/onnx__ReduceMean.html#reducemean-1 "Online Documentation")
 
@@ -3180,21 +3180,21 @@ class Opset1(Opset):
         Args:
             data: An input tensor.
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             axes: A list of integers, along which to reduce. The default is to reduce
                 over all the dimensions of the input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceMean", 1, "")
         op = Op(self, "ReduceMean", schema)
-        return op(*self._prepare_inputs(schema, data), keepdims=keepdims, axes=axes)
+        return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
     T_ReduceMin = TypeVar("T_ReduceMin", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceMin(
-        self, data: T_ReduceMin, *, keepdims: int = 1, axes: Optional[Sequence[int]] = None
+        self, data: T_ReduceMin, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceMin:
         r"""[🌐 ReduceMin(1)](https://onnx.ai/onnx/operators/onnx__ReduceMin.html#reducemin-1 "Online Documentation")
 
@@ -3210,23 +3210,23 @@ class Opset1(Opset):
         Args:
             data: An input tensor.
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             axes: A list of integers, along which to reduce. The default is to reduce
                 over all the dimensions of the input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceMin", 1, "")
         op = Op(self, "ReduceMin", schema)
-        return op(*self._prepare_inputs(schema, data), keepdims=keepdims, axes=axes)
+        return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
     T_ReduceProd = TypeVar(
         "T_ReduceProd", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
     )
 
     def ReduceProd(
-        self, data: T_ReduceProd, *, keepdims: int = 1, axes: Optional[Sequence[int]] = None
+        self, data: T_ReduceProd, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceProd:
         r"""[🌐 ReduceProd(1)](https://onnx.ai/onnx/operators/onnx__ReduceProd.html#reduceprod-1 "Online Documentation")
 
@@ -3242,21 +3242,21 @@ class Opset1(Opset):
         Args:
             data: An input tensor.
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             axes: A list of integers, along which to reduce. The default is to reduce
                 over all the dimensions of the input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceProd", 1, "")
         op = Op(self, "ReduceProd", schema)
-        return op(*self._prepare_inputs(schema, data), keepdims=keepdims, axes=axes)
+        return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
     T_ReduceSum = TypeVar("T_ReduceSum", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceSum(
-        self, data: T_ReduceSum, *, keepdims: int = 1, axes: Optional[Sequence[int]] = None
+        self, data: T_ReduceSum, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T_ReduceSum:
         r"""[🌐 ReduceSum(1)](https://onnx.ai/onnx/operators/onnx__ReduceSum.html#reducesum-1 "Online Documentation")
 
@@ -3272,16 +3272,16 @@ class Opset1(Opset):
         Args:
             data: An input tensor.
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             axes: A list of integers, along which to reduce. The default is to reduce
                 over all the dimensions of the input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceSum", 1, "")
         op = Op(self, "ReduceSum", schema)
-        return op(*self._prepare_inputs(schema, data), keepdims=keepdims, axes=axes)
+        return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
     T_ReduceSumSquare = TypeVar(
         "T_ReduceSumSquare", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
@@ -3291,8 +3291,8 @@ class Opset1(Opset):
         self,
         data: T_ReduceSumSquare,
         *,
-        keepdims: int = 1,
         axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
     ) -> T_ReduceSumSquare:
         r"""[🌐 ReduceSumSquare(1)](https://onnx.ai/onnx/operators/onnx__ReduceSumSquare.html#reducesumsquare-1 "Online Documentation")
 
@@ -3308,16 +3308,16 @@ class Opset1(Opset):
         Args:
             data: An input tensor.
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             axes: A list of integers, along which to reduce. The default is to reduce
                 over all the dimensions of the input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceSumSquare", 1, "")
         op = Op(self, "ReduceSumSquare", schema)
-        return op(*self._prepare_inputs(schema, data), keepdims=keepdims, axes=axes)
+        return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
     T_Relu = TypeVar("T_Relu", DOUBLE, FLOAT, FLOAT16)
 
@@ -3380,9 +3380,9 @@ class Opset1(Opset):
         self,
         X: T_Selu,
         *,
+        alpha: float = 1.673200011253357,
         consumed_inputs: Optional[Sequence[int]] = None,
         gamma: float = 1.0506999492645264,
-        alpha: float = 1.673200011253357,
     ) -> T_Selu:
         r"""[🌐 Selu(1)](https://onnx.ai/onnx/operators/onnx__Selu.html#selu-1 "Online Documentation")
 
@@ -3396,20 +3396,20 @@ class Opset1(Opset):
         Args:
             X: Input tensor
 
+            alpha: Coefficient of SELU default to 1.6732.
+
             consumed_inputs: legacy optimization attribute.
 
             gamma: Coefficient of SELU default to 1.0507.
-
-            alpha: Coefficient of SELU default to 1.6732.
         """
 
         schema = get_schema("Selu", 1, "")
         op = Op(self, "Selu", schema)
         return op(
             *self._prepare_inputs(schema, X),
+            alpha=alpha,
             consumed_inputs=consumed_inputs,
             gamma=gamma,
-            alpha=alpha,
         )
 
     T_Shape = TypeVar(
@@ -3530,9 +3530,9 @@ class Opset1(Opset):
         self,
         data: T_Slice,
         *,
+        axes: Optional[Sequence[int]] = None,
         ends: Sequence[int],
         starts: Sequence[int],
-        axes: Optional[Sequence[int]] = None,
     ) -> T_Slice:
         r"""[🌐 Slice(1)](https://onnx.ai/onnx/operators/onnx__Slice.html#slice-1 "Online Documentation")
 
@@ -3573,17 +3573,17 @@ class Opset1(Opset):
         Args:
             data: Tensor of data to extract slices from.
 
+            axes: Axes that `starts` and `ends` apply to. It's optional. If not present,
+                will be treated as [0, 1, ..., len(`starts`) - 1].
+
             ends: Ending indices (exclusive) of corresponding axis in axes`
 
             starts: Starting indices of corresponding axis in `axes`
-
-            axes: Axes that `starts` and `ends` apply to. It's optional. If not present,
-                will be treated as [0, 1, ..., len(`starts`) - 1].
         """
 
         schema = get_schema("Slice", 1, "")
         op = Op(self, "Slice", schema)
-        return op(*self._prepare_inputs(schema, data), ends=ends, starts=starts, axes=axes)
+        return op(*self._prepare_inputs(schema, data), axes=axes, ends=ends, starts=starts)
 
     T_Softmax = TypeVar("T_Softmax", DOUBLE, FLOAT, FLOAT16)
 
@@ -3701,8 +3701,8 @@ class Opset1(Opset):
         input: T_Split,
         split_: Optional[T_Split] = None,
         *,
-        split: Optional[Sequence[int]] = None,
         axis: Optional[int] = None,
+        split: Optional[Sequence[int]] = None,
     ) -> T_Split:
         r"""[🌐 Split(1)](https://onnx.ai/onnx/operators/onnx__Split.html#split-1 "Online Documentation")
 
@@ -3717,14 +3717,14 @@ class Opset1(Opset):
 
             split_: (optional) Optional list of output lengths (see also arg 'split')
 
-            split: length of each output
-
             axis: Which axis to split on
+
+            split: length of each output
         """
 
         schema = get_schema("Split", 1, "")
         op = Op(self, "Split", schema)
-        return op(*self._prepare_inputs(schema, input, split_), split=split, axis=axis)
+        return op(*self._prepare_inputs(schema, input, split_), axis=axis, split=split)
 
     T_Sqrt = TypeVar("T_Sqrt", DOUBLE, FLOAT, FLOAT16)
 
@@ -3794,8 +3794,8 @@ class Opset1(Opset):
         B: T_Sub,
         *,
         axis: Optional[int] = None,
-        consumed_inputs: Optional[Sequence[int]] = None,
         broadcast: int = 0,
+        consumed_inputs: Optional[Sequence[int]] = None,
     ) -> T_Sub:
         r"""[🌐 Sub(1)](https://onnx.ai/onnx/operators/onnx__Sub.html#sub-1 "Online Documentation")
 
@@ -3830,9 +3830,9 @@ class Opset1(Opset):
 
             axis: If set, defines the broadcast dimensions. See doc for details.
 
-            consumed_inputs: legacy optimization attribute.
-
             broadcast: Pass 1 to enable broadcasting
+
+            consumed_inputs: legacy optimization attribute.
         """
 
         schema = get_schema("Sub", 1, "")
@@ -3840,8 +3840,8 @@ class Opset1(Opset):
         return op(
             *self._prepare_inputs(schema, A, B),
             axis=axis,
-            consumed_inputs=consumed_inputs,
             broadcast=broadcast,
+            consumed_inputs=consumed_inputs,
         )
 
     T_Sum = TypeVar("T_Sum", DOUBLE, FLOAT, FLOAT16)
@@ -4019,7 +4019,7 @@ class Opset1(Opset):
     T_Upsample = TypeVar("T_Upsample", BOOL, DOUBLE, FLOAT, FLOAT16, INT32, INT64)
 
     def Upsample(
-        self, X: T_Upsample, *, mode: str = "nearest", height_scale: float, width_scale: float
+        self, X: T_Upsample, *, height_scale: float, mode: str = "nearest", width_scale: float
     ) -> T_Upsample:
         r"""[🌐 Upsample(1)](https://onnx.ai/onnx/operators/onnx__Upsample.html#upsample-1 "Online Documentation")
 
@@ -4049,10 +4049,10 @@ class Opset1(Opset):
         Args:
             X: 4-D tensor, [N,C,H,W]
 
-            mode: Two interpolation modes: nearest(default), bilinear
-
             height_scale: The scale along height dimension. It takes value greater than
                 or equal to 1.
+
+            mode: Two interpolation modes: nearest(default), bilinear
 
             width_scale: The scale along width dimension. It takes value greater than or
                 equal to 1.
@@ -4062,8 +4062,8 @@ class Opset1(Opset):
         op = Op(self, "Upsample", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            mode=mode,
             height_scale=height_scale,
+            mode=mode,
             width_scale=width_scale,
         )
 

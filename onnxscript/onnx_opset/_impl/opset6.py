@@ -130,9 +130,9 @@ class Opset6(Opset5):
         mean: T_BatchNormalization,
         var: T_BatchNormalization,
         *,
-        momentum: float = 0.8999999761581421,
         epsilon: float = 9.999999747378752e-06,
         is_test: int = 0,
+        momentum: float = 0.8999999761581421,
         spatial: int = 1,
     ) -> Tuple[
         T_BatchNormalization,
@@ -170,15 +170,15 @@ class Opset6(Opset5):
             var: The running variance (training) or the estimated variance (testing) as
                 a 1-dimensional tensor of size C.
 
-            momentum: Factor used in computing the running mean and variance.e.g.,
-                running_mean = running_mean * momentum + mean * (1 - momentum), default
-                is 0.9f.
-
             epsilon: The epsilon value to use to avoid division by zero, default is
                 1e-5f.
 
             is_test: If set to nonzero, run spatial batch normalization in test mode,
                 default is 0.
+
+            momentum: Factor used in computing the running mean and variance.e.g.,
+                running_mean = running_mean * momentum + mean * (1 - momentum), default
+                is 0.9f.
 
             spatial: If true, compute the mean and variance across all spatial elements
                 If false, compute the mean and variance across per feature.Default is 1.
@@ -188,9 +188,9 @@ class Opset6(Opset5):
         op = Op(self, "BatchNormalization", schema)
         return op(
             *self._prepare_inputs(schema, X, scale, B, mean, var),
-            momentum=momentum,
             epsilon=epsilon,
             is_test=is_test,
+            momentum=momentum,
             spatial=spatial,
         )
 
@@ -423,11 +423,11 @@ class Opset6(Opset5):
         B: T_Gemm,
         C: T_Gemm,
         *,
+        alpha: float = 1.0,
         beta: float = 1.0,
         broadcast: int = 0,
-        transB: int = 0,
-        alpha: float = 1.0,
         transA: int = 0,
+        transB: int = 0,
     ) -> T_Gemm:
         r"""[🌐 Gemm(6)](https://onnx.ai/onnx/operators/onnx__Gemm.html#gemm-6 "Online Documentation")
 
@@ -448,33 +448,33 @@ class Opset6(Opset5):
 
             C: Input tensor C
 
+            alpha: Scalar multiplier for the product of input tensors A * B, the default
+                value is 1.0.
+
             beta: Scalar multiplier for input tensor C, the default value is 1.0.
 
             broadcast: Whether C should be broadcasted
 
-            transB: Whether B should be transposed
-
-            alpha: Scalar multiplier for the product of input tensors A * B, the default
-                value is 1.0.
-
             transA: Whether A should be transposed
+
+            transB: Whether B should be transposed
         """
 
         schema = get_schema("Gemm", 6, "")
         op = Op(self, "Gemm", schema)
         return op(
             *self._prepare_inputs(schema, A, B, C),
+            alpha=alpha,
             beta=beta,
             broadcast=broadcast,
-            transB=transB,
-            alpha=alpha,
             transA=transA,
+            transB=transB,
         )
 
     T_HardSigmoid = TypeVar("T_HardSigmoid", DOUBLE, FLOAT, FLOAT16)
 
     def HardSigmoid(
-        self, X: T_HardSigmoid, *, beta: float = 0.5, alpha: float = 0.20000000298023224
+        self, X: T_HardSigmoid, *, alpha: float = 0.20000000298023224, beta: float = 0.5
     ) -> T_HardSigmoid:
         r"""[🌐 HardSigmoid(6)](https://onnx.ai/onnx/operators/onnx__HardSigmoid.html#hardsigmoid-6 "Online Documentation")
 
@@ -487,14 +487,14 @@ class Opset6(Opset5):
         Args:
             X: (differentiable) Input tensor
 
-            beta: Value of beta.
-
             alpha: Value of alpha.
+
+            beta: Value of beta.
         """
 
         schema = get_schema("HardSigmoid", 6, "")
         op = Op(self, "HardSigmoid", schema)
-        return op(*self._prepare_inputs(schema, X), beta=beta, alpha=alpha)
+        return op(*self._prepare_inputs(schema, X), alpha=alpha, beta=beta)
 
     T_InstanceNormalization = TypeVar("T_InstanceNormalization", DOUBLE, FLOAT, FLOAT16)
 
@@ -759,8 +759,8 @@ class Opset6(Opset5):
         self,
         X: T_Selu,
         *,
-        gamma: float = 1.0507010221481323,
         alpha: float = 1.6732631921768188,
+        gamma: float = 1.0507010221481323,
     ) -> T_Selu:
         r"""[🌐 Selu(6)](https://onnx.ai/onnx/operators/onnx__Selu.html#selu-6 "Online Documentation")
 
@@ -774,16 +774,16 @@ class Opset6(Opset5):
         Args:
             X: (differentiable) Input tensor
 
-            gamma: Coefficient of SELU default to 1.05070102214813232421875 (i.e.,
-                float32 approximation of 1.0507009873554804934193349852946).
-
             alpha: Coefficient of SELU default to 1.67326319217681884765625 (i.e.,
                 float32 approximation of 1.6732632423543772848170429916717).
+
+            gamma: Coefficient of SELU default to 1.05070102214813232421875 (i.e.,
+                float32 approximation of 1.0507009873554804934193349852946).
         """
 
         schema = get_schema("Selu", 6, "")
         op = Op(self, "Selu", schema)
-        return op(*self._prepare_inputs(schema, X), gamma=gamma, alpha=alpha)
+        return op(*self._prepare_inputs(schema, X), alpha=alpha, gamma=gamma)
 
     T_Sigmoid = TypeVar("T_Sigmoid", DOUBLE, FLOAT, FLOAT16)
 
