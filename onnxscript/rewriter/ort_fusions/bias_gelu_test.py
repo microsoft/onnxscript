@@ -4,48 +4,37 @@
 import unittest
 
 import numpy as np
-import onnx
 
+import onnxscript
 import onnxscript.ir as ir
 import onnxscript.rewriter.ort_fusions._test_utils as test_utils
+from onnxscript import FLOAT, script
+from onnxscript import opset18 as op
 from onnxscript.optimizer import optimize, remove_unused_nodes
 from onnxscript.rewriter.ort_fusions.bias_gelu import fuse_bias_gelu
 
-FLOAT = onnx.TensorProto.FLOAT
+msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
 
 class BiasGeluFusionTest(unittest.TestCase):
-    def test_gelu_fusion(self):
-        model_proto = onnx.helper.make_model(
-            onnx.helper.make_graph(
-                [
-                    onnx.helper.make_node("Add", ["X", "Y"], ["gelu_add"]),
-                    onnx.helper.make_node(
-                        "Gelu",
-                        ["gelu_add"],
-                        ["Z"],
-                        domain="com.microsoft",
-                    ),
-                ],
-                "name",
-                [
-                    onnx.helper.make_tensor_value_info("X", FLOAT, [10]),
-                    onnx.helper.make_tensor_value_info("Y", FLOAT, [10]),
-                ],
-                [onnx.helper.make_tensor_value_info("Z", FLOAT, [10])],
-            ),
-            opset_imports=[
-                onnx.helper.make_opsetid("", 18),
-                onnx.helper.make_opsetid("com.microsoft", 1),
-            ],
+    def test_bias_gelu_fusion(self):
+        @script()
+        def bias_gelu_model(x, y):
+            gelu_add = op.Add(x, y)
+            gelu = msft_op.Gelu(gelu_add)
+            return gelu
+
+        model_proto = bias_gelu_model.to_model_proto(
+            input_types=[FLOAT[10], FLOAT[10]],
+            output_types=[FLOAT[10]],
             ir_version=10,
         )
         model = ir.serde.deserialize_model(model_proto)
         optimize(model)
 
         input = {
-            "X": np.random.randn(10).astype(np.float32),
-            "Y": np.random.randn(10).astype(np.float32),
+            "x": np.random.randn(10).astype(np.float32),
+            "y": np.random.randn(10).astype(np.float32),
         }
         original_output = test_utils.ort_run("Original", model, input)
 
