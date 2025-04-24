@@ -1307,6 +1307,18 @@ def serialize_graph_into(
     if from_.doc_string:
         graph_proto.doc_string = from_.doc_string
     for input_ in from_.inputs:
+        if input_.type is None:
+            logger.warning(
+                "Graph input '%s' does not have a type set. The input is invalid: %s",
+                input_.name,
+                input_,
+            )
+        if input_.shape is None:
+            logger.warning(
+                "Graph input '%s' does not have a shape set. The input is invalid: %s",
+                input_.name,
+                input_,
+            )
         serialize_value_into(graph_proto.input.add(), input_)
         if input_.name not in from_.initializers:
             # Annotations for initializers will be added below to avoid double adding
