@@ -2,7 +2,9 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from onnxscript.rewriter import _fusion_utils, pattern
+import math
+
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 
 class SDPA(pattern.RewriteRuleClassBase):
@@ -166,34 +168,23 @@ class SDPA(pattern.RewriteRuleClassBase):
         return op.SDPA(*sdpa_args, scale=self._scale, _domain="ai.onnxruntime.fusion")
 
 
-# Rules for SDPA without mask
-unmasked_pre_div_sdpa_rule = SDPA.rule(
-    "unmasked_pre_div_sdpa", use_mask=False, pre_scale=True, use_mul=False
-)
-unmasked_pre_mul_sdpa_rule = SDPA.rule(
-    "unmasked_pre_mul_sdpa", use_mask=False, pre_scale=True, use_mul=True
-)
-unmasked_post_div_sdpa_rule = SDPA.rule(
-    "unmasked_post_div_sdpa", use_mask=False, pre_scale=False, use_mul=False
-)
-unmasked_post_mul_sdpa_rule = SDPA.rule(
-    "unmasked_post_mul_sdpa", use_mask=False, pre_scale=False, use_mul=True
-)
+parameter_combinations = [
+    {
+        "name": f"sdpa_{'masked_' if use_mask else 'unmasked_'}{'pre_' if pre_scale else 'post_'}{'only_q_' if pre_scale_q else ''}{'mul' if use_mul else 'div'}{'_3d' if has_3d_inputs else ''}",
+        "use_mask": use_mask,
+        "pre_scale": pre_scale,
+        "pre_scale_q": pre_scale_q,
+        "use_mul": use_mul,
+        "has_3d_inputs": has_3d_inputs,
+    }
+    for use_mask in [False, True]
+    for pre_scale in [False, True]
+    for pre_scale_q in [False, True]
+    for use_mul in [False, True]
+    for has_3d_inputs in [False, True]
+]
 
-# Rules for SDPA with mask
-masked_pre_div_sdpa_rule = SDPA.rule(
-    "masked_pre_div_sdpa", use_mask=True, pre_scale=True, use_mul=False
-)
-masked_pre_mul_sdpa_rule = SDPA.rule(
-    "masked_pre_mul_sdpa", use_mask=True, pre_scale=True, use_mul=True
-)
-masked_post_div_sdpa_rule = SDPA.rule(
-    "masked_post_div_sdpa", use_mask=True, pre_scale=False, use_mul=False
-)
-masked_post_mul_sdpa_rule = SDPA.rule(
-    "masked_post_mul_sdpa", use_mask=True, pre_scale=False, use_mul=True
-)
-
+# Dynamically create the rules
 sdpa_rules = pattern.RewriteRuleSet(
     [
         SDPA.rule(
