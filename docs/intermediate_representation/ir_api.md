@@ -2,17 +2,12 @@
 
 ```{eval-rst}
 .. automodule::onnxscript.ir
-
-.. contents:: onnxscript.ir
-    :depth: 2
-    :local:
-    :backlinks: top
-
-.. currentmodule:: onnxscript
+```
 
 ## IR objects
 
 ```{eval-rst}
+.. currentmodule:: onnxscript
 .. autosummary::
     :toctree: generated
     :nosignatures:
@@ -41,6 +36,11 @@
 ## Enums
 
 ```{eval-rst}
-.. autoclass:: onnxscript.ir.DataType
-.. autoclass:: onnxscript.ir.AttrType
+.. autosummary::
+    :toctree: generated
+    :nosignatures:
+    :template: classtemplate.rst
+
+    ir.DataType
+    ir.AttributeType
 ```
