@@ -109,7 +109,7 @@ def tensor(
 
 def node(
     op_type: str,
-    inputs: Sequence[ir.Value],
+    inputs: Sequence[ir.Value | None],
     attributes: Mapping[str, _convenience.SupportedAttrTypes] | None = None,
     *,
     domain: str = "",
