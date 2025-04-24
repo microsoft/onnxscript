@@ -63,7 +63,7 @@ class Opset17(Opset16):
     ]
 
     def BlackmanWindow(
-        self, size: T1_BlackmanWindow, *, output_datatype: int = 1, periodic: int = 1
+        self, size: T1_BlackmanWindow, *, periodic: int = 1, output_datatype: int = 1
     ) -> T2_BlackmanWindow:
         r"""[🌐 BlackmanWindow(17)](https://onnx.ai/onnx/operators/onnx__BlackmanWindow.html#blackmanwindow-17 "Online Documentation")
 
@@ -75,22 +75,22 @@ class Opset17(Opset16):
             size: (non-differentiable) A scalar value indicating the length of the
                 window.
 
-            output_datatype: The data type of the output tensor. Strictly must be one of
-                the values from DataType enum in TensorProto whose values correspond to
-                T2. The default value is 1 = FLOAT.
-
             periodic: If 1, returns a window to be used as periodic function. If 0,
                 return a symmetric window. When 'periodic' is specified, hann computes a
                 window of length size + 1 and returns the first size points. The default
                 value is 1.
+
+            output_datatype: The data type of the output tensor. Strictly must be one of
+                the values from DataType enum in TensorProto whose values correspond to
+                T2. The default value is 1 = FLOAT.
         """
 
         schema = get_schema("BlackmanWindow", 17, "")
         op = Op(self, "BlackmanWindow", schema)
         return op(
             *self._prepare_inputs(schema, size),
-            output_datatype=output_datatype,
             periodic=periodic,
+            output_datatype=output_datatype,
         )
 
     T1_DFT = TypeVar("T1_DFT", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
@@ -102,8 +102,8 @@ class Opset17(Opset16):
         input: T1_DFT,
         dft_length: Optional[T2_DFT] = None,
         *,
-        axis: int = 1,
         inverse: int = 0,
+        axis: int = 1,
         onesided: int = 0,
     ) -> T1_DFT:
         r"""[🌐 DFT(17)](https://onnx.ai/onnx/operators/onnx__DFT.html#dft-17 "Online Documentation")
@@ -125,14 +125,14 @@ class Opset17(Opset16):
                 first dft_length values will be used as the signal. It's an optional
                 value.
 
+            inverse: Whether to perform the inverse discrete fourier transform. By
+                default this value is set to 0, which corresponds to false.
+
             axis: The axis on which to perform the DFT. By default this value is set to
                 1, which corresponds to the first dimension after the batch index.
                 Negative value means counting dimensions from the back. Accepted range
                 is $[-r, -2] \cup [0, r-2]$ where `r = rank(input)`. The last dimension
                 is for representing complex numbers and thus is an invalid axis.
-
-            inverse: Whether to perform the inverse discrete fourier transform. By
-                default this value is set to 0, which corresponds to false.
 
             onesided: If onesided is 1, only values for w in [0, 1, 2, ...,
                 floor(n_fft/2) + 1] are returned because the real-to-complex Fourier
@@ -148,8 +148,8 @@ class Opset17(Opset16):
         op = Op(self, "DFT", schema)
         return op(
             *self._prepare_inputs(schema, input, dft_length),
-            axis=axis,
             inverse=inverse,
+            axis=axis,
             onesided=onesided,
         )
 
@@ -171,7 +171,7 @@ class Opset17(Opset16):
     ]
 
     def HammingWindow(
-        self, size: T1_HammingWindow, *, output_datatype: int = 1, periodic: int = 1
+        self, size: T1_HammingWindow, *, periodic: int = 1, output_datatype: int = 1
     ) -> T2_HammingWindow:
         r"""[🌐 HammingWindow(17)](https://onnx.ai/onnx/operators/onnx__HammingWindow.html#hammingwindow-17 "Online Documentation")
 
@@ -183,22 +183,22 @@ class Opset17(Opset16):
             size: (non-differentiable) A scalar value indicating the length of the
                 window.
 
-            output_datatype: The data type of the output tensor. Strictly must be one of
-                the values from DataType enum in TensorProto whose values correspond to
-                T2. The default value is 1 = FLOAT.
-
             periodic: If 1, returns a window to be used as periodic function. If 0,
                 return a symmetric window. When 'periodic' is specified, hann computes a
                 window of length size + 1 and returns the first size points. The default
                 value is 1.
+
+            output_datatype: The data type of the output tensor. Strictly must be one of
+                the values from DataType enum in TensorProto whose values correspond to
+                T2. The default value is 1 = FLOAT.
         """
 
         schema = get_schema("HammingWindow", 17, "")
         op = Op(self, "HammingWindow", schema)
         return op(
             *self._prepare_inputs(schema, size),
-            output_datatype=output_datatype,
             periodic=periodic,
+            output_datatype=output_datatype,
         )
 
     T1_HannWindow = TypeVar("T1_HannWindow", INT32, INT64)
@@ -219,7 +219,7 @@ class Opset17(Opset16):
     ]
 
     def HannWindow(
-        self, size: T1_HannWindow, *, output_datatype: int = 1, periodic: int = 1
+        self, size: T1_HannWindow, *, periodic: int = 1, output_datatype: int = 1
     ) -> T2_HannWindow:
         r"""[🌐 HannWindow(17)](https://onnx.ai/onnx/operators/onnx__HannWindow.html#hannwindow-17 "Online Documentation")
 
@@ -231,22 +231,22 @@ class Opset17(Opset16):
             size: (non-differentiable) A scalar value indicating the length of the
                 window.
 
-            output_datatype: The data type of the output tensor. Strictly must be one of
-                the values from DataType enum in TensorProto whose values correspond to
-                T2. The default value is 1 = FLOAT.
-
             periodic: If 1, returns a window to be used as periodic function. If 0,
                 return a symmetric window. When 'periodic' is specified, hann computes a
                 window of length size + 1 and returns the first size points. The default
                 value is 1.
+
+            output_datatype: The data type of the output tensor. Strictly must be one of
+                the values from DataType enum in TensorProto whose values correspond to
+                T2. The default value is 1 = FLOAT.
         """
 
         schema = get_schema("HannWindow", 17, "")
         op = Op(self, "HannWindow", schema)
         return op(
             *self._prepare_inputs(schema, size),
-            output_datatype=output_datatype,
             periodic=periodic,
+            output_datatype=output_datatype,
         )
 
     T_LayerNormalization = TypeVar("T_LayerNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
@@ -259,9 +259,9 @@ class Opset17(Opset16):
         Scale: T_LayerNormalization,
         B: Optional[T_LayerNormalization] = None,
         *,
-        axis: int = -1,
-        epsilon: float = 9.999999747378752e-06,
         stash_type: int = 1,
+        epsilon: float = 9.999999747378752e-06,
+        axis: int = -1,
     ) -> Tuple[T_LayerNormalization, U_LayerNormalization, U_LayerNormalization]:
         r"""[🌐 LayerNormalization(17)](https://onnx.ai/onnx/operators/onnx__LayerNormalization.html#layernormalization-17 "Online Documentation")
 
@@ -316,23 +316,23 @@ class Opset17(Opset16):
 
             B: (optional) Bias tensor.
 
-            axis: The first normalization dimension. If rank(X) is r, axis' allowed
-                range is [-r, r). Negative value means counting dimensions from the
-                back.
+            stash_type: Type of Mean and InvStdDev. This also specifies stage one's
+                computation precision.
 
             epsilon: The epsilon value to use to avoid division by zero.
 
-            stash_type: Type of Mean and InvStdDev. This also specifies stage one's
-                computation precision.
+            axis: The first normalization dimension. If rank(X) is r, axis' allowed
+                range is [-r, r). Negative value means counting dimensions from the
+                back.
         """
 
         schema = get_schema("LayerNormalization", 17, "")
         op = Op(self, "LayerNormalization", schema)
         return op(
             *self._prepare_inputs(schema, X, Scale, B),
-            axis=axis,
-            epsilon=epsilon,
             stash_type=stash_type,
+            epsilon=epsilon,
+            axis=axis,
         )
 
     T1_MelWeightMatrix = TypeVar("T1_MelWeightMatrix", INT32, INT64)

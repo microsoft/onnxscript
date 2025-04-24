@@ -38,27 +38,27 @@ class Opset_ai_onnx_ml3(Opset_ai_onnx_ml2):
         self,
         X: T1_TreeEnsembleClassifier,
         *,
-        base_values: Optional[Sequence[float]] = None,
         base_values_as_tensor: Optional[TensorProto] = None,
-        class_ids: Optional[Sequence[int]] = None,
-        class_nodeids: Optional[Sequence[int]] = None,
-        class_treeids: Optional[Sequence[int]] = None,
-        class_weights: Optional[Sequence[float]] = None,
-        class_weights_as_tensor: Optional[TensorProto] = None,
+        post_transform: str = "NONE",
         classlabels_int64s: Optional[Sequence[int]] = None,
+        class_weights_as_tensor: Optional[TensorProto] = None,
+        class_weights: Optional[Sequence[float]] = None,
         classlabels_strings: Optional[Sequence[str]] = None,
-        nodes_falsenodeids: Optional[Sequence[int]] = None,
-        nodes_featureids: Optional[Sequence[int]] = None,
-        nodes_hitrates: Optional[Sequence[float]] = None,
-        nodes_hitrates_as_tensor: Optional[TensorProto] = None,
-        nodes_missing_value_tracks_true: Optional[Sequence[int]] = None,
-        nodes_modes: Optional[Sequence[str]] = None,
+        class_ids: Optional[Sequence[int]] = None,
         nodes_nodeids: Optional[Sequence[int]] = None,
         nodes_treeids: Optional[Sequence[int]] = None,
-        nodes_truenodeids: Optional[Sequence[int]] = None,
-        nodes_values: Optional[Sequence[float]] = None,
+        nodes_featureids: Optional[Sequence[int]] = None,
         nodes_values_as_tensor: Optional[TensorProto] = None,
-        post_transform: str = "NONE",
+        nodes_falsenodeids: Optional[Sequence[int]] = None,
+        nodes_hitrates: Optional[Sequence[float]] = None,
+        base_values: Optional[Sequence[float]] = None,
+        nodes_missing_value_tracks_true: Optional[Sequence[int]] = None,
+        nodes_values: Optional[Sequence[float]] = None,
+        nodes_hitrates_as_tensor: Optional[TensorProto] = None,
+        nodes_modes: Optional[Sequence[str]] = None,
+        nodes_truenodeids: Optional[Sequence[int]] = None,
+        class_treeids: Optional[Sequence[int]] = None,
+        class_nodeids: Optional[Sequence[int]] = None,
     ) -> Tuple[T2_TreeEnsembleClassifier, FLOAT]:
         r"""[🌐 ai.onnx.ml::TreeEnsembleClassifier(3)](https://onnx.ai/onnx/operators/onnx_aionnxml_TreeEnsembleClassifier.html#treeensembleclassifier-3 "Online Documentation")
 
@@ -82,90 +82,90 @@ class Opset_ai_onnx_ml3(Opset_ai_onnx_ml2):
         Args:
             X: Input of shape [N,F]
 
-            base_values: Base values for classification, added to final class score; the
-                size must be the same as the classes or can be left unassigned (assumed
-                0)
-
             base_values_as_tensor: Base values for classification, added to final class
                 score; the size must be the same as the classes or can be left
                 unassigned (assumed 0)
 
-            class_ids: The index of the class list that each weight is for.
-
-            class_nodeids: node id that this weight is for.
-
-            class_treeids: The id of the tree that this node is in.
-
-            class_weights: The weight for the class in class_id.
-
-            class_weights_as_tensor: The weight for the class in class_id.
+            post_transform: Indicates the transform to apply to the score. <br> One of
+                'NONE,' 'SOFTMAX,' 'LOGISTIC,' 'SOFTMAX_ZERO,' or 'PROBIT.'
 
             classlabels_int64s: Class labels if using integer labels.<br>One and only
                 one of the 'classlabels_*' attributes must be defined.
 
+            class_weights_as_tensor: The weight for the class in class_id.
+
+            class_weights: The weight for the class in class_id.
+
             classlabels_strings: Class labels if using string labels.<br>One and only
                 one of the 'classlabels_*' attributes must be defined.
 
-            nodes_falsenodeids: Child node if expression is false.
-
-            nodes_featureids: Feature id for each node.
-
-            nodes_hitrates: Popularity of each node, used for performance and may be
-                omitted.
-
-            nodes_hitrates_as_tensor: Popularity of each node, used for performance and
-                may be omitted.
-
-            nodes_missing_value_tracks_true: For each node, define what to do in the
-                presence of a missing value: if a value is missing (NaN), use the 'true'
-                or 'false' branch based on the value in this array.<br>This attribute
-                may be left undefined, and the default value is false (0) for all nodes.
-
-            nodes_modes: The node kind, that is, the comparison to make at the node.
-                There is no comparison to make at a leaf node.<br>One of 'BRANCH_LEQ',
-                'BRANCH_LT', 'BRANCH_GTE', 'BRANCH_GT', 'BRANCH_EQ', 'BRANCH_NEQ',
-                'LEAF'
+            class_ids: The index of the class list that each weight is for.
 
             nodes_nodeids: Node id for each node. Ids may restart at zero for each tree,
                 but it not required to.
 
             nodes_treeids: Tree id for each node.
 
-            nodes_truenodeids: Child node if expression is true.
-
-            nodes_values: Thresholds to do the splitting on for each node.
+            nodes_featureids: Feature id for each node.
 
             nodes_values_as_tensor: Thresholds to do the splitting on for each node.
 
-            post_transform: Indicates the transform to apply to the score. <br> One of
-                'NONE,' 'SOFTMAX,' 'LOGISTIC,' 'SOFTMAX_ZERO,' or 'PROBIT.'
+            nodes_falsenodeids: Child node if expression is false.
+
+            nodes_hitrates: Popularity of each node, used for performance and may be
+                omitted.
+
+            base_values: Base values for classification, added to final class score; the
+                size must be the same as the classes or can be left unassigned (assumed
+                0)
+
+            nodes_missing_value_tracks_true: For each node, define what to do in the
+                presence of a missing value: if a value is missing (NaN), use the 'true'
+                or 'false' branch based on the value in this array.<br>This attribute
+                may be left undefined, and the default value is false (0) for all nodes.
+
+            nodes_values: Thresholds to do the splitting on for each node.
+
+            nodes_hitrates_as_tensor: Popularity of each node, used for performance and
+                may be omitted.
+
+            nodes_modes: The node kind, that is, the comparison to make at the node.
+                There is no comparison to make at a leaf node.<br>One of 'BRANCH_LEQ',
+                'BRANCH_LT', 'BRANCH_GTE', 'BRANCH_GT', 'BRANCH_EQ', 'BRANCH_NEQ',
+                'LEAF'
+
+            nodes_truenodeids: Child node if expression is true.
+
+            class_treeids: The id of the tree that this node is in.
+
+            class_nodeids: node id that this weight is for.
         """
 
         schema = get_schema("TreeEnsembleClassifier", 3, "ai.onnx.ml")
         op = Op(self, "TreeEnsembleClassifier", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            base_values=base_values,
             base_values_as_tensor=base_values_as_tensor,
-            class_ids=class_ids,
-            class_nodeids=class_nodeids,
-            class_treeids=class_treeids,
-            class_weights=class_weights,
-            class_weights_as_tensor=class_weights_as_tensor,
+            post_transform=post_transform,
             classlabels_int64s=classlabels_int64s,
+            class_weights_as_tensor=class_weights_as_tensor,
+            class_weights=class_weights,
             classlabels_strings=classlabels_strings,
-            nodes_falsenodeids=nodes_falsenodeids,
-            nodes_featureids=nodes_featureids,
-            nodes_hitrates=nodes_hitrates,
-            nodes_hitrates_as_tensor=nodes_hitrates_as_tensor,
-            nodes_missing_value_tracks_true=nodes_missing_value_tracks_true,
-            nodes_modes=nodes_modes,
+            class_ids=class_ids,
             nodes_nodeids=nodes_nodeids,
             nodes_treeids=nodes_treeids,
-            nodes_truenodeids=nodes_truenodeids,
-            nodes_values=nodes_values,
+            nodes_featureids=nodes_featureids,
             nodes_values_as_tensor=nodes_values_as_tensor,
-            post_transform=post_transform,
+            nodes_falsenodeids=nodes_falsenodeids,
+            nodes_hitrates=nodes_hitrates,
+            base_values=base_values,
+            nodes_missing_value_tracks_true=nodes_missing_value_tracks_true,
+            nodes_values=nodes_values,
+            nodes_hitrates_as_tensor=nodes_hitrates_as_tensor,
+            nodes_modes=nodes_modes,
+            nodes_truenodeids=nodes_truenodeids,
+            class_treeids=class_treeids,
+            class_nodeids=class_nodeids,
         )
 
     T_TreeEnsembleRegressor = TypeVar("T_TreeEnsembleRegressor", DOUBLE, FLOAT, INT32, INT64)
@@ -174,27 +174,27 @@ class Opset_ai_onnx_ml3(Opset_ai_onnx_ml2):
         self,
         X: T_TreeEnsembleRegressor,
         *,
-        aggregate_function: str = "SUM",
-        base_values: Optional[Sequence[float]] = None,
         base_values_as_tensor: Optional[TensorProto] = None,
+        aggregate_function: str = "SUM",
+        post_transform: str = "NONE",
         n_targets: Optional[int] = None,
-        nodes_falsenodeids: Optional[Sequence[int]] = None,
-        nodes_featureids: Optional[Sequence[int]] = None,
-        nodes_hitrates: Optional[Sequence[float]] = None,
-        nodes_hitrates_as_tensor: Optional[TensorProto] = None,
-        nodes_missing_value_tracks_true: Optional[Sequence[int]] = None,
-        nodes_modes: Optional[Sequence[str]] = None,
+        target_weights_as_tensor: Optional[TensorProto] = None,
+        target_ids: Optional[Sequence[int]] = None,
         nodes_nodeids: Optional[Sequence[int]] = None,
         nodes_treeids: Optional[Sequence[int]] = None,
-        nodes_truenodeids: Optional[Sequence[int]] = None,
-        nodes_values: Optional[Sequence[float]] = None,
-        nodes_values_as_tensor: Optional[TensorProto] = None,
-        post_transform: str = "NONE",
-        target_ids: Optional[Sequence[int]] = None,
+        nodes_featureids: Optional[Sequence[int]] = None,
         target_nodeids: Optional[Sequence[int]] = None,
-        target_treeids: Optional[Sequence[int]] = None,
+        nodes_values_as_tensor: Optional[TensorProto] = None,
         target_weights: Optional[Sequence[float]] = None,
-        target_weights_as_tensor: Optional[TensorProto] = None,
+        nodes_falsenodeids: Optional[Sequence[int]] = None,
+        nodes_hitrates: Optional[Sequence[float]] = None,
+        base_values: Optional[Sequence[float]] = None,
+        nodes_missing_value_tracks_true: Optional[Sequence[int]] = None,
+        nodes_values: Optional[Sequence[float]] = None,
+        nodes_hitrates_as_tensor: Optional[TensorProto] = None,
+        nodes_modes: Optional[Sequence[str]] = None,
+        nodes_truenodeids: Optional[Sequence[int]] = None,
+        target_treeids: Optional[Sequence[int]] = None,
     ) -> FLOAT:
         r"""[🌐 ai.onnx.ml::TreeEnsembleRegressor(3)](https://onnx.ai/onnx/operators/onnx_aionnxml_TreeEnsembleRegressor.html#treeensembleregressor-3 "Online Documentation")
 
@@ -221,28 +221,43 @@ class Opset_ai_onnx_ml3(Opset_ai_onnx_ml2):
         Args:
             X: Input of shape [N,F]
 
-            aggregate_function: Defines how to aggregate leaf values within a target.
-                <br>One of 'AVERAGE,' 'SUM,' 'MIN,' 'MAX.'
-
-            base_values: Base values for regression, added to final prediction after
-                applying aggregate_function; the size must be the same as the classes or
-                can be left unassigned (assumed 0)
-
             base_values_as_tensor: Base values for regression, added to final prediction
                 after applying aggregate_function; the size must be the same as the
                 classes or can be left unassigned (assumed 0)
 
+            aggregate_function: Defines how to aggregate leaf values within a target.
+                <br>One of 'AVERAGE,' 'SUM,' 'MIN,' 'MAX.'
+
+            post_transform: Indicates the transform to apply to the score. <br>One of
+                'NONE,' 'SOFTMAX,' 'LOGISTIC,' 'SOFTMAX_ZERO,' or 'PROBIT'
+
             n_targets: The total number of targets.
 
-            nodes_falsenodeids: Child node if expression is false
+            target_weights_as_tensor: The weight for each target
+
+            target_ids: The index of the target that each weight is for
+
+            nodes_nodeids: Node id for each node. Node ids must restart at zero for each
+                tree and increase sequentially.
+
+            nodes_treeids: Tree id for each node.
 
             nodes_featureids: Feature id for each node.
+
+            target_nodeids: The node id of each weight
+
+            nodes_values_as_tensor: Thresholds to do the splitting on for each node.
+
+            target_weights: The weight for each target
+
+            nodes_falsenodeids: Child node if expression is false
 
             nodes_hitrates: Popularity of each node, used for performance and may be
                 omitted.
 
-            nodes_hitrates_as_tensor: Popularity of each node, used for performance and
-                may be omitted.
+            base_values: Base values for regression, added to final prediction after
+                applying aggregate_function; the size must be the same as the classes or
+                can be left unassigned (assumed 0)
 
             nodes_missing_value_tracks_true: For each node, define what to do in the
                 presence of a NaN: use the 'true' (if the attribute value is 1) or
@@ -250,59 +265,44 @@ class Opset_ai_onnx_ml3(Opset_ai_onnx_ml2):
                 array.<br>This attribute may be left undefined and the default value is
                 false (0) for all nodes.
 
+            nodes_values: Thresholds to do the splitting on for each node.
+
+            nodes_hitrates_as_tensor: Popularity of each node, used for performance and
+                may be omitted.
+
             nodes_modes: The node kind, that is, the comparison to make at the node.
                 There is no comparison to make at a leaf node.<br>One of 'BRANCH_LEQ',
                 'BRANCH_LT', 'BRANCH_GTE', 'BRANCH_GT', 'BRANCH_EQ', 'BRANCH_NEQ',
                 'LEAF'
 
-            nodes_nodeids: Node id for each node. Node ids must restart at zero for each
-                tree and increase sequentially.
-
-            nodes_treeids: Tree id for each node.
-
             nodes_truenodeids: Child node if expression is true
 
-            nodes_values: Thresholds to do the splitting on for each node.
-
-            nodes_values_as_tensor: Thresholds to do the splitting on for each node.
-
-            post_transform: Indicates the transform to apply to the score. <br>One of
-                'NONE,' 'SOFTMAX,' 'LOGISTIC,' 'SOFTMAX_ZERO,' or 'PROBIT'
-
-            target_ids: The index of the target that each weight is for
-
-            target_nodeids: The node id of each weight
-
             target_treeids: The id of the tree that each node is in.
-
-            target_weights: The weight for each target
-
-            target_weights_as_tensor: The weight for each target
         """
 
         schema = get_schema("TreeEnsembleRegressor", 3, "ai.onnx.ml")
         op = Op(self, "TreeEnsembleRegressor", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            aggregate_function=aggregate_function,
-            base_values=base_values,
             base_values_as_tensor=base_values_as_tensor,
+            aggregate_function=aggregate_function,
+            post_transform=post_transform,
             n_targets=n_targets,
-            nodes_falsenodeids=nodes_falsenodeids,
-            nodes_featureids=nodes_featureids,
-            nodes_hitrates=nodes_hitrates,
-            nodes_hitrates_as_tensor=nodes_hitrates_as_tensor,
-            nodes_missing_value_tracks_true=nodes_missing_value_tracks_true,
-            nodes_modes=nodes_modes,
+            target_weights_as_tensor=target_weights_as_tensor,
+            target_ids=target_ids,
             nodes_nodeids=nodes_nodeids,
             nodes_treeids=nodes_treeids,
-            nodes_truenodeids=nodes_truenodeids,
-            nodes_values=nodes_values,
-            nodes_values_as_tensor=nodes_values_as_tensor,
-            post_transform=post_transform,
-            target_ids=target_ids,
+            nodes_featureids=nodes_featureids,
             target_nodeids=target_nodeids,
-            target_treeids=target_treeids,
+            nodes_values_as_tensor=nodes_values_as_tensor,
             target_weights=target_weights,
-            target_weights_as_tensor=target_weights_as_tensor,
+            nodes_falsenodeids=nodes_falsenodeids,
+            nodes_hitrates=nodes_hitrates,
+            base_values=base_values,
+            nodes_missing_value_tracks_true=nodes_missing_value_tracks_true,
+            nodes_values=nodes_values,
+            nodes_hitrates_as_tensor=nodes_hitrates_as_tensor,
+            nodes_modes=nodes_modes,
+            nodes_truenodeids=nodes_truenodeids,
+            target_treeids=target_treeids,
         )

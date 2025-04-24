@@ -156,13 +156,13 @@ class Opset22(Opset21):
         self,
         X: T_AveragePool,
         *,
-        auto_pad: str = "NOTSET",
-        ceil_mode: int = 0,
         count_include_pad: int = 0,
         dilations: Optional[Sequence[int]] = None,
-        kernel_shape: Sequence[int],
+        ceil_mode: int = 0,
         pads: Optional[Sequence[int]] = None,
+        auto_pad: str = "NOTSET",
         strides: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
     ) -> T_AveragePool:
         r"""[🌐 AveragePool(22)](https://onnx.ai/onnx/operators/onnx__AveragePool.html#averagepool-22 "Online Documentation")
 
@@ -210,25 +210,14 @@ class Opset22(Opset21):
                 arrive with the dimension denotation of [DATA_BATCH, DATA_CHANNEL,
                 DATA_FEATURE, DATA_FEATURE ...].
 
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
-                ceil(input_shape[i] / strides[i])` for each axis `i`. The padding is
-                split between the two sides equally or almost equally (depending on
-                whether it is even or odd). In case the padding is an odd number, the
-                extra padding is added at the end for SAME_UPPER and at the beginning
-                for SAME_LOWER.
-
-            ceil_mode: Whether to use ceil or floor (default) to compute the output
-                shape.
-
             count_include_pad: Whether include pad pixels when calculating values for
                 the edges. Default is 0, doesn't count include pad.
 
             dilations: Dilation value along each spatial axis of filter. If not present,
                 the dilation defaults to 1 along each spatial axis.
 
-            kernel_shape: The size of the kernel along each axis.
+            ceil_mode: Whether to use ceil or floor (default) to compute the output
+                shape.
 
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
@@ -240,21 +229,32 @@ class Opset22(Opset21):
                 simultaneously with auto_pad attribute. If not present, the padding
                 defaults to 0 along start and end of each spatial axis.
 
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
+                ceil(input_shape[i] / strides[i])` for each axis `i`. The padding is
+                split between the two sides equally or almost equally (depending on
+                whether it is even or odd). In case the padding is an odd number, the
+                extra padding is added at the end for SAME_UPPER and at the beginning
+                for SAME_LOWER.
+
             strides: Stride along each spatial axis. If not present, the stride defaults
                 to 1 along each spatial axis.
+
+            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("AveragePool", 22, "")
         op = Op(self, "AveragePool", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            auto_pad=auto_pad,
-            ceil_mode=ceil_mode,
             count_include_pad=count_include_pad,
             dilations=dilations,
-            kernel_shape=kernel_shape,
+            ceil_mode=ceil_mode,
             pads=pads,
+            auto_pad=auto_pad,
             strides=strides,
+            kernel_shape=kernel_shape,
         )
 
     T1_Bernoulli = TypeVar("T1_Bernoulli", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
@@ -311,12 +311,12 @@ class Opset22(Opset21):
         W: T_Conv,
         B: Optional[T_Conv] = None,
         *,
-        auto_pad: str = "NOTSET",
-        dilations: Optional[Sequence[int]] = None,
         group: int = 1,
-        kernel_shape: Optional[Sequence[int]] = None,
         pads: Optional[Sequence[int]] = None,
+        auto_pad: str = "NOTSET",
         strides: Optional[Sequence[int]] = None,
+        dilations: Optional[Sequence[int]] = None,
+        kernel_shape: Optional[Sequence[int]] = None,
     ) -> T_Conv:
         r"""[🌐 Conv(22)](https://onnx.ai/onnx/operators/onnx__Conv.html#conv-22 "Online Documentation")
 
@@ -350,22 +350,7 @@ class Opset22(Opset21):
             B: (optional, differentiable) Optional 1D bias to be added to the
                 convolution, has size of M.
 
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
-                ceil(input_shape[i] / strides[i])` for each axis `i`. The padding is
-                split between the two sides equally or almost equally (depending on
-                whether it is even or odd). In case the padding is an odd number, the
-                extra padding is added at the end for SAME_UPPER and at the beginning
-                for SAME_LOWER.
-
-            dilations: dilation value along each spatial axis of the filter. If not
-                present, the dilation defaults is 1 along each spatial axis.
-
             group: number of groups input channels and output channels are divided into.
-
-            kernel_shape: The shape of the convolution kernel. If not present, should be
-                inferred from input W.
 
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
@@ -377,20 +362,35 @@ class Opset22(Opset21):
                 simultaneously with auto_pad attribute. If not present, the padding
                 defaults to 0 along start and end of each spatial axis.
 
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
+                ceil(input_shape[i] / strides[i])` for each axis `i`. The padding is
+                split between the two sides equally or almost equally (depending on
+                whether it is even or odd). In case the padding is an odd number, the
+                extra padding is added at the end for SAME_UPPER and at the beginning
+                for SAME_LOWER.
+
             strides: Stride along each spatial axis. If not present, the stride defaults
                 is 1 along each spatial axis.
+
+            dilations: dilation value along each spatial axis of the filter. If not
+                present, the dilation defaults is 1 along each spatial axis.
+
+            kernel_shape: The shape of the convolution kernel. If not present, should be
+                inferred from input W.
         """
 
         schema = get_schema("Conv", 22, "")
         op = Op(self, "Conv", schema)
         return op(
             *self._prepare_inputs(schema, X, W, B),
-            auto_pad=auto_pad,
-            dilations=dilations,
             group=group,
-            kernel_shape=kernel_shape,
             pads=pads,
+            auto_pad=auto_pad,
             strides=strides,
+            dilations=dilations,
+            kernel_shape=kernel_shape,
         )
 
     T_ConvTranspose = TypeVar("T_ConvTranspose", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
@@ -401,14 +401,14 @@ class Opset22(Opset21):
         W: T_ConvTranspose,
         B: Optional[T_ConvTranspose] = None,
         *,
-        auto_pad: str = "NOTSET",
-        dilations: Optional[Sequence[int]] = None,
         group: int = 1,
-        kernel_shape: Optional[Sequence[int]] = None,
-        output_padding: Optional[Sequence[int]] = None,
-        output_shape: Optional[Sequence[int]] = None,
-        pads: Optional[Sequence[int]] = None,
+        auto_pad: str = "NOTSET",
         strides: Optional[Sequence[int]] = None,
+        pads: Optional[Sequence[int]] = None,
+        output_padding: Optional[Sequence[int]] = None,
+        dilations: Optional[Sequence[int]] = None,
+        output_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Optional[Sequence[int]] = None,
     ) -> T_ConvTranspose:
         r"""[🌐 ConvTranspose(22)](https://onnx.ai/onnx/operators/onnx__ConvTranspose.html#convtranspose-22 "Online Documentation")
 
@@ -446,6 +446,8 @@ class Opset22(Opset21):
             B: (optional, differentiable) Optional 1D bias to be added to the
                 convolution, has size of M.
 
+            group: number of groups input channels and output channels are divided into.
+
             auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
                 Where default value is NOTSET, which means explicit padding is used.
                 SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
@@ -454,13 +456,18 @@ class Opset22(Opset21):
                 is even or odd). In case the padding is an odd number, the extra padding
                 is added at the end for SAME_UPPER and at the beginning for SAME_LOWER.
 
-            dilations: dilation value along each spatial axis of the filter. If not
-                present, the dilation defaults to 1 along each spatial axis.
+            strides: Stride along each spatial axis. If not present, the stride defaults
+                to 1 along each spatial axis.
 
-            group: number of groups input channels and output channels are divided into.
-
-            kernel_shape: The shape of the convolution kernel. If not present, should be
-                inferred from input W.
+            pads: Padding for the beginning and ending along each spatial axis, it can
+                take any value greater than or equal to 0. The value represent the
+                number of pixels added to the beginning and end part of the
+                corresponding axis. `pads` format should be as follow [x1_begin,
+                x2_begin...x1_end, x2_end,...], where xi_begin the number of pixels
+                added at the beginning of axis `i` and xi_end, the number of pixels
+                added at the end of axis `i`. This attribute cannot be used
+                simultaneously with auto_pad attribute. If not present, the padding
+                defaults to 0 along start and end of each spatial axis.
 
             output_padding: Additional elements added to the side with higher coordinate
                 indices in the output. Each padding value in "output_padding" must be
@@ -473,38 +480,31 @@ class Opset22(Opset21):
                 in the computation of the needed padding amount. This is also called
                 adjs or adjustment in some frameworks.
 
+            dilations: dilation value along each spatial axis of the filter. If not
+                present, the dilation defaults to 1 along each spatial axis.
+
             output_shape: The shape of the output can be explicitly set which will cause
                 pads values to be auto generated. If output_shape is specified pads
                 values are ignored. See doc for details for equations to generate pads.
                 Note that the output_shape attribute value should not include dimensions
                 for batch size and channels, which are automatically inferred.
 
-            pads: Padding for the beginning and ending along each spatial axis, it can
-                take any value greater than or equal to 0. The value represent the
-                number of pixels added to the beginning and end part of the
-                corresponding axis. `pads` format should be as follow [x1_begin,
-                x2_begin...x1_end, x2_end,...], where xi_begin the number of pixels
-                added at the beginning of axis `i` and xi_end, the number of pixels
-                added at the end of axis `i`. This attribute cannot be used
-                simultaneously with auto_pad attribute. If not present, the padding
-                defaults to 0 along start and end of each spatial axis.
-
-            strides: Stride along each spatial axis. If not present, the stride defaults
-                to 1 along each spatial axis.
+            kernel_shape: The shape of the convolution kernel. If not present, should be
+                inferred from input W.
         """
 
         schema = get_schema("ConvTranspose", 22, "")
         op = Op(self, "ConvTranspose", schema)
         return op(
             *self._prepare_inputs(schema, X, W, B),
-            auto_pad=auto_pad,
-            dilations=dilations,
             group=group,
-            kernel_shape=kernel_shape,
-            output_padding=output_padding,
-            output_shape=output_shape,
-            pads=pads,
+            auto_pad=auto_pad,
             strides=strides,
+            pads=pads,
+            output_padding=output_padding,
+            dilations=dilations,
+            output_shape=output_shape,
+            kernel_shape=kernel_shape,
         )
 
     T_Cos = TypeVar("T_Cos", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
@@ -551,12 +551,12 @@ class Opset22(Opset21):
         B: Optional[T_DeformConv] = None,
         mask: Optional[T_DeformConv] = None,
         *,
-        dilations: Optional[Sequence[int]] = None,
-        group: int = 1,
-        kernel_shape: Optional[Sequence[int]] = None,
-        offset_group: int = 1,
-        pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
+        pads: Optional[Sequence[int]] = None,
+        offset_group: int = 1,
+        kernel_shape: Optional[Sequence[int]] = None,
+        group: int = 1,
+        dilations: Optional[Sequence[int]] = None,
     ) -> T_DeformConv:
         r"""[🌐 DeformConv(22)](https://onnx.ai/onnx/operators/onnx__DeformConv.html#deformconv-22 "Online Documentation")
 
@@ -591,17 +591,7 @@ class Opset22(Opset21):
                 2D data or (N, offset_group * k1 * k2 * ... * kn * n, o1, o2, ... , on)
                 for nD data. Default is a tensor of ones.
 
-            dilations: Dilation value along each spatial axis of the kernel. Default is
-                1 along each axis.
-
-            group: Number of groups the input and output channels, C and oC, are divided
-                into. C and oC must both be divisible by group. Default is 1.
-
-            kernel_shape: Shape of the convolution kernel. If not present, it is
-                inferred from the shape of input W.
-
-            offset_group: Number of groups of offset. C must be divisible by
-                offset_group. Default is 1.
+            strides: Stride along each spatial axis. Default is 1 along each axis.
 
             pads: Padding for the beginning and end along each spatial axis. The values
                 represent the number of pixels added to the beginning and end of the
@@ -611,19 +601,29 @@ class Opset22(Opset21):
                 xi_end is the number of pixels added at the end of axis `i`. Default is
                 0 along each axis.
 
-            strides: Stride along each spatial axis. Default is 1 along each axis.
+            offset_group: Number of groups of offset. C must be divisible by
+                offset_group. Default is 1.
+
+            kernel_shape: Shape of the convolution kernel. If not present, it is
+                inferred from the shape of input W.
+
+            group: Number of groups the input and output channels, C and oC, are divided
+                into. C and oC must both be divisible by group. Default is 1.
+
+            dilations: Dilation value along each spatial axis of the kernel. Default is
+                1 along each axis.
         """
 
         schema = get_schema("DeformConv", 22, "")
         op = Op(self, "DeformConv", schema)
         return op(
             *self._prepare_inputs(schema, X, W, offset, B, mask),
-            dilations=dilations,
-            group=group,
-            kernel_shape=kernel_shape,
-            offset_group=offset_group,
-            pads=pads,
             strides=strides,
+            pads=pads,
+            offset_group=offset_group,
+            kernel_shape=kernel_shape,
+            group=group,
+            dilations=dilations,
         )
 
     T_Det = TypeVar("T_Det", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
@@ -827,14 +827,14 @@ class Opset22(Opset21):
         sequence_lens: Optional[T1_GRU] = None,
         initial_h: Optional[T_GRU] = None,
         *,
-        activation_alpha: Optional[Sequence[float]] = None,
-        activation_beta: Optional[Sequence[float]] = None,
-        activations: Optional[Sequence[str]] = None,
         clip: Optional[float] = None,
-        direction: str = "forward",
+        activation_beta: Optional[Sequence[float]] = None,
+        activation_alpha: Optional[Sequence[float]] = None,
         hidden_size: Optional[int] = None,
         layout: int = 0,
+        direction: str = "forward",
         linear_before_reset: int = 0,
+        activations: Optional[Sequence[str]] = None,
     ) -> Tuple[T_GRU, T_GRU]:
         r"""[🌐 GRU(22)](https://onnx.ai/onnx/operators/onnx__GRU.html#gru-22 "Online Documentation")
 
@@ -914,28 +914,20 @@ class Opset22(Opset21):
                 hidden. If not specified - assumed to be 0. It has shape
                 `[num_directions, batch_size, hidden_size]`.
 
-            activation_alpha: Optional scaling values used by some activation functions.
-                The values are consumed in the order of activation functions, for
-                example (f, g, h) in LSTM. Default values are the same as of
-                corresponding ONNX operators.For example with LeakyRelu, the default
-                alpha is 0.01.
+            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
+                range of [-threshold, +threshold] and is applied to the input of
+                activations. No clip if not specified.
 
             activation_beta: Optional scaling values used by some activation functions.
                 The values are consumed in the order of activation functions, for
                 example (f, g, h) in LSTM. Default values are the same as of
                 corresponding ONNX operators.
 
-            activations: A list of 2 (or 4 if bidirectional) activation functions for
-                update, reset, and hidden gates. The activation functions must be one of
-                the activation functions specified above. Optional: See the equations
-                for default if not specified.
-
-            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
-                range of [-threshold, +threshold] and is applied to the input of
-                activations. No clip if not specified.
-
-            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
-                one of forward (default), reverse, or bidirectional.
+            activation_alpha: Optional scaling values used by some activation functions.
+                The values are consumed in the order of activation functions, for
+                example (f, g, h) in LSTM. Default values are the same as of
+                corresponding ONNX operators.For example with LeakyRelu, the default
+                alpha is 0.01.
 
             hidden_size: Number of neurons in the hidden layer
 
@@ -948,23 +940,31 @@ class Opset22(Opset21):
                 num_directions, hidden_size], initial_h.shape = Y_h.shape = [batch_size,
                 num_directions, hidden_size].
 
+            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
+                one of forward (default), reverse, or bidirectional.
+
             linear_before_reset: When computing the output of the hidden gate, apply the
                 linear transformation before multiplying by the output of the reset
                 gate.
+
+            activations: A list of 2 (or 4 if bidirectional) activation functions for
+                update, reset, and hidden gates. The activation functions must be one of
+                the activation functions specified above. Optional: See the equations
+                for default if not specified.
         """
 
         schema = get_schema("GRU", 22, "")
         op = Op(self, "GRU", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h),
-            activation_alpha=activation_alpha,
-            activation_beta=activation_beta,
-            activations=activations,
             clip=clip,
-            direction=direction,
+            activation_beta=activation_beta,
+            activation_alpha=activation_alpha,
             hidden_size=hidden_size,
             layout=layout,
+            direction=direction,
             linear_before_reset=linear_before_reset,
+            activations=activations,
         )
 
     T_GlobalAveragePool = TypeVar("T_GlobalAveragePool", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
@@ -989,7 +989,7 @@ class Opset22(Opset21):
         op = Op(self, "GlobalAveragePool", schema)
         return op(*self._prepare_inputs(schema, X))
 
-    T_GlobalLpPool = TypeVar("T_GlobalLpPool", DOUBLE, FLOAT, FLOAT16)
+    T_GlobalLpPool = TypeVar("T_GlobalLpPool", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
     def GlobalLpPool(self, X: T_GlobalLpPool, *, p: int = 2) -> T_GlobalLpPool:
         r"""[🌐 GlobalLpPool(22)](https://onnx.ai/onnx/operators/onnx__GlobalLpPool.html#globallppool-22 "Online Documentation")
@@ -1063,8 +1063,8 @@ class Opset22(Opset21):
         grid: T2_GridSample,
         *,
         align_corners: int = 0,
-        mode: str = "linear",
         padding_mode: str = "zeros",
+        mode: str = "linear",
     ) -> T1_GridSample:
         r"""[🌐 GridSample(22)](https://onnx.ai/onnx/operators/onnx__GridSample.html#gridsample-22 "Online Documentation")
 
@@ -1111,14 +1111,6 @@ class Opset22(Opset21):
                 the corner points of the input's corner pixels (voxels, etc.), making
                 the sampling more resolution agnostic.
 
-            mode: Three interpolation modes: linear (default), nearest and cubic. The
-                "linear" mode includes linear and N-linear interpolation modes depending
-                on the number of spatial dimensions of the input tensor (i.e. linear for
-                1 spatial dimension, bilinear for 2 spatial dimensions, etc.). The
-                "cubic" mode also includes N-cubic interpolation modes following the
-                same rules. The "nearest" mode rounds to the nearest even index when the
-                sampling point falls halfway between two indices.
-
             padding_mode: Support padding modes for outside grid values:
                 `zeros`(default), `border`, `reflection`. zeros: use 0 for out-of-bound
                 grid locations, border: use border values for out-of-bound grid
@@ -1129,6 +1121,14 @@ class Opset22(Opset21):
                 until becoming in bound. If pixel location x = -3.5 reflects by border
                 -1 and becomes x' = 1.5, then reflects by border 1 and becomes x'' =
                 0.5.
+
+            mode: Three interpolation modes: linear (default), nearest and cubic. The
+                "linear" mode includes linear and N-linear interpolation modes depending
+                on the number of spatial dimensions of the input tensor (i.e. linear for
+                1 spatial dimension, bilinear for 2 spatial dimensions, etc.). The
+                "cubic" mode also includes N-cubic interpolation modes following the
+                same rules. The "nearest" mode rounds to the nearest even index when the
+                sampling point falls halfway between two indices.
         """
 
         schema = get_schema("GridSample", 22, "")
@@ -1136,14 +1136,14 @@ class Opset22(Opset21):
         return op(
             *self._prepare_inputs(schema, X, grid),
             align_corners=align_corners,
-            mode=mode,
             padding_mode=padding_mode,
+            mode=mode,
         )
 
     T_HardSigmoid = TypeVar("T_HardSigmoid", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
     def HardSigmoid(
-        self, X: T_HardSigmoid, *, alpha: float = 0.20000000298023224, beta: float = 0.5
+        self, X: T_HardSigmoid, *, beta: float = 0.5, alpha: float = 0.20000000298023224
     ) -> T_HardSigmoid:
         r"""[🌐 HardSigmoid(22)](https://onnx.ai/onnx/operators/onnx__HardSigmoid.html#hardsigmoid-22 "Online Documentation")
 
@@ -1156,14 +1156,14 @@ class Opset22(Opset21):
         Args:
             X: (differentiable) Input tensor
 
-            alpha: Value of alpha.
-
             beta: Value of beta.
+
+            alpha: Value of alpha.
         """
 
         schema = get_schema("HardSigmoid", 22, "")
         op = Op(self, "HardSigmoid", schema)
-        return op(*self._prepare_inputs(schema, X), alpha=alpha, beta=beta)
+        return op(*self._prepare_inputs(schema, X), beta=beta, alpha=alpha)
 
     T_HardSwish = TypeVar("T_HardSwish", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
@@ -1240,14 +1240,14 @@ class Opset22(Opset21):
         initial_c: Optional[T_LSTM] = None,
         P: Optional[T_LSTM] = None,
         *,
-        activation_alpha: Optional[Sequence[float]] = None,
-        activation_beta: Optional[Sequence[float]] = None,
-        activations: Optional[Sequence[str]] = None,
         clip: Optional[float] = None,
-        direction: str = "forward",
+        activation_beta: Optional[Sequence[float]] = None,
+        activation_alpha: Optional[Sequence[float]] = None,
         hidden_size: Optional[int] = None,
+        direction: str = "forward",
         input_forget: int = 0,
         layout: int = 0,
+        activations: Optional[Sequence[str]] = None,
     ) -> Tuple[T_LSTM, T_LSTM, T_LSTM]:
         r"""[🌐 LSTM(22)](https://onnx.ai/onnx/operators/onnx__LSTM.html#lstm-22 "Online Documentation")
 
@@ -1340,30 +1340,25 @@ class Opset22(Opset21):
                 shape `[num_directions, 3*hidde_size]`. Optional: If not specified -
                 assumed to be 0.
 
-            activation_alpha: Optional scaling values used by some activation functions.
-                The values are consumed in the order of activation functions, for
-                example (f, g, h) in LSTM. Default values are the same as of
-                corresponding ONNX operators.For example with LeakyRelu, the default
-                alpha is 0.01.
+            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
+                range of [-threshold, +threshold] and is applied to the input of
+                activations. No clip if not specified.
 
             activation_beta: Optional scaling values used by some activation functions.
                 The values are consumed in the order of activation functions, for
                 example (f, g, h) in LSTM. Default values are the same as of
                 corresponding ONNX operators.
 
-            activations: A list of 3 (or 6 if bidirectional) activation functions for
-                input, output, forget, cell, and hidden. The activation functions must
-                be one of the activation functions specified above. Optional: See the
-                equations for default if not specified.
+            activation_alpha: Optional scaling values used by some activation functions.
+                The values are consumed in the order of activation functions, for
+                example (f, g, h) in LSTM. Default values are the same as of
+                corresponding ONNX operators.For example with LeakyRelu, the default
+                alpha is 0.01.
 
-            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
-                range of [-threshold, +threshold] and is applied to the input of
-                activations. No clip if not specified.
+            hidden_size: Number of neurons in the hidden layer
 
             direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
                 one of forward (default), reverse, or bidirectional.
-
-            hidden_size: Number of neurons in the hidden layer
 
             input_forget: Couple the input and forget gates if 1.
 
@@ -1376,26 +1371,31 @@ class Opset22(Opset21):
                 seq_length, input_size], Y.shape = [batch_size, seq_length,
                 num_directions, hidden_size], initial_h.shape = Y_h.shape =
                 initial_c.shape = Y_c.shape = [batch_size, num_directions, hidden_size].
+
+            activations: A list of 3 (or 6 if bidirectional) activation functions for
+                input, output, forget, cell, and hidden. The activation functions must
+                be one of the activation functions specified above. Optional: See the
+                equations for default if not specified.
         """
 
         schema = get_schema("LSTM", 22, "")
         op = Op(self, "LSTM", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h, initial_c, P),
-            activation_alpha=activation_alpha,
-            activation_beta=activation_beta,
-            activations=activations,
             clip=clip,
-            direction=direction,
+            activation_beta=activation_beta,
+            activation_alpha=activation_alpha,
             hidden_size=hidden_size,
+            direction=direction,
             input_forget=input_forget,
             layout=layout,
+            activations=activations,
         )
 
     T_LpNormalization = TypeVar("T_LpNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
     def LpNormalization(
-        self, input: T_LpNormalization, *, axis: int = -1, p: int = 2
+        self, input: T_LpNormalization, *, p: int = 2, axis: int = -1
     ) -> T_LpNormalization:
         r"""[🌐 LpNormalization(22)](https://onnx.ai/onnx/operators/onnx__LpNormalization.html#lpnormalization-22 "Online Documentation")
 
@@ -1406,14 +1406,14 @@ class Opset22(Opset21):
         Args:
             input: (differentiable) Input matrix
 
-            axis: The axis on which to apply normalization, -1 mean last axis.
-
             p: The order of the normalization, only 1 or 2 are supported.
+
+            axis: The axis on which to apply normalization, -1 mean last axis.
         """
 
         schema = get_schema("LpNormalization", 22, "")
         op = Op(self, "LpNormalization", schema)
-        return op(*self._prepare_inputs(schema, input), axis=axis, p=p)
+        return op(*self._prepare_inputs(schema, input), p=p, axis=axis)
 
     T_LpPool = TypeVar("T_LpPool", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
@@ -1421,13 +1421,13 @@ class Opset22(Opset21):
         self,
         X: T_LpPool,
         *,
+        p: int = 2,
+        pads: Optional[Sequence[int]] = None,
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         dilations: Optional[Sequence[int]] = None,
-        kernel_shape: Sequence[int],
-        p: int = 2,
-        pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
     ) -> T_LpPool:
         r"""[🌐 LpPool(22)](https://onnx.ai/onnx/operators/onnx__LpPool.html#lppool-22 "Online Documentation")
 
@@ -1463,6 +1463,18 @@ class Opset22(Opset21):
                 data. For non image case, the dimensions are in the form of (N x C x D1
                 x D2 ... Dn), where N is the batch size.
 
+            p: p value of the Lp norm used to pool over the input data.
+
+            pads: Padding for the beginning and ending along each spatial axis, it can
+                take any value greater than or equal to 0. The value represent the
+                number of pixels added to the beginning and end part of the
+                corresponding axis. `pads` format should be as follow [x1_begin,
+                x2_begin...x1_end, x2_end,...], where xi_begin the number of pixels
+                added at the beginning of axis `i` and xi_end, the number of pixels
+                added at the end of axis `i`. This attribute cannot be used
+                simultaneously with auto_pad attribute. If not present, the padding
+                defaults to 0 along start and end of each spatial axis.
+
             auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
                 Where default value is NOTSET, which means explicit padding is used.
                 SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
@@ -1478,35 +1490,23 @@ class Opset22(Opset21):
             dilations: dilation value along each spatial axis of the filter. If not
                 present, the dilation defaults is 1 along each spatial axis.
 
-            kernel_shape: The size of the kernel along each axis.
-
-            p: p value of the Lp norm used to pool over the input data.
-
-            pads: Padding for the beginning and ending along each spatial axis, it can
-                take any value greater than or equal to 0. The value represent the
-                number of pixels added to the beginning and end part of the
-                corresponding axis. `pads` format should be as follow [x1_begin,
-                x2_begin...x1_end, x2_end,...], where xi_begin the number of pixels
-                added at the beginning of axis `i` and xi_end, the number of pixels
-                added at the end of axis `i`. This attribute cannot be used
-                simultaneously with auto_pad attribute. If not present, the padding
-                defaults to 0 along start and end of each spatial axis.
-
             strides: Stride along each spatial axis. If not present, the stride defaults
                 to 1 along each spatial axis.
+
+            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("LpPool", 22, "")
         op = Op(self, "LpPool", schema)
         return op(
             *self._prepare_inputs(schema, X),
+            p=p,
+            pads=pads,
             auto_pad=auto_pad,
             ceil_mode=ceil_mode,
             dilations=dilations,
-            kernel_shape=kernel_shape,
-            p=p,
-            pads=pads,
             strides=strides,
+            kernel_shape=kernel_shape,
         )
 
     T_MaxPool = TypeVar("T_MaxPool", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT8, UINT8)
@@ -1517,13 +1517,13 @@ class Opset22(Opset21):
         self,
         X: T_MaxPool,
         *,
-        auto_pad: str = "NOTSET",
-        ceil_mode: int = 0,
-        dilations: Optional[Sequence[int]] = None,
-        kernel_shape: Sequence[int],
-        pads: Optional[Sequence[int]] = None,
         storage_order: int = 0,
+        dilations: Optional[Sequence[int]] = None,
+        ceil_mode: int = 0,
+        pads: Optional[Sequence[int]] = None,
+        auto_pad: str = "NOTSET",
         strides: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
     ) -> Tuple[T_MaxPool, I_MaxPool]:
         r"""[🌐 MaxPool(22)](https://onnx.ai/onnx/operators/onnx__MaxPool.html#maxpool-22 "Online Documentation")
 
@@ -1571,22 +1571,15 @@ class Opset22(Opset21):
                 arrive with the dimension denotation of [DATA_BATCH, DATA_CHANNEL,
                 DATA_FEATURE, DATA_FEATURE ...].
 
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
-                ceil(input_shape[i] / strides[i])` for each axis `i`. The padding is
-                split between the two sides equally or almost equally (depending on
-                whether it is even or odd). In case the padding is an odd number, the
-                extra padding is added at the end for SAME_UPPER and at the beginning
-                for SAME_LOWER.
-
-            ceil_mode: Whether to use ceil or floor (default) to compute the output
-                shape.
+            storage_order: The storage order of the tensor. 0 is row major, and 1 is
+                column major. This attribute is used only to convert an n-tuple index
+                value into a single integer value for producing the second output.
 
             dilations: Dilation value along each spatial axis of filter. If not present,
                 the dilation defaults to 1 along each spatial axis.
 
-            kernel_shape: The size of the kernel along each axis.
+            ceil_mode: Whether to use ceil or floor (default) to compute the output
+                shape.
 
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
@@ -1598,25 +1591,32 @@ class Opset22(Opset21):
                 simultaneously with auto_pad attribute. If not present, the padding
                 defaults to 0 along start and end of each spatial axis.
 
-            storage_order: The storage order of the tensor. 0 is row major, and 1 is
-                column major. This attribute is used only to convert an n-tuple index
-                value into a single integer value for producing the second output.
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
+                ceil(input_shape[i] / strides[i])` for each axis `i`. The padding is
+                split between the two sides equally or almost equally (depending on
+                whether it is even or odd). In case the padding is an odd number, the
+                extra padding is added at the end for SAME_UPPER and at the beginning
+                for SAME_LOWER.
 
             strides: Stride along each spatial axis. If not present, the stride defaults
                 to 1 along each spatial axis.
+
+            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("MaxPool", 22, "")
         op = Op(self, "MaxPool", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            auto_pad=auto_pad,
-            ceil_mode=ceil_mode,
-            dilations=dilations,
-            kernel_shape=kernel_shape,
-            pads=pads,
             storage_order=storage_order,
+            dilations=dilations,
+            ceil_mode=ceil_mode,
+            pads=pads,
+            auto_pad=auto_pad,
             strides=strides,
+            kernel_shape=kernel_shape,
         )
 
     T_MaxRoiPool = TypeVar("T_MaxRoiPool", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
@@ -1626,8 +1626,8 @@ class Opset22(Opset21):
         X: T_MaxRoiPool,
         rois: T_MaxRoiPool,
         *,
-        pooled_shape: Sequence[int],
         spatial_scale: float = 1.0,
+        pooled_shape: Sequence[int],
     ) -> T_MaxRoiPool:
         r"""[🌐 MaxRoiPool(22)](https://onnx.ai/onnx/operators/onnx__MaxRoiPool.html#maxroipool-22 "Online Documentation")
 
@@ -1646,18 +1646,18 @@ class Opset22(Opset21):
                 be a 2-D tensor of shape (num_rois, 5) given as [[batch_id, x1, y1, x2,
                 y2], ...].
 
-            pooled_shape: ROI pool output shape (height, width).
-
             spatial_scale: Multiplicative spatial scale factor to translate ROI
                 coordinates from their input scale to the scale used when pooling.
+
+            pooled_shape: ROI pool output shape (height, width).
         """
 
         schema = get_schema("MaxRoiPool", 22, "")
         op = Op(self, "MaxRoiPool", schema)
         return op(
             *self._prepare_inputs(schema, X, rois),
-            pooled_shape=pooled_shape,
             spatial_scale=spatial_scale,
+            pooled_shape=pooled_shape,
         )
 
     T1_MaxUnpool = TypeVar("T1_MaxUnpool", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
@@ -1670,9 +1670,9 @@ class Opset22(Opset21):
         I: T2_MaxUnpool,
         output_shape: Optional[T2_MaxUnpool] = None,
         *,
-        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
     ) -> T1_MaxUnpool:
         r"""[🌐 MaxUnpool(22)](https://onnx.ai/onnx/operators/onnx__MaxUnpool.html#maxunpool-22 "Online Documentation")
 
@@ -1720,8 +1720,6 @@ class Opset22(Opset21):
                 explicitly set which will cause pads values to be auto generated. If
                 'output_shape' is specified, 'pads' values are ignored.
 
-            kernel_shape: The size of the kernel along each axis.
-
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
                 number of pixels added to the beginning and end part of the
@@ -1734,15 +1732,17 @@ class Opset22(Opset21):
 
             strides: Stride along each spatial axis. If not present, the stride defaults
                 to 1 along each spatial axis.
+
+            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("MaxUnpool", 22, "")
         op = Op(self, "MaxUnpool", schema)
         return op(
             *self._prepare_inputs(schema, X, I, output_shape),
-            kernel_shape=kernel_shape,
             pads=pads,
             strides=strides,
+            kernel_shape=kernel_shape,
         )
 
     T_Mish = TypeVar("T_Mish", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
@@ -1779,8 +1779,8 @@ class Opset22(Opset21):
         input: T1_Multinomial,
         *,
         dtype: int = 6,
-        sample_size: int = 1,
         seed: Optional[float] = None,
+        sample_size: int = 1,
     ) -> T2_Multinomial:
         r"""[🌐 Multinomial(22)](https://onnx.ai/onnx/operators/onnx__Multinomial.html#multinomial-22 "Online Documentation")
 
@@ -1798,10 +1798,10 @@ class Opset22(Opset21):
             dtype: (Optional) The data type for the elements of the output tensor, if
                 not specified, we will use int32.
 
-            sample_size: Number of times to sample.
-
             seed: (Optional) Seed to the random generator, if not specified we will auto
                 generate one.
+
+            sample_size: Number of times to sample.
         """
 
         schema = get_schema("Multinomial", 22, "")
@@ -1809,8 +1809,8 @@ class Opset22(Opset21):
         return op(
             *self._prepare_inputs(schema, input),
             dtype=dtype,
-            sample_size=sample_size,
             seed=seed,
+            sample_size=sample_size,
         )
 
     T_NegativeLogLikelihoodLoss = TypeVar(
@@ -1993,13 +1993,13 @@ class Opset22(Opset21):
         sequence_lens: Optional[T1_RNN] = None,
         initial_h: Optional[T_RNN] = None,
         *,
-        activation_alpha: Optional[Sequence[float]] = None,
-        activation_beta: Optional[Sequence[float]] = None,
-        activations: Sequence[str] = ("Tanh", "Tanh"),
         clip: Optional[float] = None,
-        direction: str = "forward",
+        activation_beta: Optional[Sequence[float]] = None,
+        activation_alpha: Optional[Sequence[float]] = None,
         hidden_size: Optional[int] = None,
         layout: int = 0,
+        direction: str = "forward",
+        activations: Sequence[str] = ("Tanh", "Tanh"),
     ) -> Tuple[T_RNN, T_RNN]:
         r"""[🌐 RNN(22)](https://onnx.ai/onnx/operators/onnx__RNN.html#rnn-22 "Online Documentation")
 
@@ -2072,27 +2072,20 @@ class Opset22(Opset21):
                 hidden. If not specified - assumed to be 0. It has shape
                 `[num_directions, batch_size, hidden_size]`.
 
-            activation_alpha: Optional scaling values used by some activation functions.
-                The values are consumed in the order of activation functions, for
-                example (f, g, h) in LSTM. Default values are the same as of
-                corresponding ONNX operators.For example with LeakyRelu, the default
-                alpha is 0.01.
+            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
+                range of [-threshold, +threshold] and is applied to the input of
+                activations. No clip if not specified.
 
             activation_beta: Optional scaling values used by some activation functions.
                 The values are consumed in the order of activation functions, for
                 example (f, g, h) in LSTM. Default values are the same as of
                 corresponding ONNX operators.
 
-            activations: One (or two if bidirectional) activation function for input
-                gate. The activation function must be one of the activation functions
-                specified above. Optional: Default `Tanh` if not specified.
-
-            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
-                range of [-threshold, +threshold] and is applied to the input of
-                activations. No clip if not specified.
-
-            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
-                one of forward (default), reverse, or bidirectional.
+            activation_alpha: Optional scaling values used by some activation functions.
+                The values are consumed in the order of activation functions, for
+                example (f, g, h) in LSTM. Default values are the same as of
+                corresponding ONNX operators.For example with LeakyRelu, the default
+                alpha is 0.01.
 
             hidden_size: Number of neurons in the hidden layer
 
@@ -2104,19 +2097,26 @@ class Opset22(Opset21):
                 [batch_size, seq_length, input_size], Y.shape = [batch_size, seq_length,
                 num_directions, hidden_size], initial_h.shape = Y_h.shape = [batch_size,
                 num_directions, hidden_size].
+
+            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
+                one of forward (default), reverse, or bidirectional.
+
+            activations: One (or two if bidirectional) activation function for input
+                gate. The activation function must be one of the activation functions
+                specified above. Optional: Default `Tanh` if not specified.
         """
 
         schema = get_schema("RNN", 22, "")
         op = Op(self, "RNN", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h),
-            activation_alpha=activation_alpha,
-            activation_beta=activation_beta,
-            activations=activations,
             clip=clip,
-            direction=direction,
+            activation_beta=activation_beta,
+            activation_alpha=activation_alpha,
             hidden_size=hidden_size,
             layout=layout,
+            direction=direction,
+            activations=activations,
         )
 
     T_RandomNormal: TypeAlias = Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16]
@@ -2124,11 +2124,11 @@ class Opset22(Opset21):
     def RandomNormal(
         self,
         *,
-        dtype: int = 1,
-        mean: float = 0.0,
-        scale: float = 1.0,
-        seed: Optional[float] = None,
         shape: Sequence[int],
+        dtype: int = 1,
+        seed: Optional[float] = None,
+        scale: float = 1.0,
+        mean: float = 0.0,
     ) -> T_RandomNormal:
         r"""[🌐 RandomNormal(22)](https://onnx.ai/onnx/operators/onnx__RandomNormal.html#randomnormal-22 "Online Documentation")
 
@@ -2143,22 +2143,22 @@ class Opset22(Opset21):
 
 
         Args:
+            shape: The shape of the output tensor.
+
             dtype: The data type for the elements of the output tensor. Default is
                 TensorProto::FLOAT.
-
-            mean: The mean of the normal distribution.
-
-            scale: The standard deviation of the normal distribution.
 
             seed: (Optional) Seed to the random generator, if not specified we will auto
                 generate one.
 
-            shape: The shape of the output tensor.
+            scale: The standard deviation of the normal distribution.
+
+            mean: The mean of the normal distribution.
         """
 
         schema = get_schema("RandomNormal", 22, "")
         op = Op(self, "RandomNormal", schema)
-        return op(dtype=dtype, mean=mean, scale=scale, seed=seed, shape=shape)
+        return op(shape=shape, dtype=dtype, seed=seed, scale=scale, mean=mean)
 
     T1_RandomNormalLike = TypeVar(
         "T1_RandomNormalLike",
@@ -2187,9 +2187,9 @@ class Opset22(Opset21):
         input: T1_RandomNormalLike,
         *,
         dtype: Optional[int] = None,
-        mean: float = 0.0,
-        scale: float = 1.0,
         seed: Optional[float] = None,
+        scale: float = 1.0,
+        mean: float = 0.0,
     ) -> T2_RandomNormalLike:
         r"""[🌐 RandomNormalLike(22)](https://onnx.ai/onnx/operators/onnx__RandomNormalLike.html#randomnormallike-22 "Online Documentation")
 
@@ -2209,12 +2209,12 @@ class Opset22(Opset21):
             dtype: (Optional) The data type for the elements of the output tensor, if
                 not specified, we will use the data type of the input tensor.
 
-            mean: The mean of the normal distribution.
+            seed: (Optional) Seed to the random generator, if not specified we will auto
+                generate one.
 
             scale: The standard deviation of the normal distribution.
 
-            seed: (Optional) Seed to the random generator, if not specified we will auto
-                generate one.
+            mean: The mean of the normal distribution.
         """
 
         schema = get_schema("RandomNormalLike", 22, "")
@@ -2222,9 +2222,9 @@ class Opset22(Opset21):
         return op(
             *self._prepare_inputs(schema, input),
             dtype=dtype,
-            mean=mean,
-            scale=scale,
             seed=seed,
+            scale=scale,
+            mean=mean,
         )
 
     T_RandomUniform: TypeAlias = Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16]
@@ -2232,11 +2232,11 @@ class Opset22(Opset21):
     def RandomUniform(
         self,
         *,
+        shape: Sequence[int],
         dtype: int = 1,
+        seed: Optional[float] = None,
         high: float = 1.0,
         low: float = 0.0,
-        seed: Optional[float] = None,
-        shape: Sequence[int],
     ) -> T_RandomUniform:
         r"""[🌐 RandomUniform(22)](https://onnx.ai/onnx/operators/onnx__RandomUniform.html#randomuniform-22 "Online Documentation")
 
@@ -2250,22 +2250,22 @@ class Opset22(Opset21):
 
 
         Args:
+            shape: The shape of the output tensor.
+
             dtype: The data type for the elements of the output tensor. If not
                 specified, default is TensorProto::FLOAT.
-
-            high: Upper boundary of the output values.
-
-            low: Lower boundary of the output values.
 
             seed: (Optional) Seed to the random generator, if not specified we will auto
                 generate one.
 
-            shape: The shape of the output tensor.
+            high: Upper boundary of the output values.
+
+            low: Lower boundary of the output values.
         """
 
         schema = get_schema("RandomUniform", 22, "")
         op = Op(self, "RandomUniform", schema)
-        return op(dtype=dtype, high=high, low=low, seed=seed, shape=shape)
+        return op(shape=shape, dtype=dtype, seed=seed, high=high, low=low)
 
     T1_RandomUniformLike = TypeVar(
         "T1_RandomUniformLike",
@@ -2294,9 +2294,9 @@ class Opset22(Opset21):
         input: T1_RandomUniformLike,
         *,
         dtype: Optional[int] = None,
+        seed: Optional[float] = None,
         high: float = 1.0,
         low: float = 0.0,
-        seed: Optional[float] = None,
     ) -> T2_RandomUniformLike:
         r"""[🌐 RandomUniformLike(22)](https://onnx.ai/onnx/operators/onnx__RandomUniformLike.html#randomuniformlike-22 "Online Documentation")
 
@@ -2316,18 +2316,18 @@ class Opset22(Opset21):
             dtype: (Optional) The data type for the elements of the output tensor, if
                 not specified, we will use the data type of the input tensor.
 
+            seed: (Optional) Seed to the random generator, if not specified we will auto
+                generate one.
+
             high: Upper boundary of the output values.
 
             low: Lower boundary of the output values.
-
-            seed: (Optional) Seed to the random generator, if not specified we will auto
-                generate one.
         """
 
         schema = get_schema("RandomUniformLike", 22, "")
         op = Op(self, "RandomUniformLike", schema)
         return op(
-            *self._prepare_inputs(schema, input), dtype=dtype, high=high, low=low, seed=seed
+            *self._prepare_inputs(schema, input), dtype=dtype, seed=seed, high=high, low=low
         )
 
     T1_RoiAlign = TypeVar("T1_RoiAlign", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
@@ -2343,8 +2343,8 @@ class Opset22(Opset21):
         coordinate_transformation_mode: str = "half_pixel",
         mode: str = "avg",
         output_height: int = 1,
-        output_width: int = 1,
         sampling_ratio: int = 0,
+        output_width: int = 1,
         spatial_scale: float = 1.0,
     ) -> T1_RoiAlign:
         r"""[🌐 RoiAlign(22)](https://onnx.ai/onnx/operators/onnx__RoiAlign.html#roialign-22 "Online Documentation")
@@ -2387,13 +2387,13 @@ class Opset22(Opset21):
 
             output_height: default 1; Pooled output Y's height.
 
-            output_width: default 1; Pooled output Y's width.
-
             sampling_ratio: Number of sampling points in the interpolation grid used to
                 compute the output value of each pooled output bin. If > 0, then exactly
                 sampling_ratio x sampling_ratio grid points are used. If == 0, then an
                 adaptive number of grid points are used (computed as ceil(roi_width /
                 output_width), and likewise for height). Default is 0.
+
+            output_width: default 1; Pooled output Y's width.
 
             spatial_scale: Multiplicative spatial scale factor to translate ROI
                 coordinates from their input spatial scale to the scale used when
@@ -2408,8 +2408,8 @@ class Opset22(Opset21):
             coordinate_transformation_mode=coordinate_transformation_mode,
             mode=mode,
             output_height=output_height,
-            output_width=output_width,
             sampling_ratio=sampling_ratio,
+            output_width=output_width,
             spatial_scale=spatial_scale,
         )
 
@@ -2451,8 +2451,8 @@ class Opset22(Opset21):
         self,
         X: T_Selu,
         *,
-        alpha: float = 1.6732631921768188,
         gamma: float = 1.0507010221481323,
+        alpha: float = 1.6732631921768188,
     ) -> T_Selu:
         r"""[🌐 Selu(22)](https://onnx.ai/onnx/operators/onnx__Selu.html#selu-22 "Online Documentation")
 
@@ -2466,16 +2466,16 @@ class Opset22(Opset21):
         Args:
             X: (differentiable) Input tensor
 
-            alpha: Coefficient of SELU default to 1.67326319217681884765625 (i.e.,
-                float32 approximation of 1.6732632423543772848170429916717).
-
             gamma: Coefficient of SELU default to 1.05070102214813232421875 (i.e.,
                 float32 approximation of 1.0507009873554804934193349852946).
+
+            alpha: Coefficient of SELU default to 1.67326319217681884765625 (i.e.,
+                float32 approximation of 1.6732632423543772848170429916717).
         """
 
         schema = get_schema("Selu", 22, "")
         op = Op(self, "Selu", schema)
-        return op(*self._prepare_inputs(schema, X), alpha=alpha, gamma=gamma)
+        return op(*self._prepare_inputs(schema, X), gamma=gamma, alpha=alpha)
 
     T_Sin = TypeVar("T_Sin", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 

@@ -110,8 +110,8 @@ class Opset16(Opset15):
         grid: T2_GridSample,
         *,
         align_corners: int = 0,
-        mode: str = "bilinear",
         padding_mode: str = "zeros",
+        mode: str = "bilinear",
     ) -> T1_GridSample:
         r"""[🌐 GridSample(16)](https://onnx.ai/onnx/operators/onnx__GridSample.html#gridsample-16 "Online Documentation")
 
@@ -149,8 +149,6 @@ class Opset16(Opset15):
                 points of the input's corner pixels, making the sampling more resolution
                 agnostic.
 
-            mode: Three interpolation modes: bilinear (default), nearest and bicubic.
-
             padding_mode: Support padding modes for outside grid values:
                 `zeros`(default), `border`, `reflection`. zeros: use 0 for out-of-bound
                 grid locations, border: use border values for out-of-bound grid
@@ -161,6 +159,8 @@ class Opset16(Opset15):
                 until becoming in bound. If pixel location x = -3.5 reflects by border
                 -1 and becomes x' = 1.5, then reflects by border 1 and becomes x'' =
                 0.5.
+
+            mode: Three interpolation modes: bilinear (default), nearest and bicubic.
         """
 
         schema = get_schema("GridSample", 16, "")
@@ -168,8 +168,8 @@ class Opset16(Opset15):
         return op(
             *self._prepare_inputs(schema, X, grid),
             align_corners=align_corners,
-            mode=mode,
             padding_mode=padding_mode,
+            mode=mode,
         )
 
     V_Identity = TypeVar(
@@ -679,8 +679,8 @@ class Opset16(Opset15):
         coordinate_transformation_mode: str = "half_pixel",
         mode: str = "avg",
         output_height: int = 1,
-        output_width: int = 1,
         sampling_ratio: int = 0,
+        output_width: int = 1,
         spatial_scale: float = 1.0,
     ) -> T1_RoiAlign:
         r"""[🌐 RoiAlign(16)](https://onnx.ai/onnx/operators/onnx__RoiAlign.html#roialign-16 "Online Documentation")
@@ -723,13 +723,13 @@ class Opset16(Opset15):
 
             output_height: default 1; Pooled output Y's height.
 
-            output_width: default 1; Pooled output Y's width.
-
             sampling_ratio: Number of sampling points in the interpolation grid used to
                 compute the output value of each pooled output bin. If > 0, then exactly
                 sampling_ratio x sampling_ratio grid points are used. If == 0, then an
                 adaptive number of grid points are used (computed as ceil(roi_width /
                 output_width), and likewise for height). Default is 0.
+
+            output_width: default 1; Pooled output Y's width.
 
             spatial_scale: Multiplicative spatial scale factor to translate ROI
                 coordinates from their input spatial scale to the scale used when
@@ -744,8 +744,8 @@ class Opset16(Opset15):
             coordinate_transformation_mode=coordinate_transformation_mode,
             mode=mode,
             output_height=output_height,
-            output_width=output_width,
             sampling_ratio=sampling_ratio,
+            output_width=output_width,
             spatial_scale=spatial_scale,
         )
 
@@ -772,12 +772,12 @@ class Opset16(Opset15):
     def Scan(
         self,
         *initial_state_and_scan_inputs: V_Scan,
-        body: GraphProto,
-        num_scan_inputs: int,
         scan_input_axes: Optional[Sequence[int]] = None,
-        scan_input_directions: Optional[Sequence[int]] = None,
         scan_output_axes: Optional[Sequence[int]] = None,
         scan_output_directions: Optional[Sequence[int]] = None,
+        scan_input_directions: Optional[Sequence[int]] = None,
+        num_scan_inputs: int,
+        body: GraphProto,
     ) -> V_Scan:
         r"""[🌐 Scan(16)](https://onnx.ai/onnx/operators/onnx__Scan.html#scan-16 "Online Documentation")
 
@@ -909,26 +909,11 @@ class Opset16(Opset15):
             initial_state_and_scan_inputs: (variadic, heterogeneous) Initial values of
                 the loop's N state variables followed by M scan_inputs
 
-            body: The graph run each iteration. It has N+M inputs: (loop state
-                variables..., scan_input_elts...). It has N+K outputs: (loop state
-                variables..., scan_output_elts...). Each scan_output is created by
-                concatenating the value of the specified scan_output_elt value at the
-                end of each iteration of the loop. It is an error if the dimensions of
-                these values change across loop iterations.
-
-            num_scan_inputs: An attribute specifying the number of scan_inputs M.
-
             scan_input_axes: An optional list of M flags. The i-th element of the list
                 specifies the axis to be scanned (the sequence axis) for the i-th
                 scan_input. If omitted, 0 will be used as the scan axis for every
                 scan_input. Negative value for an axis means counting dimensions from
                 the back. Accepted range is [-r, r-1] where r = rank(input).
-
-            scan_input_directions: An optional list of M flags. The i-th element of the
-                list specifies the direction to be scanned for the i-th scan_input
-                tensor: 0 indicates forward direction and 1 indicates reverse direction.
-                If omitted, all scan_input tensors will be scanned in the forward
-                direction.
 
             scan_output_axes: An optional list of K flags. The i-th element of the list
                 specifies the axis for the i-th scan_output. The scan outputs are
@@ -942,18 +927,33 @@ class Opset16(Opset15):
                 in each iteration: 0 indicates appending and 1 indicates prepending. If
                 omitted, all scan_output tensors will be produced by appending a value
                 in each iteration.
+
+            scan_input_directions: An optional list of M flags. The i-th element of the
+                list specifies the direction to be scanned for the i-th scan_input
+                tensor: 0 indicates forward direction and 1 indicates reverse direction.
+                If omitted, all scan_input tensors will be scanned in the forward
+                direction.
+
+            num_scan_inputs: An attribute specifying the number of scan_inputs M.
+
+            body: The graph run each iteration. It has N+M inputs: (loop state
+                variables..., scan_input_elts...). It has N+K outputs: (loop state
+                variables..., scan_output_elts...). Each scan_output is created by
+                concatenating the value of the specified scan_output_elt value at the
+                end of each iteration of the loop. It is an error if the dimensions of
+                these values change across loop iterations.
         """
 
         schema = get_schema("Scan", 16, "")
         op = Op(self, "Scan", schema)
         return op(
             *self._prepare_inputs(schema, *initial_state_and_scan_inputs),
-            body=body,
-            num_scan_inputs=num_scan_inputs,
             scan_input_axes=scan_input_axes,
-            scan_input_directions=scan_input_directions,
             scan_output_axes=scan_output_axes,
             scan_output_directions=scan_output_directions,
+            scan_input_directions=scan_input_directions,
+            num_scan_inputs=num_scan_inputs,
+            body=body,
         )
 
     T_ScatterElements = TypeVar(
@@ -984,8 +984,8 @@ class Opset16(Opset15):
         indices: Tind_ScatterElements,
         updates: T_ScatterElements,
         *,
-        axis: int = 0,
         reduction: str = "none",
+        axis: int = 0,
     ) -> T_ScatterElements:
         r"""[🌐 ScatterElements(16)](https://onnx.ai/onnx/operators/onnx__ScatterElements.html#scatterelements-16 "Online Documentation")
 
@@ -1073,20 +1073,20 @@ class Opset16(Opset15):
             updates: (differentiable) Tensor of rank r >=1 (same rank and shape as
                 indices)
 
-            axis: Which axis to scatter on. Negative value means counting dimensions
-                from the back. Accepted range is [-r, r-1] where r = rank(data).
-
             reduction: Type of reduction to apply: none (default), add, mul. 'none': no
                 reduction applied. 'add':  reduction using the addition operation.
                 'mul': reduction using the multiplication operation.
+
+            axis: Which axis to scatter on. Negative value means counting dimensions
+                from the back. Accepted range is [-r, r-1] where r = rank(data).
         """
 
         schema = get_schema("ScatterElements", 16, "")
         op = Op(self, "ScatterElements", schema)
         return op(
             *self._prepare_inputs(schema, data, indices, updates),
-            axis=axis,
             reduction=reduction,
+            axis=axis,
         )
 
     T_ScatterND = TypeVar(

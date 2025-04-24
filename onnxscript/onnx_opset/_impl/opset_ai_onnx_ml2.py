@@ -35,15 +35,15 @@ class Opset_ai_onnx_ml2(Opset_ai_onnx_ml1):
         self,
         X: T1_LabelEncoder,
         *,
-        default_float: float = -0.0,
         default_int64: int = -1,
+        default_float: float = -0.0,
         default_string: str = "_Unused",
-        keys_floats: Optional[Sequence[float]] = None,
-        keys_int64s: Optional[Sequence[int]] = None,
-        keys_strings: Optional[Sequence[str]] = None,
-        values_floats: Optional[Sequence[float]] = None,
         values_int64s: Optional[Sequence[int]] = None,
         values_strings: Optional[Sequence[str]] = None,
+        keys_floats: Optional[Sequence[float]] = None,
+        values_floats: Optional[Sequence[float]] = None,
+        keys_int64s: Optional[Sequence[int]] = None,
+        keys_strings: Optional[Sequence[str]] = None,
     ) -> T2_LabelEncoder:
         r"""[🌐 ai.onnx.ml::LabelEncoder(2)](https://onnx.ai/onnx/operators/onnx_aionnxml_LabelEncoder.html#labelencoder-2 "Online Documentation")
 
@@ -75,24 +75,24 @@ class Opset_ai_onnx_ml2(Opset_ai_onnx_ml1):
         Args:
             X: Input data. It can be either tensor or scalar.
 
-            default_float: A float.
-
             default_int64: An integer.
 
+            default_float: A float.
+
             default_string: A string.
-
-            keys_floats: A list of floats.
-
-            keys_int64s: A list of ints.
-
-            keys_strings: A list of strings. One and only one of 'keys_*'s should be
-                set.
-
-            values_floats: A list of floats.
 
             values_int64s: A list of ints.
 
             values_strings: A list of strings. One and only one of 'value_*'s should be
+                set.
+
+            keys_floats: A list of floats.
+
+            values_floats: A list of floats.
+
+            keys_int64s: A list of ints.
+
+            keys_strings: A list of strings. One and only one of 'keys_*'s should be
                 set.
         """
 
@@ -100,13 +100,13 @@ class Opset_ai_onnx_ml2(Opset_ai_onnx_ml1):
         op = Op(self, "LabelEncoder", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            default_float=default_float,
             default_int64=default_int64,
+            default_float=default_float,
             default_string=default_string,
-            keys_floats=keys_floats,
-            keys_int64s=keys_int64s,
-            keys_strings=keys_strings,
-            values_floats=values_floats,
             values_int64s=values_int64s,
             values_strings=values_strings,
+            keys_floats=keys_floats,
+            values_floats=values_floats,
+            keys_int64s=keys_int64s,
+            keys_strings=keys_strings,
         )

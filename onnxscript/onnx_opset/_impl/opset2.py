@@ -19,7 +19,6 @@ from onnx.defs import get_schema
 
 from onnxscript.onnx_opset._impl.opset1 import Opset1
 from onnxscript.onnx_types import (
-    BFLOAT16,
     BOOL,
     COMPLEX64,
     COMPLEX128,
@@ -43,7 +42,7 @@ class Opset2(Opset1):
     def __new__(cls):
         return Opset.__new__(cls, "", 2)
 
-    T_GlobalLpPool = TypeVar("T_GlobalLpPool", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+    T_GlobalLpPool = TypeVar("T_GlobalLpPool", DOUBLE, FLOAT, FLOAT16)
 
     def GlobalLpPool(self, X: T_GlobalLpPool, *, p: int = 2) -> T_GlobalLpPool:
         r"""[🌐 GlobalLpPool(2)](https://onnx.ai/onnx/operators/onnx__GlobalLpPool.html#globallppool-2 "Online Documentation")
@@ -73,11 +72,11 @@ class Opset2(Opset1):
         self,
         X: T_LpPool,
         *,
-        auto_pad: str = "NOTSET",
-        kernel_shape: Sequence[int],
         p: int = 2,
         pads: Optional[Sequence[int]] = None,
+        auto_pad: str = "NOTSET",
         strides: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
     ) -> T_LpPool:
         r"""[🌐 LpPool(2)](https://onnx.ai/onnx/operators/onnx__LpPool.html#lppool-2 "Online Documentation")
 
@@ -95,15 +94,6 @@ class Opset2(Opset1):
                 image case, the dimensions are in the form of (N x C x D1 x D2 ... Dn),
                 where N is the batch size.
 
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
-                size match the input.In case of odd number add the extra padding at the
-                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
-                padding.
-
-            kernel_shape: The size of the kernel along each axis.
-
             p: p value of the Lp norm used to pool over the input data.
 
             pads: Padding for the beginning and ending along each spatial axis, it can
@@ -116,24 +106,33 @@ class Opset2(Opset1):
                 simultaneously with auto_pad attribute. If not present, the padding
                 defaults to 0 along start and end of each spatial axis.
 
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
+                size match the input.In case of odd number add the extra padding at the
+                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
+                padding.
+
             strides: Stride along each spatial axis.
+
+            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("LpPool", 2, "")
         op = Op(self, "LpPool", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            auto_pad=auto_pad,
-            kernel_shape=kernel_shape,
             p=p,
             pads=pads,
+            auto_pad=auto_pad,
             strides=strides,
+            kernel_shape=kernel_shape,
         )
 
     T_Pad = TypeVar("T_Pad", DOUBLE, FLOAT, FLOAT16)
 
     def Pad(
-        self, data: T_Pad, *, mode: str = "constant", pads: Sequence[int], value: float = 0.0
+        self, data: T_Pad, *, value: float = 0.0, mode: str = "constant", pads: Sequence[int]
     ) -> T_Pad:
         r"""[🌐 Pad(2)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-2 "Online Documentation")
 
@@ -159,6 +158,8 @@ class Opset2(Opset1):
         Args:
             data: Input tensor.
 
+            value: One float, indicates the value to be filled.
+
             mode: Three modes: constant(default), reflect, edge
 
             pads: List of integers indicating the number of padding elements to add or
@@ -168,13 +169,11 @@ class Opset2(Opset1):
                 x2_end,...], where xi_begin the number of pixels added at the beginning
                 of axis `i` and xi_end, the number of pixels added at the end of axis
                 `i`.
-
-            value: One float, indicates the value to be filled.
         """
 
         schema = get_schema("Pad", 2, "")
         op = Op(self, "Pad", schema)
-        return op(*self._prepare_inputs(schema, data), mode=mode, pads=pads, value=value)
+        return op(*self._prepare_inputs(schema, data), value=value, mode=mode, pads=pads)
 
     T_Split = TypeVar(
         "T_Split",
@@ -196,7 +195,7 @@ class Opset2(Opset1):
     )
 
     def Split(
-        self, input: T_Split, *, axis: int = 0, split: Optional[Sequence[int]] = None
+        self, input: T_Split, *, split: Optional[Sequence[int]] = None, axis: int = 0
     ) -> T_Split:
         r"""[🌐 Split(2)](https://onnx.ai/onnx/operators/onnx__Split.html#split-2 "Online Documentation")
 
@@ -208,11 +207,11 @@ class Opset2(Opset1):
         Args:
             input: The tensor to split
 
-            axis: Which axis to split on.
-
             split: length of each output
+
+            axis: Which axis to split on.
         """
 
         schema = get_schema("Split", 2, "")
         op = Op(self, "Split", schema)
-        return op(*self._prepare_inputs(schema, input), axis=axis, split=split)
+        return op(*self._prepare_inputs(schema, input), split=split, axis=axis)

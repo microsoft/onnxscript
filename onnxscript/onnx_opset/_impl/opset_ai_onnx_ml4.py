@@ -36,18 +36,18 @@ class Opset_ai_onnx_ml4(Opset_ai_onnx_ml3):
         self,
         X: T1_LabelEncoder,
         *,
-        default_float: float = -0.0,
-        default_int64: int = -1,
-        default_string: str = "_Unused",
         default_tensor: Optional[TensorProto] = None,
-        keys_floats: Optional[Sequence[float]] = None,
-        keys_int64s: Optional[Sequence[int]] = None,
-        keys_strings: Optional[Sequence[str]] = None,
-        keys_tensor: Optional[TensorProto] = None,
-        values_floats: Optional[Sequence[float]] = None,
+        default_int64: int = -1,
+        default_float: float = -0.0,
+        default_string: str = "_Unused",
         values_int64s: Optional[Sequence[int]] = None,
         values_strings: Optional[Sequence[str]] = None,
         values_tensor: Optional[TensorProto] = None,
+        keys_floats: Optional[Sequence[float]] = None,
+        keys_strings: Optional[Sequence[str]] = None,
+        values_floats: Optional[Sequence[float]] = None,
+        keys_int64s: Optional[Sequence[int]] = None,
+        keys_tensor: Optional[TensorProto] = None,
     ) -> T2_LabelEncoder:
         r"""[🌐 ai.onnx.ml::LabelEncoder(4)](https://onnx.ai/onnx/operators/onnx_aionnxml_LabelEncoder.html#labelencoder-4 "Online Documentation")
 
@@ -81,26 +81,15 @@ class Opset_ai_onnx_ml4(Opset_ai_onnx_ml3):
             X: Input data. It must have the same element type as the keys_* attribute
                 set.
 
-            default_float: A float.
-
-            default_int64: An integer.
-
-            default_string: A string.
-
             default_tensor: A default tensor. {"_Unused"} if values_* has string type,
                 {-1} if values_* has integral type, and {-0.f} if values_* has float
                 type.
 
-            keys_floats: A list of floats.
+            default_int64: An integer.
 
-            keys_int64s: A list of ints.
+            default_float: A float.
 
-            keys_strings: A list of strings.
-
-            keys_tensor: Keys encoded as a 1D tensor. One and only one of 'keys_*'s
-                should be set.
-
-            values_floats: A list of floats.
+            default_string: A string.
 
             values_int64s: A list of ints.
 
@@ -108,22 +97,33 @@ class Opset_ai_onnx_ml4(Opset_ai_onnx_ml3):
 
             values_tensor: Values encoded as a 1D tensor. One and only one of
                 'values_*'s should be set.
+
+            keys_floats: A list of floats.
+
+            keys_strings: A list of strings.
+
+            values_floats: A list of floats.
+
+            keys_int64s: A list of ints.
+
+            keys_tensor: Keys encoded as a 1D tensor. One and only one of 'keys_*'s
+                should be set.
         """
 
         schema = get_schema("LabelEncoder", 4, "ai.onnx.ml")
         op = Op(self, "LabelEncoder", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            default_float=default_float,
-            default_int64=default_int64,
-            default_string=default_string,
             default_tensor=default_tensor,
-            keys_floats=keys_floats,
-            keys_int64s=keys_int64s,
-            keys_strings=keys_strings,
-            keys_tensor=keys_tensor,
-            values_floats=values_floats,
+            default_int64=default_int64,
+            default_float=default_float,
+            default_string=default_string,
             values_int64s=values_int64s,
             values_strings=values_strings,
             values_tensor=values_tensor,
+            keys_floats=keys_floats,
+            keys_strings=keys_strings,
+            values_floats=values_floats,
+            keys_int64s=keys_int64s,
+            keys_tensor=keys_tensor,
         )

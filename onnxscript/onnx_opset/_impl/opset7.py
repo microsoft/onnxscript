@@ -145,11 +145,11 @@ class Opset7(Opset6):
         self,
         X: T_AveragePool,
         *,
-        auto_pad: str = "NOTSET",
         count_include_pad: int = 0,
-        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
+        auto_pad: str = "NOTSET",
         strides: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
     ) -> T_AveragePool:
         r"""[🌐 AveragePool(7)](https://onnx.ai/onnx/operators/onnx__AveragePool.html#averagepool-7 "Online Documentation")
 
@@ -187,17 +187,8 @@ class Opset7(Opset6):
                 dimension denotation of [DATA_BATCH, DATA_CHANNEL, DATA_FEATURE,
                 DATA_FEATURE ...].
 
-            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
-                Where default value is NOTSET, which means explicit padding is used.
-                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
-                size match the input.In case of odd number add the extra padding at the
-                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
-                padding.
-
             count_include_pad: Whether include pad pixels when calculating values for
                 the edges. Default is 0, doesn't count include pad.
-
-            kernel_shape: The size of the kernel along each axis.
 
             pads: Padding for the beginning and ending along each spatial axis, it can
                 take any value greater than or equal to 0. The value represent the
@@ -209,18 +200,27 @@ class Opset7(Opset6):
                 simultaneously with auto_pad attribute. If not present, the padding
                 defaults to 0 along start and end of each spatial axis.
 
+            auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
+                Where default value is NOTSET, which means explicit padding is used.
+                SAME_UPPER or SAME_LOWER mean pad the input so that the output spatial
+                size match the input.In case of odd number add the extra padding at the
+                end for SAME_UPPER and at the beginning for SAME_LOWER. VALID mean no
+                padding.
+
             strides: Stride along each spatial axis.
+
+            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("AveragePool", 7, "")
         op = Op(self, "AveragePool", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            auto_pad=auto_pad,
             count_include_pad=count_include_pad,
-            kernel_shape=kernel_shape,
             pads=pads,
+            auto_pad=auto_pad,
             strides=strides,
+            kernel_shape=kernel_shape,
         )
 
     T_BatchNormalization = TypeVar("T_BatchNormalization", DOUBLE, FLOAT, FLOAT16)
@@ -233,8 +233,8 @@ class Opset7(Opset6):
         mean: T_BatchNormalization,
         var: T_BatchNormalization,
         *,
-        epsilon: float = 9.999999747378752e-06,
         momentum: float = 0.8999999761581421,
+        epsilon: float = 9.999999747378752e-06,
         spatial: int = 1,
     ) -> Tuple[
         T_BatchNormalization,
@@ -278,10 +278,10 @@ class Opset7(Opset6):
                 dimensions of the running variance(training) or the estimated variance
                 (testing) are (C x D1 x ... x Dn).
 
-            epsilon: The epsilon value to use to avoid division by zero.
-
             momentum: Factor used in computing the running mean and variance.e.g.,
                 running_mean = running_mean * momentum + mean * (1 - momentum).
+
+            epsilon: The epsilon value to use to avoid division by zero.
 
             spatial: If true, compute the mean and variance across per activation. If
                 false, compute the mean and variance across per feature over each
@@ -292,8 +292,8 @@ class Opset7(Opset6):
         op = Op(self, "BatchNormalization", schema)
         return op(
             *self._prepare_inputs(schema, X, scale, B, mean, var),
-            epsilon=epsilon,
             momentum=momentum,
+            epsilon=epsilon,
             spatial=spatial,
         )
 
@@ -396,13 +396,13 @@ class Opset7(Opset6):
         sequence_lens: Optional[T1_GRU] = None,
         initial_h: Optional[T_GRU] = None,
         *,
-        activation_alpha: Optional[Sequence[float]] = None,
-        activation_beta: Optional[Sequence[float]] = None,
-        activations: Optional[Sequence[str]] = None,
         clip: Optional[float] = None,
-        direction: str = "forward",
+        activation_beta: Optional[Sequence[float]] = None,
+        activation_alpha: Optional[Sequence[float]] = None,
         hidden_size: Optional[int] = None,
+        direction: str = "forward",
         linear_before_reset: int = 0,
+        activations: Optional[Sequence[str]] = None,
     ) -> Tuple[T_GRU, T_GRU]:
         r"""[🌐 GRU(7)](https://onnx.ai/onnx/operators/onnx__GRU.html#gru-7 "Online Documentation")
 
@@ -507,47 +507,47 @@ class Opset7(Opset6):
                 - assumed to be 0. It has shape `[num_directions, batch_size,
                 hidden_size]`.
 
-            activation_alpha: Optional scaling values used by some activation functions.
-                The values are consumed in the order of activation functions, for
-                example (f, g, h) in LSTM. Default values are the same as of
-                corresponding ONNX operators.For example with LeakyRelu, the default
-                alpha is 0.01.
+            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
+                range of [-threshold, +threshold] and is applied to the input of
+                activations. No clip if not specified.
 
             activation_beta: Optional scaling values used by some activation functions.
                 The values are consumed in the order of activation functions, for
                 example (f, g, h) in LSTM. Default values are the same as of
                 corresponding ONNX operators.
 
-            activations: A list of 2 (or 4 if bidirectional) activation functions for
-                update, reset, and hidden gates. The activation functions must be one of
-                the activation functions specified above. Optional: See the equations
-                for default if not specified.
+            activation_alpha: Optional scaling values used by some activation functions.
+                The values are consumed in the order of activation functions, for
+                example (f, g, h) in LSTM. Default values are the same as of
+                corresponding ONNX operators.For example with LeakyRelu, the default
+                alpha is 0.01.
 
-            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
-                range of [-threshold, +threshold] and is applied to the input of
-                activations. No clip if not specified.
+            hidden_size: Number of neurons in the hidden layer
 
             direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
                 one of forward (default), reverse, or bidirectional.
 
-            hidden_size: Number of neurons in the hidden layer
-
             linear_before_reset: When computing the output of the hidden gate, apply the
                 linear transformation before multiplying by the output of the reset
                 gate.
+
+            activations: A list of 2 (or 4 if bidirectional) activation functions for
+                update, reset, and hidden gates. The activation functions must be one of
+                the activation functions specified above. Optional: See the equations
+                for default if not specified.
         """
 
         schema = get_schema("GRU", 7, "")
         op = Op(self, "GRU", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h),
-            activation_alpha=activation_alpha,
-            activation_beta=activation_beta,
-            activations=activations,
             clip=clip,
-            direction=direction,
+            activation_beta=activation_beta,
+            activation_alpha=activation_alpha,
             hidden_size=hidden_size,
+            direction=direction,
             linear_before_reset=linear_before_reset,
+            activations=activations,
         )
 
     T_Gemm = TypeVar("T_Gemm", DOUBLE, FLOAT, FLOAT16)
@@ -558,10 +558,10 @@ class Opset7(Opset6):
         B: T_Gemm,
         C: T_Gemm,
         *,
-        alpha: float = 1.0,
         beta: float = 1.0,
-        transA: int = 0,
         transB: int = 0,
+        alpha: float = 1.0,
+        transA: int = 0,
     ) -> T_Gemm:
         r"""[🌐 Gemm(7)](https://onnx.ai/onnx/operators/onnx__Gemm.html#gemm-7 "Online Documentation")
 
@@ -588,23 +588,23 @@ class Opset7(Opset6):
             C: Input tensor C. The shape of C should be unidirectional broadcastable to
                 (M, N).
 
-            alpha: Scalar multiplier for the product of input tensors A * B.
-
             beta: Scalar multiplier for input tensor C.
 
-            transA: Whether A should be transposed
-
             transB: Whether B should be transposed
+
+            alpha: Scalar multiplier for the product of input tensors A * B.
+
+            transA: Whether A should be transposed
         """
 
         schema = get_schema("Gemm", 7, "")
         op = Op(self, "Gemm", schema)
         return op(
             *self._prepare_inputs(schema, A, B, C),
-            alpha=alpha,
             beta=beta,
-            transA=transA,
             transB=transB,
+            alpha=alpha,
+            transA=transA,
         )
 
     T_Greater = TypeVar("T_Greater", DOUBLE, FLOAT, FLOAT16)
@@ -646,13 +646,13 @@ class Opset7(Opset6):
         initial_c: Optional[T_LSTM] = None,
         P: Optional[T_LSTM] = None,
         *,
-        activation_alpha: Optional[Sequence[float]] = None,
-        activation_beta: Optional[Sequence[float]] = None,
-        activations: Optional[Sequence[str]] = None,
         clip: Optional[float] = None,
-        direction: str = "forward",
+        activation_beta: Optional[Sequence[float]] = None,
+        activation_alpha: Optional[Sequence[float]] = None,
         hidden_size: Optional[int] = None,
+        direction: str = "forward",
         input_forget: int = 0,
+        activations: Optional[Sequence[str]] = None,
     ) -> Tuple[T_LSTM, T_LSTM, T_LSTM]:
         r"""[🌐 LSTM(7)](https://onnx.ai/onnx/operators/onnx__LSTM.html#lstm-7 "Online Documentation")
 
@@ -774,45 +774,45 @@ class Opset7(Opset6):
                 `[num_directions, 3*hidde_size]`. Optional: If not specified - assumed
                 to be 0.
 
-            activation_alpha: Optional scaling values used by some activation functions.
-                The values are consumed in the order of activation functions, for
-                example (f, g, h) in LSTM. Default values are the same as of
-                corresponding ONNX operators.For example with LeakyRelu, the default
-                alpha is 0.01.
+            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
+                range of [-threshold, +threshold] and is applied to the input of
+                activations. No clip if not specified.
 
             activation_beta: Optional scaling values used by some activation functions.
                 The values are consumed in the order of activation functions, for
                 example (f, g, h) in LSTM. Default values are the same as of
                 corresponding ONNX operators.
 
-            activations: A list of 3 (or 6 if bidirectional) activation functions for
-                input, output, forget, cell, and hidden. The activation functions must
-                be one of the activation functions specified above. Optional: See the
-                equations for default if not specified.
+            activation_alpha: Optional scaling values used by some activation functions.
+                The values are consumed in the order of activation functions, for
+                example (f, g, h) in LSTM. Default values are the same as of
+                corresponding ONNX operators.For example with LeakyRelu, the default
+                alpha is 0.01.
 
-            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
-                range of [-threshold, +threshold] and is applied to the input of
-                activations. No clip if not specified.
+            hidden_size: Number of neurons in the hidden layer
 
             direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
                 one of forward (default), reverse, or bidirectional.
 
-            hidden_size: Number of neurons in the hidden layer
-
             input_forget: Couple the input and forget gates if 1.
+
+            activations: A list of 3 (or 6 if bidirectional) activation functions for
+                input, output, forget, cell, and hidden. The activation functions must
+                be one of the activation functions specified above. Optional: See the
+                equations for default if not specified.
         """
 
         schema = get_schema("LSTM", 7, "")
         op = Op(self, "LSTM", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h, initial_c, P),
-            activation_alpha=activation_alpha,
-            activation_beta=activation_beta,
-            activations=activations,
             clip=clip,
-            direction=direction,
+            activation_beta=activation_beta,
+            activation_alpha=activation_alpha,
             hidden_size=hidden_size,
+            direction=direction,
             input_forget=input_forget,
+            activations=activations,
         )
 
     T_Less = TypeVar("T_Less", DOUBLE, FLOAT, FLOAT16)
@@ -869,8 +869,8 @@ class Opset7(Opset6):
         input: T1_Multinomial,
         *,
         dtype: int = 6,
-        sample_size: int = 1,
         seed: Optional[float] = None,
+        sample_size: int = 1,
     ) -> T2_Multinomial:
         r"""[🌐 Multinomial(7)](https://onnx.ai/onnx/operators/onnx__Multinomial.html#multinomial-7 "Online Documentation")
 
@@ -888,10 +888,10 @@ class Opset7(Opset6):
             dtype: (Optional) The data type for the elements of the output tensor, if
                 not specified, we will use int32.
 
-            sample_size: Number of times to sample.
-
             seed: (Optional) Seed to the random generator, if not specified we will auto
                 generate one.
+
+            sample_size: Number of times to sample.
         """
 
         schema = get_schema("Multinomial", 7, "")
@@ -899,8 +899,8 @@ class Opset7(Opset6):
         return op(
             *self._prepare_inputs(schema, input),
             dtype=dtype,
-            sample_size=sample_size,
             seed=seed,
+            sample_size=sample_size,
         )
 
     T_Or: TypeAlias = BOOL
@@ -983,12 +983,12 @@ class Opset7(Opset6):
         sequence_lens: Optional[T1_RNN] = None,
         initial_h: Optional[T_RNN] = None,
         *,
-        activation_alpha: Optional[Sequence[float]] = None,
-        activation_beta: Optional[Sequence[float]] = None,
-        activations: Sequence[str] = ("Tanh", "Tanh"),
         clip: Optional[float] = None,
-        direction: str = "forward",
+        activation_beta: Optional[Sequence[float]] = None,
+        activation_alpha: Optional[Sequence[float]] = None,
         hidden_size: Optional[int] = None,
+        direction: str = "forward",
+        activations: Sequence[str] = ("Tanh", "Tanh"),
     ) -> Tuple[T_RNN, T_RNN]:
         r"""[🌐 RNN(7)](https://onnx.ai/onnx/operators/onnx__RNN.html#rnn-7 "Online Documentation")
 
@@ -1081,41 +1081,41 @@ class Opset7(Opset6):
                 - assumed to be 0. It has shape `[num_directions, batch_size,
                 hidden_size]`.
 
-            activation_alpha: Optional scaling values used by some activation functions.
-                The values are consumed in the order of activation functions, for
-                example (f, g, h) in LSTM. Default values are the same as of
-                corresponding ONNX operators.For example with LeakyRelu, the default
-                alpha is 0.01.
+            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
+                range of [-threshold, +threshold] and is applied to the input of
+                activations. No clip if not specified.
 
             activation_beta: Optional scaling values used by some activation functions.
                 The values are consumed in the order of activation functions, for
                 example (f, g, h) in LSTM. Default values are the same as of
                 corresponding ONNX operators.
 
-            activations: One (or two if bidirectional) activation function for input
-                gate. The activation function must be one of the activation functions
-                specified above. Optional: Default `Tanh` if not specified.
+            activation_alpha: Optional scaling values used by some activation functions.
+                The values are consumed in the order of activation functions, for
+                example (f, g, h) in LSTM. Default values are the same as of
+                corresponding ONNX operators.For example with LeakyRelu, the default
+                alpha is 0.01.
 
-            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
-                range of [-threshold, +threshold] and is applied to the input of
-                activations. No clip if not specified.
+            hidden_size: Number of neurons in the hidden layer
 
             direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
                 one of forward (default), reverse, or bidirectional.
 
-            hidden_size: Number of neurons in the hidden layer
+            activations: One (or two if bidirectional) activation function for input
+                gate. The activation function must be one of the activation functions
+                specified above. Optional: Default `Tanh` if not specified.
         """
 
         schema = get_schema("RNN", 7, "")
         op = Op(self, "RNN", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h),
-            activation_alpha=activation_alpha,
-            activation_beta=activation_beta,
-            activations=activations,
             clip=clip,
-            direction=direction,
+            activation_beta=activation_beta,
+            activation_alpha=activation_alpha,
             hidden_size=hidden_size,
+            direction=direction,
+            activations=activations,
         )
 
     T_Sin = TypeVar("T_Sin", DOUBLE, FLOAT, FLOAT16)

@@ -93,9 +93,9 @@ class Opset14(Opset13):
         input_mean: U_BatchNormalization,
         input_var: U_BatchNormalization,
         *,
-        epsilon: float = 9.999999747378752e-06,
-        momentum: float = 0.8999999761581421,
         training_mode: int = 0,
+        momentum: float = 0.8999999761581421,
+        epsilon: float = 9.999999747378752e-06,
     ) -> Tuple[T_BatchNormalization, U_BatchNormalization, U_BatchNormalization]:
         r"""[🌐 BatchNormalization(14)](https://onnx.ai/onnx/operators/onnx__BatchNormalization.html#batchnormalization-14 "Online Documentation")
 
@@ -163,22 +163,22 @@ class Opset14(Opset13):
             input_var: (differentiable) running (training) or estimated (testing)
                 variance tensor of shape (C).
 
-            epsilon: The epsilon value to use to avoid division by zero.
+            training_mode: If set to true, it indicates BatchNormalization is being used
+                for training, and outputs 1, 2, 3, and 4 would be populated.
 
             momentum: Factor used in computing the running mean and variance.e.g.,
                 running_mean = running_mean * momentum + mean * (1 - momentum).
 
-            training_mode: If set to true, it indicates BatchNormalization is being used
-                for training, and outputs 1, 2, 3, and 4 would be populated.
+            epsilon: The epsilon value to use to avoid division by zero.
         """
 
         schema = get_schema("BatchNormalization", 14, "")
         op = Op(self, "BatchNormalization", schema)
         return op(
             *self._prepare_inputs(schema, X, scale, B, input_mean, input_var),
-            epsilon=epsilon,
-            momentum=momentum,
             training_mode=training_mode,
+            momentum=momentum,
+            epsilon=epsilon,
         )
 
     T_CumSum = TypeVar(
@@ -188,7 +188,7 @@ class Opset14(Opset13):
     T2_CumSum = TypeVar("T2_CumSum", INT32, INT64)
 
     def CumSum(
-        self, x: T_CumSum, axis: T2_CumSum, *, exclusive: int = 0, reverse: int = 0
+        self, x: T_CumSum, axis: T2_CumSum, *, reverse: int = 0, exclusive: int = 0
     ) -> T_CumSum:
         r"""[🌐 CumSum(14)](https://onnx.ai/onnx/operators/onnx__CumSum.html#cumsum-14 "Online Documentation")
 
@@ -222,17 +222,17 @@ class Opset14(Opset13):
             axis: (non-differentiable) A 0-D tensor. Must be in the range [-rank(x),
                 rank(x)-1]. Negative value means counting dimensions from the back.
 
+            reverse: If set to 1 will perform the sums in reverse direction.
+
             exclusive: If set to 1 will return exclusive sum in which the top element is
                 not included. In other terms, if set to 1, the j-th output element would
                 be the sum of the first (j-1) elements. Otherwise, it would be the sum
                 of the first j elements.
-
-            reverse: If set to 1 will perform the sums in reverse direction.
         """
 
         schema = get_schema("CumSum", 14, "")
         op = Op(self, "CumSum", schema)
-        return op(*self._prepare_inputs(schema, x, axis), exclusive=exclusive, reverse=reverse)
+        return op(*self._prepare_inputs(schema, x, axis), reverse=reverse, exclusive=exclusive)
 
     T_Div = TypeVar(
         "T_Div",
@@ -284,14 +284,14 @@ class Opset14(Opset13):
         sequence_lens: Optional[T1_GRU] = None,
         initial_h: Optional[T_GRU] = None,
         *,
-        activation_alpha: Optional[Sequence[float]] = None,
-        activation_beta: Optional[Sequence[float]] = None,
-        activations: Optional[Sequence[str]] = None,
         clip: Optional[float] = None,
-        direction: str = "forward",
+        activation_beta: Optional[Sequence[float]] = None,
+        activation_alpha: Optional[Sequence[float]] = None,
         hidden_size: Optional[int] = None,
         layout: int = 0,
+        direction: str = "forward",
         linear_before_reset: int = 0,
+        activations: Optional[Sequence[str]] = None,
     ) -> Tuple[T_GRU, T_GRU]:
         r"""[🌐 GRU(14)](https://onnx.ai/onnx/operators/onnx__GRU.html#gru-14 "Online Documentation")
 
@@ -371,28 +371,20 @@ class Opset14(Opset13):
                 hidden. If not specified - assumed to be 0. It has shape
                 `[num_directions, batch_size, hidden_size]`.
 
-            activation_alpha: Optional scaling values used by some activation functions.
-                The values are consumed in the order of activation functions, for
-                example (f, g, h) in LSTM. Default values are the same as of
-                corresponding ONNX operators.For example with LeakyRelu, the default
-                alpha is 0.01.
+            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
+                range of [-threshold, +threshold] and is applied to the input of
+                activations. No clip if not specified.
 
             activation_beta: Optional scaling values used by some activation functions.
                 The values are consumed in the order of activation functions, for
                 example (f, g, h) in LSTM. Default values are the same as of
                 corresponding ONNX operators.
 
-            activations: A list of 2 (or 4 if bidirectional) activation functions for
-                update, reset, and hidden gates. The activation functions must be one of
-                the activation functions specified above. Optional: See the equations
-                for default if not specified.
-
-            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
-                range of [-threshold, +threshold] and is applied to the input of
-                activations. No clip if not specified.
-
-            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
-                one of forward (default), reverse, or bidirectional.
+            activation_alpha: Optional scaling values used by some activation functions.
+                The values are consumed in the order of activation functions, for
+                example (f, g, h) in LSTM. Default values are the same as of
+                corresponding ONNX operators.For example with LeakyRelu, the default
+                alpha is 0.01.
 
             hidden_size: Number of neurons in the hidden layer
 
@@ -405,23 +397,31 @@ class Opset14(Opset13):
                 num_directions, hidden_size], initial_h.shape = Y_h.shape = [batch_size,
                 num_directions, hidden_size].
 
+            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
+                one of forward (default), reverse, or bidirectional.
+
             linear_before_reset: When computing the output of the hidden gate, apply the
                 linear transformation before multiplying by the output of the reset
                 gate.
+
+            activations: A list of 2 (or 4 if bidirectional) activation functions for
+                update, reset, and hidden gates. The activation functions must be one of
+                the activation functions specified above. Optional: See the equations
+                for default if not specified.
         """
 
         schema = get_schema("GRU", 14, "")
         op = Op(self, "GRU", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h),
-            activation_alpha=activation_alpha,
-            activation_beta=activation_beta,
-            activations=activations,
             clip=clip,
-            direction=direction,
+            activation_beta=activation_beta,
+            activation_alpha=activation_alpha,
             hidden_size=hidden_size,
             layout=layout,
+            direction=direction,
             linear_before_reset=linear_before_reset,
+            activations=activations,
         )
 
     T_HardSwish = TypeVar("T_HardSwish", DOUBLE, FLOAT, FLOAT16)
@@ -506,14 +506,14 @@ class Opset14(Opset13):
         initial_c: Optional[T_LSTM] = None,
         P: Optional[T_LSTM] = None,
         *,
-        activation_alpha: Optional[Sequence[float]] = None,
-        activation_beta: Optional[Sequence[float]] = None,
-        activations: Optional[Sequence[str]] = None,
         clip: Optional[float] = None,
-        direction: str = "forward",
+        activation_beta: Optional[Sequence[float]] = None,
+        activation_alpha: Optional[Sequence[float]] = None,
         hidden_size: Optional[int] = None,
+        direction: str = "forward",
         input_forget: int = 0,
         layout: int = 0,
+        activations: Optional[Sequence[str]] = None,
     ) -> Tuple[T_LSTM, T_LSTM, T_LSTM]:
         r"""[🌐 LSTM(14)](https://onnx.ai/onnx/operators/onnx__LSTM.html#lstm-14 "Online Documentation")
 
@@ -606,30 +606,25 @@ class Opset14(Opset13):
                 shape `[num_directions, 3*hidde_size]`. Optional: If not specified -
                 assumed to be 0.
 
-            activation_alpha: Optional scaling values used by some activation functions.
-                The values are consumed in the order of activation functions, for
-                example (f, g, h) in LSTM. Default values are the same as of
-                corresponding ONNX operators.For example with LeakyRelu, the default
-                alpha is 0.01.
+            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
+                range of [-threshold, +threshold] and is applied to the input of
+                activations. No clip if not specified.
 
             activation_beta: Optional scaling values used by some activation functions.
                 The values are consumed in the order of activation functions, for
                 example (f, g, h) in LSTM. Default values are the same as of
                 corresponding ONNX operators.
 
-            activations: A list of 3 (or 6 if bidirectional) activation functions for
-                input, output, forget, cell, and hidden. The activation functions must
-                be one of the activation functions specified above. Optional: See the
-                equations for default if not specified.
+            activation_alpha: Optional scaling values used by some activation functions.
+                The values are consumed in the order of activation functions, for
+                example (f, g, h) in LSTM. Default values are the same as of
+                corresponding ONNX operators.For example with LeakyRelu, the default
+                alpha is 0.01.
 
-            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
-                range of [-threshold, +threshold] and is applied to the input of
-                activations. No clip if not specified.
+            hidden_size: Number of neurons in the hidden layer
 
             direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
                 one of forward (default), reverse, or bidirectional.
-
-            hidden_size: Number of neurons in the hidden layer
 
             input_forget: Couple the input and forget gates if 1.
 
@@ -642,20 +637,25 @@ class Opset14(Opset13):
                 seq_length, input_size], Y.shape = [batch_size, seq_length,
                 num_directions, hidden_size], initial_h.shape = Y_h.shape =
                 initial_c.shape = Y_c.shape = [batch_size, num_directions, hidden_size].
+
+            activations: A list of 3 (or 6 if bidirectional) activation functions for
+                input, output, forget, cell, and hidden. The activation functions must
+                be one of the activation functions specified above. Optional: See the
+                equations for default if not specified.
         """
 
         schema = get_schema("LSTM", 14, "")
         op = Op(self, "LSTM", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h, initial_c, P),
-            activation_alpha=activation_alpha,
-            activation_beta=activation_beta,
-            activations=activations,
             clip=clip,
-            direction=direction,
+            activation_beta=activation_beta,
+            activation_alpha=activation_alpha,
             hidden_size=hidden_size,
+            direction=direction,
             input_forget=input_forget,
             layout=layout,
+            activations=activations,
         )
 
     T_Mul = TypeVar(
@@ -708,13 +708,13 @@ class Opset14(Opset13):
         sequence_lens: Optional[T1_RNN] = None,
         initial_h: Optional[T_RNN] = None,
         *,
-        activation_alpha: Optional[Sequence[float]] = None,
-        activation_beta: Optional[Sequence[float]] = None,
-        activations: Sequence[str] = ("Tanh", "Tanh"),
         clip: Optional[float] = None,
-        direction: str = "forward",
+        activation_beta: Optional[Sequence[float]] = None,
+        activation_alpha: Optional[Sequence[float]] = None,
         hidden_size: Optional[int] = None,
         layout: int = 0,
+        direction: str = "forward",
+        activations: Sequence[str] = ("Tanh", "Tanh"),
     ) -> Tuple[T_RNN, T_RNN]:
         r"""[🌐 RNN(14)](https://onnx.ai/onnx/operators/onnx__RNN.html#rnn-14 "Online Documentation")
 
@@ -787,27 +787,20 @@ class Opset14(Opset13):
                 hidden. If not specified - assumed to be 0. It has shape
                 `[num_directions, batch_size, hidden_size]`.
 
-            activation_alpha: Optional scaling values used by some activation functions.
-                The values are consumed in the order of activation functions, for
-                example (f, g, h) in LSTM. Default values are the same as of
-                corresponding ONNX operators.For example with LeakyRelu, the default
-                alpha is 0.01.
+            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
+                range of [-threshold, +threshold] and is applied to the input of
+                activations. No clip if not specified.
 
             activation_beta: Optional scaling values used by some activation functions.
                 The values are consumed in the order of activation functions, for
                 example (f, g, h) in LSTM. Default values are the same as of
                 corresponding ONNX operators.
 
-            activations: One (or two if bidirectional) activation function for input
-                gate. The activation function must be one of the activation functions
-                specified above. Optional: Default `Tanh` if not specified.
-
-            clip: Cell clip threshold. Clipping bounds the elements of a tensor in the
-                range of [-threshold, +threshold] and is applied to the input of
-                activations. No clip if not specified.
-
-            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
-                one of forward (default), reverse, or bidirectional.
+            activation_alpha: Optional scaling values used by some activation functions.
+                The values are consumed in the order of activation functions, for
+                example (f, g, h) in LSTM. Default values are the same as of
+                corresponding ONNX operators.For example with LeakyRelu, the default
+                alpha is 0.01.
 
             hidden_size: Number of neurons in the hidden layer
 
@@ -819,19 +812,26 @@ class Opset14(Opset13):
                 [batch_size, seq_length, input_size], Y.shape = [batch_size, seq_length,
                 num_directions, hidden_size], initial_h.shape = Y_h.shape = [batch_size,
                 num_directions, hidden_size].
+
+            direction: Specify if the RNN is forward, reverse, or bidirectional. Must be
+                one of forward (default), reverse, or bidirectional.
+
+            activations: One (or two if bidirectional) activation function for input
+                gate. The activation function must be one of the activation functions
+                specified above. Optional: Default `Tanh` if not specified.
         """
 
         schema = get_schema("RNN", 14, "")
         op = Op(self, "RNN", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h),
-            activation_alpha=activation_alpha,
-            activation_beta=activation_beta,
-            activations=activations,
             clip=clip,
-            direction=direction,
+            activation_beta=activation_beta,
+            activation_alpha=activation_alpha,
             hidden_size=hidden_size,
             layout=layout,
+            direction=direction,
+            activations=activations,
         )
 
     T_Relu = TypeVar("T_Relu", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8)

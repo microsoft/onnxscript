@@ -169,12 +169,18 @@ class Opset18(Opset17):
 
         Center crop or pad an input to given dimensions.
 
-        The crop/pad dimensions can be specified for a subset of the `axes`. Non-specified dimensions will not be
-        cropped or padded.
+        The crop/pad dimensions can be specified for a subset of the `axes`; unspecified dimensions will remain unchanged.
 
-        If the input dimensions are bigger than the crop shape, a centered cropping window is extracted from the input.
-        If the input dimensions are smaller than the crop shape, the input is padded on each side equally,
-        so that the input is centered in the output.
+        If the input dimensions are larger than the target crop dimensions, a centered cropping window will be extracted
+        from the input. The starting value for the cropping window is rounded down, which means that if the difference
+        between the input shape and the crop shape is odd, the cropping window will be shifted half a pixel to the left
+        of the input center.
+
+        If the input dimensions are smaller than the target crop dimensions, the input will be padded equally on both sides
+        to center it in the output. In cases where the total number of padding pixels is odd, an additional pixel will be
+        added to the right side.
+
+        The padding value used is zero.
 
 
         Args:
@@ -220,9 +226,9 @@ class Opset18(Opset17):
         image_shape: INT64,
         block_shape: INT64,
         *,
-        dilations: Optional[Sequence[int]] = None,
-        pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
+        pads: Optional[Sequence[int]] = None,
+        dilations: Optional[Sequence[int]] = None,
     ) -> T_Col2Im:
         r"""[🌐 Col2Im(18)](https://onnx.ai/onnx/operators/onnx__Col2Im.html#col2im-18 "Online Documentation")
 
@@ -260,9 +266,8 @@ class Opset18(Opset17):
                 dim_bN] for a N-D block.This is the block-shape before dilation is
                 applied to it.
 
-            dilations: 1-dimensional tensor with dilation value along each spatial axis
-                of the image. If not present, the dilation defaults to 1 along each
-                spatial axis of the image.
+            strides: 1-dimensional tensor with stride value along each spatial axis. If
+                not present, the stride defaults to 1 along each spatial axis.
 
             pads: 1-dimensional tensor with padding value for the beginning and ending
                 along each spatial axis, it can take any value greater than or equal to
@@ -273,76 +278,18 @@ class Opset18(Opset17):
                 pixels added at the end of axis `i`. If not present, the padding
                 defaults to 0 along start and end of each spatial axis.
 
-            strides: 1-dimensional tensor with stride value along each spatial axis. If
-                not present, the stride defaults to 1 along each spatial axis.
+            dilations: 1-dimensional tensor with dilation value along each spatial axis
+                of the image. If not present, the dilation defaults to 1 along each
+                spatial axis of the image.
         """
 
         schema = get_schema("Col2Im", 18, "")
         op = Op(self, "Col2Im", schema)
         return op(
             *self._prepare_inputs(schema, input, image_shape, block_shape),
-            dilations=dilations,
-            pads=pads,
             strides=strides,
-        )
-
-    T_GroupNormalization = TypeVar("T_GroupNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
-
-    def GroupNormalization(
-        self,
-        X: T_GroupNormalization,
-        scale: T_GroupNormalization,
-        bias: T_GroupNormalization,
-        *,
-        epsilon: float = 9.999999747378752e-06,
-        num_groups: int,
-    ) -> T_GroupNormalization:
-        r"""[🌐 GroupNormalization(18)](https://onnx.ai/onnx/operators/onnx__GroupNormalization.html#groupnormalization-18 "Online Documentation")
-
-
-        A GroupNormalization function. Carries out group normalization as described in
-        the paper https://arxiv.org/abs/1803.08494
-
-        This operator transforms input according to
-        ::
-
-            y = scale * (x - mean) / sqrt(variance + epsilon) + bias,
-
-
-        where the mean and variance are computed per instance per group of channels, and
-        `scale` and `bias` should be specified for each group of channels. The number of
-        groups `num_groups` should be divisible by the number of channels so that there are
-        an equal number of channels per group.
-
-        When the number of groups is the same as the number of channels, this operator is
-        equivalent to InstanceNormalization. When there is only one group, this operator
-        is equivalent to LayerNormalization.
-
-
-        Args:
-            X: (differentiable) Input data tensor. Dimensions for image cases are `(N x
-                C x H x W)`, where `N` is the batch size, `C` is the number of channels,
-                and `H` and `W` are the height and width of the data. Statistics are
-                computed for every group of channels over `C`, `H`, and `W`. For
-                non-image cases, the dimensions are in the form of `(N x C x D1 x D2 ...
-                Dn)`.
-
-            scale: (differentiable) Scale tensor of shape `(num_groups)`.
-
-            bias: (differentiable) Bias tensor of shape `(num_groups)`.
-
-            epsilon: The epsilon value to use to avoid division by zero.
-
-            num_groups: The number of groups of channels. It should be a divisor of the
-                number of channels `C`.
-        """
-
-        schema = get_schema("GroupNormalization", 18, "")
-        op = Op(self, "GroupNormalization", schema)
-        return op(
-            *self._prepare_inputs(schema, X, scale, bias),
-            epsilon=epsilon,
-            num_groups=num_groups,
+            pads=pads,
+            dilations=dilations,
         )
 
     T_LpPool = TypeVar("T_LpPool", DOUBLE, FLOAT, FLOAT16)
@@ -351,13 +298,13 @@ class Opset18(Opset17):
         self,
         X: T_LpPool,
         *,
+        p: int = 2,
+        pads: Optional[Sequence[int]] = None,
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         dilations: Optional[Sequence[int]] = None,
-        kernel_shape: Sequence[int],
-        p: int = 2,
-        pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
     ) -> T_LpPool:
         r"""[🌐 LpPool(18)](https://onnx.ai/onnx/operators/onnx__LpPool.html#lppool-18 "Online Documentation")
 
@@ -393,6 +340,18 @@ class Opset18(Opset17):
                 data. For non image case, the dimensions are in the form of (N x C x D1
                 x D2 ... Dn), where N is the batch size.
 
+            p: p value of the Lp norm used to pool over the input data.
+
+            pads: Padding for the beginning and ending along each spatial axis, it can
+                take any value greater than or equal to 0. The value represent the
+                number of pixels added to the beginning and end part of the
+                corresponding axis. `pads` format should be as follow [x1_begin,
+                x2_begin...x1_end, x2_end,...], where xi_begin the number of pixels
+                added at the beginning of axis `i` and xi_end, the number of pixels
+                added at the end of axis `i`. This attribute cannot be used
+                simultaneously with auto_pad attribute. If not present, the padding
+                defaults to 0 along start and end of each spatial axis.
+
             auto_pad: auto_pad must be either NOTSET, SAME_UPPER, SAME_LOWER or VALID.
                 Where default value is NOTSET, which means explicit padding is used.
                 SAME_UPPER or SAME_LOWER mean pad the input so that `output_shape[i] =
@@ -408,35 +367,23 @@ class Opset18(Opset17):
             dilations: dilation value along each spatial axis of the filter. If not
                 present, the dilation defaults is 1 along each spatial axis.
 
-            kernel_shape: The size of the kernel along each axis.
-
-            p: p value of the Lp norm used to pool over the input data.
-
-            pads: Padding for the beginning and ending along each spatial axis, it can
-                take any value greater than or equal to 0. The value represent the
-                number of pixels added to the beginning and end part of the
-                corresponding axis. `pads` format should be as follow [x1_begin,
-                x2_begin...x1_end, x2_end,...], where xi_begin the number of pixels
-                added at the beginning of axis `i` and xi_end, the number of pixels
-                added at the end of axis `i`. This attribute cannot be used
-                simultaneously with auto_pad attribute. If not present, the padding
-                defaults to 0 along start and end of each spatial axis.
-
             strides: Stride along each spatial axis. If not present, the stride defaults
                 to 1 along each spatial axis.
+
+            kernel_shape: The size of the kernel along each axis.
         """
 
         schema = get_schema("LpPool", 18, "")
         op = Op(self, "LpPool", schema)
         return op(
             *self._prepare_inputs(schema, X),
+            p=p,
+            pads=pads,
             auto_pad=auto_pad,
             ceil_mode=ceil_mode,
             dilations=dilations,
-            kernel_shape=kernel_shape,
-            p=p,
-            pads=pads,
             strides=strides,
+            kernel_shape=kernel_shape,
         )
 
     T_Mish = TypeVar("T_Mish", DOUBLE, FLOAT, FLOAT16)
@@ -819,8 +766,8 @@ class Opset18(Opset17):
         data: T_ReduceL1,
         axes: Optional[INT64] = None,
         *,
-        keepdims: int = 1,
         noop_with_empty_axes: int = 0,
+        keepdims: int = 1,
     ) -> T_ReduceL1:
         r"""[🌐 ReduceL1(18)](https://onnx.ai/onnx/operators/onnx__ReduceL1.html#reducel1-18 "Online Documentation")
 
@@ -843,21 +790,21 @@ class Opset18(Opset17):
                 op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
                 where r = rank(data).
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
                 with 'false' is to reduce all axes. When axes is empty and this
                 attribute is set to true, input tensor will not be reduced,and the
                 output tensor would be equivalent to input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceL1", 18, "")
         op = Op(self, "ReduceL1", schema)
         return op(
             *self._prepare_inputs(schema, data, axes),
-            keepdims=keepdims,
             noop_with_empty_axes=noop_with_empty_axes,
+            keepdims=keepdims,
         )
 
     T_ReduceL2 = TypeVar(
@@ -869,8 +816,8 @@ class Opset18(Opset17):
         data: T_ReduceL2,
         axes: Optional[INT64] = None,
         *,
-        keepdims: int = 1,
         noop_with_empty_axes: int = 0,
+        keepdims: int = 1,
     ) -> T_ReduceL2:
         r"""[🌐 ReduceL2(18)](https://onnx.ai/onnx/operators/onnx__ReduceL2.html#reducel2-18 "Online Documentation")
 
@@ -893,21 +840,21 @@ class Opset18(Opset17):
                 op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
                 where r = rank(data).
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
                 with 'false' is to reduce all axes. When axes is empty and this
                 attribute is set to true, input tensor will not be reduced,and the
                 output tensor would be equivalent to input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceL2", 18, "")
         op = Op(self, "ReduceL2", schema)
         return op(
             *self._prepare_inputs(schema, data, axes),
-            keepdims=keepdims,
             noop_with_empty_axes=noop_with_empty_axes,
+            keepdims=keepdims,
         )
 
     T_ReduceLogSum = TypeVar(
@@ -919,8 +866,8 @@ class Opset18(Opset17):
         data: T_ReduceLogSum,
         axes: Optional[INT64] = None,
         *,
-        keepdims: int = 1,
         noop_with_empty_axes: int = 0,
+        keepdims: int = 1,
     ) -> T_ReduceLogSum:
         r"""[🌐 ReduceLogSum(18)](https://onnx.ai/onnx/operators/onnx__ReduceLogSum.html#reducelogsum-18 "Online Documentation")
 
@@ -943,21 +890,21 @@ class Opset18(Opset17):
                 op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
                 where r = rank(data).
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
                 with 'false' is to reduce all axes. When axes is empty and this
                 attribute is set to true, input tensor will not be reduced,and the
                 output tensor would be equivalent to input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceLogSum", 18, "")
         op = Op(self, "ReduceLogSum", schema)
         return op(
             *self._prepare_inputs(schema, data, axes),
-            keepdims=keepdims,
             noop_with_empty_axes=noop_with_empty_axes,
+            keepdims=keepdims,
         )
 
     T_ReduceLogSumExp = TypeVar(
@@ -969,8 +916,8 @@ class Opset18(Opset17):
         data: T_ReduceLogSumExp,
         axes: Optional[INT64] = None,
         *,
-        keepdims: int = 1,
         noop_with_empty_axes: int = 0,
+        keepdims: int = 1,
     ) -> T_ReduceLogSumExp:
         r"""[🌐 ReduceLogSumExp(18)](https://onnx.ai/onnx/operators/onnx__ReduceLogSumExp.html#reducelogsumexp-18 "Online Documentation")
 
@@ -993,21 +940,21 @@ class Opset18(Opset17):
                 op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
                 where r = rank(data).
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
                 with 'false' is to reduce all axes. When axes is empty and this
                 attribute is set to true, input tensor will not be reduced,and the
                 output tensor would be equivalent to input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceLogSumExp", 18, "")
         op = Op(self, "ReduceLogSumExp", schema)
         return op(
             *self._prepare_inputs(schema, data, axes),
-            keepdims=keepdims,
             noop_with_empty_axes=noop_with_empty_axes,
+            keepdims=keepdims,
         )
 
     T_ReduceMax = TypeVar(
@@ -1029,8 +976,8 @@ class Opset18(Opset17):
         data: T_ReduceMax,
         axes: Optional[INT64] = None,
         *,
-        keepdims: int = 1,
         noop_with_empty_axes: int = 0,
+        keepdims: int = 1,
     ) -> T_ReduceMax:
         r"""[🌐 ReduceMax(18)](https://onnx.ai/onnx/operators/onnx__ReduceMax.html#reducemax-18 "Online Documentation")
 
@@ -1053,21 +1000,21 @@ class Opset18(Opset17):
                 op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
                 where r = rank(data).
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
                 with 'false' is to reduce all axes. When axes is empty and this
                 attribute is set to true, input tensor will not be reduced,and the
                 output tensor would be equivalent to input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceMax", 18, "")
         op = Op(self, "ReduceMax", schema)
         return op(
             *self._prepare_inputs(schema, data, axes),
-            keepdims=keepdims,
             noop_with_empty_axes=noop_with_empty_axes,
+            keepdims=keepdims,
         )
 
     T_ReduceMean = TypeVar(
@@ -1079,8 +1026,8 @@ class Opset18(Opset17):
         data: T_ReduceMean,
         axes: Optional[INT64] = None,
         *,
-        keepdims: int = 1,
         noop_with_empty_axes: int = 0,
+        keepdims: int = 1,
     ) -> T_ReduceMean:
         r"""[🌐 ReduceMean(18)](https://onnx.ai/onnx/operators/onnx__ReduceMean.html#reducemean-18 "Online Documentation")
 
@@ -1103,21 +1050,21 @@ class Opset18(Opset17):
                 op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
                 where r = rank(data).
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
                 with 'false' is to reduce all axes. When axes is empty and this
                 attribute is set to true, input tensor will not be reduced,and the
                 output tensor would be equivalent to input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceMean", 18, "")
         op = Op(self, "ReduceMean", schema)
         return op(
             *self._prepare_inputs(schema, data, axes),
-            keepdims=keepdims,
             noop_with_empty_axes=noop_with_empty_axes,
+            keepdims=keepdims,
         )
 
     T_ReduceMin = TypeVar(
@@ -1139,8 +1086,8 @@ class Opset18(Opset17):
         data: T_ReduceMin,
         axes: Optional[INT64] = None,
         *,
-        keepdims: int = 1,
         noop_with_empty_axes: int = 0,
+        keepdims: int = 1,
     ) -> T_ReduceMin:
         r"""[🌐 ReduceMin(18)](https://onnx.ai/onnx/operators/onnx__ReduceMin.html#reducemin-18 "Online Documentation")
 
@@ -1163,21 +1110,21 @@ class Opset18(Opset17):
                 op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
                 where r = rank(data).
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
                 with 'false' is to reduce all axes. When axes is empty and this
                 attribute is set to true, input tensor will not be reduced,and the
                 output tensor would be equivalent to input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceMin", 18, "")
         op = Op(self, "ReduceMin", schema)
         return op(
             *self._prepare_inputs(schema, data, axes),
-            keepdims=keepdims,
             noop_with_empty_axes=noop_with_empty_axes,
+            keepdims=keepdims,
         )
 
     T_ReduceProd = TypeVar(
@@ -1189,8 +1136,8 @@ class Opset18(Opset17):
         data: T_ReduceProd,
         axes: Optional[INT64] = None,
         *,
-        keepdims: int = 1,
         noop_with_empty_axes: int = 0,
+        keepdims: int = 1,
     ) -> T_ReduceProd:
         r"""[🌐 ReduceProd(18)](https://onnx.ai/onnx/operators/onnx__ReduceProd.html#reduceprod-18 "Online Documentation")
 
@@ -1213,21 +1160,21 @@ class Opset18(Opset17):
                 op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
                 where r = rank(data).
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
                 with 'false' is to reduce all axes. When axes is empty and this
                 attribute is set to true, input tensor will not be reduced,and the
                 output tensor would be equivalent to input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceProd", 18, "")
         op = Op(self, "ReduceProd", schema)
         return op(
             *self._prepare_inputs(schema, data, axes),
-            keepdims=keepdims,
             noop_with_empty_axes=noop_with_empty_axes,
+            keepdims=keepdims,
         )
 
     T_ReduceSumSquare = TypeVar(
@@ -1239,8 +1186,8 @@ class Opset18(Opset17):
         data: T_ReduceSumSquare,
         axes: Optional[INT64] = None,
         *,
-        keepdims: int = 1,
         noop_with_empty_axes: int = 0,
+        keepdims: int = 1,
     ) -> T_ReduceSumSquare:
         r"""[🌐 ReduceSumSquare(18)](https://onnx.ai/onnx/operators/onnx__ReduceSumSquare.html#reducesumsquare-18 "Online Documentation")
 
@@ -1263,21 +1210,21 @@ class Opset18(Opset17):
                 op when 'noop_with_empty_axes' is true. Accepted range is [-r, r-1]
                 where r = rank(data).
 
-            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
-                dimension.
-
             noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
                 with 'false' is to reduce all axes. When axes is empty and this
                 attribute is set to true, input tensor will not be reduced,and the
                 output tensor would be equivalent to input tensor.
+
+            keepdims: Keep the reduced dimension or not, default 1 means keep reduced
+                dimension.
         """
 
         schema = get_schema("ReduceSumSquare", 18, "")
         op = Op(self, "ReduceSumSquare", schema)
         return op(
             *self._prepare_inputs(schema, data, axes),
-            keepdims=keepdims,
             noop_with_empty_axes=noop_with_empty_axes,
+            keepdims=keepdims,
         )
 
     T1_Resize = TypeVar(
@@ -1309,15 +1256,15 @@ class Opset18(Opset17):
         scales: Optional[FLOAT] = None,
         sizes: Optional[INT64] = None,
         *,
-        antialias: int = 0,
+        keep_aspect_ratio_policy: str = "stretch",
         axes: Optional[Sequence[int]] = None,
+        antialias: int = 0,
+        extrapolation_value: float = 0.0,
+        exclude_outside: int = 0,
+        nearest_mode: str = "round_prefer_floor",
         coordinate_transformation_mode: str = "half_pixel",
         cubic_coeff_a: float = -0.75,
-        exclude_outside: int = 0,
-        extrapolation_value: float = 0.0,
-        keep_aspect_ratio_policy: str = "stretch",
         mode: str = "nearest",
-        nearest_mode: str = "round_prefer_floor",
     ) -> T1_Resize:
         r"""[🌐 Resize(18)](https://onnx.ai/onnx/operators/onnx__Resize.html#resize-18 "Online Documentation")
 
@@ -1351,11 +1298,38 @@ class Opset18(Opset17):
                 'X', or the length of 'axes', if provided. Only one of 'scales' and
                 'sizes' can be specified.
 
-            antialias: If set to 1, "linear" and "cubic" interpolation modes will use an
-                antialiasing filter when downscaling. Antialiasing is achieved by
-                stretching the resampling filter by a factor max(1, 1 / scale), which
-                means that when downsampling, more input pixels contribute to an output
-                pixel.
+            keep_aspect_ratio_policy:
+        This attribute describes how to interpret the
+                `sizes` input with regard to keeping the original aspect ratio of the
+                input, and it is not applicable when
+        the `scales` input is used. <br/>
+                Given a set of `sizes`, associated with a subset of `axes` (explicitly
+                provided or default), and assuming `d = axes[i]`, with `i` being the
+                index of the provided `sizes`. <br/>
+
+        If `keep_aspect_ratio_policy` is
+                `"stretch"`, the original aspect ratio is disregarded, and the input is
+                resized to the specified size: <br/>
+        `out_size[d] = sizes[i]` <br/>
+
+        If
+                `keep_aspect_ratio_policy` is `"not_larger"`, the sizes are adjusted so
+                that no extent of the output is larger than the specified size, while
+                keeping the original aspect ratio: <br/>
+        `scale = Min(sizes[i] /
+                in_size[d])` <br/>
+        `out_size[d] = round_int(scale * in_size[i])` <br/>
+                If `keep_aspect_ratio_policy` is `"not_smaller"`, the sizes are adjusted
+                so that no extent of the output is smaller than the specified size,
+                while keeping the original aspect ratio: <br/>
+        `scale = Max(sizes[i] /
+                in_size[d])` <br/>
+        `out_size[d] = round_int(scale * in_size[i])` <br/>
+                For non-resizable axes (those not specified in `axes`), the output size
+                will be equal to the input size.
+
+        Note: `round_int` stands for computing
+                the nearest integer value, rounding halfway cases up.
 
             axes: If provided, it specifies a subset of axes that 'roi', 'scales' and
                 'sizes' refer to. If not provided, all axes are assumed [0, 1, ...,
@@ -1363,6 +1337,27 @@ class Opset18(Opset17):
                 non-resizable. Negative value means counting dimensions from the back.
                 Accepted range is [-r, r-1], where r = rank(data). Behavior is undefined
                 if an axis is repeated.
+
+            antialias: If set to 1, "linear" and "cubic" interpolation modes will use an
+                antialiasing filter when downscaling. Antialiasing is achieved by
+                stretching the resampling filter by a factor max(1, 1 / scale), which
+                means that when downsampling, more input pixels contribute to an output
+                pixel.
+
+            extrapolation_value: When coordinate_transformation_mode is
+                "tf_crop_and_resize" and x_original is outside the range [0,
+                length_original - 1], this value is used as the corresponding output
+                value. Default is 0.0f.
+
+            exclude_outside: If set to 1, the weight of sampling locations outside the
+                tensor will be set to 0 and the weight will be renormalized so that
+                their sum is 1.0. The default value is 0.
+
+            nearest_mode: Four modes: "round_prefer_floor" (default, as known as round
+                half down), "round_prefer_ceil" (as known as round half up), "floor",
+                "ceil". Only used by nearest interpolation. It indicates how to get
+                "nearest" pixel in input tensor from x_original, so this attribute is
+                valid only if "mode" is "nearest".
 
             coordinate_transformation_mode:
         This attribute describes how to transform
@@ -1405,75 +1400,27 @@ class Opset18(Opset17):
                 Check out Equation (4) in https://ieeexplore.ieee.org/document/1163711
                 for the details. This attribute is valid only if mode is "cubic".
 
-            exclude_outside: If set to 1, the weight of sampling locations outside the
-                tensor will be set to 0 and the weight will be renormalized so that
-                their sum is 1.0. The default value is 0.
-
-            extrapolation_value: When coordinate_transformation_mode is
-                "tf_crop_and_resize" and x_original is outside the range [0,
-                length_original - 1], this value is used as the corresponding output
-                value. Default is 0.0f.
-
-            keep_aspect_ratio_policy:
-        This attribute describes how to interpret the
-                `sizes` input with regard to keeping the original aspect ratio of the
-                input, and it is not applicable when
-        the `scales` input is used. <br/>
-                Given a set of `sizes`, associated with a subset of `axes` (explicitly
-                provided or default), and assuming `d = axes[i]`, with `i` being the
-                index of the provided `sizes`. <br/>
-
-        If `keep_aspect_ratio_policy` is
-                `"stretch"`, the original aspect ratio is disregarded, and the input is
-                resized to the specified size: <br/>
-        `out_size[d] = sizes[i]` <br/>
-
-        If
-                `keep_aspect_ratio_policy` is `"not_larger"`, the sizes are adjusted so
-                that no extent of the output is larger than the specified size, while
-                keeping the original aspect ratio: <br/>
-        `scale = Min(sizes[i] /
-                in_size[d])` <br/>
-        `out_size[d] = round_int(scale * in_size[i])` <br/>
-                If `keep_aspect_ratio_policy` is `"not_smaller"`, the sizes are adjusted
-                so that no extent of the output is smaller than the specified size,
-                while keeping the original aspect ratio: <br/>
-        `scale = Max(sizes[i] /
-                in_size[d])` <br/>
-        `out_size[d] = round_int(scale * in_size[i])` <br/>
-                For non-resizable axes (those not specified in `axes`), the output size
-                will be equal to the input size.
-
-        Note: `round_int` stands for computing
-                the nearest integer value, rounding halfway cases up.
-
             mode: Three interpolation modes: "nearest" (default), "linear" and "cubic".
                 The "linear" mode includes linear interpolation for 1D tensor and
                 N-linear interpolation for N-D tensor (for example, bilinear
                 interpolation for 2D tensor). The "cubic" mode includes cubic
                 interpolation for 1D tensor and N-cubic interpolation for N-D tensor
                 (for example, bicubic interpolation for 2D tensor).
-
-            nearest_mode: Four modes: "round_prefer_floor" (default, as known as round
-                half down), "round_prefer_ceil" (as known as round half up), "floor",
-                "ceil". Only used by nearest interpolation. It indicates how to get
-                "nearest" pixel in input tensor from x_original, so this attribute is
-                valid only if "mode" is "nearest".
         """
 
         schema = get_schema("Resize", 18, "")
         op = Op(self, "Resize", schema)
         return op(
             *self._prepare_inputs(schema, X, roi, scales, sizes),
-            antialias=antialias,
+            keep_aspect_ratio_policy=keep_aspect_ratio_policy,
             axes=axes,
+            antialias=antialias,
+            extrapolation_value=extrapolation_value,
+            exclude_outside=exclude_outside,
+            nearest_mode=nearest_mode,
             coordinate_transformation_mode=coordinate_transformation_mode,
             cubic_coeff_a=cubic_coeff_a,
-            exclude_outside=exclude_outside,
-            extrapolation_value=extrapolation_value,
-            keep_aspect_ratio_policy=keep_aspect_ratio_policy,
             mode=mode,
-            nearest_mode=nearest_mode,
         )
 
     T_ScatterElements = TypeVar(
@@ -1504,8 +1451,8 @@ class Opset18(Opset17):
         indices: Tind_ScatterElements,
         updates: T_ScatterElements,
         *,
-        axis: int = 0,
         reduction: str = "none",
+        axis: int = 0,
     ) -> T_ScatterElements:
         r"""[🌐 ScatterElements(18)](https://onnx.ai/onnx/operators/onnx__ScatterElements.html#scatterelements-18 "Online Documentation")
 
@@ -1593,22 +1540,22 @@ class Opset18(Opset17):
             updates: (differentiable) Tensor of rank r >=1 (same rank and shape as
                 indices)
 
-            axis: Which axis to scatter on. Negative value means counting dimensions
-                from the back. Accepted range is [-r, r-1] where r = rank(data).
-
             reduction: Type of reduction to apply: none (default), add, mul, max, min.
                 'none': no reduction applied. 'add':  reduction using the addition
                 operation. 'mul': reduction using the multiplication operation.'max':
                 reduction using the maximum operation.'min': reduction using the minimum
                 operation.
+
+            axis: Which axis to scatter on. Negative value means counting dimensions
+                from the back. Accepted range is [-r, r-1] where r = rank(data).
         """
 
         schema = get_schema("ScatterElements", 18, "")
         op = Op(self, "ScatterElements", schema)
         return op(
             *self._prepare_inputs(schema, data, indices, updates),
-            axis=axis,
             reduction=reduction,
+            axis=axis,
         )
 
     T_ScatterND = TypeVar(
@@ -1770,8 +1717,8 @@ class Opset18(Opset17):
         input: T_Split,
         split: Optional[INT64] = None,
         *,
-        axis: int = 0,
         num_outputs: Optional[int] = None,
+        axis: int = 0,
     ) -> T_Split:
         r"""[🌐 Split(18)](https://onnx.ai/onnx/operators/onnx__Split.html#split-18 "Online Documentation")
 
@@ -1789,15 +1736,15 @@ class Opset18(Opset17):
                 should be >= 0.Sum of the values must be equal to the dim value at
                 'axis' specified.
 
-            axis: Which axis to split on. A negative value means counting dimensions
-                from the back. Accepted range is [-rank, rank-1] where r = rank(input).
-
             num_outputs: Number of outputs to split parts of the tensor into. If the
                 tensor is not evenly splittable the last chunk will be smaller.
+
+            axis: Which axis to split on. A negative value means counting dimensions
+                from the back. Accepted range is [-rank, rank-1] where r = rank(input).
         """
 
         schema = get_schema("Split", 18, "")
         op = Op(self, "Split", schema)
         return op(
-            *self._prepare_inputs(schema, input, split), axis=axis, num_outputs=num_outputs
+            *self._prepare_inputs(schema, input, split), num_outputs=num_outputs, axis=axis
         )

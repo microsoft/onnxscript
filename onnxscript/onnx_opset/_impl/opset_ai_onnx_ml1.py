@@ -78,9 +78,9 @@ class Opset_ai_onnx_ml1(Opset):
         self,
         X: T1_CastMap,
         *,
-        cast_to: str = "TO_FLOAT",
-        map_form: str = "DENSE",
         max_map: int = 1,
+        map_form: str = "DENSE",
+        cast_to: str = "TO_FLOAT",
     ) -> T2_CastMap:
         r"""[🌐 ai.onnx.ml::CastMap(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_CastMap.html#castmap-1 "Online Documentation")
 
@@ -95,24 +95,24 @@ class Opset_ai_onnx_ml1(Opset):
         Args:
             X: The input map that is to be cast to a tensor
 
-            cast_to: A string indicating the desired element type of the output tensor,
-                one of 'TO_FLOAT', 'TO_STRING', 'TO_INT64'.
+            max_map: If the value of map_form is 'SPARSE,' this attribute indicates the
+                total length of the output tensor.
 
             map_form: Indicates whether to only output as many values as are in the
                 input (dense), or position the input based on using the key of the map
                 as the index of the output (sparse).<br>One of 'DENSE', 'SPARSE'.
 
-            max_map: If the value of map_form is 'SPARSE,' this attribute indicates the
-                total length of the output tensor.
+            cast_to: A string indicating the desired element type of the output tensor,
+                one of 'TO_FLOAT', 'TO_STRING', 'TO_INT64'.
         """
 
         schema = get_schema("CastMap", 1, "ai.onnx.ml")
         op = Op(self, "CastMap", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            cast_to=cast_to,
-            map_form=map_form,
             max_map=max_map,
+            map_form=map_form,
+            cast_to=cast_to,
         )
 
     T1_CategoryMapper = TypeVar("T1_CategoryMapper", INT64, STRING)
@@ -123,10 +123,10 @@ class Opset_ai_onnx_ml1(Opset):
         self,
         X: T1_CategoryMapper,
         *,
-        cats_int64s: Optional[Sequence[int]] = None,
-        cats_strings: Optional[Sequence[str]] = None,
         default_int64: int = -1,
         default_string: str = "_Unused",
+        cats_int64s: Optional[Sequence[int]] = None,
+        cats_strings: Optional[Sequence[str]] = None,
     ) -> T2_CategoryMapper:
         r"""[🌐 ai.onnx.ml::CategoryMapper(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_CategoryMapper.html#categorymapper-1 "Online Documentation")
 
@@ -147,12 +147,6 @@ class Opset_ai_onnx_ml1(Opset):
         Args:
             X: Input data
 
-            cats_int64s: The integers of the map. This sequence must be the same length
-                as the 'cats_strings' sequence.
-
-            cats_strings: The strings of the map. This sequence must be the same length
-                as the 'cats_int64s' sequence
-
             default_int64: An integer to use when an input string value is not found in
                 the map.<br>One and only one of the 'default_*' attributes must be
                 defined.
@@ -160,16 +154,22 @@ class Opset_ai_onnx_ml1(Opset):
             default_string: A string to use when an input integer value is not found in
                 the map.<br>One and only one of the 'default_*' attributes must be
                 defined.
+
+            cats_int64s: The integers of the map. This sequence must be the same length
+                as the 'cats_strings' sequence.
+
+            cats_strings: The strings of the map. This sequence must be the same length
+                as the 'cats_int64s' sequence
         """
 
         schema = get_schema("CategoryMapper", 1, "ai.onnx.ml")
         op = Op(self, "CategoryMapper", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            cats_int64s=cats_int64s,
-            cats_strings=cats_strings,
             default_int64=default_int64,
             default_string=default_string,
+            cats_int64s=cats_int64s,
+            cats_strings=cats_strings,
         )
 
     T1_DictVectorizer = TypeVar(
@@ -261,10 +261,10 @@ class Opset_ai_onnx_ml1(Opset):
         self,
         X: T_Imputer,
         *,
-        imputed_value_floats: Optional[Sequence[float]] = None,
+        replaced_value_int64: int = 0,
         imputed_value_int64s: Optional[Sequence[int]] = None,
         replaced_value_float: float = 0.0,
-        replaced_value_int64: int = 0,
+        imputed_value_floats: Optional[Sequence[float]] = None,
     ) -> T_Imputer:
         r"""[🌐 ai.onnx.ml::Imputer(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_Imputer.html#imputer-1 "Online Documentation")
 
@@ -286,23 +286,23 @@ class Opset_ai_onnx_ml1(Opset):
         Args:
             X: Data to be processed.
 
-            imputed_value_floats: Value(s) to change to
+            replaced_value_int64: A value that needs replacing.
 
             imputed_value_int64s: Value(s) to change to.
 
             replaced_value_float: A value that needs replacing.
 
-            replaced_value_int64: A value that needs replacing.
+            imputed_value_floats: Value(s) to change to
         """
 
         schema = get_schema("Imputer", 1, "ai.onnx.ml")
         op = Op(self, "Imputer", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            imputed_value_floats=imputed_value_floats,
+            replaced_value_int64=replaced_value_int64,
             imputed_value_int64s=imputed_value_int64s,
             replaced_value_float=replaced_value_float,
-            replaced_value_int64=replaced_value_int64,
+            imputed_value_floats=imputed_value_floats,
         )
 
     T1_LabelEncoder = TypeVar("T1_LabelEncoder", INT64, STRING)
@@ -313,9 +313,9 @@ class Opset_ai_onnx_ml1(Opset):
         self,
         X: T1_LabelEncoder,
         *,
-        classes_strings: Optional[Sequence[str]] = None,
-        default_int64: int = -1,
         default_string: str = "_Unused",
+        default_int64: int = -1,
+        classes_strings: Optional[Sequence[str]] = None,
     ) -> T2_LabelEncoder:
         r"""[🌐 ai.onnx.ml::LabelEncoder(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_LabelEncoder.html#labelencoder-1 "Online Documentation")
 
@@ -339,24 +339,24 @@ class Opset_ai_onnx_ml1(Opset):
         Args:
             X: Input data.
 
-            classes_strings: A list of labels.
+            default_string: A string to use when an input integer value is not found in
+                the map.<br>One and only one of the 'default_*' attributes must be
+                defined.
 
             default_int64: An integer to use when an input string value is not found in
                 the map.<br>One and only one of the 'default_*' attributes must be
                 defined.
 
-            default_string: A string to use when an input integer value is not found in
-                the map.<br>One and only one of the 'default_*' attributes must be
-                defined.
+            classes_strings: A list of labels.
         """
 
         schema = get_schema("LabelEncoder", 1, "ai.onnx.ml")
         op = Op(self, "LabelEncoder", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            classes_strings=classes_strings,
-            default_int64=default_int64,
             default_string=default_string,
+            default_int64=default_int64,
+            classes_strings=classes_strings,
         )
 
     T1_LinearClassifier = TypeVar("T1_LinearClassifier", DOUBLE, FLOAT, INT32, INT64)
@@ -367,12 +367,12 @@ class Opset_ai_onnx_ml1(Opset):
         self,
         X: T1_LinearClassifier,
         *,
+        post_transform: str = "NONE",
         classlabels_ints: Optional[Sequence[int]] = None,
         classlabels_strings: Optional[Sequence[str]] = None,
-        coefficients: Sequence[float],
-        intercepts: Optional[Sequence[float]] = None,
         multi_class: int = 0,
-        post_transform: str = "NONE",
+        intercepts: Optional[Sequence[float]] = None,
+        coefficients: Sequence[float],
     ) -> Tuple[T2_LinearClassifier, FLOAT]:
         r"""[🌐 ai.onnx.ml::LinearClassifier(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_LinearClassifier.html#linearclassifier-1 "Online Documentation")
 
@@ -383,34 +383,34 @@ class Opset_ai_onnx_ml1(Opset):
         Args:
             X: Data to be classified.
 
+            post_transform: Indicates the transform to apply to the scores
+                vector.<br>One of 'NONE,' 'SOFTMAX,' 'LOGISTIC,' 'SOFTMAX_ZERO,' or
+                'PROBIT'
+
             classlabels_ints: Class labels when using integer labels. One and only one
                 'classlabels' attribute must be defined.
 
             classlabels_strings: Class labels when using string labels. One and only one
                 'classlabels' attribute must be defined.
 
-            coefficients: A collection of weights of the model(s).
-
-            intercepts: A collection of intercepts.
-
             multi_class: Indicates whether to do OvR or multinomial (0=OvR is the
                 default).
 
-            post_transform: Indicates the transform to apply to the scores
-                vector.<br>One of 'NONE,' 'SOFTMAX,' 'LOGISTIC,' 'SOFTMAX_ZERO,' or
-                'PROBIT'
+            intercepts: A collection of intercepts.
+
+            coefficients: A collection of weights of the model(s).
         """
 
         schema = get_schema("LinearClassifier", 1, "ai.onnx.ml")
         op = Op(self, "LinearClassifier", schema)
         return op(
             *self._prepare_inputs(schema, X),
+            post_transform=post_transform,
             classlabels_ints=classlabels_ints,
             classlabels_strings=classlabels_strings,
-            coefficients=coefficients,
-            intercepts=intercepts,
             multi_class=multi_class,
-            post_transform=post_transform,
+            intercepts=intercepts,
+            coefficients=coefficients,
         )
 
     T_LinearRegressor = TypeVar("T_LinearRegressor", DOUBLE, FLOAT, INT32, INT64)
@@ -419,10 +419,10 @@ class Opset_ai_onnx_ml1(Opset):
         self,
         X: T_LinearRegressor,
         *,
-        coefficients: Optional[Sequence[float]] = None,
-        intercepts: Optional[Sequence[float]] = None,
-        post_transform: str = "NONE",
         targets: int = 1,
+        intercepts: Optional[Sequence[float]] = None,
+        coefficients: Optional[Sequence[float]] = None,
+        post_transform: str = "NONE",
     ) -> FLOAT:
         r"""[🌐 ai.onnx.ml::LinearRegressor(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_LinearRegressor.html#linearregressor-1 "Online Documentation")
 
@@ -441,25 +441,25 @@ class Opset_ai_onnx_ml1(Opset):
         Args:
             X: Data to be regressed.
 
-            coefficients: Weights of the model(s).
+            targets: The total number of regression targets, 1 if not defined.
 
             intercepts: Weights of the intercepts, if used.
+
+            coefficients: Weights of the model(s).
 
             post_transform: Indicates the transform to apply to the regression output
                 vector.<br>One of 'NONE,' 'SOFTMAX,' 'LOGISTIC,' 'SOFTMAX_ZERO,' or
                 'PROBIT'
-
-            targets: The total number of regression targets, 1 if not defined.
         """
 
         schema = get_schema("LinearRegressor", 1, "ai.onnx.ml")
         op = Op(self, "LinearRegressor", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            coefficients=coefficients,
-            intercepts=intercepts,
-            post_transform=post_transform,
             targets=targets,
+            intercepts=intercepts,
+            coefficients=coefficients,
+            post_transform=post_transform,
         )
 
     T_Normalizer = TypeVar("T_Normalizer", DOUBLE, FLOAT, INT32, INT64)
@@ -502,9 +502,9 @@ class Opset_ai_onnx_ml1(Opset):
         self,
         X: T_OneHotEncoder,
         *,
-        cats_int64s: Optional[Sequence[int]] = None,
-        cats_strings: Optional[Sequence[str]] = None,
         zeros: int = 1,
+        cats_strings: Optional[Sequence[str]] = None,
+        cats_int64s: Optional[Sequence[int]] = None,
     ) -> FLOAT:
         r"""[🌐 ai.onnx.ml::OneHotEncoder(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_OneHotEncoder.html#onehotencoder-1 "Online Documentation")
 
@@ -525,23 +525,23 @@ class Opset_ai_onnx_ml1(Opset):
         Args:
             X: Data to be encoded.
 
-            cats_int64s: List of categories, ints.<br>One and only one of the 'cats_*'
-                attributes must be defined.
+            zeros: If true and category is not present, will return all zeros; if false
+                and a category if not found, the operator will fail.
 
             cats_strings: List of categories, strings.<br>One and only one of the
                 'cats_*' attributes must be defined.
 
-            zeros: If true and category is not present, will return all zeros; if false
-                and a category if not found, the operator will fail.
+            cats_int64s: List of categories, ints.<br>One and only one of the 'cats_*'
+                attributes must be defined.
         """
 
         schema = get_schema("OneHotEncoder", 1, "ai.onnx.ml")
         op = Op(self, "OneHotEncoder", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            cats_int64s=cats_int64s,
-            cats_strings=cats_strings,
             zeros=zeros,
+            cats_strings=cats_strings,
+            cats_int64s=cats_int64s,
         )
 
     T1_SVMClassifier = TypeVar("T1_SVMClassifier", DOUBLE, FLOAT, INT32, INT64)
@@ -553,16 +553,16 @@ class Opset_ai_onnx_ml1(Opset):
         X: T1_SVMClassifier,
         *,
         classlabels_ints: Optional[Sequence[int]] = None,
-        classlabels_strings: Optional[Sequence[str]] = None,
-        coefficients: Optional[Sequence[float]] = None,
-        kernel_params: Optional[Sequence[float]] = None,
-        kernel_type: str = "LINEAR",
-        post_transform: str = "NONE",
-        prob_a: Optional[Sequence[float]] = None,
-        prob_b: Optional[Sequence[float]] = None,
         rho: Optional[Sequence[float]] = None,
+        prob_b: Optional[Sequence[float]] = None,
+        coefficients: Optional[Sequence[float]] = None,
+        classlabels_strings: Optional[Sequence[str]] = None,
+        prob_a: Optional[Sequence[float]] = None,
         support_vectors: Optional[Sequence[float]] = None,
         vectors_per_class: Optional[Sequence[int]] = None,
+        post_transform: str = "NONE",
+        kernel_params: Optional[Sequence[float]] = None,
+        kernel_type: str = "LINEAR",
     ) -> Tuple[T2_SVMClassifier, FLOAT]:
         r"""[🌐 ai.onnx.ml::SVMClassifier(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_SVMClassifier.html#svmclassifier-1 "Online Documentation")
 
@@ -576,22 +576,22 @@ class Opset_ai_onnx_ml1(Opset):
             classlabels_ints: Class labels if using integer labels.<br>One and only one
                 of the 'classlabels_*' attributes must be defined.
 
+            prob_b: Second set of probability coefficients. This array must be same size
+                as prob_a.<br>If these are provided then output Z are probability
+                estimates, otherwise they are raw scores.
+
             classlabels_strings: Class labels if using string labels.<br>One and only
                 one of the 'classlabels_*' attributes must be defined.
+
+            prob_a: First set of probability coefficients.
+
+            post_transform: Indicates the transform to apply to the score. <br>One of
+                'NONE,' 'SOFTMAX,' 'LOGISTIC,' 'SOFTMAX_ZERO,' or 'PROBIT'
 
             kernel_params: List of 3 elements containing gamma, coef0, and degree, in
                 that order. Zero if unused for the kernel.
 
             kernel_type: The kernel type, one of 'LINEAR,' 'POLY,' 'RBF,' 'SIGMOID'.
-
-            post_transform: Indicates the transform to apply to the score. <br>One of
-                'NONE,' 'SOFTMAX,' 'LOGISTIC,' 'SOFTMAX_ZERO,' or 'PROBIT'
-
-            prob_a: First set of probability coefficients.
-
-            prob_b: Second set of probability coefficients. This array must be same size
-                as prob_a.<br>If these are provided then output Z are probability
-                estimates, otherwise they are raw scores.
         """
 
         schema = get_schema("SVMClassifier", 1, "ai.onnx.ml")
@@ -599,16 +599,16 @@ class Opset_ai_onnx_ml1(Opset):
         return op(
             *self._prepare_inputs(schema, X),
             classlabels_ints=classlabels_ints,
-            classlabels_strings=classlabels_strings,
-            coefficients=coefficients,
-            kernel_params=kernel_params,
-            kernel_type=kernel_type,
-            post_transform=post_transform,
-            prob_a=prob_a,
-            prob_b=prob_b,
             rho=rho,
+            prob_b=prob_b,
+            coefficients=coefficients,
+            classlabels_strings=classlabels_strings,
+            prob_a=prob_a,
             support_vectors=support_vectors,
             vectors_per_class=vectors_per_class,
+            post_transform=post_transform,
+            kernel_params=kernel_params,
+            kernel_type=kernel_type,
         )
 
     T_SVMRegressor = TypeVar("T_SVMRegressor", DOUBLE, FLOAT, INT32, INT64)
@@ -617,14 +617,14 @@ class Opset_ai_onnx_ml1(Opset):
         self,
         X: T_SVMRegressor,
         *,
+        rho: Optional[Sequence[float]] = None,
         coefficients: Optional[Sequence[float]] = None,
-        kernel_params: Optional[Sequence[float]] = None,
-        kernel_type: str = "LINEAR",
         n_supports: int = 0,
         one_class: int = 0,
-        post_transform: str = "NONE",
-        rho: Optional[Sequence[float]] = None,
         support_vectors: Optional[Sequence[float]] = None,
+        post_transform: str = "NONE",
+        kernel_params: Optional[Sequence[float]] = None,
+        kernel_type: str = "LINEAR",
     ) -> FLOAT:
         r"""[🌐 ai.onnx.ml::SVMRegressor(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_SVMRegressor.html#svmregressor-1 "Online Documentation")
 
@@ -637,33 +637,33 @@ class Opset_ai_onnx_ml1(Opset):
 
             coefficients: Support vector coefficients.
 
-            kernel_params: List of 3 elements containing gamma, coef0, and degree, in
-                that order. Zero if unused for the kernel.
-
-            kernel_type: The kernel type, one of 'LINEAR,' 'POLY,' 'RBF,' 'SIGMOID'.
-
             n_supports: The number of support vectors.
 
             one_class: Flag indicating whether the regression is a one-class SVM or not.
 
+            support_vectors: Chosen support vectors
+
             post_transform: Indicates the transform to apply to the score. <br>One of
                 'NONE,' 'SOFTMAX,' 'LOGISTIC,' 'SOFTMAX_ZERO,' or 'PROBIT.'
 
-            support_vectors: Chosen support vectors
+            kernel_params: List of 3 elements containing gamma, coef0, and degree, in
+                that order. Zero if unused for the kernel.
+
+            kernel_type: The kernel type, one of 'LINEAR,' 'POLY,' 'RBF,' 'SIGMOID'.
         """
 
         schema = get_schema("SVMRegressor", 1, "ai.onnx.ml")
         op = Op(self, "SVMRegressor", schema)
         return op(
             *self._prepare_inputs(schema, X),
+            rho=rho,
             coefficients=coefficients,
-            kernel_params=kernel_params,
-            kernel_type=kernel_type,
             n_supports=n_supports,
             one_class=one_class,
-            post_transform=post_transform,
-            rho=rho,
             support_vectors=support_vectors,
+            post_transform=post_transform,
+            kernel_params=kernel_params,
+            kernel_type=kernel_type,
         )
 
     T_Scaler = TypeVar("T_Scaler", DOUBLE, FLOAT, INT32, INT64)
@@ -672,8 +672,8 @@ class Opset_ai_onnx_ml1(Opset):
         self,
         X: T_Scaler,
         *,
-        offset: Optional[Sequence[float]] = None,
         scale: Optional[Sequence[float]] = None,
+        offset: Optional[Sequence[float]] = None,
     ) -> FLOAT:
         r"""[🌐 ai.onnx.ml::Scaler(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_Scaler.html#scaler-1 "Online Documentation")
 
@@ -684,18 +684,18 @@ class Opset_ai_onnx_ml1(Opset):
         Args:
             X: Data to be scaled.
 
-            offset: First, offset by this.<br>Can be length of features in an [N,F]
-                tensor or length 1, in which case it applies to all features, regardless
-                of dimension count.
-
             scale: Second, multiply by this.<br>Can be length of features in an [N,F]
                 tensor or length 1, in which case it applies to all features, regardless
                 of dimension count.<br>Must be same length as 'offset'
+
+            offset: First, offset by this.<br>Can be length of features in an [N,F]
+                tensor or length 1, in which case it applies to all features, regardless
+                of dimension count.
         """
 
         schema = get_schema("Scaler", 1, "ai.onnx.ml")
         op = Op(self, "Scaler", schema)
-        return op(*self._prepare_inputs(schema, X), offset=offset, scale=scale)
+        return op(*self._prepare_inputs(schema, X), scale=scale, offset=offset)
 
     T1_TreeEnsembleClassifier = TypeVar(
         "T1_TreeEnsembleClassifier", DOUBLE, FLOAT, INT32, INT64
@@ -707,23 +707,23 @@ class Opset_ai_onnx_ml1(Opset):
         self,
         X: T1_TreeEnsembleClassifier,
         *,
-        base_values: Optional[Sequence[float]] = None,
-        class_ids: Optional[Sequence[int]] = None,
-        class_nodeids: Optional[Sequence[int]] = None,
-        class_treeids: Optional[Sequence[int]] = None,
-        class_weights: Optional[Sequence[float]] = None,
+        post_transform: str = "NONE",
         classlabels_int64s: Optional[Sequence[int]] = None,
+        nodes_nodeids: Optional[Sequence[int]] = None,
         classlabels_strings: Optional[Sequence[str]] = None,
-        nodes_falsenodeids: Optional[Sequence[int]] = None,
+        class_ids: Optional[Sequence[int]] = None,
+        class_weights: Optional[Sequence[float]] = None,
+        nodes_treeids: Optional[Sequence[int]] = None,
         nodes_featureids: Optional[Sequence[int]] = None,
+        nodes_values: Optional[Sequence[float]] = None,
+        nodes_falsenodeids: Optional[Sequence[int]] = None,
         nodes_hitrates: Optional[Sequence[float]] = None,
+        base_values: Optional[Sequence[float]] = None,
         nodes_missing_value_tracks_true: Optional[Sequence[int]] = None,
         nodes_modes: Optional[Sequence[str]] = None,
-        nodes_nodeids: Optional[Sequence[int]] = None,
-        nodes_treeids: Optional[Sequence[int]] = None,
         nodes_truenodeids: Optional[Sequence[int]] = None,
-        nodes_values: Optional[Sequence[float]] = None,
-        post_transform: str = "NONE",
+        class_treeids: Optional[Sequence[int]] = None,
+        class_nodeids: Optional[Sequence[int]] = None,
     ) -> Tuple[T2_TreeEnsembleClassifier, FLOAT]:
         r"""[🌐 ai.onnx.ml::TreeEnsembleClassifier(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_TreeEnsembleClassifier.html#treeensembleclassifier-1 "Online Documentation")
 
@@ -745,30 +745,36 @@ class Opset_ai_onnx_ml1(Opset):
         Args:
             X: Input of shape [N,F]
 
-            base_values: Base values for classification, added to final class score; the
-                size must be the same as the classes or can be left unassigned (assumed
-                0)
-
-            class_ids: The index of the class list that each weight is for.
-
-            class_nodeids: node id that this weight is for.
-
-            class_treeids: The id of the tree that this node is in.
-
-            class_weights: The weight for the class in class_id.
+            post_transform: Indicates the transform to apply to the score. <br> One of
+                'NONE,' 'SOFTMAX,' 'LOGISTIC,' 'SOFTMAX_ZERO,' or 'PROBIT.'
 
             classlabels_int64s: Class labels if using integer labels.<br>One and only
                 one of the 'classlabels_*' attributes must be defined.
 
+            nodes_nodeids: Node id for each node. Ids may restart at zero for each tree,
+                but it not required to.
+
             classlabels_strings: Class labels if using string labels.<br>One and only
                 one of the 'classlabels_*' attributes must be defined.
 
-            nodes_falsenodeids: Child node if expression is false.
+            class_ids: The index of the class list that each weight is for.
+
+            class_weights: The weight for the class in class_id.
+
+            nodes_treeids: Tree id for each node.
 
             nodes_featureids: Feature id for each node.
 
+            nodes_values: Thresholds to do the splitting on for each node.
+
+            nodes_falsenodeids: Child node if expression is false.
+
             nodes_hitrates: Popularity of each node, used for performance and may be
                 omitted.
+
+            base_values: Base values for classification, added to final class score; the
+                size must be the same as the classes or can be left unassigned (assumed
+                0)
 
             nodes_missing_value_tracks_true: For each node, define what to do in the
                 presence of a missing value: if a value is missing (NaN), use the 'true'
@@ -780,40 +786,34 @@ class Opset_ai_onnx_ml1(Opset):
                 'BRANCH_LT', 'BRANCH_GTE', 'BRANCH_GT', 'BRANCH_EQ', 'BRANCH_NEQ',
                 'LEAF'
 
-            nodes_nodeids: Node id for each node. Ids may restart at zero for each tree,
-                but it not required to.
-
-            nodes_treeids: Tree id for each node.
-
             nodes_truenodeids: Child node if expression is true.
 
-            nodes_values: Thresholds to do the splitting on for each node.
+            class_treeids: The id of the tree that this node is in.
 
-            post_transform: Indicates the transform to apply to the score. <br> One of
-                'NONE,' 'SOFTMAX,' 'LOGISTIC,' 'SOFTMAX_ZERO,' or 'PROBIT.'
+            class_nodeids: node id that this weight is for.
         """
 
         schema = get_schema("TreeEnsembleClassifier", 1, "ai.onnx.ml")
         op = Op(self, "TreeEnsembleClassifier", schema)
         return op(
             *self._prepare_inputs(schema, X),
-            base_values=base_values,
-            class_ids=class_ids,
-            class_nodeids=class_nodeids,
-            class_treeids=class_treeids,
-            class_weights=class_weights,
+            post_transform=post_transform,
             classlabels_int64s=classlabels_int64s,
+            nodes_nodeids=nodes_nodeids,
             classlabels_strings=classlabels_strings,
-            nodes_falsenodeids=nodes_falsenodeids,
+            class_ids=class_ids,
+            class_weights=class_weights,
+            nodes_treeids=nodes_treeids,
             nodes_featureids=nodes_featureids,
+            nodes_values=nodes_values,
+            nodes_falsenodeids=nodes_falsenodeids,
             nodes_hitrates=nodes_hitrates,
+            base_values=base_values,
             nodes_missing_value_tracks_true=nodes_missing_value_tracks_true,
             nodes_modes=nodes_modes,
-            nodes_nodeids=nodes_nodeids,
-            nodes_treeids=nodes_treeids,
             nodes_truenodeids=nodes_truenodeids,
-            nodes_values=nodes_values,
-            post_transform=post_transform,
+            class_treeids=class_treeids,
+            class_nodeids=class_nodeids,
         )
 
     T_TreeEnsembleRegressor = TypeVar("T_TreeEnsembleRegressor", DOUBLE, FLOAT, INT32, INT64)
@@ -823,22 +823,22 @@ class Opset_ai_onnx_ml1(Opset):
         X: T_TreeEnsembleRegressor,
         *,
         aggregate_function: str = "SUM",
-        base_values: Optional[Sequence[float]] = None,
+        post_transform: str = "NONE",
         n_targets: Optional[int] = None,
-        nodes_falsenodeids: Optional[Sequence[int]] = None,
+        nodes_nodeids: Optional[Sequence[int]] = None,
+        target_nodeids: Optional[Sequence[int]] = None,
+        nodes_treeids: Optional[Sequence[int]] = None,
         nodes_featureids: Optional[Sequence[int]] = None,
+        nodes_values: Optional[Sequence[float]] = None,
+        target_weights: Optional[Sequence[float]] = None,
+        nodes_falsenodeids: Optional[Sequence[int]] = None,
         nodes_hitrates: Optional[Sequence[float]] = None,
+        base_values: Optional[Sequence[float]] = None,
         nodes_missing_value_tracks_true: Optional[Sequence[int]] = None,
         nodes_modes: Optional[Sequence[str]] = None,
-        nodes_nodeids: Optional[Sequence[int]] = None,
-        nodes_treeids: Optional[Sequence[int]] = None,
         nodes_truenodeids: Optional[Sequence[int]] = None,
-        nodes_values: Optional[Sequence[float]] = None,
-        post_transform: str = "NONE",
-        target_ids: Optional[Sequence[int]] = None,
-        target_nodeids: Optional[Sequence[int]] = None,
         target_treeids: Optional[Sequence[int]] = None,
-        target_weights: Optional[Sequence[float]] = None,
+        target_ids: Optional[Sequence[int]] = None,
     ) -> FLOAT:
         r"""[🌐 ai.onnx.ml::TreeEnsembleRegressor(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_TreeEnsembleRegressor.html#treeensembleregressor-1 "Online Documentation")
 
@@ -866,18 +866,32 @@ class Opset_ai_onnx_ml1(Opset):
             aggregate_function: Defines how to aggregate leaf values within a target.
                 <br>One of 'AVERAGE,' 'SUM,' 'MIN,' 'MAX.'
 
-            base_values: Base values for classification, added to final class score; the
-                size must be the same as the classes or can be left unassigned (assumed
-                0)
+            post_transform: Indicates the transform to apply to the score. <br>One of
+                'NONE,' 'SOFTMAX,' 'LOGISTIC,' 'SOFTMAX_ZERO,' or 'PROBIT'
 
             n_targets: The total number of targets.
 
-            nodes_falsenodeids: Child node if expression is false
+            nodes_nodeids: Node id for each node. Node ids must restart at zero for each
+                tree and increase sequentially.
+
+            target_nodeids: The node id of each weight
+
+            nodes_treeids: Tree id for each node.
 
             nodes_featureids: Feature id for each node.
 
+            nodes_values: Thresholds to do the splitting on for each node.
+
+            target_weights: The weight for each target
+
+            nodes_falsenodeids: Child node if expression is false
+
             nodes_hitrates: Popularity of each node, used for performance and may be
                 omitted.
+
+            base_values: Base values for classification, added to final class score; the
+                size must be the same as the classes or can be left unassigned (assumed
+                0)
 
             nodes_missing_value_tracks_true: For each node, define what to do in the
                 presence of a NaN: use the 'true' (if the attribute value is 1) or
@@ -890,25 +904,11 @@ class Opset_ai_onnx_ml1(Opset):
                 'BRANCH_LT', 'BRANCH_GTE', 'BRANCH_GT', 'BRANCH_EQ', 'BRANCH_NEQ',
                 'LEAF'
 
-            nodes_nodeids: Node id for each node. Node ids must restart at zero for each
-                tree and increase sequentially.
-
-            nodes_treeids: Tree id for each node.
-
             nodes_truenodeids: Child node if expression is true
-
-            nodes_values: Thresholds to do the splitting on for each node.
-
-            post_transform: Indicates the transform to apply to the score. <br>One of
-                'NONE,' 'SOFTMAX,' 'LOGISTIC,' 'SOFTMAX_ZERO,' or 'PROBIT'
-
-            target_ids: The index of the target that each weight is for
-
-            target_nodeids: The node id of each weight
 
             target_treeids: The id of the tree that each node is in.
 
-            target_weights: The weight for each target
+            target_ids: The index of the target that each weight is for
         """
 
         schema = get_schema("TreeEnsembleRegressor", 1, "ai.onnx.ml")
@@ -916,22 +916,22 @@ class Opset_ai_onnx_ml1(Opset):
         return op(
             *self._prepare_inputs(schema, X),
             aggregate_function=aggregate_function,
-            base_values=base_values,
+            post_transform=post_transform,
             n_targets=n_targets,
-            nodes_falsenodeids=nodes_falsenodeids,
+            nodes_nodeids=nodes_nodeids,
+            target_nodeids=target_nodeids,
+            nodes_treeids=nodes_treeids,
             nodes_featureids=nodes_featureids,
+            nodes_values=nodes_values,
+            target_weights=target_weights,
+            nodes_falsenodeids=nodes_falsenodeids,
             nodes_hitrates=nodes_hitrates,
+            base_values=base_values,
             nodes_missing_value_tracks_true=nodes_missing_value_tracks_true,
             nodes_modes=nodes_modes,
-            nodes_nodeids=nodes_nodeids,
-            nodes_treeids=nodes_treeids,
             nodes_truenodeids=nodes_truenodeids,
-            nodes_values=nodes_values,
-            post_transform=post_transform,
-            target_ids=target_ids,
-            target_nodeids=target_nodeids,
             target_treeids=target_treeids,
-            target_weights=target_weights,
+            target_ids=target_ids,
         )
 
     T_ZipMap: TypeAlias = Union[Sequence[Mapping[int, FLOAT]], Sequence[Mapping[str, FLOAT]]]
