@@ -18,7 +18,6 @@ from onnxscript.rewriter import (
     broadcast_to_matmul,
     cast_constant_of_shape,
     collapse_slices,
-    erfgelu,
     gemm_to_matmul_add,
     llama_rule_sets,
     no_op,
@@ -32,7 +31,6 @@ _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
     gemm_to_matmul_add.rule,  # type: ignore[has-type]
     *cast_constant_of_shape.rules.rules,
     *collapse_slices.rules.rules,
-    *erfgelu.rules.rules,
     *llama_rule_sets.llama_p0_rule_set().rules,
 )
 

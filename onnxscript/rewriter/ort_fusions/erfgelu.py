@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 import math
 
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter import _fusion_utils, pattern
 
 
 # Pattern to match against
@@ -32,3 +32,5 @@ rule1 = pattern.RewriteRule(erf_gelu_pattern_1, gelu)
 rule2 = pattern.RewriteRule(erf_gelu_pattern_2, gelu)
 
 rules = pattern.RewriteRuleSet([rule1, rule2])
+
+fuse_erfgelu = _fusion_utils.apply_fusion_rules(rules)
