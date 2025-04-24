@@ -18,7 +18,6 @@
     Function
     Node
     Value
-    Usage
     Attr
     RefAttr
     Shape
@@ -38,5 +37,5 @@
 ```{eval-rst}
 .. autosummary::
     DataType
-    AttributeType
+    AttrType
 ```
