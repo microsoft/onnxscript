@@ -303,20 +303,20 @@ class TestSDPAFusion(unittest.TestCase):
         # Ensure that the scale of the SDPA node is set correctly
         sdpa_node = next(n for n in model.graph if n.op_type == "SDPA")
         self.assertEqual(sdpa_node.op_type, "SDPA")
-        self.assertIsNotNone(sdpa_node.attributes.get("scale"))
 
-        scale_factor = sdpa_node.attributes["scale"].value
-        self.assertIsNotNone(scale_factor)
         if "custom" in name:
+            self.assertIsNotNone(sdpa_node.attributes.get("scale"))
+            scale_factor = sdpa_node.attributes["scale"].value
+            self.assertIsNotNone(scale_factor)
             if "pre" in name:
                 self.assertEqual(scale_factor, CUSTOM_SCALE_FACTOR * CUSTOM_SCALE_FACTOR)
             elif "post" in name:
                 self.assertEqual(scale_factor, CUSTOM_SCALE_FACTOR)
         else:
-            if "div" in name:
-                self.assertEqual(scale_factor, SCALE_FACTOR)
-            elif "mul" in name:
-                self.assertEqual(scale_factor, MUL_SCALE_FACTOR)
+            # These tests are for the default scaling factors, no scale factor is passed to SDPA
+            # pattern rewriting check functions should be sufficient to check if expected value
+            # of scale_factor (is =default_scaling_factor)
+            self.assertIsNone(sdpa_node.attributes.get("scale"))
 
         # new_outputs = ort_run("optimized", model, inputs)
         # assert_allclose(new_outputs, original_outputs)
