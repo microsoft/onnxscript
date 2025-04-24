@@ -6,4 +6,5 @@
 getting_started
 tensors
 ir_api
+generated
 ```

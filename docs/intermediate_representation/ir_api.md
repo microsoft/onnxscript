@@ -2,7 +2,13 @@
 
 ```{eval-rst}
 .. automodule::onnxscript.ir
-```
+
+.. contents:: onnxscript.ir
+    :depth: 2
+    :local:
+    :backlinks: top
+
+.. currentmodule:: onnxscript
 
 ## IR objects
 
@@ -12,30 +18,29 @@
     :nosignatures:
     :template: classtemplate.rst
 
-    Model
-    Graph
-    GraphView
-    Function
-    Node
-    Value
-    Attr
-    RefAttr
-    Shape
-    SymbolicDim
-    TypeAndShape
-    TensorType
-    SparseTensorType
-    SequenceType
-    OptionalType
-    Tensor
-    ExternalTensor
-    StringTensor
+    ir.Model
+    ir.Graph
+    ir.GraphView
+    ir.Function
+    ir.Node
+    ir.Value
+    ir.Attr
+    ir.RefAttr
+    ir.Shape
+    ir.SymbolicDim
+    ir.TypeAndShape
+    ir.TensorType
+    ir.SparseTensorType
+    ir.SequenceType
+    ir.OptionalType
+    ir.Tensor
+    ir.ExternalTensor
+    ir.StringTensor
 ```
 
 ## Enums
 
 ```{eval-rst}
-.. autosummary::
-    DataType
-    AttrType
+.. autoclass:: onnxscript.ir.DataType
+.. autoclass:: onnxscript.ir.AttrType
 ```
