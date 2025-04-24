@@ -26,6 +26,7 @@ SCALE_FACTOR = math.sqrt(H)
 MUL_SCALE_FACTOR = 1.0 / SCALE_FACTOR
 SQRT_SCALE_FACTOR = math.sqrt(SCALE_FACTOR)
 SQRT_MUL_SCALE_FACTOR = math.sqrt(MUL_SCALE_FACTOR)
+CUSTOM_SCALE_FACTOR = 2.0
 
 
 @script()
@@ -77,7 +78,7 @@ def _unmasked_post_mul_sdpa_script(query, key, value):
 @script()
 def _custom_scale_pre_div_sdpa_script(query, key, value):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
-    divisor = op.Constant(value_float=2.0)
+    divisor = op.Constant(value_float=CUSTOM_SCALE_FACTOR)
     scaled_query = op.Div(query, divisor)
     scaled_key = op.Div(key_transposed, divisor)
     attn_score = op.MatMul(scaled_query, scaled_key)
@@ -89,7 +90,7 @@ def _custom_scale_pre_div_sdpa_script(query, key, value):
 @script()
 def _custom_scale_pre_mul_sdpa_script(query, key, value):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
-    multiplier = op.Constant(value_float=0.5)
+    multiplier = op.Constant(value_float=CUSTOM_SCALE_FACTOR)
     scaled_query = op.Mul(query, multiplier)
     scaled_key = op.Mul(key_transposed, multiplier)
     attn_score = op.MatMul(scaled_query, scaled_key)
@@ -101,8 +102,8 @@ def _custom_scale_pre_mul_sdpa_script(query, key, value):
 @script()
 def _custom_multi_scale_pre_mul_sdpa_script(query, key, value):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
-    multiplier_q = op.Constant(value_float=0.5)
-    multiplier_k = op.Constant(value_float=0.5)
+    multiplier_q = op.Constant(value_float=CUSTOM_SCALE_FACTOR)
+    multiplier_k = op.Constant(value_float=CUSTOM_SCALE_FACTOR)
     scaled_query = op.Mul(query, multiplier_q)
     scaled_key = op.Mul(key_transposed, multiplier_k)
     attn_score = op.MatMul(scaled_query, scaled_key)
@@ -114,7 +115,7 @@ def _custom_multi_scale_pre_mul_sdpa_script(query, key, value):
 @script()
 def _custom_scale_post_div_sdpa_script(query, key, value):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
-    divisor = op.Constant(value_float=0.1)
+    divisor = op.Constant(value_float=CUSTOM_SCALE_FACTOR)
     attn_score = op.MatMul(query, key_transposed)
     scaled_attn_score = op.Div(attn_score, divisor)
     attn_weight = op.Softmax(scaled_attn_score, axis=-1)
@@ -125,7 +126,7 @@ def _custom_scale_post_div_sdpa_script(query, key, value):
 @script()
 def _custom_scale_post_mul_sdpa_script(query, key, value):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
-    multiplier = op.Constant(value_float=0.125)
+    multiplier = op.Constant(value_float=CUSTOM_SCALE_FACTOR)
     attn_score = op.MatMul(query, key_transposed)
     scaled_attn_score = op.Mul(attn_score, multiplier)
     attn_weight = op.Softmax(scaled_attn_score, axis=-1)
@@ -186,7 +187,7 @@ def _masked_post_mul_sdpa_script(query, key, value, mask):
 @script()
 def _custom_scale_pre_div_sdpa_script(query, key, value, mask):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
-    divisor = op.Constant(value_float=2.0)
+    divisor = op.Constant(value_float=CUSTOM_SCALE_FACTOR)
     scaled_query = op.Div(query, divisor)
     scaled_key = op.Div(key_transposed, divisor)
     attn_score = op.MatMul(scaled_query, scaled_key)
@@ -199,7 +200,7 @@ def _custom_scale_pre_div_sdpa_script(query, key, value, mask):
 @script()
 def _custom_scale_pre_mul_sdpa_script(query, key, value, mask):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
-    multiplier = op.Constant(value_float=0.5)
+    multiplier = op.Constant(value_float=CUSTOM_SCALE_FACTOR)
     scaled_query = op.Mul(query, multiplier)
     scaled_key = op.Mul(key_transposed, multiplier)
     attn_score = op.MatMul(scaled_query, scaled_key)
@@ -212,7 +213,7 @@ def _custom_scale_pre_mul_sdpa_script(query, key, value, mask):
 @script()
 def _custom_scale_post_div_sdpa_script(query, key, value, mask):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
-    divisor = op.Constant(value_float=0.1)
+    divisor = op.Constant(value_float=CUSTOM_SCALE_FACTOR)
     attn_score = op.MatMul(query, key_transposed)
     scaled_attn_score = op.Div(attn_score, divisor)
     masked_attn_score = op.Add(scaled_attn_score, mask)
@@ -224,7 +225,7 @@ def _custom_scale_post_div_sdpa_script(query, key, value, mask):
 @script()
 def _custom_scale_post_mul_sdpa_script(query, key, value, mask):
     key_transposed = op.Transpose(key, perm=[0, 1, 3, 2])
-    multiplier = op.Constant(value_float=0.125)
+    multiplier = op.Constant(value_float=CUSTOM_SCALE_FACTOR)
     attn_score = op.MatMul(query, key_transposed)
     scaled_attn_score = op.Mul(attn_score, multiplier)
     masked_attn_score = op.Add(scaled_attn_score, mask)
@@ -278,7 +279,10 @@ class TestSDPAFusion(unittest.TestCase):
             ("custom_scale_post_div_masked", _custom_scale_post_div_sdpa_script),
             ("custom_scale_pre_mul_masked", _custom_scale_pre_mul_sdpa_script),
             ("custom_scale_pre_div_masked", _custom_scale_pre_div_sdpa_script),
-            ("_custom_multi_scale_pre_mul_sdpa_script", _custom_multi_scale_pre_mul_sdpa_script),
+            (
+                "_custom_multi_scale_pre_mul_sdpa_script",
+                _custom_multi_scale_pre_mul_sdpa_script,
+            ),
         ]
     )
     def test_sdpa_fusion(self, name, script_func):
@@ -295,6 +299,24 @@ class TestSDPAFusion(unittest.TestCase):
         # Check that the fusion was successful
         op_types = [n.op_type for n in model.graph]
         self.assertIn("SDPA", op_types)
+
+        # Ensure that the scale of the SDPA node is set correctly
+        sdpa_node = next(n for n in model.graph if n.op_type == "SDPA")
+        self.assertEqual(sdpa_node.op_type, "SDPA")
+        self.assertIsNotNone(sdpa_node.attributes.get("scale"))
+
+        scale_factor = sdpa_node.attributes["scale"].value
+        self.assertIsNotNone(scale_factor)
+        if "custom" in name:
+            if "pre" in name:
+                self.assertEqual(scale_factor, CUSTOM_SCALE_FACTOR * CUSTOM_SCALE_FACTOR)
+            elif "post" in name:
+                self.assertEqual(scale_factor, CUSTOM_SCALE_FACTOR)
+        else:
+            if "div" in name:
+                self.assertEqual(scale_factor, SCALE_FACTOR)
+            elif "mul" in name:
+                self.assertEqual(scale_factor, MUL_SCALE_FACTOR)
 
         # new_outputs = ort_run("optimized", model, inputs)
         # assert_allclose(new_outputs, original_outputs)

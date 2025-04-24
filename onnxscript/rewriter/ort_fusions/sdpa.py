@@ -66,7 +66,7 @@ class SDPA(pattern.RewriteRuleClassBase):
                     "Query scale is not a scalar.",
                     query_scale,
                 )
-            if not math.isclose(query_scale_value, sqrt_scaling_factor, rel_tol=1e-3): 
+            if not math.isclose(query_scale_value, sqrt_scaling_factor, rel_tol=1e-3):
                 self._scale = query_scale_value * query_scale_value
             else:
                 self._scale = expected_scaling_factor
