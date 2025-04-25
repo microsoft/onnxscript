@@ -13,6 +13,7 @@ class SDPA(pattern.RewriteRuleClassBase):
         self._use_mask = use_mask
         self._pre_scale = pre_scale
         self._use_mul = use_mul
+        self._scale: float | None = None
 
     def pattern(
         self, op, query, key_transposed, value, mask, query_scale, key_scale, qk_scale
@@ -57,34 +58,53 @@ class SDPA(pattern.RewriteRuleClassBase):
 
         if self._pre_scale:
             # Check if query_scale and key_scale are scalars == sqrt(expected_scaling_factor)
+            # If they are scalars but != sqrt(expected_scaling_factor), a custom scale is being used.
             sqrt_scaling_factor = math.sqrt(expected_scaling_factor)
-            if not _ir_utils.is_singleton_value(query_scale, sqrt_scaling_factor, rtol=1e-3):
+            # Calculate the scaling factor for query
+            if (query_scale_value := _ir_utils.get_singleton_value(query_scale)) is None:
                 return check_result.fail(
-                    "Query scale is not a scalar or does not match the expected scaling factor.",
+                    "Query scale is not a scalar.",
                     query_scale,
                 )
-            if not _ir_utils.is_singleton_value(key_scale, sqrt_scaling_factor, rtol=1e-3):
+            # Ensure the scaling factor for key is the same as for query
+            if (key_scale_value := _ir_utils.get_singleton_value(key_scale)) is None:
                 return check_result.fail(
-                    "Key scale is not a scalar or does not match the expected scaling factor.",
+                    "Key scale is not a scalar.",
                     key_scale,
                 )
+            if not math.isclose(query_scale_value, key_scale_value, rel_tol=1e-3):
+                return check_result.fail(
+                    "Query and key scales are not equal.",
+                    query_scale,
+                )
+            if not math.isclose(query_scale_value, sqrt_scaling_factor, rel_tol=1e-3):
+                self._scale = query_scale_value * query_scale_value
+            else:
+                # Pass no scaling factor to SDPA, SDPA will use the default scaling factor
+                self._scale = None
         else:
             # Check if qk_scale is a scalar == expected_scaling_factor)
-            if not _ir_utils.is_singleton_value(qk_scale, expected_scaling_factor, rtol=1e-3):
+            # If it is a scalar but != sqrt(expected_scaling_factor), a custom scale is being used
+            if (qk_scale_value := _ir_utils.get_singleton_value(qk_scale)) is None:
                 return check_result.fail(
-                    "QK scale is not a scalar or does not match the expected scaling factor.",
+                    "QK scale is not a scalar.",
                     qk_scale,
                 )
+            if not math.isclose(qk_scale_value, expected_scaling_factor, rel_tol=1e-3):
+                self._scale = qk_scale_value
+            else:
+                # Pass no scaling factor to SDPA, SDPA will use the default scaling factor
+                self._scale = None
 
         # check ranks/shapes
 
         return check_result
 
     def rewrite(self, op, query, key_transposed, value, mask, **_):
+        sdpa_args = [query, key_transposed, value]
         if self._use_mask:
-            return op.SDPA(query, key_transposed, value, mask, _domain="ai.onnxruntime.fusion")
-        else:
-            return op.SDPA(query, key_transposed, value, _domain="ai.onnxruntime.fusion")
+            sdpa_args.append(mask)
+        return op.SDPA(*sdpa_args, scale=self._scale, _domain="ai.onnxruntime.fusion")
 
 
 # Rules for SDPA without mask
