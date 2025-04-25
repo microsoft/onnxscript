@@ -132,6 +132,8 @@ class Tape:
     ) -> Sequence[ir.Value]:
         if num_outputs is None and outputs is None:
             raise ValueError("Either num_outputs or outputs must be provided.")
+        if num_outputs is not None and outputs is not None:
+            raise ValueError("Both num_outputs and outputs cannot be provided simultaneously.")
         output_kwargs: dict[str, Any]
         if outputs is None:
             output_kwargs = dict(num_outputs=num_outputs)
