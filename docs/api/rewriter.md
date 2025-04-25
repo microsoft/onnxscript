@@ -9,15 +9,18 @@
 .. autosummary::
     :toctree: generated
     :template: functiontemplate.rst
+    :nosignatures:
 
-    rewriter.pattern
     rewriter.rewrite
 ```
+
+## IR passes
 
 ```{eval-rst}
 .. autosummary::
     :toctree: generated
     :template: classtemplate.rst
+    :nosignatures:
 
     rewriter.RewritePass
 ```

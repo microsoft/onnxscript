@@ -9,6 +9,7 @@
 .. autosummary::
     :toctree: generated
     :template: functiontemplate.rst
+    :nosignatures:
 
     optimizer.optimize
     optimizer.inline
