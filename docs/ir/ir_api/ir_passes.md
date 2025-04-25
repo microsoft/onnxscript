@@ -32,8 +32,8 @@ Alternatively, inherent the base class `ir.passes.PassBase <onnxscript.ir.passes
 ## Errors
 
 ```{eval-rst}
-.. autoclass:: onnxscript.ir.passes.InvariantError
-.. autoclass:: onnxscript.ir.passes.PreconditionError
-.. autoclass:: onnxscript.ir.passes.PostconditionError
-.. autoclass:: onnxscript.ir.passes.PassError
+.. autoexception:: onnxscript.ir.passes.InvariantError
+.. autoexception:: onnxscript.ir.passes.PreconditionError
+.. autoexception:: onnxscript.ir.passes.PostconditionError
+.. autoexception:: onnxscript.ir.passes.PassError
 ```

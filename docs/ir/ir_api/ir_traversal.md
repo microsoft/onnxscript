@@ -9,4 +9,5 @@
 .. autoclass:: RecursiveGraphIterator
    :members:
    :undoc-members:
+   :special-members:
 ```

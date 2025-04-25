@@ -9,6 +9,7 @@
     :members:
     :undoc-members:
     :inherited-members:
+    :member-order: bysource
 
 
 ..
