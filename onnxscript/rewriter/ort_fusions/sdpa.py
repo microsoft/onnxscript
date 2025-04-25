@@ -102,22 +102,22 @@ class SDPA(pattern.RewriteRuleClassBase):
         if self._use_mul:
             expected_scaling_factor = 1.0 / expected_scaling_factor
 
-        if self._pre_scale:
+        if self._pre_scale and not self._pre_scale_q:
             # Check if query_scale and key_scale are scalars == sqrt(expected_scaling_factor)
             # If they are scalars but != sqrt(expected_scaling_factor), a custom scale is being used.
             sqrt_scaling_factor = math.sqrt(expected_scaling_factor)
-                # Calculate the scaling factor for query
+            # Calculate the scaling factor for query
             if (query_scale_value := _ir_utils.get_singleton_value(query_scale)) is None:
-                    return check_result.fail(
-                        "Query scale is not a scalar.",
-                        query_scale,
-                    )
-                # Ensure the scaling factor for key is the same as for query
+                return check_result.fail(
+                    "Query scale is not a scalar.",
+                    query_scale,
+                )
+            # Ensure the scaling factor for key is the same as for query
             if (key_scale_value := _ir_utils.get_singleton_value(key_scale)) is None:
-                    return check_result.fail(
-                        "Key scale is not a scalar.",
-                        key_scale,
-                    )
+                return check_result.fail(
+                    "Key scale is not a scalar.",
+                    key_scale,
+                )
             if not math.isclose(query_scale_value, key_scale_value, rel_tol=1e-3):
                 return check_result.fail(
                     "Query and key scales are not equal.",
@@ -129,13 +129,13 @@ class SDPA(pattern.RewriteRuleClassBase):
                 # Pass no scaling factor to SDPA, SDPA will use the default scaling factor
                 self._scale = None
         else:
-                # Check if qk_scale is a scalar == expected_scaling_factor)
-                # If it is a scalar but != sqrt(expected_scaling_factor), a custom scale is being used
+            # Check if qk_scale is a scalar == expected_scaling_factor)
+            # If it is a scalar but != sqrt(expected_scaling_factor), a custom scale is being used
             if (qk_scale_value := _ir_utils.get_singleton_value(qk_scale)) is None:
-                    return check_result.fail(
-                        "QK scale is not a scalar.",
-                        qk_scale,
-                    )
+                return check_result.fail(
+                    "QK scale is not a scalar.",
+                    qk_scale,
+                )
             if not math.isclose(qk_scale_value, expected_scaling_factor, rel_tol=1e-3):
                 self._scale = qk_scale_value
             else:
@@ -153,13 +153,20 @@ class SDPA(pattern.RewriteRuleClassBase):
         key_transposed,
         value,
         mask,
-        query_reshape,
+        query_scale,
+        key_scale,
+        qk_scale,
+        query_reshape=None,
         **_,
     ):
-        if self._has_3d_inputs and self._pre_scale_q:
+        if self._has_3d_inputs and self._pre_scale and self._pre_scale_q:
+            if self._use_mul:
+                query_mul = op.Mul(query, qk_scale)
+            else:
+                query_mul = op.Div(query, qk_scale)
             # Reshape and transpose 3D input of shape (B, S, D)
             # to 4D input of shape (B, N, S, H)
-            queryBNSH = op.Reshape(query, query_reshape)
+            queryBNSH = op.Reshape(query_mul, query_reshape)
             query = op.Transpose(queryBNSH, perm=[0, 2, 1, 3])
 
         sdpa_args = [query, key_transposed, value]

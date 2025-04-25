@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import onnxscript.ir as ir
-from onnxscript.rewriter import _fusion_utils, pattern
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 """
 The MultiHeadAttention pattern: generate an instance
@@ -37,6 +37,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         name,
         *,
         transpose_4d: bool,
+        pre_scale_q: bool,
         is_rotary: bool,
         use_mask: bool,
         has_past_present: bool,
@@ -44,6 +45,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
     ):
         super().__init__(name)
         self._transpose_4d = transpose_4d
+        self._pre_scale_q = pre_scale_q
         self._is_rotary = is_rotary
         self._use_mask = use_mask
         self._has_past_present = has_past_present
@@ -64,9 +66,12 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         position_ids,
         cos,
         sin,
+        q_scale,
     ):
         # First, query, key, and value are reshaped+transposed from (B, S, D) to (B, H, S, D/H)
 
+        if self._pre_scale_q:
+            query_BSD = op.Mul(query_BSD, q_scale)
         # Reshape from (B, S, D) to (B, S, H, D/H)
         query_BSHDh = op.Reshape(
             query_BSD,
@@ -202,6 +207,8 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         past_key,
         past_value,
         query_BSHDh,
+        key_BSHDh=None,
+        value_BSHDh=None,
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
@@ -239,25 +246,24 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                     f"Shape mismatch: {past_value} does not match expected dimensions ['B', 'H', 'Spast', 'Dv']",
                     past_value,
                 )
-        """
+
         if no_match(query_BSHDh, ["B", "S", "H", "Dh"]):
             return check_result.fail(
                 f"Shape mismatch: {query_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
                 query_BSHDh,
             )
-        
-        if not self.is_cross_attention:
-            if no_match(key_BSHDh, ["B", "S", "H", "Dh"]):
+
+        if not self._is_cross_attention:
+            if key_BSHDh and no_match(key_BSHDh, ["B", "S", "H", "Dh"]):
                 return check_result.fail(
                     f"Shape mismatch: {key_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
                     query_BSHDh,
                 )
-            if no_match(value_BSHDh, ["B", "S", "H", "Dh"]):
+            if value_BSHDh and no_match(value_BSHDh, ["B", "S", "H", "Dh"]):
                 return check_result.fail(
                     f"Shape mismatch: {value_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
                     query_BSHDh,
                 )
-        """
 
         # TODO: mask shape check: ideally, it should be (1 or B, 1 or H, S, St)
         # But this also, unforunately, depends on ORT version.
@@ -283,9 +289,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         sin,
         **_,
     ):
-        num_heads = 64
-        # TODO: (fix) Error caused by incorrect SDPA fusion for pre-scaling case
-        # num_heads = _ir_utils.get_dim(query_BSHDh, 2)
+        num_heads = _ir_utils.get_dim(query_BSHDh, 2)
         if not isinstance(num_heads, int):
             return None
 
@@ -341,12 +345,14 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
 parameter_combinations = [
     {
         "transpose_4d": transpose_4d,
+        "pre_scale_q": pre_scale_q,
         "is_rotary": is_rotary,
         "use_mask": use_mask,
         "has_past_present": has_past_present,
         "is_cross_attention": is_cross_attention,
     }
     for transpose_4d in [False, True]
+    for pre_scale_q in [True, False]
     for is_rotary in [False, True]
     for use_mask in [False, True]
     for has_past_present in [False, True]
@@ -358,6 +364,7 @@ mha_rules = pattern.RewriteRuleSet(
     [
         MultiHeadAttention.rule(
             f"MHA_{'4D' if params['transpose_4d'] else '3D'}_Transpose"
+            f"{'_PreScaleQ' if params['pre_scale_q'] else ''}"
             f"{'_Rotary' if params['is_rotary'] else ''}"
             f"{'_Masked' if params['use_mask'] else ''}"
             f"{'_Past' if params['has_past_present'] else ''}"
