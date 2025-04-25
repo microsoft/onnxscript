@@ -1,8 +1,8 @@
 # ir.convenience
 
 ```{eval-rst}
-.. automodule::onnxscript.ir.passes
-.. currentmodule:: onnxscript
+.. automodule::onnxscript.ir.convenience
+.. currentmodule:: onnxscript.ir.convenience
 ```
 
 
