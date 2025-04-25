@@ -989,7 +989,7 @@ class Opset22(Opset21):
         op = Op(self, "GlobalAveragePool", schema)
         return op(*self._prepare_inputs(schema, X))
 
-    T_GlobalLpPool = TypeVar("T_GlobalLpPool", DOUBLE, FLOAT, FLOAT16)
+    T_GlobalLpPool = TypeVar("T_GlobalLpPool", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
     def GlobalLpPool(self, X: T_GlobalLpPool, *, p: int = 2) -> T_GlobalLpPool:
         r"""[🌐 GlobalLpPool(22)](https://onnx.ai/onnx/operators/onnx__GlobalLpPool.html#globallppool-22 "Online Documentation")
