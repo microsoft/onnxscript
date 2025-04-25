@@ -198,6 +198,9 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         # attention_bias,
         num_heads,
         # scale,
+        q_mul=None,
+        k_mul=None,
+        v_mul=None,
         **_,
     ):
         # Use bindings to get the values of Dh_q, Dh_k, and Dh_v
@@ -206,6 +209,8 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         # Dh_k = self.bindings.get("Dh_k")
         # Dh_v = self.bindings.get("Dh_v")
         # qkv_hidden_sizes = [Dh_q, Dh_k, Dh_v]
+        if self._no_slice:
+            qkv_weight = op.Concat(q_mul, k_mul, v_mul, axis=0)
 
         if self._has_past:
             attention, present = op.Attention(

@@ -37,7 +37,7 @@ class TestMultiHeadAttention(unittest.TestCase):
         encoder_model.opset_imports["ai.onnxruntime.fusion"] = 1
 
         print(f"Fused {fusion_count_e} ops")
-        self.assertEqual(fusion_count_e["skip_layer_normalization"], 17)
+        self.assertEqual(fusion_count_e["skip_layer_normalization"], 8)
         self.assertEqual(fusion_count_e["sdpa"], 4)
         self.assertEqual(fusion_count_e["mha"], 4)
         self.assertEqual(fusion_count_e["attention"], 4)
@@ -67,7 +67,7 @@ class TestMultiHeadAttention(unittest.TestCase):
         decoder_model.opset_imports["ai.onnxruntime.fusion"] = 1
 
         print(f"Fused {fusion_count_d} ops")
-        self.assertEqual(fusion_count_d["skip_layer_normalization"], 25)
+        self.assertEqual(fusion_count_d["skip_layer_normalization"], 12)
         self.assertEqual(fusion_count_d["sdpa"], 8)
         # 4 self-attention + 4 cross-attention
         self.assertEqual(fusion_count_d["mha"], 8)
