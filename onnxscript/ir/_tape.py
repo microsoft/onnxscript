@@ -114,7 +114,7 @@ class Tape:
 
         return node.outputs[0]
 
-    def op_multi_output(
+    def op_multi_out(
         self,
         op_type: str,
         inputs: Sequence[ir.Value | None],
@@ -198,7 +198,7 @@ class Builder(Tape):
             if isinstance(outputs, Sequence):
                 value.name = outputs[0]
             return value
-        values = super().op_multi_output(
+        values = super().op_multi_out(
             op_type,
             inputs=inputs,
             attributes=kwargs,
