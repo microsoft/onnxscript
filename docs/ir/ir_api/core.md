@@ -1,4 +1,4 @@
-# IR APIs
+# onnxscript.ir
 
 ```{eval-rst}
 .. automodule::onnxscript.ir
@@ -10,7 +10,8 @@
 ```{eval-rst}
 .. autosummary::
     :toctree: generated
-    :template: classtemplate.rst
+    :template: functiontemplate.rst
+    :nosignatures:
 
     ir.load
     ir.save
@@ -25,15 +26,16 @@
 ```{eval-rst}
 .. autosummary::
     :toctree: generated
-    :template: classtemplate.rst
+    :template: classtemplate_inherited.rst
+    :nosignatures:
 
     ir.TensorProtocol
-    ir.Model
+    ir.Value
+    ir.Node
     ir.Graph
+    ir.Model
     ir.GraphView
     ir.Function
-    ir.Node
-    ir.Value
     ir.Attr
     ir.RefAttr
     ir.Shape
@@ -54,6 +56,7 @@
 .. autosummary::
     :toctree: generated
     :template: classtemplate.rst
+    :nosignatures:
 
     ir.DataType
     ir.AttributeType

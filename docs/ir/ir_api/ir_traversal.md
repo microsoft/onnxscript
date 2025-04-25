@@ -2,11 +2,11 @@
 
 ```{eval-rst}
 .. automodule:: onnxscript.ir.traversal
-.. currentmodule:: onnxscript
+.. currentmodule:: onnxscript.ir.traversal
 ```
 
 ```{eval-rst}
-.. autoclass:: ir.traversal.RecursiveGraphIterator
+.. autoclass:: RecursiveGraphIterator
    :members:
    :undoc-members:
 ```

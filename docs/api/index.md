@@ -15,12 +15,10 @@ values
 optimizer
 rewriter
 version_converter
-generated
 ```
 
-## Tests and Tools
+## Testing
 
 ```{toctree}
 testing
-tools
 ```

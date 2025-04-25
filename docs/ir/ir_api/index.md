@@ -1,4 +1,4 @@
-# IR API
+# IR APIs
 
 ```{toctree}
 :maxdepth: 1
@@ -10,5 +10,4 @@ ir_passes
 ir_passes_common
 ir_traversal
 ir_tape
-generated
 ```

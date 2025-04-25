@@ -7,7 +7,7 @@
 
 ## Use built-in passes
 
-Common, reusable passes are implemented in {py:module}`ir.passes.common <onnxscript.ir.passes.common>`. You can use {py:class}`ir.passes.Sequential <onnxscript.ir.passes.Sequential>` to chain passes or use {py:class}`ir.passes.PassManager <onnxscript.ir.passes.PassManager>` which supports early stopping if no changes are made.
+Common, reusable passes are implemented in `ir.passes.common`. You can use {py:class}`ir.passes.Sequential <onnxscript.ir.passes.Sequential>` to chain passes or use {py:class}`ir.passes.PassManager <onnxscript.ir.passes.PassManager>` which supports early stopping if no changes are made.
 
 ## Pass infrastructure
 
@@ -19,6 +19,7 @@ Alternatively, inherent the base class `ir.passes.PassBase <onnxscript.ir.passes
 .. autosummary::
     :toctree: generated
     :template: classtemplate.rst
+    :nosignatures:
 
     ir.passes.PassBase
     ir.passes.InPlacePass
@@ -31,8 +32,8 @@ Alternatively, inherent the base class `ir.passes.PassBase <onnxscript.ir.passes
 ## Errors
 
 ```{eval-rst}
-.. autoclass:: ir.passes.InvariantError
-.. autoclass:: ir.passes.PreconditionError
-.. autoclass:: ir.passes.PostconditionError
-.. autoclass:: ir.passes.PassError
+.. autoclass:: onnxscript.ir.passes.InvariantError
+.. autoclass:: onnxscript.ir.passes.PreconditionError
+.. autoclass:: onnxscript.ir.passes.PostconditionError
+.. autoclass:: onnxscript.ir.passes.PassError
 ```
