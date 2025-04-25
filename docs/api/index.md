@@ -9,6 +9,14 @@ converter
 values
 ```
 
+## Model transformation
+
+```{toctree}
+optimizer
+rewriter
+version_converter
+```
+
 ## Tests and Tools
 
 ```{toctree}

@@ -1,16 +1,15 @@
-# onnxscript.ir
+# IR APIs
 
 ```{eval-rst}
 .. automodule::onnxscript.ir
 ```
 
-## IR objects
+## Classes
 
 ```{eval-rst}
 .. currentmodule:: onnxscript
 .. autosummary::
     :toctree: generated
-    :nosignatures:
     :template: classtemplate.rst
 
     ir.Model
@@ -33,12 +32,15 @@
     ir.StringTensor
 ```
 
+## Functions
+
+
+
 ## Enums
 
 ```{eval-rst}
 .. autosummary::
     :toctree: generated
-    :nosignatures:
     :template: classtemplate.rst
 
     ir.DataType
