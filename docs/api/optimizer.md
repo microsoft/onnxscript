@@ -1,7 +1,11 @@
 # onnxscript.optimizer
 
 ```{eval-rst}
+.. automodule::onnxscript.optimizer
 .. currentmodule:: onnxscript
+```
+
+```{eval-rst}
 .. autosummary::
     :toctree: generated
     :template: functiontemplate.rst

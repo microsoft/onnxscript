@@ -1,7 +1,11 @@
 # onnxscript.rewriter
 
 ```{eval-rst}
+.. automodule::onnxscript.rewriter
 .. currentmodule:: onnxscript
+```
+
+```{eval-rst}
 .. autosummary::
     :toctree: generated
     :template: functiontemplate.rst

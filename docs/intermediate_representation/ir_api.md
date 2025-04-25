@@ -2,16 +2,32 @@
 
 ```{eval-rst}
 .. automodule::onnxscript.ir
+.. currentmodule:: onnxscript
+```
+
+## Functions and constructors
+
+```{eval-rst}
+.. autosummary::
+    :toctree: generated
+    :template: classtemplate.rst
+
+    ir.load
+    ir.save
+    ir.from_proto
+    ir.to_proto
+    ir.tensor
+    ir.node
 ```
 
 ## Classes
 
 ```{eval-rst}
-.. currentmodule:: onnxscript
 .. autosummary::
     :toctree: generated
     :template: classtemplate.rst
 
+    ir.TensorProtocol
     ir.Model
     ir.Graph
     ir.GraphView
@@ -31,10 +47,6 @@
     ir.ExternalTensor
     ir.StringTensor
 ```
-
-## Functions
-
-
 
 ## Enums
 
