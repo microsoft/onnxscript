@@ -10,6 +10,7 @@ from typing import Optional, Sequence, Union
 import onnx
 
 from onnxscript import onnx_types
+from onnxscript._internal import version_utils
 
 # TypeAnnotationValue represents the (value of) valid type-annotations recognized
 # by ONNX Script. TODO: Flesh out a formal definition. Currently, it supports
@@ -63,7 +64,13 @@ def onnx_attr_type_to_onnxscript_repr(attr_type: onnx.AttributeProto.AttributeTy
 
 # A sorted list of all type strings used in an OpSchema
 ALL_TENSOR_TYPE_STRINGS = tuple(
-    sorted(tensor_type.to_string() for tensor_type in onnx_types.tensor_type_registry.values())
+    sorted(
+        tensor_type.to_string()
+        for tensor_type in onnx_types.tensor_type_registry.values()
+        # Skip FLOAT4E2M1 for versions older than 1.18
+        # TODO(after onnx requirement bump): Remove this check
+        if not (version_utils.onnx_older_than("1.18") and tensor_type == onnx_types.FLOAT4E2M1)
+    )
 )
 
 
