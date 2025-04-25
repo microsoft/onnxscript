@@ -107,7 +107,7 @@ def convert_attribute(
         A ``Attr`` object.
 
     Raises:
-        ValueError: If :param:`attr` is ``None`` and :param:`attr_type` is not provided.
+        ValueError: If ``attr`` is ``None`` and ``attr_type`` is not provided.
         TypeError: If the type of the attribute is not supported.
     """
     if attr is None:

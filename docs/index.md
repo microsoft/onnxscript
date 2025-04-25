@@ -103,7 +103,7 @@ result = MatmulAdd(x, wt, bias)
 Overview <self>
 tutorial/index
 api/index
-intermediate_representation/index
+ir/index
 auto_examples/index
 articles/index
 ```
