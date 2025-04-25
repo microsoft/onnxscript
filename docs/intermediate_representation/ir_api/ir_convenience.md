@@ -8,8 +8,8 @@
 
 ```{eval-rst}
 .. autofunction:: convert_attribute
-.. autofunction:: cconvert_attributes
-.. autofunction:: creplace_all_uses_with
-.. autofunction:: creplace_nodes_and_values
-.. autofunction:: ccreate_value_mapping
+.. autofunction:: convert_attributes
+.. autofunction:: replace_all_uses_with
+.. autofunction:: replace_nodes_and_values
+.. autofunction:: create_value_mapping
 ```
