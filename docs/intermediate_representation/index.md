@@ -20,7 +20,4 @@ An in-memory IR that supports the full ONNX spec, designed for graph constructio
 getting_started
 tensors
 ir_api
-ir_passes
-ir_passes_common
-generated
 ```
