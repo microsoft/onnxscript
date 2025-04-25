@@ -26,6 +26,7 @@ class Tape:
     that they can be used for creating a graph.
 
     Example::
+
         from onnxscript import ir
 
         tape = ir.tape.Tape()

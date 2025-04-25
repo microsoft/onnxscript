@@ -2,23 +2,40 @@
 
 ```{eval-rst}
 .. automodule::onnxscript.ir
+.. currentmodule:: onnxscript
 ```
 
-## IR objects
+## Functions and constructors
 
 ```{eval-rst}
-.. currentmodule:: onnxscript
 .. autosummary::
     :toctree: generated
+    :template: functiontemplate.rst
     :nosignatures:
-    :template: classtemplate.rst
 
-    ir.Model
+    ir.load
+    ir.save
+    ir.from_proto
+    ir.to_proto
+    ir.tensor
+    ir.node
+```
+
+## Classes
+
+```{eval-rst}
+.. autosummary::
+    :toctree: generated
+    :template: classtemplate_inherited.rst
+    :nosignatures:
+
+    ir.TensorProtocol
+    ir.Value
+    ir.Node
     ir.Graph
+    ir.Model
     ir.GraphView
     ir.Function
-    ir.Node
-    ir.Value
     ir.Attr
     ir.RefAttr
     ir.Shape
@@ -38,8 +55,8 @@
 ```{eval-rst}
 .. autosummary::
     :toctree: generated
-    :nosignatures:
     :template: classtemplate.rst
+    :nosignatures:
 
     ir.DataType
     ir.AttributeType
