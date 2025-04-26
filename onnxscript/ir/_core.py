@@ -860,6 +860,16 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
     This class takes a function returning an `ir.TensorProtocol`, a dtype, and a shape argument.
     The function is lazily evaluated to get the actual tensor when `tobytes()` or `numpy()` is called.
 
+    Example::
+
+        >>> import numpy as np
+        >>> from onnxscript import ir
+        >>> def create_tensor():
+        >>>     return ir.tensor(np.array([1, 2, 3]))
+        >>> lazy_tensor = ir.LazyTensor(create_tensor, dtype=ir.DataType.INT64, shape=ir.Shape([3]))
+        >>> print(lazy_tensor.numpy())
+        [1 2 3]
+
     Attributes:
         func: The function that returns the actual tensor.
         dtype: The data type of the tensor.
@@ -871,16 +881,6 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
         name: The name of the tensor.
         doc_string: The documentation string.
         metadata_props: The metadata properties.
-
-    Example::
-
-        >>> import numpy as np
-        >>> from onnxscript import ir
-        >>> def create_tensor():
-        >>>     return ir.tensor(np.array([1, 2, 3]))
-        >>> lazy_tensor = ir.LazyTensor(create_tensor, dtype=ir.DataType.INT64, shape=ir.Shape([3]))
-        >>> print(lazy_tensor.numpy())
-        [1 2 3]
     """
 
     __slots__ = (
@@ -912,8 +912,7 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
             func: The function that returns the actual tensor.
             dtype: The data type of the tensor.
             shape: The shape of the tensor.
-            cache: Whether to cache the result of the function. If false,
-                the function is called every time the tensor content is accessed.
+            cache: Whether to cache the result of the function.
             name: The name of the tensor.
             doc_string: The documentation string.
             metadata_props: The metadata properties.
