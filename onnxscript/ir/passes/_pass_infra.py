@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from typing import Literal, Sequence
+from typing import Literal, Sequence, final
 
 __all__ = [
     "PassBase",
@@ -180,11 +180,13 @@ class InPlacePass(PassBase):
     """A pass that modifies the input model in place and returns it."""
 
     @property
+    @final
     def in_place(self) -> Literal[True]:
         """An in-place pass is in place."""
         return True
 
     @property
+    @final
     def changes_input(self) -> Literal[True]:
         """An in-place pass changes the input model."""
         return True
@@ -194,11 +196,13 @@ class FunctionalPass(PassBase):
     """A pass that returns a new model but does not modify the input model."""
 
     @property
+    @final
     def in_place(self) -> Literal[False]:
         """A functional pass is not in place."""
         return False
 
     @property
+    @final
     def changes_input(self) -> Literal[False]:
         """A functional pass does not change the input model."""
         return False
