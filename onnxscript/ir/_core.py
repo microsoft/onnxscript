@@ -866,6 +866,16 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
         name: The name of the tensor.
         doc_string: The documentation string.
         metadata_props: The metadata properties.
+
+    Example::
+
+        >>> import numpy as np
+        >>> from onnxscript import ir
+        >>> def create_tensor():
+        >>>     return ir.tensor(np.array([1, 2, 3]))
+        >>> lazy_tensor = ir.LazyTensor(create_tensor, dtype=ir.DataType.INT64, shape=ir.Shape([3]))
+        >>> print(lazy_tensor.numpy())
+        [1 2 3]
     """
 
     __slots__ = (
@@ -2292,7 +2302,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         sorted_nodes_by_graph: dict[Graph, list[Node]] = {
             graph: [] for graph in {node.graph for node in nodes if node.graph is not None}
         }
-        # TODO: Explain why we need to store direct predecessors and children and why
+        # TODO(justinchuby): Explain why we need to store direct predecessors and children and why
         # we only need to store the direct ones
 
         # The depth of a node is defined as the number of direct children it has
