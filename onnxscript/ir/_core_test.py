@@ -1317,7 +1317,9 @@ class LazyTensorTest(unittest.TestCase):
         def tensor_fn():
             return ir.tensor([1, 2, 3], dtype=ir.DataType.INT64)
 
-        lazy_tensor = _core.LazyTensor(tensor_fn, dtype=ir.DataType.INT64, shape=(3,))
+        lazy_tensor = _core.LazyTensor(
+            tensor_fn, dtype=ir.DataType.INT64, shape=ir.Shape((3,))
+        )
         self.assertEqual(lazy_tensor.dtype, ir.DataType.INT64)
         self.assertEqual(lazy_tensor.shape, (3,))
 
@@ -1325,14 +1327,18 @@ class LazyTensorTest(unittest.TestCase):
         def tensor_fn():
             return ir.tensor([1, 2, 3], dtype=ir.DataType.INT64)
 
-        lazy_tensor = _core.LazyTensor(tensor_fn, dtype=ir.DataType.INT64, shape=(3,))
+        lazy_tensor = _core.LazyTensor(
+            tensor_fn, dtype=ir.DataType.INT64, shape=ir.Shape((3,))
+        )
         np.testing.assert_array_equal(lazy_tensor.numpy(), np.array([1, 2, 3]))
 
     def test_lazy_tensor_tobytes(self):
         def tensor_fn():
             return ir.tensor([1, 2, 3], dtype=ir.DataType.INT64)
 
-        lazy_tensor = _core.LazyTensor(tensor_fn, dtype=ir.DataType.INT64, shape=(3,))
+        lazy_tensor = _core.LazyTensor(
+            tensor_fn, dtype=ir.DataType.INT64, shape=ir.Shape((3,))
+        )
         self.assertEqual(
             lazy_tensor.tobytes(),
             b"\x01\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00",

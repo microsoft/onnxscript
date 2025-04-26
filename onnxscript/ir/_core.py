@@ -26,6 +26,7 @@ from collections.abc import Hashable
 from typing import (
     AbstractSet,
     Any,
+    Callable,
     Collection,
     Generic,
     Iterable,
@@ -863,6 +864,10 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
         func: The function that returns the actual tensor.
         dtype: The data type of the tensor.
         shape: The shape of the tensor.
+        cache: Whether to cache the result of the function. If False,
+            the function is called every time the tensor content is accessed.
+            If True, the function is called only once and the result is cached in memory.
+            Default is False.
         name: The name of the tensor.
         doc_string: The documentation string.
         metadata_props: The metadata properties.
@@ -885,16 +890,18 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
         "_metadata_props",
         "_shape",
         "_tensor",
+        "cache",
         "doc_string",
         "name",
     )
 
     def __init__(
         self,
-        func: typing.Callable[[], _protocols.TensorProtocol],
+        func: Callable[[], _protocols.TensorProtocol],
         dtype: _enums.DataType,
         shape: Shape,
         *,
+        cache: bool = False,
         name: str | None = None,
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
@@ -905,6 +912,8 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
             func: The function that returns the actual tensor.
             dtype: The data type of the tensor.
             shape: The shape of the tensor.
+            cache: Whether to cache the result of the function. If false,
+                the function is called every time the tensor content is accessed.
             name: The name of the tensor.
             doc_string: The documentation string.
             metadata_props: The metadata properties.
@@ -913,6 +922,7 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
         self._dtype = dtype
         self._shape = shape
         self._tensor: _protocols.TensorProtocol | None = None
+        self.cache = cache
         self.name = name
         self.doc_string = doc_string
         self._metadata: _metadata.MetadataStore | None = None
@@ -920,7 +930,7 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
 
     def _evaluate(self) -> _protocols.TensorProtocol:
         """Evaluate the function to get the actual tensor."""
-        if self._tensor is None:
+        if not self.cache or self._tensor is None:
             self._tensor = self._func()
         return self._tensor
 
@@ -935,6 +945,10 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
 
     def __repr__(self) -> str:
         return f"{self._repr_base()}(func={self._func!r}, name={self.name!r})"
+
+    @property
+    def raw(self) -> Callable[[], _protocols.TensorProtocol]:
+        return self._func
 
     @property
     def dtype(self) -> _enums.DataType:
