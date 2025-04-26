@@ -114,7 +114,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
     @property
     def size(self) -> int:
         """The number of elements in the tensor."""
-        return np.prod(self.shape.numpy())  # type: ignore[return-value,attr-defined]
+        return math.prod(self.shape.numpy())  # type: ignore[attr-defined]
 
     @property
     def nbytes(self) -> int:
