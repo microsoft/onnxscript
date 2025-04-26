@@ -442,8 +442,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         value is not a numpy array.
         """
         # TODO(justinchuby): Support DLPack
-        # Ensure the array is contiguous
-        array = np.ascontiguousarray(self.numpy())
+        array = self.numpy()
         if self.dtype in {
             _enums.DataType.INT4,
             _enums.DataType.UINT4,
