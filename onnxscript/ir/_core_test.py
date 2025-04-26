@@ -1333,7 +1333,10 @@ class LazyTensorTest(unittest.TestCase):
             return ir.tensor([1, 2, 3], dtype=ir.DataType.INT64)
 
         lazy_tensor = _core.LazyTensor(tensor_fn, dtype=ir.DataType.INT64, shape=(3,))
-        self.assertEqual(lazy_tensor.tobytes(), b'\x01\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00')
+        self.assertEqual(
+            lazy_tensor.tobytes(),
+            b"\x01\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00",
+        )
 
 
 if __name__ == "__main__":

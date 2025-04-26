@@ -879,12 +879,12 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
     """
 
     __slots__ = (
-        "_func",
         "_dtype",
-        "_shape",
-        "_tensor",
+        "_func",
         "_metadata",
         "_metadata_props",
+        "_shape",
+        "_tensor",
         "doc_string",
         "name",
     )
