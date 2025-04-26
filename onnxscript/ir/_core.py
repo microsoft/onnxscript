@@ -853,6 +853,115 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
         return self._metadata
 
 
+class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
+    """A tensor that lazily evaluates a function to get the actual tensor.
+
+    This class takes a function returning an `ir.TensorProtocol`, a dtype, and a shape argument.
+    The function is lazily evaluated to get the actual tensor when `tobytes()` or `numpy()` is called.
+
+    Attributes:
+        func: The function that returns the actual tensor.
+        dtype: The data type of the tensor.
+        shape: The shape of the tensor.
+        name: The name of the tensor.
+        doc_string: The documentation string.
+        metadata_props: The metadata properties.
+    """
+
+    __slots__ = (
+        "_func",
+        "_dtype",
+        "_shape",
+        "_tensor",
+        "_metadata",
+        "_metadata_props",
+        "doc_string",
+        "name",
+    )
+
+    def __init__(
+        self,
+        func: typing.Callable[[], _protocols.TensorProtocol],
+        dtype: _enums.DataType,
+        shape: Shape,
+        *,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
+        """Initialize a lazy tensor.
+
+        Args:
+            func: The function that returns the actual tensor.
+            dtype: The data type of the tensor.
+            shape: The shape of the tensor.
+            name: The name of the tensor.
+            doc_string: The documentation string.
+            metadata_props: The metadata properties.
+        """
+        self._func = func
+        self._dtype = dtype
+        self._shape = shape
+        self._tensor: _protocols.TensorProtocol | None = None
+        self.name = name
+        self.doc_string = doc_string
+        self._metadata: _metadata.MetadataStore | None = None
+        self._metadata_props = metadata_props
+
+    def _evaluate(self) -> _protocols.TensorProtocol:
+        """Evaluate the function to get the actual tensor."""
+        if self._tensor is None:
+            self._tensor = self._func()
+        return self._tensor
+
+    def __array__(self, dtype: Any = None) -> np.ndarray:
+        return self._evaluate().__array__(dtype)
+
+    def __dlpack__(self, *, stream: Any = None) -> Any:
+        return self._evaluate().__dlpack__(stream=stream)
+
+    def __dlpack_device__(self) -> tuple[int, int]:
+        return self._evaluate().__dlpack_device__()
+
+    def __repr__(self) -> str:
+        return f"{self._repr_base()}(func={self._func!r}, name={self.name!r})"
+
+    @property
+    def dtype(self) -> _enums.DataType:
+        """The data type of the tensor. Immutable."""
+        return self._dtype
+
+    @property
+    def shape(self) -> Shape:
+        """The shape of the tensor. Immutable."""
+        return self._shape
+
+    def numpy(self) -> np.ndarray:
+        """Return the tensor as a numpy array."""
+        return self._evaluate().numpy()
+
+    def tobytes(self) -> bytes:
+        """Return the bytes of the tensor."""
+        return self._evaluate().tobytes()
+
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
+
+
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
     __slots__ = ("_value",)
 
