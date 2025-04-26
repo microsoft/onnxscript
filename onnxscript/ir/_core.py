@@ -442,7 +442,8 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         value is not a numpy array.
         """
         # TODO(justinchuby): Support DLPack
-        array = self.numpy()
+        # Ensure the array is contiguous
+        array = np.ascontiguousarray(self.numpy())
         if self.dtype in {
             _enums.DataType.INT4,
             _enums.DataType.UINT4,
@@ -864,8 +865,11 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
 
         >>> import numpy as np
         >>> from onnxscript import ir
+        >>> weights = np.array([[1, 2, 3]])
         >>> def create_tensor():
-        >>>     return ir.tensor(np.array([1, 2, 3]))
+        >>>     # Delay applying transformations to the weights
+        >>>     weights.transpose().
+        >>>     return ir.Tensor(weights, dtype=ir.DataType.INT64, shape=ir.Shape([3]))
         >>> lazy_tensor = ir.LazyTensor(create_tensor, dtype=ir.DataType.INT64, shape=ir.Shape([3]))
         >>> print(lazy_tensor.numpy())
         [1 2 3]
