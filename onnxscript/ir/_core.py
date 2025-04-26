@@ -933,7 +933,11 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
 
     def _evaluate(self) -> _protocols.TensorProtocol:
         """Evaluate the function to get the actual tensor."""
-        if not self.cache or self._tensor is None:
+        if not self.cache:
+            return self._func()
+
+        # Cache the tensor
+        if self._tensor is None:
             self._tensor = self._func()
         return self._tensor
 
