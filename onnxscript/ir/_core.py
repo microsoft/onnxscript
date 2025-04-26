@@ -867,11 +867,13 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
         >>> weights = np.array([[1, 2, 3]])
         >>> def create_tensor():
         >>>     # Delay applying transformations to the weights
-        >>>     weights.transpose().
-        >>>     return ir.Tensor(weights, dtype=ir.DataType.INT64, shape=ir.Shape([3]))
-        >>> lazy_tensor = ir.LazyTensor(create_tensor, dtype=ir.DataType.INT64, shape=ir.Shape([3]))
+        >>>     weights_t = weights.transpose()
+        >>>     return ir.tensor(weights_t)
+        >>> lazy_tensor = ir.LazyTensor(create_tensor, dtype=ir.DataType.INT64, shape=ir.Shape([1, 3]))
         >>> print(lazy_tensor.numpy())
-        [1 2 3]
+        [[1]
+         [2]
+         [3]]
 
     Attributes:
         func: The function that returns the actual tensor.
