@@ -8,7 +8,8 @@ import inspect
 import logging
 import types
 import typing
-from typing import Any, Iterator, Mapping, Optional, Sequence, TypeVar, Union
+from collections.abc import Iterator, Mapping, Sequence
+from typing import Any, Optional, TypeVar, Union
 
 import onnx
 

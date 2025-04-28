@@ -6,7 +6,8 @@ import dataclasses
 import io
 import logging
 import warnings
-from typing import Any, Optional, Protocol, Sequence, Union
+from collections.abc import Sequence
+from typing import Any, Optional, Protocol, Union
 
 import onnx
 from onnx import ValueInfoProto, helper

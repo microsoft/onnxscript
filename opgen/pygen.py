@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import io
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from enum import Enum
 from textwrap import TextWrapper, dedent
 from typing import (
     Any,
     Callable,
     Generic,
-    Iterable,
     Optional,
     Set,
     TextIO,

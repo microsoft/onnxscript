@@ -13,7 +13,8 @@
 
 from __future__ import annotations
 
-from typing import Mapping, Tuple
+from collections.abc import Mapping
+from typing import Tuple
 
 from onnx.defs import onnx_opset_version
 

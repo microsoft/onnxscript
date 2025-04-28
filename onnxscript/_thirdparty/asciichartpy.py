@@ -32,8 +32,8 @@ options to tune the output.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from math import ceil, floor, isnan
-from typing import Mapping
 
 black = "\033[30m"
 red = "\033[31m"

@@ -39,7 +39,8 @@ from __future__ import annotations
 import copy
 import dataclasses
 import functools
-from typing import Any, Callable, Collection, Optional
+from collections.abc import Collection
+from typing import Any, Callable, Optional
 
 import numpy as np
 import torch

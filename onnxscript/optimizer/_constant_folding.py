@@ -9,7 +9,8 @@ import dataclasses
 import logging
 import math
 import typing
-from typing import Any, Callable, Iterable, Sequence, Union
+from collections.abc import Iterable, Sequence
+from typing import Any, Callable, Union
 
 import numpy as np
 import onnx

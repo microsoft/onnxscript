@@ -15,7 +15,7 @@ __all__ = [
 import dataclasses
 import logging
 import os
-from typing import Iterator, Sequence
+from collections.abc import Iterator, Sequence
 
 from onnxscript.ir import _core, _enums, _protocols
 from onnxscript.ir import traversal as _traversal

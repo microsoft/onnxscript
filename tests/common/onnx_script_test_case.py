@@ -7,7 +7,8 @@ import dataclasses
 import numbers
 import unittest
 import warnings
-from typing import Any, Collection, Iterable, Optional, Sequence
+from collections.abc import Collection, Iterable, Sequence
+from typing import Any, Optional
 
 import numpy as np
 import onnx

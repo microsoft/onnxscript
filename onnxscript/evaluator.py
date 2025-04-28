@@ -5,13 +5,12 @@ from __future__ import annotations
 import abc
 import contextlib
 import pprint
+from collections.abc import Mapping, Sequence
 from typing import (
     Any,
     Callable,
-    Mapping,
     Optional,
     Protocol,
-    Sequence,
     TypeVar,
     Union,
     runtime_checkable,

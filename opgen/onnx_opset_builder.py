@@ -5,9 +5,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 from textwrap import dedent
-from typing import Annotated, Any, Iterable, Optional, Set, TextIO
+from typing import Annotated, Any, Optional, Set, TextIO
 
 import pygen as cg
 from onnx.defs import (

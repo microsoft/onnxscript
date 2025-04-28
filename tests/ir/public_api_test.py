@@ -12,7 +12,7 @@ import os
 import pathlib
 import pkgutil
 import unittest
-from typing import Iterable
+from collections.abc import Iterable
 
 import onnxscript.ir
 

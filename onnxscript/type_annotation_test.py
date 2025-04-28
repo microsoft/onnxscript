@@ -2,7 +2,8 @@
 # Licensed under the MIT License.
 
 import unittest
-from typing import Any, List, Optional, Sequence, TypeVar, Union
+from collections.abc import Sequence
+from typing import Any, List, Optional, TypeVar, Union
 
 import parameterized
 

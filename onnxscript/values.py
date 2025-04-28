@@ -8,6 +8,7 @@ import inspect
 import logging
 import types
 import typing
+from collections.abc import Sequence
 from enum import IntFlag
 from typing import (  # type: ignore[attr-defined]
     Any,
@@ -16,7 +17,6 @@ from typing import (  # type: ignore[attr-defined]
     Generic,
     Optional,
     Protocol,
-    Sequence,
     TypeVar,
     _GenericAlias,
 )

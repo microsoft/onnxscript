@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import logging
+from collections.abc import Sequence
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -11,7 +12,6 @@ from typing import (
     List,
     NoReturn,
     Optional,
-    Sequence,
     Tuple,
     Union,
 )

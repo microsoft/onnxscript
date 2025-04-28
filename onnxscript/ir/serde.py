@@ -61,7 +61,8 @@ __all__ = [
 import collections
 import logging
 import os
-from typing import Any, Callable, List, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any, Callable, List
 
 import numpy as np
 import onnx

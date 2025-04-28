@@ -9,7 +9,8 @@ import dataclasses
 __all__ = ["InlinePass", "InlinePassResult"]
 
 from collections import defaultdict
-from typing import Iterable, List, Sequence, Tuple
+from collections.abc import Iterable, Sequence
+from typing import List, Tuple
 
 import onnxscript.ir.convenience as _ir_convenience
 from onnxscript import ir

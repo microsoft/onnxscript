@@ -10,14 +10,11 @@ import inspect
 import itertools
 import math
 from collections import defaultdict
+from collections.abc import Iterable, Iterator, MutableSequence, Sequence
 from typing import (
     Any,
     Callable,
-    Iterable,
-    Iterator,
-    MutableSequence,
     Protocol,
-    Sequence,
     Tuple,
     TypeVar,
     Union,

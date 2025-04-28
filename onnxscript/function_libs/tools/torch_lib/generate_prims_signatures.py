@@ -13,7 +13,8 @@ import logging
 import os
 import re
 import textwrap
-from typing import Any, Dict, List, Sequence
+from collections.abc import Sequence
+from typing import Any, Dict, List
 
 import torch
 import torchgen.gen

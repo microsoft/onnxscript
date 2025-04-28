@@ -15,7 +15,8 @@
 from __future__ import annotations
 
 import math
-from typing import Optional, Sequence, Tuple, TypeVar, Union
+from collections.abc import Sequence
+from typing import Optional, Tuple, TypeVar, Union
 
 import onnx
 

@@ -27,7 +27,8 @@ from __future__ import annotations
 
 import os
 import unittest
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 import onnx

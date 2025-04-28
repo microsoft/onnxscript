@@ -6,7 +6,8 @@ from __future__ import annotations
 import ast
 import inspect
 import sys
-from typing import Any, Callable, Optional, Sequence, TypeVar
+from collections.abc import Sequence
+from typing import Any, Callable, Optional, TypeVar
 
 import onnx.helper
 from typing_extensions import ParamSpec

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import ast
-from typing import Any, Optional, Sequence, Set
+from collections.abc import Sequence
+from typing import Any, Optional, Set
 
 from onnxscript import sourceinfo
 from onnxscript._internal import ast_utils

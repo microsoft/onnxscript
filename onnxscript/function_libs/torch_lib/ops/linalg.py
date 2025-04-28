@@ -13,7 +13,8 @@
 from __future__ import annotations
 
 import math
-from typing import Optional, Sequence
+from collections.abc import Sequence
+from typing import Optional
 
 from onnxscript import BOOL
 from onnxscript.function_libs.torch_lib.registration import torch_op

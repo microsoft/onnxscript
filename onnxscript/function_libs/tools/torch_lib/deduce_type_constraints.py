@@ -5,7 +5,8 @@ from __future__ import annotations
 import copy
 import dataclasses
 import logging
-from typing import Dict, Mapping, Optional, Sequence, Set
+from collections.abc import Mapping, Sequence
+from typing import Dict, Optional, Set
 
 import onnx
 import onnx.defs

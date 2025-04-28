@@ -19,7 +19,8 @@ import os
 import string
 import subprocess
 import textwrap
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 import yaml
 from torchgen import utils as torchgen_utils

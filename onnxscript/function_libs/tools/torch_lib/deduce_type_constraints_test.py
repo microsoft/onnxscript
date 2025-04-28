@@ -7,7 +7,7 @@ from __future__ import annotations
 import inspect
 import logging
 import unittest
-from typing import Generator
+from collections.abc import Generator
 
 import parameterized
 

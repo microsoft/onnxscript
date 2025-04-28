@@ -31,17 +31,19 @@ tools.
 from __future__ import annotations
 
 import typing
-from typing import (
-    Any,
+from collections import OrderedDict
+from collections.abc import (
     Collection,
     Iterable,
     Iterator,
     Mapping,
     MutableMapping,
     MutableSequence,
-    OrderedDict,
-    Protocol,
     Sequence,
+)
+from typing import (
+    Any,
+    Protocol,
     Tuple,
 )
 

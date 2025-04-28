@@ -16,7 +16,8 @@ __all__ = [
     "replace_nodes_and_values",
 ]
 
-from typing import Mapping, Sequence, Union
+from collections.abc import Mapping, Sequence
+from typing import Union
 
 import onnx
 

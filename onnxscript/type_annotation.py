@@ -5,7 +5,8 @@ from __future__ import annotations
 import collections
 import inspect
 import typing
-from typing import Optional, Sequence, Union
+from collections.abc import Sequence
+from typing import Optional, Union
 
 import onnx
 

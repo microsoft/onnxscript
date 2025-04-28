@@ -7,7 +7,8 @@ from __future__ import annotations
 import os
 import tempfile
 import typing
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from collections.abc import Mapping, Sequence
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import onnx

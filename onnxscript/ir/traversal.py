@@ -8,7 +8,8 @@ __all__ = [
     "RecursiveGraphIterator",
 ]
 
-from typing import Callable, Iterator, Reversible, Union
+from collections.abc import Iterator, Reversible
+from typing import Callable, Union
 
 from typing_extensions import Self
 

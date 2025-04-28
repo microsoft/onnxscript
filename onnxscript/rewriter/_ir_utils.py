@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import math
-from typing import Callable, Sequence
+from collections.abc import Sequence
+from typing import Callable
 
 import numpy as np
 
