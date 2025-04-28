@@ -768,7 +768,7 @@ class AttrRef(SymbolValue):
         if not isinstance(typeinfo, (type, _GenericAlias, types.GenericAlias)):
             # typing._GenericAlias for List[int] and List[str], etc.
             # types.GenericAlias for list[int] and tuple[int], etc.
-            raise TypeError(f"Expecting a type not f{type(typeinfo)} for typeinfo.")
+            raise TypeError(f"Expecting a type not {type(typeinfo)} for typeinfo.")
         self.typeinfo = typeinfo
 
 
