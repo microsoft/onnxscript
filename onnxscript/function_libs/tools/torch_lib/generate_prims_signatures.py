@@ -27,7 +27,7 @@ import opgen.pygen as cg
 
 def create_list_type(arg: torchgen.model.Argument) -> cg.TypeRef:
     inner_arg_type = arg.type if not arg.type.is_nullable() else arg.type.elem
-    assert isinstance(inner_arg_type, torchgen.model.listType), f"arg: {arg}"
+    assert isinstance(inner_arg_type, torchgen.model.ListType), f"arg: {arg}"
 
     arg_type = arg_type_to_str(arg.type)
     if type_is_builtin(arg_type):
@@ -75,7 +75,7 @@ def get_argument_type(arg: torchgen.model.Argument) -> cg.TypeRef:
     """Returns the Python type for the given argument."""
     inner_arg_type = arg.type if not arg.type.is_nullable() else arg.type.elem
 
-    if isinstance(inner_arg_type, torchgen.model.listType):
+    if isinstance(inner_arg_type, torchgen.model.ListType):
         inner_node = create_list_type(arg)
     else:
         arg_type_str = arg_type_to_str(inner_arg_type)
@@ -130,7 +130,7 @@ def parse_default_value(arg: torchgen.model.Argument) -> Any:
     else:
         if isinstance(value, int):
             # Expand the value to a tuple if the type is a list.
-            if isinstance(arg.type, torchgen.model.listType):
+            if isinstance(arg.type, torchgen.model.ListType):
                 if arg.type.size is not None:
                     return (value,) * arg.type.size
                 return (value,)
