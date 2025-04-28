@@ -156,6 +156,7 @@ def __set_module() -> None:
 
     for name in __all__:
         if type(global_dict[name]) is types.GenericAlias:
+            # GenericAlias doesn't have a __module__ attribute
             continue
         # Set the module of the function to this module
         global_dict[name].__module__ = __name__
