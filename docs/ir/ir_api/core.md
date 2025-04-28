@@ -48,6 +48,7 @@
     ir.Tensor
     ir.ExternalTensor
     ir.StringTensor
+    ir.LazyTensor
 ```
 
 ## Enums
