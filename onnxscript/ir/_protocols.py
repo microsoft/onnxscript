@@ -33,6 +33,7 @@ from __future__ import annotations
 import typing
 from typing import (
     Any,
+    BinaryIO,
     Collection,
     Iterable,
     Iterator,
@@ -144,6 +145,9 @@ class TensorProtocol(ArrayCompatible, DLPackCompatible, Protocol):
     def tobytes(self) -> bytes:
         """Return the tensor as a byte string conformed to the ONNX specification, in little endian."""
         ...
+
+    def tofile(self, file: BinaryIO, /) -> None:
+        """Write the tensor content as bytes to a file-like object."""
 
 
 @typing.runtime_checkable
