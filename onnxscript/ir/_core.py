@@ -26,6 +26,7 @@ from collections.abc import Hashable
 from typing import (
     AbstractSet,
     Any,
+    Callable,
     Collection,
     Generic,
     Iterable,
@@ -113,7 +114,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
     @property
     def size(self) -> int:
         """The number of elements in the tensor."""
-        return np.prod(self.shape.numpy())  # type: ignore[return-value,attr-defined]
+        return math.prod(self.shape.numpy())  # type: ignore[attr-defined]
 
     @property
     def nbytes(self) -> int:
@@ -834,6 +835,145 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
         if isinstance(self._raw, np.ndarray):
             return self._raw.flatten().tolist()
         return self._raw
+
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
+
+
+class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
+    """A tensor that lazily evaluates a function to get the actual tensor.
+
+    This class takes a function returning an `ir.TensorProtocol`, a dtype, and a shape argument.
+    The function is lazily evaluated to get the actual tensor when `tobytes()` or `numpy()` is called.
+
+    Example::
+
+        >>> import numpy as np
+        >>> from onnxscript import ir
+        >>> weights = np.array([[1, 2, 3]])
+        >>> def create_tensor():  # Delay applying transformations to the weights
+        ...     weights_t = weights.transpose()
+        ...     return ir.tensor(weights_t)
+        >>> lazy_tensor = ir.LazyTensor(create_tensor, dtype=ir.DataType.INT64, shape=ir.Shape([1, 3]))
+        >>> print(lazy_tensor.numpy())
+        [[1]
+         [2]
+         [3]]
+
+    Attributes:
+        func: The function that returns the actual tensor.
+        dtype: The data type of the tensor.
+        shape: The shape of the tensor.
+        cache: Whether to cache the result of the function. If False,
+            the function is called every time the tensor content is accessed.
+            If True, the function is called only once and the result is cached in memory.
+            Default is False.
+        name: The name of the tensor.
+        doc_string: The documentation string.
+        metadata_props: The metadata properties.
+    """
+
+    __slots__ = (
+        "_dtype",
+        "_func",
+        "_metadata",
+        "_metadata_props",
+        "_shape",
+        "_tensor",
+        "cache",
+        "doc_string",
+        "name",
+    )
+
+    def __init__(
+        self,
+        func: Callable[[], _protocols.TensorProtocol],
+        dtype: _enums.DataType,
+        shape: Shape,
+        *,
+        cache: bool = False,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
+        """Initialize a lazy tensor.
+
+        Args:
+            func: The function that returns the actual tensor.
+            dtype: The data type of the tensor.
+            shape: The shape of the tensor.
+            cache: Whether to cache the result of the function.
+            name: The name of the tensor.
+            doc_string: The documentation string.
+            metadata_props: The metadata properties.
+        """
+        self._func = func
+        self._dtype = dtype
+        self._shape = shape
+        self._tensor: _protocols.TensorProtocol | None = None
+        self.cache = cache
+        self.name = name
+        self.doc_string = doc_string
+        self._metadata: _metadata.MetadataStore | None = None
+        self._metadata_props = metadata_props
+
+    def _evaluate(self) -> _protocols.TensorProtocol:
+        """Evaluate the function to get the actual tensor."""
+        if not self.cache:
+            return self._func()
+
+        # Cache the tensor
+        if self._tensor is None:
+            self._tensor = self._func()
+        return self._tensor
+
+    def __array__(self, dtype: Any = None) -> np.ndarray:
+        return self._evaluate().__array__(dtype)
+
+    def __dlpack__(self, *, stream: Any = None) -> Any:
+        return self._evaluate().__dlpack__(stream=stream)
+
+    def __dlpack_device__(self) -> tuple[int, int]:
+        return self._evaluate().__dlpack_device__()
+
+    def __repr__(self) -> str:
+        return f"{self._repr_base()}(func={self._func!r}, name={self.name!r})"
+
+    @property
+    def raw(self) -> Callable[[], _protocols.TensorProtocol]:
+        return self._func
+
+    @property
+    def dtype(self) -> _enums.DataType:
+        """The data type of the tensor. Immutable."""
+        return self._dtype
+
+    @property
+    def shape(self) -> Shape:
+        """The shape of the tensor. Immutable."""
+        return self._shape
+
+    def numpy(self) -> np.ndarray:
+        """Return the tensor as a numpy array."""
+        return self._evaluate().numpy()
+
+    def tobytes(self) -> bytes:
+        """Return the bytes of the tensor."""
+        return self._evaluate().tobytes()
 
     @property
     def metadata_props(self) -> dict[str, str]:
@@ -2183,7 +2323,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         sorted_nodes_by_graph: dict[Graph, list[Node]] = {
             graph: [] for graph in {node.graph for node in nodes if node.graph is not None}
         }
-        # TODO: Explain why we need to store direct predecessors and children and why
+        # TODO(justinchuby): Explain why we need to store direct predecessors and children and why
         # we only need to store the direct ones
 
         # The depth of a node is defined as the number of direct children it has
