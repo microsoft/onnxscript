@@ -865,7 +865,7 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
         >>> import numpy as np
         >>> from onnxscript import ir
         >>> weights = np.array([[1, 2, 3]])
-        >>> def create_tensor():  # Delay applying transformations to the weights
+        >>> def create_tensor():
         >>>     weights_t = weights.transpose()
         >>>     return ir.tensor(weights_t)
         >>> lazy_tensor = ir.LazyTensor(create_tensor, dtype=ir.DataType.INT64, shape=ir.Shape([1, 3]))
