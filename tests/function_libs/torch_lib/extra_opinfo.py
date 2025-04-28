@@ -7,7 +7,7 @@ pytorch/torch/testing/_internal/common_methods_invocations.py.
 
 import functools
 import itertools
-from typing import Any, List
+from typing import Any
 
 import torch
 import torchvision
@@ -2150,7 +2150,7 @@ class _TestParamsMaxPool3dEmptyStride(_TestParamsMaxPoolEmptyStrideBase):
 #    in ops_test_data.py and opinfo_core.OpInfo("unique_name", ...)
 #    To avoid name duplication, it is possible to rename the OpInfo and specify
 #    the `op` field explicitly.
-OP_DB: List[opinfo_core.OpInfo] = [
+OP_DB: list[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "ops.aten.bernoulli.p",
         aten_name="bernoulli.p",

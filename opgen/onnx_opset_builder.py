@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 from textwrap import dedent
-from typing import Annotated, Any, Optional, Set, TextIO
+from typing import Annotated, Any, Optional, TextIO
 
 import pygen as cg
 from onnx.defs import (
@@ -158,8 +158,8 @@ class OpsetsBuilder:
         *,
         module_base_name: str,
         min_default_opset_version: int,
-        include_opsets: Optional[Set[OpsetId]] = None,
-        exclude_opsets: Optional[Set[OpsetId]] = None,
+        include_opsets: Optional[set[OpsetId]] = None,
+        exclude_opsets: Optional[set[OpsetId]] = None,
     ):
         self.module_base_name = module_base_name
         self.min_default_opset_version = min_default_opset_version

@@ -16,10 +16,7 @@ from typing import (
     Callable,
     Generic,
     Optional,
-    Set,
     TextIO,
-    Tuple,
-    Type,
     TypeVar,
     Union,
 )
@@ -30,7 +27,7 @@ TExpr = TypeVar("TExpr", bound="Expr")
 NoneType = type(None)
 
 
-def _assert_instance(instance, expected_type: Union[Type, Tuple[Type, ...]]):
+def _assert_instance(instance, expected_type: Union[type, tuple[type, ...]]):
     if not isinstance(instance, expected_type):
         raise TypeError(f"expected: {expected_type!r}; actual: {instance!r}")
 
@@ -71,7 +68,7 @@ class NodePredicate:
     def __init__(
         self,
         role: Optional[Role] = None,
-        type_: Optional[Type[TNode]] = None,
+        type_: Optional[type[TNode]] = None,
         func: Optional[Callable[[Node], bool]] = None,
     ):
         _assert_instance(role, (Role, NoneType))
@@ -164,7 +161,7 @@ class Node(ABC):
         _assert_instance(role, Role)
         return self.get_children(NodePredicate(role=role))
 
-    def get_children_of_type(self, type_: Type[TNode]) -> Iterable[TNode]:
+    def get_children_of_type(self, type_: type[TNode]) -> Iterable[TNode]:
         _assert_instance(type_, type)
         return self.get_children(NodePredicate(type_=type_))
 
@@ -183,7 +180,7 @@ class Node(ABC):
         _assert_instance(role, Role)
         return self.get_ancestors(NodePredicate(role=role), and_self=and_self)
 
-    def get_ancestors_of_type(self, type_: Type[TNode], and_self=False) -> Iterable[TNode]:
+    def get_ancestors_of_type(self, type_: type[TNode], and_self=False) -> Iterable[TNode]:
         _assert_instance(type_, type)
         return self.get_ancestors(NodePredicate(type_=type_), and_self=and_self)
 
@@ -1131,7 +1128,7 @@ class NameCollector(Visitor):
         super().__init__()
         _assert_instance(predicate, NodePredicate)
         self._predicate = predicate
-        self.names: Set[str] = set()
+        self.names: set[str] = set()
 
     def leave(self, node: Node) -> Optional[bool]:
         if self._predicate.matches(node) and hasattr(node, "name"):
@@ -1141,7 +1138,7 @@ class NameCollector(Visitor):
 class ImportAdjuster(FixupVisitor):
     def __init__(self):
         super().__init__()
-        self.naming_conflicts: Set[str] = set()
+        self.naming_conflicts: set[str] = set()
 
     def enter(self, node: Node):
         if len(self.node_stack) == 0:
