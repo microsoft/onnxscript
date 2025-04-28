@@ -128,7 +128,7 @@ def base_type_is_bool(pytype: TypeAnnotationValue) -> bool:
 def _is_tensor_type(typeinfo: TypeAnnotationValue) -> bool:
     if isinstance(typeinfo, onnx_types.TensorType):
         return True
-    if type(typeinfo) is onnx_types.TensorType:
+    if typeinfo is onnx_types.TensorType:
         # Special case the handle when typeinfo is TensorType.
         # It seems abc.ABC in py39 has issues with issubclass
         return True
