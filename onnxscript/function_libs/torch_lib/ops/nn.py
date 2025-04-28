@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from typing import Optional, Tuple, TypeVar, Union
+from typing import Optional, TypeVar, Union
 
 import onnx
 
@@ -92,7 +92,7 @@ def _adjust_attributes_of_avg_pool(
     kernel_size: Sequence[int],
     stride: Sequence[int],
     padding: Sequence[int],
-) -> Tuple[Sequence[int], Sequence[int], Sequence[int]]:
+) -> tuple[Sequence[int], Sequence[int], Sequence[int]]:
     """Adjust attributes of avg_pool to match ONNX specification."""
 
     if isinstance(kernel_size, int):
@@ -897,7 +897,7 @@ def aten_max_pool1d_with_indices(
     padding: Sequence[int] = (0,),
     dilation: Sequence[int] = (1,),
     ceil_mode: bool = False,
-) -> Tuple[TFloatOrUInt8, INT64]:
+) -> tuple[TFloatOrUInt8, INT64]:
     """max_pool1d_with_indices(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
     # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
@@ -928,7 +928,7 @@ def _adjust_attributes_of_max_pool(
     stride: Sequence[int],
     padding: Sequence[int],
     dilation: Sequence[int],
-) -> Tuple[Sequence[int], Sequence[int], Sequence[int], Sequence[int]]:
+) -> tuple[Sequence[int], Sequence[int], Sequence[int], Sequence[int]]:
     if isinstance(dilation, int):
         dilations = [dilation] * expand_size
     else:
@@ -1050,7 +1050,7 @@ def aten_max_pool2d_with_indices(
     padding: Sequence[int] = (0, 0),
     dilation: Sequence[int] = (1, 1),
     ceil_mode: bool = False,
-) -> Tuple[TFloatOrUInt8, INT64]:
+) -> tuple[TFloatOrUInt8, INT64]:
     """max_pool2d_with_indices(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
     # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
@@ -1098,7 +1098,7 @@ def aten_max_pool3d_with_indices(
     padding: Sequence[int] = (0, 0, 0),
     dilation: Sequence[int] = (1, 1, 1),
     ceil_mode: bool = False,
-) -> Tuple[TFloatOrUInt8, INT64]:
+) -> tuple[TFloatOrUInt8, INT64]:
     """max_pool3d_with_indices(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, int[3] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
     # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
@@ -1134,7 +1134,7 @@ def _aten_max_pool_with_indices_onnx(
     n_dims_one: Sequence[int],
     n_dims_zero: Sequence[int],
     n_dims_axes: Sequence[int],
-) -> Tuple[TFloatOrUInt8, INT64]:
+) -> tuple[TFloatOrUInt8, INT64]:
     self_rank_is_unbatched_rank = Rank(self) == unbatched_rank
     if self_rank_is_unbatched_rank:
         self = op.Unsqueeze(self, axes=[0])
@@ -1794,7 +1794,7 @@ def aten_scaled_dot_product_attention(
 
 def _aten__scaled_dot_product_flash_attention_fillin_empty_outputs(
     query: TFloat,
-) -> Tuple[FLOAT, INT64, INT64, FLOAT]:
+) -> tuple[FLOAT, INT64, INT64, FLOAT]:
     query_first_three_dims = op.Slice(
         op.Shape(query), op.Constant(value_ints=[0]), op.Constant(value_ints=[3])
     )
@@ -1823,7 +1823,7 @@ def aten__scaled_dot_product_flash_attention(
     is_causal: bool = False,
     return_debug_mask: bool = False,
     scale: Optional[float] = None,
-) -> Tuple[TFloat, FLOAT, INT64, INT64, INT64, INT64, INT64, INT64, FLOAT]:
+) -> tuple[TFloat, FLOAT, INT64, INT64, INT64, INT64, INT64, INT64, FLOAT]:
     """_scaled_dot_product_flash_attention(Tensor query, Tensor key, Tensor value, float dropout_p=0.0, bool is_causal=False, bool return_debug_mask=False, *, float? scale=None) -> (Tensor output, Tensor logsumexp, Tensor cum_seq_q, Tensor cum_seq_k, int max_q, int max_k, Tensor philox_seed, Tensor philox_offset, Tensor debug_attn_mask)
 
     One of the implementations of scaled_dot_product_attention.
@@ -1862,7 +1862,7 @@ def aten__scaled_dot_product_flash_attention(
 def _aten_scaled_dot_product_efficient_attention_fillin_empty_outputs(
     query: TFloat,
     compute_log_sumexp: bool,
-) -> Tuple[FLOAT, INT64]:
+) -> tuple[FLOAT, INT64]:
     """_scaled_dot_product_efficient_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_bias, bool compute_log_sumexp, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> (Tensor output, Tensor log_sumexp, Tensor philox_seed, Tensor philox_offset)"""
 
     query = op.Transpose(query, perm=[0, 2, 1, 3])
@@ -1901,7 +1901,7 @@ def aten__scaled_dot_product_flash_attention_for_cpu(
     is_causal: bool = False,
     attn_mask: Optional[TFloat] = None,
     scale: Optional[float] = None,
-) -> Tuple[TFloat, FLOAT]:
+) -> tuple[TFloat, FLOAT]:
     """_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0.0, bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)"""
     result = aten_scaled_dot_product_attention(
         query,
@@ -1933,7 +1933,7 @@ def aten__scaled_dot_product_efficient_attention(
     dropout_p: float = 0.0,
     is_causal: bool = False,
     scale: Optional[float] = None,
-) -> Tuple[TFloat, FLOAT, INT64, INT64]:
+) -> tuple[TFloat, FLOAT, INT64, INT64]:
     """_scaled_dot_product_efficient_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_bias, bool compute_log_sumexp, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> (Tensor output, Tensor log_sumexp, Tensor philox_seed, Tensor philox_offset)"""
 
     result = aten_scaled_dot_product_attention(

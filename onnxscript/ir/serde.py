@@ -62,7 +62,7 @@ import collections
 import logging
 import os
 from collections.abc import Mapping, Sequence
-from typing import Any, Callable, List
+from typing import Any, Callable
 
 import numpy as np
 import onnx
@@ -741,7 +741,7 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
         name=proto.name,
         overload=getattr(proto, "overload", ""),
         graph=graph,
-        attributes=typing.cast(List[_core.Attr], attributes),
+        attributes=typing.cast("list[_core.Attr]", attributes),
     )
 
 

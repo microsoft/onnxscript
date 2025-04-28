@@ -41,11 +41,7 @@ from collections.abc import (
     MutableSequence,
     Sequence,
 )
-from typing import (
-    Any,
-    Protocol,
-    Tuple,
-)
+from typing import Any, Protocol
 
 from onnxscript.ir import _enums
 
@@ -54,7 +50,7 @@ if typing.TYPE_CHECKING:
     from typing_extensions import TypeAlias
 
 # An identifier that will uniquely identify an operator. E.g (domain, op_type, overload)
-OperatorIdentifier: TypeAlias = Tuple[str, str, str]
+OperatorIdentifier: TypeAlias = tuple[str, str, str]
 
 
 @typing.runtime_checkable

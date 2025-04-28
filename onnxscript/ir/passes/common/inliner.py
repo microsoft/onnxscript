@@ -10,7 +10,6 @@ __all__ = ["InlinePass", "InlinePassResult"]
 
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
-from typing import List, Tuple
 
 import onnxscript.ir.convenience as _ir_convenience
 from onnxscript import ir
@@ -18,13 +17,13 @@ from onnxscript import ir
 # A replacement for a node specifies a list of nodes that replaces the original node,
 # and a list of values that replaces the original node's outputs.
 
-NodeReplacement = Tuple[Sequence[ir.Node], Sequence[ir.Value]]
+NodeReplacement = tuple[Sequence[ir.Node], Sequence[ir.Value]]
 
 # A call stack is a list of identifiers of call sites, where the first element is the
 # outermost call site, and the last element is the innermost call site. This is used
 # primarily for generating unique names for values in the inlined functions.
 CallSiteId = str
-CallStack = List[CallSiteId]
+CallStack = list[CallSiteId]
 
 
 def _make_unique_name(name: str, callstack: CallStack, used_names: set[str]) -> str:  # pylint: disable=unused-argument

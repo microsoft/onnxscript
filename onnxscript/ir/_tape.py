@@ -5,17 +5,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import (
-    Any,
-    Optional,
-    Tuple,
-)
+from typing import Any, Optional
 
 from onnxscript import ir
 from onnxscript.ir import _convenience
 
 # A type representing the domains/versions used in creating nodes in IR.
-UsedOpsets = set[Tuple[str, Optional[int]]]
+UsedOpsets = set[tuple[str, Optional[int]]]
 
 
 class Tape:

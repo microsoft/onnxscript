@@ -3,7 +3,7 @@
 
 import unittest
 from collections.abc import Sequence
-from typing import Any, List, Optional, TypeVar, Union
+from typing import Any, Optional, TypeVar, Union
 
 import parameterized
 
@@ -213,7 +213,7 @@ class TypeConversionFunctionsTest(unittest.TestCase):
             ),
         ]
     )
-    def test_pytype_to_type_strings(self, _, pytype: Any, expected: List[str]):
+    def test_pytype_to_type_strings(self, _, pytype: Any, expected: list[str]):
         self.assertEqual(type_annotation.pytype_to_type_strings(pytype), expected)
 
     @parameterized.parameterized.expand(

@@ -15,7 +15,6 @@ from typing import (
     Any,
     Callable,
     Protocol,
-    Tuple,
     TypeVar,
     Union,
 )
@@ -532,7 +531,7 @@ class NodePattern:
         inputs_and_attributes = f"{inputs}, {attributes}" if attributes else inputs
         return f"{outputs} = {qualified_op} ({inputs_and_attributes})"
 
-    def op_identifier(self) -> Tuple[str, str, str] | None:
+    def op_identifier(self) -> tuple[str, str, str] | None:
         return self._op_identifier
 
     @property
