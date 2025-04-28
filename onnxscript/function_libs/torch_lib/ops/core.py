@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import torch
@@ -595,7 +595,7 @@ def _adjust_args_for_arange_int_dtype(
     start: TRealUnlessFloat16OrInt8,
     end: TRealUnlessFloat16OrInt8,
     step: TRealUnlessFloat16OrInt8,
-) -> Tuple[FLOAT, FLOAT, FLOAT]:
+) -> tuple[FLOAT, FLOAT, FLOAT]:
     zero = op.Cast(0.0, to=FLOAT.dtype)
     start = op.Cast(start, to=FLOAT.dtype)
     end = op.Cast(end, to=FLOAT.dtype)
@@ -2958,7 +2958,7 @@ def aten_embedding_bag(
     sparse: bool = False,
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
+) -> tuple[TFloat, TFloat, TFloat, TFloat]:
     """embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False) -> (Tensor, Tensor, Tensor, Tensor)"""
 
     # assert(rank(indices) in [1,2])
@@ -2986,7 +2986,7 @@ def _aten_embedding_bag_onnx(
     mode: int,
     per_sample_weights: TFloat,
     include_last_offset: bool,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
+) -> tuple[TFloat, TFloat, TFloat, TFloat]:
     neg_1 = op.Constant(value_ints=[-1])
     # Assume indices is shape(5,2), indices_1d is shape(10,)
     indices_1d = op.Reshape(indices, neg_1)
@@ -3093,7 +3093,7 @@ def aten_embedding_bag_padding_idx(
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
     padding_idx: int = -1,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
+) -> tuple[TFloat, TFloat, TFloat, TFloat]:
     """embedding_bag.padding_idx(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq, int mode, bool sparse, Tensor? per_sample_weights, bool include_last_offset, int? padding_idx) -> (Tensor, Tensor, Tensor, Tensor)
 
     We add default values for the attributes to accommodate _embedding_bag as well:
@@ -3127,7 +3127,7 @@ def _aten_embedding_bag_1d_padding_idx_onnx(
     per_sample_weights: TFloat,
     include_last_offset: bool,
     padding_idx: int,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
+) -> tuple[TFloat, TFloat, TFloat, TFloat]:
     neg_1 = op.Constant(value_ints=[-1])
     # Get weight out according to indices,
     # e.g. indices=[3,1,4,5,3] means get weight[[3,1,4,5,3]]
@@ -5290,7 +5290,7 @@ def aten_max(self: TReal) -> TReal:
 
 
 @torch_op("aten::max.dim", trace_only=True)
-def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, INT64]:
+def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> tuple[TReal, INT64]:
     """max.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)"""
 
     if len(self.shape) == 0:
@@ -5357,7 +5357,7 @@ def aten_min(self: TReal) -> TReal:
 
 
 @torch_op("aten::min.dim", trace_only=True)
-def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, TInt]:
+def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> tuple[TReal, TInt]:
     """min.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)"""
     if len(self.shape) == 0:
         result = self
@@ -5892,7 +5892,7 @@ def aten__native_batch_norm_no_training(
     running_var: Optional[TFloat] = None,
     momentum: float = 0.9,
     eps: float = 1e-05,
-) -> Tuple[TFloat, TFloat, TFloat]:
+) -> tuple[TFloat, TFloat, TFloat]:
     """_native_batch_norm_legit_no_training(Tensor input, Tensor? weight, Tensor? bias, Tensor running_mean, Tensor running_var, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
 
     return aten_native_batch_norm(
@@ -5908,7 +5908,7 @@ def aten__native_batch_norm_no_stats(
     training: bool = False,
     momentum: float = 0.9,
     eps: float = 1e-05,
-) -> Tuple[TFloat, TFloat, TFloat]:
+) -> tuple[TFloat, TFloat, TFloat]:
     """_native_batch_norm_legit.no_stats(Tensor input, Tensor? weight, Tensor? bias, bool training, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
 
     return aten_native_batch_norm(input, weight, bias, None, None, training, momentum, eps)
@@ -5924,7 +5924,7 @@ def aten_native_batch_norm(
     training: bool = False,
     momentum: float = 0.9,
     eps: float = 1e-05,
-) -> Tuple[TFloat, TFloat, TFloat]:
+) -> tuple[TFloat, TFloat, TFloat]:
     """native_batch_norm(Tensor input, Tensor? weight, Tensor? bias, Tensor? running_mean, Tensor? running_var, bool training, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
 
     if weight is None:  # Set to 1.0 as default
@@ -5992,7 +5992,7 @@ def _aten_native_batch_norm_training_onnx(
     axes: INT64,
     momentum: float,
     eps: float,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
+) -> tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
     """Batch normalization training mode.
 
     NOTE: momentum in PyTorch is 1.0-momentum in ONNX.
@@ -6043,7 +6043,7 @@ def _aten_native_batch_norm_inference_onnx(
     running_var: TFloat,
     momentum: float,
     eps: float,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
+) -> tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
     """Batch normalization inference mode.
 
     NOTE: momentum in PyTorch is 1.0-momentum in ONNX.
@@ -6083,7 +6083,7 @@ def aten__native_batch_norm_legit_functional(
     training: bool = False,
     momentum: float = 0.9,
     eps: float = 1e-05,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
+) -> tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
     if weight is None:  # Set to 1.0 as default
         weight = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(input, start=1, end=2))
 
@@ -6169,7 +6169,7 @@ def aten_native_channel_shuffle(self: TensorType, groups: int) -> TensorType:
 
 
 @torch_op("aten::native_dropout", trace_only=True)
-def aten_native_dropout(input: TFloat, p: float, train: bool = True) -> Tuple[TFloat, BOOL]:
+def aten_native_dropout(input: TFloat, p: float, train: bool = True) -> tuple[TFloat, BOOL]:
     """native_dropout(Tensor input, float p, bool? train) -> (Tensor, Tensor)"""
 
     result, mask = op.Dropout(input, p, train)
@@ -6194,7 +6194,7 @@ def aten_native_group_norm(
     HxW: Optional[INT64] = None,
     group: int = 1,
     eps: float = 1e-05,
-) -> Tuple[TFloat, TFloat, TFloat]:
+) -> tuple[TFloat, TFloat, TFloat]:
     """native_group_norm(Tensor input, Tensor? weight, Tensor? bias, SymInt N, SymInt C, SymInt HxW, int group, float eps) -> (Tensor, Tensor, Tensor)"""
 
     # Actually we don't need N,C,HxW value because the input tensor has that information
@@ -6216,7 +6216,7 @@ def _aten_native_group_norm_onnx(
     bias: TFloat,
     group: INT64,
     eps: float,
-) -> Tuple[TFloat, TFloat, TFloat]:
+) -> tuple[TFloat, TFloat, TFloat]:
     # Because onnx.GroupNorm() need size=group for weight and bias
     # But the torch's aten function's input need size=channel, the size mismatched
     # So we have to use onnx.InstanceNorm() to simulate
@@ -6286,7 +6286,7 @@ def aten_native_layer_norm(
     weight: Optional[TReal] = None,
     bias: Optional[TReal] = None,
     eps: float = 1e-05,
-) -> Tuple[TReal, TReal, TReal]:
+) -> tuple[TReal, TReal, TReal]:
     """native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)"""
 
     # https://pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html#torch.nn.LayerNorm
@@ -8114,7 +8114,7 @@ def aten_std_correction(
 
 
 # std_mean is decomposed by PyTroch
-def aten_std_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
+def aten_std_mean(self: TReal, unbiased: bool = True) -> tuple[TReal, TReal]:
     """std_mean(Tensor self, bool unbiased=True) -> (Tensor, Tensor)"""
 
     # Assume bool(True) and int(1) are same in ONNX, so pass "unbiased" directly as "correction"
@@ -8126,7 +8126,7 @@ def aten_std_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
 # std_mean is decomposed by PyTroch
 def aten_std_mean_dim(
     self: TReal, dim: Sequence[int], unbiased: bool = True, keepdim: bool = False
-) -> Tuple[TReal, TReal]:
+) -> tuple[TReal, TReal]:
     """std_mean.dim(Tensor self, int[1]? dim, bool unbiased=True, bool keepdim=False) -> (Tensor, Tensor)"""
 
     # Although dim is Optional in signature, but we assume it must have value for this overload
@@ -8144,7 +8144,7 @@ def aten_std_mean_correction(
     dim: Optional[int] = None,
     correction: Optional[float] = None,
     keepdim: bool = False,
-) -> Tuple[TReal, TReal]:
+) -> tuple[TReal, TReal]:
     """std_mean.correction(Tensor self, int[1]? dim=None, *, Scalar? correction=None, bool keepdim=False) -> (Tensor, Tensor)"""
 
     if correction is None:
@@ -8444,7 +8444,7 @@ def aten_to_sparse_csr(self: TensorType) -> TensorType:
 @torch_op("aten::topk", trace_only=True)
 def aten_topk(
     self: TReal, k: int, dim: int = -1, largest: bool = True, sorted: bool = True
-) -> Tuple[TReal, INT64]:
+) -> tuple[TReal, INT64]:
     """topk(Tensor self, int k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)"""
 
     # We do not handle scalar inputs for topk
@@ -8909,7 +8909,7 @@ def _aten_var_dim_onnx(
 
 
 # var_mean is decomposed by PyTroch
-def aten_var_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
+def aten_var_mean(self: TReal, unbiased: bool = True) -> tuple[TReal, TReal]:
     """var_mean(Tensor self, bool unbiased=True) -> (Tensor, Tensor)"""
 
     # Assume bool(True) and int(1) are same in ONNX, so pass "unbiased" directly as "correction"
@@ -8920,7 +8920,7 @@ def aten_var_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
 # var_mean is decomposed by PyTroch
 def aten_var_mean_dim(
     self: TReal, dim: Sequence[int], unbiased: bool = True, keepdim: bool = False
-) -> Tuple[TReal, TReal]:
+) -> tuple[TReal, TReal]:
     """var_mean.dim(Tensor self, int[1]? dim, bool unbiased=True, bool keepdim=False) -> (Tensor, Tensor)"""
 
     # Although dim is Optional in signature, but we assume it must have value for this overload
@@ -8935,7 +8935,7 @@ def aten_var_mean_correction(
     dim: Optional[int] = None,
     correction: Optional[float] = None,
     keepdim: bool = False,
-) -> Tuple[TReal, TReal]:
+) -> tuple[TReal, TReal]:
     """var_mean.correction(Tensor self, int[1]? dim=None, *, Scalar? correction=None, bool keepdim=False) -> (Tensor, Tensor)"""
 
     if correction is None:
@@ -8953,7 +8953,7 @@ def aten_var_mean_correction(
 # var_mean is decomposed by PyTroch
 def _aten_var_mean_onnx(
     self: TReal, correction: float = 1.0, keepdim: bool = False
-) -> Tuple[TReal, TReal]:
+) -> tuple[TReal, TReal]:
     # Compute mean and var
     mean = op.ReduceMean(self, keepdims=keepdim)
     sub_mean = op.Sub(self, mean)
@@ -8973,7 +8973,7 @@ def _aten_var_mean_onnx(
 # var_mean is decomposed by PyTroch
 def _aten_var_mean_dim_onnx(
     self: TReal, dims: Sequence[int], correction: float, keepdim: bool = False
-) -> Tuple[TReal, TReal]:
+) -> tuple[TReal, TReal]:
     dims = op.Reshape(dims, op.Constant(value_ints=[-1]))
     # Computer mean and var
     mean = op.ReduceMean(self, dims, keepdims=keepdim)

@@ -8,7 +8,7 @@ import os
 import tempfile
 import typing
 from collections.abc import Mapping, Sequence
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import onnx
@@ -110,7 +110,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         super().__init__(None)
         self._torch_value: torch.Value = value
         self._concrete_value: Optional[np.ndarray] = None
-        self._shape: Optional[Tuple[int | str | None, ...]] = None
+        self._shape: Optional[tuple[int | str | None, ...]] = None
         self._torch_dtype: Optional[torch.dtype] = None
         self._name: Optional[str] = None
         self._is_complex: bool = False
@@ -152,7 +152,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         return value_type.dim()
 
     @property  # type: ignore[override]
-    def shape(self) -> Tuple[int | str | None, ...] | None:
+    def shape(self) -> tuple[int | str | None, ...] | None:
         if self._shape is not None:
             return self._shape
 
@@ -169,7 +169,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         return tuple(shape)
 
     @shape.setter
-    def shape(self, shape: Union[torch.Size, Tuple[int | str | None, ...]]):
+    def shape(self, shape: Union[torch.Size, tuple[int | str | None, ...]]):
         # Normalize torch symbolic dimension size to str.
         torch_sym_types = (torch.SymInt, torch.SymFloat, torch.SymBool)
         self._shape = tuple(
@@ -250,9 +250,9 @@ def _unwrap_tensor_to_torch_value(
     ],
 ) -> Union[
     ValidTorchValueType,
-    Dict[str, ValidTorchValueType],
-    List[ValidTorchValueType],
-    Tuple[ValidTorchValueType, ...],
+    dict[str, ValidTorchValueType],
+    list[ValidTorchValueType],
+    tuple[ValidTorchValueType, ...],
 ]:
     """Unwrap the TorchScriptTensor to torch.Value."""
     if isinstance(value, TorchScriptTensor):
@@ -274,14 +274,14 @@ def _wrap_torch_value_to_tensor(
         torch.Value, Mapping[str, ValidTorchValueType], Sequence[ValidTorchValueType]
     ],
     *,
-    shape: Optional[Union[torch.Size, Tuple[Union[int, str, None], ...]]] = None,
+    shape: Optional[Union[torch.Size, tuple[Union[int, str, None], ...]]] = None,
     dtype: Optional[torch.dtype] = None,
     device: Optional[torch.device] = None,
 ) -> Union[
     ValidArgumentType,
-    Dict[str, ValidArgumentType],
-    List[ValidArgumentType],
-    Tuple[ValidArgumentType, ...],
+    dict[str, ValidArgumentType],
+    list[ValidArgumentType],
+    tuple[ValidArgumentType, ...],
 ]:
     """Wrap torch.Value to TorchScriptTensor."""
     if isinstance(value, torch.Value):
@@ -488,7 +488,7 @@ def _create_op_call_in_torch_graph(
     inputs: Sequence[torch.Value],
     attributes: Mapping[str, Any],
     n_outputs: int = 1,
-) -> Tuple[torch.Value, ...]:
+) -> tuple[torch.Value, ...]:
     """Creates a node representing an onnx op in `graph`.
 
     Args:
@@ -548,17 +548,17 @@ class TorchScriptGraph:
         self._torch_graph = torch.Graph()
         # All the functions used, deduplicated by name
         # key: (name, domain)
-        self._function_store: Dict[Tuple[str, str], onnxscript.OnnxFunction] = {}
+        self._function_store: dict[tuple[str, str], onnxscript.OnnxFunction] = {}
         # Mapping from intializer name to data(torch.Tensor).
-        self._initializers: Dict[str, torch.Tensor] = {}
+        self._initializers: dict[str, torch.Tensor] = {}
         # Mapping from intializer name to input(TorchScriptTensor).
-        self._initializers_inputs: Dict[str, TorchScriptTensor] = {}
+        self._initializers_inputs: dict[str, TorchScriptTensor] = {}
         # Mapping from intializer name to input(TorchScriptTensor) from parent graph.
-        self._initializers_inputs_from_parent: Dict[str, TorchScriptTensor] = {}
+        self._initializers_inputs_from_parent: dict[str, TorchScriptTensor] = {}
         # Mapping from model local function type name to function graph.
         # Local function type name is expected to be unique. Converter creates
         # a unique name and a unique function graph for every module call.
-        self._sub_torch_script_graphs: Dict[str, TorchScriptGraph] = {}
+        self._sub_torch_script_graphs: dict[str, TorchScriptGraph] = {}
         # Parent graph. None if this is the top level graph.
         self._parent_torch_script_graph = parent_torch_script_graph
         # Domain name of the graph. None if this is the top level graph.
@@ -572,7 +572,7 @@ class TorchScriptGraph:
         # This info is later serialized as `ValueInfoProto` inside ONNX, to
         # provide shape and dtype information for nodes within nested function calls.
         # https://github.com/onnx/onnx/issues/5487
-        self._value_to_tensor: Dict[torch.Value, TorchScriptTensor] = {}
+        self._value_to_tensor: dict[torch.Value, TorchScriptTensor] = {}
 
         if self._domain_name is None and self._parent_torch_script_graph is not None:
             raise RuntimeError(
@@ -592,7 +592,7 @@ class TorchScriptGraph:
     #       we need to filter out the initializers that has fake tensor. This
     #       is because we don't want to introduce fake tensor in onnxscript.
     @initializers.setter
-    def initializers(self, initializers: Dict[str, torch.Tensor]):
+    def initializers(self, initializers: dict[str, torch.Tensor]):
         self._initializers = initializers
 
     @property
@@ -615,7 +615,7 @@ class TorchScriptGraph:
     def add_input(
         self,
         input_name: Optional[str],
-        shape: Optional[Union[torch.Size, Tuple[Union[int, str, None], ...]]] = None,
+        shape: Optional[Union[torch.Size, tuple[Union[int, str, None], ...]]] = None,
         dtype: Optional[torch.dtype] = None,
         device: Optional[torch.device] = None,
     ) -> TorchScriptTensor:
@@ -642,7 +642,7 @@ class TorchScriptGraph:
         )
         if isinstance(tensor_value, TorchScriptTensor):
             # NOTE: Only track value that maps to tensor.
-            # Value that maps to Sequence/Dict of tensors is not tracked.
+            # Value that maps to Sequence/dict of tensors is not tracked.
             self._value_to_tensor[torch_value] = tensor_value
         return tensor_value  # type: ignore[return-value]
 
@@ -682,7 +682,7 @@ class TorchScriptGraph:
 
     @runtime_typing.checked
     def register_outputs(
-        self, outputs: Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]
+        self, outputs: Union[TorchScriptTensor, tuple[TorchScriptTensor, ...]]
     ):
         unwrapped_outputs = _unwrap_tensors_to_torch_values(outputs)
         if isinstance(unwrapped_outputs, torch.Value):
@@ -737,7 +737,7 @@ class TorchScriptGraph:
         value.setDebugName(_rename_intermediate_value(value.debugName()))
         return value
 
-    def preprocess_inputs(self, onnx_inputs: Sequence[ValidInputType]) -> List[torch.Value]:
+    def preprocess_inputs(self, onnx_inputs: Sequence[ValidInputType]) -> list[torch.Value]:
         unwrapped_inputs = _unwrap_tensors_to_torch_values(onnx_inputs)
         graph_inputs = []
         assert isinstance(unwrapped_inputs, Sequence)
@@ -770,7 +770,7 @@ class TorchScriptGraph:
         onnx_inputs: Sequence[ValidInputType],
         onnx_attributes: Mapping[str, ValidArgumentType],
         n_outputs: int,
-    ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
+    ) -> Union[TorchScriptTensor, tuple[TorchScriptTensor, ...]]:
         graph_inputs = self.preprocess_inputs(onnx_inputs)
         for key, value in onnx_attributes.items():
             assert not isinstance(value, TorchScriptTensor), (
@@ -801,8 +801,8 @@ class TorchScriptGraph:
     @runtime_typing.checked
     def fetch_function_proto_dict(
         self, opset_version: int
-    ) -> Mapping[Tuple[str, str], onnx.FunctionProto]:
-        function_proto_dict: Dict[Tuple[str, str], onnx.FunctionProto] = {}
+    ) -> Mapping[tuple[str, str], onnx.FunctionProto]:
+        function_proto_dict: dict[tuple[str, str], onnx.FunctionProto] = {}
         # Fetch local function protos. E.g., local functions representing module calls.
         for (
             sub_graph_name,
@@ -893,7 +893,7 @@ class TorchScriptGraph:
         onnx_op_schema: onnx.defs.OpSchema,
         onnx_inputs: Sequence[ValidInputType],
         onnx_attributes: Mapping[str, ValidArgumentType],
-    ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
+    ) -> Union[TorchScriptTensor, tuple[TorchScriptTensor, ...]]:
         # Compute outputs from the onnx_op op schema
         n_outputs = evaluator.compute_num_outputs(onnx_op_schema, onnx_inputs, onnx_attributes)
         result = self._add_torchscript_op_call(
@@ -911,7 +911,7 @@ class TorchScriptGraph:
         onnx_function: onnxscript.OnnxFunction,
         onnx_inputs: Sequence[ValidInputType],
         onnx_attributes: Mapping[str, ValidArgumentType],
-    ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
+    ) -> Union[TorchScriptTensor, tuple[TorchScriptTensor, ...]]:
         identifier = (onnx_function.name, onnx_function.function_ir.domain)
         self._function_store[identifier] = onnx_function
 
@@ -931,7 +931,7 @@ class TorchScriptGraph:
         name: str,
         sub_torch_script_graph: TorchScriptGraph,
         onnx_inputs: Sequence[ValidInputType],
-    ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
+    ) -> Union[TorchScriptTensor, tuple[TorchScriptTensor, ...]]:
         self._sub_torch_script_graphs[name] = sub_torch_script_graph
         domain_name = sub_torch_script_graph.domain_name
         assert domain_name is not None
@@ -948,7 +948,7 @@ class TorchScriptGraph:
     def generate_function_value_info_proto(
         self, function_op_type: str
     ) -> Mapping[str, onnx.ValueInfoProto]:
-        named_value_info: Dict[str, onnx.ValueInfoProto] = {}
+        named_value_info: dict[str, onnx.ValueInfoProto] = {}
         function_id = _function_id(self.domain_name, function_op_type)
         for torch_value, tensor in self._value_to_tensor.items():
             if (value_info := tensor.value_info()) is None:
@@ -960,7 +960,7 @@ class TorchScriptGraph:
         return named_value_info
 
     @runtime_typing.checked
-    def generate_subgraphs_value_info_proto(self) -> Dict[str, onnx.ValueInfoProto]:
+    def generate_subgraphs_value_info_proto(self) -> dict[str, onnx.ValueInfoProto]:
         """Unique naming strategies for values inside subgraphs, i.e. local functions.
 
             {function_domain::function_op_type}/{value_name}
@@ -970,15 +970,15 @@ class TorchScriptGraph:
         the `value_info` carried in `TorchScriptTensor` represents the general
         compatible shape and type.
         """
-        named_value_info: Dict[str, onnx.ValueInfoProto] = {}
+        named_value_info: dict[str, onnx.ValueInfoProto] = {}
         for name, sub_graph in self._sub_torch_script_graphs.items():
             named_value_info.update(sub_graph.generate_function_value_info_proto(name))
         return named_value_info
 
     @runtime_typing.checked
-    def generate_maingraph_value_info_proto(self) -> Dict[str, onnx.ValueInfoProto]:
+    def generate_maingraph_value_info_proto(self) -> dict[str, onnx.ValueInfoProto]:
         """Returns value info proto for values in the main graph."""
-        named_value_info: Dict[str, onnx.ValueInfoProto] = {}
+        named_value_info: dict[str, onnx.ValueInfoProto] = {}
         for torch_value, tensor in self._value_to_tensor.items():
             if (value_info := tensor.value_info()) is None:
                 continue
@@ -1034,10 +1034,10 @@ class TorchScriptGraph:
     def to_model_proto(
         self, opset_version: int, include_initializers: bool = True
     ) -> onnx.ModelProto:
-        function_proto_dict: Mapping[Tuple[str, str], onnx.FunctionProto] = (
+        function_proto_dict: Mapping[tuple[str, str], onnx.FunctionProto] = (
             self.fetch_function_proto_dict(opset_version)
         )
-        unique_custom_domains: Dict[str, int] = {}
+        unique_custom_domains: dict[str, int] = {}
 
         for function_proto in function_proto_dict.values():
             # TODO(BowenBao): All local function domain versions are hardcoded as 1.

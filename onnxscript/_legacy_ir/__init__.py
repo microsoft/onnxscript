@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 from collections import deque
-from typing import List, Tuple, Union
+from typing import Union
 
 import numpy as np
 import onnx
@@ -47,9 +47,9 @@ ConcreteValue = Union[onnx.TensorProto, np.ndarray, Unknown, None]
 # TODO: Technically, SymbolicValue should be a recursive type to handle lists of lists of
 # tensors, etc. However, we currently only handle lists of tensors.
 
-SymbolicValue = Union[str, List[str]]
+SymbolicValue = Union[str, list[str]]
 
-FunctionId = Tuple[str, str, str]
+FunctionId = tuple[str, str, str]
 
 
 def get_function_id(function: onnx.FunctionProto) -> FunctionId:

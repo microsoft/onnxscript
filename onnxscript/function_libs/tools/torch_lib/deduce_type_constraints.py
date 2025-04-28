@@ -6,7 +6,7 @@ import copy
 import dataclasses
 import logging
 from collections.abc import Mapping, Sequence
-from typing import Dict, Optional, Set
+from typing import Optional
 
 import onnx
 import onnx.defs
@@ -48,10 +48,10 @@ class TypeConstraint:
     """Type constraint shared by multiple values."""
 
     name: str
-    type_strs: Set[str]
-    values: Set[Value]
+    type_strs: set[str]
+    values: set[Value]
 
-    def __init__(self, name: str, type_strs: Set[str]):
+    def __init__(self, name: str, type_strs: set[str]):
         self.name = name
         self.type_strs = type_strs
         self.values = set()
@@ -126,9 +126,9 @@ class Value:
 
 @dataclasses.dataclass
 class OnnxFunctionTypeConstraints:
-    input_type_constraints: Dict[str, Optional[TypeConstraint]]
-    output_type_constraints: Dict[str, Optional[TypeConstraint]]
-    intermediate_type_constraints: Dict[str, Optional[TypeConstraint]]
+    input_type_constraints: dict[str, Optional[TypeConstraint]]
+    output_type_constraints: dict[str, Optional[TypeConstraint]]
+    intermediate_type_constraints: dict[str, Optional[TypeConstraint]]
 
     def __repr__(self):
         repr_strs = [
@@ -191,7 +191,7 @@ class OnnxFunctionTypeConstraints:
 class TypeConstraintDeducer:
     def __init__(self, onnx_function: onnxscript.OnnxFunction):
         self.onnx_function = onnx_function
-        self.values: Dict[str, Value] = {}
+        self.values: dict[str, Value] = {}
 
     def type_constraints(self, signature_only: bool = True) -> OnnxFunctionTypeConstraints:
         """Retrieve deduced type constraints for the ONNX function."""
@@ -211,7 +211,7 @@ class TypeConstraintDeducer:
         )
 
         # Rename type constraints to T0, T1, T2, ...
-        seen_type_constraints: Set[TypeConstraint] = set()
+        seen_type_constraints: set[TypeConstraint] = set()
         for type_constraint in (
             *input_type_constraints.values(),
             *output_type_constraints.values(),
@@ -251,7 +251,7 @@ class TypeConstraintDeducer:
         node: onnx.NodeProto,
         param_names: Sequence[str],
         param_schemas: Sequence[onnx.defs.OpSchema.FormalParameter],
-        op_type_constraints: Dict[str, TypeConstraint],
+        op_type_constraints: dict[str, TypeConstraint],
         is_output: bool = False,
     ):
         param_schemas = list(param_schemas)

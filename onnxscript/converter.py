@@ -8,11 +8,8 @@ from collections.abc import Sequence
 from typing import (
     TYPE_CHECKING,
     Any,
-    Dict,
-    List,
     NoReturn,
     Optional,
-    Tuple,
     Union,
 )
 
@@ -178,11 +175,11 @@ class Converter:
         self.default_opset_ = default_opset
 
         # States initialized by `_init_function_translation`
-        self._outer: List[irbuilder.IRFunction] = []
+        self._outer: list[irbuilder.IRFunction] = []
         self._current_fn: irbuilder.IRFunction = None
         self._nextvar: int = 0
         self._used_vars: set[str] = set()
-        self._locals: List[Dict[str, LocalSymValue]] = [{}]
+        self._locals: list[dict[str, LocalSymValue]] = [{}]
 
     @property
     def default_opset(self) -> values.Opset:
@@ -230,7 +227,7 @@ class Converter:
         self._current_fn: Optional[irbuilder.IRFunction] = None
         self._nextvar = 0
         self._used_vars = set()
-        self._locals: List[Dict[str, LocalSymValue]] = [{}]
+        self._locals: list[dict[str, LocalSymValue]] = [{}]
 
     def _source_of(self, node: ast.AST) -> sourceinfo.SourceInfo:
         return sourceinfo.SourceInfo(node, self.source, self._current_fn.name)
@@ -269,7 +266,7 @@ class Converter:
         self._locals.pop(0)
         return graph
 
-    def _current_scope(self) -> Dict[str, LocalSymValue]:
+    def _current_scope(self) -> dict[str, LocalSymValue]:
         return self._locals[0]
 
     def _bind(self, name: str, val: LocalSymValue) -> None:
@@ -433,7 +430,7 @@ class Converter:
                 ast.UnaryOp,
                 ast.Compare,
                 ast.Attribute,
-                ast.List,
+                ast.list,
                 ast.Load,
                 ast.Constant,
             ),
@@ -692,9 +689,9 @@ class Converter:
 
         # As the first step, we partition the index elements into four kinds: Slice (eg., 1:5:2),
         # known-to-be-scalar (eg., 2), other-tensor (eg., I), skip/no-op (that is, just ":")
-        sliced_indices: List[Tuple[int, ast.expr]] = []
-        scalar_indices: List[Tuple[int, ast.expr]] = []
-        non_scalar_indices: List[Tuple[int, ast.expr]] = []
+        sliced_indices: list[tuple[int, ast.expr]] = []
+        scalar_indices: list[tuple[int, ast.expr]] = []
+        non_scalar_indices: list[tuple[int, ast.expr]] = []
         for axis, elt in enumerate(indices):
             if isinstance(elt, ast.Slice):
                 # Add to sliced_indices, unless it is "::", which is a no-op.
@@ -984,7 +981,7 @@ class Converter:
                     typeinfo = None
                 var = values.Dynamic(t, values.DynamicKind.Intermediate, info, typeinfo)
                 self._bind(lhs, var)
-            elif isinstance(lhs, ast.Tuple):
+            elif isinstance(lhs, ast.tuple):
                 # Assignments of the form "x, y, z = op.SomeOp(...)"
                 if not isinstance(rhs, ast.Call):
                     self.fail(
@@ -1019,9 +1016,9 @@ class Converter:
             self.fail(stmt, "Multi-assignment not supported.")
         lhs = targets[0]
         rhs = stmt.value
-        if isinstance(rhs, ast.Tuple):
+        if isinstance(rhs, ast.tuple):
             # Assignments of the form "... = Expression1, Expression2"
-            if not isinstance(lhs, ast.Tuple):
+            if not isinstance(lhs, ast.tuple):
                 # Assignments of the form "single_var = Expression1, Expression2".
                 # We do not support tuple-typed variables.
                 self.fail(lhs, f"Left term must be a tuple not '{type(lhs)!r}'.")
@@ -1070,7 +1067,7 @@ class Converter:
 
         val = stmt.value
         assert val is not None, "Return statement without return-value not supported."
-        if isinstance(val, ast.Tuple):
+        if isinstance(val, ast.tuple):
             check_num_outputs(len(val.elts))
             return [ret(exp, i, str(i)) for i, exp in enumerate(val.elts)]
         check_num_outputs(1)

@@ -24,8 +24,8 @@ import textwrap
 import typing
 from collections import OrderedDict
 from collections.abc import Collection, Hashable, Iterable, Iterator, Sequence
+from collections.abc import Set as AbstractSet
 from typing import (
-    AbstractSet,
     Any,
     Generic,
     NamedTuple,

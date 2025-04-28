@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import abc
-from typing import ClassVar, Optional, Tuple, Union
+from typing import ClassVar, Optional, Union
 
 import onnx
 import onnx.helper
@@ -13,7 +13,7 @@ import onnxscript.ir
 
 _DType = onnxscript.ir.DataType
 _DimType = Union[int, str, type(None)]
-_ShapeType = Union[Tuple[_DimType, ...], _DimType, type(Ellipsis)]
+_ShapeType = Union[tuple[_DimType, ...], _DimType, type(Ellipsis)]
 
 _tensor_type_shape_cache: dict[_DType, TensorType] = {}
 tensor_type_registry: dict[_DType, TensorType] = {}
