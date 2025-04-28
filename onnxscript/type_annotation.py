@@ -128,6 +128,10 @@ def base_type_is_bool(pytype: TypeAnnotationValue) -> bool:
 def _is_tensor_type(typeinfo: TypeAnnotationValue) -> bool:
     if isinstance(typeinfo, onnx_types.TensorType):
         return True
+    if isinstance(typeinfo, typing.TypeVar):
+        # Special case the handle TypeVar for py310 because inspect.isclass(typeinfo)
+        # seems to return True for TypeVar
+        return False
     if inspect.isclass(typeinfo) and issubclass(typeinfo, onnx_types.TensorType):
         return True
     return False
