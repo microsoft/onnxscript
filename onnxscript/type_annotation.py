@@ -76,10 +76,8 @@ ALL_TENSOR_TYPE_STRINGS = tuple(
 
 def _remove_annotation(typeinfo: TypeAnnotationValue) -> TypeAnnotationValue:
     """Remove Annotated wrapper if present, otherwise return typeinfo as is."""
-    if hasattr(typing, "Annotated"):
-        # Present in Python 3.9+
-        if typing.get_origin(typeinfo) is typing.Annotated:
-            return typing.get_args(typeinfo)[0]
+    if typing.get_origin(typeinfo) is typing.Annotated:
+        return typing.get_args(typeinfo)[0]
     return typeinfo
 
 
