@@ -430,7 +430,7 @@ class Converter:
                 ast.UnaryOp,
                 ast.Compare,
                 ast.Attribute,
-                ast.list,
+                ast.List,
                 ast.Load,
                 ast.Constant,
             ),
@@ -981,7 +981,7 @@ class Converter:
                     typeinfo = None
                 var = values.Dynamic(t, values.DynamicKind.Intermediate, info, typeinfo)
                 self._bind(lhs, var)
-            elif isinstance(lhs, ast.tuple):
+            elif isinstance(lhs, ast.Tuple):
                 # Assignments of the form "x, y, z = op.SomeOp(...)"
                 if not isinstance(rhs, ast.Call):
                     self.fail(
@@ -1016,9 +1016,9 @@ class Converter:
             self.fail(stmt, "Multi-assignment not supported.")
         lhs = targets[0]
         rhs = stmt.value
-        if isinstance(rhs, ast.tuple):
+        if isinstance(rhs, ast.Tuple):
             # Assignments of the form "... = Expression1, Expression2"
-            if not isinstance(lhs, ast.tuple):
+            if not isinstance(lhs, ast.Tuple):
                 # Assignments of the form "single_var = Expression1, Expression2".
                 # We do not support tuple-typed variables.
                 self.fail(lhs, f"Left term must be a tuple not '{type(lhs)!r}'.")
@@ -1067,7 +1067,7 @@ class Converter:
 
         val = stmt.value
         assert val is not None, "Return statement without return-value not supported."
-        if isinstance(val, ast.tuple):
+        if isinstance(val, ast.Tuple):
             check_num_outputs(len(val.elts))
             return [ret(exp, i, str(i)) for i, exp in enumerate(val.elts)]
         check_num_outputs(1)
