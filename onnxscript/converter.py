@@ -528,12 +528,7 @@ class Converter:
         return attr
 
     def _translate_docstring(self, node: ast.Expr) -> None:
-        if hasattr(node.value, "value"):
-            # python 3.8+
-            return self.ir_builder.add_docstring(self._current_fn, node.value.value)
-        raise TypeError(
-            f"Unexpected type {type(node)!r} for node. Unsupoorted version of python."
-        )
+        return self.ir_builder.add_docstring(self._current_fn, node.value.value)
 
     def _translate_expr(
         self, node: ast.AST, target: Optional[PreferredName] = None
@@ -870,14 +865,7 @@ class Converter:
             # should intercept this call and replace node
             # by node.operand.
             # This mechanism does not handle somthing like `(-(-5))`.
-            if hasattr(node.operand, "value"):
-                # python 3.8+
-                val = node.operand.value
-            else:
-                raise TypeError(
-                    f"Unable to guess constant value from type {type(node.operand)!r} "
-                    f"and attributes {dir(node.operand)!r}."
-                )
+            val = node.operand.value
             if op == ast.USub:
                 cst = ast.Constant(-val, lineno=node.lineno, col_offset=node.col_offset)
                 return self._translate_expr(cst)
