@@ -14,6 +14,8 @@ import onnxscript.ir as ir
 import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
 
+from onnxscript.rewriter.ort_fusions._whisper_tiny_encoder import whisper_encoder_test
+
 
 def make_encoder_model():
     pass
@@ -25,6 +27,14 @@ def make_decoder_model():
 
 class TestMultiHeadAttention(unittest.TestCase):
     def test_whisper_tiny(self):
+        
+        test = whisper_encoder_test()
+        model = test.get_onnx_model()
+        onnxscript.optimizer.optimize(model)
+        model, fusion_count_m = xformers.fuse_xformers(model)
+        print(f"Fused {fusion_count_m} ops")
+
+
         # Generate encoder model
         whisper_encoder_model = onnx.load(
             "/workspace/testing/whisper-opt/whisper-tiny-4.48/whisper-tiny_encoder.onnx"
