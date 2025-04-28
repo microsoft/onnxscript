@@ -171,6 +171,10 @@ def is_value_type(typeinfo: TypeAnnotationValue) -> bool:
         if hasattr(typeinfo, "__bound__"):
             bound = typeinfo.__bound__
             return is_value_type(bound)
+        if hasattr(typeinfo, "__constraints__"):
+            constraints = typeinfo.__constraints__
+            if constraints:
+                return any(is_value_type(x) for x in constraints)
     raise ValueError(f"Unsupported type annotation {typeinfo}")
 
 
