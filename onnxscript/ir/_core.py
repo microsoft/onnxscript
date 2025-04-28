@@ -994,6 +994,7 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
 
 
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
+    """Immutable symbolic dimension that can be shared across multiple shapes."""
     __slots__ = ("_value",)
 
     def __init__(self, value: str | None) -> None:
@@ -1134,13 +1135,19 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
             value: The value of the dimension.
 
         Raises:
-            TypeError: If the shape is frozen and cannot be modified.
-            TypeError: If the value is not an int or SymbolicDim.
+            TypeError: If the shape is frozen and cannot be modified, unless the
+                existing dim and the new dim are both symbolic.
+            TypeError: If the value is not an int, str, SymbolicDim or None.
         """
         if self._frozen:
-            raise TypeError(
-                "The shape is frozen and cannot be modified. You can call .copy() to get a new mutable shape"
-            )
+            maybe_symbol = _maybe_convert_to_symbolic_dim(value)
+            if isinstance(self._dims[index], SymbolicDim) and isinstance(
+                maybe_symbol, SymbolicDim
+            ):
+                # Allow changing symbolic dims to other symbolic dims
+                self._dims[index] = maybe_symbol
+                return
+            raise TypeError("The shape is frozen and cannot be modified.")
 
         self._dims[index] = _maybe_convert_to_symbolic_dim(value)
 
