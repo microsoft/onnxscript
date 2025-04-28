@@ -2,7 +2,6 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import collections
 import inspect
 import typing
 from collections.abc import Sequence
@@ -41,7 +40,7 @@ _LISTTYPE_TO_ATTRTYPE_MAP = {
     bool: onnx.AttributeProto.INTS,  # experimental
 }
 
-_LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
+_LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, Sequence])
 
 # Map from ONNX AttributeProto type to its representation (in ONNX Script).
 _ATTRTYPE_TO_REPR = {
