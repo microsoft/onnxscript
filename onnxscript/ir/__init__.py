@@ -152,13 +152,7 @@ from onnxscript.ir.serde import TensorProtoTensor, from_proto, to_proto
 def __set_module() -> None:
     """Set the module of all functions in this module to this public module."""
     global_dict = globals()
-    import types
-
     for name in __all__:
-        if type(global_dict[name]) is types.GenericAlias:
-            # GenericAlias doesn't have a __module__ attribute
-            continue
-        # Set the module of the function to this module
         global_dict[name].__module__ = __name__
 
 
