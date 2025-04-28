@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Callable, Sequence, Union
 
 import onnxscript.ir as ir
+from onnxscript.ir.passes.common import shape_inference
 from onnxscript.rewriter import pattern
 
 Dim = Union[int, ir.SymbolicDim]
@@ -26,11 +27,18 @@ def _check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]) 
 def apply_fusion_rules(rules: pattern.RewriteRule | pattern.RewriteRuleSet) -> Callable:
     """
     Apply the given fusion rules to the model and return the number of fusions applied.
-    If debug is True, enable pattern matching tracer for debugging.
+
+    model: The input ONNX model represented as an `ir.Model`.
+    debug: If debug is True, enable pattern matching tracer for debugging.
+    apply_shape_inference: If True, apply shape inference after fusions.
     """
 
-    def apply_to(model: ir.Model, debug: bool = False) -> int:
+    def apply_to(
+        model: ir.Model, debug: bool = False, apply_shape_inference: bool = False
+    ) -> int:
         count = rules.apply_to_model(model)
+        if apply_shape_inference:
+            model = shape_inference.infer_shapes(model)
         if count == 0 and debug:
             tracer = pattern.MatchingTracer()
             rules.apply_to_model(model, tracer=tracer)
