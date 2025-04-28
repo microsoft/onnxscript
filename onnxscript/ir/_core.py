@@ -1138,7 +1138,9 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
             TypeError: If the value is not an int or SymbolicDim.
         """
         if self._frozen:
-            raise TypeError("The shape is frozen and cannot be modified. You can call .copy() to get a new mutable shape")
+            raise TypeError(
+                "The shape is frozen and cannot be modified. You can call .copy() to get a new mutable shape"
+            )
 
         self._dims[index] = _maybe_convert_to_symbolic_dim(value)
 
