@@ -131,7 +131,7 @@ def _is_tensor_type(typeinfo: TypeAnnotationValue) -> bool:
     if type(typeinfo) is onnx_types.TensorType:
         # Special case the handle when typeinfo is TensorType.
         # It seems abc.ABC in py39 has issues with issubclass
-        return False
+        return True
     if inspect.isclass(typeinfo) and issubclass(typeinfo, onnx_types.TensorType):
         return True
     return False
