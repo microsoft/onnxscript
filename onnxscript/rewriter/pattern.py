@@ -778,6 +778,11 @@ class OrValue(ValuePattern):
         self._op_to_pattern = mapping
         self._default_pattern = (tag_values[-1], values[-1])
 
+    @property
+    def tag_var(self) -> str | None:
+        """Returns the tag variable associated with the OrValue pattern."""
+        return self._tag_var
+
     def clone(self, node_map: dict[NodePattern, NodePattern]) -> OrValue:
         return OrValue([v.clone(node_map) for v in self._values], self.name)
 
@@ -1218,8 +1223,8 @@ class SimplePatternMatcher(PatternMatcher):
             i, pattern_choice = pattern_value.get_pattern(value)
             result = self._match_value(pattern_choice, value)
             if result:
-                if pattern_value._tag_var is not None:
-                    self._match.bind(pattern_value._tag_var, i)
+                if pattern_value.tag_var is not None:
+                    self._match.bind(pattern_value.tag_var, i)
             return result
         return True
 
