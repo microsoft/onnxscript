@@ -124,7 +124,9 @@ class TensorBase(Buffer, _protocols.TensorProtocol, _display.PrettyPrintable):
             return memoryview(self.tobytes())
 
         # Otherwise get the memoryview from the numpy array
-        array = np.ascontiguousarray(self.numpy())
+        array = self.numpy()
+        if not array.data.contiguous:
+            array = np.ascontiguousarray(array)
         assert self.dtype.itemsize == array.itemsize, "Bug: The itemsize should match"
         if not _IS_LITTLE_ENDIAN:
             array = array.view(array.dtype.newbyteorder("<"))
