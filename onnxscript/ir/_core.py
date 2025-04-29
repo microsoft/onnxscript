@@ -1056,6 +1056,10 @@ def _maybe_convert_to_symbolic_dim(
 
 
 class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
+    """Shape of a tensor.
+
+
+    """
     __slots__ = ("_dims", "_frozen")
 
     def __init__(
@@ -1078,7 +1082,8 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
                 Refer to https://github.com/onnx/onnx/blob/main/docs/DimensionDenotation.md#denotation-definition
                 for pre-defined dimension denotations.
             frozen: If True, the shape is immutable and cannot be modified. This
-                is useful when the shape is initialized by a Tensor.
+                is useful when the shape is initialized by a Tensor or when the shape
+                is shared across multiple tensors. The default is False.
         """
         self._dims: list[int | SymbolicDim] = [
             _maybe_convert_to_symbolic_dim(dim) for dim in dims
@@ -1092,10 +1097,6 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
             )
         self._frozen: bool = frozen
 
-    def copy(self, frozen: bool = False):
-        """Return a copy of the shape."""
-        return Shape(self._dims, self._denotations, frozen=frozen)
-
     @property
     def dims(self) -> tuple[int | SymbolicDim, ...]:
         """All dimensions in the shape.
@@ -1103,6 +1104,27 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         This property is read-only. Use __getitem__ and __setitem__ to modify the shape or create a new shape.
         """
         return tuple(self._dims)
+
+    @property
+    def frozen(self) -> bool:
+        """Whether the shape is frozen.
+
+        When the shape is frozen, it cannot be unfrozen, making it suitable to be shared.
+        Call :method:`freeze` to freeze the shape. Call :method:`copy` to create a
+        new shape with the same dimensions that can be modified.
+        """
+        return self._frozen
+
+    def freeze(self) -> None:
+        """Freeze the shape.
+
+        When the shape is frozen, it cannot be unfrozen, making it suitable to be shared.
+        """
+        self._frozen = True
+
+    def copy(self, frozen: bool = False):
+        """Return a copy of the shape."""
+        return Shape(self._dims, self._denotations, frozen=frozen)
 
     def rank(self) -> int:
         """The rank of the shape."""
@@ -1136,18 +1158,10 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
             value: The value of the dimension.
 
         Raises:
-            TypeError: If the shape is frozen and cannot be modified, unless the
-                existing dim and the new dim are both symbolic.
-            TypeError: If the value is not an int, str, SymbolicDim or None.
+            TypeError: If the shape is frozen and cannot be modified.
+            TypeError: If the value is not an int or SymbolicDim.
         """
         if self._frozen:
-            maybe_symbol = _maybe_convert_to_symbolic_dim(value)
-            if isinstance(self._dims[index], SymbolicDim) and isinstance(
-                maybe_symbol, SymbolicDim
-            ):
-                # Allow changing symbolic dims to other symbolic dims
-                self._dims[index] = maybe_symbol
-                return
             raise TypeError("The shape is frozen and cannot be modified.")
 
         self._dims[index] = _maybe_convert_to_symbolic_dim(value)
