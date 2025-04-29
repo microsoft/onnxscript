@@ -81,18 +81,18 @@ class TorchTensor(_core.Tensor):
 
         # Calling .contiguous() is usually less costly than calling it on numpy arrays
         # so we do it first for users assuming a contiguous array is needed for most usages
-        self.raw: torch.Tensor = self.raw.contiguous()
+        torch_tensor: torch.Tensor = self.raw.contiguous()
         if self.dtype == ir.DataType.BFLOAT16:
-            return self.raw.view(torch.uint16).numpy(force=True).view(self.dtype.numpy())
+            return torch_tensor.view(torch.uint16).numpy(force=True).view(self.dtype.numpy())
         if self.dtype in {
             ir.DataType.FLOAT8E4M3FN,
             ir.DataType.FLOAT8E4M3FNUZ,
             ir.DataType.FLOAT8E5M2,
             ir.DataType.FLOAT8E5M2FNUZ,
         }:
-            return self.raw.view(torch.uint8).numpy(force=True).view(self.dtype.numpy())
+            return torch_tensor.view(torch.uint8).numpy(force=True).view(self.dtype.numpy())
 
-        return self.raw.numpy(force=True)
+        return torch_tensor.numpy(force=True)
 
     def __array__(self, dtype: Any = None, copy: bool | None = None) -> npt.NDArray:
         del copy  # Unused, but needed for the signature
