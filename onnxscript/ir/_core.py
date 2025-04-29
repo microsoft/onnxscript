@@ -115,23 +115,7 @@ class TensorBase(Buffer, _protocols.TensorProtocol, _display.PrettyPrintable):
 
         This is used to support the buffer protocol.
         """
-        if self.dtype in {
-            _enums.DataType.INT4,
-            _enums.DataType.UINT4,
-            _enums.DataType.FLOAT4E2M1,
-        }:
-            # Packing is required. So we call tobytes() directly
-            return memoryview(self.tobytes())
-
-        # Otherwise get the memoryview from the numpy array
-        array = self.numpy()
-        if not array.data.c_contiguous:
-            array = np.ascontiguousarray(array)
-        assert self.dtype.itemsize == array.itemsize, "Bug: The itemsize should match"
-        if not _IS_LITTLE_ENDIAN:
-            # Need to copy because we are returning the underlying data directly
-            array = array.view(array.dtype.newbyteorder("<")).copy()
-        return array.data
+        return self.tobytes().__buffer__(flags)
 
     @property
     def size(self) -> int:
@@ -429,6 +413,29 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
 
     def __repr__(self) -> str:
         return f"{self._repr_base()}({self._raw!r}, name={self.name!r})"
+
+    def __buffer__(self, flags: int, /) -> memoryview:
+        """Return a memoryview of the tensor.
+
+        This is used to support the buffer protocol.
+        """
+        if self.dtype in {
+            _enums.DataType.INT4,
+            _enums.DataType.UINT4,
+            _enums.DataType.FLOAT4E2M1,
+        }:
+            # Packing is required. So we call tobytes() directly
+            return self.tobytes().__buffer__(flags)
+
+        # Otherwise get the memoryview from the numpy array
+        array = self.numpy()
+        if not array.data.c_contiguous:
+            array = np.ascontiguousarray(array)
+        assert self.dtype.itemsize == array.itemsize, "Bug: The itemsize should match"
+        if not _IS_LITTLE_ENDIAN:
+            # Need to copy because we are returning the underlying data directly
+            array = array.view(array.dtype.newbyteorder("<")).copy()
+        return array.__buffer__(flags)
 
     @property
     def dtype(self) -> _enums.DataType:
@@ -987,6 +994,13 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
 
     def __repr__(self) -> str:
         return f"{self._repr_base()}(func={self._func!r}, name={self.name!r})"
+
+    def __buffer__(self, flags: int, /) -> memoryview:
+        """Return a memoryview of the tensor.
+
+        This is used to support the buffer protocol.
+        """
+        return self._evaluate().__buffer__(flags)
 
     @property
     def raw(self) -> Callable[[], _protocols.TensorProtocol]:

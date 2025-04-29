@@ -373,9 +373,6 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
             # Note we cannot use view() here because the storage dtype may not be the same size as the target
             return array.astype(dtype.numpy()).reshape(self._proto.dims)
 
-    def __buffer__(self, flags: int, /) -> memoryview:
-        return memoryview(self.tobytes())
-
     def tobytes(self) -> bytes:
         """Return the tensor as a byte string conformed to the ONNX specification, in little endian.
 

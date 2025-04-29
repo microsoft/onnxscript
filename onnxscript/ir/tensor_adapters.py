@@ -102,6 +102,25 @@ class TorchTensor(_core.Tensor):
             return self.numpy()
         return self.numpy().__array__(dtype)
 
+    def __buffer__(self, flags: int, /) -> memoryview:
+        """Return a memoryview of the tensor.
+
+        This is used to support the buffer protocol.
+        """
+        if self.dtype in {
+            ir.DataType.INT4,
+            ir.DataType.UINT4,
+            ir.DataType.FLOAT4E2M1,
+        }:
+            # Packing is required. So we call tobytes() directly
+            return self.tobytes().__buffer__(flags)
+
+        # Otherwise get the memoryview from the numpy array
+        array = self.numpy()
+        assert array.data.c_contiguous, "Bug: The array should be contiguous"
+        assert self.dtype.itemsize == array.itemsize, "Bug: The itemsize should match"
+        return array.__buffer__(flags)
+
     def tobytes(self) -> bytes:
         # Implement tobytes to support native PyTorch types so we can use types like bloat16
         # Reading from memory directly is also more efficient because
