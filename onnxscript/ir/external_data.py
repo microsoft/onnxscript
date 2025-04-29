@@ -173,14 +173,13 @@ def _write_external_data(
         for tensor, tensor_info in zip(tensors, external_data_infos, strict=True):
             current_offset = tensor_info.offset
             assert tensor is not None
-            raw_data = tensor.tobytes()
-            if isinstance(tensor, _core.ExternalTensor):
-                tensor.release()
             # Pad file to required offset if needed
             file_size = data_file.tell()
             if current_offset > file_size:
                 data_file.write(b"\0" * (current_offset - file_size))
-            data_file.write(raw_data)
+            tensor.tofile(data_file)
+            if isinstance(tensor, _core.ExternalTensor):
+                tensor.release()
 
 
 def _create_external_tensor(
