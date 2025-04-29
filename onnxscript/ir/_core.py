@@ -12,7 +12,6 @@
 
 from __future__ import annotations
 
-import abc
 import contextlib
 import dataclasses
 import heapq
