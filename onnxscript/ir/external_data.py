@@ -174,14 +174,14 @@ def _write_external_data(
             current_offset = tensor_info.offset
             print(tensor.name)
             assert tensor is not None
-            with memoryview(tensor) as view:
-                data_file.write(view)
-            if isinstance(tensor, _core.ExternalTensor):
-                tensor.release()
             # Pad file to required offset if needed
             file_size = data_file.tell()
             if current_offset > file_size:
                 data_file.write(b"\0" * (current_offset - file_size))
+            with memoryview(tensor) as view:
+                data_file.write(view)
+            if isinstance(tensor, _core.ExternalTensor):
+                tensor.release()
 
 
 def _create_external_tensor(
