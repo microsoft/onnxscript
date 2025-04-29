@@ -4323,11 +4323,12 @@ def aten_index_put(
     <https://github.com/pytorch/pytorch/blob/main/torch/onnx/symbolic_opset11.py#L212>`_.
     """
 
-    def _make_reshape_list_broadcastable(reshape_list, values_shape):
+    def _make_reshape_list_broadcastable(reshape_list: list[INT64], values_shape, values_rank: int):
         # Remove ones until the rank of reshape_list matches values_shape.
-        while len(reshape_list) > len(values_shape) and 1 in reshape_list:
+        while len(reshape_list) > values_rank and 1 in reshape_list:
             reshape_list.remove(1)
 
+        TODO(justinchuby): Here
         # Now ensure each dimension is broadcastable:
         # This is mandatory when mixing basic and advanced indexing
         # Example: data((10, 3, 4)), indices([[0, 1], :, [0, 1]]) values(2, 3)
@@ -4348,33 +4349,35 @@ def aten_index_put(
         indices = list(indices) + [None] * (self_rank - len(indices))
 
     # Get values shape
-    values_shape = tuple(values.shape)
+    values_shape = op.Shape(values)
+    values_rank = len(values.shape)  # Statically known
 
     index_vectors = []
     for i in range(self_rank):
         if indices[i] is None:
             # For a full slice along dim i, create a range index [0, self.shape[i]).
-            idx = op.Range(0, self.shape[i], 1)
-            reshape_update = self.shape[i]
+            idx = op.Range(0, op.Shape(self), 1)
+            reshape_update = op.Shape(self, start=i, end=i+1)
         else:
             idx = indices[i]
-            reshape_update = math.prod(idx.shape)
+            reshape_update = op.ReduceProd(op.Shape(idx), keepdims=True)
             # when Index is more than 1D, flatten it and also the values shape
             # Example: self shape: (10, 3), indices[i] shape: (2, 4), values shape: (2, 4, 3)
             # Indices -> (2*4,) and values shape (2*4, 32)
-            if len(idx.shape) > 1:
-                values_shape = (reshape_update, *values_shape[len(idx.shape) :])
+            idx_rank = len(idx.shape)
+            if idx_rank > 1:
+                values_shape = op.Concat(reshape_update, op.Shape(values, start=idx_rank, end=values_rank))
 
             # Flatten index (always working with 1D index in each dim)
             idx = op.Reshape(idx, [-1])
 
         # Create a reshape pattern: one value per index dimension,
         # with the current dimension set to the update size.
-        reshape_list = [1] * len(indices)
+        reshape_list = [[1]] * len(indices)
         reshape_list[i] = reshape_update
 
         # Adjust the reshape list to match the values shape.
-        reshape_list = _make_reshape_list_broadcastable(reshape_list, values_shape)
+        reshape_list = _make_reshape_list_broadcastable(reshape_list, values_shape, values_rank)
 
         # Reshape and expand the index.
         idx = op.Reshape(idx, reshape_list)
