@@ -134,7 +134,8 @@ def optimize_for_ort(
     rewrite(model, ORT_PATTERN_REWRITE_RULES)
     return model, fusion_count
 
-'''
+
+"""
 from onnxscript import ir, rewriter
 import onnxscript.rewriter.ort_fusions as ort_fusions
 model_ir = ir.serde.deserialize_model(model)
@@ -142,4 +143,4 @@ model_ir, count = ort_fusions.optimize_for_ort(model_ir)
 print("Applied fusions", count)
 print("\n\n\n\n\n\n\n\n\n\n\n")
 model = ir.serde.serialize_model(model_ir)
-'''
+"""

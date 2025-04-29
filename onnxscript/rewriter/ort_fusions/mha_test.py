@@ -8,8 +8,11 @@ import packaging.version
 
 import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
+from onnxscript.ir.passes.common import shape_inference
 from onnxscript.rewriter.ort_fusions._test_utils import ORT_VERSION, assert_allclose, ort_run
 from onnxscript.rewriter.ort_fusions.models._smollm_2 import smollm_test_2
+from onnxscript.rewriter.ort_fusions.models._whisper_decoder import whisper_decoder_test
+from onnxscript.rewriter.ort_fusions.models._whisper_encoder import whisper_encoder_test
 
 
 class TestMultiHeadAttention(unittest.TestCase):
@@ -39,6 +42,32 @@ class TestMultiHeadAttention(unittest.TestCase):
             # Run model again
             new_outputs = ort_run("optimized", model, inputs)
             assert_allclose(new_outputs, original_outputs)
+
+    def test_whisper_encoder(self):
+        # Generate model
+        whisper_encoder = whisper_encoder_test()
+        model = whisper_encoder.get_onnx_model()
+        onnxscript.optimizer.optimize(model)
+
+        # Fuse SDPA and MHA
+        sdpa_count = xformers.fuse_sdpa(model)
+        self.assertGreater(sdpa_count, 0)
+        model = shape_inference.infer_shapes(model)
+        mha_count = xformers.fuse_mha(model)
+        self.assertGreater(mha_count, 0)
+
+    def test_whisper_decoder(self):
+        # Generate model
+        whisper_decoder = whisper_decoder_test()
+        model = whisper_decoder.get_onnx_model()
+        onnxscript.optimizer.optimize(model)
+
+        # Fuse SDPA and MHA
+        sdpa_count = xformers.fuse_sdpa(model)
+        self.assertGreater(sdpa_count, 0)
+        model = shape_inference.infer_shapes(model)
+        mha_count = xformers.fuse_mha(model)
+        self.assertGreater(mha_count, 0)
 
 
 if __name__ == "__main__":

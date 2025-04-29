@@ -58,8 +58,7 @@ class TestAttentionFusion(unittest.TestCase):
 
         @script()
         def model_with_mha(input, weight, bias):
-            qkv_no_bias = op.MatMul(input, weight)
-            qkv = op.Add(qkv_no_bias, bias)
+            qkv = op.MatMul(input, weight)
 
             query_BSDh = op.Slice(qkv, [0], [160], [2])
             key_BSDh = op.Slice(qkv, [160], [320], [2])
@@ -69,14 +68,18 @@ class TestAttentionFusion(unittest.TestCase):
                 query_BSDh,
                 key_BSDh,
                 value_BSDh,
+                bias,
+                None,
+                None,
+                None,
+                None,
                 num_heads=self.num_heads,
             )
             return mha
 
         @script()
         def model_with_mha_past(input, weight, bias, past):
-            qkv_no_bias = op.MatMul(input, weight)
-            qkv = op.Add(qkv_no_bias, bias)
+            qkv = op.MatMul(input, weight)
 
             query_BSDh = op.Slice(qkv, [0], [160], [2])
             key_BSDh = op.Slice(qkv, [160], [320], [2])
@@ -91,7 +94,7 @@ class TestAttentionFusion(unittest.TestCase):
                 query_BSDh,
                 key_BSDh,
                 value_BSDh,
-                None,
+                bias,
                 None,
                 None,
                 past_key,
