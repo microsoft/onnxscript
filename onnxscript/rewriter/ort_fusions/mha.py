@@ -287,8 +287,10 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         position_ids,
         cos,
         sin,
+        q_scale=None,
         **_,
     ):
+        scale = _ir_utils.get_singleton_value(q_scale)
         num_heads = _ir_utils.get_dim(query_BSHDh, 2)
         if not isinstance(num_heads, int):
             return None
@@ -323,6 +325,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 None,
                 None,
                 num_heads=num_heads,
+                scale=scale,
                 _domain="com.microsoft",
                 _outputs=num_outputs,
             )
@@ -337,6 +340,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             past_key,
             past_value,
             num_heads=num_heads,
+            scale=scale,
             _domain="com.microsoft",
             _outputs=num_outputs,
         )

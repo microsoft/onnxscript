@@ -190,6 +190,7 @@ def make_model(
 
 
 def make_model_with_random_weights():
+    np.random.seed(10)  # Set a fixed seed
     decoder_embed_positions_weight = np.random.rand(448, 384).astype(np.float32)
     proj_out_weight = np.random.rand(51865, 384).astype(np.float32)
     decoder_layers_0_self_attn_layer_norm_weight = np.random.rand(384).astype(np.float32)
@@ -256,6 +257,7 @@ class _WhisperDecoderTest:
 
     def get_ort_inputs(self):
         if not hasattr(self, "_ort_inputs"):
+            np.random.seed(10)  # Set a fixed seed
             inputs = {
                 "decoder_input_ids": np.random.randint(0, 49152, (1, 1)).astype(np.int32),
                 "encoder_hidden_states": np.random.rand(1, 1500, 384).astype(np.float32),

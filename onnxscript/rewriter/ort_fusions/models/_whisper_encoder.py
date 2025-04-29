@@ -154,7 +154,7 @@ def make_model(
 
 
 def make_model_with_random_weights():
-    np.random.seed(42)  # Set a fixed seed
+    np.random.seed(10)  # Set a fixed seed
     encoder_encoder_embed_positions_weight = np.random.rand(1500, 384).astype(np.float32)
     encoder_encoder_conv1_weight = np.random.rand(384, 80, 3).astype(np.float32)
     encoder_encoder_conv1_bias = np.random.rand(384).astype(np.float32)
@@ -224,7 +224,7 @@ class _WhisperEncoderTest:
 
     def get_ort_inputs(self):
         if not hasattr(self, "_ort_inputs"):
-            np.random.seed(42)  # Set a fixed seed
+            np.random.seed(10)  # Set a fixed seed
             inputs = {
                 "audio_features": np.random.rand(1, 80, 3000).astype(np.float32),
             }

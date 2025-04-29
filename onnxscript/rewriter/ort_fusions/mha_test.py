@@ -49,12 +49,24 @@ class TestMultiHeadAttention(unittest.TestCase):
         model = whisper_encoder.get_onnx_model()
         onnxscript.optimizer.optimize(model)
 
+        test_with_ort = packaging.version.Version("1.20") <= ORT_VERSION
+        if test_with_ort:
+            # Run model
+            inputs = whisper_encoder.get_ort_inputs()
+            original_outputs = ort_run("original", model, inputs)
+
         # Fuse SDPA and MHA
         sdpa_count = xformers.fuse_sdpa(model)
         self.assertGreater(sdpa_count, 0)
         model = shape_inference.infer_shapes(model)
         mha_count = xformers.fuse_mha(model)
         self.assertGreater(mha_count, 0)
+        onnxscript.optimizer.optimize(model)
+
+        if test_with_ort:
+            # Run model again
+            new_outputs = ort_run("optimized", model, inputs)
+            assert_allclose(new_outputs, original_outputs)
 
     def test_whisper_decoder(self):
         # Generate model
@@ -62,12 +74,24 @@ class TestMultiHeadAttention(unittest.TestCase):
         model = whisper_decoder.get_onnx_model()
         onnxscript.optimizer.optimize(model)
 
+        test_with_ort = packaging.version.Version("1.20") <= ORT_VERSION
+        if test_with_ort:
+            # Run model
+            inputs = whisper_decoder.get_ort_inputs()
+            original_outputs = ort_run("original", model, inputs)
+
         # Fuse SDPA and MHA
         sdpa_count = xformers.fuse_sdpa(model)
         self.assertGreater(sdpa_count, 0)
         model = shape_inference.infer_shapes(model)
         mha_count = xformers.fuse_mha(model)
         self.assertGreater(mha_count, 0)
+        onnxscript.optimizer.optimize(model)
+
+        if test_with_ort:
+            # Run model again
+            new_outputs = ort_run("optimized", model, inputs)
+            assert_allclose(new_outputs, original_outputs)
 
 
 if __name__ == "__main__":
