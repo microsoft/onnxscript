@@ -95,7 +95,7 @@ def _compatible_with_dlpack(obj: Any) -> TypeGuard[_protocols.DLPackCompatible]:
     return hasattr(obj, "__dlpack__")
 
 
-class TensorBase(abc.ABC, Buffer, _protocols.TensorProtocol, _display.PrettyPrintable):
+class TensorBase(Buffer, _protocols.TensorProtocol, _display.PrettyPrintable):
     """Convenience Shared methods for classes implementing TensorProtocol."""
 
     __slots__ = ()
