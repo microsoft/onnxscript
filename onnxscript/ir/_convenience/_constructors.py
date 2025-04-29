@@ -111,6 +111,15 @@ def tensor(
     else:
         numpy_dtype = None
     array = np.array(value, dtype=numpy_dtype)
+    if isinstance(value, str) or (
+        isinstance(value, Sequence) and all(isinstance(elem, str) for elem in value)
+    ):
+        return _core.StringTensor(
+            array,
+            shape=_core.Shape(array.shape),
+            name=name,
+            doc_string=doc_string,
+        )
     return _core.Tensor(
         array,
         dtype=dtype,
