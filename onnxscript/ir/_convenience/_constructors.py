@@ -111,6 +111,8 @@ def tensor(
     else:
         numpy_dtype = None
     array = np.array(value, dtype=numpy_dtype)
+
+    # Handle string tensors by encoding them
     if isinstance(value, str) or (
         isinstance(value, Sequence) and all(isinstance(elem, str) for elem in value)
     ):
@@ -121,6 +123,7 @@ def tensor(
             name=name,
             doc_string=doc_string,
         )
+
     return _core.Tensor(
         array,
         dtype=dtype,
