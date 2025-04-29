@@ -81,7 +81,9 @@ class TorchTensor(_core.Tensor):
 
         # Calling .contiguous() is usually less costly than calling it on numpy arrays
         # so we do it first for users assuming a contiguous array is needed for most usages
-        torch_tensor: torch.Tensor = self.raw.contiguous()
+        torch_tensor: torch.Tensor = self.raw
+        if not torch_tensor.is_contiguous():
+            torch_tensor = torch_tensor.contiguous()
         if self.dtype == ir.DataType.BFLOAT16:
             return torch_tensor.view(torch.uint16).numpy(force=True).view(self.dtype.numpy())
         if self.dtype in {

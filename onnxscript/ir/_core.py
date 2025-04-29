@@ -129,8 +129,9 @@ class TensorBase(Buffer, _protocols.TensorProtocol, _display.PrettyPrintable):
             array = np.ascontiguousarray(array)
         assert self.dtype.itemsize == array.itemsize, "Bug: The itemsize should match"
         if not _IS_LITTLE_ENDIAN:
-            array = array.view(array.dtype.newbyteorder("<"))
-        return memoryview(array)  # type: ignore[arg-type]
+            # Need to copy because we are returning the underlying data directly
+            array = array.view(array.dtype.newbyteorder("<")).copy()
+        return array.data
 
     @property
     def size(self) -> int:
