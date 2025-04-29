@@ -20,7 +20,6 @@ from typing import (
 import numpy as np
 import onnx
 import onnx.defs
-import onnx.helper  # noqa: TID251
 import onnx.reference
 from typing_extensions import TypeAlias
 
