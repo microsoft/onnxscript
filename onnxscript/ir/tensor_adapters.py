@@ -79,7 +79,9 @@ class TorchTensor(_core.Tensor):
     def numpy(self) -> npt.NDArray:
         import torch
 
-        self.raw: torch.Tensor
+        # Calling .contiguous() is usually less costly than calling it on numpy arrays
+        # so we do it first for users assuming a contiguous array is needed for most usages
+        self.raw: torch.Tensor = self.raw.contiguous()
         if self.dtype == ir.DataType.BFLOAT16:
             return self.raw.view(torch.uint16).numpy(force=True).view(self.dtype.numpy())
         if self.dtype in {
