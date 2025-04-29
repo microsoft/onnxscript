@@ -123,7 +123,7 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         # Use math.ceil because when dtype is INT4, the itemsize is 0.5
         return math.ceil(self.dtype.itemsize * self.size)
 
-    def tofile(self: _protocols.TensorProtocol, file: BinaryIO, /) -> None:
+    def tofile(self, file: BinaryIO, /) -> None:
         """Write the tensor content as bytes to a file-like object."""
         if self.dtype in {
             _enums.DataType.INT4,
