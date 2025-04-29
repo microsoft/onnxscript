@@ -52,16 +52,13 @@ def _pre_optimize(model: ir.Model) -> ir.Model:
     return model
 
 
-def fuse_xformers(
-    model: ir.Model, debug: bool = False, apply_shape_inference: bool = False
-) -> tuple[ir.Model, dict[str, int]]:
+def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[str, int]]:
     """
     Apply transformer-specific fusions to the given model.
 
     Args:
         model: The input ONNX model represented as an `ir.Model`.
         debug: If debug is True, enable pattern matching tracer for debugging.
-        apply_shape_inference: If True, apply shape inference after fusions.
 
     Returns:
         A tuple containing:
@@ -72,7 +69,7 @@ def fuse_xformers(
 
     model = _pre_optimize(model)
 
-    def fuse(func):
+    def fuse(func, apply_shape_inference: bool = False):
         return func(model, debug=debug, apply_shape_inference=apply_shape_inference)
 
     fusion_count["erf_gelu"] = fuse(fuse_erfgelu)
@@ -82,7 +79,7 @@ def fuse_xformers(
     fusion_count["rotary_embedding"] = fuse(fuse_rotary_embedding)
     fusion_count["partial_rotary_embedding"] = fuse(fuse_partial_rotary_embedding)
     fusion_count["cos_sin_cache"] = fuse(fuse_cos_sin_cache)
-    fusion_count["sdpa"] = fuse(fuse_sdpa)
+    fusion_count["sdpa"] = fuse(fuse_sdpa, apply_shape_inference=True)
     # Optimize to avoid trying multiple attention-based fusions
     fusion_count["mha"] = fuse(fuse_mha)
     if fusion_count["mha"] == 0:
@@ -106,7 +103,6 @@ def optimize_for_ort(
     model: ir.Model,
     config_name: str | None = None,
     debug: bool = False,
-    apply_shape_inference: bool = False,
 ) -> tuple[ir.Model, dict[str, int]]:
     """
     Optimize the model for ORT backend.
@@ -120,7 +116,6 @@ def optimize_for_ort(
             Typically it identifies the Execution Provider (EP) to optimize for.
             If None, the default configuration will be used.
         debug: If debug is True, enable pattern matching tracer for debugging.
-        apply_shape_inference: If True, apply shape inference after fusions.
 
     Returns:
         A tuple containing:
@@ -129,7 +124,8 @@ def optimize_for_ort(
     """
 
     model, fusion_count = fuse_xformers(
-        model, debug=debug, apply_shape_inference=apply_shape_inference
+        model,
+        debug=debug,
     )
     # Apply the ORT pattern rewrite rules.
     rewrite(model, ORT_PATTERN_REWRITE_RULES)
