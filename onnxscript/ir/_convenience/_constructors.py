@@ -114,9 +114,9 @@ def tensor(
 
     # Handle string tensors by encoding them
     if isinstance(value, str) or (
-        isinstance(value, Sequence) and all(isinstance(elem, str) for elem in value)
+        isinstance(value, Sequence) and value and all(isinstance(elem, str) for elem in value)
     ):
-        array = np.strings.encode(array, encoding='utf-8')
+        array = np.strings.encode(array, encoding="utf-8")
         return _core.StringTensor(
             array,
             shape=_core.Shape(array.shape),
