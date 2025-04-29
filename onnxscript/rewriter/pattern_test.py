@@ -688,6 +688,39 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(len(model.graph), 2)
         self.assertEqual([x.op_type for x in model.graph], ["Constant", "Identity"])
 
+    def test_or_pattern(self):
+        def source_pattern(op, x, y, bias):
+            t1 = op.MatMul(x, y)
+            t2 = op.Add(t1, bias)
+            t1_or_t2 = pattern.OrValue([t1, t2])
+            return op.Relu(t1_or_t2)
+
+        def replacement(op, x, y, bias):
+            if bias is None:
+                return op.WithoutBias(x, y)
+            else:
+                return op.WithBias(x, y, bias)
+
+        rule = pattern.RewriteRule(source_pattern, replacement)
+
+        @script()
+        def test_model1(x: FLOAT[16,32], y: FLOAT[32, 16]) -> FLOAT[16, 16]:
+            return op.Relu(op.MatMul(x, y))
+
+        model_proto = test_model1.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        rule.apply_to_model(model)
+        self.assertEqual([x.op_type for x in model.graph], ["WithoutBias"])
+
+        @script()
+        def test_model2(x: FLOAT[16,32], y: FLOAT[32, 16], bias: FLOAT[16]) -> FLOAT[16, 16]:
+            return op.Relu(op.Add(op.MatMul(x, y), bias))
+
+        model_proto = test_model2.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        rule.apply_to_model(model)
+        self.assertEqual([x.op_type for x in model.graph], ["WithBias"])    
+
 
 class PatternBuilderTest(unittest.TestCase):
     def test_pattern_builder_context(self):

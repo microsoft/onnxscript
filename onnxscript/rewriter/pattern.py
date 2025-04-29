@@ -466,6 +466,7 @@ class ValuePattern:
     def __str__(self) -> str:
         return self._name if self._name is not None else "anonymous:" + str(id(self))
 
+OpIdentifier = Tuple[str, str, str]
 
 class NodePattern:
     """Represents a pattern that matches against a Node.
@@ -511,7 +512,7 @@ class NodePattern:
         if isinstance(op, str) and isinstance(domain, StringConstantPattern):
             # TODO(rama): support overloaded operators.
             overload = ""
-            self._op_identifier: tuple[str, str, str] | None = (
+            self._op_identifier: OpIdentifier | None = (
                 domain.value(),
                 op,
                 overload,
@@ -535,7 +536,7 @@ class NodePattern:
         inputs_and_attributes = f"{inputs}, {attributes}" if attributes else inputs
         return f"{outputs} = {qualified_op} ({inputs_and_attributes})"
 
-    def op_identifier(self) -> Tuple[str, str, str] | None:
+    def op_identifier(self) -> OpIdentifier | None:
         return self._op_identifier
 
     @property
@@ -629,11 +630,6 @@ class NodeOutputPattern(ValuePattern):
 Var = ValuePattern
 
 
-def _is_pattern_variable(x: Any) -> bool:
-    # The derived classes of ValuePattern represent constant patterns and node-output patterns.
-    return type(x) is ValuePattern
-
-
 class AnyValue(ValuePattern):
     """Represents a pattern that matches against any value."""
 
@@ -716,6 +712,59 @@ class Constant(ValuePattern):
 
     def __str__(self) -> str:
         return str(self._value)
+
+class OrValue(ValuePattern):
+    """Represents a (restricted) form of value pattern disjunction."""
+
+    def __init__(self, values: Sequence[ValuePattern], name: str | None = None) -> None:
+        """
+        Initialize an OrValue pattern.
+
+        Args:
+            values (Sequence[ValuePattern]): A sequence of value patterns to match against.
+                Must contain at least two alternatives. All value patterns except the last one
+                must have a unique producer id. This allows the pattern-matching to be deterministic,
+                without the need for backtracking.
+            name (str | None, optional): An optional variable name for the pattern. Defaults to None.
+        """
+        super().__init__(name)
+        if len(values) < 2:
+            raise ValueError("OrValue must have at least two alternatives.")
+
+        mapping: dict[OpIdentifier, NodeOutputPattern] = {}
+        for alternative in values[:-1]:
+            if not isinstance(alternative, NodeOutputPattern):
+                raise TypeError(
+                    f"Invalid type {type(alternative)} for OrValue. Expected NodeOutputPattern."
+                )
+            producer = alternative.producer()
+            id = producer.op_identifier()
+            if id is None:
+                raise ValueError(
+                    f"Invalid producer {producer} for OrValue. Expected a NodePattern with op identifier."
+                )
+            if id in mapping:
+                raise ValueError(
+                    f"Invalid producer {producer} for OrValue. Expected a unique producer id for each alternative."
+                )
+            mapping[id] = alternative
+        self._op_to_pattern = mapping
+        self._default_pattern = values[-1]
+
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> OrValue:
+        return OrValue([v.clone(node_map) for v in self._values], self.name)
+
+    def get_pattern(self, value: ir.Value) -> ValuePattern:
+        """Returns the pattern that should be tried for the given value."""
+        producer = value.producer()
+        if producer is not None:
+            id = producer.op_identifier()
+            if id is not None and id in self._op_to_pattern:
+                return self._op_to_pattern[id]
+        return self._default_pattern
+    
+    def __str__(self) -> str:
+        return f"OrValue({self._values})"
 
 
 def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[NodePattern]:
@@ -1136,6 +1185,11 @@ class SimplePatternMatcher(PatternMatcher):
             if value is None:
                 return self.fail("Mismatch: Constant pattern does not match None.")
             return self._match_constant(pattern_value, value)
+        if isinstance(pattern_value, OrValue):
+            if value is None:
+                return self.fail("Mismatch: OrValue pattern does not match None.")
+            pattern_choice = pattern_value.get_pattern(value)
+            return self._match_value(pattern_choice, value)
         return True
 
     def _match_node_output(self, pattern_value: NodeOutputPattern, value: ir.Value) -> bool:
