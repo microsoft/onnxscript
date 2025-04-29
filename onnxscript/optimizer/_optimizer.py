@@ -4,28 +4,13 @@ from __future__ import annotations
 
 import logging
 
+import onnxscript.ir.passes.common.constant_manipulation
+import onnxscript.ir.passes.common.inliner
+import onnxscript.ir.passes.common.unused_removal
 from onnxscript import ir, rewriter
-from onnxscript.optimizer import _constant_folding, _inliner
-from onnxscript.optimizer._remove_unused import remove_unused_nodes
-from onnxscript.rewriter import (
-    broadcast_to_matmul,
-    cast_constant_of_shape,
-    collapse_slices,
-    gemm_to_matmul_add,
-    llama_rule_sets,
-    no_op,
-)
+from onnxscript.optimizer import _constant_folding
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_REWRITE_RULES = [
-    *no_op.rules.rules,  # TODO: merge this rule into constant folding?
-    *broadcast_to_matmul.rules.rules,
-    gemm_to_matmul_add.rule,
-    *cast_constant_of_shape.rules.rules,
-    *collapse_slices.rules.rules,
-    *llama_rule_sets.llama_p0_rule_set().rules,
-]
 
 
 def optimize_ir(
@@ -36,6 +21,7 @@ def optimize_ir(
     stop_if_no_change: bool = True,
     input_size_limit: int = _constant_folding.DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
     output_size_limit: int = _constant_folding.DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
+    inline: bool = True,
 ) -> None:
     """Optimizes a model.
 
@@ -47,17 +33,32 @@ def optimize_ir(
             greater than this. Does not apply to special ops like Shape() and Size().
         output_size_limit: Will not rewrite any foldable-op into a Constant op if the size
             of the output tensor is greater than this.
-        stop_if_no_change: Not supported currently (has no effect). Meant to stop the
-            outer optimization loop if no change is detected in one iteration.
+        stop_if_no_change: Stop the optimization loop if no change is detected in an iteration.
+        inline: If True, inlines all functions in the model.
     """
-    del stop_if_no_change  # Looks like rewriter doesn't support this yet.
-    _inliner.inline(model)
-    for _ in range(num_iterations):
-        _constant_folding.fold_constants(
-            model,
-            onnx_shape_inference=onnx_shape_inference,
-            input_size_limit=input_size_limit,
-            output_size_limit=output_size_limit,
-        )
-        rewriter.rewrite(model, pattern_rewrite_rules=_DEFAULT_REWRITE_RULES)
-    remove_unused_nodes(model)
+    passes = [
+        ir.passes.PassManager(
+            [
+                _constant_folding.FoldConstantsPass(
+                    shape_inference=onnx_shape_inference,
+                    input_size_limit=input_size_limit,
+                    output_size_limit=output_size_limit,
+                ),
+                rewriter.RewritePass(rewriter._DEFAULT_REWRITE_RULES),
+                onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass(),
+                onnxscript.ir.passes.common.unused_removal.RemoveUnusedFunctionsPass(),
+                onnxscript.ir.passes.common.unused_removal.RemoveUnusedOpsetsPass(),
+            ],
+            steps=num_iterations,
+            early_stop=stop_if_no_change,
+        ),
+        onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass(),
+        onnxscript.ir.passes.common.constant_manipulation.LiftConstantsToInitializersPass(),
+    ]
+    if inline:
+        # Inline all functions first before optimizing
+        passes = [onnxscript.ir.passes.common.inliner.InlinePass(), *passes]
+    optimizer_pass = ir.passes.Sequential(*passes)
+    assert optimizer_pass.in_place
+    result = optimizer_pass(model)
+    assert result.model is model

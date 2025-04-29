@@ -8,10 +8,12 @@ __all__ = [
     "traversal",
     "convenience",
     "external_data",
+    "tape",
     # IR classes
     "Tensor",
     "ExternalTensor",
     "StringTensor",
+    "LazyTensor",
     "SymbolicDim",
     "Shape",
     "TensorType",
@@ -80,7 +82,7 @@ __all__ = [
     "save",
 ]
 
-from onnxscript.ir import convenience, external_data, passes, serde, traversal
+from onnxscript.ir import convenience, external_data, passes, serde, tape, traversal
 from onnxscript.ir._convenience._constructors import node, tensor
 from onnxscript.ir._core import (
     Attr,
@@ -103,6 +105,7 @@ from onnxscript.ir._core import (
     Graph,
     GraphView,
     Input,
+    LazyTensor,
     Model,
     Node,
     OptionalType,

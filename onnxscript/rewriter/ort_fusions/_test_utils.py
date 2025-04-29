@@ -33,11 +33,14 @@ def ort_run(model_name: str, model, inputs):
     return session.run(None, inputs)
 
 
-def assert_allclose(outputs, expected_outputs, rtol=1e-2, atol=1e-2):
+def assert_allclose(outputs, expected_outputs, rtol=1e-3, atol=1e-3):
     for i, (baseline_output, optimized_output) in enumerate(zip(expected_outputs, outputs)):
         try:
             np.testing.assert_equal(baseline_output.shape, optimized_output.shape)
             np.testing.assert_allclose(baseline_output, optimized_output, rtol=rtol, atol=atol)
         except AssertionError as e:
+            diff_mask = ~np.isclose(baseline_output, optimized_output, rtol=rtol, atol=atol)
+            diff = np.where(diff_mask, "X", " ")
+            print(diff)
             print(f"Failed for output {i} with rtol={rtol} and atol={atol}\n{e}")
             raise

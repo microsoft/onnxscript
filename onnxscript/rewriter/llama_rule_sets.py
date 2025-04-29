@@ -24,9 +24,12 @@ class SqueezeReshape(orp.RewriteRuleClassBase):
     def rewrite(self, op, x: ir.Value):
         return op.Identity(x)
 
-    def check(self, context, x) -> bool:
+    def check(self, context, x) -> orp.MatchResult:
         del context  # Unused
-        return ir_utils.has_rank(x, 1)
+        check_result = orp.MatchResult()
+        if not ir_utils.has_rank(x, 1):
+            return check_result.fail("Input is not 1D")
+        return check_result
 
 
 class CastIdentity(orp.RewriteRuleAsClass):
@@ -41,8 +44,11 @@ class CastIdentity(orp.RewriteRuleAsClass):
         return op.Identity(x)
 
     @classmethod
-    def check(cls, context, x, to) -> bool:
-        return x.dtype == to.value
+    def check(cls, context, x, to) -> orp.MatchResult:
+        check_result = orp.MatchResult()
+        if x.dtype != to.value:
+            return check_result.fail("Input and output types are not the same")
+        return check_result
 
 
 class CastCast(orp.RewriteRuleAsClass):
@@ -60,11 +66,13 @@ class CastCast(orp.RewriteRuleAsClass):
         return op.Cast(op.Cast(x, to=to_ignored), to=to)
 
     @classmethod
-    def check(cls, context, x: ir.Value, to: ir.Attr, to_ignored: ir.Attr) -> bool:
-        return (
-            to.as_int() in cls._allowed_tensor_types
-            and to_ignored.value in cls._allowed_tensor_types
-        )
+    def check(cls, context, x: ir.Value, to: ir.Attr, to_ignored: ir.Attr) -> orp.MatchResult:
+        check_result = orp.MatchResult()
+        if to.value not in cls._allowed_tensor_types:
+            return check_result.fail(f"Output type {to.value} is not allowed")
+        if to_ignored.as_int() not in cls._allowed_tensor_types:
+            return check_result.fail(f"Ignored type {to_ignored.value} is not allowed")
+        return check_result
 
     @classmethod
     def rewrite(cls, op, x: ir.Value, to: ir.Attr, to_ignored: ir.Attr):
@@ -83,14 +91,19 @@ class ExpandIdentity(orp.RewriteRuleAsClass):
         return op.Identity(x)
 
     @classmethod
-    def check(cls, context, x, shape) -> bool:
+    def check(cls, context, x, shape) -> orp.MatchResult:
+        check_result = orp.MatchResult()
         if shape.const_value is None:
             # Shape is not a constant and cannot be guessed.
-            return False
+            return check_result.fail("Shape is not a constant and cannot be guessed.")
         if (x_shape := x.shape) is None:
             # We don't know the shape of the input
-            return False
-        return x_shape.dims == tuple(shape.const_value.numpy().tolist())
+            return check_result.fail("Input shape is not known.")
+        if x_shape.dims != tuple(shape.const_value.numpy().tolist()):
+            return check_result.fail(
+                f"Input shape {x_shape.dims} does not match the shape {shape.const_value.numpy().tolist()}."
+            )
+        return check_result
 
 
 class ReshapeReshape(orp.RewriteRuleAsClass):
@@ -108,12 +121,15 @@ class ReshapeReshape(orp.RewriteRuleAsClass):
         return op.Reshape(x, shape)
 
     @classmethod
-    def check(cls, context, x, shape_ignored, shape) -> bool:
-        if shape_ignored.const_value is None or shape.const_value is None:
-            return False
+    def check(cls, context, x, shape_ignored, shape) -> orp.MatchResult:
+        check_result = orp.MatchResult()
+        if shape_ignored.const_value is None:
+            return check_result.fail("Shape ignored is not a constant.")
+        if shape.const_value is None:
+            return check_result.fail("Shape is not a constant.")
         if shape.const_value.numpy().min() <= 0:
-            return False
-        return True
+            return check_result.fail("Shape has non-positive values.")
+        return check_result
 
 
 class SlicesSplit(orp.RewriteRuleAsClass):
@@ -126,49 +142,50 @@ class SlicesSplit(orp.RewriteRuleAsClass):
         return op.Slice(x, begin0, end0, axes0), op.Slice(x, begin1, end1, axes1)
 
     @classmethod
-    def check(cls, context, x, begin0, end0, axes0, begin1, end1, axes1) -> bool:
+    def check(cls, context, x, begin0, end0, axes0, begin1, end1, axes1) -> orp.MatchResult:
+        check_result = orp.MatchResult()
         if (
             axes0.const_value is None
             or axes1.const_value is None
             or axes0.const_value.numpy().tolist() != axes1.const_value.numpy().tolist()
         ):
-            return False
+            return check_result.fail("Axes are not equal or not constant.")
         axes = axes0.const_value.numpy().tolist()
         if len(axes) != 1:
-            return False
+            return check_result.fail("Axes has more than one dimension.")
         if x.shape:
             rk = len(x.shape)
         else:
             rk = x.rank
         if axes[0] != -1 and axes[0] != rk - 1:
-            return False
+            return check_result.fail("Axes is not -1 or last dimension.")
         if (
             begin0.const_value is None
             or end0.const_value is None
             or begin1.const_value is None
             or end1.const_value is None
         ):
-            return False
+            return check_result.fail("Begin or end are not constant values.")
         if begin0.const_value.numpy().tolist() != [0]:
-            return False
+            return check_result.fail("First begin value is not 0.")
         e0, b1, e1 = (
             end0.const_value.numpy().tolist(),
             begin1.const_value.numpy().tolist(),
             end1.const_value.numpy().tolist(),
         )
         if e0[0] != b1[0]:
-            return False
+            return check_result.fail("End0 is not equal to Begin1.")
         shape = x.shape
         if shape is None:
-            return False
+            return check_result.fail("Shape is not known.")
         last_dim = shape[-1]
         if not isinstance(last_dim, int):
-            return False
+            return check_result.fail("Last dimension is not known.")
         if last_dim != e1[0]:
-            return False
+            return check_result.fail("Last dimension is not equal to End1.")
         if last_dim // 2 != b1[0]:
-            return False
-        return True
+            return check_result.fail("Last dimension is not equal to Begin1.")
+        return check_result
 
     @classmethod
     def rewrite(cls, op, x, begin0, end0, axes0, begin1, end1, axes1):
@@ -185,13 +202,14 @@ class TransposeIdentity(orp.RewriteRuleAsClass):
         return op.Transpose(x, perm=perm)
 
     @classmethod
-    def check(cls, context, x: ir.Value, perm: ir.Attr) -> bool:
+    def check(cls, context, x: ir.Value, perm: ir.Attr) -> orp.MatchResult:
+        check_result = orp.MatchResult()
         if isinstance(perm, ir.RefAttr):
-            return False
+            return check_result.fail("Permutation is a reference attribute.")
         if perm.type == ir.AttributeType.INTS:
             if perm.value == list(range(len(perm.value))):
-                return True
-        return False
+                return check_result
+        return check_result.fail("Permutation is not identity.")
 
     @classmethod
     def rewrite(cls, op, x: ir.Value, perm: ir.Attr):
@@ -208,10 +226,11 @@ class TransposeTranspose(orp.RewriteRuleAsClass):
         return op.Transpose(op.Transpose(x, perm=perm1), perm=perm2)
 
     @classmethod
-    def check(cls, context, x: ir.Value, perm1: ir.Attr, perm2: ir.Attr) -> bool:
+    def check(cls, context, x: ir.Value, perm1: ir.Attr, perm2: ir.Attr) -> orp.MatchResult:
+        check_result = orp.MatchResult()
         if isinstance(perm1, ir.RefAttr) or isinstance(perm2, ir.RefAttr):
-            return False
-        return True
+            return check_result.fail("Permutation is a reference attribute.")
+        return check_result
 
     @classmethod
     def _apply_transpose(cls, perm: tuple[int, ...], on: list[int]) -> list[int]:
@@ -255,17 +274,18 @@ class UnsqueezeUnsqueeze(orp.RewriteRuleAsClass):
         return op.Unsqueeze(x, op.Constant(value=ir.tensor(axes, dtype=ir.DataType.INT64)))
 
     @classmethod
-    def check(cls, context, x, axes1, axes2) -> bool:
+    def check(cls, context, x, axes1, axes2) -> orp.MatchResult:
+        check_result = orp.MatchResult()
         del context  # Unused
         del x  # Unused
         # Currently restricted to single element positive axis
         v1 = ir_utils.get_singleton_value(axes1)
         v2 = ir_utils.get_singleton_value(axes2)
         if v1 is None or v2 is None:
-            return False
+            return check_result.fail("Axes are not constant.")
         if (v1 < 0) or (v2 < 0):
-            return False
-        return True
+            return check_result.fail("Axes are negative.")
+        return check_result
 
 
 cast_cast_rule = orp.make_rewrite_rule_from_class(CastCast)

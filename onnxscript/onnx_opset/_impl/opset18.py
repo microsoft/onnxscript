@@ -169,12 +169,18 @@ class Opset18(Opset17):
 
         Center crop or pad an input to given dimensions.
 
-        The crop/pad dimensions can be specified for a subset of the `axes`. Non-specified dimensions will not be
-        cropped or padded.
+        The crop/pad dimensions can be specified for a subset of the `axes`; unspecified dimensions will remain unchanged.
 
-        If the input dimensions are bigger than the crop shape, a centered cropping window is extracted from the input.
-        If the input dimensions are smaller than the crop shape, the input is padded on each side equally,
-        so that the input is centered in the output.
+        If the input dimensions are larger than the target crop dimensions, a centered cropping window will be extracted
+        from the input. The starting value for the cropping window is rounded down, which means that if the difference
+        between the input shape and the crop shape is odd, the cropping window will be shifted half a pixel to the left
+        of the input center.
+
+        If the input dimensions are smaller than the target crop dimensions, the input will be padded equally on both sides
+        to center it in the output. In cases where the total number of padding pixels is odd, an additional pixel will be
+        added to the right side.
+
+        The padding value used is zero.
 
 
         Args:
@@ -284,65 +290,6 @@ class Opset18(Opset17):
             dilations=dilations,
             pads=pads,
             strides=strides,
-        )
-
-    T_GroupNormalization = TypeVar("T_GroupNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
-
-    def GroupNormalization(
-        self,
-        X: T_GroupNormalization,
-        scale: T_GroupNormalization,
-        bias: T_GroupNormalization,
-        *,
-        epsilon: float = 9.999999747378752e-06,
-        num_groups: int,
-    ) -> T_GroupNormalization:
-        r"""[🌐 GroupNormalization(18)](https://onnx.ai/onnx/operators/onnx__GroupNormalization.html#groupnormalization-18 "Online Documentation")
-
-
-        A GroupNormalization function. Carries out group normalization as described in
-        the paper https://arxiv.org/abs/1803.08494
-
-        This operator transforms input according to
-        ::
-
-            y = scale * (x - mean) / sqrt(variance + epsilon) + bias,
-
-
-        where the mean and variance are computed per instance per group of channels, and
-        `scale` and `bias` should be specified for each group of channels. The number of
-        groups `num_groups` should be divisible by the number of channels so that there are
-        an equal number of channels per group.
-
-        When the number of groups is the same as the number of channels, this operator is
-        equivalent to InstanceNormalization. When there is only one group, this operator
-        is equivalent to LayerNormalization.
-
-
-        Args:
-            X: (differentiable) Input data tensor. Dimensions for image cases are `(N x
-                C x H x W)`, where `N` is the batch size, `C` is the number of channels,
-                and `H` and `W` are the height and width of the data. Statistics are
-                computed for every group of channels over `C`, `H`, and `W`. For
-                non-image cases, the dimensions are in the form of `(N x C x D1 x D2 ...
-                Dn)`.
-
-            scale: (differentiable) Scale tensor of shape `(num_groups)`.
-
-            bias: (differentiable) Bias tensor of shape `(num_groups)`.
-
-            epsilon: The epsilon value to use to avoid division by zero.
-
-            num_groups: The number of groups of channels. It should be a divisor of the
-                number of channels `C`.
-        """
-
-        schema = get_schema("GroupNormalization", 18, "")
-        op = Op(self, "GroupNormalization", schema)
-        return op(
-            *self._prepare_inputs(schema, X, scale, bias),
-            epsilon=epsilon,
-            num_groups=num_groups,
         )
 
     T_LpPool = TypeVar("T_LpPool", DOUBLE, FLOAT, FLOAT16)

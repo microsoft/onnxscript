@@ -7,10 +7,13 @@ import unittest
 import numpy as np
 
 from onnxscript import ir
-from onnxscript.ir.passes.common import shape_inference
+from onnxscript.ir.passes.common import _c_api_utils, shape_inference
 
 
 class TestShapeInferencePass(unittest.TestCase):
+    def test_pass_is_in_place(self):
+        self.assertTrue(shape_inference.ShapeInferencePass().in_place)
+
     def test_pass(self):
         # Create a simple ONNX model with shape inference
         # Define the model
@@ -23,19 +26,21 @@ class TestShapeInferencePass(unittest.TestCase):
             ),
         ]
 
-        add_node = ir.Node("", "Add", inputs=inputs)
+        tape = ir.tape.Tape()
+
+        output = tape.op("Add", inputs=inputs)
 
         model = ir.Model(
             ir.Graph(
                 inputs=inputs,
-                outputs=add_node.outputs,
-                nodes=[add_node],
+                outputs=[output],
+                nodes=tape.nodes,
                 opset_imports={"": 20},
             ),
             ir_version=10,
         )
-        self.assertIsNone(add_node.outputs[0].shape)
-        self.assertIsNone(add_node.outputs[0].dtype)
+        self.assertIsNone(output.shape)
+        self.assertIsNone(output.dtype)
 
         # Perform shape inference
         result = shape_inference.ShapeInferencePass()(model)
@@ -49,7 +54,7 @@ class TestShapeInferencePass(unittest.TestCase):
         # _BIG_TENSOR_SIZE_LIMIT is in bytes, but we create big_dim as size
         # of a tensor. This is fine as we just need to create a big tensor whose size
         # passes _BIG_TENSOR_SIZE_LIMIT
-        big_dim = shape_inference._BIG_TENSOR_SIZE_LIMIT * 2  # pylint: disable=protected-access
+        big_dim = _c_api_utils._BIG_TENSOR_SIZE_LIMIT * 2  # pylint: disable=protected-access
         inputs = [
             ir.Value(
                 name="input_a", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((1, 2))
@@ -62,30 +67,30 @@ class TestShapeInferencePass(unittest.TestCase):
             ),
         ]
 
+        tape = ir.tape.Tape()
+
         # Shape and type are not explicitly set for the initializer but it should still work
         initializer = ir.Value(
             name="initializer", const_value=ir.tensor([[2, 3]], dtype=ir.DataType.FLOAT)
         )
-
-        add_node = ir.Node("", "Add", inputs=[*inputs])
-        mul_node = ir.Node("", "Mul", inputs=[add_node.outputs[0], initializer])
+        val_add = tape.op("Add", inputs=inputs)
+        val_mul = tape.op("Mul", inputs=[val_add, initializer])
 
         model = ir.Model(
-            graph := ir.Graph(
+            ir.Graph(
                 inputs=inputs,
-                outputs=mul_node.outputs,
-                nodes=[add_node, mul_node],
+                outputs=[val_mul],
+                nodes=tape.nodes,
                 opset_imports={"": 20},
+                initializers=[inputs[1], initializer],
             ),
             ir_version=10,
         )
-        graph.register_initializer(inputs[1])
-        graph.register_initializer(initializer)
 
-        self.assertIsNone(add_node.outputs[0].shape)
-        self.assertIsNone(add_node.outputs[0].dtype)
-        self.assertIsNone(mul_node.outputs[0].shape)
-        self.assertIsNone(mul_node.outputs[0].dtype)
+        self.assertIsNone(val_add.shape)
+        self.assertIsNone(val_add.dtype)
+        self.assertIsNone(val_mul.shape)
+        self.assertIsNone(val_mul.dtype)
         self.assertIsNone(initializer.shape)
         self.assertIsNone(initializer.dtype)
 
@@ -125,22 +130,6 @@ class TestShapeInferencePass(unittest.TestCase):
         self.assertEqual(
             result.model.graph.initializers["initializer"].const_value.dtype,
             ir.DataType.FLOAT,
-        )
-
-        # Check that the original model is not modified
-        self.assertIsNone(add_node.outputs[0].shape)
-        self.assertIsNone(add_node.outputs[0].dtype)
-        self.assertIsNone(mul_node.outputs[0].shape)
-        self.assertIsNone(mul_node.outputs[0].dtype)
-        self.assertEqual(len(model.graph.inputs), 2)
-        self.assertEqual(len(model.graph.initializers), 2)
-        self.assertIs(model.graph.initializers["input_b"].const_value, inputs[1].const_value)
-        self.assertEqual(len(model.graph.outputs), 1)
-        self.assertEqual(model.graph.outputs[0].shape, None)
-        self.assertEqual(model.graph.outputs[0].dtype, None)
-        # Check that the initializer is not modified
-        self.assertIs(
-            model.graph.initializers["initializer"].const_value, initializer.const_value
         )
 
 

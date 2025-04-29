@@ -622,6 +622,9 @@ class ShapeTest(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "frozen"):
             shape[0] = 1
 
+        with self.assertRaisesRegex(TypeError, "frozen"):
+            shape[0] = "some_string"
+
     def test_getitem(self):
         shape = _core.Shape([42], denotations=("DATA_CHANNEL",))
         self.assertEqual(shape[0], 42)
@@ -1152,6 +1155,61 @@ class GraphTest(unittest.TestCase):
         )
 
 
+class ModelTest(unittest.TestCase):
+    def test_graphs_returns_all_subgraphs(self):
+        # main_graph: nodes=[a,b,c,d,>,if], edges=[(a,>),(b,>),(>,if)], subgraphs={if:[then_graph,else_graph]}
+        # then_graph: nodes=[sub], edges=[(c,sub),(d,sub)]
+        # else_graph: nodes=[add], edges=[(c,add),(d,add)]
+        v0 = _core.Value(name="va")
+        v1 = _core.Value(name="vb")
+        v2 = _core.Value(name="vc")
+        v3 = _core.Value(name="vd")
+        node0 = _core.Node("", "a", inputs=(v0,), num_outputs=1)
+        node1 = _core.Node("", "b", inputs=(v1,), num_outputs=1)
+        node2 = _core.Node("", "c", inputs=(v2,), num_outputs=1)
+        node3 = _core.Node("", "d", inputs=(v3,), num_outputs=1)
+        node4 = _core.Node(
+            "", "sub", inputs=(node2.outputs[0], node3.outputs[0]), num_outputs=1
+        )
+        node5 = _core.Node(
+            "", "add", inputs=(node2.outputs[0], node3.outputs[0]), num_outputs=1
+        )
+        node6 = _core.Node("", ">", inputs=(node0.outputs[0], node1.outputs[0]), num_outputs=1)
+        then_graph = _core.Graph(
+            inputs=(node2.outputs[0], node3.outputs[0]),
+            outputs=(node4.outputs[0],),
+            nodes=(node4,),
+            name="then_graph",
+        )
+        else_graph = _core.Graph(
+            inputs=(node2.outputs[0], node3.outputs[0]),
+            outputs=(node5.outputs[0],),
+            nodes=(node5,),
+            name="else_graph",
+        )
+        node7 = _core.Node(
+            "",
+            "if",
+            inputs=(node6.outputs[0],),
+            num_outputs=1,
+            attributes=[
+                ir.AttrGraph("then_branch", then_graph),
+                ir.AttrGraph("else_branch", else_graph),
+            ],
+        )
+        main_graph = _core.Graph(
+            inputs=(v0, v1, v2, v3),
+            outputs=(node7.outputs[0],),
+            nodes=(node0, node1, node2, node6, node7),
+            name="main_graph",
+        )
+        model = _core.Model(main_graph, ir_version=10)
+        self.assertEqual(
+            tuple(model.graphs()),
+            (main_graph, then_graph, else_graph),
+        )
+
+
 class TypeTest(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
@@ -1255,6 +1313,39 @@ class AttrTest(unittest.TestCase):
     def test_as_graphs(self):
         attr = _core.Attr("test", ir.AttributeType.GRAPHS, [_core.Graph((), (), nodes=())])
         self.assertIsInstance(attr.as_graphs()[0], _core.Graph)
+
+
+class LazyTensorTest(unittest.TestCase):
+    def test_lazy_tensor_initialization(self):
+        def tensor_fn():
+            return ir.tensor([1, 2, 3], dtype=ir.DataType.INT64)
+
+        lazy_tensor = _core.LazyTensor(
+            tensor_fn, dtype=ir.DataType.INT64, shape=ir.Shape((3,))
+        )
+        self.assertEqual(lazy_tensor.dtype, ir.DataType.INT64)
+        self.assertEqual(lazy_tensor.shape, (3,))
+
+    def test_lazy_tensor_numpy(self):
+        def tensor_fn():
+            return ir.tensor([1, 2, 3], dtype=ir.DataType.INT64)
+
+        lazy_tensor = _core.LazyTensor(
+            tensor_fn, dtype=ir.DataType.INT64, shape=ir.Shape((3,))
+        )
+        np.testing.assert_array_equal(lazy_tensor.numpy(), np.array([1, 2, 3]))
+
+    def test_lazy_tensor_tobytes(self):
+        def tensor_fn():
+            return ir.tensor([1, 2, 3], dtype=ir.DataType.INT64)
+
+        lazy_tensor = _core.LazyTensor(
+            tensor_fn, dtype=ir.DataType.INT64, shape=ir.Shape((3,))
+        )
+        self.assertEqual(
+            lazy_tensor.tobytes(),
+            b"\x01\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00",
+        )
 
 
 if __name__ == "__main__":

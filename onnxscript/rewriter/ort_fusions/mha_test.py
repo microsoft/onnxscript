@@ -8,8 +8,8 @@ import packaging.version
 
 import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
-from onnxscript.rewriter.ort_fusions._smollm_2 import smollm_test_2
 from onnxscript.rewriter.ort_fusions._test_utils import ORT_VERSION, assert_allclose, ort_run
+from onnxscript.rewriter.ort_fusions.models._smollm_2 import smollm_test_2
 
 
 class TestMultiHeadAttention(unittest.TestCase):
@@ -19,7 +19,7 @@ class TestMultiHeadAttention(unittest.TestCase):
         model = smollm_test.get_onnx_model()
         onnxscript.optimizer.optimize(model)
         xformers.fuse_rms_normalization(model)
-        xformers.fuse_normalization(model)
+        xformers.fuse_skip_rms_normalization(model)
         xformers.fuse_rotary_embedding(model)
         xformers.fuse_cos_sin_cache(model)
 

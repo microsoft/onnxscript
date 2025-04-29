@@ -148,18 +148,24 @@ class Replacement:
 # Currently, we assume that symbolic dimensions are also guaranteed to be non-negative.
 # TODO: Add support for negative symbolic dimensions.
 
+SymbolicValue = Union[ir.Value, list[ir.Value], ir.Shape]
+
 
 class OptimizerState:
     def __init__(self):
-        self._sym_value_map: dict[ir.Value, Any] = {}
+        self._sym_value_map: dict[ir.Value, SymbolicValue] = {}
         self._initializer_inputs: list[set[ir.Value]] = []
 
-    def get_sym_value(self, value: ir.Value | None) -> Any:
+    @property
+    def symbolic_value_map(self) -> dict[ir.Value, SymbolicValue]:
+        return self._sym_value_map
+
+    def get_sym_value(self, value: ir.Value | None) -> SymbolicValue | None:
         if value is None:
             return None
         return self._sym_value_map.get(value)
 
-    def set_sym_value(self, value: ir.Value, sym_value: Any) -> None:
+    def set_sym_value(self, value: ir.Value, sym_value: SymbolicValue) -> None:
         self._sym_value_map[value] = sym_value
 
     def push_initializer_inputs(self) -> None:
@@ -291,7 +297,9 @@ def _get_numpy_value(
         if size_limit is not None and const_value.size > size_limit:
             return None
         try:
-            array = const_value.numpy()
+            # Reinterpret the array with `.view()` because some implementations of
+            # ir.TensorProtocol (e.g. PyTorch<=2.7) do not use ml_dtypes for bfloat16 etc.
+            array = const_value.numpy().view(const_value.dtype.numpy())
         except FileNotFoundError:
             # External data is not available.
             return None
@@ -405,17 +413,13 @@ def reshape(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     shape = _get_input(node, 1)
     if input is None or shape is None:
         return None
+
     input_shape = input.shape
-    if input_shape is None:
-        return None
-    # input_shape_dims = list(input_shape.dims)
-    # if any(isinstance(dim, ir.SymbolicDim) and dim.value is None for dim in input_shape_dims):
-    #     return None
     shape_value = state.get_shape_value(shape)
-    if shape_value is None:
+
+    if shape_value is None or input_shape is None:
         return None
-    # target_shape_dims = list(shape_value.dims)
-    # if input_shape_dims == target_shape_dims:
+
     # No need to check for special values like -1, 0, etc. here
     if _same_shape(input_shape, shape_value):
         return op.Identity(input)
@@ -558,21 +562,59 @@ def sequence_construct(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
 @register("Concat")
 def concat(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
     """Replace a Concat node with a single input by Identity"""
+
+    # Replace Concat(x) by Identity(x)
     inputs = node.inputs
     if len(inputs) == 1:
         return op.Identity(inputs[0])
-    # Track value of tensors that carry a shape value:
-    output = node.outputs[0]
-    if output is None:
-        return None
-    # Check axis attribute is 0
+
     axis = _get_int_attribute(node, "axis", None)
+    if axis is None:
+        return None
+
+    # Eliminate zero-length operands from Concat
+    def has_zero_size(operand: ir.Value | None) -> bool:
+        if operand is None:
+            return False  # Invalid model
+        if (shape := operand.shape) is None:
+            return False
+        try:
+            # We have already checked that axis is an int value (!= None)
+            dim_size = shape[axis]  # type: ignore[index]
+        except IndexError:
+            return False
+        return dim_size == 0  # return False if symbolic or None or non-zero int value
+
+    new_inputs = [x for x in inputs if not has_zero_size(x)]
+    if len(new_inputs) != len(inputs):
+        if new_inputs:
+            # Remove zero-length operands from Concat
+            logger.debug(
+                "Concat: removing zero-length operand(s) %s => %s", inputs, new_inputs
+            )
+            return op.Concat(*new_inputs, axis=axis)
+        elif inputs:
+            # All operands are zero-length. Concat is a no-op, but we need to use one of the
+            # inputs to get the other dimensions correct:
+            logger.debug("Concat: removing all zero-length operands %s", inputs)
+            return op.Identity(inputs[0])
+        else:
+            # No inputs: invalid model.
+            return None
+
+    # Track value of tensors that carry a shape value:
+
+    # Check axis attribute is 0
+
     if axis != 0:
         return None
     shapes = [state.get_shape_value(input) for input in inputs]
     if any(shape is None for shape in shapes):
         return None
     concatenated = ir.Shape(dim for shape in shapes for dim in shape.dims)  # type: ignore[union-attr]
+    output = node.outputs[0]
+    if output is None:
+        return None
     state.set_sym_value(output, concatenated)
     return None
 
@@ -797,16 +839,14 @@ def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape 
     return ir.Shape([merge_dims(dim1, dim2) for dim1, dim2 in zip(shape1, shape2)])
 
 
-class FoldConstantsPass(ir.passes.PassBase):
+class FoldConstantsPass(ir.passes.InPlacePass):
     def __init__(
         self,
         *,
-        external_data_folder: str,
         shape_inference: bool,
         input_size_limit: int,
         output_size_limit: int,
     ) -> None:
-        self._external_data_folder = external_data_folder
         self._shape_inference = shape_inference
         self._input_size_limit = input_size_limit
         self._output_size_limit = output_size_limit
@@ -879,7 +919,7 @@ class FoldConstantsPass(ir.passes.PassBase):
                     e,
                 )
 
-    def new_constant(self, node: ir.Node, value):
+    def new_constant(self, node: ir.Node, value) -> ir.Node | None:
         irvalue = node.outputs[0]
         if not isinstance(value, np.ndarray):
             # ONNX does not have a way to represent non-tensor constants, eg. a sequence.
@@ -925,7 +965,7 @@ class FoldConstantsPass(ir.passes.PassBase):
         node = ir.Node("", "Constant", inputs=[], attributes=attributes, num_outputs=1)
         return node
 
-    def process_node(self, node: ir.Node):
+    def process_node(self, node: ir.Node) -> Replacement | None:
         for i, value in enumerate(node.inputs):
             sym_value = self._state.get_sym_value(value)
             if isinstance(sym_value, ir.Value):
@@ -1006,7 +1046,7 @@ class FoldConstantsPass(ir.passes.PassBase):
             )
         return None
 
-    def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function):
+    def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function) -> None:
         logger.debug("Replacing node: %s::%s %s", node.domain, node.op_type, node.name)
 
         ir.convenience.replace_nodes_and_values(
@@ -1026,13 +1066,13 @@ class FoldConstantsPass(ir.passes.PassBase):
                 for graph in attr.as_graphs():
                     self.visit_graph(graph)
 
-    def visit_node(self, node: ir.Node, root: ir.Graph | ir.Function):
+    def visit_node(self, node: ir.Node, root: ir.Graph | ir.Function) -> None:
         replacement = self.process_node(node)
         if replacement is None:
             # No change. Process attributes.
             for attr in node.attributes.values():
                 self.visit_attribute(attr)
-            return None
+            return
         else:
             self.replace_node(node, replacement, root)
 
@@ -1047,6 +1087,22 @@ class FoldConstantsPass(ir.passes.PassBase):
         for node in graph:
             self.visit_node(node, graph)
 
+        # Replace outputs if output nodes can be folded. This are typically outputs from
+        # Identity nodes
+        for i, output in enumerate(graph.outputs):
+            if output is None:
+                continue
+            sym_value = self._state.get_sym_value(output)
+            if not isinstance(sym_value, ir.Value):
+                # An output must be a Value
+                continue
+            if not _sym_value_can_replace_graph_output(graph, sym_value, output):
+                continue
+            # Rename sym_value to match the output name
+            sym_value.name = output.name
+            graph.outputs[i] = sym_value
+            self.modified = True
+
         self._state.pop_initializer_inputs()
 
     def visit_function(self, function: ir.Function) -> None:
@@ -1060,33 +1116,65 @@ class FoldConstantsPass(ir.passes.PassBase):
         for function in model.functions.values():
             # TODO(rama): Should we specialize functions?
             self.visit_function(function)
-        return ir.passes.PassResult(model, self.modified)
+        return FoldConstantsResult(model, self.modified, self._state.symbolic_value_map)
+
+
+def _sym_value_can_replace_graph_output(
+    graph: ir.Graph, sym_value: ir.Value, output: ir.Value
+) -> bool:
+    if (producer := sym_value.producer()) is None:
+        # If the sym_value has no producer, it is some graph's input
+        # ONNX does not allow a graph input to be a graph output
+        return False
+    if producer.graph is not graph:
+        # The sym_value must be produced by a node in the graph to be an output of this graph
+        return False
+    if sym_value.is_graph_output():
+        # If the sym_value is already an output of a graph, we cannot rename it
+        # to this output name. Otherwise the graph output represented by sym_value
+        # will lose its name.
+        return False
+    return True
+
+
+@dataclasses.dataclass
+class FoldConstantsResult(ir.passes.PassResult):
+    symbolic_value_map: dict[ir.Value, SymbolicValue]
+
+    # Add conversion to bool for backward compatibility. The previously returned value
+    # for the fold_constants method was a boolean indicating whether the model was modified.
+    def __bool__(self) -> bool:
+        return self.modified
 
 
 def fold_constants(
     model: ir.Model,
-    external_data_folder: str = "",
     *,
     onnx_shape_inference: bool = False,
     input_size_limit: int = DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
     output_size_limit: int = DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
-) -> bool:
+) -> FoldConstantsResult:
     """
     Applies constant folding optimization to the model.
-    Returns true iff the model was modified.
+
+    Args:
+        model: The ONNX model to optimize.
+        onnx_shape_inference: Whether to enable ONNX shape inference during
+            constant folding. Defaults to False.
+        input_size_limit: The maximum size (in bytes) of input tensors
+            that can be considered for constant folding. Defaults to
+            `DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT`.
+        output_size_limit: The maximum size (in bytes) of output tensors
+            that can be stored after constant folding. Defaults to
+            `DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT`.
+
+    Returns:
+        An instance of `FoldConstantsResult`.
+
     """
     folder_pass = FoldConstantsPass(
-        external_data_folder=external_data_folder,
         shape_inference=onnx_shape_inference,
         input_size_limit=input_size_limit,
         output_size_limit=output_size_limit,
     )
-    folder_pass(model)
-    for op in folder_pass.counts:
-        logger.info(
-            "Constant-folded '%s' %s times, with %s size.",
-            op,
-            folder_pass.counts[op],
-            folder_pass.sizes[op],
-        )
-    return folder_pass.modified
+    return folder_pass(model)  # type: ignore[return-value]
