@@ -10,11 +10,13 @@ import parameterized
 
 import onnxscript
 import onnxscript.ir as ir
+import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
 from onnxscript.ir.passes.common import shape_inference
 from onnxscript.rewriter.ort_fusions._test_utils import ORT_VERSION, assert_allclose, ort_run
+from onnxscript.rewriter.ort_fusions.models._whisper_encoder import whisper_encoder_test
 
 msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
@@ -149,6 +151,35 @@ class TestAttentionFusion(unittest.TestCase):
         # Fuse Attention
         attention_count = xformers.fuse_attention(model, debug=True)
         self.assertGreater(attention_count, 0)
+
+        if test_with_ort:
+            # Run model again
+            new_outputs = ort_run("optimized", model, inputs)
+            assert_allclose(new_outputs, original_outputs)
+
+    def test_whisper_encoder(self):
+        # Generate model
+        whisper_encoder = whisper_encoder_test()
+        model = whisper_encoder.get_onnx_model()
+        onnxscript.optimizer.optimize(model)
+
+        test_with_ort = packaging.version.Version("1.20") <= ORT_VERSION
+        if test_with_ort:
+            # Run model
+            inputs = whisper_encoder.get_ort_inputs()
+            original_outputs = ort_run("original", model, inputs)
+
+        # Fuse SDPA and MHA
+        sdpa_count = xformers.fuse_sdpa(model)
+        self.assertGreater(sdpa_count, 0)
+        model = shape_inference.infer_shapes(model)
+        mha_count = xformers.fuse_mha(model)
+        self.assertGreater(mha_count, 0)
+        fused_mha_bias_count = xformers.fuse_mha_bias(model)
+        self.assertGreater(fused_mha_bias_count, 0)
+        attention_count = xformers.fuse_attention(model)
+        self.assertGreater(attention_count, 0)
+        onnxscript.optimizer.optimize(model)
 
         if test_with_ort:
             # Run model again
