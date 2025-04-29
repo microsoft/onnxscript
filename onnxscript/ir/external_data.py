@@ -177,7 +177,8 @@ def _write_external_data(
             file_size = data_file.tell()
             if current_offset > file_size:
                 data_file.write(b"\0" * (current_offset - file_size))
-            data_file.write(memoryview(tensor))
+            with memoryview(tensor) as view:
+                data_file.write(view)
             if isinstance(tensor, _core.ExternalTensor):
                 tensor.release()
 
