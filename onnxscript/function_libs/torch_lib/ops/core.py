@@ -4334,7 +4334,7 @@ def aten_index_put(
         # Example: data((10, 3, 4)), indices([[0, 1], :, [0, 1]]) values(2, 3)
         # the reshape list should be : [[2, 1], [1, 3], [2, 1]]
         for i, r in enumerate(reshape_list):
-            if r not in (1, values_shape[i]):
+            if isinstance(r, int) and r not in (1, values_shape[i]):
                 value_index = values_shape.index(r)
                 # Swap elements
                 # For the example above the current reshape list is [1, 2] for last dim,
