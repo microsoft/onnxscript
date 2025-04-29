@@ -104,9 +104,8 @@ class RemoveUnusedNodesPass(ir.passes.InPlacePass):
         super().__init__()
         self.remove_initialized_inputs = remove_initialized_inputs
 
-    def call(self, model: ir.Model) -> ir.passes.PassResult:
-        count = _remove_unused_nodes_in_graph_like(model.graph)
-        graph_outputs = frozenset(model.graph.outputs)
+    def _remove_unused_initialized_inputs(self, model: ir.Model) -> None:
+        graph_outputs = model.graph.outputs
         initializers = model.graph.initializers
         graph_inputs = model.graph.inputs
         unused_init_inputs = []
@@ -114,7 +113,6 @@ class RemoveUnusedNodesPass(ir.passes.InPlacePass):
             if inp.name in initializers and not (inp.uses() or inp in graph_outputs):
                 if self.remove_initialized_inputs:
                     del graph_inputs[i]
-                    count += 1
                 else:
                     unused_init_inputs.append(inp.name)
         if unused_init_inputs:
@@ -123,6 +121,13 @@ class RemoveUnusedNodesPass(ir.passes.InPlacePass):
                 " consider turning `remove_initialized_inputs` on",
                 unused_init_inputs,
             )
+
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        count = _remove_unused_nodes_in_graph_like(model.graph)
+        graph_outputs = frozenset(model.graph.outputs)
+        initializers = model.graph.initializers
+        graph_inputs = model.graph.inputs
+        self._remove_unused_initialized_inputs(model)
         for init in list(initializers.values()):
             if not (init.uses() or init in graph_outputs or init in graph_inputs):
                 assert init.name is not None
