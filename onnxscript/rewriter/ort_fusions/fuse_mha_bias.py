@@ -9,26 +9,7 @@ import numpy
 import onnxscript.ir as ir
 from onnxscript.rewriter import _fusion_utils, pattern
 
-"""
-The MultiHeadAttention pattern: generate an instance
-   MHA (query, key, value, None, None, mask, past_key, past_value)
-where query has shape (B, S, D), key has shape (B, Skv, D), and value has shape (B, Skv, Dv).
-The next two inputs bias and key_padding_mask are None in this pattern. The mask (attention_bias)
-must be  of shape (1 or B, 1 or H, S, St). past_key and past_value are of shape (B, H, Spast, Dh).
-
-We use the following abbreviations for the dimensions:
-B: Batch size
-S: Sequence length
-D: input embedding dimension
-Dv: value hidden size (usually, Dv = D)
-H: number of heads
-Dh: head size or embedding dimension per head (usually, D = H * Dh)
-Skv: key/value sequence length
-St: total sequence length
-
-In the sequel, the suffix "_BHSDh" indicates that the tensor has the shape (B, H, S, Dh).
-The suffix "BH_Skv_Dh" indicates that the tensor has the shape (B*H, Skv, Dh).
-"""
+valid_float_types = [ir.DataType.FLOAT, ir.DataType.FLOAT16]
 
 Dim = Union[int, ir.SymbolicDim]
 
@@ -102,6 +83,13 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
         def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
             return not _fusion_utils._check_shape(self.bindings, val, dims)
 
+        if query_matmul.dtype not in valid_float_types:
+            return check_result.fail("Query is not a float or float16 type.", query_matmul)
+        if key_matmul.dtype not in valid_float_types:
+            return check_result.fail("Key is not a float or float16 type.", key_matmul)
+        if value_matmul.dtype not in valid_float_types:
+            return check_result.fail("Value is not a float or float16 type.", value_matmul)
+
         if no_match(query_matmul, ["B", "S", "D"]):
             return check_result.fail(
                 f"Shape mismatch: {query_matmul} does not match expected dimensions ['B', 'S', 'D']",
@@ -148,19 +136,26 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
         num_heads,
         **_,
     ):
-        if self._q_no_bias:
-            q_bias = op.Constant(
-                value=ir.tensor(numpy.zeros((self.Dh_q,), dtype=numpy.float32))
-            )
-        if self._k_no_bias:
-            k_bias = op.Constant(
-                value=ir.tensor(numpy.zeros((self.Dh_k,), dtype=numpy.float32))
-            )
-        if self._v_no_bias:
-            v_bias = op.Constant(
-                value=ir.tensor(numpy.zeros((self.Dh_v,), dtype=numpy.float32))
-            )
-        bias = op.Concat(q_bias, k_bias, v_bias, axis=0)
+        if self._q_no_bias and self._k_no_bias and self._v_no_bias:
+            bias = None
+        else:
+            if self._q_no_bias:
+                q_bias = op.Constant(
+                    value=ir.tensor(
+                        numpy.zeros((self.Dh_q,), dtype=query_matmul.dtype.numpy())
+                    )
+                )
+            if self._k_no_bias:
+                k_bias = op.Constant(
+                    value=ir.tensor(numpy.zeros((self.Dh_k,), dtype=key_matmul.dtype.numpy()))
+                )
+            if self._v_no_bias:
+                v_bias = op.Constant(
+                    value=ir.tensor(
+                        numpy.zeros((self.Dh_v,), dtype=value_matmul.dtype.numpy())
+                    )
+                )
+            bias = op.Concat(q_bias, k_bias, v_bias, axis=0)
         return op.MultiHeadAttention(
             query_matmul,
             key_matmul,
