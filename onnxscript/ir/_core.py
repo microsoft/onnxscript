@@ -361,7 +361,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
         else:
             self._shape = shape
-            self._shape._frozen = True
+            self._shape.freeze()
         if dtype is None:
             if isinstance(value, np.ndarray):
                 self._dtype = _enums.DataType.from_numpy(value.dtype)
@@ -564,7 +564,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         self._dtype: _enums.DataType = dtype
         self.name: str = name  # mutable
         self._shape: Shape = shape
-        self._shape._frozen = True
+        self._shape.freeze()
         self.doc_string: str | None = doc_string  # mutable
         self._array: np.ndarray | None = None
         self.raw: mmap.mmap | None = None
@@ -783,7 +783,7 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
         else:
             self._shape = shape
-            self._shape._frozen = True
+            self._shape.freeze()
         self._raw = value
         self.name = name
         self.doc_string = doc_string
