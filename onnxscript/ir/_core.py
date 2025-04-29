@@ -129,7 +129,7 @@ class TensorBase(Buffer, _protocols.TensorProtocol, _display.PrettyPrintable):
         assert self.dtype.itemsize == array.itemsize, "Bug: The itemsize should match"
         if not _IS_LITTLE_ENDIAN:
             array = array.view(array.dtype.newbyteorder("<"))
-        return memoryview(array)
+        return memoryview(array)  # type: ignore[arg-type]
 
     @property
     def size(self) -> int:
