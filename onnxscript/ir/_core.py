@@ -1102,6 +1102,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         frozen: Indicates whether the shape is immutable. When frozen, the shape
             cannot be modified or unfrozen.
     """
+
     __slots__ = ("_dims", "_frozen")
 
     def __init__(
