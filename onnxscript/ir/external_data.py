@@ -172,7 +172,6 @@ def _write_external_data(
     with open(file_path, "wb") as data_file:
         for tensor, tensor_info in zip(tensors, external_data_infos, strict=True):
             current_offset = tensor_info.offset
-            print(tensor.name)
             assert tensor is not None
             # Pad file to required offset if needed
             file_size = data_file.tell()
