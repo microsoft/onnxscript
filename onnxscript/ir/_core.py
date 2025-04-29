@@ -2150,6 +2150,21 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def initializers(self) -> dict[str, Value]:
         return self._initializers
 
+    def initialize_value_with(self, value: Value, tensor: _protocols.TensorProtocol | None) -> None:
+        """Initialize the value with a tensor and record it in the graph.
+
+        This is a convenience method to initialize the value with a tensor.
+
+        Args:
+            value: The :class:`Value` to initialize. The method sets its ``.const_value``.
+            tensor: The tensor to initialize the value with.
+
+        Raises:
+            ValueError: If the value is not an initializer.
+        """
+        value.const_value = tensor
+        self.register_initializer(value)
+
     def register_initializer(self, value: Value) -> None:
         """Register an initializer to the graph.
 

@@ -66,8 +66,9 @@ def call_onnx_api(func: Callable[[onnx.ModelProto], _R], model: ir.Model) -> _R:
     finally:
         # Restore the original initializer values so the model is unchanged
         for initializer in initializer_values:
-            initializer.const_value = tensors[initializer.name]
-            model.graph.register_initializer(initializer)
+            model.graph.initialize_value_with(
+                initializer, tensors[initializer.name]
+            )
 
         # Restore the original inputs
         inputs = model.graph.inputs[:original_inputs_len]

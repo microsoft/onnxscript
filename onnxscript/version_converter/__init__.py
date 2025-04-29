@@ -136,8 +136,9 @@ class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
         # Recover the initializers in the converted model
         for input in converted_model.graph.inputs:
             if input.name in model.graph.initializers:
-                input.const_value = model.graph.initializers[input.name].const_value
-                converted_model.graph.register_initializer(input)
+                converted_model.graph.initialize_value_with(
+                    input, model.graph.initializers[input.name].const_value
+                )
         user_inputs = converted_model.graph.inputs[: len(model.graph.inputs)]
         converted_model.graph.inputs.clear()
         converted_model.graph.inputs.extend(user_inputs)
