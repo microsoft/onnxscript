@@ -115,7 +115,7 @@ class RemoveUnusedNodesPass(ir.passes.InPlacePass):
                     del graph_inputs[i]
                     count += 1
         for init in list(initializers.values()):
-            if not (init in graph_outputs or init in graph_inputs or init.uses()):
+            if not (init.uses() or init in graph_outputs or init in graph_inputs):
                 assert init.name is not None
                 del initializers[init.name]
                 count += 1
