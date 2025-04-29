@@ -16,7 +16,6 @@ import abc
 import contextlib
 import dataclasses
 import heapq
-import io
 import math
 import mmap
 import os
@@ -124,11 +123,23 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         # Use math.ceil because when dtype is INT4, the itemsize is 0.5
         return math.ceil(self.dtype.itemsize * self.size)
 
-    def tofile(self, file: BinaryIO, /) -> None:
+    def tofile(self: _protocols.TensorProtocol, file: BinaryIO, /) -> None:
         """Write the tensor content as bytes to a file-like object."""
-        # The naive implementation calls tobytes(), which creates a copy of the data.
-        # Advanced implementations can directly write to the file to avoid the copy.
-        file.write(self.tobytes())
+        if self.dtype in {
+            _enums.DataType.INT4,
+            _enums.DataType.UINT4,
+            _enums.DataType.FLOAT4E2M1,
+        }:
+            # Packing is required. So we call tobytes() directly
+            file.write(self.tobytes())
+            return
+
+        # Otherwise use tofile from the numpy array
+        array = self.numpy()
+        assert self.dtype.itemsize == array.itemsize, "Bug: The itemsize should match"
+        if not _IS_LITTLE_ENDIAN:
+            array = array.view(array.dtype.newbyteorder("<"))
+        return array.tofile(file)
 
     def display(self, *, page: bool = False) -> None:
         rich = _display.require_rich()
@@ -464,24 +475,6 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             array = array.view(array.dtype.newbyteorder("<"))
         return array.tobytes()
 
-    def tofile(self, file: BinaryIO, /) -> None:
-        """Write the tensor content as bytes to a file-like object."""
-        if self.dtype in {
-            _enums.DataType.INT4,
-            _enums.DataType.UINT4,
-            _enums.DataType.FLOAT4E2M1,
-        }:
-            # Packing is required. So we call tobytes() directly
-            file.write(self.tobytes())
-            return
-
-        # Otherwise use tofile from the numpy array
-        array = self.numpy()
-        assert self.dtype.itemsize == array.itemsize, "Bug: The itemsize should match"
-        if not _IS_LITTLE_ENDIAN:
-            array = array.view(array.dtype.newbyteorder("<"))
-        return array.tofile(file)
-
     @property
     def metadata_props(self) -> dict[str, str]:
         if self._metadata_props is None:
@@ -724,6 +717,17 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         offset = self._offset or 0
         length = self._length or self.nbytes
         return self.raw[offset : offset + length]
+
+    def tofile(self, file: BinaryIO, /) -> None:
+        """Write the tensor content as bytes to a file-like object."""
+        self._check_validity()
+        if self.raw is None:
+            self._load()
+        assert self.raw is not None
+        offset = self._offset or 0
+        length = self._length or self.nbytes
+        # FIXME avoid a copy
+        file.write(self.raw[offset : offset + length])
 
     def valid(self) -> bool:
         """Check if the tensor is valid.
