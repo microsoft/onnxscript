@@ -88,6 +88,7 @@ class RemoveUnusedTest(unittest.TestCase):
         self.assertEqual(len(model.graph.node), 1)
         self.assertEqual(model.graph.node[0].op_type, "Mul")
         self.assertEqual(len(model.graph.input), 2)
+        self.assertEqual(len(model.graph.initializer), 1)
 
     @parameterized.parameterized.expand([True, False])
     def test_unused_inputs_are_not_removed(self, remove_initialized_inputs: bool):
