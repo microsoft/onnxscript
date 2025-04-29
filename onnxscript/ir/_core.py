@@ -1056,9 +1056,51 @@ def _maybe_convert_to_symbolic_dim(
 
 
 class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
-    """Shape of a tensor.
+    """The shape of a tensor, including its dimensions and optional denotations.
 
+    The :class:`Shape` stores the dimensions of a tensor, which can be integers, None (unknown), or
+    symbolic dimensions.
 
+    A shape can be compared to another shape or plain Python list.
+
+    A shape can be frozen (made immutable). When the shape is frozen, it cannot be
+    unfrozen, making it suitable to be shared across tensors or values.
+    Call :method:`freeze` to freeze the shape.
+
+    To update the dimension of a frozen shape, call :method:`copy` to create a
+    new shape with the same dimensions that can be modified.
+
+    Use :method:`get_denotation` and :method:`set_denotation` to access and modify the denotations.
+
+    Example::
+
+        >>> from onnxscript import ir
+        >>> shape = ir.Shape(["B", None, 3])
+        >>> shape.rank()
+        3
+        >>> shape.is_static()
+        False
+        >>> shape.is_dynamic()
+        True
+        >>> shape.is_static(dim=2)
+        True
+        >>> shape[0] = 1
+        >>> shape[1] = 2
+        >>> shape.dims
+        (1, 2, 3)
+        >>> shape == [1, 2, 3]
+        True
+        >>> shape.frozen
+        False
+        >>> shape.freeze()
+        >>> shape.frozen
+        True
+
+    Attributes:
+        dims: A tuple of dimensions representing the shape.
+            Each dimension can be an integer, None or a :class:`SymbolicDim`.
+        frozen: Indicates whether the shape is immutable. When frozen, the shape
+            cannot be modified or unfrozen.
     """
     __slots__ = ("_dims", "_frozen")
 
@@ -1127,7 +1169,7 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         return Shape(self._dims, self._denotations, frozen=frozen)
 
     def rank(self) -> int:
-        """The rank of the shape."""
+        """The rank of the tensor this shape represents."""
         return len(self._dims)
 
     def numpy(self) -> tuple[int, ...]:

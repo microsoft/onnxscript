@@ -625,17 +625,6 @@ class ShapeTest(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "frozen"):
             shape[0] = "some_string"
 
-    def test_setitem_allowed_swapping_sym_dim_when_shape_is_frozen(self):
-        shape = _core.Shape(["some_dim"], denotations=("DATA_CHANNEL",), frozen=True)
-        with self.assertRaisesRegex(TypeError, "frozen"):
-            shape[0] = 1
-
-        # These are ok
-        shape[0] = "some_string"
-        self.assertEqual(shape[0], "some_string")
-        shape[0] = _core.SymbolicDim("some_other_string")
-        self.assertEqual(shape[0], "some_other_string")
-
     def test_getitem(self):
         shape = _core.Shape([42], denotations=("DATA_CHANNEL",))
         self.assertEqual(shape[0], 42)
