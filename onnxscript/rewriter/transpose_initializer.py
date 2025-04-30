@@ -22,8 +22,10 @@ class TransposeInitializer(orp.RewriteRuleClassBase):
         if array is None:
             # Do nothing
             logger.debug("Failed to obtain the initializer value. Do nothing")
-            return op.Transpose(initializer, dims)
-        return op.initializer(ir.tensor()
+            # TODO: Handle both when perms is None and when perms is not None
+            return op.Transpose(initializer, perms)
+        # TODO Obtain perms from the matched node
+        return op.initializer(ir.tensor())
 
     def check(self, context, initializer: ir.Value) -> orp.MatchResult:
         del context  # Unused
