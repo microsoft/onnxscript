@@ -27,6 +27,7 @@ class TransposeInitializer(orp.RewriteRuleClassBase):
     def rewrite(self, op, initializer: ir.Value) -> ir.Value:
         original_transpose = initializer.consumers()[0]
         perm_attr = original_transpose.attributes.get("perm")
+        assert isinstance(perm_attr, ir.Attr)
         array = ir_utils.get_numpy_value(initializer)
         if array is None:
             # Do nothing
