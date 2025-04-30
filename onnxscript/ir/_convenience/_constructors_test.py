@@ -17,6 +17,14 @@ class ConstructorsTest(unittest.TestCase):
         tensor = _constructors.tensor(torch_tensor)
         np.testing.assert_array_equal(tensor, torch_tensor.numpy())
 
+    def test_tensor_raises_value_error_for_empty_sequence_without_dtype(self):
+        with self.assertRaises(ValueError):
+            _constructors.tensor([])
+
+    def test_tensor_handles_empty_sequence_with_dtype(self):
+        tensor = _constructors.tensor([], dtype=np.float32)
+        np.testing.assert_array_equal(tensor.numpy(), np.array([], dtype=np.float32))
+
 
 if __name__ == "__main__":
     unittest.main()
