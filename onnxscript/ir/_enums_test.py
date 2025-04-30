@@ -150,6 +150,32 @@ class DataTypeTest(unittest.TestCase):
         dtype = _enums.DataType.from_short_name(short_name)
         self.assertEqual(dtype.short_name(), short_name)
 
+    def test_access_by_name(self):
+        self.assertEqual(_enums.DataType["FLOAT"], _enums.DataType.FLOAT)
+        self.assertEqual(_enums.DataType["UINT8"], _enums.DataType.UINT8)
+        self.assertEqual(_enums.DataType["INT8"], _enums.DataType.INT8)
+        self.assertEqual(_enums.DataType["UINT16"], _enums.DataType.UINT16)
+        self.assertEqual(_enums.DataType["INT16"], _enums.DataType.INT16)
+        self.assertEqual(_enums.DataType["INT32"], _enums.DataType.INT32)
+        self.assertEqual(_enums.DataType["INT64"], _enums.DataType.INT64)
+        self.assertEqual(_enums.DataType["STRING"], _enums.DataType.STRING)
+        self.assertEqual(_enums.DataType["BOOL"], _enums.DataType.BOOL)
+        self.assertEqual(_enums.DataType["FLOAT16"], _enums.DataType.FLOAT16)
+        self.assertEqual(_enums.DataType["DOUBLE"], _enums.DataType.DOUBLE)
+        self.assertEqual(_enums.DataType["UINT32"], _enums.DataType.UINT32)
+        self.assertEqual(_enums.DataType["UINT64"], _enums.DataType.UINT64)
+        self.assertEqual(_enums.DataType["COMPLEX64"], _enums.DataType.COMPLEX64)
+        self.assertEqual(_enums.DataType["COMPLEX128"], _enums.DataType.COMPLEX128)
+        self.assertEqual(_enums.DataType["BFLOAT16"], _enums.DataType.BFLOAT16)
+        self.assertEqual(_enums.DataType["FLOAT8E4M3FN"], _enums.DataType.FLOAT8E4M3FN)
+        self.assertEqual(_enums.DataType["FLOAT8E4M3FNUZ"], _enums.DataType.FLOAT8E4M3FNUZ)
+        self.assertEqual(_enums.DataType["FLOAT8E5M2"], _enums.DataType.FLOAT8E5M2)
+        self.assertEqual(_enums.DataType["FLOAT8E5M2FNUZ"], _enums.DataType.FLOAT8E5M2FNUZ)
+        self.assertEqual(_enums.DataType["UINT4"], _enums.DataType.UINT4)
+        self.assertEqual(_enums.DataType["INT4"], _enums.DataType.INT4)
+        self.assertEqual(_enums.DataType["FLOAT4E2M1"], _enums.DataType.FLOAT4E2M1)
+        self.assertEqual(_enums.DataType["UNDEFINED"], _enums.DataType.UNDEFINED)
+
 
 class AttributeTypeTest(unittest.TestCase):
     def test_enums_are_the_same_as_spec(self):
