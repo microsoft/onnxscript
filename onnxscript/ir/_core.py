@@ -1856,10 +1856,14 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         value_name = self.name if self.name is not None else "anonymous:" + str(id(self))
         shape_text = str(self.shape) if self.shape is not None else "?"
         type_text = str(self.type) if self.type is not None else "?"
+        if self.const_value is not None and self.const_value.size < 10:
+            const_value_text = f"{{{self.const_value}}}"
+        else:
+            const_value_text = ""
 
         # Quote the name because in reality the names can have invalid characters
         # that make them hard to read
-        return f"%{_quoted(value_name)}<{type_text},{shape_text}>"
+        return f"%{_quoted(value_name)}<{type_text},{shape_text}>{const_value_text}"
 
     def producer(self) -> Node | None:
         """The node that produces this value.
