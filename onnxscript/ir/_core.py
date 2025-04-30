@@ -1850,10 +1850,11 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
             producer_text = f", producer=anonymous_node:{id(producer)}"
         index_text = f", index={self.index()}" if self.index() is not None else ""
         if self.const_value is not None:
-            # Take the first line only
-            tensor_text = repr(self.const_value)
-            if len(tensor_text) > 100:
-                tensor_text = tensor_text[:100] + "...)"
+            # Only display when the const value is small
+            if self.const_value.size <= 10:
+                tensor_text = f"{{{self.const_value}}}"
+            else:
+                tensor_text = "{...}"
             const_value_text = f", const_value={tensor_text}"
         else:
             const_value_text = ""
