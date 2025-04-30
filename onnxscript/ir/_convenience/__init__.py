@@ -36,6 +36,7 @@ SupportedAttrTypes = Union[
     _core.RefAttr,
     _protocols.GraphProtocol,
     Sequence[_protocols.GraphProtocol],
+    onnx.GraphProto,
     _protocols.TypeProtocol,
     Sequence[_protocols.TypeProtocol],
     None,
@@ -61,10 +62,15 @@ def _infer_attribute_type(attr: SupportedAttrTypes) -> _enums.AttributeType:
     if isinstance(attr, (_core.TensorBase, onnx.TensorProto, _protocols.TensorProtocol)):
         # Be sure to check TensorProtocol last because isinstance checking on Protocols can be slower
         return _enums.AttributeType.TENSOR
-    if isinstance(attr, (_core.Graph, _protocols.GraphProtocol)):
+    if isinstance(attr, Sequence) and all(
+        isinstance(x, (_core.TensorBase, onnx.TensorProto, _protocols.TensorProtocol))
+        for x in attr
+    ):
+        return _enums.AttributeType.TENSORS
+    if isinstance(attr, (_core.Graph, onnx.GraphProto, _protocols.GraphProtocol)):
         return _enums.AttributeType.GRAPH
     if isinstance(attr, Sequence) and all(
-        isinstance(x, (_core.Graph, _protocols.GraphProtocol)) for x in attr
+        isinstance(x, (_core.Graph, onnx.GraphProto, _protocols.GraphProtocol)) for x in attr
     ):
         return _enums.AttributeType.GRAPHS
     if isinstance(
@@ -146,11 +152,27 @@ def convert_attribute(
         if isinstance(attr, (_core.TensorBase, _protocols.TensorProtocol)):
             return _core.AttrTensor(name, attr)
         if isinstance(attr, onnx.TensorProto):
-            return _core.AttrTensor(name, serde.TensorProtoTensor(attr))
+            return _core.AttrTensor(name, serde.deserialize_tensor(attr))
+    if attr_type == _enums.AttributeType.TENSORS:
+        tensors = []
+        for t in attr:  # type: ignore[union-attr]
+            if isinstance(t, onnx.TensorProto):
+                tensors.append(_core.AttrTensor(name, serde.deserialize_tensor(t)))
+            else:
+                tensors.append(t)  # type: ignore[arg-type]
+        return _core.AttrTensors(name, tensors)  # type: ignore[arg-type]
     if attr_type == _enums.AttributeType.GRAPH:
+        if isinstance(attr, onnx.GraphProto):
+            attr = serde.deserialize_graph(attr)
         return _core.AttrGraph(name, attr)  # type: ignore[arg-type]
     if attr_type == _enums.AttributeType.GRAPHS:
-        return _core.AttrGraphs(name, attr)  # type: ignore[arg-type]
+        graphs = []
+        for graph in attr:  # type: ignore[union-attr]
+            if isinstance(graph, onnx.GraphProto):
+                graphs.append(serde.deserialize_graph(graph))
+            else:
+                graphs.append(graph)  # type: ignore[arg-type]
+        return _core.AttrGraphs(name, graphs)  # type: ignore[arg-type]
     if attr_type == _enums.AttributeType.TYPE_PROTO:
         return _core.AttrTypeProto(name, attr)  # type: ignore[arg-type]
     if attr_type == _enums.AttributeType.TYPE_PROTOS:

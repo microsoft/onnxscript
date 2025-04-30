@@ -81,17 +81,23 @@ class Tape:
         name: str | None = None,
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
+        output: ir.Value | None = None,
     ) -> ir.Value:
         if attributes is None:
             attrs: Sequence[ir.Attr | ir.RefAttr] = ()
         else:
             attrs = _convenience.convert_attributes(attributes)
+        output_kwargs: dict[str, Any]
+        if output is None:
+            output_kwargs = dict(num_outputs=1)
+        else:
+            output_kwargs = dict(outputs=[output])
         node = ir.Node(
             domain,
             op_type,
             inputs,
             attributes=attrs,
-            num_outputs=1,
+            **output_kwargs,
             overload=overload,
             version=version,
             graph=graph or self.graph_like,
@@ -104,13 +110,14 @@ class Tape:
 
         return node.outputs[0]
 
-    def op_multi_output(
+    def op_multi_out(
         self,
         op_type: str,
         inputs: Sequence[ir.Value | None],
         attributes: Mapping[str, _convenience.SupportedAttrTypes] | None = None,
         *,
-        num_outputs: int,
+        num_outputs: int | None = None,
+        outputs: Sequence[ir.Value] | None = None,
         domain: str = "",
         overload: str = "",
         version: int | None = None,
@@ -119,6 +126,15 @@ class Tape:
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
     ) -> Sequence[ir.Value]:
+        if num_outputs is None and outputs is None:
+            raise ValueError("Either num_outputs or outputs must be provided.")
+        if num_outputs is not None and outputs is not None:
+            raise ValueError("Both num_outputs and outputs cannot be provided simultaneously.")
+        output_kwargs: dict[str, Any]
+        if outputs is None:
+            output_kwargs = dict(num_outputs=num_outputs)
+        else:
+            output_kwargs = dict(outputs=outputs)
         if attributes is None:
             attrs: Sequence[ir.Attr | ir.RefAttr] = ()
         else:
@@ -128,7 +144,7 @@ class Tape:
             op_type,
             inputs,
             attributes=attrs,
-            num_outputs=num_outputs,
+            **output_kwargs,
             overload=overload,
             version=version,
             graph=graph or self.graph_like,
@@ -178,7 +194,7 @@ class Builder(Tape):
             if isinstance(outputs, Sequence):
                 value.name = outputs[0]
             return value
-        values = super().op_multi_output(
+        values = super().op_multi_out(
             op_type,
             inputs=inputs,
             attributes=kwargs,

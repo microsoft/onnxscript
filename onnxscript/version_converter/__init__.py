@@ -147,7 +147,9 @@ class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
         return ir.passes.PassResult(model, True)
 
 
-def convert_version(model: ir.Model, target_version: int, fallback=False) -> None:
+def convert_version(
+    model: ir.Model | onnx.ModelProto, target_version: int, fallback=None
+) -> None:
     """Convert the model to the specified ONNX opset version.
 
     Args:
@@ -156,4 +158,17 @@ def convert_version(model: ir.Model, target_version: int, fallback=False) -> Non
         fallback: Whether to fallback to the onnx version converter if the
             target version is not supported. Default is False.
     """
+    if isinstance(model, onnx.ModelProto):
+        model_proto = model
+        model = ir.from_proto(model)
+    else:
+        model_proto = None
+
+    assert isinstance(model, ir.Model)
     ConvertVersionPass(target_version=target_version, fallback=fallback)(model)
+
+    if model_proto is not None:
+        # Update the model proto in-place
+        model_proto.graph.Clear()
+        del model_proto.functions
+        model_proto.graph.CopyFrom(ir.to_proto(model.graph))

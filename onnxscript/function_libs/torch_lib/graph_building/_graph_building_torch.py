@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+# ruff: noqa: TID251
 """Graph building functions for torchscript graph backend."""
 
 from __future__ import annotations

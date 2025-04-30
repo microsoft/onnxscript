@@ -8,7 +8,6 @@ from typing import Any, Optional
 import numpy
 import onnx
 from onnx import FunctionProto, GraphProto, ModelProto, TensorProto, ValueInfoProto
-from onnx.helper import make_node
 
 import onnxscript.onnx_types
 import onnxscript.type_annotation
@@ -69,10 +68,10 @@ def _get_const_repr(const_node):
     if tensor_proto.data_type in {TensorProto.FLOAT, TensorProto.INT64}:
         rank = len(tensor_proto.dims)
         if rank == 0:
-            array = onnx.numpy_helper.to_array(tensor_proto).reshape(1)
+            array = onnx.numpy_helper.to_array(tensor_proto).reshape(1)  # noqa: TID251
             return repr(array[0])
         if rank == 1 and tensor_proto.dims[0] < 5:
-            return repr(list(onnx.numpy_helper.to_array(tensor_proto)))
+            return repr(list(onnx.numpy_helper.to_array(tensor_proto)))  # noqa: TID251
     return None
 
 
@@ -162,7 +161,7 @@ def _attribute_value(attr: onnx.AttributeProto):
         if onnx.external_data_helper.uses_external_data(tensor_proto):
             return tensor_proto
         else:
-            return onnx.numpy_helper.to_array(tensor_proto)
+            return onnx.numpy_helper.to_array(tensor_proto)  # noqa: TID251
     # TODO:
     # - onnx.AttributeProto.GRAPH
     # - onnx.AttributeProto.SPARSE_TENSOR
@@ -349,7 +348,7 @@ class _Exporter:
                         )
                     self.skipped_initializers[init_py_name] = init
                     continue
-                node = make_node(
+                node = onnx.helper.make_node(  # noqa: TID251
                     "Constant",
                     [],
                     [self._translate_onnx_var(init.name)],  # type: ignore[list-item]

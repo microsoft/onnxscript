@@ -176,7 +176,7 @@ def _get_attribute_value(attr_proto: onnx.AttributeProto) -> Any:
     """Get the default value of an ONNX attribute."""
     if attr_proto.type == onnx.AttributeProto.UNDEFINED:
         return _EmptyDefault
-    return onnx.helper.get_attribute_value(attr_proto)
+    return onnx.helper.get_attribute_value(attr_proto)  # noqa: TID251
 
 
 def _param_schemas_from_op_schema(

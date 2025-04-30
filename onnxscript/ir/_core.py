@@ -357,7 +357,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
         else:
             self._shape = shape
-            self._shape._frozen = True
+            self._shape.freeze()
         if dtype is None:
             if isinstance(value, np.ndarray):
                 self._dtype = _enums.DataType.from_numpy(value.dtype)
@@ -560,7 +560,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         self._dtype: _enums.DataType = dtype
         self.name: str = name  # mutable
         self._shape: Shape = shape
-        self._shape._frozen = True
+        self._shape.freeze()
         self.doc_string: str | None = doc_string  # mutable
         self._array: np.ndarray | None = None
         self.raw: mmap.mmap | None = None
@@ -779,7 +779,7 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
         else:
             self._shape = shape
-            self._shape._frozen = True
+            self._shape.freeze()
         self._raw = value
         self.name = name
         self.doc_string = doc_string
@@ -990,6 +990,8 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
 
 
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
+    """Immutable symbolic dimension that can be shared across multiple shapes."""
+
     __slots__ = ("_value",)
 
     def __init__(self, value: str | None) -> None:
@@ -1050,6 +1052,53 @@ def _maybe_convert_to_symbolic_dim(
 
 
 class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
+    """The shape of a tensor, including its dimensions and optional denotations.
+
+    The :class:`Shape` stores the dimensions of a tensor, which can be integers, None (unknown), or
+    symbolic dimensions.
+
+    A shape can be compared to another shape or plain Python list.
+
+    A shape can be frozen (made immutable). When the shape is frozen, it cannot be
+    unfrozen, making it suitable to be shared across tensors or values.
+    Call :method:`freeze` to freeze the shape.
+
+    To update the dimension of a frozen shape, call :method:`copy` to create a
+    new shape with the same dimensions that can be modified.
+
+    Use :method:`get_denotation` and :method:`set_denotation` to access and modify the denotations.
+
+    Example::
+
+        >>> from onnxscript import ir
+        >>> shape = ir.Shape(["B", None, 3])
+        >>> shape.rank()
+        3
+        >>> shape.is_static()
+        False
+        >>> shape.is_dynamic()
+        True
+        >>> shape.is_static(dim=2)
+        True
+        >>> shape[0] = 1
+        >>> shape[1] = 2
+        >>> shape.dims
+        (1, 2, 3)
+        >>> shape == [1, 2, 3]
+        True
+        >>> shape.frozen
+        False
+        >>> shape.freeze()
+        >>> shape.frozen
+        True
+
+    Attributes:
+        dims: A tuple of dimensions representing the shape.
+            Each dimension can be an integer, None or a :class:`SymbolicDim`.
+        frozen: Indicates whether the shape is immutable. When frozen, the shape
+            cannot be modified or unfrozen.
+    """
+
     __slots__ = ("_dims", "_frozen")
 
     def __init__(
@@ -1072,7 +1121,8 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
                 Refer to https://github.com/onnx/onnx/blob/main/docs/DimensionDenotation.md#denotation-definition
                 for pre-defined dimension denotations.
             frozen: If True, the shape is immutable and cannot be modified. This
-                is useful when the shape is initialized by a Tensor.
+                is useful when the shape is initialized by a Tensor or when the shape
+                is shared across multiple tensors. The default is False.
         """
         self._dims: list[int | SymbolicDim] = [
             _maybe_convert_to_symbolic_dim(dim) for dim in dims
@@ -1086,10 +1136,6 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
             )
         self._frozen: bool = frozen
 
-    def copy(self):
-        """Return a copy of the shape."""
-        return Shape(self._dims, self._denotations, self._frozen)
-
     @property
     def dims(self) -> tuple[int | SymbolicDim, ...]:
         """All dimensions in the shape.
@@ -1098,8 +1144,29 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         """
         return tuple(self._dims)
 
+    @property
+    def frozen(self) -> bool:
+        """Whether the shape is frozen.
+
+        When the shape is frozen, it cannot be unfrozen, making it suitable to be shared.
+        Call :method:`freeze` to freeze the shape. Call :method:`copy` to create a
+        new shape with the same dimensions that can be modified.
+        """
+        return self._frozen
+
+    def freeze(self) -> None:
+        """Freeze the shape.
+
+        When the shape is frozen, it cannot be unfrozen, making it suitable to be shared.
+        """
+        self._frozen = True
+
+    def copy(self, frozen: bool = False):
+        """Return a copy of the shape."""
+        return Shape(self._dims, self._denotations, frozen=frozen)
+
     def rank(self) -> int:
-        """The rank of the shape."""
+        """The rank of the tensor this shape represents."""
         return len(self._dims)
 
     def numpy(self) -> tuple[int, ...]:

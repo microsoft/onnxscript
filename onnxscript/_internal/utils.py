@@ -8,7 +8,6 @@ from typing import Optional
 
 import numpy as np
 import onnx
-import onnx.helper
 
 from onnxscript import tensor
 
@@ -66,26 +65,26 @@ def external_tensor(
 def value_to_type_proto(val):
     """Return the ONNX type of a python-value."""
     if isinstance(val, (np.ndarray, tensor.Tensor)):
-        elem_type = onnx.helper.np_dtype_to_tensor_dtype(val.dtype)
+        elem_type = onnx.helper.np_dtype_to_tensor_dtype(val.dtype)  # noqa: TID251
         shape = val.shape
-        return onnx.helper.make_tensor_type_proto(elem_type, shape)
+        return onnx.helper.make_tensor_type_proto(elem_type, shape)  # noqa: TID251
     if isinstance(val, int):
-        return onnx.helper.make_tensor_type_proto(onnx.TensorProto.INT32, [])
+        return onnx.helper.make_tensor_type_proto(onnx.TensorProto.INT32, [])  # noqa: TID251
     if isinstance(val, (float, np.float32)):
-        return onnx.helper.make_tensor_type_proto(onnx.TensorProto.FLOAT, [])
+        return onnx.helper.make_tensor_type_proto(onnx.TensorProto.FLOAT, [])  # noqa: TID251
     if isinstance(val, list):
         if len(val) > 0:
-            return onnx.helper.make_sequence_type_proto(value_to_type_proto(val[0]))
+            return onnx.helper.make_sequence_type_proto(value_to_type_proto(val[0]))  # noqa: TID251
         # Edge-case. Cannot determine a suitable ONNX type for an empty list.
         # Should be using a typed-value instead.
         # Treated as a sequence of tensors of float-type.
-        return onnx.helper.make_sequence_type_proto(
-            onnx.helper.make_tensor_type_proto(onnx.TensorProto.FLOAT, None)
+        return onnx.helper.make_sequence_type_proto(  # noqa: TID251
+            onnx.helper.make_tensor_type_proto(onnx.TensorProto.FLOAT, None)  # noqa: TID251
         )
     if isinstance(val, numbers.Number):
         nparray = np.array(val)
-        elem_type = onnx.helper.np_dtype_to_tensor_dtype(nparray.dtype)
-        return onnx.helper.make_tensor_type_proto(elem_type, [])
+        elem_type = onnx.helper.np_dtype_to_tensor_dtype(nparray.dtype)  # noqa: TID251
+        return onnx.helper.make_tensor_type_proto(elem_type, [])  # noqa: TID251
     raise ValueError(f"Value of type {type(val)} is invalid as an ONNX input/output.")
 
 
@@ -94,7 +93,7 @@ def values_to_value_infos(name_values):
     skipping any None values.
     """
     return [
-        onnx.helper.make_value_info(name, value_to_type_proto(val))
+        onnx.helper.make_value_info(name, value_to_type_proto(val))  # noqa: TID251
         for (name, val) in name_values
         if val is not None
     ]
