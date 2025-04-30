@@ -102,7 +102,7 @@ def tensor(
         # If the value is a single float, we use np.float32 as the default dtype
         numpy_dtype = np.dtype(np.float32)
     elif isinstance(value, Sequence) and value:
-        if all((isinstance(elem, int) and not isinstance(value, bool)) for elem in value):
+        if all((isinstance(elem, int) and not isinstance(elem, bool)) for elem in value):
             numpy_dtype = np.dtype(np.int64)
         elif all(isinstance(elem, float) for elem in value):
             # If the value is a sequence of floats, we use np.float32 as the default dtype
@@ -110,7 +110,8 @@ def tensor(
     elif isinstance(value, Sequence) and not value:
         if dtype is None:
             raise ValueError("dtype must be specified when value is an empty sequence.")
-        numpy_dtype = dtype.numpy()
+        else:
+            numpy_dtype = dtype.numpy()
     else:
         numpy_dtype = None
     array = np.array(value, dtype=numpy_dtype)
