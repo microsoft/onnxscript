@@ -1847,7 +1847,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
             producer_text = f", producer=anonymous_node:{id(producer)}"
         index_text = f", index={self.index()}" if self.index() is not None else ""
         if self.const_value is not None:
-            # The the first line only
+            # Take the first line only
             tensor_text = repr(self.const_value).replace("\n", " ")
             if len(tensor_text) > 100:
                 tensor_text = tensor_text[:100] + "...)"
