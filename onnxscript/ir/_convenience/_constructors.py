@@ -92,11 +92,14 @@ def tensor(
         return tensor_adapters.TorchTensor(value, name=name, doc_string=doc_string)  # type: ignore[arg-type]
     elif isinstance(value, (_protocols.DLPackCompatible, _protocols.ArrayCompatible)):
         return _core.Tensor(value, dtype=dtype, name=name, doc_string=doc_string)
-    # Plain Python object
+
+    # Plain (numerical) Python object. Determine the numpy dtype and use np.array to construct the tensor
     if dtype is not None:
         if not isinstance(dtype, _enums.DataType):
             raise TypeError(f"dtype must be an instance of DataType. dtype={dtype}")
         numpy_dtype = dtype.numpy()
+    elif isinstance(value, Sequence) and not value:
+        raise ValueError("dtype must be specified when value is an empty sequence.")
     elif isinstance(value, int) and not isinstance(value, bool):
         # Specify int64 for ints because on Windows this may be int32
         numpy_dtype = np.dtype(np.int64)
@@ -109,13 +112,9 @@ def tensor(
         elif all(isinstance(elem, float) for elem in value):
             # If the value is a sequence of floats, we use np.float32 as the default dtype
             numpy_dtype = np.dtype(np.float32)
-    elif isinstance(value, Sequence) and not value:
-        if dtype is None:
-            raise ValueError("dtype must be specified when value is an empty sequence.")
-        else:
-            numpy_dtype = dtype.numpy()
     else:
         numpy_dtype = None
+
     array = np.array(value, dtype=numpy_dtype)
 
     # Handle string tensors by encoding them
