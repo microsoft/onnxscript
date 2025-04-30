@@ -22,6 +22,7 @@ from onnxscript.rewriter import (
     llama_rule_sets,
     no_op,
     pattern,
+    transpose_initializer,
 )
 
 _ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
@@ -32,6 +33,7 @@ _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
     *cast_constant_of_shape.rules.rules,
     *collapse_slices.rules.rules,
     *llama_rule_sets.llama_p0_rule_set().rules,
+    transpose_initializer.rule,
 )
 
 
