@@ -1,12 +1,17 @@
 """Rules to collapse Transpose nodes into initializers."""
+
 from __future__ import annotations
+
+import logging
+
+import numpy as np
+
 from onnxscript import ir
 from onnxscript.rewriter import _ir_utils as ir_utils
 from onnxscript.rewriter import pattern as orp
 
-import logging
-
 logger = logging.getLogger(__name__)
+
 
 class TransposeInitializer(orp.RewriteRuleClassBase):
     """Folds Transpose nodes into initializers."""
@@ -18,14 +23,21 @@ class TransposeInitializer(orp.RewriteRuleClassBase):
         return op.Transpose(initializer, _allow_other_attributes=True)
 
     def rewrite(self, op, initializer: ir.Value) -> ir.Value:
+        original_transpose = initializer.consumers()[0]
+        perm_attr = original_transpose.attributes.get("perm")
+        if perm_attr is not None:
+            perm = perm_attr.as_ints()
+        else:
+            perm = None
+
         array = ir_utils.get_const_value(initializer)
         if array is None:
             # Do nothing
             logger.debug("Failed to obtain the initializer value. Do nothing")
-            # TODO: Handle both when perms is None and when perms is not None
-            return op.Transpose(initializer, perms)
-        # TODO Obtain perms from the matched node
-        return op.initializer(ir.tensor())
+            return op.Transpose(initializer, perm=perm)
+
+        transposed = np.transpose(array, axes=perm)
+        return op.initializer(ir.tensor(transposed))
 
     def check(self, context, initializer: ir.Value) -> orp.MatchResult:
         del context  # Unused
@@ -34,6 +46,8 @@ class TransposeInitializer(orp.RewriteRuleClassBase):
             return check_result.fail("Value is not an initializer, const_value is None")
         if initializer.producer() is not None:
             return check_result.fail("Value is not an initializer, producer is not None")
+        if initializer.uses() != 1:
+            return check_result.fail("Initializer is used by more than one node")
         return check_result
 
 
