@@ -406,6 +406,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         return self.__array__().__dlpack_device__()
 
     def __repr__(self) -> str:
+        # Avoid multi-line repr
         tensor_lines = repr(self._raw).split("\n")
         tensor_text = " ".join(line.strip() for line in tensor_lines)
         return f"{self._repr_base()}({tensor_text}, name={self.name!r})"
