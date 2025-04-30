@@ -104,7 +104,7 @@ class RemoveUnusedNodesPass(ir.passes.InPlacePass):
         super().__init__()
         self.remove_initialized_inputs = remove_initialized_inputs
 
-    def _remove_unused_initialized_inputs(self, model: ir.Model) -> None:
+    def _maybe_remove_unused_initialized_inputs(self, model: ir.Model) -> None:
         graph_outputs = model.graph.outputs
         initializers = model.graph.initializers
         graph_inputs = model.graph.inputs
@@ -127,7 +127,7 @@ class RemoveUnusedNodesPass(ir.passes.InPlacePass):
         graph_outputs = frozenset(model.graph.outputs)
         initializers = model.graph.initializers
         graph_inputs = model.graph.inputs
-        self._remove_unused_initialized_inputs(model)
+        self._maybe_remove_unused_initialized_inputs(model)
         for init in list(initializers.values()):
             if not (init.uses() or init in graph_outputs or init in graph_inputs):
                 assert init.name is not None
