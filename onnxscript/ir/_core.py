@@ -1836,14 +1836,22 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
+
+        type_text = f", type={self.type!r}" if self.type is not None else ""
+        shape_text = f", shape={self.shape!r}" if self.shape is not None else ""
         producer = self.producer()
         if producer is None:
-            producer_text = "None"
+            producer_text = ""
         elif producer.name is not None:
-            producer_text = producer.name
+            producer_text = f", producer='{producer.name}'"
         else:
-            producer_text = f"anonymous_node:{id(producer)}"
-        return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, producer={producer_text}, index={self.index()})"
+            producer_text = f", producer=anonymous_node:{id(producer)}"
+        index_text = f", index={self.index()}" if self.index() is not None else ""
+        if self.const_value is not None:
+            const_value_text = f", const_value={self.const_value!r}"
+        else:
+            const_value_text = ""
+        return f"{self.__class__.__name__}(name={value_name!r}{type_text}{shape_text}{producer_text}{index_text}{const_value_text})"
 
     def __str__(self) -> str:
         value_name = self.name if self.name is not None else "anonymous:" + str(id(self))
