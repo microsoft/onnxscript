@@ -213,6 +213,7 @@ _NP_TYPE_TO_DATA_TYPE.update(
 _DATA_TYPE_TO_NP_TYPE = {v: k for k, v in _NP_TYPE_TO_DATA_TYPE.items()}
 
 _DATA_TYPE_TO_SHORT_NAME = {
+    DataType.UNDEFINED: "undefined",
     DataType.BFLOAT16: "bf16",
     DataType.DOUBLE: "f64",
     DataType.FLOAT: "f32",
@@ -224,15 +225,18 @@ _DATA_TYPE_TO_SHORT_NAME = {
     DataType.FLOAT4E2M1: "f4e2m1",
     DataType.COMPLEX64: "c64",
     DataType.COMPLEX128: "c128",
+    DataType.INT4: "i4",
     DataType.INT8: "i8",
     DataType.INT16: "i16",
     DataType.INT32: "i32",
     DataType.INT64: "i64",
     DataType.BOOL: "b8",
+    DataType.UINT4: "u4",
     DataType.UINT8: "u8",
     DataType.UINT16: "u16",
     DataType.UINT32: "u32",
     DataType.UINT64: "u64",
+    DataType.STRING: "s",
 }
 
 _SHORT_NAME_TO_DATA_TYPE = {v: k for k, v in _DATA_TYPE_TO_SHORT_NAME.items()}
