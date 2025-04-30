@@ -93,8 +93,12 @@ def _remove_unused_nodes_in_graph_like(function_or_graph: ir.Function | ir.Graph
 
 
 class RemoveUnusedNodesPass(ir.passes.InPlacePass):
-    """Pass for removing unused nodes and initializers (dead code elimination)."""
+    """Pass for removing unused nodes and initializers (dead code elimination).
 
+    This pass does not modify the model signature (inputs and outputs). It ensures
+    that unused nodes and initializers are removed while preserving the original
+    contract of the model.
+    """
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         count = _remove_unused_nodes_in_graph_like(model.graph)
         graph_outputs = frozenset(model.graph.outputs)
