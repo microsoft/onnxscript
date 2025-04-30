@@ -753,10 +753,11 @@ class OrValue(ValuePattern):
                 raise ValueError(
                     "tag_values must have the same length as the number of alternatives."
                 )
-        elif tag_var is not None:
+        else:
             tag_values = tuple(range(len(values)))
         self._tag_var = tag_var
         self._tag_values = tag_values
+        self._values = values
 
         mapping: dict[OpIdentifier, tuple[Any, NodeOutputPattern]] = {}
         for i, alternative in enumerate(values[:-1]):
@@ -784,7 +785,12 @@ class OrValue(ValuePattern):
         return self._tag_var
 
     def clone(self, node_map: dict[NodePattern, NodePattern]) -> OrValue:
-        return OrValue([v.clone(node_map) for v in self._values], self.name)
+        return OrValue(
+            [v.clone(node_map) for v in self._values],
+            self.name,
+            self._tag_var,
+            self._tag_values,
+        )
 
     def get_pattern(self, value: ir.Value) -> tuple[Any, ValuePattern]:
         """Returns the pattern that should be tried for the given value."""
@@ -794,9 +800,6 @@ class OrValue(ValuePattern):
             if id is not None and id in self._op_to_pattern:
                 return self._op_to_pattern[id]
         return self._default_pattern
-
-    def __str__(self) -> str:
-        return f"OrValue({self._values})"
 
 
 def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[NodePattern]:
