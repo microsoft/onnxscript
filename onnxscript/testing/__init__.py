@@ -14,10 +14,12 @@ import math
 from typing import Any, Collection, Sequence
 
 import google.protobuf.message
+import numpy as np
 import onnx
 from onnx import parser
 
 import onnxscript
+from onnxscript import ir
 
 
 def assert_isomorphic(graph_or_function_1, graph_or_function_2):
@@ -66,7 +68,7 @@ def _same_string_string_map(proto1, proto2):
     return to_map(proto1) == to_map(proto2)
 
 
-def _same_tensor(tp1, tp2):
+def _same_tensor(tp1: onnx.TensorProto, tp2: onnx.TensorProto):
     if tp1.dims != tp2.dims:
         return False
     if not _same_optional("data_type", tp1, tp2):
@@ -74,18 +76,11 @@ def _same_tensor(tp1, tp2):
     # Segmented representation not supported yet
     if tp1.HasField("segment") or tp2.HasField("segment"):
         return False
-    if tp1.float_data != tp2.float_data:
-        return False
-    if tp1.int32_data != tp2.int32_data:
-        return False
-    if tp1.string_data != tp2.string_data:
-        return False
-    if tp1.int64_data != tp2.int64_data:
-        return False
-    if tp1.uint64_data != tp2.uint64_data:
-        return False
-    if tp1.double_data != tp2.double_data:
-        return False
+    if tp1.data_location == tp2.data_location == tp1.DataLocation.DEFAULT:
+        tensor1 = ir.from_proto(tp1)
+        tensor2 = ir.from_proto(tp2)
+        if not np.array_equal(tensor1.numpy(), tensor2.numpy(), equal_nan=True):
+            return False
     # Ignore name for comparison:
     # if not _same_optional("name", tp1, tp2): return False
     if not _same_optional("doc_string", tp1, tp2):
