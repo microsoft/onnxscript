@@ -1854,7 +1854,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
             if self.const_value.size <= 10:
                 tensor_text = f"{{{self.const_value}}}"
             else:
-                tensor_text = "{...}"
+                tensor_text = f"{{{self.const_value.__class__.__name__}...}}"
             const_value_text = f", const_value={tensor_text}"
         else:
             const_value_text = ""
@@ -1869,7 +1869,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
             if self.const_value.size <= 10:
                 const_value_text = f"{{{self.const_value}}}"
             else:
-                const_value_text = "{...}"
+                const_value_text = f"{{{self.const_value.__class__.__name__}...}}"
         else:
             const_value_text = ""
 
