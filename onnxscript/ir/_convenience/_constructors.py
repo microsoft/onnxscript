@@ -94,6 +94,8 @@ def tensor(
         return _core.Tensor(value, dtype=dtype, name=name, doc_string=doc_string)
     # Plain Python object
     if dtype is not None:
+        if not isinstance(dtype, _enums.DataType):
+            raise TypeError(f"dtype must be an instance of DataType. dtype={dtype}")
         numpy_dtype = dtype.numpy()
     elif isinstance(value, int) and not isinstance(value, bool):
         # Specify int64 for ints because on Windows this may be int32

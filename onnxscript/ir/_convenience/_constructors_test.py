@@ -6,6 +6,7 @@ import unittest
 
 import numpy as np
 
+from onnxscript import ir
 from onnxscript.ir._convenience import _constructors
 
 
@@ -22,7 +23,7 @@ class ConstructorsTest(unittest.TestCase):
             _constructors.tensor([])
 
     def test_tensor_handles_empty_sequence_with_dtype(self):
-        tensor = _constructors.tensor([], dtype=np.float32)
+        tensor = _constructors.tensor([], dtype=ir.DataType.FLOAT)
         np.testing.assert_array_equal(tensor.numpy(), np.array([], dtype=np.float32))
 
 
