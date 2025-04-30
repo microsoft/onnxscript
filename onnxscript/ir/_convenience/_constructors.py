@@ -112,6 +112,8 @@ def tensor(
         elif all(isinstance(elem, float) for elem in value):
             # If the value is a sequence of floats, we use np.float32 as the default dtype
             numpy_dtype = np.dtype(np.float32)
+        else:
+            numpy_dtype = None
     else:
         numpy_dtype = None
 
