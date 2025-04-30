@@ -208,10 +208,11 @@ def node(
 
 
 def initializer(tensor: _protocols.TensorProtocol, name: str | None = None) -> ir.Value:
-    """Create a Value object from a TensorProtocol.
+    """Create a Value object representing a graph initializer from a tensor.
 
     Args:
         tensor: The tensor to create the Value from.
+        name: The name of the Value. If None, the name is taken from the tensor.
 
     Returns:
         A Value object with the provided tensor as its const_value, and
@@ -223,7 +224,7 @@ def initializer(tensor: _protocols.TensorProtocol, name: str | None = None) -> i
     shape = ir.Shape((d if isinstance(d, int) else d.value) for d in tensor.shape.dims)
     return _core.Value(
         name=tensor.name,
-        shape=tensor.shape,
+        shape=shape,
         type=_core.TensorType(tensor.dtype),
         const_value=tensor,
     )

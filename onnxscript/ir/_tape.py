@@ -14,6 +14,7 @@ from typing import (
 
 from onnxscript import ir
 from onnxscript.ir import _convenience
+from onnxscript.ir._convenience import _constructors
 
 # A type representing the domains/versions used in creating nodes in IR.
 UsedOpsets = set[Tuple[str, Optional[int]]]
@@ -163,7 +164,7 @@ class Tape:
         return node.outputs
 
     def initializer(self, tensor: ir.TensorProtocol, name: str | None = None) -> ir.Value:
-        value = _convenience.initializer(tensor, name)
+        value = _constructors.initializer(tensor, name)
         self._initializers.append(value)
         if isinstance(self.graph_like, ir.Graph):
             self.graph_like.register_initializer(value)
