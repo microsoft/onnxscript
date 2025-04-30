@@ -25,17 +25,17 @@ class TransposeInitializer(orp.RewriteRuleClassBase):
     def rewrite(self, op, initializer: ir.Value) -> ir.Value:
         original_transpose = initializer.consumers()[0]
         perm_attr = original_transpose.attributes.get("perm")
-        if perm_attr is not None:
-            perm = perm_attr.as_ints()
-        else:
-            perm = None
-
         array = ir_utils.get_const_value(initializer)
         if array is None:
             # Do nothing
             logger.debug("Failed to obtain the initializer value. Do nothing")
-            return op.Transpose(initializer, perm=perm)
+            # perm=None is filtered out when the attribute is constructed so we are ok
+            return op.Transpose(initializer, perm=perm_attr)
 
+        if perm_attr is not None:
+            perm = perm_attr.as_ints()
+        else:
+            perm = None
         transposed = np.transpose(array, axes=perm)
         return op.initializer(ir.tensor(transposed))
 
