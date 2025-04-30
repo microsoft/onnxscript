@@ -1848,7 +1848,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         index_text = f", index={self.index()}" if self.index() is not None else ""
         if self.const_value is not None:
             # The the first line only
-            tensor_text = repr(self.const_value).replace('\n', ' ')
+            tensor_text = repr(self.const_value).replace("\n", " ")
             if len(tensor_text) > 100:
                 tensor_text = tensor_text[:100] + "...)"
             const_value_text = f", const_value={tensor_text}"
@@ -1861,7 +1861,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         shape_text = str(self.shape) if self.shape is not None else "?"
         type_text = str(self.type) if self.type is not None else "?"
         if self.const_value is not None and self.const_value.size <= 10:
-            const_value_text = f"{{{self.const_value}}}".replace('\n', ' ')
+            const_value_text = f"{{{self.const_value}}}".replace("\n", " ")
         else:
             const_value_text = ""
 
