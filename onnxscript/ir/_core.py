@@ -1468,7 +1468,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             + ", ".join(
                 [
                     (
-                        f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}"
+                        f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}{x._constant_tensor_part()}"
                         if x is not None
                         else "None"
                     )
@@ -1849,33 +1849,31 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         else:
             producer_text = f", producer=anonymous_node:{id(producer)}"
         index_text = f", index={self.index()}" if self.index() is not None else ""
-        if self.const_value is not None:
-            # Only display when the const value is small
-            if self.const_value.size <= 10:
-                tensor_text = f"{{{self.const_value}}}"
-            else:
-                tensor_text = f"{{{self.const_value.__class__.__name__}(...)}}"
-            const_value_text = f", const_value={tensor_text}"
-        else:
-            const_value_text = ""
+        const_value_text = self._constant_tensor_part()
+        if const_value_text:
+            const_value_text = f", const_value={const_value_text}"
         return f"{self.__class__.__name__}(name={value_name!r}{type_text}{shape_text}{producer_text}{index_text}{const_value_text})"
 
     def __str__(self) -> str:
         value_name = self.name if self.name is not None else "anonymous:" + str(id(self))
         shape_text = str(self.shape) if self.shape is not None else "?"
         type_text = str(self.type) if self.type is not None else "?"
-        if self.const_value is not None:
-            # Only display when the const value is small
-            if self.const_value.size <= 10:
-                const_value_text = f"{{{self.const_value}}}"
-            else:
-                const_value_text = f"{{{self.const_value.__class__.__name__}(...)}}"
-        else:
-            const_value_text = ""
 
         # Quote the name because in reality the names can have invalid characters
         # that make them hard to read
-        return f"%{_quoted(value_name)}<{type_text},{shape_text}>{const_value_text}"
+        return (
+            f"%{_quoted(value_name)}<{type_text},{shape_text}>{self._constant_tensor_part()}"
+        )
+
+    def _constant_tensor_part(self) -> str:
+        """Display string for the constant tensor attached to str of Value."""
+        if self.const_value is not None:
+            # Only display when the const value is small
+            if self.const_value.size <= 10:
+                return f"{{{self.const_value}}}"
+            else:
+                return f"{{{self.const_value.__class__.__name__}(...)}}"
+        return ""
 
     def producer(self) -> Node | None:
         """The node that produces this value.
