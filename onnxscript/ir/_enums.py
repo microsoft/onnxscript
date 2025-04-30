@@ -100,6 +100,17 @@ class DataType(enum.IntEnum):
                 return DataType.FLOAT4E2M1
         raise TypeError(f"Unsupported numpy data type: {dtype}")
 
+    @classmethod
+    def from_short_name(cls, short_name: str) -> DataType:
+        """Returns the ONNX data type for the short name.
+
+        Raises:
+            TypeError: If the short name is not available for the data type.
+        """
+        if short_name not in _SHORT_NAME_TO_DATA_TYPE:
+            raise TypeError(f"Unknown short name: {short_name}")
+        return cls(_SHORT_NAME_TO_DATA_TYPE[short_name])
+
     @property
     def itemsize(self) -> float:
         """Returns the size of the data type in bytes."""
@@ -114,6 +125,22 @@ class DataType(enum.IntEnum):
         if self not in _DATA_TYPE_TO_NP_TYPE:
             raise TypeError(f"Numpy does not support ONNX data type: {self}")
         return _DATA_TYPE_TO_NP_TYPE[self]
+
+    def short_name(self) -> str:
+        """Returns the short name of the data type.
+
+        The short name is a string that is used to represent the data type in a more
+        compact form. For example, the short name for `DataType.FLOAT` is "f32".
+        To get the corresponding data type back, call ``from_short_name`` on a string.
+
+        Naming reference: https://github.com/pytorch/pytorch/blob/4bead7b85ea4160243c74109e0ce9bb80686d016/torch/utils/_dtype_abbrs.py
+
+        Raises:
+            TypeError: If the short name is not available for the data type.
+        """
+        if self not in _DATA_TYPE_TO_SHORT_NAME:
+            raise TypeError(f"Short name not available for ONNX data type: {self}")
+        return _DATA_TYPE_TO_SHORT_NAME[self]
 
     def __repr__(self) -> str:
         return self.name
@@ -184,3 +211,28 @@ _NP_TYPE_TO_DATA_TYPE.update(
 
 # ONNX DataType to Numpy dtype.
 _DATA_TYPE_TO_NP_TYPE = {v: k for k, v in _NP_TYPE_TO_DATA_TYPE.items()}
+
+_DATA_TYPE_TO_SHORT_NAME = {
+    DataType.BFLOAT16: "bf16",
+    DataType.DOUBLE: "f64",
+    DataType.FLOAT: "f32",
+    DataType.FLOAT16: "f16",
+    DataType.FLOAT8E4M3FN: "f8e4m3fn",
+    DataType.FLOAT8E5M2: "f8e5m2",
+    DataType.FLOAT8E4M3FNUZ: "f8e4m3fnuz",
+    DataType.FLOAT8E5M2FNUZ: "f8e5m2fnuz",
+    DataType.FLOAT4E2M1: "f4e2m1",
+    DataType.COMPLEX64: "c64",
+    DataType.COMPLEX128: "c128",
+    DataType.INT8: "i8",
+    DataType.INT16: "i16",
+    DataType.INT32: "i32",
+    DataType.INT64: "i64",
+    DataType.BOOL: "b8",
+    DataType.UINT8: "u8",
+    DataType.UINT16: "u16",
+    DataType.UINT32: "u32",
+    DataType.UINT64: "u64",
+}
+
+_SHORT_NAME_TO_DATA_TYPE = {v: k for k, v in _DATA_TYPE_TO_SHORT_NAME.items()}

@@ -122,6 +122,34 @@ class DataTypeTest(unittest.TestCase):
         self.assertEqual(str(_enums.DataType.DOUBLE), "DOUBLE")
         self.assertEqual(repr(_enums.DataType.DOUBLE), "DOUBLE")
 
+    @parameterized.parameterized.expand(
+        [
+            ("bf16",),
+            ("f64",),
+            ("f32",),
+            ("f16",),
+            ("f8e4m3fn",),
+            ("f8e5m2",),
+            ("f8e4m3fnuz",),
+            ("f8e5m2fnuz",),
+            ("f4e2m1",),
+            ("c64",),
+            ("c128",),
+            ("i8",),
+            ("i16",),
+            ("i32",),
+            ("i64",),
+            ("b8",),
+            ("u8",),
+            ("u16",),
+            ("u32",),
+            ("u64",),
+        ]
+    )
+    def test_short_name_conversion(self, short_name: str):
+        dtype = _enums.DataType.from_short_name(short_name)
+        self.assertEqual(dtype.short_name(), short_name)
+
 
 class AttributeTypeTest(unittest.TestCase):
     def test_enums_are_the_same_as_spec(self):
