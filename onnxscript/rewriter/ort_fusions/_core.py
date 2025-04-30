@@ -102,6 +102,7 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
 def optimize_for_ort(
     model: ir.Model,
     config_name: str | None = None,
+    *,
     debug: bool = False,
 ) -> tuple[ir.Model, dict[str, int]]:
     """
