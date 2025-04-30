@@ -5,7 +5,8 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Callable, Generator, Optional
+from collections.abc import Generator
+from typing import Any, Callable, Optional
 
 import onnxscript
 from onnxscript.function_libs.torch_lib import _constants

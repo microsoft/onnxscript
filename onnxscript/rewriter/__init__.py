@@ -2,7 +2,8 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from typing import Sequence, TypeVar, Union
+from collections.abc import Sequence
+from typing import TypeVar, Union
 
 __all__ = [
     "pattern",

@@ -3,7 +3,8 @@
 """Polyfill for Python builtin functions."""
 
 import sys
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 if sys.version_info >= (3, 10):
     zip = zip  # pylint: disable=self-assigning-variable

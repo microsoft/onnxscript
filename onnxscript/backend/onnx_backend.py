@@ -4,7 +4,7 @@
 
 import os
 import textwrap
-from typing import Iterator
+from collections.abc import Iterator
 
 import numpy as np
 import onnx

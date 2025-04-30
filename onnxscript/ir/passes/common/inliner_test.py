@@ -5,7 +5,8 @@
 from __future__ import annotations
 
 import unittest
-from typing import Callable, Sequence
+from collections.abc import Sequence
+from typing import Callable
 
 import onnx
 from onnx import parser

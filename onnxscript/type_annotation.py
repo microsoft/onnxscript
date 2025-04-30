@@ -2,10 +2,10 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import collections
 import inspect
 import typing
-from typing import Optional, Sequence, Union
+from collections.abc import Sequence
+from typing import Optional, Union
 
 import onnx
 
@@ -40,7 +40,7 @@ _LISTTYPE_TO_ATTRTYPE_MAP = {
     bool: onnx.AttributeProto.INTS,  # experimental
 }
 
-_LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
+_LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, Sequence])
 
 # Map from ONNX AttributeProto type to its representation (in ONNX Script).
 _ATTRTYPE_TO_REPR = {
@@ -76,10 +76,8 @@ ALL_TENSOR_TYPE_STRINGS = tuple(
 
 def _remove_annotation(typeinfo: TypeAnnotationValue) -> TypeAnnotationValue:
     """Remove Annotated wrapper if present, otherwise return typeinfo as is."""
-    if hasattr(typing, "Annotated"):
-        # Present in Python 3.9+
-        if typing.get_origin(typeinfo) is typing.Annotated:
-            return typing.get_args(typeinfo)[0]
+    if typing.get_origin(typeinfo) is typing.Annotated:
+        return typing.get_args(typeinfo)[0]
     return typeinfo
 
 
@@ -130,6 +128,10 @@ def base_type_is_bool(pytype: TypeAnnotationValue) -> bool:
 def _is_tensor_type(typeinfo: TypeAnnotationValue) -> bool:
     if isinstance(typeinfo, onnx_types.TensorType):
         return True
+    if typeinfo is onnx_types.TensorType:
+        # Special case the handle when typeinfo is TensorType.
+        # It seems abc.ABC in py39 has issues with issubclass
+        return True
     if inspect.isclass(typeinfo) and issubclass(typeinfo, onnx_types.TensorType):
         return True
     return False
@@ -169,6 +171,10 @@ def is_value_type(typeinfo: TypeAnnotationValue) -> bool:
         if hasattr(typeinfo, "__bound__"):
             bound = typeinfo.__bound__
             return is_value_type(bound)
+        if hasattr(typeinfo, "__constraints__"):
+            constraints = typeinfo.__constraints__
+            if constraints:
+                return any(is_value_type(x) for x in constraints)
     raise ValueError(f"Unsupported type annotation {typeinfo}")
 
 

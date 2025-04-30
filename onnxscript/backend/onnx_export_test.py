@@ -9,7 +9,7 @@ import pathlib
 import re
 import sys
 import unittest
-from typing import Pattern
+from re import Pattern
 
 import onnx
 import onnxruntime as ort

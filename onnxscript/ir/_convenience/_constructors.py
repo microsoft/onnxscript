@@ -10,7 +10,7 @@ __all__ = [
 ]
 
 import typing
-from typing import Mapping, Sequence
+from collections.abc import Mapping, Sequence
 
 import numpy as np
 import onnx

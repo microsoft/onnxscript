@@ -2,7 +2,8 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
+from typing import Union
 
 import onnxscript.ir as ir
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern

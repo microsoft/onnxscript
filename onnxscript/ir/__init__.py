@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 """In-memory intermediate representation for ONNX graphs."""
 
+from __future__ import annotations
+
 __all__ = [
     # Modules
     "serde",

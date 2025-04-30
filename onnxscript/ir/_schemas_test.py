@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import unittest
-from typing import Any, Optional, Sequence, TypeVar, Union
+from collections.abc import Sequence
+from typing import Any, Optional, TypeVar, Union
 
 import parameterized
 

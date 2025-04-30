@@ -5,7 +5,9 @@
 from __future__ import annotations
 
 import collections
-from typing import Any, OrderedDict, Sequence
+from collections import OrderedDict
+from collections.abc import Sequence
+from typing import Any
 
 from onnxscript import values
 

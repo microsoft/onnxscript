@@ -22,18 +22,14 @@ import os
 import sys
 import textwrap
 import typing
-from collections.abc import Hashable
+from collections import OrderedDict
+from collections.abc import Collection, Hashable, Iterable, Iterator, Sequence
+from collections.abc import Set as AbstractSet
 from typing import (
-    AbstractSet,
     Any,
     Callable,
-    Collection,
     Generic,
-    Iterable,
-    Iterator,
     NamedTuple,
-    OrderedDict,
-    Sequence,
     SupportsInt,
     Union,
 )

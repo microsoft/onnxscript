@@ -13,7 +13,8 @@ import logging
 import os
 import re
 import textwrap
-from typing import Any, Dict, List, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import torch
 import torchgen.gen
@@ -241,8 +242,8 @@ def copyright_header() -> str:
     )
 
 
-def _get_func_schema_in_namespace(namespaces: List[_OpNamespace]) -> Dict[str, FunctionSchema]:
-    table: Dict[str, FunctionSchema] = {}
+def _get_func_schema_in_namespace(namespaces: list[_OpNamespace]) -> dict[str, FunctionSchema]:
+    table: dict[str, FunctionSchema] = {}
     for op_namespace in namespaces:
         for attr_name in dir(op_namespace):
             op_overload_packet = getattr(op_namespace, attr_name)

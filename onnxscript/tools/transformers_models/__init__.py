@@ -6,7 +6,8 @@
 from __future__ import annotations
 
 import random
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import onnx
 import onnx.inliner

@@ -7,7 +7,8 @@ import inspect
 import os
 import textwrap
 import warnings
-from typing import Any, Callable, Iterator, Sequence
+from collections.abc import Iterator, Sequence
+from typing import Any, Callable
 
 import onnxscript.rewriter.pattern as orp
 from onnxscript import ir

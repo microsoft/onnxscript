@@ -8,7 +8,8 @@ import platform
 import sys
 import time
 import traceback
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 import numpy as np
 import onnx

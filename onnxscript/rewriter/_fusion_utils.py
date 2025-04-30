@@ -2,7 +2,8 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from typing import Callable, Sequence, Union
+from collections.abc import Sequence
+from typing import Callable, Union
 
 import onnxscript.ir as ir
 from onnxscript.rewriter import pattern

@@ -8,6 +8,7 @@ import inspect
 import logging
 import types
 import typing
+from collections.abc import Sequence
 from enum import IntFlag
 from typing import (  # type: ignore[attr-defined]
     Any,
@@ -16,7 +17,6 @@ from typing import (  # type: ignore[attr-defined]
     Generic,
     Optional,
     Protocol,
-    Sequence,
     TypeVar,
     _GenericAlias,
 )
@@ -749,7 +749,10 @@ class SymbolValue:
 
 class AttrRef(SymbolValue):
     def __init__(
-        self, attr_name: str, typeinfo: _GenericAlias, info: sourceinfo.SourceInfo
+        self,
+        attr_name: str,
+        typeinfo: _GenericAlias | types.GenericAlias,
+        info: sourceinfo.SourceInfo,
     ) -> None:
         """Initializes AttrRef.
 
@@ -762,9 +765,10 @@ class AttrRef(SymbolValue):
         super().__init__(info)
         self.value = attr_name
         self.typeinfo = typeinfo
-        if not isinstance(typeinfo, (type, _GenericAlias)):
+        if not isinstance(typeinfo, (type, _GenericAlias, types.GenericAlias)):
             # typing._GenericAlias for List[int] and List[str], etc.
-            raise TypeError(f"Expecting a type not f{type(typeinfo)} for typeinfo.")
+            # types.GenericAlias for list[int] and tuple[int], etc.
+            raise TypeError(f"Expecting a type not {type(typeinfo)} for typeinfo.")
         self.typeinfo = typeinfo
 
 

@@ -13,14 +13,11 @@ import pprint
 import sys
 import unittest
 import warnings
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from typing import (
     Any,
     Callable,
-    Collection,
-    Iterable,
-    Mapping,
     Optional,
-    Sequence,
     TypeVar,
 )
 

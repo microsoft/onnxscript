@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from typing import Literal, Sequence, final
+from collections.abc import Sequence
+from typing import Literal, final
 
 __all__ = [
     "PassBase",

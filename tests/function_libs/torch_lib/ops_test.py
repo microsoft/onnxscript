@@ -27,7 +27,8 @@ from __future__ import annotations
 
 import os
 import unittest
-from typing import Callable, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Callable, Optional
 
 import numpy as np
 import onnx
@@ -71,7 +72,7 @@ def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
 
 def _should_skip_xfail_test_sample(
     op_name: str, sample, dtype: torch.dtype, device_type: str
-) -> Tuple[Optional[str], Optional[str]]:
+) -> tuple[Optional[str], Optional[str]]:
     """Returns a reason if a test sample should be skipped."""
     if op_name not in ops_test_data.OP_WITH_SKIPPED_XFAIL_SUBTESTS:
         return None, None

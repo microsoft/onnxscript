@@ -4,7 +4,8 @@
 
 from __future__ import annotations
 
-from typing import Generic, Iterable, Iterator, Sequence, TypeVar
+from collections.abc import Iterable, Iterator, Sequence
+from typing import Generic, TypeVar
 
 T = TypeVar("T")
 

@@ -7,7 +7,8 @@ from __future__ import annotations
 import dataclasses
 import functools
 import logging
-from typing import Callable, Sequence, Union
+from collections.abc import Sequence
+from typing import Callable, Union
 
 import onnxscript.ir.convenience as ir_convenience
 import onnxscript.rewriter.pattern as orp
