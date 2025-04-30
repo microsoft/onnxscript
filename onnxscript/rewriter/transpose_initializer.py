@@ -52,6 +52,7 @@ class TransposeInitializer(orp.RewriteRuleClassBase):
             return check_result.fail("Value is not an initializer, producer is not None")
         if initializer.uses() != 1:
             return check_result.fail("Initializer is used by more than one node")
+        # TODO(justinchuby): Avoid matching when it is a graph input
         return check_result
 
 
