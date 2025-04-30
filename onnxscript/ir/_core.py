@@ -1863,7 +1863,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         if self.const_value is not None and self.const_value.size <= 10:
             const_value_text = f"{{{self.const_value}}}".replace("\n", " ")
         else:
-            const_value_text = ""
+            const_value_text = "{...}"
 
         # Quote the name because in reality the names can have invalid characters
         # that make them hard to read
