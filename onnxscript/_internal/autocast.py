@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 
 import numpy as np
 import onnx
+import onnx.helper  # noqa: TID251
 from onnx.defs import OpSchema
 
 from onnxscript import ir, tensor
@@ -68,13 +69,9 @@ def pyvalue_to_onnx_attribute(
             name=key, type=attr_type, t=pyvalue_to_onnx_tensor(name_generator(), value)
         )
     else:
-        attr = ir.convenience.convert_attribute(
-            key,
-            value,
-            attr_type=ir.AttributeType(attr_type) if attr_type is not None else None,
-        )
-        assert isinstance(attr, ir.Attr)
-        return ir.serde.serialize_attribute(attr)
+        # When the value is a subgraph, ONNX IR will complain that some values are
+        # not found from the scope.
+        return onnx.helper.make_attribute(key, value)  # noqa: TID251
 
 
 # Utilities to convert python values into onnxscript tensors.
