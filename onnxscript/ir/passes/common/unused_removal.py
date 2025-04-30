@@ -93,29 +93,15 @@ def _remove_unused_nodes_in_graph_like(function_or_graph: ir.Function | ir.Graph
 
 
 class RemoveUnusedNodesPass(ir.passes.InPlacePass):
-    """Pass for removing unused nodes and initializers.
-
-    Attributes:
-        remove_initialized_inputs: When an unused initializer is simultaneously a graph input,
-            remove that input as well. Note that this will change the model input signature.
-    """
-
-    def __init__(self, remove_initialized_inputs: bool = False):
-        super().__init__()
-        self.remove_initialized_inputs = remove_initialized_inputs
+    """Pass for removing unused nodes and initializers (dead code elimination)."""
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         count = _remove_unused_nodes_in_graph_like(model.graph)
         graph_outputs = frozenset(model.graph.outputs)
+        graph_inputs = frozenset(model.graph.inputs)
         initializers = model.graph.initializers
-        if self.remove_initialized_inputs:
-            graph_inputs = model.graph.inputs
-            for i, inp in reversed(list(enumerate(graph_inputs))):
-                if inp.name in initializers and not (inp in graph_outputs or inp.uses()):
-                    del graph_inputs[i]
-                    count += 1
         for init in list(initializers.values()):
-            if not (init in graph_outputs or init.uses()):
+            if not (init.uses() or init in graph_outputs or init in graph_inputs):
                 assert init.name is not None
                 del initializers[init.name]
                 count += 1
@@ -193,13 +179,13 @@ class RemoveUnusedOpsetsPass(ir.passes.InPlacePass):
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         # Record domains of all functions
-        used_domains = set()
+        used_domains = {""}  # By default always retain the onnx (default) domain
         for function in model.functions.values():
             used_domains.add(function.domain)
         modified = self._process_graph_like(model.graph, used_domains=used_domains)
 
         if self.process_functions:
             for function in model.functions.values():
-                modified |= self._process_graph_like(function, used_domains=set())
+                modified |= self._process_graph_like(function, used_domains={""})
 
         return ir.passes.PassResult(model, modified=modified)
