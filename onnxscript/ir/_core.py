@@ -1836,7 +1836,6 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
-
         type_text = f", type={self.type!r}" if self.type is not None else ""
         shape_text = f", shape={self.shape!r}" if self.shape is not None else ""
         producer = self.producer()
