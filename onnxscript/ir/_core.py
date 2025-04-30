@@ -1847,7 +1847,11 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
             producer_text = f", producer=anonymous_node:{id(producer)}"
         index_text = f", index={self.index()}" if self.index() is not None else ""
         if self.const_value is not None:
-            const_value_text = f", const_value={self.const_value!r}"
+            # The the first line only
+            tensor_text = repr(self.const_value).replace('\n', ' ')
+            if len(tensor_text) > 100:
+                tensor_text = tensor_text[:100] + "...)"
+            const_value_text = f", const_value={tensor_text}"
         else:
             const_value_text = ""
         return f"{self.__class__.__name__}(name={value_name!r}{type_text}{shape_text}{producer_text}{index_text}{const_value_text})"
@@ -1856,8 +1860,8 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         value_name = self.name if self.name is not None else "anonymous:" + str(id(self))
         shape_text = str(self.shape) if self.shape is not None else "?"
         type_text = str(self.type) if self.type is not None else "?"
-        if self.const_value is not None and self.const_value.size < 10:
-            const_value_text = f"{{{self.const_value}}}"
+        if self.const_value is not None and self.const_value.size <= 10:
+            const_value_text = f"{{{self.const_value}}}".replace('\n', ' ')
         else:
             const_value_text = ""
 
