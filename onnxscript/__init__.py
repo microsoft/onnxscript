@@ -7,6 +7,7 @@ __all__ = [
     "ir",
     "optimizer",
     "rewriter",
+    "version_converter",
     "export_onnx_lib",
     "OnnxFunction",
     "TracedOnnxFunction",
@@ -123,7 +124,7 @@ from .onnx_types import (
 
 # isort: on
 
-from . import ir, optimizer, rewriter
+from . import ir, optimizer, rewriter, version_converter
 from ._internal.utils import external_tensor
 from .values import OnnxFunction, TracedOnnxFunction
 
