@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """Rules to collapse Transpose nodes into initializers."""
 
 from __future__ import annotations
