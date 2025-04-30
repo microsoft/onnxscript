@@ -7,6 +7,7 @@ from __future__ import annotations
 __all__ = [
     "tensor",
     "node",
+    "initializer",
 ]
 
 import typing
@@ -203,4 +204,26 @@ def node(
         name=name,
         doc_string=doc_string,
         metadata_props=metadata_props,
+    )
+
+
+def initializer(tensor: _protocols.TensorProtocol, name: str | None = None) -> ir.Value:
+    """Create a Value object from a TensorProtocol.
+
+    Args:
+        tensor: The tensor to create the Value from.
+
+    Returns:
+        A Value object with the provided tensor as its const_value, and
+        sets the name, shape, and type fields accordingly.
+    """
+    name = name or tensor.name
+    if name is None:
+        raise ValueError("Name must be provided for initializer.")
+    shape = ir.Shape((d if isinstance(d, int) else d.value) for d in tensor.shape.dims)
+    return _core.Value(
+        name=tensor.name,
+        shape=tensor.shape,
+        type=_core.TensorType(tensor.dtype),
+        const_value=tensor,
     )

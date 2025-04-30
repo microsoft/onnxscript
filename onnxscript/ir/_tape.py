@@ -163,13 +163,7 @@ class Tape:
         return node.outputs
 
     def initializer(self, tensor: ir.TensorProtocol, name: str | None = None) -> ir.Value:
-        name = name or tensor.name
-        if name is None:
-            raise ValueError("Name must be provided for initializer.")
-        shape = ir.Shape((d if isinstance(d, int) else d.value) for d in tensor.shape.dims)
-        value = ir.Value(
-            name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
-        )
+        value = _convenience.initializer(tensor, name)
         self._initializers.append(value)
         if isinstance(self.graph_like, ir.Graph):
             self.graph_like.register_initializer(value)
