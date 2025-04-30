@@ -406,7 +406,9 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         return self.__array__().__dlpack_device__()
 
     def __repr__(self) -> str:
-        return f"{self._repr_base()}({self._raw!r}, name={self.name!r})"
+        tensor_lines = str(self._raw).split("\n")
+        tensor_text = " ".join(line.strip() for line in tensor_lines)
+        return f"{self._repr_base()}({tensor_text}, name={self.name!r})"
 
     @property
     def dtype(self) -> _enums.DataType:
@@ -1848,7 +1850,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         index_text = f", index={self.index()}" if self.index() is not None else ""
         if self.const_value is not None:
             # Take the first line only
-            tensor_text = repr(self.const_value).replace("\n", " ")
+            tensor_text = repr(self.const_value)
             if len(tensor_text) > 100:
                 tensor_text = tensor_text[:100] + "...)"
             const_value_text = f", const_value={tensor_text}"
@@ -1860,10 +1862,14 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         value_name = self.name if self.name is not None else "anonymous:" + str(id(self))
         shape_text = str(self.shape) if self.shape is not None else "?"
         type_text = str(self.type) if self.type is not None else "?"
-        if self.const_value is not None and self.const_value.size <= 10:
-            const_value_text = f"{{{self.const_value}}}".replace("\n", " ")
+        if self.const_value is not None:
+            # Only display when the const value is small
+            if self.const_value.size <= 10:
+                const_value_text = f"{{{self.const_value}}}"
+            else:
+                const_value_text = "{...}"
         else:
-            const_value_text = "{...}"
+            const_value_text = ""
 
         # Quote the name because in reality the names can have invalid characters
         # that make them hard to read
