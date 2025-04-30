@@ -18,7 +18,6 @@ from typing import (
     MutableSequence,
     Protocol,
     Sequence,
-    Tuple,
     TypeVar,
     Union,
 )
@@ -467,9 +466,6 @@ class ValuePattern:
         return self._name if self._name is not None else "anonymous:" + str(id(self))
 
 
-OpIdentifier = Tuple[str, str, str]
-
-
 class NodePattern:
     """Represents a pattern that matches against a Node.
 
@@ -514,7 +510,7 @@ class NodePattern:
         if isinstance(op, str) and isinstance(domain, StringConstantPattern):
             # TODO(rama): support overloaded operators.
             overload = ""
-            self._op_identifier: OpIdentifier | None = (
+            self._op_identifier: ir.OperatorIdentifier | None = (
                 domain.value(),
                 op,
                 overload,
@@ -538,7 +534,7 @@ class NodePattern:
         inputs_and_attributes = f"{inputs}, {attributes}" if attributes else inputs
         return f"{outputs} = {qualified_op} ({inputs_and_attributes})"
 
-    def op_identifier(self) -> OpIdentifier | None:
+    def op_identifier(self) -> ir.OperatorIdentifier | None:
         return self._op_identifier
 
     @property
@@ -759,7 +755,7 @@ class OrValue(ValuePattern):
         self._tag_values = tag_values
         self._values = values
 
-        mapping: dict[OpIdentifier, tuple[Any, NodeOutputPattern]] = {}
+        mapping: dict[ir.OperatorIdentifier, tuple[Any, NodeOutputPattern]] = {}
         for i, alternative in enumerate(values[:-1]):
             if not isinstance(alternative, NodeOutputPattern):
                 raise TypeError(
