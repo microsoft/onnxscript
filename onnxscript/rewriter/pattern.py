@@ -325,7 +325,7 @@ class MatchResult:
         self._matched_nodes: MutableSequence[ir.Node] = []
         # For a successful match, bindings is a dictionary of mapping pattern-variable-names
         # to values.
-        self.bindings: dict[str, Any] = {}
+        self._bindings: dict[str, Any] = {}
         self.outputs: list[ir.Value] = []
         # For a failed match, _reason is a string that describes the reason for the failure.
         self._reason: str = ""
@@ -362,13 +362,13 @@ class MatchResult:
 
         Returns True if the binding is successful, False otherwise (when the binding is inconsistent).
         """
-        if var in self.bindings:
+        if var in self._bindings:
             # TODO(rama): Use appropriate equality-check here.
-            if self.bindings[var] == value:
+            if self._bindings[var] == value:
                 return True
             self._success = False
             return False
-        self.bindings[var] = value
+        self._bindings[var] = value
         return True
 
     def extend(self, other: MatchResult | bool):
@@ -379,16 +379,20 @@ class MatchResult:
             return
         if isinstance(other, bool):
             return
-        for var, val in other.bindings.items():
-            if var in self.bindings:
-                # TODO: handle attribute var bindings
-                if self.bindings[var] != val:
+        for var, val in other._bindings.items():
+            if var in self._bindings:
+                # TODO: handle attribute var _bindings
+                if self._bindings[var] != val:
                     self._success = False
                     return
             else:
-                self.bindings[var] = val
+                self._bindings[var] = val
         assert self._matched_nodes is not None, "_matched_nodes should not be None."
         self._matched_nodes.extend(other._matched_nodes)  # type: ignore[attr-defined]
+
+    @property
+    def bindings(self) -> dict[str, Any]:
+        return self._bindings
 
 
 _pattern_builder: OpsetPatternBuilder = onnxop
@@ -663,50 +667,6 @@ class Constant(ValuePattern):
     @property
     def value(self) -> int | float | list[int] | list[float]:
         return self._value
-
-    def matches(self, value: ir.Value, match: MatchResult) -> MatchResult:
-        constant_value = value.const_value
-        if constant_value is None:
-            return match.fail(f"Value is not a constant, expecting {self.value}.")
-
-        constant_value_numpy = constant_value.numpy()
-        if isinstance(self._value, list):
-            if constant_value_numpy.shape != (len(self._value),):
-                return match.fail(f"Value has mismatching shape, expecting ({self.value},).")
-            if not all(
-                math.isclose(
-                    constant_value_numpy.item(i),
-                    self._value[i],
-                    rel_tol=self._rel_tol,
-                    abs_tol=self._abs_tol,
-                )
-                for i in range(len(self._value))
-            ):
-                return match.fail(
-                    f"Value mismatch: expected {self._value}, got {constant_value_numpy}."
-                )
-            return match
-
-        # Scalar constant case:
-        # TODO (rama): allow users to specify shape requirement, if desired.
-        if constant_value_numpy.size != 1:
-            return match.fail(f"Value is not a scalar, expecting {self.value}.")
-
-        if not math.isclose(
-            constant_value_numpy.item(),
-            self._value,
-            rel_tol=self._rel_tol,
-            abs_tol=self._abs_tol,
-        ):
-            match.fail(
-                f"Value mismatch: expected {self._value}, got {constant_value_numpy.item()}."
-            )
-
-        # Note: If the value is produced by a Constant node, we could include
-        # the Constant node in the return_value list. However, we don't do that.
-        # Instead, we will rely on DCE to remove the constant node if it is not
-        # used elsewhere.
-        return match
 
     def __str__(self) -> str:
         return str(self._value)
@@ -1191,13 +1151,7 @@ class SimplePatternMatcher(PatternMatcher):
     def _bind_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
         """Bind a ValuePattern var to ir Value."""
         if pattern_value.name is not None:
-            match = self._match
-            if pattern_value.name in match.bindings:
-                # TODO(rama): Use appropriate equality-check here: future extension possibility.
-                if match.bindings[pattern_value.name] == value:
-                    return True
-                return self.fail(f"Variable {pattern_value.name} is bound to multiple values.")
-            match.bindings[pattern_value.name] = value
+            return self._match.bind(pattern_value.name, value)
         return True
 
     def _match_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
@@ -1483,7 +1437,7 @@ class RewriteRule:
             for var in self._target_pattern.inputs:
                 if var.name is not None:
                     if var.name not in match.bindings:
-                        match.bindings[var.name] = None
+                        match.bind(var.name, None)
             check_match_result = self._condition_function(context, **match.bindings)
             if not check_match_result:
                 # If check function was provided, but it failed, return the reason for failure to the tracer.
