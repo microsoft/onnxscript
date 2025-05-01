@@ -13,14 +13,17 @@ Dim = Union[int, ir.SymbolicDim]
 
 
 class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
-    def __init__(self, name: str, has_bias: bool = False):
+    def __init__(self, name: str, has_bias: bool = False, bias_pre_add: bool = False):
         """Fusion rule for SkipRMSNormalization."""
         super().__init__(name=name)
         self._has_bias = has_bias
+        self._bias_pre_add = bias_pre_add
 
     def pattern(self, op, input, skip, gamma, bias, epsilon, stash_type):
+        if self._has_bias and self._bias_pre_add:
+            input = op.Add(input, bias)
         skip_sum = op.Add(input, skip)
-        if self._has_bias:
+        if self._has_bias and not self._bias_pre_add:
             skip_sum = op.Add(skip_sum, bias)
         normalized = op.SimplifiedLayerNormalization(
             skip_sum,
@@ -86,25 +89,33 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         return normalized, skip_sum
 
 
-_skip_rms_add_bias_rule = SkipRmsNormFusion.rule("SkipRmsNormBias", has_bias=True)
+_skip_rms_add_bias_rule = SkipRmsNormFusion.rule(
+    "SkipRmsNormBias", has_bias=True, bias_pre_add=False
+)
+_skip_rms_pre_add_bias_rule = SkipRmsNormFusion.rule(
+    "SkipRmsNormBias", has_bias=True, bias_pre_add=True
+)
 _skip_rms_rule = SkipRmsNormFusion.rule("SkipRmsNorm", has_bias=False)
 
 skip_rms_normalization_ruleset = pattern.RewriteRuleSet(
-    [_skip_rms_rule, _skip_rms_add_bias_rule]
+    [_skip_rms_pre_add_bias_rule, _skip_rms_add_bias_rule, _skip_rms_rule]
 )
 fuse_skip_rms_normalization = _fusion_utils.apply_fusion_rules(skip_rms_normalization_ruleset)
 
 
 # Fusion rule for SkipLayerNormalization
 class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
-    def __init__(self, name: str, has_bias: bool = False):
+    def __init__(self, name: str, has_bias: bool = False, bias_pre_add: bool = False):
         """Fusion rule for SkipLayerNormalization."""
         super().__init__(name=name)
-        self._has_bias = False
+        self._has_bias = has_bias
+        self._bias_pre_add = bias_pre_add
 
     def pattern(self, op, input, skip, gamma, beta, bias, epsilon, stash_type):
+        if self._has_bias and self._bias_pre_add:
+            input = op.Add(input, bias)
         skip_sum = op.Add(input, skip)
-        if self._has_bias:
+        if self._has_bias and not self._bias_pre_add:
             skip_sum = op.Add(skip_sum, bias)
         normalized = op.LayerNormalization(
             skip_sum,
@@ -169,11 +180,16 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
         return normalized, skip_sum
 
 
-_skip_layer_add_bias_rule = SkipLayerNormFusion.rule("SkipLayerNormBias", has_bias=True)
+_skip_layer_add_bias_rule = SkipLayerNormFusion.rule(
+    "SkipLayerNormBias", has_bias=True, bias_pre_add=False
+)
+_skip_layer_pre_add_bias_rule = SkipLayerNormFusion.rule(
+    "SkipLayerNormBias", has_bias=True, bias_pre_add=True
+)
 _skip_layer_rule = SkipLayerNormFusion.rule("SkipLayerNorm", has_bias=False)
 
 skip_layer_normalization_ruleset = pattern.RewriteRuleSet(
-    [_skip_layer_rule, _skip_layer_add_bias_rule]
+    [_skip_layer_pre_add_bias_rule, _skip_layer_add_bias_rule, _skip_layer_rule]
 )
 
 
