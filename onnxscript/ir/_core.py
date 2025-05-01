@@ -873,13 +873,9 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
     __slots__ = (
         "_dtype",
         "_func",
-        "_metadata",
-        "_metadata_props",
         "_shape",
         "_tensor",
         "cache",
-        "doc_string",
-        "name",
     )
 
     def __init__(
@@ -904,15 +900,12 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
             doc_string: The documentation string.
             metadata_props: The metadata properties.
         """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         self._func = func
         self._dtype = dtype
         self._shape = shape
         self._tensor: _protocols.TensorProtocol | None = None
         self.cache = cache
-        self.name = name
-        self.doc_string = doc_string
-        self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props = metadata_props
 
     def _evaluate(self) -> _protocols.TensorProtocol:
         """Evaluate the function to get the actual tensor."""
@@ -958,22 +951,6 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
         """Return the bytes of the tensor."""
         return self._evaluate().tobytes()
 
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
 
 
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
