@@ -67,7 +67,7 @@ import numpy as np
 import onnx
 import onnx.external_data_helper
 
-from onnxscript.ir import _core, _enums, _metadata, _protocols, _type_casting
+from onnxscript.ir import _core, _enums, _protocols, _type_casting
 
 if typing.TYPE_CHECKING:
     import google.protobuf.internal.containers as proto_containers
@@ -243,12 +243,11 @@ def to_proto(ir_object: object) -> object:
 class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
     """A tensor initialized from a tensor proto."""
 
+    __slots__ = ("_proto",)
+
     def __init__(self, proto: onnx.TensorProto) -> None:
+        super().__init__(metadata_props=deserialize_metadata_props(proto.metadata_props))
         self._proto = proto
-        self._metadata_props: dict[str, str] | None = deserialize_metadata_props(
-            proto.metadata_props
-        )
-        self._metadata: _metadata.MetadataStore | None = None
 
     @property
     def name(self) -> str:
@@ -269,7 +268,7 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
     def dtype(self) -> _enums.DataType:
         return _enums.DataType(self._proto.data_type)
 
-    @property
+    @property  # type: ignore[misc]
     def doc_string(self) -> str:
         return self._proto.doc_string
 
@@ -439,23 +438,6 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
         # The repeating fields can be empty and still valid.
         # For example, int32_data can be empty and still be a valid tensor.
         return b""
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
-
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
 
 
 def _get_field(proto: Any, field: str) -> Any:
