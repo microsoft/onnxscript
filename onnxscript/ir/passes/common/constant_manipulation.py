@@ -146,7 +146,9 @@ class RemoveInitializersFromInputsPass(ir.passes.InPlacePass):
                     count += 1
                 else:
                     new_inputs.append(input_value)
-            graph.inputs = new_inputs
+            graph.inputs.clear()
+            graph.inputs.extend(new_inputs)
+        logger.info("Removed %s initializers from graph inputs", count)
         return ir.passes.PassResult(model, modified=bool(count))
 
 
@@ -164,4 +166,5 @@ class AddInitializersToInputsPass(ir.passes.InPlacePass):
                 if initializer not in inputs_set:
                     graph.inputs.append(initializer)
                     count += 1
+        logger.info("Added %s initializers to graph inputs", count)
         return ir.passes.PassResult(model, modified=bool(count))
