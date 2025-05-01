@@ -1315,6 +1315,7 @@ def _short_tensor_str_for_node(x: Value) -> str:
         return f"{{{data}}}"
     return "{...}"
 
+
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     """IR Node.
 
