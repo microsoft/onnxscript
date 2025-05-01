@@ -259,19 +259,18 @@ class RemoveUnusedTest(unittest.TestCase):
             agraph (float[N] x) => (float[N] z) {
                 two = Constant <value_float=2.0> ()
                 four = Add(two, two)
-                z = If (x) <then_branch=then_graph, else_branch=else_graph>
-            }
-            <ir_version: 10, opset_import: [ "" : 17]>
-            then_graph (float[N] x) => (float[N] y) {
-                two = Constant <value_float=2.0> ()
-                four = Add(two, two)
-                y = Mul(x, x)
-            }
-            <ir_version: 10, opset_import: [ "" : 17]>
-            else_graph (float[N] x) => (float[N] y) {
-                two = Constant <value_float=2.0> ()
-                four = Add(two, two)
-                y = Mul(x, x)
+                z = If (x) <
+                    then_branch = then_graph () => (then_y) {
+                        two = Constant <value_float=2.0> ()
+                        four = Add(two, two)
+                        then_y = Mul(x, x)
+                    },
+                    else_branch = else_graph () => (then_y) {
+                        two = Constant <value_float=2.0> ()
+                        four = Add(two, two)
+                        then_y = Mul(x, x)
+                    }
+                >
             }
         """
         )
