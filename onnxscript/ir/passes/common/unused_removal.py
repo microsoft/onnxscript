@@ -99,6 +99,7 @@ class RemoveUnusedNodesPass(ir.passes.InPlacePass):
     that unused nodes and initializers are removed while preserving the original
     contract of the model.
     """
+
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         count = _remove_unused_nodes_in_graph_like(model.graph)
         graph_outputs = frozenset(model.graph.outputs)
