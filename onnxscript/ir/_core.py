@@ -1310,7 +1310,7 @@ def _short_tensor_str_for_node(x: Value) -> str:
     if x.const_value.size <= 10:
         try:
             data = x.const_value.numpy().tolist()
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             return "{...}"
         return f"{{{data}}}"
     return "{...}"
