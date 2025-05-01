@@ -25,6 +25,8 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         skip_sum = op.Add(input, skip)
         if self._has_bias and not self._bias_pre_add:
             skip_sum = op.Add(skip_sum, bias)
+        # Note: ORT's SimplifiedLayerNormalization was placed in onnx domain by mistake.
+        # No need to use com.microsoft domain here; but this is a custom op in ORT.
         normalized = op.SimplifiedLayerNormalization(
             skip_sum,
             gamma,
