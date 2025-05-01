@@ -952,7 +952,6 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
         return self._evaluate().tobytes()
 
 
-
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
     """Immutable symbolic dimension that can be shared across multiple shapes."""
 
