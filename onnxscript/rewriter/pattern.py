@@ -354,8 +354,12 @@ class MatchResult:
         return self._reason
 
     @property
-    def nodes(self) -> MutableSequence[ir.Node]:
-        return self._matched_nodes
+    def nodes(self) -> Sequence[ir.Node]:
+        return tuple(self._matched_nodes)
+
+    def add_node(self, node: ir.Node) -> None:
+        """Adds a node to the list of matched nodes."""
+        self._matched_nodes.append(node)
 
     def bind(self, var: str, value: Any) -> bool:
         """Binds a pattern variable name to a value from the matched IR.
@@ -1117,7 +1121,7 @@ class SimplePatternMatcher(PatternMatcher):
         if self._verbose:
             print(f"Matched: {node.op_type}")
 
-        match.nodes.append(node)
+        match.add_node(node)
         self._matched[pattern_node] = node
 
         # TODO: Revisit this to handle optional trailing inputs better.

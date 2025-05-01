@@ -83,7 +83,9 @@ def _to_match_result(pmr: PatternMatchResult) -> orp.MatchResult:
     TODO: This is a temporary hack until MatchResult and PatternMatchResult are unified.
     """
     result = orp.MatchResult()
-    result.nodes.extend(pmr.model_nodes)
+    for node in pmr.model_nodes:
+        result.add_node(node)
+
     for var, val in pmr.matched_pattern_to_model_value.items():
         if var.name is not None:
             result.bind(var.name, val)
