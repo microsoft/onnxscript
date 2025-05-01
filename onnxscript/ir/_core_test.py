@@ -622,6 +622,9 @@ class ShapeTest(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "frozen"):
             shape[0] = 1
 
+        with self.assertRaisesRegex(TypeError, "frozen"):
+            shape[0] = "some_string"
+
     def test_getitem(self):
         shape = _core.Shape([42], denotations=("DATA_CHANNEL",))
         self.assertEqual(shape[0], 42)

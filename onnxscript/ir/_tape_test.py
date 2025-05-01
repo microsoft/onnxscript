@@ -66,7 +66,7 @@ class TestTape(unittest.TestCase):
 
         tape = ir.tape.Tape()
 
-        out1, out2, out3 = tape.op_multi_output("SomeOp", inputs=inputs, num_outputs=3)  # pylint: disable=unbalanced-tuple-unpacking
+        out1, out2, out3 = tape.op_multi_out("SomeOp", inputs=inputs, num_outputs=3)  # pylint: disable=unbalanced-tuple-unpacking
         _ = tape.op("SomeOtherOp", inputs=[out1, out2, out3])
 
         self.assertEqual([n.op_type for n in tape.nodes], ["SomeOp", "SomeOtherOp"])

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import logging
 
-import onnx.helper
-
 from onnxscript import ir
 from onnxscript.rewriter import pattern
 
@@ -20,7 +18,7 @@ def cast_constant_of_shape(op, shape, scalar, dtype):
 def fused_cast_constant_of_shape(op, shape: ir.Value, scalar: ir.Attr, dtype: ir.Attr, **_):
     # Cast scalar (a TensorProto attribute) to the specified dtype
     scalar_value = scalar.value.numpy().item()
-    cast_value = onnx.helper.make_tensor("value", dtype.value, (1,), [scalar_value])
+    cast_value = ir.tensor([scalar_value], dtype=ir.DataType(dtype.as_int()))
     return op.ConstantOfShape(shape, value=cast_value)
 
 
@@ -30,7 +28,7 @@ def cast_constant_of_shape_without_value(op, shape, dtype):
 
 
 def fused_cast_constant_of_shape_without_value(op, shape, dtype, **_):
-    zero = onnx.helper.make_tensor("value", dtype.value, (1,), [0])
+    zero = ir.tensor([0], dtype=ir.DataType(dtype.as_int()))
     return op.ConstantOfShape(shape, value=zero)
 
 
