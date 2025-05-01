@@ -10,8 +10,6 @@ import numpy as np
 import onnxruntime
 import torch
 
-import onnxscript.optimizer
-import onnxscript.rewriter
 import onnxscript.tools.training_helper
 import onnxscript.tools.transformers_models
 import onnxscript.tools.transformers_models.phi
@@ -83,13 +81,16 @@ class TestExportPhi(unittest.TestCase):
 
     @unittest.skipIf(sys.platform == "win32", reason="not supported yet on Windows")
     @unittest.skipIf(not has_transformers(), reason="transformers is missing")
+    @unittest.skipIf(
+        not hasattr(onnxruntime, "training"), reason="ORT training removed since 1.22"
+    )
     @ignore_warnings(UserWarning)
     def test_phi_dort_static(self):
         model, input_tensors_many, _ = onnxscript.tools.transformers_models.phi.get_phi_model()
         input_tensors = input_tensors_many[0]
         expected = model(*input_tensors)
 
-        local_aot_ort = onnxscript.tools.training_helper.make_aot_ort(dynamic=False)
+        local_aot_ort = onnxscript.tools.training_helper.make_aot_ort()
 
         compiled_model = torch.compile(
             copy.deepcopy(model),

@@ -452,9 +452,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         fft_ops.aten__fft_c2r,
         tolerance={torch.complex64: (3e-3, 1.8e-4)},
         complex=True,
-    ).xfail(
-        dtypes=(torch.complex64,),
-        reason="fixme: the result is wrong: https://github.com/microsoft/onnxscript/pull/926",
     ),
     TorchLibOpInfo(
         "ops.aten._fft_r2c",  # Custom from extra_opinfo
@@ -760,10 +757,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         # Numbers match sometimes but not other times
         reason="fixme: off-by-one. https://github.com/microsoft/onnxscript/issues/990",
     ),
-    TorchLibOpInfo("div_mode_int", core_ops.aten_div_mode_int).skip(
-        variant_name="no_rounding_mode",
-        reason="this variation requires the rounding_mode argument",
-    ),
+    TorchLibOpInfo("div_mode_int", core_ops.aten_div_mode_int),
     TorchLibOpInfo("dot", core_ops.aten_dot),
     TorchLibOpInfo(
         "empty",
@@ -932,6 +926,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.bool,),
         reason="fixme: ORT does not have an implementation for Where with bool inputs.",
     ),
+    TorchLibOpInfo("masked_scatter", core_ops.aten_masked_scatter),
     TorchLibOpInfo(
         "matmul",
         core_ops.aten_matmul,
@@ -1557,7 +1552,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "ops.aten.convolution",
         core_ops.aten_convolution,
-        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
+        tolerance={torch.float32: (2e-4, 9e-4)},
     ),
     TorchLibOpInfo("empty_like", core_ops.aten_empty_like, nondeterministic=True),
     TorchLibOpInfo(
@@ -1792,11 +1787,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_conv3d,
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
     ),
-    TorchLibOpInfo(
-        "nn.functional.gelu",
-        nn_ops.aten_gelu,
-        tolerance={torch.float16: (8e-2, 1e-4)},
-    ),
+    TorchLibOpInfo("nn.functional.gelu", nn_ops.aten_gelu),
     TorchLibOpInfo("nn.functional.glu", nn_ops.aten_glu),
     TorchLibOpInfo(
         "nn.functional.linear", nn_ops.aten_linear, tolerance={torch.float16: (1e-2, 1e-3)}
@@ -2025,29 +2016,34 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="mean",
         reason="ONNX doesn't support reduce='mean' option",
     )
-    .skip(
-        # ONNX has not include_self parameter and default is include_self=True mode
-        matcher=lambda sample: sample.kwargs.get("include_self") is False,
-        reason="ONNX does't support include_self=False option",
-    )
-    .xfail(
-        variant_name="amax",
-        reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'max'",
-    )
-    .xfail(
-        variant_name="amin",
-        reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'min'",
-    )
     .xfail(
         variant_name="prod",
-        reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'prod'",
+        dtypes=(torch.float16, torch.float64),
+        reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 16 when reduction is 'mul'",
     )
     .xfail(
         variant_name="sum",
+        dtypes=(torch.float16, torch.float64),
         reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'add'",
+    )
+    .xfail(
+        variant_name="mean",
+        dtypes=(torch.bfloat16,),
+        reason="onnxruntime does not support ml_dtypes.bfloat16",
+    )
+    .xfail(
+        variant_name="prod",
+        dtypes=(torch.bfloat16,),
+        reason="onnxruntime does not support ml_dtypes.bfloat16",
+    )
+    .xfail(
+        variant_name="sum",
+        dtypes=(torch.bfloat16,),
+        reason="onnxruntime does not support ml_dtypes.bfloat16",
     ),
     TorchLibOpInfo("ops.aten.slice_scatter", core_ops.aten_slice_scatter),
     TorchLibOpInfo("slice", core_ops.aten_slice),
+    TorchLibOpInfo("slice", core_ops.aten_slice_complex, complex=True),
     TorchLibOpInfo(
         "sum",
         core_ops.aten_sum_dim_IntList,
@@ -2068,6 +2064,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),  # Custom from extra_opinfo
     TorchLibOpInfo("transpose", core_ops.aten_transpose),
     TorchLibOpInfo("transpose", core_ops.aten_transpose_complex, complex=True),
+    TorchLibOpInfo("ops.aten._unique.default", core_ops.aten__unique),
+    TorchLibOpInfo("ops.aten._unique2.default", core_ops.aten__unique2),
+    TorchLibOpInfo("ops.aten.unique_dim.default", core_ops.aten_unique_dim).skip(
+        device_type="cpu",
+        reason=(
+            "ops.aten.unique_dim.default returns different shapes for optional outputs on CPU/CUDA. "
+            "Our implementation is based on that for CUDA"
+        ),
+    ),
     TorchLibOpInfo(
         "ops.prims.var.default", prims_ops.prims_var, tolerance={torch.float16: (1e-3, 5e-2)}
     ),

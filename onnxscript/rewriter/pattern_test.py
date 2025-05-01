@@ -536,14 +536,14 @@ class RewriteRuleTest(unittest.TestCase):
         model_proto = test_model.to_model_proto()
         model = ir.serde.deserialize_model(model_proto)
 
-        output_buffer = io.StringIO()
-        with contextlib.redirect_stdout(output_buffer):
-            count = rule.apply_to_model(model, debug=True)
-        captured_output = output_buffer.getvalue()
-
+        tracer = pattern.MatchingTracer()
+        count = rule.apply_to_model(model, tracer=tracer)
         self.assertEqual(count, 0)
-        # Not a robust test. But test serves to ensure that debug mode is producing something.
-        self.assertIn("OpType mismatch: expected Abs, got Neg", captured_output)
+        best_matches = tracer.best_matches_map[rule]
+        self.assertEqual(len(best_matches), 1)
+        best_match = best_matches[0]
+        self.assertEqual(best_match.status.value, pattern.MatchStatus.NO_MATCH)
+        self.assertIn("OpType mismatch: expected Abs, got Neg", best_match.match_result.reason)
 
     def test_new_initializer(self):
         def source_pattern(op, x, y):
@@ -666,6 +666,60 @@ class RewriteRuleTest(unittest.TestCase):
             self.assertIn(function_id, model.functions)
         onnxscript.optimizer.inline(model)
         self.assertEqual([x.op_type for x in model.graph], ["Add", "Mul", "Add", "Mul"])
+
+    def test_any_value(self):
+        def source_pattern(op, x):
+            return op.Add(x, op.Mul(0, pattern.ANY_VALUE))
+
+        def replacement(op, x):
+            return op.Identity(x)
+
+        rule = pattern.RewriteRule(source_pattern, replacement)
+
+        @script()
+        def test_model(x: FLOAT[1024], y: FLOAT[1024]) -> FLOAT[1024]:
+            zero = op.Constant(value_float=0.0)
+            return op.Add(x, op.Mul(zero, y))
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        self.assertEqual([x.op_type for x in model.graph], ["Constant", "Mul", "Add"])
+        rule.apply_to_model(model)
+        self.assertEqual(len(model.graph), 2)
+        self.assertEqual([x.op_type for x in model.graph], ["Constant", "Identity"])
+
+    def test_or_pattern(self):
+        def source_pattern(op, x, y, bias):
+            t1 = op.MatMul(x, y)
+            t2 = op.Add(t1, bias)
+            t1_or_t2 = pattern.OrValue([t1, t2], tag_var="has_bias", tag_values=[False, True])
+            return op.Relu(t1_or_t2)
+
+        def replacement(op, x, y, bias, has_bias):
+            if has_bias:
+                return op.WithBias(x, y, bias)
+            else:
+                return op.WithoutBias(x, y)
+
+        rule = pattern.RewriteRule(source_pattern, replacement)
+
+        @script()
+        def test_model1(x: FLOAT[16, 32], y: FLOAT[32, 16]) -> FLOAT[16, 16]:
+            return op.Relu(op.MatMul(x, y))
+
+        model_proto = test_model1.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        rule.apply_to_model(model)
+        self.assertEqual([x.op_type for x in model.graph], ["WithoutBias"])
+
+        @script()
+        def test_model2(x: FLOAT[16, 32], y: FLOAT[32, 16], bias: FLOAT[16]) -> FLOAT[16, 16]:
+            return op.Relu(op.Add(op.MatMul(x, y), bias))
+
+        model_proto = test_model2.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        rule.apply_to_model(model)
+        self.assertEqual([x.op_type for x in model.graph], ["WithBias"])
 
 
 class PatternBuilderTest(unittest.TestCase):

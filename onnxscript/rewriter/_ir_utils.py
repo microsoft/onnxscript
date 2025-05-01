@@ -7,8 +7,7 @@ from typing import Callable, Sequence
 
 import numpy as np
 
-import onnxscript.ir as ir
-from onnxscript.optimizer import basic_constant_propagation
+from onnxscript import ir, optimizer
 
 
 def display_nodes(nodes: Sequence[ir.Node]) -> None:
@@ -54,7 +53,7 @@ def display_slice(x: ir.Value | ir.Node, backward: bool = True, depth_limit: int
 def get_const_value(value: ir.Value) -> ir.TensorProtocol | None:
     node = value.producer()
     if node is not None:
-        basic_constant_propagation([node])
+        optimizer.basic_constant_propagation([node])
     return value.const_value
 
 
@@ -79,11 +78,15 @@ def get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
     return None
 
 
-def get_singleton_value(val: ir.Value | None):
-    """Returns element of a single element tensor constant value, and None otherwise."""
+def get_singleton_value(val: ir.Value | None, rank: int | None = None):
+    """Returns element of a single element tensor constant value, and None otherwise.
+
+    If rank is specified, it checks that the value has the given rank.
+    """
     np_val = get_numpy_value(val)
     if np_val is not None and np_val.size == 1:
-        return np_val.item()
+        if rank is None or (np_val.ndim == rank):
+            return np_val.item()
     return None
 
 
@@ -103,9 +106,38 @@ def is_singleton_value(
     return math.isclose(scalar, expected, rel_tol=rtol)
 
 
+def is_1d_value(val: ir.Value | None, expected: list[int]) -> bool:
+    """Returns True if the value is a 1d int64 tensor with given value, and False otherwise."""
+    if val is None:
+        return False
+    if not isinstance(val.type, ir.TypeProtocol):
+        return False
+    np_val = get_numpy_value(val)
+    if np_val is None:
+        return False
+    if (np_val.size != len(expected)) or (val.type.dtype != ir.DataType.INT64):
+        return False
+    values = np_val.tolist()
+    return values == expected
+
+
 def has_rank(value: ir.Value | None, rank: int) -> bool:
     """Returns True if the value is statically known to have the given rank, and False otherwise."""
     if value is None:
         return False
     shape = value.shape
     return (shape is not None) and (shape.rank() == rank)
+
+
+def get_dim(value: ir.Value | None, dim: int) -> ir.SymbolicDim | int | None:
+    """Returns the value of the given dimension, or None if it is not statically known."""
+    if value is None:
+        return None
+    shape = value.shape
+    if shape is None:
+        return None
+    if dim < 0:
+        dim += shape.rank()
+    if dim < 0 or dim >= shape.rank():
+        return None
+    return shape[dim]

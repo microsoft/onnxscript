@@ -2,175 +2,247 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Sequence, Union
 
 import onnxscript.ir as ir
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 """
-The MultiHeadAttention pattern:
+The MultiHeadAttention pattern: generate an instance
+   MHA (query, key, value, None, None, mask, past_key, past_value)
+where query has shape (B, S, D), key has shape (B, Skv, D), and value has shape (B, Skv, Dv).
+The next two inputs bias and key_padding_mask are None in this pattern. The mask (attention_bias)
+must be  of shape (1 or B, 1 or H, S, St). past_key and past_value are of shape (B, H, Spast, Dh).
 
+We use the following abbreviations for the dimensions:
 B: Batch size
 S: Sequence length
 D: input embedding dimension
+Dv: value hidden size (usually, Dv = D)
 H: number of heads
-d_h: head size (usually, D = H * d_h)
+Dh: head size or embedding dimension per head (usually, D = H * Dh)
+Skv: key/value sequence length
+St: total sequence length
 
-thus, weights are usually of shape (D, D) and (D, D) and (D, D)
-
-for each of Q, K, and V, we have the following pattern:
-   MatMul (Input, W), producing output of shape (B, S, D)
-   Reshape to produce a matrix of shape (B, S, H, d_h)
-   Transpose middle two axes to produce a matrix of shape (B, H, S, d_h)
-
-This is followed by a RotaryEmbedding pattern for Q and K
-
-The last two axes of the key-embedding are then swapped (using a Reshape/Transpose/Reshape sequence)
-
-The dot-product attention is then computed using SDPA.
-Finally, the output is transposed and reshaped back to (B, S, D) shape
+In the sequel, the suffix "_BHSDh" indicates that the tensor has the shape (B, H, S, Dh).
+The suffix "BH_Skv_Dh" indicates that the tensor has the shape (B*H, Skv, Dh).
 """
 
-
-def _check_shape(bindings: dict[str, int], val: ir.Value, shape: Sequence[str]) -> bool:
-    if val.shape is None:
-        return False
-    if val.shape.rank() != len(shape):
-        return False
-    for actual, expected in zip(val.shape, shape):
-        if expected not in bindings:
-            bindings[expected] = actual  # type: ignore[assignment]
-        elif actual != bindings[expected]:
-            return False
-    return True
+Dim = Union[int, ir.SymbolicDim]
 
 
 class MultiHeadAttention(pattern.RewriteRuleClassBase):
-    def __init__(self, name: str, *, use_2d_matmul: bool):
+    def __init__(self, name, *, transpose_4d: bool):
         super().__init__(name)
-        self._use_2d_matmul = use_2d_matmul
-
-    def _compute_QKV(self, op, input, weight, reshape_var: str):
-        """Applied to generate each of Q, K, and V from input."""
-        if self._use_2d_matmul:
-            # Convert batched input of shape (B, S, D) to 2D input (B*S, D)
-            input = op.Reshape(input, _allow_other_inputs=True)
-        projected = op.MatMul(input, weight)
-        if self._use_2d_matmul:
-            # Convert 2D output back to batched output of shape (B, S, D)
-            projected = op.Reshape(projected, _allow_other_inputs=True)
-        # Reshape from (B, S, D) to (B, S, H, D/H)
-        reshaped = op.Reshape(
-            projected,
-            _allow_other_inputs=True,
-            _allow_other_attributes=True,
-            _outputs=[reshape_var],
-        )
-        # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
-        transposed = op.Transpose(reshaped, perm=[0, 2, 1, 3])
-        return transposed
+        self._transpose_4d = transpose_4d
 
     def pattern(
         self,
         op,
-        input,
-        query_weight,
-        key_weight,
-        value_weight,
-        qkv_weight,
+        query_BSD,
+        key_BSD,
+        value_BSD,
         mask,
-        cos,
-        sin,
         past_key,
         past_value,
         position_ids,
+        cos,
+        sin,
     ):
-        query = self._compute_QKV(op, input, query_weight, "query_mm_reshaped")
-        key = self._compute_QKV(op, input, key_weight, "key_mm_reshaped")
-        value = self._compute_QKV(op, input, value_weight, "value_mm_reshaped")
+        # First, query, key, and value are reshaped+transposed from (B, S, D) to (B, H, S, D/H)
 
-        query_rope = op.RotaryEmbedding(query, position_ids, cos, sin, _domain="com.microsoft")
-
-        key_rope = op.RotaryEmbedding(key, position_ids, cos, sin, _domain="com.microsoft")
-        key_rope = op.Concat(past_key, key_rope, axis=-2)
-        # Transpose last two axes of key_rope to compute dot-product via matmul.
-        key_reshaped = op.Reshape(
-            key_rope, _allow_other_inputs=True, _outputs=["key_reshaped"]
+        # Reshape from (B, S, D) to (B, S, H, D/H)
+        query_BSHDh = op.Reshape(
+            query_BSD,
+            _allow_other_inputs=True,
+            _allow_other_attributes=True,
+            _outputs=["query_BSHDh"],
         )
-        key_reshaped_transposed = op.Transpose(key_reshaped, perm=[0, 2, 1])
-        key_transposed = op.Reshape(
-            key_reshaped_transposed, _allow_other_inputs=True, _outputs=["key_transposed"]
+        # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
+        query_BHSDh = op.Transpose(query_BSHDh, perm=[0, 2, 1, 3])
+
+        # Reshape from (B, S, D) to (B, S, H, D/H)
+        key_BSHDh = op.Reshape(
+            key_BSD,
+            _allow_other_inputs=True,
+            _allow_other_attributes=True,
+            _outputs=["key_BSHDh"],
+        )
+        # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
+        key_BHSDh = op.Transpose(key_BSHDh, perm=[0, 2, 1, 3])
+
+        # Reshape from (B, S, D) to (B, S, H, D/H)
+        value_BSHDh = op.Reshape(
+            value_BSD,
+            _allow_other_inputs=True,
+            _allow_other_attributes=True,
+            _outputs=["value_BSHDh"],
+        )
+        # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
+        value_BHSDh = op.Transpose(value_BSHDh, perm=[0, 2, 1, 3])
+
+        # This is workaround for examples where there is a duplication of Unsqueeze op
+        # to generate a 2D positions-ids from a 1D position-ids. This can be eliminated
+        # if we have CSE-optimization to eliminate the duplicate Unsqueeze ops.
+        # For now, same flag (transpose_4d) controls this variation. A different flag
+        # can be added if we see instances that mix the two.
+        if self._transpose_4d:
+            position_ids_q = op.Unsqueeze(position_ids, [0])
+            position_ids_k = op.Unsqueeze(position_ids, [0])
+        else:
+            position_ids_q = position_ids
+            position_ids_k = position_ids
+
+        query_BHSDh_rope = op.RotaryEmbedding(
+            query_BHSDh, position_ids_q, cos, sin, _domain="com.microsoft"
         )
 
-        value = op.Concat(past_value, value, axis=-2)
+        key_BHSDh_rope = op.RotaryEmbedding(
+            key_BHSDh, position_ids_k, cos, sin, _domain="com.microsoft"
+        )
+
+        # Concatenate past_key cache and current key, and transpose to enable
+        # dot-product attention computation.
+
+        key_seq = op.Concat(past_key, key_BHSDh_rope, axis=-2)
+        # Transpose last two axes of key_seq to compute dot-product via matmul.
+        if self._transpose_4d:
+            key_seq_B_H_Dh_Skv = op.Transpose(key_seq, perm=[0, 1, 3, 2])
+        else:
+            # Transpose after converting to 3D
+            key_seq_BH_Skv_Dh = op.Reshape(
+                key_seq, _allow_other_inputs=True, _outputs=["key_seq_BH_Skv_Dh"]
+            )
+            key_seq_BH_Dh_Skv = op.Transpose(key_seq_BH_Skv_Dh, perm=[0, 2, 1])
+            key_seq_B_H_Dh_Skv = op.Reshape(
+                key_seq_BH_Dh_Skv, _allow_other_inputs=True, _outputs=["key_seq_B_H_Dh_Skv"]
+            )
+
+        # Concatenate past_value cache and current value
+        value_seq = op.Concat(past_value, value_BHSDh, axis=-2)
 
         attention = op.SDPA(
-            query_rope, key_transposed, value, mask, _domain="ai.onnxruntime.fusion"
+            query_BHSDh_rope,
+            key_seq_B_H_Dh_Skv,
+            value_seq,
+            mask,
+            _domain="ai.onnxruntime.fusion",
         )
-        # Transpose back to (B, S, H, D/H)
+
+        # Transpose attention back to (B, S, H, D/H)
         attention_transposed = op.Transpose(attention, perm=[0, 2, 1, 3])
         # Reshape back to (B, S, D)
         attention_reshaped = op.Reshape(
             attention_transposed, _allow_other_inputs=True, _outputs=["attention_reshaped"]
         )
-        return attention_reshaped, key_rope, value
+        return attention_reshaped, key_seq, value_seq
 
     def check(
         self,
         op,
-        query_mm_reshaped,
-        key_mm_reshaped,
-        value_mm_reshaped,
-        key_reshaped,
-        key_transposed,
-        attention_reshaped,
+        query_BSD,
+        key_BSD,
+        value_BSD,
+        mask,
+        past_key,
+        past_value,
+        query_BSHDh,
+        key_BSHDh,
+        value_BSHDh,
         **_,
-    ):
-        bindings: dict[str, int] = {}
-        status = (
-            _check_shape(bindings, query_mm_reshaped, ["B", "S", "H", "d_h"])
-            and _check_shape(bindings, key_mm_reshaped, ["B", "S", "H", "d_h"])
-            and _check_shape(bindings, value_mm_reshaped, ["B", "S", "H", "d_h"])
-            and _check_shape(bindings, key_reshaped, ["B*H", "KVS", "d_h"])
-            and _check_shape(bindings, key_transposed, ["B", "H", "d_h", "KVS"])
-            and _check_shape(bindings, attention_reshaped, ["B", "S", "H*d_h"])
-        )
-        if not status:
-            return False
-        # if bindings["B"] * bindings["H"] != bindings["B*H"]:
-        #     return False
-        # if bindings["H"] * bindings["d_h"] != bindings["H*d_h"]:
-        #     return False
-        return True
+    ) -> pattern.MatchResult:  # type: ignore[name-defined]
+        check_result = pattern.MatchResult()
+        bindings: dict[str, Dim] = {}
+
+        def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
+            return not _fusion_utils._check_shape(bindings, val, dims)
+
+        if no_match(query_BSD, ["B", "S", "D"]):
+            return check_result.fail(
+                f"Shape mismatch: {query_BSD} does not match expected dimensions ['B', 'S', 'D']",
+                query_BSD,
+            )
+        if no_match(key_BSD, ["B", "Skv", "D"]):
+            return check_result.fail(
+                f"Shape mismatch: {key_BSD} does not match expected dimensions ['B', 'Skv', 'D']",
+                query_BSD,
+            )
+        if no_match(value_BSD, ["B", "Skv", "D"]):
+            return check_result.fail(
+                f"Shape mismatch: {value_BSD} does not match expected dimensions ['B', 'Skv', 'D']",
+                value_BSD,
+            )
+
+        if no_match(past_key, ["B", "H", "Spast", "Dh"]):
+            return check_result.fail(
+                f"Shape mismatch: {past_key} does not match expected dimensions ['B', 'H', 'Spast', 'Dh']",
+                past_key,
+            )
+        if no_match(past_value, ["B", "H", "Spast", "Dv"]):
+            return check_result.fail(
+                f"Shape mismatch: {past_value} does not match expected dimensions ['B', 'H', 'Spast', 'Dv']",
+                past_value,
+            )
+        if no_match(query_BSHDh, ["B", "S", "H", "Dh"]):
+            return check_result.fail(
+                f"Shape mismatch: {query_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
+                query_BSHDh,
+            )
+        if no_match(key_BSHDh, ["B", "S", "H", "Dh"]):
+            return check_result.fail(
+                f"Shape mismatch: {key_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
+                query_BSHDh,
+            )
+        if no_match(value_BSHDh, ["B", "S", "H", "Dh"]):
+            return check_result.fail(
+                f"Shape mismatch: {value_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
+                query_BSHDh,
+            )
+        # TODO: mask shape check: ideally, it should be (1 or B, 1 or H, S, St)
+        # But this also, unforunately, depends on ORT version.
+
+        # TODO: verify Reshapes:
+        # eg.: verify bindings["B"] * bindings["H"] == bindings["B*H"]:
+        # and bindings["H"] * bindings["Dh"] == bindings["H*Dh"]:
+        # or check Reshape's shape-input value
+        return check_result
 
     def rewrite(
         self,
         op,
-        input,
-        query_weight,
-        key_weight,
-        value_weight,
+        query_BSD,
+        key_BSD,
+        value_BSD,
         mask,
-        cos,
-        sin,
         past_key,
         past_value,
+        key_BSHDh,
         position_ids,
-        query_mm_reshaped,
+        cos,
+        sin,
         **_,
     ):
-        num_heads = query_mm_reshaped.shape[2]
-        query = op.MatMul(input, query_weight)
-        key = op.MatMul(input, key_weight)
-        value = op.MatMul(input, value_weight)
+        num_heads = _ir_utils.get_dim(key_BSHDh, 2)
+        if not isinstance(num_heads, int):
+            return None
 
-        query_rope = op.RotaryEmbedding(query, position_ids, cos, sin, _domain="com.microsoft")
-        key_rope = op.RotaryEmbedding(key, position_ids, cos, sin, _domain="com.microsoft")
+        # Switch to 3D RotaryEmbedding
+        # TODO: forward other attributes
+
+        if self._transpose_4d:
+            zero_1d = op.Constant(value_ints=[0])
+            position_ids = op.Unsqueeze(position_ids, zero_1d)
+        query_BSD_rope = op.RotaryEmbedding(
+            query_BSD, position_ids, cos, sin, _domain="com.microsoft"
+        )
+        key_BSD_rope = op.RotaryEmbedding(
+            key_BSD, position_ids, cos, sin, _domain="com.microsoft"
+        )
 
         return op.MultiHeadAttention(
-            query_rope,
-            key_rope,
-            value,
+            query_BSD_rope,
+            key_BSD_rope,
+            value_BSD,
             None,  # bias
             None,  # key padding mask
             mask,  # attention mask/bias
@@ -182,17 +254,10 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         )
 
 
-_rule1 = MultiHeadAttention.rule("MHA_2dmm", use_2d_matmul=False)
+_mha_4d_transpose = MultiHeadAttention.rule("MHA_4D_Transpose", transpose_4d=True)
+_mha_3d_transpose = MultiHeadAttention.rule("MHA_3D_Transpose", transpose_4d=False)
 
-mha_rules = pattern.RewriteRuleSet([_rule1])
-
-debug: bool = True
+mha_rules = pattern.RewriteRuleSet([_mha_4d_transpose, _mha_3d_transpose])
 
 
-def fuse_mha(model: ir.Model) -> int:
-    count = mha_rules.apply_to_model(model)
-    if count == 0 and debug:
-        mha_rules.apply_to_model(model, debug=True)
-    else:
-        print(f"MHA count: {count}")
-    return count
+fuse_mha = _fusion_utils.apply_fusion_rules(mha_rules)

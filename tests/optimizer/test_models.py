@@ -38,7 +38,7 @@ class ModelTest(unittest.TestCase):
         if not model_path.exists():
             self.skipTest(f"Model {model_name!r} does not exist")
         model = onnx.load(model_path)
-        model = optimizer.optimize(model, onnx_shape_inference=False)
+        model = optimizer.optimize(model)
 
         with tempfile.TemporaryDirectory() as tmp_folder:
             tmp_folder = pathlib.Path(tmp_folder)

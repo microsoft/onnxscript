@@ -18,7 +18,6 @@ from typing import (
     MutableSequence,
     Protocol,
     Sequence,
-    Tuple,
     TypeVar,
     Union,
 )
@@ -330,17 +329,24 @@ class MatchResult:
         self.outputs: list[ir.Value] = []
         # For a failed match, _reason is a string that describes the reason for the failure.
         self._reason: str = ""
-        # Track the node that caused the failure.
-        # TODO: May be useful to extend this to be a collection of Nodes and Values.
-        self._failure_node: ir.Node | None = None
+        # Track the node(s) or value(s) that caused the failure.
+        self._failure_nodes_and_values: list[Union[ir.Node, ir.Value]] = []
 
     def __bool__(self):
         return self._success
 
-    def fail(self, reason: str = "", node: ir.Node | None = None) -> MatchResult:
+    def fail(
+        self,
+        reason: str = "",
+        failure_source: Union[ir.Node, ir.Value, list[Union[ir.Node, ir.Value]]] | None = None,
+    ) -> MatchResult:
         self._success = False
         self._reason = reason
-        self._failure_node = node
+        if failure_source is not None:
+            if isinstance(failure_source, list):
+                self._failure_nodes_and_values.extend(failure_source)
+            else:
+                self._failure_nodes_and_values.append(failure_source)
         return self
 
     @property
@@ -504,7 +510,7 @@ class NodePattern:
         if isinstance(op, str) and isinstance(domain, StringConstantPattern):
             # TODO(rama): support overloaded operators.
             overload = ""
-            self._op_identifier: tuple[str, str, str] | None = (
+            self._op_identifier: ir.OperatorIdentifier | None = (
                 domain.value(),
                 op,
                 overload,
@@ -528,7 +534,7 @@ class NodePattern:
         inputs_and_attributes = f"{inputs}, {attributes}" if attributes else inputs
         return f"{outputs} = {qualified_op} ({inputs_and_attributes})"
 
-    def op_identifier(self) -> Tuple[str, str, str] | None:
+    def op_identifier(self) -> ir.OperatorIdentifier | None:
         return self._op_identifier
 
     @property
@@ -622,9 +628,18 @@ class NodeOutputPattern(ValuePattern):
 Var = ValuePattern
 
 
-def _is_pattern_variable(x: Any) -> bool:
-    # The derived classes of ValuePattern represent constant patterns and node-output patterns.
-    return type(x) is ValuePattern
+class AnyValue(ValuePattern):
+    """Represents a pattern that matches against any value."""
+
+    def __init__(self) -> None:
+        super().__init__(None)
+
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> AnyValue:
+        # A single instance of AnyValue suffices.
+        return self
+
+
+ANY_VALUE = AnyValue()
 
 
 class Constant(ValuePattern):
@@ -695,6 +710,92 @@ class Constant(ValuePattern):
 
     def __str__(self) -> str:
         return str(self._value)
+
+
+class OrValue(ValuePattern):
+    """Represents a (restricted) form of value pattern disjunction."""
+
+    def __init__(
+        self,
+        values: Sequence[ValuePattern],
+        name: str | None = None,
+        tag_var: str | None = None,
+        tag_values: Sequence[Any] | None = None,
+    ) -> None:
+        """
+        Initialize an OrValue pattern.
+
+        Args:
+            values: A sequence of value patterns to match against.
+                Must contain at least two alternatives. All value patterns except the last one
+                must have a unique producer id. This allows the pattern-matching to be deterministic,
+                without the need for backtracking.
+            name: An optional variable name for the pattern. Defaults to None. If present,
+                this name will be bound to the value matched by the pattern.
+            tag_var: An optional variable name for the tag. Defaults to None. If present,
+                it will be bound to a value (from tag_values) indicating which alternative was matched.
+            tag_values: An optional sequence of values to bind to the tag_var. Defaults to None.
+                If present, the length of tag_values must match the number of alternatives in values.
+                In a successful match, tag-var will be bound to the i-th value in tag_values if the i-th
+                alternative pattern matched. If omitted, the default value of (0, 1, 2, ...) will be used.
+        """
+        super().__init__(name)
+        if len(values) < 2:
+            raise ValueError("OrValue must have at least two alternatives.")
+        if tag_values is not None:
+            if tag_var is None:
+                raise ValueError("tag_var must be specified if tag_values is provided.")
+            if len(tag_values) != len(values):
+                raise ValueError(
+                    "tag_values must have the same length as the number of alternatives."
+                )
+        else:
+            tag_values = tuple(range(len(values)))
+        self._tag_var = tag_var
+        self._tag_values = tag_values
+        self._values = values
+
+        mapping: dict[ir.OperatorIdentifier, tuple[Any, NodeOutputPattern]] = {}
+        for i, alternative in enumerate(values[:-1]):
+            if not isinstance(alternative, NodeOutputPattern):
+                raise TypeError(
+                    f"Invalid type {type(alternative)} for OrValue. Expected NodeOutputPattern."
+                )
+            producer = alternative.producer()
+            id = producer.op_identifier()
+            if id is None:
+                raise ValueError(
+                    f"Invalid producer {producer} for OrValue. Expected a NodePattern with op identifier."
+                )
+            if id in mapping:
+                raise ValueError(
+                    f"Invalid producer {producer} for OrValue. Expected a unique producer id for each alternative."
+                )
+            mapping[id] = (tag_values[i], alternative)
+        self._op_to_pattern = mapping
+        self._default_pattern = (tag_values[-1], values[-1])
+
+    @property
+    def tag_var(self) -> str | None:
+        """Returns the tag variable associated with the OrValue pattern."""
+        return self._tag_var
+
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> OrValue:
+        return OrValue(
+            [v.clone(node_map) for v in self._values],
+            self.name,
+            self._tag_var,
+            self._tag_values,
+        )
+
+    def get_pattern(self, value: ir.Value) -> tuple[Any, ValuePattern]:
+        """Returns the pattern that should be tried for the given value."""
+        producer = value.producer()
+        if producer is not None:
+            id = producer.op_identifier()
+            if id is not None and id in self._op_to_pattern:
+                return self._op_to_pattern[id]
+        return self._default_pattern
 
 
 def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[NodePattern]:
@@ -1101,6 +1202,9 @@ class SimplePatternMatcher(PatternMatcher):
 
     def _match_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
         """Match an IR value against a ValuePattern instance."""
+        if isinstance(pattern_value, AnyValue):
+            return True
+
         if not self._bind_value(pattern_value, value):
             return False
 
@@ -1112,6 +1216,15 @@ class SimplePatternMatcher(PatternMatcher):
             if value is None:
                 return self.fail("Mismatch: Constant pattern does not match None.")
             return self._match_constant(pattern_value, value)
+        if isinstance(pattern_value, OrValue):
+            if value is None:
+                return self.fail("Mismatch: OrValue pattern does not match None.")
+            i, pattern_choice = pattern_value.get_pattern(value)
+            result = self._match_value(pattern_choice, value)
+            if result:
+                if pattern_value.tag_var is not None:
+                    self._match.bind(pattern_value.tag_var, i)
+            return result
         return True
 
     def _match_node_output(self, pattern_value: NodeOutputPattern, value: ir.Value) -> bool:
@@ -1371,7 +1484,14 @@ class RewriteRule:
                 if var.name is not None:
                     if var.name not in match.bindings:
                         match.bindings[var.name] = None
-            if not self._condition_function(context, **match.bindings):
+            check_match_result = self._condition_function(context, **match.bindings)
+            if not check_match_result:
+                # If check function was provided, but it failed, return the reason for failure to the tracer.
+                if isinstance(check_match_result, MatchResult):
+                    match.fail(
+                        check_match_result.reason,
+                        check_match_result._failure_nodes_and_values,
+                    )
                 if tracer:
                     tracer.log(
                         self, graph_or_function, node, match, MatchStatus.CONDITION_FAILED
@@ -1405,12 +1525,12 @@ class RewriteRule:
         *,
         commute: bool = False,
         verbose: int | None = None,
-        debug: bool = False,
+        tracer: MatchingTracer | None = None,
     ):
         # A convenience method to apply the rule to a model. We use a RewriteRuleSet to
         # handle commutative rules.
         return RewriteRuleSet([self], commute=commute).apply_to_model(
-            model, verbose=verbose, debug=debug
+            model, verbose=verbose, tracer=tracer
         )
 
     def commute(self) -> Sequence[RewriteRule]:
@@ -1428,6 +1548,7 @@ class RewriteRule:
                 self.remove_nodes,
                 self.graph_pre_visitor,
                 self.graph_post_visitor,
+                self.as_function,
             )
 
         return [replace_pattern(p) for p in self._target_pattern.commute()]
@@ -1448,8 +1569,8 @@ class RewriteRuleAsClass:
         raise NotImplementedError("Method 'rewrite' must be overwritten.")
 
     @classmethod
-    def check(cls, context, *_, **__) -> bool:
-        return True
+    def check(cls, context, *_, **__) -> bool | MatchResult:
+        return MatchResult()
 
 
 def make_rewrite_rule_from_class(
@@ -1509,31 +1630,44 @@ class RewriteRuleClassBase:
     @classmethod
     def rule(cls, *args, **kwargs):
         instance = cls(*args, **kwargs)
-        setup = instance.setup if hasattr(instance, "setup") else None
-        cleanup = instance.cleanup if hasattr(instance, "cleanup") else None
         return RewriteRule(
             instance.pattern,
             instance.rewrite,
             instance.check,
             name=instance.name,
             remove_nodes=instance.remove_nodes,
-            graph_pre_visitor=setup,
-            graph_post_visitor=cleanup,
+            graph_pre_visitor=instance.setup,
+            graph_post_visitor=instance.cleanup,
+            as_function=instance.as_function,
         )
 
-    def __init__(self, name: str | None = None, remove_nodes: bool = True) -> None:
+    def __init__(
+        self, name: str | None = None, remove_nodes: bool = True, as_function: bool = False
+    ) -> None:
         self.name = name or self.__class__.__name__
         self.remove_nodes = remove_nodes
+        self.as_function = as_function
 
     def pattern(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'pattern' must be implemented by derived class.")
 
     def check(self, op, *args, **kwargs):
-        # Default check function that always returns True.
-        return True
+        # Default check function that returns a
+        # MatchResult object with success always set to True.
+        return MatchResult()
 
     def rewrite(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'rewrite' must be implemented by derived class.")
+
+    def setup(self):
+        # Optional setup function that can be overridden by derived classes. Used to do
+        # per model/function initialization.
+        pass
+
+    def cleanup(self):
+        # Optional cleanup function that can be overridden by derived classes. Used to do
+        # per model/function cleanup.
+        pass
 
 
 def _copy_for_function(
@@ -1542,23 +1676,35 @@ def _copy_for_function(
     """Utility function to extract a subgraph out as a function."""
     value_map: dict[ir.Value, ir.Value] = {}
     function_inputs: list[ir.Value] = []
+    constant_nodes: list[ir.Node] = []
     for input in inputs:
         # Create a function input (formal-parameter value) to represent this value:
-        if input is None:
-            raise NotImplementedError("None inputs not supported.")
-        new_value = ir.Value(
-            name=input.name,
-            shape=input.shape,
-            type=input.type,
-            doc_string=input.doc_string,
+        new_value = (
+            ir.Value(
+                name=input.name,
+                shape=input.shape,
+                type=input.type,
+                doc_string=input.doc_string,
+            )
+            if input
+            else ir.Value()  # dummy parameter for a None input
         )
-        value_map[input] = new_value
+        if input is not None:
+            value_map[input] = new_value
         function_inputs.append(new_value)
 
     def copy_value(value: ir.Value | None) -> ir.Value | None:
         if value is None:
             return None
         if value not in value_map:
+            const_value = value.const_value
+            if const_value is not None:
+                # create a Constant node to represent the value
+                value_attr = ir.AttrTensor("value", const_value)
+                const_node = ir.Node("", "Constant", [], [value_attr])
+                constant_nodes.append(const_node)
+                value_map[value] = result = const_node.outputs[0]
+                return result
             raise ValueError(f"Value {value} not found in value_map.")
         return value_map[value]
 
@@ -1598,7 +1744,7 @@ def _copy_for_function(
 
     function_nodes = [copy_node(node) for node in nodes]
     function_outputs = [copy_value(v) for v in outputs]
-    return (function_inputs, function_nodes, function_outputs)
+    return (function_inputs, constant_nodes + function_nodes, function_outputs)
 
 
 def _get_new_overload(model: ir.Model, domain: str, name: str) -> str:
@@ -1624,9 +1770,17 @@ def _get_new_overload(model: ir.Model, domain: str, name: str) -> str:
 
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
+        if not rules:
+            raise ValueError("rules must contain at least one rule")
         if commute:
             rules = list(itertools.chain.from_iterable([rule.commute() for rule in rules]))
         self.rules = rules
+        # We call remove_unused_nodes at end of rewriting if there is any rule that does
+        # NOT remove nodes (immediately when it is applied)
+        self.remove_unused_nodes = any(not rule.remove_nodes for rule in rules)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.rules})"
 
     def _apply_to_graph_or_function(
         self,
@@ -1731,22 +1885,24 @@ class RewriteRuleSet:
         return count
 
     def apply_to_model(
-        self, model: ir.Model, *, verbose: int | None = None, debug: bool = False
+        self,
+        model: ir.Model,
+        *,
+        verbose: int | None = None,
+        tracer: MatchingTracer | None = None,
     ) -> int:
         """Apply the rewrite rules in the set to the model.
 
         Args:
             model: The model to which the rewrite rules are applied.
             verbose: The verbosity level of messages. Defaults to None.
-            debug: Whether to enable debugging. Defaults to False. In the
-                debug mode, no changes are made to the model, only a report is produced at
-                the end about the best matches found.
+            tracer: if specified, no changes are made to the model, only
+                information about the best matches found is computed.
 
         Returns:
             The number of applications of rewrite rules.
         """
         assert isinstance(model, ir.Model)
-        tracer = MatchingTracer() if debug else None
         onnxscript.optimizer.basic_constant_propagation(model.graph)
         # Rewriting may introduce new functions. In the following loop,
         # we restrict rewriting to original functions, not newly introduced ones.
@@ -1759,8 +1915,8 @@ class RewriteRuleSet:
             count += self._apply_to_graph_or_function(
                 model, function, verbose=verbose, tracer=tracer
             )
-        if tracer:
-            tracer.report()
+        if self.remove_unused_nodes:
+            onnxscript.optimizer.remove_unused_nodes(model)
         return count
 
     def __iter__(self):
@@ -1789,6 +1945,30 @@ class MatchInfo:
         """Return a score for the match."""
         return len(self.match_result.nodes) + int(self.status.value) * 100
 
+    def print(self):
+        separator = "-" * 80
+        print(separator)
+        print(f"Status: {self.status.name}")
+        if self.status != MatchStatus.SUCCESS:
+            reason = self.match_result.reason
+            if reason:
+                if self.status == MatchStatus.CONDITION_FAILED:
+                    print(f"Graph matching failed due to failing check condition : {reason}")
+                else:
+                    print(f"Graph matching failed: {reason}")
+            else:
+                print("Graph matching failed.")
+            failure_nodes_and_values = self.match_result._failure_nodes_and_values
+            print("Failure at or around nodes/values:")
+            if failure_nodes_and_values:
+                for failure_cause in failure_nodes_and_values:
+                    failure_cause.display()
+        print("Matched nodes:")
+        import onnxscript.rewriter._ir_utils as ir_utils
+
+        ir_utils.display_nodes(self.match_result.nodes)
+        print(separator)
+
 
 class MatchingTracer:
     """A debugging helper class to trace the matching of a pattern against a graph.
@@ -1798,7 +1978,11 @@ class MatchingTracer:
     """
 
     def __init__(self) -> None:
-        self._log: dict[RewriteRule, list[MatchInfo]] = defaultdict(list)
+        self._best_matches_map: dict[RewriteRule, list[MatchInfo]] = defaultdict(list)
+
+    @property
+    def best_matches_map(self) -> dict[RewriteRule, list[MatchInfo]]:
+        return self._best_matches_map
 
     def log(
         self,
@@ -1812,7 +1996,7 @@ class MatchingTracer:
         this_score = this_match.score()
         if this_score == 0:
             return
-        best_matches = self._log[rule]
+        best_matches = self._best_matches_map[rule]
         if best_matches:
             if this_score < best_matches[0].score():
                 return
@@ -1821,22 +2005,17 @@ class MatchingTracer:
         best_matches.append(this_match)
 
     def report(self) -> None:
-        import onnxscript.rewriter._ir_utils as ir_utils
-
-        print("===")
-        for rule, matches in self._log.items():
+        best_score = 0
+        for rule, matches in self._best_matches_map.items():
             if not matches:
                 continue
-            print(f"Rule: {rule}")
-            print(f"Best score: {matches[0].score()}")
-            for match in matches:
-                print(f"Status: {match.status.name}")
-                if match.status == MatchStatus.NO_MATCH:
-                    print("Graph matching failed: " + match.match_result.reason)
-                    node = match.match_result._failure_node
-                    if node:
-                        print("Failure at or around node:")
-                        node.display()
-                print("Matched nodes:")
-                ir_utils.display_nodes(match.match_result.nodes)
-                print("===")
+            if matches[0].score() > best_score:
+                best_score = matches[0].score()
+                best_match = matches[0]
+                best_rule = rule
+
+        if best_score > 0:
+            print(f"Rule: {best_rule}")
+            best_match.print()
+        else:
+            print("No matches found.")

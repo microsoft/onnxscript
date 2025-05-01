@@ -73,7 +73,8 @@ class IOFunctionsTest(unittest.TestCase):
     def test_save_with_external_data_does_not_modify_model(self):
         model = _create_simple_model_with_initializers()
         self.assertIsInstance(model.graph.initializers["initializer_0"].const_value, ir.Tensor)
-        with tempfile.TemporaryDirectory() as tmpdir:
+        # There may be clean up errors on Windows, so we ignore them
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             path = os.path.join(tmpdir, "model.onnx")
             external_data_file = "model.data"
             _io.save(model, path, external_data=external_data_file, size_threshold_bytes=0)

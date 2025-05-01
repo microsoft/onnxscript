@@ -81,6 +81,7 @@ _PLEASE_CONTRIBUTE = (
 _FUNCTION_VALUE_INFO_SUPPORTED_VERSION = (
     10  # ONNX IR version where value info in functions was introduced
 )
+_QUANT_PARAMETER_TENSOR_NAMES_FIELD = "quant_parameter_tensor_names"
 _T = typing.TypeVar("_T", bound=Callable[..., Any])
 
 
@@ -568,6 +569,9 @@ def deserialize_graph(proto: onnx.GraphProto) -> _core.Graph:
 
     Returns:
         IR Graph.
+
+    .. versionadded:: 0.3
+        Support for *quantization_annotation* is added.
     """
     return _deserialize_graph(proto, [])
 
@@ -588,44 +592,89 @@ def _deserialize_graph(
     Returns:
         IR Graph.
     """
+    # Process TensorAnnotation for quantization
+    quantization_annotations = {
+        annotation.tensor_name: annotation for annotation in proto.quantization_annotation
+    }
+
     # Create values for initializers and inputs
     initializer_tensors = [deserialize_tensor(tensor) for tensor in proto.initializer]
     inputs = [_core.Input(info.name) for info in proto.input]
     for info, value in zip(proto.input, inputs):
         deserialize_value_info_proto(info, value)
 
+        # Add TensorAnnotation for inputs if they exist
+        if value.name in quantization_annotations:
+            _deserialize_quantization_annotation(quantization_annotations[value.name], value)
+
     # Initialize the values dictionary for this graph scope with the inputs and initializers
     values: dict[str, _core.Value] = {v.name: v for v in inputs}  # type: ignore[misc]
+
+    # Enter the graph scope by pushing the values for this scope to the stack
     scoped_values.append(values)
+
     initializer_values = []
-    for tensor in initializer_tensors:
-        if tensor.name in values:
+    for i, tensor in enumerate(initializer_tensors):
+        initializer_name = tensor.name
+        if not initializer_name:
+            logger.warning(
+                "Initializer tensor must have a name but the %s-th initializer does not. Skipping this initializer.",
+                i,
+            )
+            continue
+        if initializer_name in values:
             # The initializer is for an input
-            initializer_value = values[tensor.name]
+            initializer_value = values[initializer_name]
             initializer_value.const_value = tensor
         else:
             # The initializer is for some other value. Create this value first
             initializer_value = _core.Value(
                 None,
                 index=None,
-                name=tensor.name,
-                # TODO(justinchuby): Fix type hinting for shape and dtype
-                shape=tensor.shape,  # type: ignore
+                name=initializer_name,
+                # Include shape and type even if the shape or type is not provided as ValueInfoProto.
+                # Users expect initialized values to have shape and type information.
                 type=_core.TensorType(tensor.dtype),
+                shape=tensor.shape,  # type: ignore[arg-type]
                 const_value=tensor,
             )
-            values[tensor.name] = initializer_value  # type: ignore[index]
+            if initializer_value.name in quantization_annotations:
+                _deserialize_quantization_annotation(
+                    quantization_annotations[initializer_value.name], initializer_value
+                )
+            values[initializer_name] = initializer_value
         initializer_values.append(initializer_value)
 
-    # Add ValueInfos for this graph scope
+    # Build the value info dictionary to allow for quick lookup for this graph scope
     value_info = {info.name: info for info in proto.value_info}
 
     # Deserialize nodes with all known values
-    nodes = [_deserialize_node(node, scoped_values, value_info) for node in proto.node]
+    nodes = [
+        _deserialize_node(node, scoped_values, value_info, quantization_annotations)
+        for node in proto.node
+    ]
 
-    # Fill in values for graph outputs
-    outputs = [deserialize_value_info_proto(info, values[info.name]) for info in proto.output]
+    outputs = []
+    for info in proto.output:
+        # Fill in values for graph outputs
+        output_name = info.name
+        if output_name not in values:
+            # Handle (invalid) graph outputs that do not have any producers
+            logger.warning(
+                "Output '%s' is not produced by any node. The graph has an invalid output",
+                output_name,
+            )
+            value = _core.Value(name=output_name)
+        else:
+            # A valid, normal graph output
+            value = values[output_name]
+        # Fill in shape/type information
+        deserialize_value_info_proto(info, value)
+        outputs.append(value)
+
+    # Exit the graph scope by popping the values for this scope from the stack
     scoped_values.pop()
+
     return _core.Graph(
         inputs,
         outputs,
@@ -644,7 +693,10 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
     value_info = {info.name: info for info in getattr(proto, "value_info", [])}
 
     # TODO(justinchuby): Handle unsorted nodes
-    nodes = [_deserialize_node(node, [values], value_info=value_info) for node in proto.node]
+    nodes = [
+        _deserialize_node(node, [values], value_info=value_info, quantization_annotations={})
+        for node in proto.node
+    ]
     outputs = [values[name] for name in proto.output]
     graph = _core.Graph(
         inputs,
@@ -658,6 +710,7 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
             if hasattr(proto, "overload") and proto.overload
             else ""
         ),
+        metadata_props=deserialize_metadata_props(proto.metadata_props),
     )
     attributes = [_deserialize_attribute(attr, []) for attr in proto.attribute_proto]
     # Attributes without defaults
@@ -670,7 +723,6 @@ def deserialize_function(proto: onnx.FunctionProto) -> _core.Function:
         overload=getattr(proto, "overload", ""),
         graph=graph,
         attributes=typing.cast(List[_core.Attr], attributes),
-        metadata_props=deserialize_metadata_props(proto.metadata_props),
     )
 
 
@@ -687,6 +739,19 @@ def deserialize_value_info_proto(
         value.metadata_props.update(metadata_props)
     value.doc_string = _get_field(proto, "doc_string")
     return value
+
+
+@_capture_errors(lambda proto, value: str(proto))
+def _deserialize_quantization_annotation(
+    proto: onnx.TensorAnnotation, value: _core.Value
+) -> None:
+    """Deserialize a quantization_annotation as TensorAnnotation into a Value.
+
+    This function is marked private because we don't expect users to call it directly.
+    """
+    value.meta[_QUANT_PARAMETER_TENSOR_NAMES_FIELD] = _deserialize_string_string_maps(
+        proto.quant_parameter_tensor_names
+    )
 
 
 @_capture_errors(str)
@@ -826,6 +891,9 @@ def deserialize_metadata_props(
     return {entry.key: entry.value for entry in proto}
 
 
+_deserialize_string_string_maps = deserialize_metadata_props
+
+
 def deserialize_attribute(proto: onnx.AttributeProto) -> _core.Attr | _core.RefAttr:
     return _deserialize_attribute(proto, [])
 
@@ -900,14 +968,17 @@ def _deserialize_attribute(
 
 
 def deserialize_node(proto: onnx.NodeProto) -> _core.Node:
-    return _deserialize_node(proto, scoped_values=[], value_info={})
+    return _deserialize_node(
+        proto, scoped_values=[{}], value_info={}, quantization_annotations={}
+    )
 
 
-@_capture_errors(lambda proto, scoped_values, value_info: str(proto))
+@_capture_errors(lambda proto, scoped_values, value_info, quantization_annotations: str(proto))
 def _deserialize_node(
     proto: onnx.NodeProto,
     scoped_values: list[dict[str, _core.Value]],
     value_info: dict[str, onnx.ValueInfoProto],
+    quantization_annotations: dict[str, onnx.TensorAnnotation],
 ) -> _core.Node:
     node_inputs: list[_core.Value | None] = []
     for input_name in proto.input:
@@ -950,6 +1021,10 @@ def _deserialize_node(
             # Fill in shape/type information if they exist
             if input_name in value_info:
                 deserialize_value_info_proto(value_info[input_name], value)
+            if input_name in quantization_annotations:
+                _deserialize_quantization_annotation(
+                    quantization_annotations[input_name], value
+                )
             node_inputs.append(value)
             # We can only create the value in the current scope. If the subgraph is
             # referencing a value that is not in the current scope, it is impossible
@@ -991,6 +1066,8 @@ def _deserialize_node(
                 proto.name,
                 proto.op_type,
             )
+        if output_name in quantization_annotations:
+            _deserialize_quantization_annotation(quantization_annotations[output_name], value)
         node_outputs.append(value)
     return _core.Node(
         proto.domain,
@@ -1138,21 +1215,44 @@ def _serialize_opset_imports_into(
         opset_ids.add(domain=domain, version=version)
 
 
-def _serialize_metadata_props_into(
+def _serialize_string_string_maps(
     string_string_entries: proto_containers.RepeatedCompositeFieldContainer[
         onnx.StringStringEntryProto
     ],
     from_: Mapping[str, str],
 ) -> None:
-    """Serialize metadata properties into a repeated field of string-string entries.
+    """Serialize a <str, str> mapping into a repeated field of string-string entries.
 
     Args:
         string_string_entries: The repeated field to serialize into.
-        from_: The mapping of metadata properties to serialize.
+        from_: The mapping of a <str, str> mapping to serialize.
     """
     # Sort names for deterministic serialization
     for key in sorted(from_):
         string_string_entries.add(key=key, value=from_[key])
+
+
+_serialize_metadata_props_into = _serialize_string_string_maps
+
+
+def _maybe_add_quantization_annotation(
+    graph_proto: onnx.GraphProto, value: _protocols.ValueProtocol
+) -> None:
+    if quantization_annotation := value.meta.get(_QUANT_PARAMETER_TENSOR_NAMES_FIELD):
+        _serialize_tensor_annotation_into(
+            graph_proto.quantization_annotation.add(), value.name, quantization_annotation
+        )
+
+
+def _serialize_tensor_annotation_into(
+    tensor_annotation_proto: onnx.TensorAnnotation,
+    tensor_name: str,
+    quant_parameter_tensor_names: dict[str, str],
+) -> None:
+    tensor_annotation_proto.tensor_name = tensor_name
+    _serialize_string_string_maps(
+        tensor_annotation_proto.quant_parameter_tensor_names, quant_parameter_tensor_names
+    )
 
 
 def serialize_graph(
@@ -1190,29 +1290,41 @@ def serialize_graph_into(
         graph_proto.doc_string = from_.doc_string
     for input_ in from_.inputs:
         serialize_value_into(graph_proto.input.add(), input_)
+        if input_.name not in from_.initializers:
+            # Annotations for initializers will be added below to avoid double adding
+            # TODO(justinchuby): We should add a method is_initializer() on Value when
+            # the initializer list is tracked
+            _maybe_add_quantization_annotation(graph_proto, input_)
+    input_names = {input_.name for input_ in from_.inputs}
     # TODO(justinchuby): Support sparse_initializer
-    for initializer in from_.initializers.values():
-        if initializer.const_value is None:
+    for value in from_.initializers.values():
+        _maybe_add_quantization_annotation(graph_proto, value)
+        if _should_create_value_info_for_value(value) and value.name not in input_names:
+            # Serialize information about all initializers into value_info,
+            # except for those that are also graph inputs
+            serialize_value_into(graph_proto.value_info.add(), value)
+        if value.const_value is None:
             # Skip initializers without constant values
-            logger.warning(
-                "Initializer '%s' does not have a constant value set.", initializer.name
-            )
+            logger.warning("Initializer '%s' does not have a constant value set.", value.name)
             continue
         # Make sure the tensor's name is the same as the value's name
-        initializer.const_value.name = initializer.name
-        serialize_tensor_into(graph_proto.initializer.add(), from_=initializer.const_value)
+        value.const_value.name = value.name
+        serialize_tensor_into(graph_proto.initializer.add(), from_=value.const_value)
     for node in from_:
         serialize_node_into(graph_proto.node.add(), from_=node)
         for node_output in node.outputs:
-            if not _should_create_value_info_for_value(node_output):
+            if node_output.is_graph_output():
+                # No need to serialize info for these outputs because they are handled as graph outputs
+                continue
+            _maybe_add_quantization_annotation(graph_proto, node_output)
+            if not _should_create_value_info_for_value(node_output):  # pylint: disable=no-else-continue
                 # No need to serialize value info if it is not set
                 continue
-            if node_output.is_graph_output():
-                # No need to serialize value info for these outputs because they are also graph outputs
-                continue
-            serialize_value_into(graph_proto.value_info.add(), node_output)
+            else:
+                serialize_value_into(graph_proto.value_info.add(), node_output)
     for output in from_.outputs:
         serialize_value_into(graph_proto.output.add(), from_=output)
+        _maybe_add_quantization_annotation(graph_proto, output)
     if from_.metadata_props:
         _serialize_metadata_props_into(graph_proto.metadata_props, from_.metadata_props)
 

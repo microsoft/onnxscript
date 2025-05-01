@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 import unittest
 
+import google.protobuf.text_format
 import ml_dtypes
 import numpy as np
 import onnx
@@ -17,7 +18,7 @@ class ConvenienceFunctionsTest(unittest.TestCase):
         [
             ("model", onnx.ModelProto()),
             ("graph", onnx.GraphProto()),
-            ("node", onnx.NodeProto()),
+            ("node", onnx.NodeProto(input=["X"], output=["Y"])),
             (
                 "tensor",
                 onnx.helper.make_tensor("test_tensor", onnx.TensorProto.FLOAT, [1], [1.0]),
@@ -288,6 +289,128 @@ class DeserializeGraphTest(unittest.TestCase):
         deserialized_graph = serde.deserialize_graph(graph_proto)
         self.assertEqual(deserialized_graph[0].op_type, "Op_1")
         self.assertEqual(deserialized_graph[1].op_type, "Op_0")
+
+    def test_deserialize_graph_handles_invalid_output(self):
+        # The graph has an output that is not connected to any node, and it does not
+        # have shape/type information.
+        graph_with_invalid_output = ir.Graph(
+            inputs=[],
+            outputs=[ir.Value(name="invalid_output")],
+            nodes=[],
+            name="graph_with_invalid_output",
+        )
+        graph_proto = serde.serialize_graph(graph_with_invalid_output)
+        deserialized_graph = serde.deserialize_graph(graph_proto)
+        self.assertEqual(len(deserialized_graph.outputs), 1)
+        self.assertEqual(deserialized_graph.outputs[0].name, "invalid_output")
+        self.assertEqual(deserialized_graph.outputs[0].type, None)
+        self.assertEqual(deserialized_graph.outputs[0].shape, None)
+        self.assertEqual(deserialized_graph.outputs[0].dtype, None)
+
+
+class QuantizationAnnotationTest(unittest.TestCase):
+    """Test that quantization annotations are correctly serialized and deserialized."""
+
+    def setUp(self):
+        model_text = """\
+ir_version: 8
+producer_name: "pytorch"
+producer_version: "2.1.1"
+graph {
+  input {
+    name: "input"
+    type {
+      tensor_type {
+        elem_type: 1
+        shape {
+          dim {
+            dim_value: 1
+          }
+        }
+      }
+    }
+  }
+  output {
+    name: "output"
+    type {
+      tensor_type {
+        elem_type: 1
+        shape {
+          dim {
+            dim_value: 1
+          }
+        }
+      }
+    }
+  }
+  node {
+    input: "input"
+    output: "intermediate_value"
+    op_type: "TestOp1"
+    domain: "test_domain"
+  }
+  node {
+    input: "intermediate_value"
+    output: "output"
+    op_type: "TestOp2"
+    domain: "test_domain"
+  }
+  quantization_annotation {
+    tensor_name: "input"
+    quant_parameter_tensor_names {
+      key: "custom_key"
+      value: "arbitrary_value_input"
+    }
+  }
+  quantization_annotation {
+    tensor_name: "intermediate_value"
+    quant_parameter_tensor_names {
+      key: "custom_key"
+      value: "arbitrary_value_intermediate"
+    }
+  }
+  quantization_annotation {
+    tensor_name: "output"
+    quant_parameter_tensor_names {
+      key: "custom_key"
+      value: "arbitrary_value_output"
+    }
+  }
+}"""
+        self.model = onnx.ModelProto()
+        google.protobuf.text_format.Parse(model_text, self.model)
+
+    def test_deserialize_quantization_annotation(self):
+        model = serde.deserialize_model(self.model)
+        self.assertEqual(
+            model.graph.inputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_input"},
+        )
+        self.assertEqual(
+            model.graph.node(0).outputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_intermediate"},
+        )
+        self.assertEqual(
+            model.graph.outputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_output"},
+        )
+
+    def test_serde_roundtrip(self):
+        model = serde.deserialize_model(self.model)
+        serialized_model = serde.serialize_model(model)
+        deserialized_model = serde.deserialize_model(serialized_model)
+        self.assertEqual(
+            deserialized_model.graph.inputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_input"},
+        )
+        self.assertEqual(
+            deserialized_model.graph.node(0).outputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_intermediate"},
+        )
+        self.assertEqual(
+            deserialized_model.graph.outputs[0].meta["quant_parameter_tensor_names"],
+            {"custom_key": "arbitrary_value_output"},
+        )
 
 
 if __name__ == "__main__":

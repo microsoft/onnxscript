@@ -23,9 +23,6 @@ from onnxscript import irbuilder, onnx_types, sourceinfo, values
 from onnxscript import type_annotation as ta
 from onnxscript._internal import analysis, ast_utils, autocast, param_manipulation
 
-PY_VERSION_GE_39 = ast_utils.PY_VERSION_GE_39
-
-
 logger = logging.getLogger("onnxscript")
 
 
@@ -435,14 +432,10 @@ class Converter:
                 ast.BinOp,
                 ast.UnaryOp,
                 ast.Compare,
-                ast.Num,
-                ast.Str,
                 ast.Attribute,
                 ast.List,
                 ast.Load,
-                ast.NameConstant,
                 ast.Constant,
-                ast.Str,
             ),
         ):
             return all(self._is_constant_expr(c) for c in ast.iter_child_nodes(node))
@@ -578,9 +571,9 @@ class Converter:
 
     def _translate_opt_expr(self, node: ast.expr) -> Optional[Variable]:
         """Translation of an expression where "None" is permitted (eg., for an optional argument).
-        None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9.
+        None is represented as a Constant in Python 3.9+.
         """
-        if isinstance(node, (ast.NameConstant, ast.Constant)) and (node.value is None):
+        if isinstance(node, ast.Constant) and (node.value is None):
             return None
         return self._translate_expr(node)
 
@@ -629,7 +622,7 @@ class Converter:
             target = f"{var_name}_subscripted"
         target = self.generate_unique_name(target)
         indices = ast_utils.normalize_subscript_expr(node)
-        info = self._source_of(node.slice if PY_VERSION_GE_39 else node)
+        info = self._source_of(node.slice)
 
         # Create cached int constants:
         # TODO: Do this at a graph-scope level.
@@ -942,7 +935,6 @@ class Converter:
             opname = node.attr
             if opname in module:
                 return values.Op(module, node.attr)
-            warn(f"'{opname}' is not a known op in '{module}'")
             return values.Op(module, node.attr)
         if isinstance(node, ast.Name):
             function_name = node.id
