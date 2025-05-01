@@ -268,7 +268,7 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
     def dtype(self) -> _enums.DataType:
         return _enums.DataType(self._proto.data_type)
 
-    @property
+    @property  # type: ignore[misc]
     def doc_string(self) -> str:
         return self._proto.doc_string
 
