@@ -381,7 +381,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             value: The backing data of the tensor. It can be a numpy array compatible object or a DLPack compatible object.
                 When the dtype is not one of the numpy native dtypes, the value can
                 be ``uint8`` (unpacked) or ml_dtypes types for 4-bit and 8-bit data types,
-                and ``uint16`` or ml_dtype types for bfloat16 when the value is a numpy array;
+                and ``uint16`` or ml_dtype.bfloat16 for bfloat16 when the value is a numpy array;
                 ``dtype`` must be specified in this case.
             dtype: The data type of the tensor. It can be None only when value is a numpy array.
                 Users are responsible for making sure the dtype matches the value when value is not a numpy array.
