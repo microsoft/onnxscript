@@ -1309,12 +1309,10 @@ def _short_tensor_str_for_node(x: Value) -> str:
         return ""
     if x.const_value.size <= 10:
         try:
-            array = x.const_value.numpy()
+            data = x.const_value.numpy().tolist()
         except Exception:
             return "{...}"
-        tensor_lines = repr(array).split("\n")
-        tensor_text = "".join(line.strip() for line in tensor_lines)
-        return f"{{{tensor_text}}}"
+        return f"{{{data}}}"
     return "{...}"
 
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
