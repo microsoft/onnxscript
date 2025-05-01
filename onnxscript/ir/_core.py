@@ -379,9 +379,10 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
 
         Args:
             value: The backing data of the tensor. It can be a numpy array compatible object or a DLPack compatible object.
-                When the dtype is not one of the numpy native dtypes, the value needs
-                to be ``uint8`` for 4-bit and 8-bit data types, and ``uint16`` for bfloat16
-                when the value is a numpy array; ``dtype`` must be specified in this case.
+                When the dtype is not one of the numpy native dtypes, the value can
+                be ``uint8`` (unpacked) or ml_dtypes types for 4-bit and 8-bit data types,
+                and ``uint16`` or ml_dtype types for bfloat16 when the value is a numpy array;
+                ``dtype`` must be specified in this case.
             dtype: The data type of the tensor. It can be None only when value is a numpy array.
                 Users are responsible for making sure the dtype matches the value when value is not a numpy array.
             shape: The shape of the tensor. If None, the shape is obtained from the value.
@@ -953,6 +954,156 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
     def tobytes(self) -> bytes:
         """Return the bytes of the tensor."""
         return self._evaluate().tobytes()
+
+
+class PackedTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
+    """A tensor that stores 4bit datatypes in packed format."""
+
+    __slots__ = (
+        "_dtype",
+        "_metadata",
+        "_metadata_props",
+        "_raw",
+        "_shape",
+        "doc_string",
+        "name",
+    )
+
+    def __init__(
+        self,
+        value: _protocols.ArrayCompatible | _protocols.DLPackCompatible,
+        dtype: _enums.DataType,
+        *,
+        shape: Shape,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
+        """Initialize a tensor.
+
+        Args:
+            value: The backing data of the tensor. It can be a numpy array compatible object or a DLPack compatible object.
+                The value MUST be in ``uint8`` packed format, or in one of the ml_dtypes dtypes, which
+                will be packed when constructing the tensor.
+            dtype: The data type of the tensor. Must be one of INT4, UINT4, FLOAT4E2M1.
+            shape: The shape of the tensor.
+            name: The name of the tensor.
+            doc_string: The documentation string.
+            metadata_props: The metadata properties.
+
+        Raises:
+            TypeError: If the value is not a numpy array compatible or a DLPack compatible object.
+            TypeError: If the value is a numpy array and the dtype is not uint8 or one of the ml_dtypes dtypes.
+        """
+        # NOTE: We should not do any copying here for performance reasons
+        if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
+            raise TypeError(f"Expected an array compatible object, got {type(value)}")
+        self._shape = shape
+        self._shape.freeze()
+        if dtype is None:
+            if isinstance(value, np.ndarray):
+                self._dtype = _enums.DataType.from_numpy(value.dtype)
+            else:
+                raise ValueError(
+                    "The dtype must be specified when the value is not a numpy array."
+                )
+            self._dtype = dtype
+
+        # View the bfloat16, float8 and int4 types using ml_dtypes
+        if isinstance(value, np.ndarray):
+            value = _maybe_view_np_array_with_ml_dtypes(value, self._dtype)  # type: ignore[assignment]
+
+        self._raw = value
+        self.name = name
+        self.doc_string = doc_string
+        self._metadata: _metadata.MetadataStore | None = None
+        self._metadata_props = metadata_props
+
+    def __array__(self, dtype: Any = None) -> np.ndarray:
+        if isinstance(self._raw, np.ndarray) or _compatible_with_numpy(self._raw):
+            return self._raw.__array__(dtype)
+        assert _compatible_with_dlpack(self._raw), (
+            f"Bug: Expected DLPack or Numpy compatible objects, got {type(self._raw)}"
+        )
+        return np.from_dlpack(self._raw)
+
+    def __dlpack__(self, *, stream: Any = None) -> Any:
+        if _compatible_with_dlpack(self._raw):
+            return self._raw.__dlpack__(stream=stream)
+        return self.__array__().__dlpack__(stream=stream)
+
+    def __dlpack_device__(self) -> tuple[int, int]:
+        if _compatible_with_dlpack(self._raw):
+            return self._raw.__dlpack_device__()
+        return self.__array__().__dlpack_device__()
+
+    def __repr__(self) -> str:
+        return f"{self._repr_base()}({self._raw!r}, name={self.name!r})"
+
+    @property
+    def dtype(self) -> _enums.DataType:
+        """The data type of the tensor. Immutable."""
+        return self._dtype
+
+    @property
+    def shape(self) -> Shape:
+        """The shape of the tensor. Immutable."""
+        return self._shape
+
+    @property
+    def raw(self) -> TArrayCompatible:
+        """Backing data of the tensor. Immutable."""
+        return self._raw  # type: ignore[return-value]
+
+    def numpy(self) -> np.ndarray:
+        """Return the tensor as a numpy array.
+
+        When the data type is not supported by numpy, the dtypes from the ``ml_dtype``
+        package are used. The values can be reinterpreted as bit representations
+        using the ``.view()`` method.
+        """
+        if isinstance(self._raw, np.ndarray):
+            return self._raw
+        # We do not cache the value to save memory
+        return self.__array__()
+
+    def tobytes(self) -> bytes:
+        """Returns the value as bytes encoded in little endian.
+
+        Override this method for more efficient serialization when the raw
+        value is not a numpy array.
+        """
+        # TODO(justinchuby): Support DLPack
+        array = self.numpy()
+        if self.dtype in {
+            _enums.DataType.INT4,
+            _enums.DataType.UINT4,
+            _enums.DataType.FLOAT4E2M1,
+        }:
+            # Pack the array into int4
+            array = _type_casting.pack_int4(array)
+        else:
+            assert self.dtype.itemsize == array.itemsize, "Bug: The itemsize should match"
+        if not _IS_LITTLE_ENDIAN:
+            array = array.view(array.dtype.newbyteorder("<"))
+        return array.tobytes()
+
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
 
 
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
