@@ -98,7 +98,23 @@ def _compatible_with_dlpack(obj: Any) -> TypeGuard[_protocols.DLPackCompatible]:
 class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
     """Convenience Shared methods for classes implementing TensorProtocol."""
 
-    __slots__ = ()
+    __slots__ = (
+        "_doc_string",
+        "_metadata",
+        "_metadata_props",
+        "_name",
+    )
+
+    def __init__(
+        self,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
+        self._metadata: _metadata.MetadataStore | None = None
+        self._metadata_props: dict[str, str] | None = metadata_props
+        self._name: str | None = name
+        self._doc_string: str | None = doc_string
 
     def _printable_type_shape(self) -> str:
         """Return a string representation of the shape and data type."""
@@ -112,6 +128,24 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         return f"{self.__class__.__name__}<{self._printable_type_shape()}>"
 
     @property
+    def name(self) -> str | None:
+        """The name of the tensor."""
+        return self._name
+
+    @name.setter
+    def name(self, value: str | None) -> None:
+        self._name = value
+
+    @property
+    def doc_string(self) -> str | None:
+        """The documentation string."""
+        return self._doc_string
+
+    @doc_string.setter
+    def doc_string(self, value: str | None) -> None:
+        self._doc_string = value
+
+    @property
     def size(self) -> int:
         """The number of elements in the tensor."""
         return math.prod(self.shape.numpy())  # type: ignore[attr-defined]
@@ -121,6 +155,23 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         """The number of bytes in the tensor."""
         # Use math.ceil because when dtype is INT4, the itemsize is 0.5
         return math.ceil(self.dtype.itemsize * self.size)
+
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
 
     def display(self, *, page: bool = False) -> None:
         rich = _display.require_rich()
@@ -310,12 +361,8 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
 
     __slots__ = (
         "_dtype",
-        "_metadata",
-        "_metadata_props",
         "_raw",
         "_shape",
-        "doc_string",
-        "name",
     )
 
     def __init__(
@@ -348,6 +395,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             ValueError: If the shape is not specified and the value does not have a shape attribute.
             ValueError: If the dtype is not specified and the value is not a numpy array.
         """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         # NOTE: We should not do any copying here for performance reasons
         if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
             raise TypeError(f"Expected an array compatible object, got {type(value)}")
@@ -382,10 +430,6 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             value = _maybe_view_np_array_with_ml_dtypes(value, self._dtype)  # type: ignore[assignment]
 
         self._raw = value
-        self.name = name
-        self.doc_string = doc_string
-        self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props = metadata_props
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if isinstance(self._raw, np.ndarray) or _compatible_with_numpy(self._raw):
@@ -406,7 +450,10 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         return self.__array__().__dlpack_device__()
 
     def __repr__(self) -> str:
-        return f"{self._repr_base()}({self._raw!r}, name={self.name!r})"
+        # Avoid multi-line repr
+        tensor_lines = repr(self._raw).split("\n")
+        tensor_text = " ".join(line.strip() for line in tensor_lines)
+        return f"{self._repr_base()}({tensor_text}, name={self.name!r})"
 
     @property
     def dtype(self) -> _enums.DataType:
@@ -456,23 +503,6 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             array = array.view(array.dtype.newbyteorder("<"))
         return array.tobytes()
 
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
-
 
 class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
     """An immutable concrete tensor with its data store on disk.
@@ -513,13 +543,9 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         "_dtype",
         "_length",
         "_location",
-        "_metadata",
-        "_metadata_props",
         "_offset",
         "_shape",
         "_valid",
-        "doc_string",
-        "name",
         "raw",
     )
 
@@ -549,6 +575,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             metadata_props: The metadata properties.
             base_dir: The base directory for the external data. It is used to resolve relative paths.
         """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         # NOTE: Do not verify the location by default. This is because the location field
         # in the tensor proto can be anything and we would like deserialization from
         # proto to IR to not fail.
@@ -726,34 +753,13 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             self.raw.close()
             self.raw = None
 
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
-
 
 class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
     """Multidimensional array of strings (as binary data to match the string_data field in TensorProto)."""
 
     __slots__ = (
-        "_metadata",
-        "_metadata_props",
         "_raw",
         "_shape",
-        "doc_string",
-        "name",
     )
 
     def __init__(
@@ -774,6 +780,7 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             doc_string: The documentation string.
             metadata_props: The metadata properties.
         """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         if shape is None:
             if not hasattr(value, "shape"):
                 raise ValueError(
@@ -785,10 +792,6 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             self._shape = shape
             self._shape.freeze()
         self._raw = value
-        self.name = name
-        self.doc_string = doc_string
-        self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props = metadata_props
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if isinstance(self._raw, np.ndarray):
@@ -836,23 +839,6 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             return self._raw.flatten().tolist()
         return self._raw
 
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
-
 
 class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
     """A tensor that lazily evaluates a function to get the actual tensor.
@@ -890,13 +876,9 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
     __slots__ = (
         "_dtype",
         "_func",
-        "_metadata",
-        "_metadata_props",
         "_shape",
         "_tensor",
         "cache",
-        "doc_string",
-        "name",
     )
 
     def __init__(
@@ -921,15 +903,12 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
             doc_string: The documentation string.
             metadata_props: The metadata properties.
         """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         self._func = func
         self._dtype = dtype
         self._shape = shape
         self._tensor: _protocols.TensorProtocol | None = None
         self.cache = cache
-        self.name = name
-        self.doc_string = doc_string
-        self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props = metadata_props
 
     def _evaluate(self) -> _protocols.TensorProtocol:
         """Evaluate the function to get the actual tensor."""
@@ -974,23 +953,6 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
     def tobytes(self) -> bytes:
         """Return the bytes of the tensor."""
         return self._evaluate().tobytes()
-
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
 
 
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
@@ -1465,7 +1427,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             + ", ".join(
                 [
                     (
-                        f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}"
+                        f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}{x._constant_tensor_part()}"
                         if x is not None
                         else "None"
                     )
@@ -1836,14 +1798,20 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
+        type_text = f", type={self.type!r}" if self.type is not None else ""
+        shape_text = f", shape={self.shape!r}" if self.shape is not None else ""
         producer = self.producer()
         if producer is None:
-            producer_text = "None"
+            producer_text = ""
         elif producer.name is not None:
-            producer_text = producer.name
+            producer_text = f", producer='{producer.name}'"
         else:
-            producer_text = f"anonymous_node:{id(producer)}"
-        return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, producer={producer_text}, index={self.index()})"
+            producer_text = f", producer=anonymous_node:{id(producer)}"
+        index_text = f", index={self.index()}" if self.index() is not None else ""
+        const_value_text = self._constant_tensor_part()
+        if const_value_text:
+            const_value_text = f", const_value={const_value_text}"
+        return f"{self.__class__.__name__}(name={value_name!r}{type_text}{shape_text}{producer_text}{index_text}{const_value_text})"
 
     def __str__(self) -> str:
         value_name = self.name if self.name is not None else "anonymous:" + str(id(self))
@@ -1852,7 +1820,19 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
         # Quote the name because in reality the names can have invalid characters
         # that make them hard to read
-        return f"%{_quoted(value_name)}<{type_text},{shape_text}>"
+        return (
+            f"%{_quoted(value_name)}<{type_text},{shape_text}>{self._constant_tensor_part()}"
+        )
+
+    def _constant_tensor_part(self) -> str:
+        """Display string for the constant tensor attached to str of Value."""
+        if self.const_value is not None:
+            # Only display when the const value is small
+            if self.const_value.size <= 10:
+                return f"{{{self.const_value}}}"
+            else:
+                return f"{{{self.const_value.__class__.__name__}(...)}}"
+        return ""
 
     def producer(self) -> Node | None:
         """The node that produces this value.

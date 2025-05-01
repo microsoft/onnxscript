@@ -25,6 +25,7 @@
     rewriter.pattern.NodeOutputPattern
     rewriter.pattern.AnyValue
     rewriter.pattern.Constant
+    rewriter.pattern.OrValue
     rewriter.pattern.GraphPattern
     rewriter.pattern.ReplacementSubgraph
     rewriter.pattern.ReplacementPatternFunction
