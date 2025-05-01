@@ -961,12 +961,8 @@ class PackedTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
 
     __slots__ = (
         "_dtype",
-        "_metadata",
-        "_metadata_props",
         "_raw",
         "_shape",
-        "doc_string",
-        "name",
     )
 
     def __init__(
@@ -995,7 +991,7 @@ class PackedTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             TypeError: If the value is not a numpy array compatible or a DLPack compatible object.
             TypeError: If the value is a numpy array and the dtype is not uint8 or one of the ml_dtypes dtypes.
         """
-        # NOTE: We should not do any copying here for performance reasons
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
             raise TypeError(f"Expected an array compatible object, got {type(value)}")
         self._shape = shape
@@ -1014,10 +1010,6 @@ class PackedTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             value = _maybe_view_np_array_with_ml_dtypes(value, self._dtype)  # type: ignore[assignment]
 
         self._raw = value
-        self.name = name
-        self.doc_string = doc_string
-        self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props = metadata_props
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if isinstance(self._raw, np.ndarray) or _compatible_with_numpy(self._raw):
@@ -1087,23 +1079,6 @@ class PackedTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
         if not _IS_LITTLE_ENDIAN:
             array = array.view(array.dtype.newbyteorder("<"))
         return array.tobytes()
-
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
 
 
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
