@@ -956,7 +956,7 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
         return self._evaluate().tobytes()
 
 
-class PackedTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
+class PackedTensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):  # pylint: disable=too-many-ancestors
     """A tensor that stores 4bit datatypes in packed format."""
 
     __slots__ = (
@@ -967,7 +967,7 @@ class PackedTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
 
     def __init__(
         self,
-        value: _protocols.ArrayCompatible | _protocols.DLPackCompatible,
+        value: TArrayCompatible,
         dtype: _enums.DataType,
         *,
         shape: Shape,
@@ -996,28 +996,20 @@ class PackedTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             raise TypeError(f"Expected an array compatible object, got {type(value)}")
         self._shape = shape
         self._shape.freeze()
-        if dtype is None:
-            if isinstance(value, np.ndarray):
-                self._dtype = _enums.DataType.from_numpy(value.dtype)
-            else:
-                raise ValueError(
-                    "The dtype must be specified when the value is not a numpy array."
-                )
-            self._dtype = dtype
+        if dtype.itemsize != 0.5:
+            raise TypeError(
+                f"PackedTensor only supports INT4, UINT4, FLOAT4E2M1, but got {dtype}"
+            )
+        self._dtype = dtype
 
-        # View the bfloat16, float8 and int4 types using ml_dtypes
         if isinstance(value, np.ndarray):
-            value = _maybe_view_np_array_with_ml_dtypes(value, self._dtype)  # type: ignore[assignment]
-
+            if value.dtype == ml_dtypes.float4_e2m1fn or value.dtype == ml_dtypes.uint4 or value.dtype == ml_dtypes.int4:
+                # Pack the array into uint8
+                value = _type_casting.pack_int4(value)
         self._raw = value
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
-        if isinstance(self._raw, np.ndarray) or _compatible_with_numpy(self._raw):
-            return self._raw.__array__(dtype)
-        assert _compatible_with_dlpack(self._raw), (
-            f"Bug: Expected DLPack or Numpy compatible objects, got {type(self._raw)}"
-        )
-        return np.from_dlpack(self._raw)
+        return self.numpy()
 
     def __dlpack__(self, *, stream: Any = None) -> Any:
         if _compatible_with_dlpack(self._raw):
@@ -1054,10 +1046,26 @@ class PackedTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
         package are used. The values can be reinterpreted as bit representations
         using the ``.view()`` method.
         """
-        if isinstance(self._raw, np.ndarray):
-            return self._raw
-        # We do not cache the value to save memory
-        return self.__array__()
+        if isinstance(self._raw, np.ndarray) or _compatible_with_numpy(self._raw):
+            array = self._raw.__array__(dtype)
+        assert _compatible_with_dlpack(self._raw), (
+            f"Bug: Expected DLPack or Numpy compatible objects, got {type(self._raw)}"
+        )
+        array = np.from_dlpack(self._raw)
+        # ONNX IR returns the unpacked arrays
+        if self.dtype == _enums.DataType.INT4:
+            return _type_casting.unpack_int4(array, self.shape.numpy())
+        if self.dtype == _enums.DataType.UINT4:
+            return _type_casting.unpack_uint4(array, self.shape.numpy())
+        if self.dtype == _enums.DataType.FLOAT4E2M1:
+            return _type_casting.unpack_float4e2m1(array, self.shape.numpy())
+        raise TypeError(
+            f"PackedTensor only supports INT4, UINT4, FLOAT4E2M1, but got {self.dtype}"
+        )
+
+    def numpy_packed(self) -> npt.NDArray[np.uint8]:
+        """Return the tensor as a packed array."""
+        return np.asarray(self._raw, dtype=np.uint8)
 
     def tobytes(self) -> bytes:
         """Returns the value as bytes encoded in little endian.
@@ -1065,17 +1073,7 @@ class PackedTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
         Override this method for more efficient serialization when the raw
         value is not a numpy array.
         """
-        # TODO(justinchuby): Support DLPack
         array = self.numpy()
-        if self.dtype in {
-            _enums.DataType.INT4,
-            _enums.DataType.UINT4,
-            _enums.DataType.FLOAT4E2M1,
-        }:
-            # Pack the array into int4
-            array = _type_casting.pack_int4(array)
-        else:
-            assert self.dtype.itemsize == array.itemsize, "Bug: The itemsize should match"
         if not _IS_LITTLE_ENDIAN:
             array = array.view(array.dtype.newbyteorder("<"))
         return array.tobytes()
