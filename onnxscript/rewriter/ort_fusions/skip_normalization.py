@@ -93,7 +93,7 @@ _skip_rms_add_bias_rule = SkipRmsNormFusion.rule(
     "SkipRmsNormBias", has_bias=True, bias_pre_add=False
 )
 _skip_rms_pre_add_bias_rule = SkipRmsNormFusion.rule(
-    "SkipRmsNormBias", has_bias=True, bias_pre_add=True
+    "SkipRmsNormPreBias", has_bias=True, bias_pre_add=True
 )
 _skip_rms_rule = SkipRmsNormFusion.rule("SkipRmsNorm", has_bias=False)
 
@@ -184,7 +184,7 @@ _skip_layer_add_bias_rule = SkipLayerNormFusion.rule(
     "SkipLayerNormBias", has_bias=True, bias_pre_add=False
 )
 _skip_layer_pre_add_bias_rule = SkipLayerNormFusion.rule(
-    "SkipLayerNormBias", has_bias=True, bias_pre_add=True
+    "SkipLayerNormPreBias", has_bias=True, bias_pre_add=True
 )
 _skip_layer_rule = SkipLayerNormFusion.rule("SkipLayerNorm", has_bias=False)
 
