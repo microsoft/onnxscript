@@ -38,7 +38,7 @@ def apply_fusion_rules(rules: pattern.RewriteRule | pattern.RewriteRuleSet) -> C
     ) -> int:
         count = rules.apply_to_model(model)
         if apply_shape_inference:
-            model = shape_inference.infer_shapes(model)
+            shape_inference.infer_shapes(model)
         if count == 0 and debug:
             tracer = pattern.MatchingTracer()
             rules.apply_to_model(model, tracer=tracer)

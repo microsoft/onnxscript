@@ -47,7 +47,7 @@ def _pre_optimize(model: ir.Model) -> ir.Model:
     # TODO: Do we need this dependence on ONNX's partial-data-propagation? There are some
     # extra shape-propagation and partial-data-propagation rules in ONNX that are not yet
     # incorporated in our optimizer.
-    model = shape_inference.infer_shapes(model)
+    shape_inference.infer_shapes(model)
     optimize(model)
     return model
 
