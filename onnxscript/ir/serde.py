@@ -278,9 +278,10 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
         return self._proto
 
     def __repr__(self) -> str:
-        # It is a little hard to display the content when there can be types
-        # unsupported by numpy
-        # Preferably we should display some content when the tensor is small
+        if self.size <= 10:
+            tensor_lines = repr(self.numpy()).split("\n")
+            tensor_text = " ".join(line.strip() for line in tensor_lines)
+            return f"{self._repr_base()}({tensor_text}, name={self.name!r})"
         return f"{self._repr_base()}(name={self.name!r})"
 
     def __array__(self, dtype: Any = None) -> np.ndarray:

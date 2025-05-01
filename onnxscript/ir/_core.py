@@ -406,7 +406,10 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         return self.__array__().__dlpack_device__()
 
     def __repr__(self) -> str:
-        return f"{self._repr_base()}({self._raw!r}, name={self.name!r})"
+        # Avoid multi-line repr
+        tensor_lines = repr(self._raw).split("\n")
+        tensor_text = " ".join(line.strip() for line in tensor_lines)
+        return f"{self._repr_base()}({tensor_text}, name={self.name!r})"
 
     @property
     def dtype(self) -> _enums.DataType:
@@ -1465,7 +1468,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             + ", ".join(
                 [
                     (
-                        f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}"
+                        f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}{x._constant_tensor_part()}"
                         if x is not None
                         else "None"
                     )
@@ -1836,14 +1839,20 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
+        type_text = f", type={self.type!r}" if self.type is not None else ""
+        shape_text = f", shape={self.shape!r}" if self.shape is not None else ""
         producer = self.producer()
         if producer is None:
-            producer_text = "None"
+            producer_text = ""
         elif producer.name is not None:
-            producer_text = producer.name
+            producer_text = f", producer='{producer.name}'"
         else:
-            producer_text = f"anonymous_node:{id(producer)}"
-        return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, producer={producer_text}, index={self.index()})"
+            producer_text = f", producer=anonymous_node:{id(producer)}"
+        index_text = f", index={self.index()}" if self.index() is not None else ""
+        const_value_text = self._constant_tensor_part()
+        if const_value_text:
+            const_value_text = f", const_value={const_value_text}"
+        return f"{self.__class__.__name__}(name={value_name!r}{type_text}{shape_text}{producer_text}{index_text}{const_value_text})"
 
     def __str__(self) -> str:
         value_name = self.name if self.name is not None else "anonymous:" + str(id(self))
@@ -1852,7 +1861,19 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
         # Quote the name because in reality the names can have invalid characters
         # that make them hard to read
-        return f"%{_quoted(value_name)}<{type_text},{shape_text}>"
+        return (
+            f"%{_quoted(value_name)}<{type_text},{shape_text}>{self._constant_tensor_part()}"
+        )
+
+    def _constant_tensor_part(self) -> str:
+        """Display string for the constant tensor attached to str of Value."""
+        if self.const_value is not None:
+            # Only display when the const value is small
+            if self.const_value.size <= 10:
+                return f"{{{self.const_value}}}"
+            else:
+                return f"{{{self.const_value.__class__.__name__}(...)}}"
+        return ""
 
     def producer(self) -> Node | None:
         """The node that produces this value.
