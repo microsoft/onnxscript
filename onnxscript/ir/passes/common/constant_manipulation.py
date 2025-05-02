@@ -5,8 +5,10 @@
 from __future__ import annotations
 
 __all__ = [
+    "AddInitializersToInputsPass",
     "LiftConstantsToInitializersPass",
     "LiftSubgraphInitializersToMainGraphPass",
+    "RemoveInitializersFromInputsPass",
 ]
 
 import logging
@@ -162,4 +164,44 @@ class LiftSubgraphInitializersToMainGraphPass(ir.passes.InPlacePass):
                 )
             # Remove the initializer from the subgraph
             graph.initializers.clear()
+        return ir.passes.PassResult(model, modified=bool(count))
+
+
+class RemoveInitializersFromInputsPass(ir.passes.InPlacePass):
+    """Remove initializers from inputs.
+
+    This pass finds all graph inputs that have a const_value and removes them from the graph.inputs list.
+    """
+
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        count = 0
+        for graph in model.graphs():
+            initializers = set(graph.initializers.values())
+            new_inputs = []
+            for input_value in graph.inputs:
+                if input_value in initializers:
+                    count += 1
+                else:
+                    new_inputs.append(input_value)
+            graph.inputs.clear()
+            graph.inputs.extend(new_inputs)
+        logger.info("Removed %s initializers from graph inputs", count)
+        return ir.passes.PassResult(model, modified=bool(count))
+
+
+class AddInitializersToInputsPass(ir.passes.InPlacePass):
+    """Add initializers to inputs.
+
+    This pass finds all initializers and adds them to the graph.inputs list if they are not already present.
+    """
+
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        count = 0
+        for graph in model.graphs():
+            inputs_set = set(graph.inputs)
+            for initializer in graph.initializers.values():
+                if initializer not in inputs_set:
+                    graph.inputs.append(initializer)
+                    count += 1
+        logger.info("Added %s initializers to graph inputs", count)
         return ir.passes.PassResult(model, modified=bool(count))
