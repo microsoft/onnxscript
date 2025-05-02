@@ -109,10 +109,10 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 key_BSD,
                 value_BSD,
                 qkv_bias,
-                None,
-                None,
-                None,
-                None,
+                None,  # key_padding_mask
+                None,  # attention_bias,
+                None,  # past_key
+                None,  # past_value
                 num_heads=num_heads,
                 # scale=scale,
                 _domain="com.microsoft",
@@ -236,7 +236,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 qkv_bias,
                 None,  # mask_index
                 None,  # past
-                None,
+                None,  # attention_bias
                 None,  # past_sequence_length
                 num_heads=num_heads,
                 # qkv_hidden_sizes=qkv_hidden_sizes,

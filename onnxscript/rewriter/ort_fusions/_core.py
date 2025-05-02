@@ -80,6 +80,8 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
     fusion_count["rotary_embedding"] = fuse(fuse_rotary_embedding)
     fusion_count["partial_rotary_embedding"] = fuse(fuse_partial_rotary_embedding)
     fusion_count["cos_sin_cache"] = fuse(fuse_cos_sin_cache)
+    # We apply shape inference after the SDPA fusion as new nodes are added
+    # in the rewrite rule for certain patterns of SDPA.
     fusion_count["sdpa"] = fuse(fuse_sdpa, apply_shape_inference=True)
     # Optimize to avoid trying multiple attention-based fusions
     fusion_count["mha"] = fuse(fuse_mha)

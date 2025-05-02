@@ -136,26 +136,23 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
         num_heads,
         **_,
     ):
-        if self._q_no_bias and self._k_no_bias and self._v_no_bias:
-            bias = None
-        else:
-            if self._q_no_bias:
-                q_bias = op.Constant(
-                    value=ir.tensor(
-                        numpy.zeros((self.Dh_q,), dtype=query_matmul.dtype.numpy())
-                    )
+        if self._q_no_bias:
+            q_bias = op.Constant(
+                value=ir.tensor(
+                    numpy.zeros((self.Dh_q,), dtype=query_matmul.dtype.numpy())
                 )
-            if self._k_no_bias:
-                k_bias = op.Constant(
-                    value=ir.tensor(numpy.zeros((self.Dh_k,), dtype=key_matmul.dtype.numpy()))
+            )
+        if self._k_no_bias:
+            k_bias = op.Constant(
+                value=ir.tensor(numpy.zeros((self.Dh_k,), dtype=key_matmul.dtype.numpy()))
+            )
+        if self._v_no_bias:
+            v_bias = op.Constant(
+                value=ir.tensor(
+                    numpy.zeros((self.Dh_v,), dtype=value_matmul.dtype.numpy())
                 )
-            if self._v_no_bias:
-                v_bias = op.Constant(
-                    value=ir.tensor(
-                        numpy.zeros((self.Dh_v,), dtype=value_matmul.dtype.numpy())
-                    )
-                )
-            bias = op.Concat(q_bias, k_bias, v_bias, axis=0)
+            )
+        bias = op.Concat(q_bias, k_bias, v_bias, axis=0)
         return op.MultiHeadAttention(
             query_matmul,
             key_matmul,
@@ -190,7 +187,8 @@ fuse_mha_bias_rules = pattern.RewriteRuleSet(
             f"{'_NoVBias' if params['v_no_bias'] else ''}",
             **params,
         )
-        for params in parameter_combinations
+        # Exclude (True, True, True) as it is an unnecessary case
+        for params in parameter_combinations[:-1]
     ]
 )
 
