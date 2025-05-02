@@ -140,19 +140,16 @@ class LiftSubgraphInitializersToMainGraphPass(ir.passes.InPlacePass):
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         count = 0
         registered_initializer_names: dict[str, int] = {}
-        for node in ir.traversal.RecursiveGraphIterator(model.graph):
-            assert node.graph is not None
-            if node.graph == model.graph:
+        for graph in model.graphs():
+            if graph is model.graph:
                 continue
-            if len(node.graph.initializers) == 0:
-                continue
-            for initializer in node.graph.initializers.values():
+            for name, initializer in graph.initializers.items():
                 # To avoid name conflicts, we need to rename the initializer
                 # to a unique name in the main graph
-                if initializer.name in registered_initializer_names:
-                    name_count = registered_initializer_names[initializer.name]
-                    initializer.name = f"{initializer.name}_{name_count}"
-                    registered_initializer_names[initializer.name] = name_count + 1
+                if name in registered_initializer_names:
+                    name_count = registered_initializer_names[name]
+                    initializer.name = f"{name}_{name_count}"
+                    registered_initializer_names[name] = name_count + 1
                 else:
                     assert initializer.name is not None
                     registered_initializer_names[initializer.name] = 1
@@ -161,8 +158,8 @@ class LiftSubgraphInitializersToMainGraphPass(ir.passes.InPlacePass):
                 logger.debug(
                     "Lifted initializer '%s' from subgraph '%s' to main graph",
                     initializer.name,
-                    node.graph.name,
+                    graph.name,
                 )
             # Remove the initializer from the subgraph
-            node.graph._initializers.clear()  # pylint: disable=protected-access
+            graph._initializers.clear()  # pylint: disable=protected-access
         return ir.passes.PassResult(model, modified=bool(count))
