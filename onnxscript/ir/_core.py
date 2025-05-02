@@ -1263,6 +1263,18 @@ class Usage(NamedTuple):
     idx: int
 
 
+def _short_tensor_str_for_node(x: Value) -> str:
+    if x.const_value is None:
+        return ""
+    if x.const_value.size <= 10:
+        try:
+            data = x.const_value.numpy().tolist()
+        except Exception:  # pylint: disable=broad-except
+            return "{...}"
+        return f"{{{data}}}"
+    return "{...}"
+
+
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     """IR Node.
 
@@ -1427,7 +1439,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             + ", ".join(
                 [
                     (
-                        f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}{x._constant_tensor_part()}"
+                        f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}{_short_tensor_str_for_node(x)}"
                         if x is not None
                         else "None"
                     )
