@@ -33,7 +33,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         qkv_bias,
         # mask_index,
         past,
-        bias,
+        attention_bias,
         num_heads,
         # scale,
         q_mul,
@@ -99,7 +99,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 value_BSD,
                 qkv_bias,
                 None,  # key_padding_mask
-                None,  # attention_bias
+                attention_bias,
                 past_key,
                 past_value,
                 num_heads=num_heads,
@@ -120,7 +120,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 value_BSD,
                 qkv_bias,
                 None,  # key_padding_mask
-                None,  # attention_bias,
+                attention_bias,
                 None,  # past_key
                 None,  # past_value
                 num_heads=num_heads,
@@ -138,6 +138,9 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         query_mm_sliced=None,
         key_mm_sliced=None,
         value_mm_sliced=None,
+        q_mul=None,
+        k_mul=None,
+        v_mul=None,
         **_,
     ):
         check_result = pattern.MatchResult()
@@ -172,21 +175,38 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                     f"Shape mismatch: {value_mm_sliced} does not match expected dimensions ['B', 'S', 'Dh_v']",
                     value_mm_sliced,
                 )
-
-            # Ensure Dh = Dh_q + Dh_k + Dh_v
-            Dh = self.bindings.get("Dh")
-            Dh_q = self.bindings.get("Dh_q")
-            Dh_k = self.bindings.get("Dh_k")
-            Dh_v = self.bindings.get("Dh_v")
-
-            if (
-                not isinstance(Dh, int)
-                or not isinstance(Dh_q, int)
-                or not isinstance(Dh_k, int)
-                or not isinstance(Dh_v, int)
-            ):
+        else:
+            if no_match(q_mul, ["D", "Dh_q"]):
                 return check_result.fail(
-                    "Could not determine the hidden sizes of query, key, and value.",
+                    f"Shape mismatch: {q_mul} does not match expected dimensions ['D', 'Dh_q']",
+                    q_mul,
+                )
+            if no_match(k_mul, ["D", "Dh_k"]):
+                return check_result.fail(
+                    f"Shape mismatch: {k_mul} does not match expected dimensions ['D', 'Dh_k']",
+                    k_mul,
+                )
+            if no_match(v_mul, ["D", "Dh_v"]):
+                return check_result.fail(
+                    f"Shape mismatch: {v_mul} does not match expected dimensions ['D', 'Dh_v']",
+                    v_mul,
+                )
+
+        # Ensure Dh = Dh_q + Dh_k + Dh_v
+        Dh = self.bindings.get("Dh")
+        Dh_q = self.bindings.get("Dh_q")
+        Dh_k = self.bindings.get("Dh_k")
+        Dh_v = self.bindings.get("Dh_v")
+
+        if not isinstance(Dh_q, int) or not isinstance(Dh_k, int) or not isinstance(Dh_v, int):
+            return check_result.fail(
+                "Could not determine the hidden sizes of query, key, and value.",
+            )
+
+        if not self._no_slice:
+            if not isinstance(Dh, int):
+                return check_result.fail(
+                    "Could not determine the total hidden size of weight.",
                 )
 
             if Dh != Dh_q + Dh_k + Dh_v:  # type: ignore[operator]
@@ -205,7 +225,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         qkv_bias,
         # mask_index,
         past,
-        # attention_bias,
+        attention_bias,
         num_heads,
         # scale,
         q_mul=None,
@@ -215,10 +235,10 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
     ):
         # Use bindings to get the values of Dh_q, Dh_k, and Dh_v
         # and construct qkv_hidden_sizes
-        # Dh_q = self.bindings.get("Dh_q")
-        # Dh_k = self.bindings.get("Dh_k")
-        # Dh_v = self.bindings.get("Dh_v")
-        # qkv_hidden_sizes = [Dh_q, Dh_k, Dh_v]
+        Dh_q = self.bindings.get("Dh_q")
+        Dh_k = self.bindings.get("Dh_k")
+        Dh_v = self.bindings.get("Dh_v")
+        qkv_hidden_sizes = [Dh_q, Dh_k, Dh_v]
         if self._no_slice:
             qkv_weight = op.Concat(q_mul, k_mul, v_mul, axis=1)
 
@@ -229,10 +249,10 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 qkv_bias,
                 None,  # mask_index
                 past,
-                # attention_bias,
+                attention_bias,
                 # past_sequence_length
                 num_heads=num_heads,
-                # qkv_hidden_sizes=qkv_hidden_sizes,
+                qkv_hidden_sizes=qkv_hidden_sizes,
                 # scale=scale,
                 _domain="com.microsoft",
                 _outputs=2,
@@ -246,10 +266,10 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 qkv_bias,
                 None,  # mask_index
                 None,  # past
-                None,  # attention_bias
+                attention_bias,
                 None,  # past_sequence_length
                 num_heads=num_heads,
-                # qkv_hidden_sizes=qkv_hidden_sizes,
+                qkv_hidden_sizes=qkv_hidden_sizes,
                 # scale=scale,
                 _domain="com.microsoft",
                 _outputs=1,

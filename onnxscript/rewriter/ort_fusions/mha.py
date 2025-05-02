@@ -73,22 +73,13 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         if self._pre_scale_q:
             query_BSD = op.Mul(query_BSD, q_scale)
         # Reshape from (B, S, D) to (B, S, H, D/H)
-        query_BSHDh = op.Reshape(
-            query_BSD,
-            _allow_other_inputs=True,
-            _allow_other_attributes=True,
-            _outputs=["query_BSHDh"],
-        )
+        query_BSHDh = op.Reshape(query_BSD, pattern.ANY_VALUE, _outputs=["query_BSHDh"])
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
         query_BHSDh = op.Transpose(query_BSHDh, perm=[0, 2, 1, 3])
 
         # Reshape from (B, S, D) to (B, S, H, D/H)
-        key_BSHDh = op.Reshape(
-            key_BSD,
-            _allow_other_inputs=True,
-            _allow_other_attributes=True,
-            _outputs=["key_BSHDh"],
-        )
+        key_BSHDh = op.Reshape(key_BSD, pattern.ANY_VALUE, _outputs=["key_BSHDh"])
+
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
         # TODO: Fix condition
         if not self._is_cross_attention and self._has_past_present:
@@ -97,12 +88,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             key_BHSDh = op.Transpose(key_BSHDh, perm=[0, 2, 3, 1])
 
         # Reshape from (B, S, D) to (B, S, H, D/H)
-        value_BSHDh = op.Reshape(
-            value_BSD,
-            _allow_other_inputs=True,
-            _allow_other_attributes=True,
-            _outputs=["value_BSHDh"],
-        )
+        value_BSHDh = op.Reshape(value_BSD, pattern.ANY_VALUE, _outputs=["value_BSHDh"])
         # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
         value_BHSDh = op.Transpose(value_BSHDh, perm=[0, 2, 1, 3])
 
@@ -162,11 +148,11 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         else:
             # Transpose after converting to 3D
             key_seq_BH_Skv_Dh = op.Reshape(
-                key_seq_to_sdpa, _allow_other_inputs=True, _outputs=["key_seq_BH_Skv_Dh"]
+                key_seq_to_sdpa, pattern.ANY_VALUE, _outputs=["key_seq_BH_Skv_Dh"]
             )
             key_seq_BH_Dh_Skv = op.Transpose(key_seq_BH_Skv_Dh, perm=[0, 2, 1])
             key_seq_to_sdpa = op.Reshape(
-                key_seq_BH_Dh_Skv, _allow_other_inputs=True, _outputs=["key_seq_B_H_Dh_Skv"]
+                key_seq_BH_Dh_Skv, pattern.ANY_VALUE, _outputs=["key_seq_B_H_Dh_Skv"]
             )
 
         # TODO: Remove use_mask once SDPA op is usable
@@ -190,7 +176,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         attention_transposed = op.Transpose(sdpa, perm=[0, 2, 1, 3])
         # Reshape back to (B, S, D)
         attention = op.Reshape(
-            attention_transposed, _allow_other_inputs=True, _outputs=["attention_reshaped"]
+            attention_transposed, pattern.ANY_VALUE, _outputs=["attention_reshaped"]
         )
         if self._has_past_present and not self._is_cross_attention:
             return attention, key_seq, value_seq

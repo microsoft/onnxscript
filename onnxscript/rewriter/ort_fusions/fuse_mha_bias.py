@@ -41,6 +41,7 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
         past_key,
         past_value,
         num_heads,
+        scale,
     ):
         if not self._q_no_bias:
             query_BSD = op.Add(query_matmul, q_bias)
@@ -65,6 +66,7 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
             past_key,
             past_value,
             num_heads=num_heads,
+            scale=scale,
             _domain="com.microsoft",
         )
 
@@ -134,13 +136,12 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
         past_key,
         past_value,
         num_heads,
+        scale,
         **_,
     ):
         if self._q_no_bias:
             q_bias = op.Constant(
-                value=ir.tensor(
-                    numpy.zeros((self.Dh_q,), dtype=query_matmul.dtype.numpy())
-                )
+                value=ir.tensor(numpy.zeros((self.Dh_q,), dtype=query_matmul.dtype.numpy()))
             )
         if self._k_no_bias:
             k_bias = op.Constant(
@@ -148,9 +149,7 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
             )
         if self._v_no_bias:
             v_bias = op.Constant(
-                value=ir.tensor(
-                    numpy.zeros((self.Dh_v,), dtype=value_matmul.dtype.numpy())
-                )
+                value=ir.tensor(numpy.zeros((self.Dh_v,), dtype=value_matmul.dtype.numpy()))
             )
         bias = op.Concat(q_bias, k_bias, v_bias, axis=0)
         return op.MultiHeadAttention(
@@ -163,6 +162,7 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
             past_key,
             past_value,
             num_heads=num_heads,
+            scale=scale,
             _domain="com.microsoft",
         )
 
