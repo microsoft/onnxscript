@@ -129,38 +129,70 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
         )
         return normalized, skip_sum
 
+    def check(
+        self, op, input, skip, gamma, beta, bias, epsilon, stash_type
+    ) -> pattern.MatchResult:  # type: ignore[name-defined]
+        """Check if the pattern matches conditions for use of SimplifiedLayerNormalization op."""
+        check_result = pattern.MatchResult()
+        bindings: dict[str, Dim] = {}
 
-def _skip_layer_normalization_add_bias(
-    op, input, skip, gamma, beta, bias, epsilon, stash_type
-):
-    normalized, _mean, _inv_std_var, skip_sum = op.SkipLayerNormalization(
-        input,
-        skip,
-        gamma,
-        beta,
-        bias,
-        epsilon=epsilon,
-        _outputs=4,
-        _domain="com.microsoft",
-    )
-    return normalized, skip_sum
+        def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
+            return not _fusion_utils._check_shape(bindings, val, dims)
+
+        if no_match(input, ["B", "S", "D"]):
+            return check_result.fail(
+                f"Shape mismatch: {input} does not match expected dimensions ['B', 'S', 'D']",
+                input,
+            )
+        if no_match(skip, ["B", "S", "D"]):
+            return check_result.fail(
+                f"Shape mismatch: {skip} does not match expected dimensions ['B', 'S', 'D']",
+                skip,
+            )
+        if no_match(gamma, ["D"]):
+            return check_result.fail(
+                f"Shape mismatch: {gamma} does not match expected dimensions ['D']",
+                gamma,
+            )
+        if no_match(beta, ["D"]):
+            return check_result.fail(
+                f"Shape mismatch: {beta} does not match expected dimensions ['D']",
+                beta,
+            )
+        if self._has_bias:
+            if no_match(bias, ["D"]):
+                return check_result.fail(
+                    f"Shape mismatch: {bias} does not match expected dimensions ['D']",
+                    bias,
+                )
+
+        return check_result
+
+    def rewrite(self, op, input, skip, gamma, beta, bias, epsilon, stash_type):
+        normalized, _mean, _inv_std_var, skip_sum = op.SkipLayerNormalization(
+            input,
+            skip,
+            gamma,
+            beta,
+            bias,
+            epsilon=epsilon,
+            _outputs=4,
+            _domain="com.microsoft",
+        )
+        return normalized, skip_sum
 
 
 _skip_layer_add_bias_rule = SkipLayerNormFusion.rule(
     "SkipLayerNormBias", has_bias=True, bias_pre_add=False
 )
-_skip_layer_add_bias_rule = pattern.RewriteRule(
-    _skip_layer_norm_add_bias_pattern,
-    _skip_layer_normalization_add_bias,
-    name="SkipLayerNormAddBias",
+_skip_layer_pre_add_bias_rule = SkipLayerNormFusion.rule(
+    "SkipLayerNormPreBias", has_bias=True, bias_pre_add=True
 )
+_skip_layer_rule = SkipLayerNormFusion.rule("SkipLayerNorm", has_bias=False)
 
-
-skip_layer_normalization_rules = [_skip_layer_rule, _skip_layer_add_bias_rule]
-skip_layer_normalization_ruleset = pattern.RewriteRuleSet(skip_layer_normalization_rules)
-
-
-fuse_skip_rms_normalization = _fusion_utils.apply_fusion_rules(skip_rms_normalization_ruleset)
+skip_layer_normalization_ruleset = pattern.RewriteRuleSet(
+    [_skip_layer_pre_add_bias_rule, _skip_layer_add_bias_rule, _skip_layer_rule]
+)
 
 
 fuse_skip_layer_normalization = _fusion_utils.apply_fusion_rules(
