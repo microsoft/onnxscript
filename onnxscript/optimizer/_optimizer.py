@@ -54,6 +54,7 @@ def optimize_ir(
         ),
         onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass(),
         onnxscript.ir.passes.common.constant_manipulation.LiftConstantsToInitializersPass(),
+        onnxscript.ir.passes.common.constant_manipulation.LiftSubgraphInitializersToMainGraphPass(),
     ]
     if inline:
         # Inline all functions first before optimizing
