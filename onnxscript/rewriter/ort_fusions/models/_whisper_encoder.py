@@ -147,7 +147,7 @@ def make_model(
             epsilon=9.999999747378752e-06,
             axis=-1,
         )
-        return add_170
+        return layer_norm_2
 
     model = main_graph.to_model_proto()
     return model
