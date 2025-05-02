@@ -161,5 +161,5 @@ class LiftSubgraphInitializersToMainGraphPass(ir.passes.InPlacePass):
                     graph.name,
                 )
             # Remove the initializer from the subgraph
-            graph._initializers.clear()  # pylint: disable=protected-access
+            graph.initializers.clear()
         return ir.passes.PassResult(model, modified=bool(count))
