@@ -51,17 +51,23 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
             # Q, K, and V are of shape (B, S, D)
             query_BSD = op.Slice(
                 projected,
-                _allow_other_inputs=True,
+                pattern.ANY_VALUE,  # starts
+                pattern.ANY_VALUE,  # ends
+                [2],  # axes
                 _outputs=["query_mm_sliced"],
             )
             key_BSD = op.Slice(
                 projected,
-                _allow_other_inputs=True,
+                pattern.ANY_VALUE,  # starts
+                pattern.ANY_VALUE,  # ends
+                [2],  # axes
                 _outputs=["key_mm_sliced"],
             )
             value_BSD = op.Slice(
                 projected,
-                _allow_other_inputs=True,
+                pattern.ANY_VALUE,  # starts
+                pattern.ANY_VALUE,  # ends
+                [2],  # axes
                 _outputs=["value_mm_sliced"],
             )
 
@@ -72,13 +78,17 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
             # past_key and past_value are of shape (B, H, S, D/H)
             past_key = op.Slice(
                 past,
-                _allow_other_inputs=True,
+                [0],  # starts
+                [1],  # ends
+                [0],  # axes
                 _outputs=["past_key_sliced"],
             )
             past_key = op.Squeeze(past_key, [0])
             past_value = op.Slice(
                 past,
-                _allow_other_inputs=True,
+                [1],  # starts
+                [2],  # ends
+                [0],  # axes
                 _outputs=["past_value_sliced"],
             )
             past_value = op.Squeeze(past_value, [0])
@@ -89,7 +99,7 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 value_BSD,
                 qkv_bias,
                 None,  # key_padding_mask
-                None,  # attention_bias,
+                None,  # attention_bias
                 past_key,
                 past_value,
                 num_heads=num_heads,
