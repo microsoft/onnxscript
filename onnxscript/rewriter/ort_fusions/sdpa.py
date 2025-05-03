@@ -16,7 +16,7 @@ class SDPA(pattern.RewriteRuleClassBase):
         pre_scale: bool,
         pre_scale_q: bool,
         use_mul: bool,
-        has_3d_inputs: bool,
+        has_3d_query: bool,
     ):
         super().__init__(name=name)
         self._use_mask = use_mask
@@ -28,7 +28,7 @@ class SDPA(pattern.RewriteRuleClassBase):
         self._use_mul = use_mul
         # Capture patterns where the query is reshaped from 3D to 4D
         # after scaling has been applied to query.
-        self._has_3d_inputs = has_3d_inputs
+        self._has_3d_query = has_3d_query
         self._scale: float | None = None
 
     def pattern(
@@ -63,7 +63,7 @@ class SDPA(pattern.RewriteRuleClassBase):
         # There might be patterns where the reshape and transpose are done
         # after the pre-scaling. If the inputs are 3D, we need to reshape them to 4D
         # and apply the approriate transposes to query.
-        if self._has_3d_inputs and self._pre_scale_q:
+        if self._has_3d_query and self._pre_scale_q:
             # Reshape and transpose 3D input of shape (B, S, D)
             # to 4D input of shape (B, N, S, H)
             queryBNSH = op.Reshape(query, query_reshape)
@@ -159,15 +159,18 @@ class SDPA(pattern.RewriteRuleClassBase):
         query_reshape=None,
         **_,
     ):
-        if self._has_3d_inputs and self._pre_scale and self._pre_scale_q:
+        if self._pre_scale and self._pre_scale_q:
             if self._use_mul:
                 query_mul = op.Mul(query, qk_scale)
             else:
                 query_mul = op.Div(query, qk_scale)
             # Reshape and transpose 3D input of shape (B, S, D)
             # to 4D input of shape (B, N, S, H)
-            queryBNSH = op.Reshape(query_mul, query_reshape)
-            query = op.Transpose(queryBNSH, perm=[0, 2, 1, 3])
+            if self._has_3d_query:
+                queryBNSH = op.Reshape(query_mul, query_reshape)
+                query = op.Transpose(queryBNSH, perm=[0, 2, 1, 3])
+            else:
+                query = query_mul
 
         sdpa_args = [query, key_transposed, value]
         if self._use_mask:
@@ -177,18 +180,18 @@ class SDPA(pattern.RewriteRuleClassBase):
 
 parameter_combinations = [
     {
-        "name": f"sdpa_{'masked_' if use_mask else 'unmasked_'}{'pre_' if pre_scale else 'post_'}{'only_q_' if pre_scale_q else ''}{'mul' if use_mul else 'div'}{'_3d' if has_3d_inputs else ''}",
+        "name": f"sdpa_{'masked_' if use_mask else 'unmasked_'}{'pre_' if pre_scale else 'post_'}{'only_q_' if pre_scale_q else ''}{'mul' if use_mul else 'div'}{'_3d_query' if has_3d_query else ''}",
         "use_mask": use_mask,
         "pre_scale": pre_scale,
         "pre_scale_q": pre_scale_q,
         "use_mul": use_mul,
-        "has_3d_inputs": has_3d_inputs,
+        "has_3d_query": has_3d_query,
     }
     for use_mask in [False, True]
     for pre_scale in [False, True]
     for pre_scale_q in [False, True]
     for use_mul in [False, True]
-    for has_3d_inputs in [False, True]
+    for has_3d_query in [False, True]
 ]
 
 # Dynamically create the rules
@@ -200,7 +203,7 @@ sdpa_rules = pattern.RewriteRuleSet(
             pre_scale=params["pre_scale"],
             pre_scale_q=params["pre_scale_q"],
             use_mul=params["use_mul"],
-            has_3d_inputs=params["has_3d_inputs"],
+            has_3d_query=params["has_3d_query"],
         )
         for params in parameter_combinations
     ]

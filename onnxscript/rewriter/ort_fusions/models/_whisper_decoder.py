@@ -53,8 +53,8 @@ def make_model(
         past_key_values_0_3: FLOAT[1, 6, 32, 64],
     ) -> (
         FLOAT[1, 1, 51865],
-        FLOAT[1, 6, "past_sequence_length + 1", 64],
-        FLOAT[1, 6, "past_sequence_length + 1", 64],
+        FLOAT[1, 6, 33, 64],
+        FLOAT[1, 6, 33, 64],
     ):
         val_0 = opset18.Shape(decoder_input_ids, end=1, start=0)
         val_1 = opset18.Shape(past_key_values_0_0, end=3, start=2)

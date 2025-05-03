@@ -40,8 +40,8 @@ def make_model(
 ):
     @script()
     def main_graph(
-        audio_features: FLOAT["batch_size", 80, 3000],
-    ) -> FLOAT["batch_size", 1500, 384]:
+        audio_features: FLOAT[1, 80, 3000],
+    ) -> FLOAT[1, 1500, 384]:
         val_0 = opset18.Shape(audio_features, end=1, start=0)
         conv1d = opset18.Conv(
             audio_features,
