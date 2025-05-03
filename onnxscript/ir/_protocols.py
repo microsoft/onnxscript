@@ -133,6 +133,10 @@ class TensorProtocol(ArrayCompatible, DLPackCompatible, Protocol):
         """Return the tensor as a numpy array, compatible with np.array."""
         ...
 
+    def __buffer__(self, flags: int, /) -> memoryview:
+        """Return a view of the tensor data."""
+        ...
+
     def __dlpack__(self, *, stream: Any = ...) -> Any:
         """Return PyCapsule."""
         ...
