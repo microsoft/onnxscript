@@ -41,7 +41,7 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
         past_key,
         past_value,
         num_heads,
-        scale,
+        # scale,
     ):
         if not self._q_no_bias:
             query_BSD = op.Add(query_matmul, q_bias)
@@ -66,7 +66,7 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
             past_key,
             past_value,
             num_heads=num_heads,
-            scale=scale,
+            # scale=scale,
             _domain="com.microsoft",
         )
 
@@ -136,7 +136,7 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
         past_key,
         past_value,
         num_heads,
-        scale,
+        # scale,
         **_,
     ):
         if self._q_no_bias:
@@ -162,7 +162,7 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
             past_key,
             past_value,
             num_heads=num_heads,
-            scale=scale,
+            # scale=scale,
             _domain="com.microsoft",
         )
 

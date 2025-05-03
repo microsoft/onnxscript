@@ -36,23 +36,28 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         self,
         name,
         *,
+        double_transpose: bool,
         transpose_4d: bool,
         pre_scale_q: bool,
         is_rotary: bool,
         use_mask: bool,
         has_past_present: bool,
-        is_cross_attention: bool,
+        is_cross_attention_from_past: bool,
     ):
         super().__init__(name)
+        self._double_transpose = double_transpose
         self._transpose_4d = transpose_4d
         self._pre_scale_q = pre_scale_q
         self._is_rotary = is_rotary
         self._use_mask = use_mask
         self._has_past_present = has_past_present
-        # Currently, we only support cross-attention when cross
+        # Checks for cross-attention pattern when cross
         # query and key originate from past_key and past_value.
-        # TODO: Support patterns where any key/value can be used for cross-attention.
-        self._is_cross_attention = is_cross_attention
+        self._is_cross_attention_from_past = is_cross_attention_from_past
+        # Store the key/value to check if the cross-attention is
+        # indeed from past_key and past_value.
+        self._k_from_past = None
+        self._v_from_past = None
 
     def pattern(
         self,
@@ -66,6 +71,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         position_ids,
         cos,
         sin,
+        key_perm,
         q_scale,
     ):
         # First, query, key, and value are reshaped+transposed from (B, S, D) to (B, H, S, D/H)
@@ -80,12 +86,15 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         # Reshape from (B, S, D) to (B, S, H, D/H)
         key_BSHDh = op.Reshape(key_BSD, pattern.ANY_VALUE, _outputs=["key_BSHDh"])
 
-        # Transpose from (B, S, H, D/H) to (B, H, S, D/H)
-        # TODO: Fix condition
-        if not self._is_cross_attention and self._has_past_present:
-            key_BHSDh = op.Transpose(key_BSHDh, perm=[0, 2, 1, 3])
-        else:
-            key_BHSDh = op.Transpose(key_BSHDh, perm=[0, 2, 3, 1])
+        # Possible Transpose patterns for key:
+        # This scenario optimizes the need for a double transpose
+        # 1. (B, S, H, D/H) -> (B, H, D/H, S)
+        # Patterns with double transpose of key
+        # Double transpose should handle this optimization
+        # 2. (B, S, H, D/H) -> (B, H, S, D/H) -> (B, H, D/H, S)
+        # Patterns where key is reshaped to 3D, transposed and reshaped back to 4D
+        # 3. (B, S, H, D/H) -> (B, H, S, D/H) -> R (B, S, D) -> (B, D, S) -> R (B, H, D/H, S)
+        key_BHSDh = op.Transpose(key_BSHDh, perm=key_perm)
 
         # Reshape from (B, S, D) to (B, S, H, D/H)
         value_BSHDh = op.Reshape(value_BSD, pattern.ANY_VALUE, _outputs=["value_BSHDh"])
@@ -119,41 +128,43 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         # Concatenate past_key cache and current key, and transpose to enable
         # dot-product attention computation.
         if self._has_past_present:
-            # For patterns where cross-attention key/value originates from past_key/past_value
-            if self._is_cross_attention:
-                key_seq = past_key
-            else:
-                key_seq = op.Concat(past_key, key_BHSDh_emb, axis=-2)
+            key_seq = op.Concat(past_key, key_BHSDh_emb, axis=-2)
         else:
-            key_seq = key_BHSDh_emb
+            # For patterns where cross-attention key/value originates from past_key/past_value
+            if self._is_cross_attention_from_past:
+                key_seq = past_key
+                self._k_from_past = key_seq
+            else:
+                key_seq = key_BHSDh_emb
 
         # Concatenate past_value cache and current value
         if self._has_past_present:
-            # For patterns where cross-attention key/value originates from past_key/past_value
-            if self._is_cross_attention:
-                value_seq = past_value
-            else:
-                value_seq = op.Concat(past_value, value_BHSDh, axis=-2)
+            value_seq = op.Concat(past_value, value_BHSDh, axis=-2)
         else:
-            value_seq = value_BHSDh
+            # For patterns where cross-attention key/value originates from past_key/past_value
+            if self._is_cross_attention_from_past:
+                value_seq = past_value
+                self._v_from_past = value_seq
+            else:
+                value_seq = value_BHSDh
 
         # Key/value to be used for dot-product attention computation
         key_seq_to_sdpa = key_seq
         value_seq_to_sdpa = value_seq
 
         # Transpose last two axes of key_seq to compute dot-product via matmul.
-        if self._transpose_4d:
-            if self._has_past_present:
+        if self._double_transpose:
+            if self._transpose_4d:
                 key_seq_to_sdpa = op.Transpose(key_seq_to_sdpa, perm=[0, 1, 3, 2])
-        else:
-            # Transpose after converting to 3D
-            key_seq_BH_Skv_Dh = op.Reshape(
-                key_seq_to_sdpa, pattern.ANY_VALUE, _outputs=["key_seq_BH_Skv_Dh"]
-            )
-            key_seq_BH_Dh_Skv = op.Transpose(key_seq_BH_Skv_Dh, perm=[0, 2, 1])
-            key_seq_to_sdpa = op.Reshape(
-                key_seq_BH_Dh_Skv, pattern.ANY_VALUE, _outputs=["key_seq_B_H_Dh_Skv"]
-            )
+            else:
+                # Transpose after converting to 3D
+                key_seq_BH_Skv_Dh = op.Reshape(
+                    key_seq_to_sdpa, pattern.ANY_VALUE, _outputs=["key_seq_BH_Skv_Dh"]
+                )
+                key_seq_BH_Dh_Skv = op.Transpose(key_seq_BH_Skv_Dh, perm=[0, 2, 1])
+                key_seq_to_sdpa = op.Reshape(
+                    key_seq_BH_Dh_Skv, pattern.ANY_VALUE, _outputs=["key_seq_B_H_Dh_Skv"]
+                )
 
         # TODO: Remove use_mask once SDPA op is usable
         if self._use_mask:
@@ -178,7 +189,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         attention = op.Reshape(
             attention_transposed, pattern.ANY_VALUE, _outputs=["attention_reshaped"]
         )
-        if self._has_past_present and not self._is_cross_attention:
+        if self._has_past_present:
             return attention, key_seq, value_seq
         else:
             return attention
@@ -192,6 +203,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         mask,
         past_key,
         past_value,
+        key_perm,
         query_BSHDh,
         key_BSHDh=None,
         value_BSHDh=None,
@@ -209,7 +221,57 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 f"Shape mismatch: {query_BSD} does not match expected dimensions ['B', 'S', 'D']",
                 query_BSD,
             )
-        if not self._is_cross_attention:
+        # If cross-attention key/value originates from past_key/past_value,
+        # Check if their producer is None, this is done to avoid from the matcher assuming
+        # that if a key/value pattern path does not exist, it is a cross-attention pattern.
+        if self._is_cross_attention_from_past:
+            if self._k_from_past is not None:
+                if self._k_from_past.producer() is not None:
+                    return check_result.fail(
+                        "Key is not from past_key/past_value. This is not a cross-attention pattern.",
+                    )
+            if self._v_from_past is not None:
+                if self._v_from_past.producer() is not None:
+                    return check_result.fail(
+                        "Value is not from past_key/past_value. This is not a cross-attention pattern.",
+                    )
+            # We only consider patterns where,
+            # 1) double_transpose = True, to avoid pattern consuming the transpose of key.
+            # 2) is_rotary = False, as if rotary embeddings are used, the key is not from past_key.
+            # TODO: Determine what parameter conditions would make this pattern full-proof.
+            if not self._double_transpose or self._is_rotary:
+                return check_result.fail(
+                    "Key is not from past_key/past_value. This is not a cross-attention pattern.",
+                )
+
+        """
+        # Check for key transpose values
+        k_perm = _ir_utils.get_singleton_value(key_perm)
+        if k_perm is None or not isinstance(k_perm, list):
+            return check_result.fail(
+                f"Key permutation is not a list.",
+                key_perm,
+            )
+        if len(k_perm) != 4:
+            return check_result.fail(
+                f"Key permutation is not of length 4.",
+                key_perm,
+            )
+        if self._double_transpose:
+            if k_perm != [0, 2, 1, 3]:
+                return check_result.fail(
+                    f"Key permutation is not [0, 2, 1, 3].",
+                    key_perm,
+                )
+        else:
+            if k_perm != [0, 2, 3, 1]:
+                return check_result.fail(
+                    f"Key permutation is not [0, 2, 3, 1].",
+                    key_perm,
+                )
+        """
+
+        if not self._is_cross_attention_from_past:
             if no_match(key_BSD, ["B", "Skv", "D"]):
                 return check_result.fail(
                     f"Shape mismatch: {key_BSD} does not match expected dimensions ['B', 'Skv', 'D']",
@@ -239,7 +301,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 query_BSHDh,
             )
 
-        if not self._is_cross_attention:
+        if not self._is_cross_attention_from_past:
             if key_BSHDh and no_match(key_BSHDh, ["B", "S", "H", "Dh"]):
                 return check_result.fail(
                     f"Shape mismatch: {key_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
@@ -298,9 +360,9 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             query_BSD_emb = query_BSD
             key_BSD_emb = key_BSD
 
-        num_outputs = 1 + (2 * self._has_past_present * (not self._is_cross_attention))
-        # Special case for cross-attention
-        if self._has_past_present and self._is_cross_attention:
+        num_outputs = 1 + (2 * self._has_past_present)
+        # Special case for cross-attention that comes from past_key/past_value
+        if self._is_cross_attention_from_past:
             return op.MultiHeadAttention(
                 query_BSD_emb,
                 past_key,
@@ -334,19 +396,24 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
 
 parameter_combinations = [
     {
+        "double_transpose": double_transpose,
         "transpose_4d": transpose_4d,
         "pre_scale_q": pre_scale_q,
         "is_rotary": is_rotary,
         "use_mask": use_mask,
         "has_past_present": has_past_present,
-        "is_cross_attention": is_cross_attention,
+        "is_cross_attention_from_past": is_cross_attention_from_past,
     }
-    for transpose_4d in [False, True]
+    for double_transpose in [False, True]
+    for transpose_4d in (
+        [False, True] if double_transpose else [False]
+    )  # Only generate patterns when double_transpose is True
     for pre_scale_q in [True, False]
     for is_rotary in [False, True]
     for use_mask in [False, True]
-    for has_past_present in [False, True]
-    for is_cross_attention in [False, True]
+    # TODO: Avoid this parameter from being order dependent
+    for has_past_present in [True, False]
+    for is_cross_attention_from_past in [False, True]
 ]
 
 # Dynamically create the rules
@@ -354,11 +421,12 @@ mha_rules = pattern.RewriteRuleSet(
     [
         MultiHeadAttention.rule(
             f"MHA_{'4D' if params['transpose_4d'] else '3D'}_Transpose"
+            f"{'_Twice' if params['double_transpose'] else ''}"
             f"{'_PreScaleQ' if params['pre_scale_q'] else ''}"
             f"{'_Rotary' if params['is_rotary'] else ''}"
             f"{'_Masked' if params['use_mask'] else ''}"
             f"{'_Past' if params['has_past_present'] else ''}"
-            f"{'_CrossAttention' if params['is_cross_attention'] else ''}",
+            f"{'_CrossAttentionFromPast' if params['is_cross_attention_from_past'] else ''}",
             **params,
         )
         for params in parameter_combinations
