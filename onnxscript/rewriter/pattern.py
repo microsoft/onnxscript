@@ -299,7 +299,7 @@ def _to_value_pattern(
 
 
 class MatchResult:
-    """Represents the result of a match operation.
+    """The state object used by the pattern-matching algorithm.
 
     A match can either succeed or fail.
     If it succeeds, it returns a list of nodes that matched the pattern
@@ -317,6 +317,103 @@ class MatchResult:
     """
 
     def __init__(self) -> None:
+        # We use a stack of partial matches to handle OR patterns that require backtracking.
+        self._partial_matches: list[PartialMatchResult] = [PartialMatchResult()]
+
+    @property
+    def _current_match(self) -> PartialMatchResult:
+        """Returns the current match result."""
+        return self._partial_matches[-1]
+
+    def enter_new_match(self) -> None:
+        """Starts a new sub-match to try out one of multiple alternatives."""
+        match = PartialMatchResult()
+        self._partial_matches.append(match)
+
+    def abandon_current_match(self) -> PartialMatchResult:
+        """Abandons the current alternative due to failure."""
+        if len(self._partial_matches) < 2:
+            raise ValueError("No match to abandon.")
+        return self._partial_matches.pop()
+
+    def merge_current_match(self) -> None:
+        """Merges a successful sub-match for an alternative with the parent one."""
+        if len(self._partial_matches) < 2:
+            raise ValueError("No match to merge.")
+        current_match = self._partial_matches.pop()
+        previous_match = self._partial_matches[-1]
+        if not current_match:
+            raise ValueError("Current match is not successful.")
+        # Merge the two matches.
+        current_match._bindings.update(previous_match._bindings)
+        previous_match._matched_nodes.extend(current_match.nodes)
+        # Note: outputs should be set only at end of the (top-level) match.
+        assert not current_match._outputs
+
+    def __bool__(self) -> bool:
+        """Returns True if the current match is successful."""
+        return bool(self._current_match)
+
+    def fail(
+        self,
+        reason: str = "",
+        failure_source: Union[ir.Node, ir.Value, list[Union[ir.Node, ir.Value]]] | None = None,
+    ) -> MatchResult:
+        self._current_match.fail(reason, failure_source)
+        return self
+
+    @property
+    def reason(self) -> str:
+        """Returns the reason for the failure."""
+        return self._current_match.reason
+
+    @property
+    def nodes(self) -> Sequence[ir.Node]:
+        """Returns the list of nodes that matched the pattern."""
+        return self._current_match.nodes
+
+    def add_node(self, node: ir.Node) -> None:
+        """Adds a node to the list of matched nodes."""
+        self._current_match.add_node(node)
+
+    def bind(self, var: str, value: Any) -> bool:
+        for match in self._partial_matches:
+            if var in match.bindings:
+                # TODO(rama): Use appropriate equality-check here.
+                if match.bindings[var] == value:
+                    return True
+                self._current_match.fail(
+                    f"Binding failure: {var} bound to two different values.",
+                    [match.bindings[var], value],
+                )
+                return False
+        self._current_match.bindings[var] = value
+        return True
+
+    @property
+    def bindings(self) -> dict[str, Any]:
+        """Returns the bindings for the pattern variables."""
+        if len(self._partial_matches) > 1:
+            raise ValueError("Bindings can be accessed only at the top-level match.")
+        return self._current_match.bindings
+
+    @property
+    def outputs(self) -> MutableSequence[ir.Value]:
+        """Returns the list of output values that matched the pattern."""
+        if len(self._partial_matches) > 1:
+            raise ValueError("Outputs can be accessed only at the top-level match.")
+        return self._current_match.outputs
+
+    @property
+    def failure_nodes_and_values(self) -> list[Union[ir.Node, ir.Value]]:
+        """Returns the nodes and values that caused the failure."""
+        return self._current_match._failure_nodes_and_values
+
+
+class PartialMatchResult:
+    """The state object used by the pattern-matching algorithm for a sub-match."""
+
+    def __init__(self) -> None:
         self._success: bool = True
         # For a successful match, _matched_nodes is a list of values that matched the pattern.
         # These include the internal nodes of the pattern that were matched, but not
@@ -326,7 +423,7 @@ class MatchResult:
         # For a successful match, bindings is a dictionary of mapping pattern-variable-names
         # to values.
         self._bindings: dict[str, Any] = {}
-        self.outputs: list[ir.Value] = []
+        self._outputs: list[ir.Value] = []
         # For a failed match, _reason is a string that describes the reason for the failure.
         self._reason: str = ""
         # Track the node(s) or value(s) that caused the failure.
@@ -339,7 +436,7 @@ class MatchResult:
         self,
         reason: str = "",
         failure_source: Union[ir.Node, ir.Value, list[Union[ir.Node, ir.Value]]] | None = None,
-    ) -> MatchResult:
+    ) -> None:
         self._success = False
         self._reason = reason
         if failure_source is not None:
@@ -347,7 +444,6 @@ class MatchResult:
                 self._failure_nodes_and_values.extend(failure_source)
             else:
                 self._failure_nodes_and_values.append(failure_source)
-        return self
 
     @property
     def reason(self) -> str:
@@ -375,28 +471,13 @@ class MatchResult:
         self._bindings[var] = value
         return True
 
-    def extend(self, other: MatchResult | bool):
-        if not self._success:
-            return
-        if not other:
-            self._success = False
-            return
-        if isinstance(other, bool):
-            return
-        for var, val in other._bindings.items():
-            if var in self._bindings:
-                # TODO: handle attribute var _bindings
-                if self._bindings[var] != val:
-                    self._success = False
-                    return
-            else:
-                self._bindings[var] = val
-        assert self._matched_nodes is not None, "_matched_nodes should not be None."
-        self._matched_nodes.extend(other._matched_nodes)  # type: ignore[attr-defined]
-
     @property
     def bindings(self) -> dict[str, Any]:
         return self._bindings
+
+    @property
+    def outputs(self) -> MutableSequence[ir.Value]:
+        return self._outputs
 
 
 _pattern_builder: OpsetPatternBuilder = onnxop
@@ -1448,7 +1529,7 @@ class RewriteRule:
                 if isinstance(check_match_result, MatchResult):
                     match.fail(
                         check_match_result.reason,
-                        check_match_result._failure_nodes_and_values,
+                        check_match_result.failure_nodes_and_values,
                     )
                 if tracer:
                     tracer.log(
@@ -1916,7 +1997,7 @@ class MatchInfo:
                     print(f"Graph matching failed: {reason}")
             else:
                 print("Graph matching failed.")
-            failure_nodes_and_values = self.match_result._failure_nodes_and_values
+            failure_nodes_and_values = self.match_result.failure_nodes_and_values
             print("Failure at or around nodes/values:")
             if failure_nodes_and_values:
                 for failure_cause in failure_nodes_and_values:
