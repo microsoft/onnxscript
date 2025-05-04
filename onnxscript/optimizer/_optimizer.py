@@ -4,9 +4,6 @@ from __future__ import annotations
 
 import logging
 
-import onnxscript.ir.passes.common.constant_manipulation
-import onnxscript.ir.passes.common.inliner
-import onnxscript.ir.passes.common.unused_removal
 from onnxscript import ir, rewriter
 from onnxscript.optimizer import _constant_folding
 
@@ -45,20 +42,20 @@ def optimize_ir(
                     output_size_limit=output_size_limit,
                 ),
                 rewriter.RewritePass(rewriter._DEFAULT_REWRITE_RULES),
-                onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass(),
-                onnxscript.ir.passes.common.unused_removal.RemoveUnusedFunctionsPass(),
-                onnxscript.ir.passes.common.unused_removal.RemoveUnusedOpsetsPass(),
+                ir.passes.common.RemoveUnusedNodesPass(),
+                ir.passes.common.RemoveUnusedFunctionsPass(),
+                ir.passes.common.RemoveUnusedOpsetsPass(),
             ],
             steps=num_iterations,
             early_stop=stop_if_no_change,
         ),
-        onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass(),
-        onnxscript.ir.passes.common.constant_manipulation.LiftConstantsToInitializersPass(),
-        onnxscript.ir.passes.common.constant_manipulation.LiftSubgraphInitializersToMainGraphPass(),
+        ir.passes.common.RemoveUnusedNodesPass(),
+        ir.passes.common.LiftConstantsToInitializersPass(),
+        ir.passes.common.LiftSubgraphInitializersToMainGraphPass(),
     ]
     if inline:
         # Inline all functions first before optimizing
-        passes = [onnxscript.ir.passes.common.inliner.InlinePass(), *passes]
+        passes = [ir.passes.common.InlinePass(), *passes]
     optimizer_pass = ir.passes.Sequential(*passes)
     assert optimizer_pass.in_place
     result = optimizer_pass(model)

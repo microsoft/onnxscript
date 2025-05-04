@@ -13,8 +13,11 @@ __all__ = [
     "PreconditionError",
     "PostconditionError",
     "PassError",
+    # Common passes
+    "common",
 ]
 
+from onnxscript.ir.passes import common
 from onnxscript.ir.passes._pass_infra import (
     FunctionalPass,
     InPlacePass,

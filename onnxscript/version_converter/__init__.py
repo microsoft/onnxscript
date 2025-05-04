@@ -13,8 +13,6 @@ import onnx
 
 from onnxscript import ir
 from onnxscript.ir.passes.common import _c_api_utils
-from onnxscript.ir.passes.common import inliner as _inliner
-from onnxscript.ir.passes.common import unused_removal as _unused_removal
 from onnxscript.version_converter import _version_converter
 
 logger = logging.getLogger(__name__)
@@ -40,14 +38,14 @@ class ConvertVersionPass(ir.passes.InPlacePass):
         self.target_version = target_version
         self.fallback = fallback
         self.convert_pass = ir.passes.Sequential(
-            _inliner.InlinePass(),
+            ir.passes.common.InlinePass(),
             _ConvertVersionPassRequiresInline(
                 target_version=target_version,
                 fallback=fallback,
             ),
-            _unused_removal.RemoveUnusedNodesPass(),
-            _unused_removal.RemoveUnusedFunctionsPass(),
-            _unused_removal.RemoveUnusedOpsetsPass(),
+            ir.passes.common.RemoveUnusedNodesPass(),
+            ir.passes.common.RemoveUnusedFunctionsPass(),
+            ir.passes.common.RemoveUnusedOpsetsPass(),
         )
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
