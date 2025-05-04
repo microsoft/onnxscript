@@ -77,7 +77,7 @@ class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
         if model.functions:
             raise ValueError(
                 "The model contains functions. The version conversion pass does not support "
-                "functions. Please use `onnxscript.onnxscript.ir.passes.common.inliner.InlinePass` to inline the "
+                "functions. Please use `onnxscript.ir.passes.common.InlinePass` to inline the "
                 f"functions before applying this pass ({self.__class__.__name__})."
             )
         if "" in model.graph.opset_imports:
