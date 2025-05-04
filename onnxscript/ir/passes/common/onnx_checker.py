@@ -21,10 +21,12 @@ class CheckerPass(ir.passes.PassBase):
 
     @property
     def in_place(self) -> Literal[True]:
+        """This pass does not create a new model."""
         return True
 
     @property
     def changes_input(self) -> Literal[False]:
+        """This pass does not change the input model."""
         return False
 
     def __init__(
