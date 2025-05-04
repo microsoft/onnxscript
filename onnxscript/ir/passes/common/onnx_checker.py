@@ -8,6 +8,8 @@ __all__ = [
     "CheckerPass",
 ]
 
+from typing import Literal
+
 import onnx
 
 from onnxscript import ir
@@ -18,11 +20,11 @@ class CheckerPass(ir.passes.PassBase):
     """Run onnx checker on the model."""
 
     @property
-    def in_place(self) -> bool:
+    def in_place(self) -> Literal[True]:
         return True
 
     @property
-    def changes_input(self) -> bool:
+    def changes_input(self) -> Literal[False]:
         return False
 
     def __init__(
