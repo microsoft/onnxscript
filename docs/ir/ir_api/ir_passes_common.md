@@ -6,5 +6,6 @@ Built-in passes provided by the ONNX IR
 .. automodule:: onnxscript.ir.passes.common
     :members:
     :undoc-members:
+    :exclude-members: call
 
 ```
