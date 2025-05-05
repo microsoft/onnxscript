@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import onnxscript.ir as ir
-from onnxscript.ir.passes.common import shape_inference
+import onnxscript.ir.passes.common as common_passes
 from onnxscript.optimizer import optimize
 from onnxscript.rewriter import rewrite
 from onnxscript.rewriter.ort_fusions import (
@@ -47,7 +47,7 @@ def _pre_optimize(model: ir.Model) -> ir.Model:
     # TODO: Do we need this dependence on ONNX's partial-data-propagation? There are some
     # extra shape-propagation and partial-data-propagation rules in ONNX that are not yet
     # incorporated in our optimizer.
-    shape_inference.infer_shapes(model)
+    common_passes.ShapeInferencePass()(model)
     optimize(model)
     return model
 
@@ -130,4 +130,17 @@ def optimize_for_ort(
     )
     # Apply the ORT pattern rewrite rules.
     rewrite(model, ORT_PATTERN_REWRITE_RULES)
+
+    # TODO(exporter team): Fold transpose into initializers
+    # Apply the ORT optimization passes.
+    # https://github.com/microsoft/onnxruntime/blob/74dcf7e296639095dfa55d31336998b6f719ed76/onnxruntime/python/tools/transformers/dynamo_onnx_helper.py#L172
+    common_passes.ClearMetadataAndDocStringPass()(model)
+    # https://github.com/microsoft/onnxruntime/blob/74dcf7e296639095dfa55d31336998b6f719ed76/onnxruntime/python/tools/transformers/dynamo_onnx_helper.py#L139
+    common_passes.LiftConstantsToInitializersPass(lift_all_constants=False, size_limit=1)(
+        model
+    )
+    common_passes.RemoveInitializersFromInputsPass()(model)
+    common_passes.ShapeInferencePass()(model)
+    common_passes.CheckerPass()(model)
+
     return model, fusion_count
