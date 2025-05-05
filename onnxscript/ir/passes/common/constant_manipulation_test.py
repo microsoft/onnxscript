@@ -251,5 +251,199 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
         self.assertEqual(len(result.model.graph.initializers), 0)
 
 
+class TestLiftSubgraphInitializersToMainGraphPass(unittest.TestCase):
+    @parameterized.parameterized.expand(
+        [
+            ("then_initializer", "else_initializer"),
+            ("initializer", "initializer"),
+        ]
+    )
+    def test_pass_with_lifting_constants_to_initializers_within_subgraph(
+        self, then_initializer_name, else_initializer_name
+    ):
+        input_value = ir.Value(
+            name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
+        )
+
+        then_initializer_tensor = ir.tensor(np.random.rand(2, 3).astype(np.float32))
+        then_initializer_value = ir.Value(
+            name=then_initializer_name,
+            shape=then_initializer_tensor.shape,
+            type=ir.TensorType(ir.DataType.FLOAT),
+            const_value=then_initializer_tensor,
+        )
+
+        # then branch adds the constant to the input
+        # else branch multiplies the input by the constant
+        add_node = ir.node("Add", inputs=[input_value, then_initializer_value])
+        then_graph = ir.Graph(
+            inputs=[input_value, then_initializer_value],
+            outputs=[add_node.outputs[0]],
+            nodes=[add_node],
+            opset_imports={"": 20},
+            initializers=[then_initializer_value],
+        )
+        else_initializer_tensor = ir.tensor(np.random.rand(2, 3).astype(np.float32))
+        else_initializer_value = ir.Value(
+            name=else_initializer_name,
+            shape=else_initializer_tensor.shape,
+            type=ir.TensorType(ir.DataType.FLOAT),
+            const_value=else_initializer_tensor,
+        )
+        mul_node = ir.node("Mul", inputs=[input_value, else_initializer_value])
+        else_graph = ir.Graph(
+            inputs=[input_value],
+            outputs=[mul_node.outputs[0]],
+            nodes=[mul_node],
+            opset_imports={"": 20},
+            initializers=[else_initializer_value],
+        )
+        # create a conditional node that uses the then and else graphs
+        cond_node = ir.node(
+            "If",
+            inputs=[input_value],
+            attributes={"then_branch": then_graph, "else_branch": else_graph},
+            num_outputs=1,
+        )
+        # construnct the model
+        main_graph = ir.Graph(
+            inputs=[input_value],
+            outputs=cond_node.outputs,
+            nodes=[cond_node],
+            opset_imports={"": 20},
+        )
+        main_graph.sort()
+        model = ir.Model(
+            graph=main_graph,
+            ir_version=10,
+        )
+        result = constant_manipulation.LiftSubgraphInitializersToMainGraphPass()(model)
+        self.assertTrue(result.modified)
+
+        self.assertEqual(len(else_graph.initializers), 0)
+        self.assertEqual(len(then_graph.initializers), 0)
+        self.assertEqual(len(main_graph.initializers), 2)
+        for value, tensor in zip(
+            main_graph.initializers.values(),
+            [then_initializer_tensor, else_initializer_tensor],
+        ):
+            self.assertIs(
+                value.const_value,
+                tensor,
+            )
+
+
+class TestRemoveInitializersFromInputsPass(unittest.TestCase):
+    def test_remove_initializers_from_inputs(self):
+        input_value = ir.Value(
+            name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
+        )
+        initializer_value = ir.Value(
+            name="initializer",
+            type=ir.TensorType(ir.DataType.FLOAT),
+            shape=ir.Shape((2, 3)),
+            const_value=ir.tensor(np.random.rand(2, 3).astype(np.float32)),
+        )
+        identity_node = ir.node("Identity", inputs=[input_value], num_outputs=1)
+
+        model = ir.Model(
+            graph=ir.Graph(
+                inputs=[input_value, initializer_value],
+                outputs=identity_node.outputs,
+                nodes=[identity_node],
+                initializers=[initializer_value],
+                opset_imports={"": 20},
+            ),
+            ir_version=10,
+        )
+
+        # Check that the initializer is in the graph inputs
+        self.assertIn(initializer_value, model.graph.inputs)
+
+        # Perform remove initializers from inputs
+        result = constant_manipulation.RemoveInitializersFromInputsPass()(model)
+        self.assertTrue(result.modified)
+        # Check that the initializer is removed from the graph inputs
+        self.assertNotIn(initializer_value, result.model.graph.inputs)
+
+    def test_remove_initializers_from_inputs_with_no_initializers(self):
+        input_value = ir.Value(
+            name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
+        )
+        identity_node = ir.node("Identity", inputs=[input_value], num_outputs=1)
+
+        model = ir.Model(
+            graph=ir.Graph(
+                inputs=[input_value],
+                outputs=identity_node.outputs,
+                nodes=[identity_node],
+                opset_imports={"": 20},
+            ),
+            ir_version=10,
+        )
+
+        # Perform remove initializers from inputs
+        result = constant_manipulation.RemoveInitializersFromInputsPass()(model)
+        self.assertFalse(result.modified)
+        # Check that the graph inputs remain unchanged
+        self.assertEqual(result.model.graph.inputs, [input_value])
+
+
+class TestAddInitializersToInputsPass(unittest.TestCase):
+    def test_add_initializers_to_inputs(self):
+        input_value = ir.Value(
+            name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
+        )
+        initializer_value = ir.Value(
+            name="initializer",
+            type=ir.TensorType(ir.DataType.FLOAT),
+            shape=ir.Shape((2, 3)),
+            const_value=ir.tensor(np.random.rand(2, 3).astype(np.float32)),
+        )
+        identity_node = ir.node("Identity", inputs=[input_value], num_outputs=1)
+
+        model = ir.Model(
+            graph=ir.Graph(
+                inputs=[input_value],
+                outputs=identity_node.outputs,
+                nodes=[identity_node],
+                initializers=[initializer_value],
+                opset_imports={"": 20},
+            ),
+            ir_version=10,
+        )
+
+        # Check that the initializer is not in the graph inputs
+        self.assertNotIn(initializer_value, model.graph.inputs)
+
+        # Perform add initializers to inputs
+        result = constant_manipulation.AddInitializersToInputsPass()(model)
+        self.assertTrue(result.modified)
+        # Check that the initializer is added to the graph inputs
+        self.assertIn(initializer_value, result.model.graph.inputs)
+
+    def test_add_initializers_to_inputs_with_no_initializers(self):
+        input_value = ir.Value(
+            name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
+        )
+        identity_node = ir.node("Identity", inputs=[input_value], num_outputs=1)
+
+        model = ir.Model(
+            graph=ir.Graph(
+                inputs=[input_value],
+                outputs=identity_node.outputs,
+                nodes=[identity_node],
+                opset_imports={"": 20},
+            ),
+            ir_version=10,
+        )
+
+        # Perform add initializers to inputs
+        result = constant_manipulation.AddInitializersToInputsPass()(model)
+        self.assertFalse(result.modified)
+        # Check that the graph inputs remain unchanged
+        self.assertEqual(result.model.graph.inputs, [input_value])
+
+
 if __name__ == "__main__":
     unittest.main()
