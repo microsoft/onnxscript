@@ -67,7 +67,7 @@ import numpy as np
 import onnx
 import onnx.external_data_helper
 
-from onnxscript.ir import _core, _enums, _metadata, _protocols, _type_casting
+from onnxscript.ir import _core, _enums, _protocols, _type_casting
 
 if typing.TYPE_CHECKING:
     import google.protobuf.internal.containers as proto_containers
@@ -243,12 +243,11 @@ def to_proto(ir_object: object) -> object:
 class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
     """A tensor initialized from a tensor proto."""
 
+    __slots__ = ("_proto",)
+
     def __init__(self, proto: onnx.TensorProto) -> None:
+        super().__init__(metadata_props=deserialize_metadata_props(proto.metadata_props))
         self._proto = proto
-        self._metadata_props: dict[str, str] | None = deserialize_metadata_props(
-            proto.metadata_props
-        )
-        self._metadata: _metadata.MetadataStore | None = None
 
     @property
     def name(self) -> str:
@@ -269,7 +268,7 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
     def dtype(self) -> _enums.DataType:
         return _enums.DataType(self._proto.data_type)
 
-    @property
+    @property  # type: ignore[misc]
     def doc_string(self) -> str:
         return self._proto.doc_string
 
@@ -278,9 +277,10 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
         return self._proto
 
     def __repr__(self) -> str:
-        # It is a little hard to display the content when there can be types
-        # unsupported by numpy
-        # Preferably we should display some content when the tensor is small
+        if self.size <= 10:
+            tensor_lines = repr(self.numpy()).split("\n")
+            tensor_text = " ".join(line.strip() for line in tensor_lines)
+            return f"{self._repr_base()}({tensor_text}, name={self.name!r})"
         return f"{self._repr_base()}(name={self.name!r})"
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
@@ -438,23 +438,6 @@ class TensorProtoTensor(_core.TensorBase):  # pylint: disable=too-many-ancestors
         # The repeating fields can be empty and still valid.
         # For example, int32_data can be empty and still be a valid tensor.
         return b""
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
-
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
 
 
 def _get_field(proto: Any, field: str) -> Any:
@@ -627,32 +610,43 @@ def _deserialize_graph(
 
     # Initialize the values dictionary for this graph scope with the inputs and initializers
     values: dict[str, _core.Value] = {v.name: v for v in inputs}  # type: ignore[misc]
+
+    # Enter the graph scope by pushing the values for this scope to the stack
     scoped_values.append(values)
+
     initializer_values = []
-    for tensor in initializer_tensors:
-        if tensor.name in values:
+    for i, tensor in enumerate(initializer_tensors):
+        initializer_name = tensor.name
+        if not initializer_name:
+            logger.warning(
+                "Initializer tensor must have a name but the %s-th initializer does not. Skipping this initializer.",
+                i,
+            )
+            continue
+        if initializer_name in values:
             # The initializer is for an input
-            initializer_value = values[tensor.name]
+            initializer_value = values[initializer_name]
             initializer_value.const_value = tensor
         else:
             # The initializer is for some other value. Create this value first
             initializer_value = _core.Value(
                 None,
                 index=None,
-                name=tensor.name,
-                # TODO(justinchuby): Fix type hinting for shape and dtype
-                shape=tensor.shape,  # type: ignore
+                name=initializer_name,
+                # Include shape and type even if the shape or type is not provided as ValueInfoProto.
+                # Users expect initialized values to have shape and type information.
                 type=_core.TensorType(tensor.dtype),
+                shape=tensor.shape,  # type: ignore[arg-type]
                 const_value=tensor,
             )
             if initializer_value.name in quantization_annotations:
                 _deserialize_quantization_annotation(
                     quantization_annotations[initializer_value.name], initializer_value
                 )
-            values[tensor.name] = initializer_value  # type: ignore[index]
+            values[initializer_name] = initializer_value
         initializer_values.append(initializer_value)
 
-    # Add ValueInfos for this graph scope
+    # Build the value info dictionary to allow for quick lookup for this graph scope
     value_info = {info.name: info for info in proto.value_info}
 
     # Deserialize nodes with all known values
@@ -661,9 +655,27 @@ def _deserialize_graph(
         for node in proto.node
     ]
 
-    # Fill in values for graph outputs
-    outputs = [deserialize_value_info_proto(info, values[info.name]) for info in proto.output]
+    outputs = []
+    for info in proto.output:
+        # Fill in values for graph outputs
+        output_name = info.name
+        if output_name not in values:
+            # Handle (invalid) graph outputs that do not have any producers
+            logger.warning(
+                "Output '%s' is not produced by any node. The graph has an invalid output",
+                output_name,
+            )
+            value = _core.Value(name=output_name)
+        else:
+            # A valid, normal graph output
+            value = values[output_name]
+        # Fill in shape/type information
+        deserialize_value_info_proto(info, value)
+        outputs.append(value)
+
+    # Exit the graph scope by popping the values for this scope from the stack
     scoped_values.pop()
+
     return _core.Graph(
         inputs,
         outputs,
@@ -1204,24 +1216,24 @@ def _serialize_opset_imports_into(
         opset_ids.add(domain=domain, version=version)
 
 
-def _serialize_metadata_props_into(
+def _serialize_string_string_maps(
     string_string_entries: proto_containers.RepeatedCompositeFieldContainer[
         onnx.StringStringEntryProto
     ],
     from_: Mapping[str, str],
 ) -> None:
-    """Serialize metadata properties into a repeated field of string-string entries.
+    """Serialize a <str, str> mapping into a repeated field of string-string entries.
 
     Args:
         string_string_entries: The repeated field to serialize into.
-        from_: The mapping of metadata properties to serialize.
+        from_: The mapping of a <str, str> mapping to serialize.
     """
     # Sort names for deterministic serialization
     for key in sorted(from_):
         string_string_entries.add(key=key, value=from_[key])
 
 
-_serialize_string_string_maps = _serialize_metadata_props_into
+_serialize_metadata_props_into = _serialize_string_string_maps
 
 
 def _maybe_add_quantization_annotation(
@@ -1284,18 +1296,21 @@ def serialize_graph_into(
             # TODO(justinchuby): We should add a method is_initializer() on Value when
             # the initializer list is tracked
             _maybe_add_quantization_annotation(graph_proto, input_)
+    input_names = {input_.name for input_ in from_.inputs}
     # TODO(justinchuby): Support sparse_initializer
-    for initializer in from_.initializers.values():
-        _maybe_add_quantization_annotation(graph_proto, initializer)
-        if initializer.const_value is None:
+    for value in from_.initializers.values():
+        _maybe_add_quantization_annotation(graph_proto, value)
+        if _should_create_value_info_for_value(value) and value.name not in input_names:
+            # Serialize information about all initializers into value_info,
+            # except for those that are also graph inputs
+            serialize_value_into(graph_proto.value_info.add(), value)
+        if value.const_value is None:
             # Skip initializers without constant values
-            logger.warning(
-                "Initializer '%s' does not have a constant value set.", initializer.name
-            )
+            logger.warning("Initializer '%s' does not have a constant value set.", value.name)
             continue
         # Make sure the tensor's name is the same as the value's name
-        initializer.const_value.name = initializer.name
-        serialize_tensor_into(graph_proto.initializer.add(), from_=initializer.const_value)
+        value.const_value.name = value.name
+        serialize_tensor_into(graph_proto.initializer.add(), from_=value.const_value)
     for node in from_:
         serialize_node_into(graph_proto.node.add(), from_=node)
         for node_output in node.outputs:

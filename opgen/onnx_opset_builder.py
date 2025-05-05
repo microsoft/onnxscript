@@ -559,7 +559,7 @@ class OpsetsBuilder:
 
     def _make_function_attr_args(self, schema: OpSchema) -> Iterable[cg.Arg]:
         generate_kwonly_sentinel = True
-        for attr in schema.attributes.values():
+        for attr in sorted(schema.attributes.values(), key=lambda a: a.name):
             attr_type = parse_attr_type(attr.type)
             default_value = None
 

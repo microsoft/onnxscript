@@ -167,7 +167,7 @@ The following example shows how to create a `FLOAT8E4M3FN` tensor, transform its
     print("tensor.numpy():", tensor.numpy())  # [0.00195312 0.00585938]
 
     # Compute
-    times_100 = tensor.numpy() * 100
+    times_100 = tensor.numpy() * np.array(100, dtype=tensor.numpy().dtype)
     print("times_100:", times_100)
 
     # Create a new tensor out of the new value; dtype must be specified

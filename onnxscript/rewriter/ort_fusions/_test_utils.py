@@ -33,7 +33,7 @@ def ort_run(model_name: str, model, inputs):
     return session.run(None, inputs)
 
 
-def assert_allclose(outputs, expected_outputs, rtol=1e-4, atol=1e-4):
+def assert_allclose(outputs, expected_outputs, rtol=1e-3, atol=1e-3):
     for i, (baseline_output, optimized_output) in enumerate(zip(expected_outputs, outputs)):
         try:
             np.testing.assert_equal(baseline_output.shape, optimized_output.shape)

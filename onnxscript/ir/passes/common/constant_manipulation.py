@@ -5,7 +5,10 @@
 from __future__ import annotations
 
 __all__ = [
+    "AddInitializersToInputsPass",
     "LiftConstantsToInitializersPass",
+    "LiftSubgraphInitializersToMainGraphPass",
+    "RemoveInitializersFromInputsPass",
 ]
 
 import logging
@@ -126,3 +129,79 @@ class LiftConstantsToInitializersPass(ir.passes.InPlacePass):
             )
             return None
         return tensor
+
+
+class LiftSubgraphInitializersToMainGraphPass(ir.passes.InPlacePass):
+    """Lift subgraph initializers to main graph.
+
+    This pass lifts the initializers of a subgraph to the main graph.
+    It is used to ensure that the initializers are available in the main graph
+    for further processing or optimization.
+    """
+
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        count = 0
+        registered_initializer_names: dict[str, int] = {}
+        for graph in model.graphs():
+            if graph is model.graph:
+                continue
+            for name, initializer in graph.initializers.items():
+                # To avoid name conflicts, we need to rename the initializer
+                # to a unique name in the main graph
+                if name in registered_initializer_names:
+                    name_count = registered_initializer_names[name]
+                    initializer.name = f"{name}_{name_count}"
+                    registered_initializer_names[name] = name_count + 1
+                else:
+                    assert initializer.name is not None
+                    registered_initializer_names[initializer.name] = 1
+                model.graph.register_initializer(initializer)
+                count += 1
+                logger.debug(
+                    "Lifted initializer '%s' from subgraph '%s' to main graph",
+                    initializer.name,
+                    graph.name,
+                )
+            # Remove the initializer from the subgraph
+            graph.initializers.clear()
+        return ir.passes.PassResult(model, modified=bool(count))
+
+
+class RemoveInitializersFromInputsPass(ir.passes.InPlacePass):
+    """Remove initializers from inputs.
+
+    This pass finds all graph inputs that have a const_value and removes them from the graph.inputs list.
+    """
+
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        count = 0
+        for graph in model.graphs():
+            initializers = set(graph.initializers.values())
+            new_inputs = []
+            for input_value in graph.inputs:
+                if input_value in initializers:
+                    count += 1
+                else:
+                    new_inputs.append(input_value)
+            graph.inputs.clear()
+            graph.inputs.extend(new_inputs)
+        logger.info("Removed %s initializers from graph inputs", count)
+        return ir.passes.PassResult(model, modified=bool(count))
+
+
+class AddInitializersToInputsPass(ir.passes.InPlacePass):
+    """Add initializers to inputs.
+
+    This pass finds all initializers and adds them to the graph.inputs list if they are not already present.
+    """
+
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
+        count = 0
+        for graph in model.graphs():
+            inputs_set = set(graph.inputs)
+            for initializer in graph.initializers.values():
+                if initializer not in inputs_set:
+                    graph.inputs.append(initializer)
+                    count += 1
+        logger.info("Added %s initializers to graph inputs", count)
+        return ir.passes.PassResult(model, modified=bool(count))

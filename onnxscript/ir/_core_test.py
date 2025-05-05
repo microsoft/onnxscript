@@ -622,6 +622,9 @@ class ShapeTest(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "frozen"):
             shape[0] = 1
 
+        with self.assertRaisesRegex(TypeError, "frozen"):
+            shape[0] = "some_string"
+
     def test_getitem(self):
         shape = _core.Shape([42], denotations=("DATA_CHANNEL",))
         self.assertEqual(shape[0], 42)
@@ -1310,6 +1313,39 @@ class AttrTest(unittest.TestCase):
     def test_as_graphs(self):
         attr = _core.Attr("test", ir.AttributeType.GRAPHS, [_core.Graph((), (), nodes=())])
         self.assertIsInstance(attr.as_graphs()[0], _core.Graph)
+
+
+class LazyTensorTest(unittest.TestCase):
+    def test_lazy_tensor_initialization(self):
+        def tensor_fn():
+            return ir.tensor([1, 2, 3], dtype=ir.DataType.INT64)
+
+        lazy_tensor = _core.LazyTensor(
+            tensor_fn, dtype=ir.DataType.INT64, shape=ir.Shape((3,))
+        )
+        self.assertEqual(lazy_tensor.dtype, ir.DataType.INT64)
+        self.assertEqual(lazy_tensor.shape, (3,))
+
+    def test_lazy_tensor_numpy(self):
+        def tensor_fn():
+            return ir.tensor([1, 2, 3], dtype=ir.DataType.INT64)
+
+        lazy_tensor = _core.LazyTensor(
+            tensor_fn, dtype=ir.DataType.INT64, shape=ir.Shape((3,))
+        )
+        np.testing.assert_array_equal(lazy_tensor.numpy(), np.array([1, 2, 3]))
+
+    def test_lazy_tensor_tobytes(self):
+        def tensor_fn():
+            return ir.tensor([1, 2, 3], dtype=ir.DataType.INT64)
+
+        lazy_tensor = _core.LazyTensor(
+            tensor_fn, dtype=ir.DataType.INT64, shape=ir.Shape((3,))
+        )
+        self.assertEqual(
+            lazy_tensor.tobytes(),
+            b"\x01\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x03\x00\x00\x00\x00\x00\x00\x00",
+        )
 
 
 if __name__ == "__main__":

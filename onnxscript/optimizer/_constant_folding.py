@@ -843,12 +843,10 @@ class FoldConstantsPass(ir.passes.InPlacePass):
     def __init__(
         self,
         *,
-        external_data_folder: str,
         shape_inference: bool,
         input_size_limit: int,
         output_size_limit: int,
     ) -> None:
-        self._external_data_folder = external_data_folder
         self._shape_inference = shape_inference
         self._input_size_limit = input_size_limit
         self._output_size_limit = output_size_limit
@@ -921,7 +919,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                     e,
                 )
 
-    def new_constant(self, node: ir.Node, value):
+    def new_constant(self, node: ir.Node, value) -> ir.Node | None:
         irvalue = node.outputs[0]
         if not isinstance(value, np.ndarray):
             # ONNX does not have a way to represent non-tensor constants, eg. a sequence.
@@ -967,7 +965,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         node = ir.Node("", "Constant", inputs=[], attributes=attributes, num_outputs=1)
         return node
 
-    def process_node(self, node: ir.Node):
+    def process_node(self, node: ir.Node) -> Replacement | None:
         for i, value in enumerate(node.inputs):
             sym_value = self._state.get_sym_value(value)
             if isinstance(sym_value, ir.Value):
@@ -1048,7 +1046,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             )
         return None
 
-    def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function):
+    def replace_node(self, node: ir.Node, replacement, root: ir.Graph | ir.Function) -> None:
         logger.debug("Replacing node: %s::%s %s", node.domain, node.op_type, node.name)
 
         ir.convenience.replace_nodes_and_values(
@@ -1068,13 +1066,13 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 for graph in attr.as_graphs():
                     self.visit_graph(graph)
 
-    def visit_node(self, node: ir.Node, root: ir.Graph | ir.Function):
+    def visit_node(self, node: ir.Node, root: ir.Graph | ir.Function) -> None:
         replacement = self.process_node(node)
         if replacement is None:
             # No change. Process attributes.
             for attr in node.attributes.values():
                 self.visit_attribute(attr)
-            return None
+            return
         else:
             self.replace_node(node, replacement, root)
 
@@ -1088,6 +1086,22 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 
         for node in graph:
             self.visit_node(node, graph)
+
+        # Replace outputs if output nodes can be folded. This are typically outputs from
+        # Identity nodes
+        for i, output in enumerate(graph.outputs):
+            if output is None:
+                continue
+            sym_value = self._state.get_sym_value(output)
+            if not isinstance(sym_value, ir.Value):
+                # An output must be a Value
+                continue
+            if not _sym_value_can_replace_graph_output(graph, sym_value, output):
+                continue
+            # Rename sym_value to match the output name
+            sym_value.name = output.name
+            graph.outputs[i] = sym_value
+            self.modified = True
 
         self._state.pop_initializer_inputs()
 
@@ -1105,6 +1119,24 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         return FoldConstantsResult(model, self.modified, self._state.symbolic_value_map)
 
 
+def _sym_value_can_replace_graph_output(
+    graph: ir.Graph, sym_value: ir.Value, output: ir.Value
+) -> bool:
+    if (producer := sym_value.producer()) is None:
+        # If the sym_value has no producer, it is some graph's input
+        # ONNX does not allow a graph input to be a graph output
+        return False
+    if producer.graph is not graph:
+        # The sym_value must be produced by a node in the graph to be an output of this graph
+        return False
+    if sym_value.is_graph_output():
+        # If the sym_value is already an output of a graph, we cannot rename it
+        # to this output name. Otherwise the graph output represented by sym_value
+        # will lose its name.
+        return False
+    return True
+
+
 @dataclasses.dataclass
 class FoldConstantsResult(ir.passes.PassResult):
     symbolic_value_map: dict[ir.Value, SymbolicValue]
@@ -1117,7 +1149,6 @@ class FoldConstantsResult(ir.passes.PassResult):
 
 def fold_constants(
     model: ir.Model,
-    external_data_folder: str = "",
     *,
     onnx_shape_inference: bool = False,
     input_size_limit: int = DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
@@ -1128,8 +1159,6 @@ def fold_constants(
 
     Args:
         model: The ONNX model to optimize.
-        external_data_folder: Path to the folder containing external data
-            for the model. Defaults to an empty string.
         onnx_shape_inference: Whether to enable ONNX shape inference during
             constant folding. Defaults to False.
         input_size_limit: The maximum size (in bytes) of input tensors
@@ -1144,7 +1173,6 @@ def fold_constants(
 
     """
     folder_pass = FoldConstantsPass(
-        external_data_folder=external_data_folder,
         shape_inference=onnx_shape_inference,
         input_size_limit=input_size_limit,
         output_size_limit=output_size_limit,

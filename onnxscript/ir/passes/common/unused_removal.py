@@ -93,12 +93,20 @@ def _remove_unused_nodes_in_graph_like(function_or_graph: ir.Function | ir.Graph
 
 
 class RemoveUnusedNodesPass(ir.passes.InPlacePass):
+    """Pass for removing unused nodes and initializers (dead code elimination).
+
+    This pass does not modify the model signature (inputs and outputs). It ensures
+    that unused nodes and initializers are removed while preserving the original
+    contract of the model.
+    """
+
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         count = _remove_unused_nodes_in_graph_like(model.graph)
         graph_outputs = frozenset(model.graph.outputs)
+        graph_inputs = frozenset(model.graph.inputs)
         initializers = model.graph.initializers
         for init in list(initializers.values()):
-            if not (init in graph_outputs or init.uses()):
+            if not (init.uses() or init in graph_outputs or init in graph_inputs):
                 assert init.name is not None
                 del initializers[init.name]
                 count += 1
@@ -176,13 +184,13 @@ class RemoveUnusedOpsetsPass(ir.passes.InPlacePass):
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         # Record domains of all functions
-        used_domains = set()
+        used_domains = {""}  # By default always retain the onnx (default) domain
         for function in model.functions.values():
             used_domains.add(function.domain)
         modified = self._process_graph_like(model.graph, used_domains=used_domains)
 
         if self.process_functions:
             for function in model.functions.values():
-                modified |= self._process_graph_like(function, used_domains=set())
+                modified |= self._process_graph_like(function, used_domains={""})
 
         return ir.passes.PassResult(model, modified=modified)

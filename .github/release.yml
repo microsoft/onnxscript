@@ -18,10 +18,10 @@ changelog:
     - title: ONNX IR
       labels:
         - "module: IR"
+        - "topic: passes"
     - title: Torch Lib
       labels:
         - "module: torchlib"
-        - "topic: passes"
     - title: Documentation
       labels:
         - "topic: documentation"

@@ -54,6 +54,40 @@ class RemoveUnusedTest(unittest.TestCase):
         self.assertEqual(model.graph.node[0].op_type, "Mul")
         self.assertEqual(len(model.graph.initializer), 0)
 
+    def test_unused_initialized_inputs_are_kept(self):
+        model = onnx.parser.parse_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 17]>
+            agraph (float[N] x, float[N] two) => (float[N] z)
+            <float two = {2.0,2.0}> {
+                four = Add(two, two)
+                z = Mul(x, x)
+            }
+        """
+        )
+        model = self.remove_unused_nodes(model)
+        self.assertEqual(len(model.graph.node), 1)
+        self.assertEqual(model.graph.node[0].op_type, "Mul")
+        self.assertEqual(len(model.graph.input), 2)
+        self.assertEqual(len(model.graph.initializer), 1)
+
+    def test_unused_inputs_are_not_removed(self):
+        # preserve inputs as part of interface
+        model = onnx.parser.parse_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 17]>
+            agraph (float[N] x, float[N] two) => (float[N] z)
+            {
+                four = Add(two, two)
+                z = Mul(x, x)
+            }
+        """
+        )
+        model = self.remove_unused_nodes(model)
+        self.assertEqual(len(model.graph.node), 1)
+        self.assertEqual(model.graph.node[0].op_type, "Mul")
+        self.assertEqual(len(model.graph.input), 2)
+
     def test_partially_used_nodes(self):
         model = onnx.parser.parse_model(
             """
