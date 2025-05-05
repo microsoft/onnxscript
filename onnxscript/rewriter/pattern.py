@@ -10,6 +10,7 @@ import inspect
 import itertools
 import math
 from collections import defaultdict
+from collections.abc import Mapping
 from typing import (
     Any,
     Callable,
@@ -794,7 +795,7 @@ class _OpIdDispatchOr(ValuePattern):
 
     def __init__(
         self,
-        op_to_pattern: dict[ir.OperatorIdentifier, tuple[Any, ValuePattern]],
+        op_to_pattern: Mapping[ir.OperatorIdentifier, tuple[Any, ValuePattern]],
         name: str | None = None,
         tag_var: str | None = None,
     ) -> None:
