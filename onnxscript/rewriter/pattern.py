@@ -345,10 +345,7 @@ class MatchResult:
         if not current_match:
             raise ValueError("Current match is not successful.")
         # Merge the two matches.
-        previous_match._bindings.update(current_match._bindings)
-        previous_match._matched_nodes.extend(current_match.nodes)
-        # Note: outputs should be set only at end of the (top-level) match.
-        assert not current_match._outputs
+        previous_match.merge(current_match)
 
     def __bool__(self) -> bool:
         """Returns True if the current match is successful."""
@@ -499,6 +496,20 @@ class PartialMatchResult:
     @property
     def node_bindings(self) -> dict[NodePattern, ir.Node]:
         return self._node_bindings
+
+    def merge(self, other: PartialMatchResult) -> None:
+        """Merges a successful sub-match for an alternative with the parent one."""
+        if self._success and other._success:
+            # Merge the two successful matches. Matching algorithm responsible for ensuring
+            # that the two matches are compatible. No need to check for conflicts here.
+            self._bindings.update(other._bindings)
+            self._matched_nodes.extend(other.nodes)
+            # Note: outputs should be set only at end of the (top-level) match. There
+            # should be no outputs in the sub-match.
+            assert not other._outputs
+        else:
+            # This should not happen currently.
+            raise NotImplementedError("Merging failed matches is not yet supported.")
 
 
 _pattern_builder: OpsetPatternBuilder = onnxop
