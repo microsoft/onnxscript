@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from typing import Callable, Sequence, Union
 
+import packaging.version
+
 import onnxscript.ir as ir
 from onnxscript.ir.passes.common import shape_inference
 from onnxscript.rewriter import pattern
+from onnxscript.rewriter.ort_fusions._test_utils import ORT_VERSION
 
 Dim = Union[int, ir.SymbolicDim]
 
@@ -31,18 +34,25 @@ def apply_fusion_rules(rules: pattern.RewriteRule | pattern.RewriteRuleSet) -> C
     model: The input ONNX model represented as an `ir.Model`.
     debug: If debug is True, enable pattern matching tracer for debugging.
     apply_shape_inference: If True, apply shape inference after fusions.
+    ort_version: The minumum version of ONNX Runtime needed to apply fusion for the
+                latest version of a contib operator (com.microsoft domain ops).
     """
 
     def apply_to(
-        model: ir.Model, debug: bool = False, apply_shape_inference: bool = False
+        model: ir.Model,
+        debug: bool = False,
+        apply_shape_inference: bool = False,
+        ort_version: str = "1.18",
     ) -> int:
-        count = rules.apply_to_model(model)
-        if apply_shape_inference:
-            shape_inference.infer_shapes(model)
-        if count == 0 and debug:
-            tracer = pattern.MatchingTracer()
-            rules.apply_to_model(model, tracer=tracer)
-            tracer.report()
+        count = 0
+        if packaging.version.Version(ort_version) <= ORT_VERSION:
+            count = rules.apply_to_model(model)
+            if apply_shape_inference:
+                shape_inference.infer_shapes(model)
+            if count == 0 and debug:
+                tracer = pattern.MatchingTracer()
+                rules.apply_to_model(model, tracer=tracer)
+                tracer.report()
         return count
 
     return apply_to

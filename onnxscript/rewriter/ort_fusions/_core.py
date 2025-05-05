@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+import copy
+
 import onnxscript.ir as ir
 from onnxscript.ir.passes.common import shape_inference
 from onnxscript.optimizer import optimize
@@ -69,8 +71,14 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
 
     model = _pre_optimize(model)
 
-    def fuse(func, apply_shape_inference: bool = False):
-        return func(model, debug=debug, apply_shape_inference=apply_shape_inference)
+    def fuse(func, apply_shape_inference: bool = False, ort_version: str = "1.18"):
+        # Guard against fusions that are not supported in the specified version of ORT.
+        return func(
+            model,
+            debug=debug,
+            apply_shape_inference=apply_shape_inference,
+            ort_version=ort_version,
+        )
 
     fusion_count["erf_gelu"] = fuse(fuse_erfgelu)
     fusion_count["rms_normalization"] = fuse(fuse_rms_normalization)
@@ -79,18 +87,28 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
     fusion_count["rotary_embedding"] = fuse(fuse_rotary_embedding)
     fusion_count["partial_rotary_embedding"] = fuse(fuse_partial_rotary_embedding)
     fusion_count["cos_sin_cache"] = fuse(fuse_cos_sin_cache)
+
+    # Only apply attention-related fusions if sdpa fusion was successful.
+    # This is because attention fusions require presence of an SDPA op.
+    # If sdpa fusion was successful, but no attention fusions were applied,
+    # go back to the orignal model state.
+    model_before_sdpa = copy.copy(model)
     fusion_count["sdpa"] = fuse(fuse_sdpa, apply_shape_inference=True)
-    # Optimize to avoid trying multiple attention-based fusions
-    fusion_count["mha"] = fuse(fuse_mha)
-    if fusion_count["mha"] == 0:
-        # If no MHA fusion was applied, we can try the GQA fusion.
-        # and avoid trying the attention fusion.
-        fusion_count["gqa"] = fuse(fuse_gqa)
-        fusion_count["packed_qkv_for_gqa"] = fuse(fuse_qkv_gqa)
-        fusion_count["attention"] = 0
-    else:
-        fusion_count["attention"] = fuse(fuse_attention)
-        fusion_count["gqa"] = 0
+    if fusion_count["sdpa"] != 0:
+        # Optimize to avoid trying multiple attention-based fusions
+        fusion_count["mha"] = fuse(fuse_mha, ort_version="1.20")
+        if fusion_count["mha"] == 0:
+            # If no MHA fusion was applied, we can try the GQA fusion.
+            # and avoid trying the attention fusion.
+            fusion_count["gqa"] = fuse(fuse_gqa, ort_version="1.20")
+            if fusion_count["gqa"] == 0:
+                model = model_before_sdpa
+                del fusion_count["sdpa"], fusion_count["mha"], fusion_count["gqa"]
+            else:
+                fusion_count["packed_qkv_for_gqa"] = fuse(fuse_qkv_gqa, ort_version="1.20")
+        else:
+            fusion_count["attention"] = fuse(fuse_attention, ort_version="1.21.1")
+
     fusion_count["gelu"] = fuse(fuse_gelu)
     fusion_count["bias_gelu"] = fuse(fuse_bias_gelu)
     # Finally: inline any intermediate fusion functions introduced that were not

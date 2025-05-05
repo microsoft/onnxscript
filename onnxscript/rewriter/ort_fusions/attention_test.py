@@ -138,7 +138,7 @@ class TestAttentionFusion(unittest.TestCase):
         model = self.create_model(with_past=with_past)
         model = shape_inference.infer_shapes(model)
 
-        test_with_ort = packaging.version.Version("1.20") <= ORT_VERSION
+        test_with_ort = packaging.version.Version("1.21.1") <= ORT_VERSION
         if test_with_ort:
             # Run model
             original_outputs = ort_run("original", model, inputs)

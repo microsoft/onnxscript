@@ -8,6 +8,7 @@ import unittest
 import numpy as np
 import onnx
 import onnxruntime as ort
+import packaging.version
 import torch
 
 import onnxscript
@@ -16,7 +17,7 @@ import onnxscript.ir.passes.common.shape_inference as shape_inference
 import onnxscript.optimizer
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
-from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose
+from onnxscript.rewriter.ort_fusions._test_utils import ORT_VERSION, assert_allclose
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
 from onnxscript.rewriter.ort_fusions.sdpa import fuse_sdpa
 
@@ -282,10 +283,13 @@ class GQAFusionTest(unittest.TestCase):
             input_types=self.input_types,
             output_types=self.output_types,
         )
-        session = ort.InferenceSession(
-            source_model.SerializeToString(), providers=("CPUExecutionProvider",)
-        )
-        source_model_outputs = session.run(None, inputs)
+
+        test_with_ort = packaging.version.Version("1.20") <= ORT_VERSION
+        if test_with_ort:
+            session = ort.InferenceSession(
+                source_model.SerializeToString(), providers=("CPUExecutionProvider",)
+            )
+            source_model_outputs = session.run(None, inputs)
 
         # Some shapes need to be present in input model for fusion to be successful.
         # (i) Shape inference doesn't handle handle ORT contrib ops.
@@ -330,14 +334,15 @@ class GQAFusionTest(unittest.TestCase):
         count = fuse_gqa(inferred_model, debug=True)
         self.assertEqual(count, 1)
 
-        fused_model = ir.serde.to_proto(inferred_model)
-        session = ort.InferenceSession(
-            fused_model.SerializeToString(), providers=("CPUExecutionProvider",)
-        )
-        outputs3 = session.run(None, inputs)
+        if test_with_ort:
+            fused_model = ir.serde.to_proto(inferred_model)
+            session = ort.InferenceSession(
+                fused_model.SerializeToString(), providers=("CPUExecutionProvider",)
+            )
+            outputs3 = session.run(None, inputs)
 
-        self.assertEqual(len(outputs3), len(source_model_outputs))
-        assert_allclose(outputs3, source_model_outputs)
+            self.assertEqual(len(outputs3), len(source_model_outputs))
+            assert_allclose(outputs3, source_model_outputs)
 
 
 if __name__ == "__main__":
