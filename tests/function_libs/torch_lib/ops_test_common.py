@@ -35,7 +35,7 @@ from torch.testing._internal.opinfo import core as opinfo_core
 
 import onnxscript
 import onnxscript.evaluator
-import onnxscript.ir.passes.common.unused_removal
+import onnxscript.ir.passes.common
 from onnxscript import ir
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from tests.function_libs.torch_lib import error_reproduction

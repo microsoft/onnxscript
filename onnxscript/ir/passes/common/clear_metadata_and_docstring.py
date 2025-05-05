@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 class ClearMetadataAndDocStringPass(ir.passes.InPlacePass):
+    """Clear all metadata and docstring from the model, graphs, nodes, and functions."""
+
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         # 0. TODO: Should we clean model metadata and docstring?
 
