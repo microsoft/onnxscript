@@ -372,6 +372,11 @@ class MatchResult:
         """Returns the list of nodes that matched the pattern."""
         return self._current_match.nodes
 
+    def bind_node(self, pattern_node: NodePattern, node: ir.Node):
+        """Binds a pattern node to a matched node."""
+        self.add_node(node)
+        self._current_match.node_bindings[pattern_node] = node
+
     def add_node(self, node: ir.Node) -> None:
         """Adds a node to the list of matched nodes."""
         self._current_match.add_node(node)
@@ -409,6 +414,17 @@ class MatchResult:
         """Returns the nodes and values that caused the failure."""
         return self._current_match._failure_nodes_and_values
 
+    def lookup_node(self, pattern_node: NodePattern) -> ir.Node | None:
+        """Looks up the node that matched the given pattern node."""
+        for match in self._partial_matches:
+            if pattern_node in match.node_bindings:
+                return match.node_bindings[pattern_node]
+        return None
+
+    def num_matched_nodes(self) -> int:
+        """Returns the number of nodes matched so far."""
+        return sum(len(match.node_bindings) for match in self._partial_matches)
+
 
 class PartialMatchResult:
     """The state object used by the pattern-matching algorithm for a sub-match."""
@@ -423,6 +439,7 @@ class PartialMatchResult:
         # For a successful match, bindings is a dictionary of mapping pattern-variable-names
         # to values.
         self._bindings: dict[str, Any] = {}
+        self._node_bindings: dict[NodePattern, ir.Node] = {}
         self._outputs: list[ir.Value] = []
         # For a failed match, _reason is a string that describes the reason for the failure.
         self._reason: str = ""
@@ -478,6 +495,10 @@ class PartialMatchResult:
     @property
     def outputs(self) -> MutableSequence[ir.Value]:
         return self._outputs
+
+    @property
+    def node_bindings(self) -> dict[NodePattern, ir.Node]:
+        return self._node_bindings
 
 
 _pattern_builder: OpsetPatternBuilder = onnxop
@@ -1123,9 +1144,9 @@ class SimplePatternMatcher(PatternMatcher):
 
     def fail(self, reason: str, node: ir.Node | None = None) -> bool:
         if self._verbose:
-            if self._matched:  # Print only if at least one node successfully matched.
-                count = len(self._matched)
-                print(f"Match failed after {count} nodes: {reason}")
+            num_matched_nodes = self._match.num_matched_nodes()
+            if num_matched_nodes > 0:  # Print only if at least one node successfully matched.
+                print(f"Match failed after {num_matched_nodes} nodes: {reason}")
         self._match.fail(reason, node or self._current_node)
         return False
 
@@ -1191,8 +1212,9 @@ class SimplePatternMatcher(PatternMatcher):
         self._current_node = node
         # Graph-matching: we do not allow the same pattern node to be matched against
         # different graph nodes.
-        if pattern_node in self._matched:
-            if self._matched[pattern_node] is not node:
+        matched_node = self._match.lookup_node(pattern_node)
+        if matched_node is not None:
+            if matched_node is not node:
                 return self.fail("Same pattern node is matched against different graph nodes.")
             return True
         match = self._match
@@ -1202,8 +1224,7 @@ class SimplePatternMatcher(PatternMatcher):
         if self._verbose:
             print(f"Matched: {node.op_type}")
 
-        match.add_node(node)
-        self._matched[pattern_node] = node
+        match.bind_node(pattern_node, node)
 
         # TODO: Revisit this to handle optional trailing inputs better.
         if pattern_node.allow_other_inputs:
@@ -1282,7 +1303,6 @@ class SimplePatternMatcher(PatternMatcher):
     def _init_match(self, verbose: int) -> None:
         """Initialize the match state. Invoked before starting a new match."""
         self._verbose = verbose
-        self._matched: dict[NodePattern, ir.Node] = {}
         self._match: MatchResult = MatchResult()
         self._current_node = None
 
@@ -1299,8 +1319,9 @@ class SimplePatternMatcher(PatternMatcher):
             elif isinstance(value_pattern, NodeOutputPattern):
                 i = value_pattern.output_index
                 node = value_pattern.producer()
-                if node in self._matched:
-                    output_values.append(self._matched[node].outputs[i])
+                matched_node = self._match.lookup_node(node)
+                if matched_node is not None:
+                    output_values.append(matched_node.outputs[i])
                 else:
                     unbound_values.append(f"output_{j}")
             elif isinstance(value_pattern, Constant):
