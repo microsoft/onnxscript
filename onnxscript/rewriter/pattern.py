@@ -778,24 +778,22 @@ class Constant(ValuePattern):
         return str(self._value)
 
 
-class _DeterministicOr(ValuePattern):
+class _OpIdDispatchOr(ValuePattern):
     """Represents a (restricted) form of value pattern disjunction that enables deterministic matching."""
 
     def __init__(
         self,
         op_to_pattern: dict[ir.OperatorIdentifier, tuple[Any, ValuePattern]],
-        default_pattern: tuple[Any, ValuePattern],
         name: str | None = None,
         tag_var: str | None = None,
     ) -> None:
         """
-        Initialize an _DeterministicOr pattern.
+        Initialize an _OpIdDispatchOr pattern.
 
         Args:
             op_to_pattern: A dictionary mapping operator identifiers to tuples of tag values and patterns.
                 The keys are operator identifiers, and the values are tuples containing a tag value
                 and a pattern to match against.
-            default_pattern: A tuple containing a tag value and a default pattern to match against.
             name: An optional variable name for the pattern. Defaults to None. If present,
                 this name will be bound to the value matched by the pattern.
             tag_var: An optional variable name for the tag. Defaults to None. If present,
@@ -803,7 +801,6 @@ class _DeterministicOr(ValuePattern):
         """
         super().__init__(name)
         self._op_to_pattern = op_to_pattern
-        self._default_pattern = default_pattern
         self._tag_var = tag_var
 
     @property
@@ -811,22 +808,21 @@ class _DeterministicOr(ValuePattern):
         """Returns the tag variable associated with the OrValue pattern."""
         return self._tag_var
 
-    def clone(self, node_map: dict[NodePattern, NodePattern]) -> _DeterministicOr:
-        return _DeterministicOr(
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> _OpIdDispatchOr:
+        return _OpIdDispatchOr(
             {k: (v[0], v[1].clone(node_map)) for k, v in self._op_to_pattern.items()},
-            (self._default_pattern[0], self._default_pattern[1].clone(node_map)),
             self.name,
             self._tag_var,
         )
 
-    def get_pattern(self, value: ir.Value) -> tuple[Any, ValuePattern]:
+    def get_pattern(self, value: ir.Value) -> tuple[Any, ValuePattern] | None:
         """Returns the pattern that should be tried for the given value."""
         producer = value.producer()
         if producer is not None:
             id = producer.op_identifier()
             if id is not None and id in self._op_to_pattern:
                 return self._op_to_pattern[id]
-        return self._default_pattern
+        return None
 
 
 class _BacktrackingOr(ValuePattern):
@@ -911,7 +907,7 @@ def OrValue(
     else:
         tag_values = tuple(range(len(values)))
 
-    def make_op_id_or_pattern() -> _DeterministicOr | None:
+    def make_op_id_or_pattern() -> _OpIdDispatchOr | None:
         mapping: dict[ir.OperatorIdentifier, tuple[Any, NodeOutputPattern]] = {}
         for i, alternative in enumerate(values):
             if not isinstance(alternative, NodeOutputPattern):
@@ -921,8 +917,7 @@ def OrValue(
             if id is None or id in mapping:
                 return None
             mapping[id] = (tag_values[i], alternative)
-        default = (tag_values[-1], values[-1])  # TODO
-        return _DeterministicOr(mapping, default, name, tag_var)
+        return _OpIdDispatchOr(mapping, name, tag_var)
 
     optimized_pattern = make_op_id_or_pattern()
     return optimized_pattern or _BacktrackingOr(
@@ -1352,10 +1347,13 @@ class SimplePatternMatcher(PatternMatcher):
                     return True
                 self._match.abandon_current_match()
             return self.fail("None of the alternatives matched.")
-        if isinstance(pattern_value, _DeterministicOr):
+        if isinstance(pattern_value, _OpIdDispatchOr):
             if value is None:
                 return self.fail("Mismatch: OrValue pattern does not match None.")
-            i, pattern_choice = pattern_value.get_pattern(value)
+            alternative = pattern_value.get_pattern(value)
+            if alternative is None:
+                return self.fail("Mismatch: OrValue pattern does not match value.")
+            i, pattern_choice = alternative
             result = self._match_value(pattern_choice, value)
             if result:
                 if pattern_value.tag_var is not None:
