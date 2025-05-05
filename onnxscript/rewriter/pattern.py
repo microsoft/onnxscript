@@ -345,7 +345,7 @@ class MatchResult:
         if not current_match:
             raise ValueError("Current match is not successful.")
         # Merge the two matches.
-        current_match._bindings.update(previous_match._bindings)
+        previous_match._bindings.update(current_match._bindings)
         previous_match._matched_nodes.extend(current_match.nodes)
         # Note: outputs should be set only at end of the (top-level) match.
         assert not current_match._outputs
@@ -778,8 +778,59 @@ class Constant(ValuePattern):
         return str(self._value)
 
 
-class OrValue(ValuePattern):
-    """Represents a (restricted) form of value pattern disjunction."""
+class _DeterministicOr(ValuePattern):
+    """Represents a (restricted) form of value pattern disjunction that enables deterministic matching."""
+
+    def __init__(
+        self,
+        op_to_pattern: dict[ir.OperatorIdentifier, tuple[Any, ValuePattern]],
+        default_pattern: tuple[Any, ValuePattern],
+        name: str | None = None,
+        tag_var: str | None = None,
+    ) -> None:
+        """
+        Initialize an _DeterministicOr pattern.
+
+        Args:
+            op_to_pattern: A dictionary mapping operator identifiers to tuples of tag values and patterns.
+                The keys are operator identifiers, and the values are tuples containing a tag value
+                and a pattern to match against.
+            default_pattern: A tuple containing a tag value and a default pattern to match against.
+            name: An optional variable name for the pattern. Defaults to None. If present,
+                this name will be bound to the value matched by the pattern.
+            tag_var: An optional variable name for the tag. Defaults to None. If present,
+                it will be bound to a value indicating which alternative was matched.
+        """
+        super().__init__(name)
+        self._op_to_pattern = op_to_pattern
+        self._default_pattern = default_pattern
+        self._tag_var = tag_var
+
+    @property
+    def tag_var(self) -> str | None:
+        """Returns the tag variable associated with the OrValue pattern."""
+        return self._tag_var
+
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> _DeterministicOr:
+        return _DeterministicOr(
+            {k: (v[0], v[1].clone(node_map)) for k, v in self._op_to_pattern.items()},
+            (self._default_pattern[0], self._default_pattern[1].clone(node_map)),
+            self.name,
+            self._tag_var,
+        )
+
+    def get_pattern(self, value: ir.Value) -> tuple[Any, ValuePattern]:
+        """Returns the pattern that should be tried for the given value."""
+        producer = value.producer()
+        if producer is not None:
+            id = producer.op_identifier()
+            if id is not None and id in self._op_to_pattern:
+                return self._op_to_pattern[id]
+        return self._default_pattern
+
+
+class _BacktrackingOr(ValuePattern):
+    """Represents an unrestricted form of OR pattern implemented using backtracking."""
 
     def __init__(
         self,
@@ -789,13 +840,10 @@ class OrValue(ValuePattern):
         tag_values: Sequence[Any] | None = None,
     ) -> None:
         """
-        Initialize an OrValue pattern.
+        Initialize a _BacktrackingOr pattern.
 
         Args:
             values: A sequence of value patterns to match against.
-                Must contain at least two alternatives. All value patterns except the last one
-                must have a unique producer id. This allows the pattern-matching to be deterministic,
-                without the need for backtracking.
             name: An optional variable name for the pattern. Defaults to None. If present,
                 this name will be bound to the value matched by the pattern.
             tag_var: An optional variable name for the tag. Defaults to None. If present,
@@ -806,8 +854,6 @@ class OrValue(ValuePattern):
                 alternative pattern matched. If omitted, the default value of (0, 1, 2, ...) will be used.
         """
         super().__init__(name)
-        if len(values) < 2:
-            raise ValueError("OrValue must have at least two alternatives.")
         if tag_values is not None:
             if tag_var is None:
                 raise ValueError("tag_var must be specified if tag_values is provided.")
@@ -821,47 +867,67 @@ class OrValue(ValuePattern):
         self._tag_values = tag_values
         self._values = values
 
-        mapping: dict[ir.OperatorIdentifier, tuple[Any, NodeOutputPattern]] = {}
-        for i, alternative in enumerate(values[:-1]):
-            if not isinstance(alternative, NodeOutputPattern):
-                raise TypeError(
-                    f"Invalid type {type(alternative)} for OrValue. Expected NodeOutputPattern."
-                )
-            producer = alternative.producer()
-            id = producer.op_identifier()
-            if id is None:
-                raise ValueError(
-                    f"Invalid producer {producer} for OrValue. Expected a NodePattern with op identifier."
-                )
-            if id in mapping:
-                raise ValueError(
-                    f"Invalid producer {producer} for OrValue. Expected a unique producer id for each alternative."
-                )
-            mapping[id] = (tag_values[i], alternative)
-        self._op_to_pattern = mapping
-        self._default_pattern = (tag_values[-1], values[-1])
-
     @property
     def tag_var(self) -> str | None:
         """Returns the tag variable associated with the OrValue pattern."""
         return self._tag_var
 
-    def clone(self, node_map: dict[NodePattern, NodePattern]) -> OrValue:
-        return OrValue(
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> _BacktrackingOr:
+        return _BacktrackingOr(
             [v.clone(node_map) for v in self._values],
             self.name,
             self._tag_var,
             self._tag_values,
         )
 
-    def get_pattern(self, value: ir.Value) -> tuple[Any, ValuePattern]:
-        """Returns the pattern that should be tried for the given value."""
-        producer = value.producer()
-        if producer is not None:
+
+def OrValue(
+    values: Sequence[ValuePattern],
+    name: str | None = None,
+    tag_var: str | None = None,
+    tag_values: Sequence[Any] | None = None,
+) -> ValuePattern:
+    """
+    Creates an OR pattern.
+
+    Args:
+        values: A sequence of value patterns to match against.
+        name: An optional variable name for the pattern. Defaults to None. If present,
+            this name will be bound to the value matched by the pattern.
+        tag_var: An optional variable name for the tag. Defaults to None. If present,
+            it will be bound to a value (from tag_values) indicating which alternative was matched.
+        tag_values: An optional sequence of values to bind to the tag_var. Defaults to None.
+            If present, the length of tag_values must match the number of alternatives in values.
+            In a successful match, tag-var will be bound to the i-th value in tag_values if the i-th
+            alternative pattern matched. If omitted, the default value of (0, 1, 2, ...) will be used.
+    """
+    if tag_values is not None:
+        if tag_var is None:
+            raise ValueError("tag_var must be specified if tag_values is provided.")
+        if len(tag_values) != len(values):
+            raise ValueError(
+                "tag_values must have the same length as the number of alternatives."
+            )
+    else:
+        tag_values = tuple(range(len(values)))
+
+    def make_op_id_or_pattern() -> _DeterministicOr | None:
+        mapping: dict[ir.OperatorIdentifier, tuple[Any, NodeOutputPattern]] = {}
+        for i, alternative in enumerate(values):
+            if not isinstance(alternative, NodeOutputPattern):
+                return None
+            producer = alternative.producer()
             id = producer.op_identifier()
-            if id is not None and id in self._op_to_pattern:
-                return self._op_to_pattern[id]
-        return self._default_pattern
+            if id is None or id in mapping:
+                return None
+            mapping[id] = (tag_values[i], alternative)
+        default = (tag_values[-1], values[-1])  # TODO
+        return _DeterministicOr(mapping, default, name, tag_var)
+
+    optimized_pattern = make_op_id_or_pattern()
+    return optimized_pattern or _BacktrackingOr(
+        values, name, tag_var, tag_values if tag_var else None
+    )
 
 
 def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[NodePattern]:
@@ -1276,7 +1342,17 @@ class SimplePatternMatcher(PatternMatcher):
             if value is None:
                 return self.fail("Mismatch: Constant pattern does not match None.")
             return self._match_constant(pattern_value, value)
-        if isinstance(pattern_value, OrValue):
+        if isinstance(pattern_value, _BacktrackingOr):
+            for i, pattern_choice in enumerate(pattern_value._values):
+                self._match.enter_new_match()
+                if self._match_value(pattern_choice, value):
+                    if pattern_value.tag_var is not None:
+                        self._match.bind(pattern_value.tag_var, pattern_value._tag_values[i])
+                    self._match.merge_current_match()
+                    return True
+                self._match.abandon_current_match()
+            return self.fail("None of the alternatives matched.")
+        if isinstance(pattern_value, _DeterministicOr):
             if value is None:
                 return self.fail("Mismatch: OrValue pattern does not match None.")
             i, pattern_choice = pattern_value.get_pattern(value)

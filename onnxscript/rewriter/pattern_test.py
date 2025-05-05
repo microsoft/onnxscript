@@ -721,6 +721,39 @@ class RewriteRuleTest(unittest.TestCase):
         rule.apply_to_model(model)
         self.assertEqual([x.op_type for x in model.graph], ["WithBias"])
 
+    def test_backtracking_pattern(self):
+        def source_pattern(op, x, y, bias):
+            t1 = op.MatMul(x, y)
+            choice1 = op.Add(t1, bias)
+            choice2 = op.Add(bias, t1)
+            t2 = pattern.OrValue([choice1, choice2])
+            return op.Relu(t2)
+
+        def replacement(op, x, y, bias):
+            return op.GemmRelu(x, y, bias)
+
+        rule = pattern.RewriteRule(source_pattern, replacement)
+
+        @script()
+        def test_model1(x: FLOAT[16, 32], y: FLOAT[32, 16], bias: FLOAT[16]) -> FLOAT[16, 16]:
+            return op.Relu(op.Add(op.MatMul(x, y), bias))
+
+        model_proto = test_model1.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        rule.apply_to_model(model)
+        self.assertEqual([x.op_type for x in model.graph], ["GemmRelu"])
+        self.assertEqual([x.name for x in model.graph.node(0).inputs], ["x", "y", "bias"])
+
+        @script()
+        def test_model2(x: FLOAT[16, 32], y: FLOAT[32, 16], bias: FLOAT[16]) -> FLOAT[16, 16]:
+            return op.Relu(op.Add(bias, op.MatMul(x, y)))
+
+        model_proto = test_model2.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        rule.apply_to_model(model)
+        self.assertEqual([x.op_type for x in model.graph], ["GemmRelu"])
+        self.assertEqual([x.name for x in model.graph.node(0).inputs], ["x", "y", "bias"])
+
 
 class PatternBuilderTest(unittest.TestCase):
     def test_pattern_builder_context(self):
