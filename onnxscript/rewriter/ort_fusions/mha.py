@@ -219,7 +219,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 f"Shape mismatch: {query_BSHDh} does not match expected dimensions ['B', 'S', 'H', 'Dh']",
                 query_BSHDh,
             )
-        # If cross-attention key/value shapes are 4D
+        # If cross-attention, key/value shapes are 4D
         if self._is_cross_attention:
             if no_match(key, ["B", "H", "Skv", "Dh"]):
                 return check_result.fail(
@@ -349,9 +349,10 @@ parameter_combinations = [
     for pre_scale_q in [True, False]
     for is_rotary in [False, True]
     for use_mask in [False, True]
-    # Enforce has_past_present to be True first, to avoid missing the pattern
-    for has_past_present in [True, False]
     for is_cross_attention in [False, True]
+    for has_past_present in ([False] if is_cross_attention else [True, False])
+    # Skip if both has_past_present and is_cross_attention are True
+    if not (has_past_present and is_cross_attention)
 ]
 
 # Dynamically create the rules

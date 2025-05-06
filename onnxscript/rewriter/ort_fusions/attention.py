@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import onnxscript.ir as ir
-from onnxscript.rewriter import _fusion_utils, pattern
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 Dim = Union[int, ir.SymbolicDim]
 
@@ -36,6 +36,12 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         attention_bias,
         num_heads,
         # scale,
+        start1,
+        end1,
+        start2,
+        end2,
+        start3,
+        end3,
         q_mul,
         k_mul,
         v_mul,
@@ -45,28 +51,28 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
             key_BSD = op.MatMul(input, k_mul)
             value_BSD = op.MatMul(input, v_mul)
         else:
-            projected = op.MatMul(input, qkv_weight)
+            projected = op.MatMul(input, qkv_weight, _outputs=["projected"])
 
             # Slice packed Matmul QKV into Q, K, and V
             # Q, K, and V are of shape (B, S, D)
             query_BSD = op.Slice(
                 projected,
-                pattern.ANY_VALUE,  # starts
-                pattern.ANY_VALUE,  # ends
+                start1,  # starts
+                end1,  # ends
                 [2],  # axes
                 _outputs=["query_mm_sliced"],
             )
             key_BSD = op.Slice(
                 projected,
-                pattern.ANY_VALUE,  # starts
-                pattern.ANY_VALUE,  # ends
+                start2,  # starts
+                end2,  # ends
                 [2],  # axes
                 _outputs=["key_mm_sliced"],
             )
             value_BSD = op.Slice(
                 projected,
-                pattern.ANY_VALUE,  # starts
-                pattern.ANY_VALUE,  # ends
+                start3,  # starts
+                end3,  # ends
                 [2],  # axes
                 _outputs=["value_mm_sliced"],
             )
@@ -135,9 +141,16 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
         op,
         input,
         qkv_weight,
+        projected=None,
         query_mm_sliced=None,
         key_mm_sliced=None,
         value_mm_sliced=None,
+        start1=None,
+        end1=None,
+        start2=None,
+        end2=None,
+        start3=None,
+        end3=None,
         q_mul=None,
         k_mul=None,
         v_mul=None,
@@ -155,6 +168,23 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 input,
             )
         if not self._no_slice:
+            # Ensure slicing is done correctly
+            if projected is None or projected.shape is None or len(projected.shape) != 3:
+                return check_result.fail("Input projection is not a 3D tensor.", projected)
+            hidden_size = projected.shape[2]
+            if not isinstance(hidden_size, int):
+                return check_result.fail("Hidden size is not an integer.", projected)
+            if not (
+                _ir_utils.is_singleton_value(start1, 0)
+                and _ir_utils.get_singleton_value(end1) == _ir_utils.get_singleton_value(start2)
+                and _ir_utils.get_singleton_value(end2) == _ir_utils.get_singleton_value(start3)
+                and _ir_utils.is_singleton_value(end3, lambda x: x >= hidden_size)
+            ):
+                return check_result.fail(
+                    "Projected input is not being split into q, k, v correctly based on hidden sizes.",
+                    projected,
+                )
+
             if no_match(qkv_weight, ["D", "Dh"]):
                 return check_result.fail(
                     f"Shape mismatch: {qkv_weight} does not match expected dimensions ['D', 'Dh']",
