@@ -5,8 +5,8 @@
 from __future__ import annotations
 
 import collections
-from typing import TYPE_CHECKING
 import contextlib
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from onnxscript.ir import _core

@@ -22,7 +22,7 @@ import os
 import sys
 import textwrap
 import typing
-from collections.abc import Hashable
+from collections.abc import Hashable, MutableSequence
 from typing import (
     AbstractSet,
     Any,
@@ -50,8 +50,8 @@ from onnxscript.ir import (
     _metadata,
     _name_authority,
     _protocols,
+    _tracked_lists,
     _type_casting,
-    _tracked_lists
 )
 
 if typing.TYPE_CHECKING:
@@ -1507,13 +1507,13 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._overload = value
 
     @property
-    def inputs(self) -> Sequence[Value | None]:
+    def inputs(self) -> MutableSequence[Value | None]:
         return self._inputs
 
     @inputs.setter
     def inputs(self, _: Any) -> None:
         raise AttributeError(
-            "Directly mutating the input sequence is unsupported. Please use Node.replace_input_with() instead."
+            "Directly setting the input property is unsupported. Please use mutation methods on inputs instead."
         )
 
     def predecessors(self) -> Sequence[Node]:
@@ -2322,7 +2322,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             if safe:
                 # 3. Detach from all inputs so that it is no longer a user of other nodes
                 for i in range(len(node.inputs)):
-                    node.replace_input_with(i, None)
+                    node.inputs[i] = None
             # Set attributes to remove the node from this graph
             node.graph = None
             self._nodes.remove(node)

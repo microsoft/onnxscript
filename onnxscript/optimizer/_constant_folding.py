@@ -975,7 +975,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                     value.name,  # type: ignore[union-attr]
                     sym_value.name,
                 )
-                node.replace_input_with(i, sym_value)
+                node.inputs[i] = sym_value
                 self.modified = True
                 # TODO(rama): consider merging type/other info from both values
 

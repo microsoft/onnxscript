@@ -956,7 +956,7 @@ class GraphTest(unittest.TestCase):
         )
         # Remove add_node and check that it is no longer a consumer of v0 and v1
         sub_node = _core.Node("", "Sub", inputs=(v0, v1), num_outputs=1)
-        identity_node.replace_input_with(0, sub_node.outputs[0])
+        identity_node.inputs[0] = sub_node.outputs[0]
         graph.insert_before(identity_node, sub_node)
         graph.remove(add_node, safe=True)
         self.assertEqual(tuple(v0.uses()), ((sub_node, 0),))
@@ -1092,7 +1092,7 @@ class GraphTest(unittest.TestCase):
         node1 = _core.Node("", "Node1", inputs=(v0,), num_outputs=1)
         node2 = _core.Node("", "Node2", inputs=(node1.outputs[0], v0), num_outputs=1)
         node3 = _core.Node("", "Node3", inputs=(node2.outputs[0],), num_outputs=1)
-        node2.replace_input_with(1, node3.outputs[0])
+        node2.inputs[1] = node3.outputs[0]
         graph = _core.Graph(
             (v0,),
             (node3.outputs[0],),
