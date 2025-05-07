@@ -16,6 +16,7 @@ from onnxscript.rewriter.ort_fusions.attention import fuse_attention
 from onnxscript.rewriter.ort_fusions.bias_gelu import fuse_bias_gelu
 from onnxscript.rewriter.ort_fusions.cos_sin_cache import fuse_cos_sin_cache
 from onnxscript.rewriter.ort_fusions.erfgelu import fuse_erfgelu
+from onnxscript.rewriter.ort_fusions.fuse_mha_bias import fuse_mha_bias
 from onnxscript.rewriter.ort_fusions.fuse_packed_qkv_gqa import fuse_qkv_gqa
 from onnxscript.rewriter.ort_fusions.gelu import fuse_gelu
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
@@ -79,6 +80,8 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
     fusion_count["rotary_embedding"] = fuse(fuse_rotary_embedding)
     fusion_count["partial_rotary_embedding"] = fuse(fuse_partial_rotary_embedding)
     fusion_count["cos_sin_cache"] = fuse(fuse_cos_sin_cache)
+    # We apply shape inference after the SDPA fusion as new nodes are added
+    # in the rewrite rule for certain patterns of SDPA.
     fusion_count["sdpa"] = fuse(fuse_sdpa, apply_shape_inference=True)
     # Optimize to avoid trying multiple attention-based fusions
     fusion_count["mha"] = fuse(fuse_mha)
@@ -87,8 +90,10 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
         # and avoid trying the attention fusion.
         fusion_count["gqa"] = fuse(fuse_gqa)
         fusion_count["packed_qkv_for_gqa"] = fuse(fuse_qkv_gqa)
+        fusion_count["mha_bias"] = 0
         fusion_count["attention"] = 0
     else:
+        fusion_count["mha_bias"] = fuse(fuse_mha_bias)
         fusion_count["attention"] = fuse(fuse_attention)
         fusion_count["gqa"] = 0
     fusion_count["gelu"] = fuse(fuse_gelu)
