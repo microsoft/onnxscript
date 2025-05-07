@@ -10,12 +10,16 @@ __all__ = [
 ]
 
 import collections
+import logging
 from typing import TYPE_CHECKING, Iterable, SupportsIndex
 
 import onnxscript
 
 if TYPE_CHECKING:
     from onnxscript.ir import _core
+
+
+logger = logging.getLogger(__name__)
 
 
 class _GraphIO(collections.UserList[_core.Value]):
@@ -116,14 +120,17 @@ class GraphInputs(_GraphIO):
     def _set_graph(self, value: _core.Value) -> None:
         """Set the graph for the value."""
         if value._graph_input_of is not None and value._graph_input_of is not self._graph:
-            raise ValueError(
-                f"Value '{value}' is already an input of a different graph: {value._graph_input_of!r}"
+            logger.warning(
+                "Value '%s' is already an input of a different graph. Overwriting",
+                value,
             )
-
         value._graph_input_of = self._graph
 
     def _unset_graph(self, value: _core.Value) -> None:
         """Unset the graph for the value."""
+        if value._graph_input_of is not self._graph:
+            # The value is already added to a different graph
+            return
         value._graph_input_of = None
 
 
@@ -147,12 +154,15 @@ class GraphOutputs(_GraphIO):
     def _set_graph(self, value: _core.Value) -> None:
         """Set the graph for the value."""
         if value._graph_output_of is not None and value._graph_output_of is not self._graph:
-            raise ValueError(
-                f"Value '{value}' is already an output of a different graph: {value._graph_output_of!r}"
+            logger.warning(
+                "Value '%s' is already an output of a different graph. Overwriting",
+                value,
             )
-
         value._graph_output_of = self._graph
 
     def _unset_graph(self, value: _core.Value) -> None:
         """Unset the graph for the value."""
+        if value._graph_output_of is not self._graph:
+            # The value is already added to a different graph
+            return
         value._graph_output_of = None

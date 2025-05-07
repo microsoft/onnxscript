@@ -51,8 +51,8 @@ from onnxscript.ir import (
     _metadata,
     _name_authority,
     _protocols,
-    _type_casting,
     _tracked_containers,
+    _type_casting,
 )
 
 if typing.TYPE_CHECKING:
