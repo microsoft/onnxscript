@@ -2,6 +2,8 @@
 # Licensed under the MIT License.
 """Tracked containers for graph."""
 
+# pylint: disable=protected-access
+
 from __future__ import annotations
 
 __all__ = [
