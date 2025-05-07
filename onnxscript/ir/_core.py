@@ -1763,7 +1763,6 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     __slots__ = (
         "_const_value",
-        "_graph_initializer_of",
         "_graph_input_of",
         "_graph_output_of",
         "_index",
