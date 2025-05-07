@@ -51,6 +51,7 @@ from onnxscript.ir import (
     _name_authority,
     _protocols,
     _type_casting,
+    _tracked_lists
 )
 
 if typing.TYPE_CHECKING:
@@ -1352,7 +1353,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         # NOTE: Make inputs immutable with the assumption that they are not mutated
         # very often. This way all mutations can be tracked.
         # If necessary, we can cache the inputs and outputs as tuples.
-        self._inputs: tuple[Value | None, ...] = tuple(inputs)
+        self._inputs: _tracked_lists.NodeInputs = _tracked_lists.NodeInputs(self, inputs)
         # Values belong to their defining nodes. The values list is immutable
         self._outputs: tuple[Value, ...] = self._create_outputs(num_outputs, outputs)
         attributes = tuple(attributes)
@@ -1535,17 +1536,11 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         return tuple(successors)
 
     def replace_input_with(self, index: int, value: Value | None) -> None:
-        """Replace an input with a new value."""
-        if index < 0 or index >= len(self.inputs):
-            raise ValueError(f"Index out of range: {index}")
-        old_input = self.inputs[index]
-        self._inputs = tuple(
-            value if i == index else old_input for i, old_input in enumerate(self.inputs)
-        )
-        if old_input is not None:
-            old_input._remove_usage(self, index)  # pylint: disable=protected-access
-        if value is not None:
-            value._add_usage(self, index)  # pylint: disable=protected-access
+        """Replace an input with a new value.
+
+        This is a compatible method. It is now possible to directly modify the input elements.
+        """
+        self._inputs[index] = value
 
     def prepend(self, /, nodes: Node | Iterable[Node]) -> None:
         """Insert a node before this node in the list of nodes in the graph.
