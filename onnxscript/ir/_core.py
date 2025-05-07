@@ -1325,6 +1325,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
         Args:
             domain: The domain of the operator. For onnx operators, this is an empty string.
+                When it is "ai.onnx", it is normalized to "".
             op_type: The name of the operator.
             inputs: The input values. When an input is ``None``, it is an empty input.
             attributes: The attributes. RefAttr can be used only when the node is defined in a Function.
@@ -1347,7 +1348,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             ValueError: If an output value has a producer set already, when outputs is specified.
         """
         self._name = name
-        self._domain: str = domain
+        self._domain: str = domain if domain != "ai.onnx" else ""
         self._op_type: str = op_type
         # NOTE: Make inputs immutable with the assumption that they are not mutated
         # very often. This way all mutations can be tracked.
@@ -2847,6 +2848,8 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
 
     @domain.setter
     def domain(self, value: str) -> None:
+        if value == "ai.onnx":
+            value = ""
         self._domain = value
 
     @property
