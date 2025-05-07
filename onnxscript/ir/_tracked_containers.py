@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class _GraphIO(collections.UserList[_core.Value]):
+class _GraphIO(collections.UserList["_core.Value"]):
     """The inputs and outputs of a Graph."""
 
     def __init__(self, graph: _core.Graph, initlist=None):
