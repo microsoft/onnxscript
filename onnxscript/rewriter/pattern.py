@@ -552,8 +552,6 @@ class ValuePattern:
         self._name = name
         # Note: uses will be computed only when the full graph-pattern is constructed.
         self._uses: list[tuple[NodePattern, int]] = []
-        # _is_output will be set only when the full graph-pattern is constructed.
-        self._is_output = False
 
     def clone(self, node_map: dict[NodePattern, NodePattern]) -> ValuePattern:
         del node_map
@@ -562,17 +560,6 @@ class ValuePattern:
     @property
     def name(self) -> str | None:
         return self._name
-
-    @property
-    def is_output(self) -> bool:
-        return self._is_output
-
-    @is_output.setter
-    def is_output(self, value: bool) -> None:
-        """Setter for the _is_output property."""
-        if not isinstance(value, bool):
-            raise ValueError("is_output must be a boolean value.")
-        self._is_output = value
 
     def producer(self) -> NodePattern | None:
         return None
@@ -1031,7 +1018,6 @@ class GraphPattern:
                 raise TypeError(
                     f"Invalid type {type(value_pattern)} for graph pattern output."
                 )
-            value_pattern.is_output = True
             if isinstance(value_pattern, NodeOutputPattern):
                 candidate = value_pattern.producer()
                 if candidate not in covered:
@@ -1432,7 +1418,7 @@ class SimplePatternMatcher(PatternMatcher):
         """Get values bound to the output variables of the pattern."""
         output_values: list[ir.Value] = []
         unbound_values: list[str] = []
-        for j, value_pattern in enumerate(self.pattern.outputs):
+        for value_pattern in self.pattern.outputs:
             if value_pattern.name is not None:
                 if value_pattern.name in self._match.bindings:
                     output_values.append(self._match.bindings[value_pattern.name])
