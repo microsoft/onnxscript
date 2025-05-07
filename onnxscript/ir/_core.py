@@ -16,6 +16,7 @@ import abc
 import contextlib
 import dataclasses
 import heapq
+import logging
 import math
 import mmap
 import os
@@ -79,6 +80,9 @@ _NON_NUMPY_NATIVE_TYPES = frozenset(
         _enums.DataType.FLOAT4E2M1,
     )
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _compatible_with_numpy(obj: Any) -> TypeGuard[_protocols.ArrayCompatible]:
@@ -1857,12 +1861,27 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
                 return f"{{{self.const_value.__class__.__name__}(...)}}"
         return ""
 
+    def owning_graph(self) -> Graph | None:
+        """Return the graph that defines this value when it is a graph input."""
+        if self._producer is not None and self._graph_input_of is not None:
+            logger.warning(
+                "The value is owned by a node but it is simultaneously a graph input. "
+                "The graph is invalid."
+            )
+        return self._graph_input_of
+
     def producer(self) -> Node | None:
         """The node that produces this value.
 
         When producer is ``None``, the value does not belong to a node, and is
-        typically a graph input or an initializer.
+        typically a graph input or an initializer, and should have ``owning_graph()``
+        set.
         """
+        if self._producer is not None and self._graph_input_of is not None:
+            logger.warning(
+                "The value is owned by a node but it is simultaneously a graph input. "
+                "The graph is invalid."
+            )
         return self._producer
 
     def consumers(self) -> Sequence[Node]:
