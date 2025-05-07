@@ -98,7 +98,6 @@ class NodeInputs(collections.UserList[_core.Value | None]):
     __mul__ = unsupported
     reverse = unsupported
     sort = unsupported
-    remove = unsupported_remove
 
 
 class NodeOutputs(collections.UserList[_core.Value]):
@@ -126,44 +125,50 @@ class NodeOutputs(collections.UserList[_core.Value]):
         item = self.data[i]
         if i == -1:
             # Remove the last item. No usages need to be updated
-            if item is not None:
-                if item.uses():
-                    raise ValueError(
-                        f"Cannot remove output {item} because it is still used by other nodes."
-                    )
+            if item.uses():
+                raise ValueError(
+                    f"Cannot remove output {item} because it is still used by other nodes."
+                )
             return self.data.pop()
 
-        self.unsupported_remove()
+        for j, output in enumerate(self.data):
+            output._index = j  # pylint: disable=protected-access
 
     def clear(self) -> None:
         """Clear the list."""
         for _ in range(len(self.data)):
             self.pop()
 
-    def __setitem__(self, i: int, item: _core.Value | None) -> None:
+    def __setitem__(self, i: int, item: _core.Value) -> None:
         if item is None:
             raise NotImplementedError(
                 "An output cannot be None. To remove a trailing output, use pop(). "
                 "To remove an output in the middle, set its name to an empty string instead."
             )
-        raise NotImplementedError(
-            "Setting an output to a new value is not supported. If you want to connect consumer "
-            "nodes to a different output, use the `replace_input_with` method on the consuming nodes instead."
-        )
+        self.pop(i)
+        self.insert(i, item)
 
-    def insert(self, i: int, item: _core.Value | None) -> None:
-        raise NotImplementedError(
-            "Insertion of items in the middle of the list is not supported "
-            "because in ONNX outputs are positional and index dependent. "
-            "Consider creating a new node with desired outputs instead."
-        )
+    def insert(self, i: int, item: _core.Value) -> None:
+        """Replace an output to the node."""
+        if i < -len(self.data) or i >= len(self.data):
+            raise ValueError(f"index out of range: {i}")
+        if i < 0:
+            i += len(self.data)
+        assert i >= 0
+        if item.producer() is not None and item.producer() is not self._node:
+            raise NotImplementedError(
+                f"Output already has a producer that is not this node ({item.producer()}). "
+                "An output value can be owned by only one node throughout its lifetime. "
+                "Instead, create a new value and assign it to the output. Replace all usages of the old value with the new one."
+            )
 
-    def unsupported_remove(self, *_args, **_kwargs) -> NoReturn:
-        raise NotImplementedError(
-            "Removal of items in the middle of the list is not supported "
-            "because in ONNX outputs are positional and index dependent. "
-            "To remove an output in the middle, set its name to an empty string instead."
-        )
+        item._producer = self._node  # pylint: disable=protected-access
+
+        # Update the index of the item being replaced
+        self.data.insert(i, item)
+        for j, output in enumerate(self.data):
+            output._index = j  # pylint: disable=protected-access
+
 
     def unsupported(self, *_args, **_kwargs):
         raise NotImplementedError("Method is not supported")
@@ -181,4 +186,4 @@ class NodeOutputs(collections.UserList[_core.Value]):
     # the middle, set its name to an empty empty string instead.
     reverse = unsupported
     sort = unsupported
-    remove = unsupported_remove
+    remove = unsupported
