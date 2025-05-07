@@ -91,7 +91,7 @@ class _GraphIO(collections.UserList["_core.Value"]):
             super().__setitem__(i, item)
             self._check_invariance()
             return
-        elif isinstance(item, _core.Value) and isinstance(i, SupportsIndex):
+        elif isinstance(i, SupportsIndex):
             # Replace a single item
             self._unset_graph(self.data[i])
             self._set_graph(item)
