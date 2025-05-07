@@ -31,6 +31,7 @@ from typing import (
     Generic,
     Iterable,
     Iterator,
+    MutableSequence,
     NamedTuple,
     OrderedDict,
     Sequence,
@@ -51,6 +52,7 @@ from onnxscript.ir import (
     _name_authority,
     _protocols,
     _type_casting,
+    _tracked_containers,
 )
 
 if typing.TYPE_CHECKING:
@@ -2116,8 +2118,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self.name = name
 
         # Private fields that are not to be accessed by any other classes
-        self._inputs = list(inputs)
-        self._outputs = list(outputs)
+        self._inputs = _tracked_containers.GraphInputs(self, inputs)
+        self._outputs = _tracked_containers.GraphInputs(self, outputs)
         self._initializers = {}
         for initializer in initializers:
             if isinstance(initializer, str):
@@ -2143,11 +2145,11 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self.extend(nodes)
 
     @property
-    def inputs(self) -> list[Value]:
+    def inputs(self) -> MutableSequence[Value]:
         return self._inputs
 
     @property
-    def outputs(self) -> list[Value]:
+    def outputs(self) -> MutableSequence[Value]:
         return self._outputs
 
     @property
