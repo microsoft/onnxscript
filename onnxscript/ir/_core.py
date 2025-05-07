@@ -1757,6 +1757,9 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     __slots__ = (
         "_const_value",
+        "_graph_initializer_of",
+        "_graph_input_of",
+        "_graph_output_of",
         "_index",
         "_metadata",
         "_metadata_props",
@@ -1807,6 +1810,13 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         # Use a dictionary to preserve insertion order so that the visiting order is deterministic
         self._uses: dict[Usage, None] = {}
         self.doc_string = doc_string
+
+        # The graph this value belongs to. It is set *only* when the value is added as
+        # a graph input, graph output, or initializer.
+        # The three properties can only be set by the Graph class (GraphIO).
+        self._graph_initializer_of: Graph | None = None
+        self._graph_input_of: Graph | None = None
+        self._graph_output_of: Graph | None = None
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
@@ -1986,15 +1996,17 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
             self._metadata_props = {}
         return self._metadata_props
 
+    def is_initializer(self) -> bool:
+        """Whether the value is an initializer."""
+        return self._graph_initializer_of is not None
+
+    def is_graph_input(self) -> bool:
+        """Whether the value is an input of a graph."""
+        return self._graph_input_of is not None
+
     def is_graph_output(self) -> bool:
         """Whether the value is an output of a graph."""
-        if (producer := self.producer()) is None:
-            return False
-        if (graph := producer.graph) is None:
-            return False
-        # Cannot use `in` because __eq__ may be defined by subclasses, even though
-        # it is not recommended
-        return any(output is self for output in graph.outputs)
+        return self._graph_output_of is not None
 
 
 def Input(
