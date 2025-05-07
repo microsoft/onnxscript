@@ -176,8 +176,10 @@ class AttentionFusion(pattern.RewriteRuleClassBase):
                 return check_result.fail("Hidden size is not an integer.", projected)
             if not (
                 _ir_utils.is_singleton_value(start1, 0)
-                and _ir_utils.get_singleton_value(end1) == _ir_utils.get_singleton_value(start2)
-                and _ir_utils.get_singleton_value(end2) == _ir_utils.get_singleton_value(start3)
+                and _ir_utils.get_singleton_value(end1)
+                == _ir_utils.get_singleton_value(start2)
+                and _ir_utils.get_singleton_value(end2)
+                == _ir_utils.get_singleton_value(start3)
                 and _ir_utils.is_singleton_value(end3, lambda x: x >= hidden_size)
             ):
                 return check_result.fail(
