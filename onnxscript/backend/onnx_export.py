@@ -217,7 +217,7 @@ def has_input(node: onnx.NodeProto, index: int) -> bool:
 
 
 def is_onnx_op(node: onnx.NodeProto, op_type: str) -> bool:
-    return node.op_type == op_type and node.domain in {"", "ai.onnx"}
+    return node.op_type == op_type and node.domain == ""
 
 
 def _is_used_in_graph_body(name: str, graph: GraphProto) -> bool:
@@ -309,7 +309,7 @@ class _Exporter:
         return self._translate_onnx_var(var)
 
     def _rename_domain(self, domain: str) -> str:
-        if domain in {"", "ai.onnx"}:
+        if domain == "":
             return "opset"  # TODO: Need checks to avoid name conflicts.
         return _cleanup_variable_name(domain)  # type: ignore[return-value]
 
@@ -606,7 +606,7 @@ class _Exporter:
         return "".join(text)
 
     def _translate_opset_import(self, domain: str, version: int) -> str:
-        if domain in {"", "ai.onnx"}:
+        if domain == "":
             return f"from onnxscript.onnx_opset import opset{version}\n"
         else:
             varname = self._make_opset_name(domain, version)
