@@ -105,9 +105,6 @@ class _GraphIO(collections.UserList["_core.Value"]):
 class GraphInputs(_GraphIO):
     """The inputs of a Graph."""
 
-    def __init__(self, graph: _core.Graph, initlist=None):
-        super().__init__(graph, initlist)
-
     def _check_invariance(self) -> None:
         """Check the invariance of the graph."""
         if not onnxscript.DEBUG:
@@ -138,9 +135,6 @@ class GraphInputs(_GraphIO):
 
 class GraphOutputs(_GraphIO):
     """The outputs of a Graph."""
-
-    def __init__(self, graph: _core.Graph, initlist=None):
-        super().__init__(graph, initlist)
 
     def _check_invariance(self) -> None:
         """Check the invariance of the graph."""
