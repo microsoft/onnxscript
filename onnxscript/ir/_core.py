@@ -1814,9 +1814,8 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         self.doc_string = doc_string
 
         # The graph this value belongs to. It is set *only* when the value is added as
-        # a graph input, graph output, or initializer.
-        # The three properties can only be set by the Graph class (GraphIO).
-        self._graph_initializer_of: Graph | None = None
+        # a graph input or a graph output.
+        # The two properties can only be set by the Graph class (GraphIO).
         self._graph_input_of: Graph | None = None
         self._graph_output_of: Graph | None = None
 
@@ -1997,10 +1996,6 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         if self._metadata_props is None:
             self._metadata_props = {}
         return self._metadata_props
-
-    def is_initializer(self) -> bool:
-        """Whether the value is an initializer."""
-        return self._graph_initializer_of is not None
 
     def is_graph_input(self) -> bool:
         """Whether the value is an input of a graph."""
