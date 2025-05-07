@@ -1507,13 +1507,13 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._overload = value
 
     @property
-    def inputs(self) -> MutableSequence[Value | None]:
+    def inputs(self) -> _tracked_lists.NodeInputs:
         return self._inputs
 
     @inputs.setter
     def inputs(self, _: Any) -> None:
         raise AttributeError(
-            "Directly setting the input property is unsupported. Please use mutation methods on inputs instead."
+            "The input property cannot be assigned to. Please use mutation methods on inputs instead."
         )
 
     def predecessors(self) -> Sequence[Node]:
@@ -1581,12 +1581,12 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._graph.insert_after(self, nodes)
 
     @property
-    def outputs(self) -> Sequence[Value]:
+    def outputs(self) -> _tracked_lists.NodeOutputs:
         return self._outputs
 
     @outputs.setter
     def outputs(self, _: Sequence[Value]) -> None:
-        raise AttributeError("outputs is immutable. Please create a new node instead.")
+        raise AttributeError("The outputs property cannot be assigned to. Please use mutation methods on outputs instead.")
 
     @property
     def attributes(self) -> OrderedDict[str, Attr | RefAttr]:
