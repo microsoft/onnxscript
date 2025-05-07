@@ -2119,7 +2119,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
 
         # Private fields that are not to be accessed by any other classes
         self._inputs = _tracked_containers.GraphInputs(self, inputs)
-        self._outputs = _tracked_containers.GraphInputs(self, outputs)
+        self._outputs = _tracked_containers.GraphOutputs(self, outputs)
         self._initializers = {}
         for initializer in initializers:
             if isinstance(initializer, str):
