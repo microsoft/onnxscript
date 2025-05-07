@@ -1515,6 +1515,35 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             "Directly mutating the input sequence is unsupported. Please use Node.replace_input_with() instead."
         )
 
+    def append_input(self, /, value: Value | None) -> None:
+        """Append an input to the node.
+
+        Args:
+            value: The input value to append.
+
+        Raises:
+            ValueError: If the input value has a producer set already.
+        """
+        self._inputs = (*self._inputs, value)
+        if value is not None:
+            value._add_usage(self, len(self._inputs) - 1)  # pylint: disable=protected-access
+
+    def pop_input(self) -> Value | None:
+        """Remove a trailing input from the node.
+
+        Args:
+            value: The input value to remove.
+
+        Raises:
+            ValueError: If the input value is used by other nodes.
+        """
+        if not self._inputs:
+            raise ValueError("No inputs to pop.")
+        value = self._inputs[-1]
+        if value is not None:
+            value._remove_usage(self, len(self._inputs) - 1)
+        self._inputs = self._inputs[:-1]
+
     def predecessors(self) -> Sequence[Node]:
         """Return the predecessor nodes of the node, deduplicated, in a deterministic order."""
         # Use the ordered nature of a dictionary to deduplicate the nodes
@@ -1585,6 +1614,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             raise ValueError("The node to append to does not belong to any graph.")
         self._graph.insert_after(self, nodes)
 
+
     @property
     def outputs(self) -> Sequence[Value]:
         return self._outputs
@@ -1592,6 +1622,47 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     @outputs.setter
     def outputs(self, _: Sequence[Value]) -> None:
         raise AttributeError("outputs is immutable. Please create a new node instead.")
+
+    def append_output(self, /, value: Value) -> None:
+        """Append an output to the node.
+
+        This is used to add an output to a node that has already been created.
+
+        Args:
+            value: The output value to append.
+
+        Raises:
+            ValueError: If the output value has a producer set already.
+        """
+        if value.producer() is not None and value.producer() is not self:
+            raise ValueError(
+                f"Output value cannot have a producer when used for appending an output. "
+                f"Output: {value}"
+            )
+        self._outputs = (*self._outputs, value)
+        value._producer = self
+
+    def pop_output(self) -> Value:
+        """Remove a trailing output from the node.
+
+        Args:
+            value: The output value to remove.
+
+        Raises:
+            ValueError: If the output value is used by other nodes.
+        """
+        if not self._outputs:
+            raise ValueError("No outputs to pop.")
+        value = self._outputs[-1]
+        if value.uses():
+            raise ValueError(
+                "Cannot pop an output that is used by other nodes. "
+                "Remove the usages first by replacing user inputs with None. "
+                f"Output: {value}, uses: {value.uses()}"
+            )
+        self._outputs = self._outputs[:-1]
+        value._producer = None
+        return value
 
     @property
     def attributes(self) -> OrderedDict[str, Attr | RefAttr]:
