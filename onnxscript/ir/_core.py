@@ -26,6 +26,7 @@ from collections.abc import Hashable
 from typing import (
     AbstractSet,
     Any,
+    Callable,
     Collection,
     Generic,
     Iterable,
@@ -97,7 +98,23 @@ def _compatible_with_dlpack(obj: Any) -> TypeGuard[_protocols.DLPackCompatible]:
 class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
     """Convenience Shared methods for classes implementing TensorProtocol."""
 
-    __slots__ = ()
+    __slots__ = (
+        "_doc_string",
+        "_metadata",
+        "_metadata_props",
+        "_name",
+    )
+
+    def __init__(
+        self,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
+        self._metadata: _metadata.MetadataStore | None = None
+        self._metadata_props: dict[str, str] | None = metadata_props
+        self._name: str | None = name
+        self._doc_string: str | None = doc_string
 
     def _printable_type_shape(self) -> str:
         """Return a string representation of the shape and data type."""
@@ -111,15 +128,50 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         return f"{self.__class__.__name__}<{self._printable_type_shape()}>"
 
     @property
+    def name(self) -> str | None:
+        """The name of the tensor."""
+        return self._name
+
+    @name.setter
+    def name(self, value: str | None) -> None:
+        self._name = value
+
+    @property
+    def doc_string(self) -> str | None:
+        """The documentation string."""
+        return self._doc_string
+
+    @doc_string.setter
+    def doc_string(self, value: str | None) -> None:
+        self._doc_string = value
+
+    @property
     def size(self) -> int:
         """The number of elements in the tensor."""
-        return np.prod(self.shape.numpy())  # type: ignore[return-value,attr-defined]
+        return math.prod(self.shape.numpy())  # type: ignore[attr-defined]
 
     @property
     def nbytes(self) -> int:
         """The number of bytes in the tensor."""
         # Use math.ceil because when dtype is INT4, the itemsize is 0.5
         return math.ceil(self.dtype.itemsize * self.size)
+
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
 
     def display(self, *, page: bool = False) -> None:
         rich = _display.require_rich()
@@ -309,12 +361,8 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
 
     __slots__ = (
         "_dtype",
-        "_metadata",
-        "_metadata_props",
         "_raw",
         "_shape",
-        "doc_string",
-        "name",
     )
 
     def __init__(
@@ -333,7 +381,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             value: The backing data of the tensor. It can be a numpy array compatible object or a DLPack compatible object.
                 When the dtype is not one of the numpy native dtypes, the value needs
                 to be ``uint8`` for 4-bit and 8-bit data types, and ``uint16`` for bfloat16
-                when the value is a numpy array; :param:`dtype` must be specified in this case.
+                when the value is a numpy array; ``dtype`` must be specified in this case.
             dtype: The data type of the tensor. It can be None only when value is a numpy array.
                 Users are responsible for making sure the dtype matches the value when value is not a numpy array.
             shape: The shape of the tensor. If None, the shape is obtained from the value.
@@ -347,6 +395,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             ValueError: If the shape is not specified and the value does not have a shape attribute.
             ValueError: If the dtype is not specified and the value is not a numpy array.
         """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         # NOTE: We should not do any copying here for performance reasons
         if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
             raise TypeError(f"Expected an array compatible object, got {type(value)}")
@@ -360,7 +409,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
         else:
             self._shape = shape
-            self._shape._frozen = True
+            self._shape.freeze()
         if dtype is None:
             if isinstance(value, np.ndarray):
                 self._dtype = _enums.DataType.from_numpy(value.dtype)
@@ -381,10 +430,6 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             value = _maybe_view_np_array_with_ml_dtypes(value, self._dtype)  # type: ignore[assignment]
 
         self._raw = value
-        self.name = name
-        self.doc_string = doc_string
-        self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props = metadata_props
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if isinstance(self._raw, np.ndarray) or _compatible_with_numpy(self._raw):
@@ -405,7 +450,10 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         return self.__array__().__dlpack_device__()
 
     def __repr__(self) -> str:
-        return f"{self._repr_base()}({self._raw!r}, name={self.name!r})"
+        # Avoid multi-line repr
+        tensor_lines = repr(self._raw).split("\n")
+        tensor_text = " ".join(line.strip() for line in tensor_lines)
+        return f"{self._repr_base()}({tensor_text}, name={self.name!r})"
 
     @property
     def dtype(self) -> _enums.DataType:
@@ -455,23 +503,6 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             array = array.view(array.dtype.newbyteorder("<"))
         return array.tobytes()
 
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
-
 
 class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
     """An immutable concrete tensor with its data store on disk.
@@ -512,13 +543,9 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         "_dtype",
         "_length",
         "_location",
-        "_metadata",
-        "_metadata_props",
         "_offset",
         "_shape",
         "_valid",
-        "doc_string",
-        "name",
         "raw",
     )
 
@@ -548,6 +575,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             metadata_props: The metadata properties.
             base_dir: The base directory for the external data. It is used to resolve relative paths.
         """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         # NOTE: Do not verify the location by default. This is because the location field
         # in the tensor proto can be anything and we would like deserialization from
         # proto to IR to not fail.
@@ -563,7 +591,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         self._dtype: _enums.DataType = dtype
         self.name: str = name  # mutable
         self._shape: Shape = shape
-        self._shape._frozen = True
+        self._shape.freeze()
         self.doc_string: str | None = doc_string  # mutable
         self._array: np.ndarray | None = None
         self.raw: mmap.mmap | None = None
@@ -725,34 +753,13 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             self.raw.close()
             self.raw = None
 
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
-
 
 class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
     """Multidimensional array of strings (as binary data to match the string_data field in TensorProto)."""
 
     __slots__ = (
-        "_metadata",
-        "_metadata_props",
         "_raw",
         "_shape",
-        "doc_string",
-        "name",
     )
 
     def __init__(
@@ -773,6 +780,7 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             doc_string: The documentation string.
             metadata_props: The metadata properties.
         """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         if shape is None:
             if not hasattr(value, "shape"):
                 raise ValueError(
@@ -782,12 +790,8 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             self._shape = Shape(getattr(value, "shape"), frozen=True)  # noqa: B009
         else:
             self._shape = shape
-            self._shape._frozen = True
+            self._shape.freeze()
         self._raw = value
-        self.name = name
-        self.doc_string = doc_string
-        self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props = metadata_props
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if isinstance(self._raw, np.ndarray):
@@ -835,25 +839,125 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             return self._raw.flatten().tolist()
         return self._raw
 
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
 
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
+class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
+    """A tensor that lazily evaluates a function to get the actual tensor.
 
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
+    This class takes a function returning an `ir.TensorProtocol`, a dtype, and a shape argument.
+    The function is lazily evaluated to get the actual tensor when `tobytes()` or `numpy()` is called.
+
+    Example::
+
+        >>> import numpy as np
+        >>> from onnxscript import ir
+        >>> weights = np.array([[1, 2, 3]])
+        >>> def create_tensor():  # Delay applying transformations to the weights
+        ...     weights_t = weights.transpose()
+        ...     return ir.tensor(weights_t)
+        >>> lazy_tensor = ir.LazyTensor(create_tensor, dtype=ir.DataType.INT64, shape=ir.Shape([1, 3]))
+        >>> print(lazy_tensor.numpy())
+        [[1]
+         [2]
+         [3]]
+
+    Attributes:
+        func: The function that returns the actual tensor.
+        dtype: The data type of the tensor.
+        shape: The shape of the tensor.
+        cache: Whether to cache the result of the function. If False,
+            the function is called every time the tensor content is accessed.
+            If True, the function is called only once and the result is cached in memory.
+            Default is False.
+        name: The name of the tensor.
+        doc_string: The documentation string.
+        metadata_props: The metadata properties.
+    """
+
+    __slots__ = (
+        "_dtype",
+        "_func",
+        "_shape",
+        "_tensor",
+        "cache",
+    )
+
+    def __init__(
+        self,
+        func: Callable[[], _protocols.TensorProtocol],
+        dtype: _enums.DataType,
+        shape: Shape,
+        *,
+        cache: bool = False,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
+        """Initialize a lazy tensor.
+
+        Args:
+            func: The function that returns the actual tensor.
+            dtype: The data type of the tensor.
+            shape: The shape of the tensor.
+            cache: Whether to cache the result of the function.
+            name: The name of the tensor.
+            doc_string: The documentation string.
+            metadata_props: The metadata properties.
         """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
+        self._func = func
+        self._dtype = dtype
+        self._shape = shape
+        self._tensor: _protocols.TensorProtocol | None = None
+        self.cache = cache
+
+    def _evaluate(self) -> _protocols.TensorProtocol:
+        """Evaluate the function to get the actual tensor."""
+        if not self.cache:
+            return self._func()
+
+        # Cache the tensor
+        if self._tensor is None:
+            self._tensor = self._func()
+        return self._tensor
+
+    def __array__(self, dtype: Any = None) -> np.ndarray:
+        return self._evaluate().__array__(dtype)
+
+    def __dlpack__(self, *, stream: Any = None) -> Any:
+        return self._evaluate().__dlpack__(stream=stream)
+
+    def __dlpack_device__(self) -> tuple[int, int]:
+        return self._evaluate().__dlpack_device__()
+
+    def __repr__(self) -> str:
+        return f"{self._repr_base()}(func={self._func!r}, name={self.name!r})"
+
+    @property
+    def raw(self) -> Callable[[], _protocols.TensorProtocol]:
+        return self._func
+
+    @property
+    def dtype(self) -> _enums.DataType:
+        """The data type of the tensor. Immutable."""
+        return self._dtype
+
+    @property
+    def shape(self) -> Shape:
+        """The shape of the tensor. Immutable."""
+        return self._shape
+
+    def numpy(self) -> np.ndarray:
+        """Return the tensor as a numpy array."""
+        return self._evaluate().numpy()
+
+    def tobytes(self) -> bytes:
+        """Return the bytes of the tensor."""
+        return self._evaluate().tobytes()
 
 
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
+    """Immutable symbolic dimension that can be shared across multiple shapes."""
+
     __slots__ = ("_value",)
 
     def __init__(self, value: str | None) -> None:
@@ -914,6 +1018,53 @@ def _maybe_convert_to_symbolic_dim(
 
 
 class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
+    """The shape of a tensor, including its dimensions and optional denotations.
+
+    The :class:`Shape` stores the dimensions of a tensor, which can be integers, None (unknown), or
+    symbolic dimensions.
+
+    A shape can be compared to another shape or plain Python list.
+
+    A shape can be frozen (made immutable). When the shape is frozen, it cannot be
+    unfrozen, making it suitable to be shared across tensors or values.
+    Call :method:`freeze` to freeze the shape.
+
+    To update the dimension of a frozen shape, call :method:`copy` to create a
+    new shape with the same dimensions that can be modified.
+
+    Use :method:`get_denotation` and :method:`set_denotation` to access and modify the denotations.
+
+    Example::
+
+        >>> from onnxscript import ir
+        >>> shape = ir.Shape(["B", None, 3])
+        >>> shape.rank()
+        3
+        >>> shape.is_static()
+        False
+        >>> shape.is_dynamic()
+        True
+        >>> shape.is_static(dim=2)
+        True
+        >>> shape[0] = 1
+        >>> shape[1] = 2
+        >>> shape.dims
+        (1, 2, 3)
+        >>> shape == [1, 2, 3]
+        True
+        >>> shape.frozen
+        False
+        >>> shape.freeze()
+        >>> shape.frozen
+        True
+
+    Attributes:
+        dims: A tuple of dimensions representing the shape.
+            Each dimension can be an integer, None or a :class:`SymbolicDim`.
+        frozen: Indicates whether the shape is immutable. When frozen, the shape
+            cannot be modified or unfrozen.
+    """
+
     __slots__ = ("_dims", "_frozen")
 
     def __init__(
@@ -936,7 +1087,8 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
                 Refer to https://github.com/onnx/onnx/blob/main/docs/DimensionDenotation.md#denotation-definition
                 for pre-defined dimension denotations.
             frozen: If True, the shape is immutable and cannot be modified. This
-                is useful when the shape is initialized by a Tensor.
+                is useful when the shape is initialized by a Tensor or when the shape
+                is shared across multiple tensors. The default is False.
         """
         self._dims: list[int | SymbolicDim] = [
             _maybe_convert_to_symbolic_dim(dim) for dim in dims
@@ -950,10 +1102,6 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
             )
         self._frozen: bool = frozen
 
-    def copy(self):
-        """Return a copy of the shape."""
-        return Shape(self._dims, self._denotations, self._frozen)
-
     @property
     def dims(self) -> tuple[int | SymbolicDim, ...]:
         """All dimensions in the shape.
@@ -962,8 +1110,29 @@ class Shape(_protocols.ShapeProtocol, _display.PrettyPrintable):
         """
         return tuple(self._dims)
 
+    @property
+    def frozen(self) -> bool:
+        """Whether the shape is frozen.
+
+        When the shape is frozen, it cannot be unfrozen, making it suitable to be shared.
+        Call :method:`freeze` to freeze the shape. Call :method:`copy` to create a
+        new shape with the same dimensions that can be modified.
+        """
+        return self._frozen
+
+    def freeze(self) -> None:
+        """Freeze the shape.
+
+        When the shape is frozen, it cannot be unfrozen, making it suitable to be shared.
+        """
+        self._frozen = True
+
+    def copy(self, frozen: bool = False):
+        """Return a copy of the shape."""
+        return Shape(self._dims, self._denotations, frozen=frozen)
+
     def rank(self) -> int:
-        """The rank of the shape."""
+        """The rank of the tensor this shape represents."""
         return len(self._dims)
 
     def numpy(self) -> tuple[int, ...]:
@@ -1094,6 +1263,18 @@ class Usage(NamedTuple):
     idx: int
 
 
+def _short_tensor_str_for_node(x: Value) -> str:
+    if x.const_value is None:
+        return ""
+    if x.const_value.size <= 10:
+        try:
+            data = x.const_value.numpy().tolist()
+        except Exception:  # pylint: disable=broad-except
+            return "{...}"
+        return f"{{{data}}}"
+    return "{...}"
+
+
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     """IR Node.
 
@@ -1135,7 +1316,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         num_outputs: int | None = None,
         outputs: Sequence[Value] | None = None,
         version: int | None = None,
-        graph: Graph | None = None,
+        graph: Graph | Function | None = None,
         name: str | None = None,
         doc_string: str | None = None,
         metadata_props: dict[str, str] | None = None,
@@ -1145,22 +1326,24 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         Args:
             domain: The domain of the operator. For onnx operators, this is an empty string.
             op_type: The name of the operator.
-            inputs: The input values. When an input is None, it is an empty input.
+            inputs: The input values. When an input is ``None``, it is an empty input.
             attributes: The attributes. RefAttr can be used only when the node is defined in a Function.
             overload: The overload name when the node is invoking a function.
             num_outputs: The number of outputs of the node. If not specified, the number is 1.
-            outputs: The output values. If None, the outputs are created during initialization.
-            version: The version of the operator. If None, the version is unspecified and will follow that of the graph.
-            graph: The graph that the node belongs to. If None, the node is not added to any graph.
-                A `Node` must belong to zero or one graph.
-            name: The name of the node. If None, the node is anonymous.
+            outputs: The output values. If ``None``, the outputs are created during initialization.
+            version: The version of the operator. If ``None``, the version is unspecified and will follow that of the graph.
+            graph: The graph that the node belongs to. If ``None``, the node is not added to any graph.
+                A `Node` must belong to zero or one graph. If a :class:`Function`, the underlying graph
+                of the function is assigned to the node.
+            name: The name of the node. If ``None``, the node is anonymous. The name may be
+                set by a :class:`Graph` if ``graph`` is specified.
             doc_string: The documentation string.
             metadata_props: The metadata properties.
 
         Raises:
-            TypeError: If the attributes are not Attr or RefAttr.
-            ValueError: If `num_outputs`, when not None, is not the same as the length of the outputs.
-            ValueError: If an output value is None, when outputs is specified.
+            TypeError: If the attributes are not :class:`Attr` or :class:`RefAttr`.
+            ValueError: If ``num_outputs``, when not ``None``, is not the same as the length of the outputs.
+            ValueError: If an output value is ``None``, when outputs is specified.
             ValueError: If an output value has a producer set already, when outputs is specified.
         """
         self._name = name
@@ -1187,17 +1370,17 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._version: int | None = version
         self._metadata: _metadata.MetadataStore | None = None
         self._metadata_props: dict[str, str] | None = metadata_props
-        self._graph: Graph | None = graph
+        # _graph is set by graph.append
+        self._graph: Graph | None = None
+        # Add the node to the graph if graph is specified
+        if graph is not None:
+            graph.append(self)
         self.doc_string = doc_string
 
         # Add the node as a use of the inputs
         for i, input_value in enumerate(self._inputs):
             if input_value is not None:
                 input_value._add_usage(self, i)  # pylint: disable=protected-access
-
-        # Add the node to the graph if graph is specified
-        if self._graph is not None:
-            self._graph.append(self)
 
     def _create_outputs(
         self, num_outputs: int | None, outputs: Sequence[Value] | None
@@ -1256,7 +1439,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             + ", ".join(
                 [
                     (
-                        f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}"
+                        f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}{_short_tensor_str_for_node(x)}"
                         if x is not None
                         else "None"
                     )
@@ -1627,14 +1810,20 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
+        type_text = f", type={self.type!r}" if self.type is not None else ""
+        shape_text = f", shape={self.shape!r}" if self.shape is not None else ""
         producer = self.producer()
         if producer is None:
-            producer_text = "None"
+            producer_text = ""
         elif producer.name is not None:
-            producer_text = producer.name
+            producer_text = f", producer='{producer.name}'"
         else:
-            producer_text = f"anonymous_node:{id(producer)}"
-        return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, producer={producer_text}, index={self.index()})"
+            producer_text = f", producer=anonymous_node:{id(producer)}"
+        index_text = f", index={self.index()}" if self.index() is not None else ""
+        const_value_text = self._constant_tensor_part()
+        if const_value_text:
+            const_value_text = f", const_value={const_value_text}"
+        return f"{self.__class__.__name__}(name={value_name!r}{type_text}{shape_text}{producer_text}{index_text}{const_value_text})"
 
     def __str__(self) -> str:
         value_name = self.name if self.name is not None else "anonymous:" + str(id(self))
@@ -1643,7 +1832,19 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
         # Quote the name because in reality the names can have invalid characters
         # that make them hard to read
-        return f"%{_quoted(value_name)}<{type_text},{shape_text}>"
+        return (
+            f"%{_quoted(value_name)}<{type_text},{shape_text}>{self._constant_tensor_part()}"
+        )
+
+    def _constant_tensor_part(self) -> str:
+        """Display string for the constant tensor attached to str of Value."""
+        if self.const_value is not None:
+            # Only display when the const value is small
+            if self.const_value.size <= 10:
+                return f"{{{self.const_value}}}"
+            else:
+                return f"{{{self.const_value.__class__.__name__}(...)}}"
+        return ""
 
     def producer(self) -> Node | None:
         """The node that produces this value.
@@ -1924,6 +2125,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         # Be sure the initialize the name authority before extending the nodes
         # because it is used to name the nodes and their outputs
         self._name_authority = _name_authority.NameAuthority()
+        # TODO(justinchuby): Trigger again if inputs or initializers are modified.
+        self._set_input_and_initializer_value_names_into_name_authority()
         # Call self.extend not self._nodes.extend so the graph reference is added to the nodes
         self.extend(nodes)
 
@@ -1998,6 +2201,12 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
 
     def __reversed__(self) -> Iterator[Node]:
         return reversed(self._nodes)
+
+    def _set_input_and_initializer_value_names_into_name_authority(self):
+        for value in self.inputs:
+            self._name_authority.register_or_name_value(value)
+        for value in self.initializers.values():
+            self._name_authority.register_or_name_value(value)
 
     def _set_node_graph_to_self_and_assign_names(self, node: Node) -> Node:
         """Set the graph reference for the node and assign names to it and its outputs if they don't have one."""
@@ -2162,7 +2371,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
 
         This sort is stable. It preserves the original order as much as possible.
 
-        Referece: https://github.com/madelson/MedallionTopologicalSort#stable-sort
+        Reference: https://github.com/madelson/MedallionTopologicalSort#stable-sort
 
         Raises:
             ValueError: If the graph contains a cycle, making topological sorting impossible.
@@ -2173,7 +2382,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         sorted_nodes_by_graph: dict[Graph, list[Node]] = {
             graph: [] for graph in {node.graph for node in nodes if node.graph is not None}
         }
-        # TODO: Explain why we need to store direct predecessors and children and why
+        # TODO(justinchuby): Explain why we need to store direct predecessors and children and why
         # we only need to store the direct ones
 
         # The depth of a node is defined as the number of direct children it has
@@ -2193,7 +2402,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             node_depth[predecessor] += 1
 
         # 1. Build the direct predecessors of each node and the depth of each node
-        # for sorting topolocally using Kahn's algorithm.
+        # for sorting topologically using Kahn's algorithm.
         # Note that when a node contains graph attributes (aka. has subgraphs),
         # we consider all nodes in the subgraphs *predecessors* of this node. This
         # way we ensure the implicit dependencies of the subgraphs are captured
@@ -2553,6 +2762,25 @@ Model(
     graph={textwrap.indent(repr(self.graph), " " * 4).strip()}
 )"""
 
+    def graphs(self) -> Iterable[Graph]:
+        """Get all graphs and subgraphs in the model.
+
+        This is a convenience method to traverse the model. Consider using
+        `onnxscript.ir.traversal.RecursiveGraphIterator` for more advanced
+        traversals on nodes.
+        """
+        # NOTE(justinchuby): Given
+        # (1) how useful the method is
+        # (2) I couldn't find an appropriate name for it in `traversal.py`
+        # (3) Users familiar with onnxruntime optimization tools expect this method
+        # I created this method as a core method instead of an iterator in
+        # `traversal.py`.
+        seen_graphs: set[Graph] = set()
+        for node in onnxscript.ir.traversal.RecursiveGraphIterator(self.graph):
+            if node.graph is not None and node.graph not in seen_graphs:
+                seen_graphs.add(node.graph)
+                yield node.graph
+
 
 class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrintable):
     """IR functions.
@@ -2573,16 +2801,14 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         outputs: The output values of the function.
         opset_imports: Opsets imported by the function.
         doc_string: Documentation string.
-        metadata_props: Metadata that will be serialized to the ONNX file.
         meta: Metadata store for graph transform passes.
+        metadata_props: Metadata that will be serialized to the ONNX file.
     """
 
     __slots__ = (
         "_attributes",
         "_domain",
         "_graph",
-        "_metadata",
-        "_metadata_props",
         "_name",
         "_overload",
     )
@@ -2597,15 +2823,12 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         # and not from an outer scope
         graph: Graph,
         attributes: Sequence[Attr],
-        metadata_props: dict[str, str] | None = None,
     ) -> None:
         self._domain = domain
         self._name = name
         self._overload = overload
         self._graph = graph
         self._attributes = OrderedDict((attr.name, attr) for attr in attributes)
-        self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = metadata_props
 
     def identifier(self) -> _protocols.OperatorIdentifier:
         return self.domain, self.name, self.overload
@@ -2677,15 +2900,11 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         Write to the :attr:`metadata_props` if you would like the metadata to be serialized
         to the ONNX proto.
         """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
+        return self._graph.meta
 
     @property
     def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
+        return self._graph.metadata_props
 
     # Mutation methods
     def append(self, node: Node, /) -> None:
@@ -2718,11 +2937,11 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         """
         self._graph.remove(nodes, safe=safe)
 
-    def insert_after(self, node: Node, new_nodes: Iterable[Node], /) -> None:
+    def insert_after(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
         """Insert new nodes after the given node in O(#new_nodes) time."""
         self._graph.insert_after(node, new_nodes)
 
-    def insert_before(self, node: Node, new_nodes: Iterable[Node], /) -> None:
+    def insert_before(self, node: Node, new_nodes: Iterable[Node] | Node, /) -> None:
         """Insert new nodes before the given node in O(#new_nodes) time."""
         self._graph.insert_before(node, new_nodes)
 

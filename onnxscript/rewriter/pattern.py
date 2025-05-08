@@ -10,6 +10,7 @@ import inspect
 import itertools
 import math
 from collections import defaultdict
+from collections.abc import Mapping
 from typing import (
     Any,
     Callable,
@@ -18,7 +19,6 @@ from typing import (
     MutableSequence,
     Protocol,
     Sequence,
-    Tuple,
     TypeVar,
     Union,
 )
@@ -300,7 +300,7 @@ def _to_value_pattern(
 
 
 class MatchResult:
-    """Represents the result of a match operation.
+    """The state object used by the pattern-matching algorithm.
 
     A match can either succeed or fail.
     If it succeeds, it returns a list of nodes that matched the pattern
@@ -318,6 +318,116 @@ class MatchResult:
     """
 
     def __init__(self) -> None:
+        # We use a stack of partial matches to handle OR patterns that require backtracking.
+        self._partial_matches: list[PartialMatchResult] = [PartialMatchResult()]
+
+    @property
+    def _current_match(self) -> PartialMatchResult:
+        """Returns the current match result."""
+        return self._partial_matches[-1]
+
+    def enter_new_match(self) -> None:
+        """Starts a new sub-match to try out one of multiple alternatives."""
+        match = PartialMatchResult()
+        self._partial_matches.append(match)
+
+    def abandon_current_match(self) -> PartialMatchResult:
+        """Abandons the current alternative due to failure."""
+        if len(self._partial_matches) < 2:
+            raise ValueError("No match to abandon.")
+        return self._partial_matches.pop()
+
+    def merge_current_match(self) -> None:
+        """Merges a successful sub-match for an alternative with the parent one."""
+        if len(self._partial_matches) < 2:
+            raise ValueError("No match to merge.")
+        current_match = self._partial_matches.pop()
+        previous_match = self._partial_matches[-1]
+        if not current_match:
+            raise ValueError("Current match is not successful.")
+        # Merge the two matches.
+        previous_match.merge(current_match)
+
+    def __bool__(self) -> bool:
+        """Returns True if the current match is successful."""
+        return bool(self._current_match)
+
+    def fail(
+        self,
+        reason: str = "",
+        failure_source: Union[ir.Node, ir.Value, list[Union[ir.Node, ir.Value]]] | None = None,
+    ) -> MatchResult:
+        self._current_match.fail(reason, failure_source)
+        return self
+
+    @property
+    def reason(self) -> str:
+        """Returns the reason for the failure."""
+        return self._current_match.reason
+
+    @property
+    def nodes(self) -> Sequence[ir.Node]:
+        """Returns the list of nodes that matched the pattern."""
+        return self._current_match.nodes
+
+    def bind_node(self, pattern_node: NodePattern, node: ir.Node):
+        """Binds a pattern node to a matched node."""
+        self.add_node(node)
+        self._current_match.node_bindings[pattern_node] = node
+
+    def add_node(self, node: ir.Node) -> None:
+        """Adds a node to the list of matched nodes."""
+        self._current_match.add_node(node)
+
+    def bind(self, var: str, value: Any) -> bool:
+        for match in self._partial_matches:
+            if var in match.bindings:
+                # TODO(rama): Use appropriate equality-check here.
+                if match.bindings[var] == value:
+                    return True
+                self._current_match.fail(
+                    f"Binding failure: {var} bound to two different values.",
+                    [match.bindings[var], value],
+                )
+                return False
+        self._current_match.bindings[var] = value
+        return True
+
+    @property
+    def bindings(self) -> dict[str, Any]:
+        """Returns the bindings for the pattern variables."""
+        if len(self._partial_matches) > 1:
+            raise ValueError("Bindings can be accessed only at the top-level match.")
+        return self._current_match.bindings
+
+    @property
+    def outputs(self) -> MutableSequence[ir.Value]:
+        """Returns the list of output values that matched the pattern."""
+        if len(self._partial_matches) > 1:
+            raise ValueError("Outputs can be accessed only at the top-level match.")
+        return self._current_match.outputs
+
+    @property
+    def failure_nodes_and_values(self) -> list[Union[ir.Node, ir.Value]]:
+        """Returns the nodes and values that caused the failure."""
+        return self._current_match._failure_nodes_and_values
+
+    def lookup_node(self, pattern_node: NodePattern) -> ir.Node | None:
+        """Looks up the node that matched the given pattern node."""
+        for match in self._partial_matches:
+            if pattern_node in match.node_bindings:
+                return match.node_bindings[pattern_node]
+        return None
+
+    def num_matched_nodes(self) -> int:
+        """Returns the number of nodes matched so far."""
+        return sum(len(match.node_bindings) for match in self._partial_matches)
+
+
+class PartialMatchResult:
+    """The state object used by the pattern-matching algorithm for a sub-match."""
+
+    def __init__(self) -> None:
         self._success: bool = True
         # For a successful match, _matched_nodes is a list of values that matched the pattern.
         # These include the internal nodes of the pattern that were matched, but not
@@ -326,63 +436,81 @@ class MatchResult:
         self._matched_nodes: MutableSequence[ir.Node] = []
         # For a successful match, bindings is a dictionary of mapping pattern-variable-names
         # to values.
-        self.bindings: dict[str, Any] = {}
-        self.outputs: list[ir.Value] = []
+        self._bindings: dict[str, Any] = {}
+        self._node_bindings: dict[NodePattern, ir.Node] = {}
+        self._outputs: list[ir.Value] = []
         # For a failed match, _reason is a string that describes the reason for the failure.
         self._reason: str = ""
-        # Track the node that caused the failure.
-        # TODO: May be useful to extend this to be a collection of Nodes and Values.
-        self._failure_node: ir.Node | None = None
+        # Track the node(s) or value(s) that caused the failure.
+        self._failure_nodes_and_values: list[Union[ir.Node, ir.Value]] = []
 
     def __bool__(self):
         return self._success
 
-    def fail(self, reason: str = "", node: ir.Node | None = None) -> MatchResult:
+    def fail(
+        self,
+        reason: str = "",
+        failure_source: Union[ir.Node, ir.Value, list[Union[ir.Node, ir.Value]]] | None = None,
+    ) -> None:
         self._success = False
         self._reason = reason
-        self._failure_node = node
-        return self
+        if failure_source is not None:
+            if isinstance(failure_source, list):
+                self._failure_nodes_and_values.extend(failure_source)
+            else:
+                self._failure_nodes_and_values.append(failure_source)
 
     @property
     def reason(self) -> str:
         return self._reason
 
     @property
-    def nodes(self) -> MutableSequence[ir.Node]:
-        return self._matched_nodes
+    def nodes(self) -> Sequence[ir.Node]:
+        return tuple(self._matched_nodes)
+
+    def add_node(self, node: ir.Node) -> None:
+        """Adds a node to the list of matched nodes."""
+        self._matched_nodes.append(node)
 
     def bind(self, var: str, value: Any) -> bool:
         """Binds a pattern variable name to a value from the matched IR.
 
         Returns True if the binding is successful, False otherwise (when the binding is inconsistent).
         """
-        if var in self.bindings:
+        if var in self._bindings:
             # TODO(rama): Use appropriate equality-check here.
-            if self.bindings[var] == value:
+            if self._bindings[var] == value:
                 return True
             self._success = False
             return False
-        self.bindings[var] = value
+        self._bindings[var] = value
         return True
 
-    def extend(self, other: MatchResult | bool):
-        if not self._success:
-            return
-        if not other:
-            self._success = False
-            return
-        if isinstance(other, bool):
-            return
-        for var, val in other.bindings.items():
-            if var in self.bindings:
-                # TODO: handle attribute var bindings
-                if self.bindings[var] != val:
-                    self._success = False
-                    return
-            else:
-                self.bindings[var] = val
-        assert self._matched_nodes is not None, "_matched_nodes should not be None."
-        self._matched_nodes.extend(other._matched_nodes)  # type: ignore[attr-defined]
+    @property
+    def bindings(self) -> dict[str, Any]:
+        return self._bindings
+
+    @property
+    def outputs(self) -> MutableSequence[ir.Value]:
+        return self._outputs
+
+    @property
+    def node_bindings(self) -> dict[NodePattern, ir.Node]:
+        return self._node_bindings
+
+    def merge(self, other: PartialMatchResult) -> None:
+        """Merges a successful sub-match for an alternative with the parent one."""
+        if self._success and other._success:
+            # Merge the two successful matches. Matching algorithm responsible for ensuring
+            # that the two matches are compatible. No need to check for conflicts here.
+            self._bindings.update(other._bindings)
+            self._matched_nodes.extend(other.nodes)
+            # Note: outputs should be set only at end of the (top-level) match. There
+            # should be no outputs in the sub-match.
+            assert not other._outputs
+        else:
+            # This should not happen currently.
+            raise NotImplementedError("Merging failed matches is not yet supported.")
 
 
 _pattern_builder: OpsetPatternBuilder = onnxop
@@ -504,7 +632,7 @@ class NodePattern:
         if isinstance(op, str) and isinstance(domain, StringConstantPattern):
             # TODO(rama): support overloaded operators.
             overload = ""
-            self._op_identifier: tuple[str, str, str] | None = (
+            self._op_identifier: ir.OperatorIdentifier | None = (
                 domain.value(),
                 op,
                 overload,
@@ -528,7 +656,7 @@ class NodePattern:
         inputs_and_attributes = f"{inputs}, {attributes}" if attributes else inputs
         return f"{outputs} = {qualified_op} ({inputs_and_attributes})"
 
-    def op_identifier(self) -> Tuple[str, str, str] | None:
+    def op_identifier(self) -> ir.OperatorIdentifier | None:
         return self._op_identifier
 
     @property
@@ -622,9 +750,18 @@ class NodeOutputPattern(ValuePattern):
 Var = ValuePattern
 
 
-def _is_pattern_variable(x: Any) -> bool:
-    # The derived classes of ValuePattern represent constant patterns and node-output patterns.
-    return type(x) is ValuePattern
+class AnyValue(ValuePattern):
+    """Represents a pattern that matches against any value."""
+
+    def __init__(self) -> None:
+        super().__init__(None)
+
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> AnyValue:
+        # A single instance of AnyValue suffices.
+        return self
+
+
+ANY_VALUE = AnyValue()
 
 
 class Constant(ValuePattern):
@@ -649,52 +786,155 @@ class Constant(ValuePattern):
     def value(self) -> int | float | list[int] | list[float]:
         return self._value
 
-    def matches(self, value: ir.Value, match: MatchResult) -> MatchResult:
-        constant_value = value.const_value
-        if constant_value is None:
-            return match.fail(f"Value is not a constant, expecting {self.value}.")
-
-        constant_value_numpy = constant_value.numpy()
-        if isinstance(self._value, list):
-            if constant_value_numpy.shape != (len(self._value),):
-                return match.fail(f"Value has mismatching shape, expecting ({self.value},).")
-            if not all(
-                math.isclose(
-                    constant_value_numpy.item(i),
-                    self._value[i],
-                    rel_tol=self._rel_tol,
-                    abs_tol=self._abs_tol,
-                )
-                for i in range(len(self._value))
-            ):
-                return match.fail(
-                    f"Value mismatch: expected {self._value}, got {constant_value_numpy}."
-                )
-            return match
-
-        # Scalar constant case:
-        # TODO (rama): allow users to specify shape requirement, if desired.
-        if constant_value_numpy.size != 1:
-            return match.fail(f"Value is not a scalar, expecting {self.value}.")
-
-        if not math.isclose(
-            constant_value_numpy.item(),
-            self._value,
-            rel_tol=self._rel_tol,
-            abs_tol=self._abs_tol,
-        ):
-            match.fail(
-                f"Value mismatch: expected {self._value}, got {constant_value_numpy.item()}."
-            )
-
-        # Note: If the value is produced by a Constant node, we could include
-        # the Constant node in the return_value list. However, we don't do that.
-        # Instead, we will rely on DCE to remove the constant node if it is not
-        # used elsewhere.
-        return match
-
     def __str__(self) -> str:
         return str(self._value)
+
+
+class _OpIdDispatchOr(ValuePattern):
+    """Represents a (restricted) form of value pattern disjunction that enables deterministic matching."""
+
+    def __init__(
+        self,
+        op_to_pattern: Mapping[ir.OperatorIdentifier, tuple[Any, ValuePattern]],
+        name: str | None = None,
+        tag_var: str | None = None,
+    ) -> None:
+        """
+        Initialize an _OpIdDispatchOr pattern.
+
+        Args:
+            op_to_pattern: A dictionary mapping operator identifiers to tuples of tag values and patterns.
+                The keys are operator identifiers, and the values are tuples containing a tag value
+                and a pattern to match against.
+            name: An optional variable name for the pattern. Defaults to None. If present,
+                this name will be bound to the value matched by the pattern.
+            tag_var: An optional variable name for the tag. Defaults to None. If present,
+                it will be bound to a value indicating which alternative was matched.
+        """
+        super().__init__(name)
+        self._op_to_pattern = op_to_pattern
+        self._tag_var = tag_var
+
+    @property
+    def tag_var(self) -> str | None:
+        """Returns the tag variable associated with the OrValue pattern."""
+        return self._tag_var
+
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> _OpIdDispatchOr:
+        return _OpIdDispatchOr(
+            {k: (v[0], v[1].clone(node_map)) for k, v in self._op_to_pattern.items()},
+            self.name,
+            self._tag_var,
+        )
+
+    def get_pattern(self, value: ir.Value) -> tuple[Any, ValuePattern] | None:
+        """Returns the pattern that should be tried for the given value."""
+        producer = value.producer()
+        if producer is not None:
+            id = producer.op_identifier()
+            if id is not None and id in self._op_to_pattern:
+                return self._op_to_pattern[id]
+        return None
+
+
+class _BacktrackingOr(ValuePattern):
+    """Represents an unrestricted form of OR pattern implemented using backtracking."""
+
+    def __init__(
+        self,
+        values: Sequence[ValuePattern],
+        name: str | None = None,
+        tag_var: str | None = None,
+        tag_values: Sequence[Any] | None = None,
+    ) -> None:
+        """
+        Initialize a _BacktrackingOr pattern.
+
+        Args:
+            values: A sequence of value patterns to match against.
+            name: An optional variable name for the pattern. Defaults to None. If present,
+                this name will be bound to the value matched by the pattern.
+            tag_var: An optional variable name for the tag. Defaults to None. If present,
+                it will be bound to a value (from tag_values) indicating which alternative was matched.
+            tag_values: An optional sequence of values to bind to the tag_var. Defaults to None.
+                If present, the length of tag_values must match the number of alternatives in values.
+                In a successful match, tag-var will be bound to the i-th value in tag_values if the i-th
+                alternative pattern matched. If omitted, the default value of (0, 1, 2, ...) will be used.
+        """
+        super().__init__(name)
+        if tag_values is not None:
+            if tag_var is None:
+                raise ValueError("tag_var must be specified if tag_values is provided.")
+            if len(tag_values) != len(values):
+                raise ValueError(
+                    "tag_values must have the same length as the number of alternatives."
+                )
+        else:
+            tag_values = tuple(range(len(values)))
+        self._tag_var = tag_var
+        self._tag_values = tag_values
+        self._values = values
+
+    @property
+    def tag_var(self) -> str | None:
+        """Returns the tag variable associated with the OrValue pattern."""
+        return self._tag_var
+
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> _BacktrackingOr:
+        return _BacktrackingOr(
+            [v.clone(node_map) for v in self._values],
+            self.name,
+            self._tag_var,
+            self._tag_values,
+        )
+
+
+def OrValue(
+    values: Sequence[ValuePattern],
+    name: str | None = None,
+    tag_var: str | None = None,
+    tag_values: Sequence[Any] | None = None,
+) -> ValuePattern:
+    """
+    Creates an OR pattern.
+
+    Args:
+        values: A sequence of value patterns to match against.
+        name: An optional variable name for the pattern. Defaults to None. If present,
+            this name will be bound to the value matched by the pattern.
+        tag_var: An optional variable name for the tag. Defaults to None. If present,
+            it will be bound to a value (from tag_values) indicating which alternative was matched.
+        tag_values: An optional sequence of values to bind to the tag_var. Defaults to None.
+            If present, the length of tag_values must match the number of alternatives in values.
+            In a successful match, tag-var will be bound to the i-th value in tag_values if the i-th
+            alternative pattern matched. If omitted, the default value of (0, 1, 2, ...) will be used.
+    """
+    if tag_values is not None:
+        if tag_var is None:
+            raise ValueError("tag_var must be specified if tag_values is provided.")
+        if len(tag_values) != len(values):
+            raise ValueError(
+                "tag_values must have the same length as the number of alternatives."
+            )
+    else:
+        tag_values = tuple(range(len(values)))
+
+    def make_op_id_or_pattern() -> _OpIdDispatchOr | None:
+        mapping: dict[ir.OperatorIdentifier, tuple[Any, NodeOutputPattern]] = {}
+        for i, alternative in enumerate(values):
+            if not isinstance(alternative, NodeOutputPattern):
+                return None
+            producer = alternative.producer()
+            id = producer.op_identifier()
+            if id is None or id in mapping:
+                return None
+            mapping[id] = (tag_values[i], alternative)
+        return _OpIdDispatchOr(mapping, name, tag_var)
+
+    optimized_pattern = make_op_id_or_pattern()
+    return optimized_pattern or _BacktrackingOr(
+        values, name, tag_var, tag_values if tag_var else None
+    )
 
 
 def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[NodePattern]:
@@ -977,9 +1217,9 @@ class SimplePatternMatcher(PatternMatcher):
 
     def fail(self, reason: str, node: ir.Node | None = None) -> bool:
         if self._verbose:
-            if self._matched:  # Print only if at least one node successfully matched.
-                count = len(self._matched)
-                print(f"Match failed after {count} nodes: {reason}")
+            num_matched_nodes = self._match.num_matched_nodes()
+            if num_matched_nodes > 0:  # Print only if at least one node successfully matched.
+                print(f"Match failed after {num_matched_nodes} nodes: {reason}")
         self._match.fail(reason, node or self._current_node)
         return False
 
@@ -1045,8 +1285,9 @@ class SimplePatternMatcher(PatternMatcher):
         self._current_node = node
         # Graph-matching: we do not allow the same pattern node to be matched against
         # different graph nodes.
-        if pattern_node in self._matched:
-            if self._matched[pattern_node] is not node:
+        matched_node = self._match.lookup_node(pattern_node)
+        if matched_node is not None:
+            if matched_node is not node:
                 return self.fail("Same pattern node is matched against different graph nodes.")
             return True
         match = self._match
@@ -1056,8 +1297,7 @@ class SimplePatternMatcher(PatternMatcher):
         if self._verbose:
             print(f"Matched: {node.op_type}")
 
-        match.nodes.append(node)
-        self._matched[pattern_node] = node
+        match.bind_node(pattern_node, node)
 
         # TODO: Revisit this to handle optional trailing inputs better.
         if pattern_node.allow_other_inputs:
@@ -1090,17 +1330,14 @@ class SimplePatternMatcher(PatternMatcher):
     def _bind_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
         """Bind a ValuePattern var to ir Value."""
         if pattern_value.name is not None:
-            match = self._match
-            if pattern_value.name in match.bindings:
-                # TODO(rama): Use appropriate equality-check here: future extension possibility.
-                if match.bindings[pattern_value.name] == value:
-                    return True
-                return self.fail(f"Variable {pattern_value.name} is bound to multiple values.")
-            match.bindings[pattern_value.name] = value
+            return self._match.bind(pattern_value.name, value)
         return True
 
     def _match_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
         """Match an IR value against a ValuePattern instance."""
+        if isinstance(pattern_value, AnyValue):
+            return True
+
         if not self._bind_value(pattern_value, value):
             return False
 
@@ -1112,6 +1349,28 @@ class SimplePatternMatcher(PatternMatcher):
             if value is None:
                 return self.fail("Mismatch: Constant pattern does not match None.")
             return self._match_constant(pattern_value, value)
+        if isinstance(pattern_value, _BacktrackingOr):
+            for i, pattern_choice in enumerate(pattern_value._values):
+                self._match.enter_new_match()
+                if self._match_value(pattern_choice, value):
+                    if pattern_value.tag_var is not None:
+                        self._match.bind(pattern_value.tag_var, pattern_value._tag_values[i])
+                    self._match.merge_current_match()
+                    return True
+                self._match.abandon_current_match()
+            return self.fail("None of the alternatives matched.")
+        if isinstance(pattern_value, _OpIdDispatchOr):
+            if value is None:
+                return self.fail("Mismatch: OrValue pattern does not match None.")
+            alternative = pattern_value.get_pattern(value)
+            if alternative is None:
+                return self.fail("Mismatch: OrValue pattern does not match value.")
+            i, pattern_choice = alternative
+            result = self._match_value(pattern_choice, value)
+            if result:
+                if pattern_value.tag_var is not None:
+                    self._match.bind(pattern_value.tag_var, i)
+            return result
         return True
 
     def _match_node_output(self, pattern_value: NodeOutputPattern, value: ir.Value) -> bool:
@@ -1130,7 +1389,6 @@ class SimplePatternMatcher(PatternMatcher):
     def _init_match(self, verbose: int) -> None:
         """Initialize the match state. Invoked before starting a new match."""
         self._verbose = verbose
-        self._matched: dict[NodePattern, ir.Node] = {}
         self._match: MatchResult = MatchResult()
         self._current_node = None
 
@@ -1147,8 +1405,9 @@ class SimplePatternMatcher(PatternMatcher):
             elif isinstance(value_pattern, NodeOutputPattern):
                 i = value_pattern.output_index
                 node = value_pattern.producer()
-                if node in self._matched:
-                    output_values.append(self._matched[node].outputs[i])
+                matched_node = self._match.lookup_node(node)
+                if matched_node is not None:
+                    output_values.append(matched_node.outputs[i])
                 else:
                     unbound_values.append(f"output_{j}")
             elif isinstance(value_pattern, Constant):
@@ -1370,8 +1629,15 @@ class RewriteRule:
             for var in self._target_pattern.inputs:
                 if var.name is not None:
                     if var.name not in match.bindings:
-                        match.bindings[var.name] = None
-            if not self._condition_function(context, **match.bindings):
+                        match.bind(var.name, None)
+            check_match_result = self._condition_function(context, **match.bindings)
+            if not check_match_result:
+                # If check function was provided, but it failed, return the reason for failure to the tracer.
+                if isinstance(check_match_result, MatchResult):
+                    match.fail(
+                        check_match_result.reason,
+                        check_match_result.failure_nodes_and_values,
+                    )
                 if tracer:
                     tracer.log(
                         self, graph_or_function, node, match, MatchStatus.CONDITION_FAILED
@@ -1428,6 +1694,7 @@ class RewriteRule:
                 self.remove_nodes,
                 self.graph_pre_visitor,
                 self.graph_post_visitor,
+                self.as_function,
             )
 
         return [replace_pattern(p) for p in self._target_pattern.commute()]
@@ -1448,8 +1715,8 @@ class RewriteRuleAsClass:
         raise NotImplementedError("Method 'rewrite' must be overwritten.")
 
     @classmethod
-    def check(cls, context, *_, **__) -> bool:
-        return True
+    def check(cls, context, *_, **__) -> bool | MatchResult:
+        return MatchResult()
 
 
 def make_rewrite_rule_from_class(
@@ -1509,31 +1776,44 @@ class RewriteRuleClassBase:
     @classmethod
     def rule(cls, *args, **kwargs):
         instance = cls(*args, **kwargs)
-        setup = instance.setup if hasattr(instance, "setup") else None
-        cleanup = instance.cleanup if hasattr(instance, "cleanup") else None
         return RewriteRule(
             instance.pattern,
             instance.rewrite,
             instance.check,
             name=instance.name,
             remove_nodes=instance.remove_nodes,
-            graph_pre_visitor=setup,
-            graph_post_visitor=cleanup,
+            graph_pre_visitor=instance.setup,
+            graph_post_visitor=instance.cleanup,
+            as_function=instance.as_function,
         )
 
-    def __init__(self, name: str | None = None, remove_nodes: bool = True) -> None:
+    def __init__(
+        self, name: str | None = None, remove_nodes: bool = True, as_function: bool = False
+    ) -> None:
         self.name = name or self.__class__.__name__
         self.remove_nodes = remove_nodes
+        self.as_function = as_function
 
     def pattern(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'pattern' must be implemented by derived class.")
 
     def check(self, op, *args, **kwargs):
-        # Default check function that always returns True.
-        return True
+        # Default check function that returns a
+        # MatchResult object with success always set to True.
+        return MatchResult()
 
     def rewrite(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'rewrite' must be implemented by derived class.")
+
+    def setup(self):
+        # Optional setup function that can be overridden by derived classes. Used to do
+        # per model/function initialization.
+        pass
+
+    def cleanup(self):
+        # Optional cleanup function that can be overridden by derived classes. Used to do
+        # per model/function cleanup.
+        pass
 
 
 def _copy_for_function(
@@ -1542,23 +1822,35 @@ def _copy_for_function(
     """Utility function to extract a subgraph out as a function."""
     value_map: dict[ir.Value, ir.Value] = {}
     function_inputs: list[ir.Value] = []
+    constant_nodes: list[ir.Node] = []
     for input in inputs:
         # Create a function input (formal-parameter value) to represent this value:
-        if input is None:
-            raise NotImplementedError("None inputs not supported.")
-        new_value = ir.Value(
-            name=input.name,
-            shape=input.shape,
-            type=input.type,
-            doc_string=input.doc_string,
+        new_value = (
+            ir.Value(
+                name=input.name,
+                shape=input.shape,
+                type=input.type,
+                doc_string=input.doc_string,
+            )
+            if input
+            else ir.Value()  # dummy parameter for a None input
         )
-        value_map[input] = new_value
+        if input is not None:
+            value_map[input] = new_value
         function_inputs.append(new_value)
 
     def copy_value(value: ir.Value | None) -> ir.Value | None:
         if value is None:
             return None
         if value not in value_map:
+            const_value = value.const_value
+            if const_value is not None:
+                # create a Constant node to represent the value
+                value_attr = ir.AttrTensor("value", const_value)
+                const_node = ir.Node("", "Constant", [], [value_attr])
+                constant_nodes.append(const_node)
+                value_map[value] = result = const_node.outputs[0]
+                return result
             raise ValueError(f"Value {value} not found in value_map.")
         return value_map[value]
 
@@ -1598,7 +1890,7 @@ def _copy_for_function(
 
     function_nodes = [copy_node(node) for node in nodes]
     function_outputs = [copy_value(v) for v in outputs]
-    return (function_inputs, function_nodes, function_outputs)
+    return (function_inputs, constant_nodes + function_nodes, function_outputs)
 
 
 def _get_new_overload(model: ir.Model, domain: str, name: str) -> str:
@@ -1624,12 +1916,17 @@ def _get_new_overload(model: ir.Model, domain: str, name: str) -> str:
 
 class RewriteRuleSet:
     def __init__(self, rules: Sequence[RewriteRule], *, commute: bool = False) -> None:
+        if not rules:
+            raise ValueError("rules must contain at least one rule")
         if commute:
             rules = list(itertools.chain.from_iterable([rule.commute() for rule in rules]))
         self.rules = rules
         # We call remove_unused_nodes at end of rewriting if there is any rule that does
         # NOT remove nodes (immediately when it is applied)
         self.remove_unused_nodes = any(not rule.remove_nodes for rule in rules)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.rules})"
 
     def _apply_to_graph_or_function(
         self,
@@ -1801,13 +2098,17 @@ class MatchInfo:
         if self.status != MatchStatus.SUCCESS:
             reason = self.match_result.reason
             if reason:
-                print(f"Graph matching failed: {reason}")
+                if self.status == MatchStatus.CONDITION_FAILED:
+                    print(f"Graph matching failed due to failing check condition : {reason}")
+                else:
+                    print(f"Graph matching failed: {reason}")
             else:
                 print("Graph matching failed.")
-            failure_node = self.match_result._failure_node
-            if failure_node:
-                print("Failure at or around node:")
-                failure_node.display()
+            failure_nodes_and_values = self.match_result.failure_nodes_and_values
+            print("Failure at or around nodes/values:")
+            if failure_nodes_and_values:
+                for failure_cause in failure_nodes_and_values:
+                    failure_cause.display()
         print("Matched nodes:")
         import onnxscript.rewriter._ir_utils as ir_utils
 

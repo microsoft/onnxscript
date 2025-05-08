@@ -19,7 +19,6 @@ from onnx.defs import get_schema
 
 from onnxscript.onnx_opset._impl.opset1 import Opset1
 from onnxscript.onnx_types import (
-    BFLOAT16,
     BOOL,
     COMPLEX64,
     COMPLEX128,
@@ -43,7 +42,7 @@ class Opset2(Opset1):
     def __new__(cls):
         return Opset.__new__(cls, "", 2)
 
-    T_GlobalLpPool = TypeVar("T_GlobalLpPool", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+    T_GlobalLpPool = TypeVar("T_GlobalLpPool", DOUBLE, FLOAT, FLOAT16)
 
     def GlobalLpPool(self, X: T_GlobalLpPool, *, p: int = 2) -> T_GlobalLpPool:
         r"""[🌐 GlobalLpPool(2)](https://onnx.ai/onnx/operators/onnx__GlobalLpPool.html#globallppool-2 "Online Documentation")

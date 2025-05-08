@@ -15,13 +15,14 @@ class FusedMatMulDiv1(orp.RewriteRuleAsClass):
         return op.Div(op.MatMul(x, y), cst)
 
     @classmethod
-    def check(cls, context, x, y, cst) -> bool:
+    def check(cls, context, x, y, cst) -> orp.MatchResult:
+        check_result = orp.MatchResult()
         if cst.const_value is None:
-            return False
+            return check_result.fail("Divisor is not a constant value.")
         value = cst.const_value.numpy()
         if value.size > 1:
-            return False
-        return True
+            return check_result.fail("Divisor is not a scalar value.")
+        return check_result
 
     @classmethod
     def rewrite(cls, op, x, y, cst):
@@ -38,12 +39,13 @@ class FusedMatMulDiv2(orp.RewriteRuleAsClass):
         return op.Div(op.FusedMatMul(x, y, _domain="com.microsoft"), cst)
 
     @classmethod
-    def check(cls, context, x, y, cst) -> bool:
+    def check(cls, context, x, y, cst) -> orp.MatchResult:
+        check_result = orp.MatchResult()
         if cst.const_value is None:
-            return False
+            return check_result.fail("Divisor is not a constant value.")
         if cst.const_value.numpy().size > 1:
-            return False
-        return True
+            return check_result.fail("Divisor is not a scalar value.")
+        return check_result
 
     @classmethod
     def rewrite(cls, op, x, y, cst):
@@ -65,11 +67,14 @@ class _TransposeMatMulBase(orp.RewriteRuleAsClass):
     _pos: ClassVar = 1
 
     @classmethod
-    def check(cls, context, x, y) -> bool:
+    def check(cls, context, x, y) -> orp.MatchResult:
+        check_result = orp.MatchResult()
         perm = list((x if cls._pos == 1 else y).uses())[0][0].attributes["perm"].value  # noqa: RUF015
         expected_perm = list(range(len(perm)))
         expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
-        return perm == expected_perm
+        if perm != expected_perm:
+            return check_result.fail("Permutation values for Transpose are not correct.")
+        return check_result
 
     @classmethod
     def rewrite(cls, op, x, y):
@@ -126,13 +131,16 @@ class MatMulTranspose(orp.RewriteRuleAsClass):
         return op.Transpose(op.MatMul(x, y))
 
     @classmethod
-    def check(cls, context, x, y) -> bool:
+    def check(cls, context, x, y) -> orp.MatchResult:
+        check_result = orp.MatchResult()
         matmul = list(x.uses())[0][0]  # noqa: RUF015
         transpose = list(matmul.outputs[0].uses())[0][0]  # noqa: RUF015
         perm = transpose.attributes["perm"].value
         expected_perm = list(range(len(perm)))
         expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
-        return perm == expected_perm
+        if perm != expected_perm:
+            return check_result.fail("Permutation values for Transpose are not correct.")
+        return check_result
 
     @classmethod
     def rewrite(cls, op, x, y):

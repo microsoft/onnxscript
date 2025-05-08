@@ -47,7 +47,7 @@ def save(
     """Save an ONNX model to a file.
 
     The model remains unchanged after the call. If any existing external tensor
-    references the provided :param:`external_data` path, it will be invalidated
+    references the provided ``external_data`` path, it will be invalidated
     after the external data is overwritten. To obtain a valid model, use :func:`load`
     to load the newly saved model, or provide a different external data path that
     is not currently referenced by any tensors in the model.
@@ -64,7 +64,7 @@ def save(
             with the same external information; if the tensor is not external,
             it will be serialized in the ONNX Proto message.
         size_threshold_bytes: Save to external data if the tensor size in bytes is larger than this threshold.
-            Effective only when :param:`external_data` is set.
+            Effective only when ``external_data`` is set.
 
     Raises:
         ValueError: If the external data path is an absolute path.
@@ -78,7 +78,7 @@ def save(
 
         # Store the original initializer values so they can be restored if modify_model=False
         initializer_values = tuple(model.graph.initializers.values())
-        tensors = [v.const_value for v in model.graph.initializers.values()]
+        tensors = [v.const_value for v in initializer_values]
 
         try:
             model = _external_data.unload_from_model(

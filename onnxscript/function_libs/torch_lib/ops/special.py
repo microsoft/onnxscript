@@ -219,7 +219,7 @@ def aten_special_log_softmax(self: TFloat, dim: int, dtype: int = -1) -> TFloat:
 
     self_is_scalar = len(self.shape) == 0
     if self_is_scalar:
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+        self = op.Unsqueeze(self, [0])
     result = op.LogSoftmax(self, axis=dim)
     if dtype != -1:
         result = op.Cast(result, to=dtype)

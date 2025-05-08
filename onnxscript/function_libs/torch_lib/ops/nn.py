@@ -17,8 +17,6 @@ from __future__ import annotations
 import math
 from typing import Optional, Sequence, Tuple, TypeVar, Union
 
-import onnx
-
 from onnxscript import BFLOAT16, BOOL, DOUBLE, FLOAT, FLOAT16, INT64, ir
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
@@ -479,34 +477,32 @@ def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
     return result
 
 
-@torch_op("aten::gelu", private=True)
 def _aten_gelu_approximate_none(self: TReal) -> TReal:
     """gelu(Tensor self, *, str approximate='none') -> Tensor"""
 
     # GELU(x) = 0.5 * x * [1 + ERF(x/sqrt(2)]
-    inner = op.Div(self, 1.4142135623730951)
+    inner = op.Div(self, ir.tensor(1.4142135623730951, dtype=self.dtype))
     erf = op.Erf(inner)
-    inner = op.Add(erf, 1)
-    inner = op.Mul(self, inner)
-    result = op.Mul(0.5, inner)
+    inner = op.Add(erf, ir.tensor(1, dtype=self.dtype))
+    inner = op.Mul(ir.tensor(0.5, dtype=self.dtype), inner)
+    result = op.Mul(self, inner)
     return result
 
 
-@torch_op("aten::gelu", private=True)
 def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
     """gelu(Tensor self, *, str approximate='none') -> Tensor"""
 
     # GELU(x) = 0.5 * x * {1 + Tanh[\sqrt(2/pi) * (x + 0.044715 * x^3)]}
-    cubed = op.Pow(self, 3)
-    inner = op.Mul(0.044715, cubed)
+    cubed = op.Pow(self, ir.tensor(3, dtype=self.dtype))
+    inner = op.Mul(ir.tensor(0.044715, dtype=self.dtype), cubed)
     inner = op.Add(self, inner)
-    # Prefer explicit graph construction over precomputed constants for clarity.
-    two_over_pi = op.CastLike(op.Div(2.0, _MATH_PI), self)
-    inner = op.Mul(op.Sqrt(two_over_pi), inner)
+    # math.sqrt(2.0/math.pi) = 0.7978845608028654
+    sqrt_two_over_pi = ir.tensor(0.7978845608028654, dtype=self.dtype)
+    inner = op.Mul(sqrt_two_over_pi, inner)
     inner = op.Tanh(inner)
-    inner = op.Add(inner, 1)
-    inner = op.Mul(self, inner)
-    result = op.Mul(0.5, inner)
+    inner = op.Add(inner, ir.tensor(1, dtype=self.dtype))
+    inner = op.Mul(ir.tensor(0.5, dtype=self.dtype), inner)
+    result = op.Mul(self, inner)
     return result
 
 
@@ -1004,7 +1000,7 @@ def _aten_max_pool_onnx(
 ) -> TFloatOrUInt8:
     self_rank_is_unbatched_rank = Rank(self) == unbatched_rank
     if self_rank_is_unbatched_rank:  # C,H,W -> N,C,H,W and N=1
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+        self = op.Unsqueeze(self, [0])
 
     pool_result, _ = op.MaxPool(
         self,
@@ -1016,7 +1012,7 @@ def _aten_max_pool_onnx(
     )
 
     if self_rank_is_unbatched_rank:
-        pool_result = op.Squeeze(pool_result, op.Constant(value_ints=[0]))
+        pool_result = op.Squeeze(pool_result, [0])
 
     return pool_result
 
@@ -1138,7 +1134,7 @@ def _aten_max_pool_with_indices_onnx(
 ) -> Tuple[TFloatOrUInt8, INT64]:
     self_rank_is_unbatched_rank = Rank(self) == unbatched_rank
     if self_rank_is_unbatched_rank:
-        self = op.Unsqueeze(self, axes=0)
+        self = op.Unsqueeze(self, axes=[0])
 
     pool_result, indices = op.MaxPool(
         self,
@@ -1193,8 +1189,8 @@ def _aten_max_pool_with_indices_onnx(
     indices = op.Sub(indices, delta)
 
     if self_rank_is_unbatched_rank:
-        pool_result = op.Squeeze(pool_result, op.Constant(value_ints=[0]))
-        indices = op.Squeeze(indices, op.Constant(value_ints=[0]))
+        pool_result = op.Squeeze(pool_result, [0])
+        indices = op.Squeeze(indices, [0])
 
     return (pool_result, indices)
 
@@ -1367,11 +1363,11 @@ def aten_nll_loss(
 
     self_rank_is_1 = Rank(self) == 1
     if self_rank_is_1:  # self rank should be at least 2
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+        self = op.Unsqueeze(self, [0])
 
     rank_target = Rank(target)
     if rank_target == 0:  # target rank should be at least 1
-        target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
+        target = op.Unsqueeze(target, [0])
 
     if reduction == 0:
         reduction_str = "none"
@@ -1800,15 +1796,11 @@ def _aten__scaled_dot_product_flash_attention_fillin_empty_outputs(
         op.Shape(query), op.Constant(value_ints=[0]), op.Constant(value_ints=[3])
     )
     logsumexp = op.Expand(0.0, query_first_three_dims)
-    # TODO: Eliminate `make_tensor` usage when ORT supports empty tensor.
-    empty_tensor_int = op.Cast(
-        op.ConstantOfShape(
-            op.Constant(value=onnx.helper.make_tensor("Empty_INTS", INT64.dtype, [0], []))
-        ),
-        to=INT64.dtype,
+    empty_tensor_int = op.ConstantOfShape(
+        op.Constant(value=ir.tensor([], dtype=ir.DataType.INT64))
     )
     empty_tensor_float = op.ConstantOfShape(
-        op.Constant(value=onnx.helper.make_tensor("Empty_FLOATS", INT64.dtype, [0], []))
+        op.Constant(value=ir.tensor([], dtype=ir.DataType.FLOAT))
     )
     empty_int = op.Constant(value_int=0)
 
@@ -1883,11 +1875,8 @@ def _aten_scaled_dot_product_efficient_attention_fillin_empty_outputs(
         logsum_exp = op.Expand(0.0, op.Concat(query_first_dims, num_heads, [0], axis=0))
 
     # See Note [Seed and Offset]:
-    empty_tensor_int = op.Cast(
-        op.ConstantOfShape(
-            op.Constant(value=onnx.helper.make_tensor("Empty_INTS", INT64.dtype, [0], []))
-        ),
-        to=INT64.dtype,
+    empty_tensor_int = op.ConstantOfShape(
+        op.Constant(value=ir.tensor([], dtype=ir.DataType.INT64))
     )
 
     return logsum_exp, empty_tensor_int

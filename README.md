@@ -28,7 +28,7 @@ This repo also covers:
 Note however that ONNX Script does **not** intend to support the entirety
 of the Python language.
 
-Website: [https://onnxscript.ai/](https://onnxscript.ai/)
+Website: [https://microsoft.github.io/onnxscript/](https://microsoft.github.io/onnxscript/)
 
 ## Design Overview
 

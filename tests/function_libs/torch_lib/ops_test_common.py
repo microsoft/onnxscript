@@ -35,6 +35,7 @@ from torch.testing._internal.opinfo import core as opinfo_core
 
 import onnxscript
 import onnxscript.evaluator
+import onnxscript.ir.passes.common
 from onnxscript import ir
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from tests.function_libs.torch_lib import error_reproduction
@@ -419,6 +420,9 @@ def add_torchlib_common_imports(model: ir.Model) -> None:
     is_scalar_func = ir.serde.deserialize_function(common_ops.IsScalar.to_function_proto())
     model.functions[rank_func.identifier()] = rank_func
     model.functions[is_scalar_func.identifier()] = is_scalar_func
+    removal_pass = onnxscript.ir.passes.common.unused_removal.RemoveUnusedFunctionsPass()
+    assert removal_pass.in_place
+    removal_pass(model)
 
 
 def dtype_op_schema_compatible(dtype: torch.dtype, schema: onnx.defs.OpSchema) -> bool:
