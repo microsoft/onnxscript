@@ -94,7 +94,7 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
         # else branch multiplies the input by the constant
         add_node = ir.node("Add", inputs=[input_value, then_const_node.outputs[0]])
         then_graph = ir.Graph(
-            inputs=[input_value],
+            inputs=[],
             outputs=[add_node.outputs[0]],
             nodes=[then_const_node, add_node],
             opset_imports={"": 20},
@@ -105,7 +105,7 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
         )
         mul_node = ir.node("Mul", inputs=[input_value, else_const_node.outputs[0]])
         else_graph = ir.Graph(
-            inputs=[input_value],
+            inputs=[],
             outputs=[mul_node.outputs[0]],
             nodes=[else_const_node, mul_node],
             opset_imports={"": 20},
@@ -277,7 +277,7 @@ class TestLiftSubgraphInitializersToMainGraphPass(unittest.TestCase):
         # else branch multiplies the input by the constant
         add_node = ir.node("Add", inputs=[input_value, then_initializer_value])
         then_graph = ir.Graph(
-            inputs=[input_value, then_initializer_value],
+            inputs=[then_initializer_value],
             outputs=[add_node.outputs[0]],
             nodes=[add_node],
             opset_imports={"": 20},
@@ -292,7 +292,7 @@ class TestLiftSubgraphInitializersToMainGraphPass(unittest.TestCase):
         )
         mul_node = ir.node("Mul", inputs=[input_value, else_initializer_value])
         else_graph = ir.Graph(
-            inputs=[input_value],
+            inputs=[],
             outputs=[mul_node.outputs[0]],
             nodes=[mul_node],
             opset_imports={"": 20},

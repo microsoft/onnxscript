@@ -145,7 +145,9 @@ class LiftSubgraphInitializersToMainGraphPass(ir.passes.InPlacePass):
         for graph in model.graphs():
             if graph is model.graph:
                 continue
-            for name, initializer in graph.initializers.items():
+            for name in tuple(graph.initializers):
+                # Remove the initializer from the subgraph
+                initializer = graph.initializers.pop(name)
                 # To avoid name conflicts, we need to rename the initializer
                 # to a unique name in the main graph
                 if name in registered_initializer_names:
@@ -162,8 +164,6 @@ class LiftSubgraphInitializersToMainGraphPass(ir.passes.InPlacePass):
                     initializer.name,
                     graph.name,
                 )
-            # Remove the initializer from the subgraph
-            graph.initializers.clear()
         return ir.passes.PassResult(model, modified=bool(count))
 
 
