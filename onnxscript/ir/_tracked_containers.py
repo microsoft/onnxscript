@@ -164,7 +164,7 @@ class GraphOutputs(_GraphIO):
         value._graph_output_of = None
 
 
-class GraphInitializers(collections.UserDict[str, _core.Value]):
+class GraphInitializers(collections.UserDict[str, "_core.Valu"e]):
     """The initializers of a Graph."""
 
     # TODO: Ensure pop() and update() works
