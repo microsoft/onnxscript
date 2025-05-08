@@ -925,7 +925,7 @@ class GraphTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "graph"):
             self.graph.remove(node)
 
-    def test_remove_safe_raises_when_node_output_is_graph_output()(self):
+    def test_remove_safe_raises_when_node_output_is_graph_output(self):
         with self.assertRaisesRegex(ValueError, "output"):
             self.graph.remove(self.node, safe=True)
 
@@ -1296,7 +1296,7 @@ class GraphContainersTest(unittest.TestCase):
 
     def test_iter_initializers(self):
         self.graph.initializers[self.value3.name] = self.value3
-        initializers = list(self.graph.initializers)
+        initializers = list(self.graph.initializers.values())
         self.assertEqual(len(initializers), 1)
         self.assertEqual(initializers[0].name, self.value3.name)
         self.assertTrue(initializers[0].is_initializer())
