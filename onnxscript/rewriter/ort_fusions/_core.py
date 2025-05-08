@@ -131,16 +131,17 @@ def optimize_for_ort(
     # Apply the ORT pattern rewrite rules.
     rewrite(model, ORT_PATTERN_REWRITE_RULES)
 
-    # TODO(exporter team): Fold transpose into initializers
-    # Apply the ORT optimization passes.
-    # https://github.com/microsoft/onnxruntime/blob/74dcf7e296639095dfa55d31336998b6f719ed76/onnxruntime/python/tools/transformers/dynamo_onnx_helper.py#L172
-    common_passes.ClearMetadataAndDocStringPass()(model)
-    # https://github.com/microsoft/onnxruntime/blob/74dcf7e296639095dfa55d31336998b6f719ed76/onnxruntime/python/tools/transformers/dynamo_onnx_helper.py#L139
-    common_passes.LiftConstantsToInitializersPass(lift_all_constants=False, size_limit=1)(
-        model
-    )
-    common_passes.RemoveInitializersFromInputsPass()(model)
-    common_passes.ShapeInferencePass()(model)
-    common_passes.CheckerPass()(model)
-
-    return model, fusion_count
+    passes = [
+        # TODO(exporter team): Fold transpose into initializers
+        # Apply the ORT optimization passes.
+        # https://github.com/microsoft/onnxruntime/blob/74dcf7e296639095dfa55d31336998b6f719ed76/onnxruntime/python/tools/transformers/dynamo_onnx_helper.py#L172
+        common_passes.ClearMetadataAndDocStringPass(),
+        # https://github.com/microsoft/onnxruntime/blob/74dcf7e296639095dfa55d31336998b6f719ed76/onnxruntime/python/tools/transformers/dynamo_onnx_helper.py#L139
+        common_passes.LiftConstantsToInitializersPass(lift_all_constants=False, size_limit=1),
+        common_passes.RemoveInitializersFromInputsPass(),
+        common_passes.ShapeInferencePass(),
+        common_passes.CheckerPass(),
+    ]
+    optimize_for_ort_passes = ir.passes.Sequential(*passes)
+    result = optimize_for_ort_passes(model)
+    return result.model, fusion_count
