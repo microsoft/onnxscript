@@ -1198,7 +1198,7 @@ class GraphContainersTest(unittest.TestCase):
     def test_append_input_raises_when_input_belongs_to_another_graph(self):
         other_graph = _core.Graph(inputs=(), outputs=(), nodes=())
         other_graph.inputs.append(self.value1)
-        with self.assertRaisesRegex(ValueError, "is already an input of a different graph"):
+        with self.assertRaisesRegex(ValueError, "is already owned by a different graph"):
             self.graph.inputs.append(self.value1)
         # Append is ok after the value is removed from the old graph
         other_graph.inputs.clear()

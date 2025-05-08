@@ -40,7 +40,7 @@ class _GraphIO(collections.UserList["_core.Value"]):
         """Set the graph for the value."""
         raise NotImplementedError
 
-    def _unset_graph(self, value: _core.Value) -> None:
+    def _maybe_unset_graph(self, value: _core.Value) -> None:
         """Unset the graph for the value."""
         raise NotImplementedError
 
@@ -67,20 +67,20 @@ class _GraphIO(collections.UserList["_core.Value"]):
     def pop(self, i: int = -1) -> _core.Value:
         """Remove an input/output from the graph."""
         value = super().pop(i)
-        self._unset_graph(value)
+        self._maybe_unset_graph(value)
         self._check_invariance()
         return value
 
     def remove(self, item: _core.Value) -> None:
         """Remove an input/output from the graph."""
         super().remove(item)
-        self._unset_graph(item)
+        self._maybe_unset_graph(item)
         self._check_invariance()
 
     def clear(self) -> None:
         """Clear the list."""
         for value in self.data:
-            self._unset_graph(value)
+            self._maybe_unset_graph(value)
         super().clear()
 
     def __setitem__(self, i, item) -> None:
@@ -88,7 +88,7 @@ class _GraphIO(collections.UserList["_core.Value"]):
         if isinstance(item, Iterable) and isinstance(i, slice):
             # Modify a slice of the list
             for value in self.data[i]:
-                self._unset_graph(value)
+                self._maybe_unset_graph(value)
             for value in item:
                 self._set_graph(value)
             super().__setitem__(i, item)
@@ -96,7 +96,7 @@ class _GraphIO(collections.UserList["_core.Value"]):
             return
         elif isinstance(i, SupportsIndex):
             # Replace a single item
-            self._unset_graph(self.data[i])
+            self._maybe_unset_graph(self.data[i])
             self._set_graph(item)
             super().__setitem__(i, item)
             self._check_invariance()
@@ -128,7 +128,7 @@ class GraphInputs(_GraphIO):
         if not onnxscript.DEBUG:
             return
         for value in self.data:
-            if value._graph_input_of is self._graph:
+            if value._graph is self._graph:
                 continue
             raise ValueError(
                 f"Invariance error: Value '{value}' is not an input of the graph: {self._graph!r}"
@@ -136,16 +136,21 @@ class GraphInputs(_GraphIO):
 
     def _set_graph(self, value: _core.Value) -> None:
         """Set the graph for the value."""
-        if value._graph_input_of is not None and value._graph_input_of is not self._graph:
+        if value._graph is not None and value._graph is not self._graph:
             raise ValueError(
-                f"Value '{value}' is already an input of a different graph. Please remove the value from the previous graph first"
+                f"Value '{value}' is already owned by a different graph. Please remove the value from the previous graph first"
             )
-        value._graph_input_of = self._graph
+        value._is_graph_input = True
+        value._graph = self._graph
 
-    def _unset_graph(self, value: _core.Value) -> None:
+    def _maybe_unset_graph(self, value: _core.Value) -> None:
         """Unset the graph for the value."""
-        assert value._graph_input_of is self._graph, "Bug: value does not belong to the graph"
-        value._graph_input_of = None
+        assert value._graph is self._graph, "Bug: value does not belong to the graph"
+        value._is_graph_input = False
+        if value._owned_by_graph():
+            # Keep the graph reference if the value is still an input or an initializer
+            return
+        value._graph = None
 
 
 class GraphOutputs(_GraphIO):
@@ -156,7 +161,7 @@ class GraphOutputs(_GraphIO):
         if not onnxscript.DEBUG:
             return
         for value in self.data:
-            if value._graph_output_of is self._graph:
+            if value._graph is self._graph:
                 continue
             raise ValueError(
                 f"Invariance error: Value '{value}' is not an output of the graph: {self._graph!r}"
@@ -164,16 +169,21 @@ class GraphOutputs(_GraphIO):
 
     def _set_graph(self, value: _core.Value) -> None:
         """Set the graph for the value."""
-        if value._graph_output_of is not None and value._graph_output_of is not self._graph:
+        if value._graph is not None and value._graph is not self._graph:
             raise ValueError(
                 f"Value '{value}' is already an output of a different graph. Please remove the value from the previous graph first"
             )
-        value._graph_output_of = self._graph
+        value._is_graph_output = True
+        value._graph = self._graph
 
-    def _unset_graph(self, value: _core.Value) -> None:
+    def _maybe_unset_graph(self, value: _core.Value) -> None:
         """Unset the graph for the value."""
-        assert value._graph_output_of is self._graph, "Bug: value does not belong to the graph"
-        value._graph_output_of = None
+        assert value._graph is self._graph, "Bug: value does not belong to the graph"
+        value._is_graph_output = False
+        if value._owned_by_graph():
+            # Keep the graph reference if the value is still an input or an initializer
+            return
+        value._graph = None
 
 
 class GraphInitializers(collections.UserDict[str, "_core.Value"]):
@@ -194,21 +204,21 @@ class GraphInitializers(collections.UserDict[str, "_core.Value"]):
 
     def _set_graph(self, value: _core.Value) -> None:
         """Set the graph for the value."""
-        if (
-            value._graph_initializer_of is not None
-            and value._graph_initializer_of is not self._graph
-        ):
+        if value._graph is not None and value._graph is not self._graph:
             raise ValueError(
                 f"Value '{value}' is already an initializer of a different graph. Please remove the value from the previous graph first"
             )
-        value._graph_initializer_of = self._graph
+        value._is_initializer = True
+        value._graph = self._graph
 
-    def _unset_graph(self, value: _core.Value) -> None:
+    def _maybe_unset_graph(self, value: _core.Value) -> None:
         """Unset the graph for the value."""
-        assert value._graph_initializer_of is self._graph, (
-            "Bug: value does not belong to the graph"
-        )
-        value._graph_initializer_of = None
+        assert value._graph is self._graph, "Bug: value does not belong to the graph"
+        value._is_initializer = False
+        if value._owned_by_graph():
+            # Keep the graph reference if the value is still an input or an initializer
+            return
+        value._graph = None
 
     def __setitem__(self, key: str, value: _core.Value) -> None:
         """Set an initializer for the graph."""
@@ -221,7 +231,7 @@ class GraphInitializers(collections.UserDict[str, "_core.Value"]):
         if key in self.data:
             # If the key already exists, unset the old value
             old_value = self.data[key]
-            self._unset_graph(old_value)
+            self._maybe_unset_graph(old_value)
         # Must call _set_graph before super().__setitem__ so that when there is an error,
         # the dictionary is not modified
         self._set_graph(value)
@@ -230,7 +240,7 @@ class GraphInitializers(collections.UserDict[str, "_core.Value"]):
     def __delitem__(self, key: str) -> None:
         """Delete an initializer from the graph."""
         value = self.data[key]
-        # Must call _unset_graph before super().__delitem__ so that when there is an error,
+        # Must call _maybe_unset_graph before super().__delitem__ so that when there is an error,
         # the dictionary is not modified
-        self._unset_graph(value)
+        self._maybe_unset_graph(value)
         super().__delitem__(key)

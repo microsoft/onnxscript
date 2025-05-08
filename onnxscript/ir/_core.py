@@ -1757,9 +1757,10 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     __slots__ = (
         "_const_value",
-        "_graph_initializer_of",
-        "_graph_input_of",
-        "_graph_output_of",
+        "_graph",
+        "_is_graph_input",
+        "_is_graph_output",
+        "_is_initializer",
         "_index",
         "_metadata",
         "_metadata_props",
@@ -1813,10 +1814,11 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
         # The graph this value belongs to. It is set *only* when the value is added as
         # a graph input, output or initializer.
-        # The three properties can only be set by the Graph class (_GraphIO and GraphInitializers).
-        self._graph_input_of: Graph | None = None
-        self._graph_output_of: Graph | None = None
-        self._graph_initializer_of: Graph | None = None
+        # The four properties can only be set by the Graph class (_GraphIO and GraphInitializers).
+        self._graph: Graph | None = None
+        self._is_graph_input: bool = False
+        self._is_graph_output: bool = False
+        self._is_initializer: bool = False
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
@@ -1865,16 +1867,18 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         graph that the node belongs to. When the value is not owned by any graph,
         it returns ``None``.
         """
-        if self._graph_initializer_of is not None:
-            return self._graph_initializer_of
-        if self._graph_input_of is not None:
-            return self._graph_input_of
-        if self._graph_output_of is not None:
-            return self._graph_output_of
-
+        if self._graph is not None:
+            return self._graph
         if self._producer is not None:
             return self._producer.graph
         return None
+
+    def _owned_by_graph(self) -> bool:
+        """Return True if the value is owned by a graph."""
+        result = (self._is_graph_input or self._is_graph_output or self._is_initializer)
+        if result:
+            assert self._graph is not None
+        return result
 
     def producer(self) -> Node | None:
         """The node that produces this value.
@@ -2020,15 +2024,15 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def is_graph_input(self) -> bool:
         """Whether the value is an input of a graph."""
-        return self._graph_input_of is not None
+        return self._is_graph_input
 
     def is_graph_output(self) -> bool:
         """Whether the value is an output of a graph."""
-        return self._graph_output_of is not None
+        return self._is_graph_output
 
     def is_initializer(self) -> bool:
         """Whether the value is an initializer of a graph."""
-        return self._graph_initializer_of is not None
+        return self._is_initializer
 
 
 def Input(
