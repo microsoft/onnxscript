@@ -12,16 +12,12 @@ __all__ = [
 ]
 
 import collections
-import logging
 from typing import TYPE_CHECKING, Iterable, SupportsIndex
 
 import onnxscript
 
 if TYPE_CHECKING:
     from onnxscript.ir import _core
-
-
-logger = logging.getLogger(__name__)
 
 
 class _GraphIO(collections.UserList["_core.Value"]):
