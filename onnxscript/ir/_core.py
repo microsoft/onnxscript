@@ -1755,7 +1755,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     To check if the value is an is an input, output or initializer of a graph,
     use :meth:`is_graph_input`, :meth:`is_graph_output` or :meth:`is_initializer`.
 
-    Use :meth:`owning_graph` to get the graph that owns the value.
+    Use :meth:`graph` to get the graph that owns the value.
     """
 
     __slots__ = (
@@ -1859,7 +1859,8 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
                 return f"{{{self.const_value.__class__.__name__}(...)}}"
         return ""
 
-    def owning_graph(self) -> Graph | None:
+    @property
+    def graph(self) -> Graph | None:
         """Return the graph that defines this value.
 
         When the value is an input/output/initializer of a graph, the owning graph
@@ -1880,7 +1881,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         """The node that produces this value.
 
         When producer is ``None``, the value does not belong to a node, and is
-        typically a graph input or an initializer. You can use :meth:`owning_graph``
+        typically a graph input or an initializer. You can use :meth:`graph``
         to find the graph that owns this value. Use :meth:`is_graph_input`, :meth:`is_graph_output`
         or :meth:`is_initializer` to check if the value is an input, output or initializer of a graph.
         """
