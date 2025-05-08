@@ -31,7 +31,7 @@ class _GraphIO(collections.UserList["_core.Value"]):
         # Even though a duplicated value is invalid in inputs and not recommended in outputs,
         # it is still possible to have duplicated inputs/outputs in an ONNX graph so we
         # need to properly handle this case and maintain the graph reference properly.
-        self._ref_counter = collections.Counter()
+        self._ref_counter: collections.Counter[_core.Value] = collections.Counter()
         if initlist is not None:
             initlist = tuple(initlist)  # Create a copy in case initlist is a generator
             for value in initlist:
