@@ -381,6 +381,9 @@ class MatchResult:
 
     def bind_value(self, pattern_value: ValuePattern, value: Any) -> bool:
         var_name = pattern_value.name
+        # TODO(rama): Simplify the following. We currently bind values to
+        # pattern variables in two different ways: via their name, or via the
+        # pattern-value itself.
         if var_name is None:
             for match in self._partial_matches:
                 if pattern_value in match.value_bindings:
@@ -1026,7 +1029,9 @@ class GraphPattern:
             elif isinstance(value_pattern, (_OpIdDispatchOr, _BacktrackingOr)):
                 choice_values_returned.add(value_pattern)
 
-        # check if choice_values_returned are contained in covered_choice_values:
+        # check if all choice_values_returned are contained in covered_choice_values:
+        # We don't yet support the use of a choice-value as a "root" of the search.
+        # This is a limitation of the current implementation, and will be fixed in the future.
         if not (choice_values_returned <= covered_choice_values):
             raise NotImplementedError("Returning uncovered choice-values is not supported.")
 
@@ -1418,7 +1423,7 @@ class SimplePatternMatcher(PatternMatcher):
         """Get values bound to the output variables of the pattern."""
         output_values: list[ir.Value] = []
         unbound_values: list[str] = []
-        for value_pattern in self.pattern.outputs:
+        for j, value_pattern in enumerate(self.pattern.outputs):
             if value_pattern.name is not None:
                 if value_pattern.name in self._match.bindings:
                     output_values.append(self._match.bindings[value_pattern.name])
@@ -1428,7 +1433,7 @@ class SimplePatternMatcher(PatternMatcher):
                 if value_pattern in self._match.value_bindings:
                     output_values.append(self._match.value_bindings[value_pattern])
                 else:
-                    unbound_values.append(value_pattern)
+                    unbound_values.append(f"output_{j}")
         if unbound_values:
             self._match.fail(f"Error: Output values not found: {unbound_values}")
             return None
