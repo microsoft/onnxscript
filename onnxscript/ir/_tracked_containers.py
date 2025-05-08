@@ -162,3 +162,49 @@ class GraphOutputs(_GraphIO):
             # The value is already added to a different graph
             return
         value._graph_output_of = None
+
+
+class GraphInitializers(collections.UserDict[str, _core.Value]):
+    """The initializers of a Graph."""
+
+    # TODO: Ensure pop() and update() works
+
+    def __init__(self, graph: _core.Graph, dict=None, /, **kwargs):
+        super().__init__(dict, **kwargs)
+        self._graph = graph
+        for value in self.data.values():
+            self._set_graph(value)
+
+    def _set_graph(self, value: _core.Value) -> None:
+        """Set the graph for the value."""
+        if (
+            value._graph_initializer_of is not None
+            and value._graph_initializer_of is not self._graph
+        ):
+            logger.warning(
+                "Value '%s' is already an output of a different graph. Overwriting",
+                value,
+            )
+        value._graph_initializer_of = self._graph
+
+    def _unset_graph(self, value: _core.Value) -> None:
+        """Unset the graph for the value."""
+        if value._graph_initializer_of is not self._graph:
+            # The value is already added to a different graph
+            return
+        value._graph_initializer_of = None
+
+    def __setitem__(self, key: str, value: _core.Value) -> None:
+        """Set an initializer for the graph."""
+        if key != value.name:
+            raise ValueError(
+                f"Key '{key}' does not match the name of the value '{value.name}'"
+            )
+        super().__setitem__(key, value)
+        self._set_graph(value)
+
+    def __delitem__(self, key: str) -> None:
+        """Delete an initializer from the graph."""
+        value = self.data[key]
+        super().__delitem__(key)
+        self._unset_graph(value)

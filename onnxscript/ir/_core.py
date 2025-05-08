@@ -1763,6 +1763,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     __slots__ = (
         "_const_value",
+        "_graph_initializer_of",
         "_graph_input_of",
         "_graph_output_of",
         "_index",
@@ -1817,10 +1818,11 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         self.doc_string = doc_string
 
         # The graph this value belongs to. It is set *only* when the value is added as
-        # a graph input or a graph output.
+        # a graph input, output or initializer.
         # The two properties can only be set by the Graph class (GraphIO).
         self._graph_input_of: Graph | None = None
         self._graph_output_of: Graph | None = None
+        self._graph_initializer_of: Graph | None = None
 
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
@@ -2133,7 +2135,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         # Private fields that are not to be accessed by any other classes
         self._inputs = _tracked_containers.GraphInputs(self, inputs)
         self._outputs = _tracked_containers.GraphOutputs(self, outputs)
-        self._initializers = {}
+        self._initializers = _tracked_containers.GraphInitializers(self)
         for initializer in initializers:
             if isinstance(initializer, str):
                 raise TypeError(
