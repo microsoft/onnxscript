@@ -33,9 +33,7 @@ class _GraphIO(collections.UserList["_core.Value"]):
         if initlist is not None:
             for value in initlist:
                 self._set_graph(value)
-        # Check the invariance of the graph
-        if onnxscript.DEBUG:
-            self._check_invariance()
+        self._check_invariance()
 
     def _check_invariance(self) -> None:
         """Check the invariance of the graph."""
@@ -132,9 +130,7 @@ class GraphInputs(_GraphIO):
 
     def _unset_graph(self, value: _core.Value) -> None:
         """Unset the graph for the value."""
-        if value._graph_input_of is not self._graph:
-            # The value is already added to a different graph
-            return
+        assert value._graph_input_of is self._graph, "Bug: value does not belong to the graph"
         value._graph_input_of = None
 
 
@@ -162,9 +158,7 @@ class GraphOutputs(_GraphIO):
 
     def _unset_graph(self, value: _core.Value) -> None:
         """Unset the graph for the value."""
-        if value._graph_output_of is not self._graph:
-            # The value is already added to a different graph
-            return
+        assert value._graph_output_of is self._graph, "Bug: value does not belong to the graph"
         value._graph_output_of = None
 
 
@@ -190,9 +184,7 @@ class GraphInitializers(collections.UserDict[str, "_core.Value"]):
 
     def _unset_graph(self, value: _core.Value) -> None:
         """Unset the graph for the value."""
-        if value._graph_initializer_of is not self._graph:
-            # The value is already added to a different graph
-            return
+        assert value._graph_initializer_of is self._graph, "Bug: value does not belong to the graph"
         value._graph_initializer_of = None
 
     def __setitem__(self, key: str, value: _core.Value) -> None:
@@ -203,6 +195,10 @@ class GraphInitializers(collections.UserDict[str, "_core.Value"]):
             )
         if not isinstance(key, str):
             raise TypeError(f"Key must be a string, not {type(key)}")
+        if key in self.data:
+            # If the key already exists, unset the old value
+            old_value = self.data[key]
+            self._unset_graph(old_value)
         super().__setitem__(key, value)
         self._set_graph(value)
 
