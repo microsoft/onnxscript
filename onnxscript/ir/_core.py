@@ -1817,7 +1817,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
         # The graph this value belongs to. It is set *only* when the value is added as
         # a graph input, output or initializer.
-        # The two properties can only be set by the Graph class (GraphIO).
+        # The three properties can only be set by the Graph class (_GraphIO and GraphInitializers).
         self._graph_input_of: Graph | None = None
         self._graph_output_of: Graph | None = None
         self._graph_initializer_of: Graph | None = None
