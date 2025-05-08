@@ -1868,10 +1868,12 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         graph that the node belongs to. When the value is not owned by any graph,
         it returns ``None``.
         """
-        graph = self._graph_initializer_of or self._graph_input_of or self._graph_output_of
-
-        if graph is not None:
-            return graph
+        if self._graph_initializer_of is not None:
+            return self._graph_initializer_of
+        if self._graph_input_of is not None:
+            return self._graph_input_of
+        if self._graph_output_of is not None:
+            return self._graph_output_of
 
         if self._producer is not None:
             return self._producer.graph
