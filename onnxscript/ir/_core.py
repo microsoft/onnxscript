@@ -1863,13 +1863,21 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         return ""
 
     def owning_graph(self) -> Graph | None:
-        """Return the graph that defines this value when it is a graph input."""
-        if self._producer is not None and self._graph_input_of is not None:
-            logger.warning(
-                "The value is owned by a node but it is simultaneously a graph input. "
-                "The graph is invalid."
-            )
-        return self._graph_input_of
+        """Return the graph that defines this value.
+
+        When the value is an input/output/initializer of a graph, the owning graph
+        is that graph. When the value is an output of a node, the owning graph is the
+        graph that the node belongs to. When the value is not owned by any graph,
+        it returns ``None``.
+        """
+        graph = self._graph_initializer_of or self._graph_input_of or self._graph_output_of
+
+        if graph is not None:
+            return graph
+
+        if self._producer is not None:
+            return self._producer.graph
+        return None
 
     def producer(self) -> Node | None:
         """The node that produces this value.
@@ -1878,11 +1886,6 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         typically a graph input or an initializer, and should have ``owning_graph()``
         set.
         """
-        if self._producer is not None and self._graph_input_of is not None:
-            logger.warning(
-                "The value is owned by a node but it is simultaneously a graph input. "
-                "The graph is invalid."
-            )
         return self._producer
 
     def consumers(self) -> Sequence[Node]:
