@@ -171,8 +171,6 @@ class GraphOutputs(_GraphIO):
 class GraphInitializers(collections.UserDict[str, "_core.Value"]):
     """The initializers of a Graph."""
 
-    # TODO: Ensure pop() and update() works
-
     def __init__(self, graph: _core.Graph, dict=None, /, **kwargs):
         super().__init__(dict, **kwargs)
         self._graph = graph
@@ -203,6 +201,8 @@ class GraphInitializers(collections.UserDict[str, "_core.Value"]):
             raise ValueError(
                 f"Key '{key}' does not match the name of the value '{value.name}'"
             )
+        if not isinstance(key, str):
+            raise TypeError(f"Key must be a string, not {type(key)}")
         super().__setitem__(key, value)
         self._set_graph(value)
 
