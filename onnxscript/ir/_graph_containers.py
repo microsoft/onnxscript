@@ -219,5 +219,7 @@ class GraphInitializers(collections.UserDict[str, "_core.Value"]):
     def __delitem__(self, key: str) -> None:
         """Delete an initializer from the graph."""
         value = self.data[key]
+        # Must call _unset_graph before super().__delitem__ so that when there is an error,
+        # the dictionary is not modified
         self._unset_graph(value)
         super().__delitem__(key)

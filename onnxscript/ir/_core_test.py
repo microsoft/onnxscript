@@ -1260,6 +1260,20 @@ class GraphContainersTest(unittest.TestCase):
         self.assertFalse(self.value1.is_graph_input())
         self.assertIsNone(self.value1.graph)
 
+    def test_inputs_set_items_slices(self):
+        self.graph.inputs.extend([self.value1, self.value2])
+        # Replace with one existing and one new input
+        self.graph.inputs[0:2] = [self.value2, self.value3]
+        self.assertNotIn(self.value1, self.graph.inputs)
+        self.assertIn(self.value2, self.graph.inputs)
+        self.assertIn(self.value3, self.graph.inputs)
+        self.assertIs(self.value2.graph, self.graph)
+        self.assertIs(self.value3.graph, self.graph)
+        self.assertTrue(self.value2.is_graph_input())
+        self.assertTrue(self.value3.is_graph_input())
+        self.assertFalse(self.value1.is_graph_input())
+        self.assertIsNone(self.value1.graph)
+
     def test_append_to_outputs(self):
         self.graph.outputs.append(self.value2)
         self.assertIn(self.value2, self.graph.outputs)
@@ -1323,6 +1337,20 @@ class GraphContainersTest(unittest.TestCase):
         self.assertIs(self.graph.outputs[0], self.value2)
         self.assertTrue(self.value2.is_graph_output())
         self.assertIs(self.value2.graph, self.graph)
+        self.assertFalse(self.value1.is_graph_output())
+        self.assertIsNone(self.value1.graph)
+
+    def test_outputs_set_items_slices(self):
+        self.graph.outputs.extend([self.value1, self.value2])
+        # Replace with one existing and one new output
+        self.graph.outputs[0:2] = [self.value2, self.value3]
+        self.assertNotIn(self.value1, self.graph.outputs)
+        self.assertIn(self.value2, self.graph.outputs)
+        self.assertIn(self.value3, self.graph.outputs)
+        self.assertIs(self.value2.graph, self.graph)
+        self.assertIs(self.value3.graph, self.graph)
+        self.assertTrue(self.value2.is_graph_output())
+        self.assertTrue(self.value3.is_graph_output())
         self.assertFalse(self.value1.is_graph_output())
         self.assertIsNone(self.value1.graph)
 

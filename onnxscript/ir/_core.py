@@ -32,6 +32,7 @@ from typing import (
     Generic,
     Iterable,
     Iterator,
+    MutableMapping,
     MutableSequence,
     NamedTuple,
     OrderedDict,
@@ -2176,7 +2177,7 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         return self._outputs
 
     @property
-    def initializers(self) -> dict[str, Value]:
+    def initializers(self) -> MutableMapping[str, Value]:
         return self._initializers
 
     def register_initializer(self, value: Value) -> None:
