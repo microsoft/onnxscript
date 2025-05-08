@@ -48,11 +48,11 @@ import onnxscript
 from onnxscript.ir import (
     _display,
     _enums,
+    _graph_containers,
     _linked_list,
     _metadata,
     _name_authority,
     _protocols,
-    _tracked_containers,
     _type_casting,
 )
 
@@ -2138,9 +2138,9 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self.name = name
 
         # Private fields that are not to be accessed by any other classes
-        self._inputs = _tracked_containers.GraphInputs(self, inputs)
-        self._outputs = _tracked_containers.GraphOutputs(self, outputs)
-        self._initializers = _tracked_containers.GraphInitializers(self)
+        self._inputs = _graph_containers.GraphInputs(self, inputs)
+        self._outputs = _graph_containers.GraphOutputs(self, outputs)
+        self._initializers = _graph_containers.GraphInitializers(self)
         for initializer in initializers:
             if isinstance(initializer, str):
                 raise TypeError(
