@@ -1274,6 +1274,20 @@ class GraphContainersTest(unittest.TestCase):
         self.assertFalse(self.value1.is_graph_input())
         self.assertIsNone(self.value1.graph)
 
+    def test_take_inputs(self):
+        self.graph.inputs.extend([self.value1, self.value2, self.value3])
+        inputs = self.graph.inputs[:2]
+        self.graph.inputs.clear()
+        self.graph.inputs.extend(inputs)
+        self.assertEqual(len(self.graph.inputs), 2)
+        self.assertEqual(self.graph.inputs, [self.value1, self.value2])
+        self.assertTrue(self.value1.is_graph_input())
+        self.assertTrue(self.value2.is_graph_input())
+        self.assertFalse(self.value3.is_graph_input())
+        self.assertIs(self.value1.graph, self.graph)
+        self.assertIs(self.value2.graph, self.graph)
+        self.assertIsNone(self.value3.graph)
+
     def test_append_to_outputs(self):
         self.graph.outputs.append(self.value2)
         self.assertIn(self.value2, self.graph.outputs)
@@ -1353,6 +1367,20 @@ class GraphContainersTest(unittest.TestCase):
         self.assertTrue(self.value3.is_graph_output())
         self.assertFalse(self.value1.is_graph_output())
         self.assertIsNone(self.value1.graph)
+
+    def test_take_outputs(self):
+        self.graph.outputs.extend([self.value1, self.value2, self.value3])
+        outputs = self.graph.outputs[:2]
+        self.graph.outputs.clear()
+        self.graph.outputs.extend(outputs)
+        self.assertEqual(len(self.graph.outputs), 2)
+        self.assertEqual(self.graph.outputs, [self.value1, self.value2])
+        self.assertTrue(self.value1.is_graph_output())
+        self.assertTrue(self.value2.is_graph_output())
+        self.assertFalse(self.value3.is_graph_output())
+        self.assertIs(self.value1.graph, self.graph)
+        self.assertIs(self.value2.graph, self.graph)
+        self.assertIsNone(self.value3.graph)
 
     def test_set_initializers(self):
         self.graph.initializers["initializer1"] = self.value3

@@ -104,6 +104,21 @@ class _GraphIO(collections.UserList["_core.Value"]):
 
         raise TypeError(f"Invalid types for __setitem__: {type(i)} and {type(item)}")
 
+    def __getitem__(self, i):
+        """Get an input/output from the graph."""
+        return self.data[i]
+
+    def _unimplemented(self, *_args, **_kwargs):
+        """Unimplemented method."""
+        raise NotImplementedError("Method is not implemented")
+
+    __add__ = _unimplemented
+    __radd__ = _unimplemented
+    __iadd__ = _unimplemented
+    __mul__ = _unimplemented
+    __rmul__ = _unimplemented
+    copy = _unimplemented
+
 
 class GraphInputs(_GraphIO):
     """The inputs of a Graph."""
