@@ -1752,13 +1752,10 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     To find all the nodes that use this value as an input, call :meth:`uses`.
 
-    To check if the value is an output of a graph, call :meth:`is_graph_output`.
+    To check if the value is an is an input, output or initializer of a graph,
+    use :meth:`is_graph_input`, :meth:`is_graph_output` or :meth:`is_initializer`.
 
-    Attributes:
-        name: The name of the value. A value is always named when it is part of a graph.
-        shape: The shape of the value.
-        type: The type of the value.
-        metadata_props: Metadata.
+    Use :meth:`owning_graph` to get the graph that owns the value.
     """
 
     __slots__ = (
@@ -1883,8 +1880,9 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         """The node that produces this value.
 
         When producer is ``None``, the value does not belong to a node, and is
-        typically a graph input or an initializer, and should have ``owning_graph()``
-        set.
+        typically a graph input or an initializer. You can use :meth:`owning_graph``
+        to find the graph that owns this value. Use :meth:`is_graph_input`, :meth:`is_graph_output`
+        or :meth:`is_initializer` to check if the value is an input, output or initializer of a graph.
         """
         return self._producer
 
@@ -2027,6 +2025,10 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     def is_graph_output(self) -> bool:
         """Whether the value is an output of a graph."""
         return self._graph_output_of is not None
+
+    def is_initializer(self) -> bool:
+        """Whether the value is an initializer of a graph."""
+        return self._graph_initializer_of is not None
 
 
 def Input(
