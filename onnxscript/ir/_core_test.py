@@ -1160,64 +1160,60 @@ class GraphContainersTest(unittest.TestCase):
         self.graph = _core.Graph(inputs=(), outputs=(), nodes=())
         self.value1 = _core.Value(name="input1")
         self.value2 = _core.Value(name="output1")
-        self.value3 = _core.Value(name="initializer1")
-
-    def test_graph_inputs(self):
-        inputs = self.graph.inputs
-        inputs.append(self.value1)
-        self.assertTrue(self.value1.is_graph_input)
-        self.assertEqual(self.value1.graph, self.graph)
-        inputs.remove(self.value1)
-        self.assertFalse(self.value1.is_graph_input)
-        self.assertIsNone(self.value1.graph)
-
-    def test_graph_outputs(self):
-        outputs = self.graph.outputs
-        outputs.append(self.value2)
-        self.assertTrue(self.value2.is_graph_output)
-        self.assertEqual(self.value2.graph, self.graph)
-        outputs.remove(self.value2)
-        self.assertFalse(self.value2.is_graph_output)
-        self.assertIsNone(self.value2.graph)
-
-    def test_graph_initializers(self):
-        initializers = self.graph.initializers
-        initializers[self.value3.name] = self.value3
-        self.assertTrue(self.value3.is_initializer)
-        self.assertEqual(self.value3.graph, self.graph)
-        del initializers[self.value3.name]
-        self.assertFalse(self.value3.is_initializer)
-        self.assertIsNone(self.value3.graph)
+        self.value3 = _core.Value(name="initializer1", const_value=ir.tensor([1, 2, 3]))
 
     def test_append_to_inputs(self):
         self.graph.inputs.append(self.value1)
         self.assertIn(self.value1, self.graph.inputs)
         self.assertTrue(self.value1.is_graph_input)
+        self.assertIs(self.value1.graph, self.graph)
+        self.assertFalse(self.value1.is_graph_output)
+        self.assertFalse(self.value1.is_initializer)
+
+    # TODO: Test moving inputs between graphs, ordering
 
     def test_extend_inputs(self):
         self.graph.inputs.extend([self.value1, self.value2])
         self.assertIn(self.value1, self.graph.inputs)
         self.assertIn(self.value2, self.graph.inputs)
+        self.assertTrue(self.value1.is_graph_input)
+        self.assertTrue(self.value2.is_graph_input)
+        self.assertIs(self.value1.graph, self.graph)
+        self.assertIs(self.value2.graph, self.graph)
 
     def test_pop_from_inputs(self):
         self.graph.inputs.append(self.value1)
         popped = self.graph.inputs.pop()
-        self.assertEqual(popped, self.value1)
+        self.assertIs(popped, self.value1)
         self.assertNotIn(self.value1, self.graph.inputs)
+        self.assertFalse(self.value1.is_graph_input)
+        self.assertIsNone(self.value1.graph)
+
+    def test_pop_from_inputs_raises_when_empty(self):
+        with self.assertRaises(IndexError):
+            self.graph.inputs.pop()
 
     def test_insert_into_inputs(self):
         self.graph.inputs.insert(0, self.value1)
-        self.assertEqual(self.graph.inputs[0], self.value1)
+        self.assertIs(self.graph.inputs[0], self.value1)
+        self.assertTrue(self.value1.is_graph_input)
+        self.assertIs(self.value1.graph, self.graph)
 
     def test_remove_from_inputs(self):
         self.graph.inputs.append(self.value1)
         self.graph.inputs.remove(self.value1)
         self.assertNotIn(self.value1, self.graph.inputs)
+        self.assertFalse(self.value1.is_graph_input)
+        self.assertIsNone(self.value1.graph)
 
     def test_clear_inputs(self):
         self.graph.inputs.extend([self.value1, self.value2])
         self.graph.inputs.clear()
         self.assertEqual(len(self.graph.inputs), 0)
+        self.assertFalse(self.value1.is_graph_input)
+        self.assertIsNone(self.value1.graph)
+        self.assertFalse(self.value2.is_graph_input)
+        self.assertIsNone(self.value2.graph)
 
     def test_append_to_outputs(self):
         self.graph.outputs.append(self.value2)
@@ -1232,22 +1228,36 @@ class GraphContainersTest(unittest.TestCase):
     def test_pop_from_outputs(self):
         self.graph.outputs.append(self.value2)
         popped = self.graph.outputs.pop()
-        self.assertEqual(popped, self.value2)
+        self.assertIs(popped, self.value2)
         self.assertNotIn(self.value2, self.graph.outputs)
+        self.assertFalse(self.value2.is_graph_output)
+        self.assertIsNone(self.value2.graph)
+
+    def test_pop_from_outputs_raises_when_empty(self):
+        with self.assertRaises(IndexError):
+            self.graph.outputs.pop()
 
     def test_insert_into_outputs(self):
         self.graph.outputs.insert(0, self.value2)
-        self.assertEqual(self.graph.outputs[0], self.value2)
+        self.assertIs(self.graph.outputs[0], self.value2)
+        self.assertTrue(self.value2.is_graph_output)
+        self.assertIs(self.value2.graph, self.graph)
 
     def test_remove_from_outputs(self):
         self.graph.outputs.append(self.value2)
         self.graph.outputs.remove(self.value2)
         self.assertNotIn(self.value2, self.graph.outputs)
+        self.assertFalse(self.value2.is_graph_output)
+        self.assertIsNone(self.value2.graph)
 
     def test_clear_outputs(self):
         self.graph.outputs.extend([self.value1, self.value2])
         self.graph.outputs.clear()
         self.assertEqual(len(self.graph.outputs), 0)
+        self.assertFalse(self.value1.is_graph_output)
+        self.assertIsNone(self.value1.graph)
+        self.assertFalse(self.value2.is_graph_output)
+        self.assertIsNone(self.value2.graph)
 
     def test_set_initializers(self):
         self.graph.initializers[self.value3.name] = self.value3
@@ -1259,6 +1269,49 @@ class GraphContainersTest(unittest.TestCase):
         del self.graph.initializers[self.value3.name]
         self.assertNotIn(self.value3.name, self.graph.initializers)
         self.assertFalse(self.value3.is_initializer)
+
+    def test_clear_initializers(self):
+        self.graph.initializers[self.value3.name] = self.value3
+        self.graph.initializers.clear()
+        self.assertEqual(len(self.graph.initializers), 0)
+        self.assertFalse(self.value3.is_initializer)
+
+    def test_pop_initializer(self):
+        self.graph.initializers[self.value3.name] = self.value3
+        popped = self.graph.initializers.pop(self.value3.name)
+        self.assertEqual(popped, self.value3)
+        self.assertNotIn(self.value3.name, self.graph.initializers)
+        self.assertFalse(self.value3.is_initializer)
+
+    def test_update_initializers(self):
+        self.graph.initializers[self.value3.name] = self.value3
+        new_initializer = _core.Value(name="initializer2")
+        self.graph.initializers.update({new_initializer.name: new_initializer})
+        self.assertIn(new_initializer.name, self.graph.initializers)
+        self.assertTrue(new_initializer.is_initializer)
+        self.assertEqual(new_initializer.graph, self.graph)
+        self.assertIn(self.value3.name, self.graph.initializers)
+        self.assertTrue(self.value3.is_initializer)
+        self.assertEqual(self.value3.graph, self.graph)
+
+    def test_iter_initializers(self):
+        self.graph.initializers[self.value3.name] = self.value3
+        initializers = list(self.graph.initializers)
+        self.assertEqual(len(initializers), 1)
+        self.assertEqual(initializers[0].name, self.value3.name)
+        self.assertTrue(initializers[0].is_initializer)
+        self.assertEqual(initializers[0].graph, self.graph)
+
+    def test_contains_initializer(self):
+        self.graph.initializers[self.value3.name] = self.value3
+        self.assertIn(self.value3.name, self.graph.initializers)
+        self.assertTrue(self.value3.is_initializer)
+        self.assertEqual(self.value3.graph, self.graph)
+
+    def test_not_contains_initializer(self):
+        self.assertNotIn("non_existent", self.graph.initializers)
+        self.assertFalse(self.value3.is_initializer)
+        self.assertIsNone(self.value3.graph)
 
 
 class ModelTest(unittest.TestCase):
