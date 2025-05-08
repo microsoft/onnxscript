@@ -1223,6 +1223,14 @@ class GraphContainersTest(unittest.TestCase):
         self.assertFalse(self.value1.is_graph_input())
         self.assertIsNone(self.value1.graph)
 
+    def test_pop_from_duplicated_inputs(self):
+        self.graph.inputs.extend([self.value1, self.value1])
+        popped = self.graph.inputs.pop()
+        self.assertIs(popped, self.value1)
+        self.assertIn(self.value1, self.graph.inputs)
+        self.assertTrue(self.value1.is_graph_input())
+        self.assertIs(self.value1.graph, self.graph)
+
     def test_pop_from_inputs_raises_when_empty(self):
         with self.assertRaises(IndexError):
             self.graph.inputs.pop()
@@ -1248,6 +1256,13 @@ class GraphContainersTest(unittest.TestCase):
         self.assertIsNone(self.value1.graph)
         self.assertFalse(self.value2.is_graph_input())
         self.assertIsNone(self.value2.graph)
+
+    def test_clear_duplicated_inputs(self):
+        self.graph.inputs.extend([self.value1, self.value1])
+        self.graph.inputs.clear()
+        self.assertEqual(len(self.graph.inputs), 0)
+        self.assertFalse(self.value1.is_graph_input())
+        self.assertIsNone(self.value1.graph)
 
     def test_inputs_set_items(self):
         self.graph.inputs.append(self.value1)
@@ -1317,6 +1332,14 @@ class GraphContainersTest(unittest.TestCase):
         self.assertFalse(self.value2.is_graph_output())
         self.assertIsNone(self.value2.graph)
 
+    def test_pop_from_duplicated_outputs(self):
+        self.graph.outputs.extend([self.value1, self.value1])
+        popped = self.graph.outputs.pop()
+        self.assertIs(popped, self.value1)
+        self.assertIn(self.value1, self.graph.outputs)
+        self.assertTrue(self.value1.is_graph_output())
+        self.assertIs(self.value1.graph, self.graph)
+
     def test_pop_from_outputs_raises_when_empty(self):
         with self.assertRaises(IndexError):
             self.graph.outputs.pop()
@@ -1342,6 +1365,13 @@ class GraphContainersTest(unittest.TestCase):
         self.assertIsNone(self.value1.graph)
         self.assertFalse(self.value2.is_graph_output())
         self.assertIsNone(self.value2.graph)
+
+    def test_clear_duplicated_outputs(self):
+        self.graph.outputs.extend([self.value1, self.value1])
+        self.graph.outputs.clear()
+        self.assertEqual(len(self.graph.outputs), 0)
+        self.assertFalse(self.value1.is_graph_output())
+        self.assertIsNone(self.value1.graph)
 
     def test_outputs_set_items(self):
         self.graph.outputs.append(self.value1)
