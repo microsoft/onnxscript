@@ -25,6 +25,13 @@ class _GraphIO(collections.UserList["_core.Value"]):
 
     def __init__(self, graph: _core.Graph, initlist=None):
         self._graph = graph
+        # Use a ref counter to track the number of references to each value
+        # in the input/output list. This is used to determine when to unset the graph
+        # reference in the value.
+        # Even though a duplicated value is invalid in inputs and not recommended in outputs,
+        # it is still possible to have duplicated inputs/outputs in an ONNX graph so we
+        # need to properly handle this case and maintain the graph reference properly.
+        self._ref_counter = collections.Counter()
         if initlist is not None:
             initlist = tuple(initlist)  # Create a copy in case initlist is a generator
             for value in initlist:
@@ -140,12 +147,17 @@ class GraphInputs(_GraphIO):
             raise ValueError(
                 f"Value '{value}' is already owned by a different graph. Please remove the value from the previous graph first"
             )
+        self._ref_counter[value] += 1
         value._is_graph_input = True
         value._graph = self._graph
 
     def _maybe_unset_graph(self, value: _core.Value) -> None:
         """Unset the graph for the value."""
         assert value._graph is self._graph, "Bug: value does not belong to the graph"
+        self._ref_counter[value] -= 1
+        if self._ref_counter[value] > 0:
+            # The value is still used by another graph input
+            return
         value._is_graph_input = False
         if value._owned_by_graph():
             # Keep the graph reference if the value is still an input or an initializer
@@ -173,12 +185,17 @@ class GraphOutputs(_GraphIO):
             raise ValueError(
                 f"Value '{value}' is already an output of a different graph. Please remove the value from the previous graph first"
             )
+        self._ref_counter[value] += 1
         value._is_graph_output = True
         value._graph = self._graph
 
     def _maybe_unset_graph(self, value: _core.Value) -> None:
         """Unset the graph for the value."""
         assert value._graph is self._graph, "Bug: value does not belong to the graph"
+        self._ref_counter[value] -= 1
+        if self._ref_counter[value] > 0:
+            # The value is still used by another graph input
+            return
         value._is_graph_output = False
         if value._owned_by_graph():
             # Keep the graph reference if the value is still an input or an initializer

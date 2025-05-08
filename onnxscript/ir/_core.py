@@ -1758,10 +1758,10 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
     __slots__ = (
         "_const_value",
         "_graph",
+        "_index",
         "_is_graph_input",
         "_is_graph_output",
         "_is_initializer",
-        "_index",
         "_metadata",
         "_metadata_props",
         "_name",
@@ -1875,7 +1875,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     def _owned_by_graph(self) -> bool:
         """Return True if the value is owned by a graph."""
-        result = (self._is_graph_input or self._is_graph_output or self._is_initializer)
+        result = self._is_graph_input or self._is_graph_output or self._is_initializer
         if result:
             assert self._graph is not None
         return result
