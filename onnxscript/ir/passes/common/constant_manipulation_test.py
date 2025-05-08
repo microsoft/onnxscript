@@ -110,14 +110,14 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
             nodes=[else_const_node, mul_node],
             opset_imports={"": 20},
         )
-        # create a conditional node that uses the then and else graphs
+        # Create a conditional node that uses the then and else graphs
         cond_node = ir.node(
             "If",
             inputs=[input_value],
             attributes={"then_branch": then_graph, "else_branch": else_graph},
             num_outputs=1,
         )
-        # construnct the model
+        # Construct the model
         main_graph = ir.Graph(
             inputs=[input_value],
             outputs=cond_node.outputs,
@@ -141,14 +141,8 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
                 )
         self.assertEqual(len(else_graph.initializers), 1)
         self.assertEqual(len(then_graph.initializers), 1)
-        self.assertIs(
-            else_graph.initializers["val_0"].const_value,
-            else_constant_tensor,
-        )
-        self.assertIs(
-            then_graph.initializers["val_0"].const_value,
-            then_constant_tensor,
-        )
+        self.assertIs(else_graph.initializers["val_0"].const_value, else_constant_tensor)
+        self.assertIs(then_graph.initializers["val_0"].const_value, then_constant_tensor)
 
     @parameterized.parameterized.expand(
         [
@@ -277,7 +271,7 @@ class TestLiftSubgraphInitializersToMainGraphPass(unittest.TestCase):
         # else branch multiplies the input by the constant
         add_node = ir.node("Add", inputs=[input_value, then_initializer_value])
         then_graph = ir.Graph(
-            inputs=[then_initializer_value],
+            inputs=[],
             outputs=[add_node.outputs[0]],
             nodes=[add_node],
             opset_imports={"": 20},
@@ -298,14 +292,14 @@ class TestLiftSubgraphInitializersToMainGraphPass(unittest.TestCase):
             opset_imports={"": 20},
             initializers=[else_initializer_value],
         )
-        # create a conditional node that uses the then and else graphs
+        # Create a conditional node that uses the then and else graphs
         cond_node = ir.node(
             "If",
             inputs=[input_value],
             attributes={"then_branch": then_graph, "else_branch": else_graph},
             num_outputs=1,
         )
-        # construnct the model
+        # Construct the model
         main_graph = ir.Graph(
             inputs=[input_value],
             outputs=cond_node.outputs,
@@ -327,10 +321,83 @@ class TestLiftSubgraphInitializersToMainGraphPass(unittest.TestCase):
             main_graph.initializers.values(),
             [then_initializer_tensor, else_initializer_tensor],
         ):
-            self.assertIs(
-                value.const_value,
-                tensor,
-            )
+            self.assertIs(value.const_value, tensor)
+
+    @parameterized.parameterized.expand(
+        [
+            ("then_initializer", "else_initializer"),
+            ("initializer", "initializer"),
+        ]
+    )
+    def test_pass_does_not_lift_initialized_inputs_in_subgraph(
+        self, then_initializer_name, else_initializer_name
+    ):
+        input_value = ir.Value(
+            name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
+        )
+
+        then_initializer_tensor = ir.tensor(np.random.rand(2, 3).astype(np.float32))
+        then_initializer_value = ir.Value(
+            name=then_initializer_name,
+            shape=then_initializer_tensor.shape,
+            type=ir.TensorType(ir.DataType.FLOAT),
+            const_value=then_initializer_tensor,
+        )
+
+        # then branch adds the constant to the input
+        # else branch multiplies the input by the constant
+        add_node = ir.node("Add", inputs=[input_value, then_initializer_value])
+        then_graph = ir.Graph(
+            # The initializer is also an input. We don't lift it to the main graph
+            # to preserve the graph signature
+            inputs=[then_initializer_value],
+            outputs=[add_node.outputs[0]],
+            nodes=[add_node],
+            opset_imports={"": 20},
+            initializers=[then_initializer_value],
+        )
+        else_initializer_tensor = ir.tensor(np.random.rand(2, 3).astype(np.float32))
+        else_initializer_value = ir.Value(
+            name=else_initializer_name,
+            shape=else_initializer_tensor.shape,
+            type=ir.TensorType(ir.DataType.FLOAT),
+            const_value=else_initializer_tensor,
+        )
+        mul_node = ir.node("Mul", inputs=[input_value, else_initializer_value])
+        else_graph = ir.Graph(
+            inputs=[],
+            outputs=[mul_node.outputs[0]],
+            nodes=[mul_node],
+            opset_imports={"": 20},
+            initializers=[else_initializer_value],
+        )
+        # Create a conditional node that uses the then and else graphs
+        cond_node = ir.node(
+            "If",
+            inputs=[input_value],
+            attributes={"then_branch": then_graph, "else_branch": else_graph},
+            num_outputs=1,
+        )
+        # Construct the model
+        main_graph = ir.Graph(
+            inputs=[input_value],
+            outputs=cond_node.outputs,
+            nodes=[cond_node],
+            opset_imports={"": 20},
+        )
+        main_graph.sort()
+        model = ir.Model(
+            graph=main_graph,
+            ir_version=10,
+        )
+        result = constant_manipulation.LiftSubgraphInitializersToMainGraphPass()(model)
+        self.assertTrue(result.modified)
+
+        self.assertEqual(len(else_graph.initializers), 0)
+        self.assertEqual(len(then_graph.initializers), 1)
+        self.assertEqual(len(main_graph.initializers), 1)
+        for value, tensor in zip(main_graph.initializers.values(), [else_initializer_tensor]):
+            self.assertIs(value.const_value, tensor)
 
 
 class TestRemoveInitializersFromInputsPass(unittest.TestCase):
