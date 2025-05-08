@@ -21,7 +21,9 @@ def scaled_matmul(op, x, y, factor):
     xy = op.MatMul(x, y)
     choice1 = op.Mul(xy, factor)
     choice2 = op.Div(xy, factor)
-    scaled_xy = pattern.OrValue([choice1, choice2], tag_var="op_type", tag_values=["Mul", "Div"])
+    scaled_xy = pattern.OrValue(
+        [choice1, choice2], tag_var="op_type", tag_values=["Mul", "Div"]
+    )
     return op.Relu(scaled_xy)
 
 
@@ -71,6 +73,7 @@ _model_with_rewrite = apply_rewrite(_model)
 onnx.checker.check_model(_model_with_rewrite)
 
 assert [n.op_type for n in _model_with_rewrite.graph.node] == ["Constant", "MatMulMulRelu"]
+
 
 @script()
 def original_model2(A: FLOAT[2, 2], B: FLOAT[2, 2]) -> FLOAT[2, 2]:
