@@ -30,6 +30,12 @@ class _GraphIO(collections.UserList["_core.Value"]):
     def __init__(self, graph: _core.Graph, initlist=None):
         super().__init__(initlist)
         self._graph = graph
+        if initlist is not None:
+            for value in initlist:
+                self._set_graph(value)
+        # Check the invariance of the graph
+        if onnxscript.DEBUG:
+            self._check_invariance()
 
     def _check_invariance(self) -> None:
         """Check the invariance of the graph."""
@@ -119,9 +125,8 @@ class GraphInputs(_GraphIO):
     def _set_graph(self, value: _core.Value) -> None:
         """Set the graph for the value."""
         if value._graph_input_of is not None and value._graph_input_of is not self._graph:
-            logger.warning(
-                "Value '%s' is already an input of a different graph. Overwriting",
-                value,
+            raise ValueError(
+                f"Value '{value}' is already an input of a different graph. Please remove the value from the previous graph first"
             )
         value._graph_input_of = self._graph
 
@@ -150,9 +155,8 @@ class GraphOutputs(_GraphIO):
     def _set_graph(self, value: _core.Value) -> None:
         """Set the graph for the value."""
         if value._graph_output_of is not None and value._graph_output_of is not self._graph:
-            logger.warning(
-                "Value '%s' is already an output of a different graph. Overwriting",
-                value,
+            raise ValueError(
+                f"Value '{value}' is already an output of a different graph. Please remove the value from the previous graph first"
             )
         value._graph_output_of = self._graph
 
@@ -181,9 +185,8 @@ class GraphInitializers(collections.UserDict[str, "_core.Value"]):
             value._graph_initializer_of is not None
             and value._graph_initializer_of is not self._graph
         ):
-            logger.warning(
-                "Value '%s' is already an output of a different graph. Overwriting",
-                value,
+            raise ValueError(
+                f"Value '{value}' is already an initializer of a different graph. Please remove the value from the previous graph first"
             )
         value._graph_initializer_of = self._graph
 
