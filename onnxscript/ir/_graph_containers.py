@@ -28,11 +28,12 @@ class _GraphIO(collections.UserList["_core.Value"]):
     """The inputs and outputs of a Graph."""
 
     def __init__(self, graph: _core.Graph, initlist=None):
-        super().__init__(initlist)
         self._graph = graph
         if initlist is not None:
+            initlist = tuple(initlist)  # Create a copy in case initlist is a generator
             for value in initlist:
                 self._set_graph(value)
+        super().__init__(initlist)
         self._check_invariance()
 
     def _check_invariance(self) -> None:
@@ -49,15 +50,17 @@ class _GraphIO(collections.UserList["_core.Value"]):
 
     def append(self, item: _core.Value) -> None:
         """Add a new input to the graph."""
-        super().append(item)
+        # Perform checks first in _set_graph before modifying the data structure
         self._set_graph(item)
+        super().append(item)
         self._check_invariance()
 
     def extend(self, other) -> None:
         """Extend the list of inputs or outputs."""
-        super().extend(other)
+        other = tuple(other)
         for item in other:
             self._set_graph(item)
+        super().extend(other)
 
     def insert(self, i: int, item: _core.Value) -> None:
         """Insert an input/output to the graph."""
@@ -166,10 +169,17 @@ class GraphInitializers(collections.UserDict[str, "_core.Value"]):
     """The initializers of a Graph."""
 
     def __init__(self, graph: _core.Graph, dict=None, /, **kwargs):
-        super().__init__(dict, **kwargs)
+        # Perform checks first in _set_graph before modifying the data structure with super().__init__()
+        data = {}
+        if dict is not None:
+            data.update(dict)
+        if kwargs:
+            data.update(kwargs)
         self._graph = graph
-        for value in self.data.values():
+        for value in data.values():
             self._set_graph(value)
+
+        super().__init__(data)
 
     def _set_graph(self, value: _core.Value) -> None:
         """Set the graph for the value."""
@@ -184,7 +194,9 @@ class GraphInitializers(collections.UserDict[str, "_core.Value"]):
 
     def _unset_graph(self, value: _core.Value) -> None:
         """Unset the graph for the value."""
-        assert value._graph_initializer_of is self._graph, "Bug: value does not belong to the graph"
+        assert value._graph_initializer_of is self._graph, (
+            "Bug: value does not belong to the graph"
+        )
         value._graph_initializer_of = None
 
     def __setitem__(self, key: str, value: _core.Value) -> None:
@@ -199,11 +211,13 @@ class GraphInitializers(collections.UserDict[str, "_core.Value"]):
             # If the key already exists, unset the old value
             old_value = self.data[key]
             self._unset_graph(old_value)
-        super().__setitem__(key, value)
+        # Must call _set_graph before super().__setitem__ so that when there is an error,
+        # the dictionary is not modified
         self._set_graph(value)
+        super().__setitem__(key, value)
 
     def __delitem__(self, key: str) -> None:
         """Delete an initializer from the graph."""
         value = self.data[key]
-        super().__delitem__(key)
         self._unset_graph(value)
+        super().__delitem__(key)
