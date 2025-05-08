@@ -117,7 +117,7 @@ class _GraphIO(collections.UserList["_core.Value"]):
 
     def _unimplemented(self, *_args, **_kwargs):
         """Unimplemented method."""
-        raise NotImplementedError("Method is not implemented")
+        raise RuntimeError("Method is not supported")
 
     __add__ = _unimplemented
     __radd__ = _unimplemented
