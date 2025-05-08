@@ -16,7 +16,6 @@ import abc
 import contextlib
 import dataclasses
 import heapq
-import logging
 import math
 import mmap
 import os
@@ -81,9 +80,6 @@ _NON_NUMPY_NATIVE_TYPES = frozenset(
         _enums.DataType.FLOAT4E2M1,
     )
 )
-
-
-logger = logging.getLogger(__name__)
 
 
 def _compatible_with_numpy(obj: Any) -> TypeGuard[_protocols.ArrayCompatible]:
