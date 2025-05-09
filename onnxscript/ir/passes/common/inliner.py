@@ -198,6 +198,8 @@ class InlinePassResult(ir.passes.PassResult):
 
 
 class InlinePass(ir.passes.InPlacePass):
+    """Inline model local functions to the main graph and clear function definitions."""
+
     def __init__(self) -> None:
         super().__init__()
         self._functions: dict[ir.OperatorIdentifier, ir.Function] = {}

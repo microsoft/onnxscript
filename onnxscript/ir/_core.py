@@ -31,6 +31,8 @@ from typing import (
     Generic,
     Iterable,
     Iterator,
+    MutableMapping,
+    MutableSequence,
     NamedTuple,
     OrderedDict,
     Sequence,
@@ -46,6 +48,7 @@ import onnxscript
 from onnxscript.ir import (
     _display,
     _enums,
+    _graph_containers,
     _linked_list,
     _metadata,
     _name_authority,
@@ -98,7 +101,23 @@ def _compatible_with_dlpack(obj: Any) -> TypeGuard[_protocols.DLPackCompatible]:
 class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
     """Convenience Shared methods for classes implementing TensorProtocol."""
 
-    __slots__ = ()
+    __slots__ = (
+        "_doc_string",
+        "_metadata",
+        "_metadata_props",
+        "_name",
+    )
+
+    def __init__(
+        self,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
+        self._metadata: _metadata.MetadataStore | None = None
+        self._metadata_props: dict[str, str] | None = metadata_props
+        self._name: str | None = name
+        self._doc_string: str | None = doc_string
 
     def _printable_type_shape(self) -> str:
         """Return a string representation of the shape and data type."""
@@ -112,6 +131,24 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         return f"{self.__class__.__name__}<{self._printable_type_shape()}>"
 
     @property
+    def name(self) -> str | None:
+        """The name of the tensor."""
+        return self._name
+
+    @name.setter
+    def name(self, value: str | None) -> None:
+        self._name = value
+
+    @property
+    def doc_string(self) -> str | None:
+        """The documentation string."""
+        return self._doc_string
+
+    @doc_string.setter
+    def doc_string(self, value: str | None) -> None:
+        self._doc_string = value
+
+    @property
     def size(self) -> int:
         """The number of elements in the tensor."""
         return math.prod(self.shape.numpy())  # type: ignore[attr-defined]
@@ -121,6 +158,23 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         """The number of bytes in the tensor."""
         # Use math.ceil because when dtype is INT4, the itemsize is 0.5
         return math.ceil(self.dtype.itemsize * self.size)
+
+    @property
+    def metadata_props(self) -> dict[str, str]:
+        if self._metadata_props is None:
+            self._metadata_props = {}
+        return self._metadata_props
+
+    @property
+    def meta(self) -> _metadata.MetadataStore:
+        """The metadata store for intermediate analysis.
+
+        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
+        to the ONNX proto.
+        """
+        if self._metadata is None:
+            self._metadata = _metadata.MetadataStore()
+        return self._metadata
 
     def display(self, *, page: bool = False) -> None:
         rich = _display.require_rich()
@@ -310,12 +364,8 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
 
     __slots__ = (
         "_dtype",
-        "_metadata",
-        "_metadata_props",
         "_raw",
         "_shape",
-        "doc_string",
-        "name",
     )
 
     def __init__(
@@ -348,6 +398,7 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             ValueError: If the shape is not specified and the value does not have a shape attribute.
             ValueError: If the dtype is not specified and the value is not a numpy array.
         """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         # NOTE: We should not do any copying here for performance reasons
         if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
             raise TypeError(f"Expected an array compatible object, got {type(value)}")
@@ -382,10 +433,6 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             value = _maybe_view_np_array_with_ml_dtypes(value, self._dtype)  # type: ignore[assignment]
 
         self._raw = value
-        self.name = name
-        self.doc_string = doc_string
-        self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props = metadata_props
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if isinstance(self._raw, np.ndarray) or _compatible_with_numpy(self._raw):
@@ -406,7 +453,10 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         return self.__array__().__dlpack_device__()
 
     def __repr__(self) -> str:
-        return f"{self._repr_base()}({self._raw!r}, name={self.name!r})"
+        # Avoid multi-line repr
+        tensor_lines = repr(self._raw).split("\n")
+        tensor_text = " ".join(line.strip() for line in tensor_lines)
+        return f"{self._repr_base()}({tensor_text}, name={self.name!r})"
 
     @property
     def dtype(self) -> _enums.DataType:
@@ -456,23 +506,6 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
             array = array.view(array.dtype.newbyteorder("<"))
         return array.tobytes()
 
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
-
 
 class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
     """An immutable concrete tensor with its data store on disk.
@@ -513,13 +546,9 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
         "_dtype",
         "_length",
         "_location",
-        "_metadata",
-        "_metadata_props",
         "_offset",
         "_shape",
         "_valid",
-        "doc_string",
-        "name",
         "raw",
     )
 
@@ -549,6 +578,7 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             metadata_props: The metadata properties.
             base_dir: The base directory for the external data. It is used to resolve relative paths.
         """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         # NOTE: Do not verify the location by default. This is because the location field
         # in the tensor proto can be anything and we would like deserialization from
         # proto to IR to not fail.
@@ -726,34 +756,13 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             self.raw.close()
             self.raw = None
 
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
-
 
 class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
     """Multidimensional array of strings (as binary data to match the string_data field in TensorProto)."""
 
     __slots__ = (
-        "_metadata",
-        "_metadata_props",
         "_raw",
         "_shape",
-        "doc_string",
-        "name",
     )
 
     def __init__(
@@ -774,6 +783,7 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             doc_string: The documentation string.
             metadata_props: The metadata properties.
         """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         if shape is None:
             if not hasattr(value, "shape"):
                 raise ValueError(
@@ -785,10 +795,6 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             self._shape = shape
             self._shape.freeze()
         self._raw = value
-        self.name = name
-        self.doc_string = doc_string
-        self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props = metadata_props
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         if isinstance(self._raw, np.ndarray):
@@ -836,23 +842,6 @@ class StringTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=to
             return self._raw.flatten().tolist()
         return self._raw
 
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
-
 
 class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-many-ancestors
     """A tensor that lazily evaluates a function to get the actual tensor.
@@ -890,13 +879,9 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
     __slots__ = (
         "_dtype",
         "_func",
-        "_metadata",
-        "_metadata_props",
         "_shape",
         "_tensor",
         "cache",
-        "doc_string",
-        "name",
     )
 
     def __init__(
@@ -921,15 +906,12 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
             doc_string: The documentation string.
             metadata_props: The metadata properties.
         """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
         self._func = func
         self._dtype = dtype
         self._shape = shape
         self._tensor: _protocols.TensorProtocol | None = None
         self.cache = cache
-        self.name = name
-        self.doc_string = doc_string
-        self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props = metadata_props
 
     def _evaluate(self) -> _protocols.TensorProtocol:
         """Evaluate the function to get the actual tensor."""
@@ -974,23 +956,6 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
     def tobytes(self) -> bytes:
         """Return the bytes of the tensor."""
         return self._evaluate().tobytes()
-
-    @property
-    def metadata_props(self) -> dict[str, str]:
-        if self._metadata_props is None:
-            self._metadata_props = {}
-        return self._metadata_props
-
-    @property
-    def meta(self) -> _metadata.MetadataStore:
-        """The metadata store for intermediate analysis.
-
-        Write to the :attr:`metadata_props` if you would like the metadata to be serialized
-        to the ONNX proto.
-        """
-        if self._metadata is None:
-            self._metadata = _metadata.MetadataStore()
-        return self._metadata
 
 
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
@@ -1301,6 +1266,18 @@ class Usage(NamedTuple):
     idx: int
 
 
+def _short_tensor_str_for_node(x: Value) -> str:
+    if x.const_value is None:
+        return ""
+    if x.const_value.size <= 10:
+        try:
+            data = x.const_value.numpy().tolist()
+        except Exception:  # pylint: disable=broad-except
+            return "{...}"
+        return f"{{{data}}}"
+    return "{...}"
+
+
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     """IR Node.
 
@@ -1465,7 +1442,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             + ", ".join(
                 [
                     (
-                        f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}"
+                        f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}{_short_tensor_str_for_node(x)}"
                         if x is not None
                         else "None"
                     )
@@ -1772,18 +1749,19 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     To find all the nodes that use this value as an input, call :meth:`uses`.
 
-    To check if the value is an output of a graph, call :meth:`is_graph_output`.
+    To check if the value is an is an input, output or initializer of a graph,
+    use :meth:`is_graph_input`, :meth:`is_graph_output` or :meth:`is_initializer`.
 
-    Attributes:
-        name: The name of the value. A value is always named when it is part of a graph.
-        shape: The shape of the value.
-        type: The type of the value.
-        metadata_props: Metadata.
+    Use :meth:`graph` to get the graph that owns the value.
     """
 
     __slots__ = (
         "_const_value",
+        "_graph",
         "_index",
+        "_is_graph_input",
+        "_is_graph_output",
+        "_is_initializer",
         "_metadata",
         "_metadata_props",
         "_name",
@@ -1834,16 +1812,30 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         self._uses: dict[Usage, None] = {}
         self.doc_string = doc_string
 
+        # The graph this value belongs to. It is set *only* when the value is added as
+        # a graph input, output or initializer.
+        # The four properties can only be set by the Graph class (_GraphIO and GraphInitializers).
+        self._graph: Graph | None = None
+        self._is_graph_input: bool = False
+        self._is_graph_output: bool = False
+        self._is_initializer: bool = False
+
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
+        type_text = f", type={self.type!r}" if self.type is not None else ""
+        shape_text = f", shape={self.shape!r}" if self.shape is not None else ""
         producer = self.producer()
         if producer is None:
-            producer_text = "None"
+            producer_text = ""
         elif producer.name is not None:
-            producer_text = producer.name
+            producer_text = f", producer='{producer.name}'"
         else:
-            producer_text = f"anonymous_node:{id(producer)}"
-        return f"{self.__class__.__name__}({value_name!r}, type={self.type!r}, shape={self.shape}, producer={producer_text}, index={self.index()})"
+            producer_text = f", producer=anonymous_node:{id(producer)}"
+        index_text = f", index={self.index()}" if self.index() is not None else ""
+        const_value_text = self._constant_tensor_part()
+        if const_value_text:
+            const_value_text = f", const_value={const_value_text}"
+        return f"{self.__class__.__name__}(name={value_name!r}{type_text}{shape_text}{producer_text}{index_text}{const_value_text})"
 
     def __str__(self) -> str:
         value_name = self.name if self.name is not None else "anonymous:" + str(id(self))
@@ -1852,13 +1844,49 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
         # Quote the name because in reality the names can have invalid characters
         # that make them hard to read
-        return f"%{_quoted(value_name)}<{type_text},{shape_text}>"
+        return (
+            f"%{_quoted(value_name)}<{type_text},{shape_text}>{self._constant_tensor_part()}"
+        )
+
+    def _constant_tensor_part(self) -> str:
+        """Display string for the constant tensor attached to str of Value."""
+        if self.const_value is not None:
+            # Only display when the const value is small
+            if self.const_value.size <= 10:
+                return f"{{{self.const_value}}}"
+            else:
+                return f"{{{self.const_value.__class__.__name__}(...)}}"
+        return ""
+
+    @property
+    def graph(self) -> Graph | None:
+        """Return the graph that defines this value.
+
+        When the value is an input/output/initializer of a graph, the owning graph
+        is that graph. When the value is an output of a node, the owning graph is the
+        graph that the node belongs to. When the value is not owned by any graph,
+        it returns ``None``.
+        """
+        if self._graph is not None:
+            return self._graph
+        if self._producer is not None:
+            return self._producer.graph
+        return None
+
+    def _owned_by_graph(self) -> bool:
+        """Return True if the value is owned by a graph."""
+        result = self._is_graph_input or self._is_graph_output or self._is_initializer
+        if result:
+            assert self._graph is not None
+        return result
 
     def producer(self) -> Node | None:
         """The node that produces this value.
 
         When producer is ``None``, the value does not belong to a node, and is
-        typically a graph input or an initializer.
+        typically a graph input or an initializer. You can use :meth:`graph``
+        to find the graph that owns this value. Use :meth:`is_graph_input`, :meth:`is_graph_output`
+        or :meth:`is_initializer` to check if the value is an input, output or initializer of a graph.
         """
         return self._producer
 
@@ -1994,15 +2022,17 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
             self._metadata_props = {}
         return self._metadata_props
 
+    def is_graph_input(self) -> bool:
+        """Whether the value is an input of a graph."""
+        return self._is_graph_input
+
     def is_graph_output(self) -> bool:
         """Whether the value is an output of a graph."""
-        if (producer := self.producer()) is None:
-            return False
-        if (graph := producer.graph) is None:
-            return False
-        # Cannot use `in` because __eq__ may be defined by subclasses, even though
-        # it is not recommended
-        return any(output is self for output in graph.outputs)
+        return self._is_graph_output
+
+    def is_initializer(self) -> bool:
+        """Whether the value is an initializer of a graph."""
+        return self._is_initializer
 
 
 def Input(
@@ -2112,9 +2142,9 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self.name = name
 
         # Private fields that are not to be accessed by any other classes
-        self._inputs = list(inputs)
-        self._outputs = list(outputs)
-        self._initializers = {}
+        self._inputs = _graph_containers.GraphInputs(self, inputs)
+        self._outputs = _graph_containers.GraphOutputs(self, outputs)
+        self._initializers = _graph_containers.GraphInitializers(self)
         for initializer in initializers:
             if isinstance(initializer, str):
                 raise TypeError(
@@ -2139,15 +2169,15 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self.extend(nodes)
 
     @property
-    def inputs(self) -> list[Value]:
+    def inputs(self) -> MutableSequence[Value]:
         return self._inputs
 
     @property
-    def outputs(self) -> list[Value]:
+    def outputs(self) -> MutableSequence[Value]:
         return self._outputs
 
     @property
-    def initializers(self) -> dict[str, Value]:
+    def initializers(self) -> MutableMapping[str, Value]:
         return self._initializers
 
     def register_initializer(self, value: Value) -> None:
@@ -2167,6 +2197,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             ValueError: If the initializer is produced by a node.
             ValueError: If the value does not have its ``.const_value`` set.
         """
+        if not value.name:
+            raise ValueError(f"Initializer must have a name: {value!r}")
         if value.name in self._initializers:
             if self._initializers[value.name] is not value:
                 raise ValueError(
@@ -2174,8 +2206,6 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
                     " it is not the same object: existing={self._initializers[value.name]!r},"
                     f" new={value!r}"
                 )
-        if not value.name:
-            raise ValueError(f"Initializer must have a name: {value!r}")
         if value.producer() is not None:
             raise ValueError(
                 f"Value '{value!r}' is produced by a node and cannot be an initializer."
@@ -2866,11 +2896,11 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         self._overload = value
 
     @property
-    def inputs(self) -> list[Value]:
+    def inputs(self) -> MutableSequence[Value]:
         return self._graph.inputs
 
     @property
-    def outputs(self) -> list[Value]:
+    def outputs(self) -> MutableSequence[Value]:
         return self._graph.outputs
 
     @property

@@ -2,31 +2,35 @@
 # Licensed under the MIT License.
 
 __all__ = [
-    "clear_metadata_and_docstring",
-    "constant_manipulation",
-    "inliner",
-    "onnx_checker",
-    "shape_inference",
-    "topological_sort",
-    "unused_removal",
+    "AddInitializersToInputsPass",
+    "CheckerPass",
+    "ClearMetadataAndDocStringPass",
+    "InlinePass",
+    "LiftConstantsToInitializersPass",
+    "LiftSubgraphInitializersToMainGraphPass",
+    "RemoveInitializersFromInputsPass",
+    "RemoveUnusedFunctionsPass",
+    "RemoveUnusedNodesPass",
+    "RemoveUnusedOpsetsPass",
+    "ShapeInferencePass",
+    "TopologicalSortPass",
 ]
 
-from onnxscript.ir.passes.common import (
-    clear_metadata_and_docstring,
-    constant_manipulation,
-    inliner,
-    onnx_checker,
-    shape_inference,
-    topological_sort,
-    unused_removal,
+from onnxscript.ir.passes.common.clear_metadata_and_docstring import (
+    ClearMetadataAndDocStringPass,
 )
-
-
-def __set_module() -> None:
-    """Set the module of all functions in this module to this public module."""
-    global_dict = globals()
-    for name in __all__:
-        global_dict[name].__module__ = __name__
-
-
-__set_module()
+from onnxscript.ir.passes.common.constant_manipulation import (
+    AddInitializersToInputsPass,
+    LiftConstantsToInitializersPass,
+    LiftSubgraphInitializersToMainGraphPass,
+    RemoveInitializersFromInputsPass,
+)
+from onnxscript.ir.passes.common.inliner import InlinePass
+from onnxscript.ir.passes.common.onnx_checker import CheckerPass
+from onnxscript.ir.passes.common.shape_inference import ShapeInferencePass
+from onnxscript.ir.passes.common.topological_sort import TopologicalSortPass
+from onnxscript.ir.passes.common.unused_removal import (
+    RemoveUnusedFunctionsPass,
+    RemoveUnusedNodesPass,
+    RemoveUnusedOpsetsPass,
+)
