@@ -188,7 +188,7 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
 
 ```{eval-rst}
 .. exec_code::
-    from __future__ import annotations 
+    from __future__ import annotations
     import ctypes
     from typing import Any
 
