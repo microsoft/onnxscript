@@ -35,10 +35,18 @@ class TestClearMetadataAndDocStringPass(unittest.TestCase):
             metadata_props={"mul_key": "mul_value"},
             doc_string="This is a Mul node",
         )
+        func_inputs = [
+            ir.Value(
+                name="input_a", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
+            ),
+            ir.Value(
+                name="input_b", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
+            ),
+        ]
         function = ir.Function(
             graph=ir.Graph(
                 name="my_function",
-                inputs=inputs,
+                inputs=func_inputs,
                 outputs=mul_node.outputs,
                 nodes=[add_node, mul_node],
                 opset_imports={"": 20},
@@ -93,3 +101,7 @@ class TestClearMetadataAndDocStringPass(unittest.TestCase):
         # Check that the function docstring and metadata were cleared
         self.assertEqual(function.doc_string, None)
         self.assertEqual(function.metadata_props, {})
+
+
+if __name__ == "__main__":
+    unittest.main()

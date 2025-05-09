@@ -514,7 +514,9 @@ def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
             return None
         assert isinstance(graph_attr, ir.Attr)
         graph = graph_attr.as_graph()
-        formal_outs = graph.outputs
+        # Copy the graph outputs and clear the graph outputs so that the values are free to move
+        formal_outs = list(graph.outputs)
+        graph.outputs.clear()
         actual_outs = node.outputs
         renamings = {
             formal.name: actual.name
