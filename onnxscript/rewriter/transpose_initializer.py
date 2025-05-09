@@ -28,6 +28,12 @@ class TransposeInitializer(orp.RewriteRuleClassBase):
         original_transpose = initializer.consumers()[0]
         perm_attr = original_transpose.attributes.get("perm")
         assert isinstance(perm_attr, ir.Attr)
+
+        if perm_attr is not None:
+            perm = perm_attr.as_ints()
+        else:
+            perm = None
+
         array = ir_utils.get_numpy_value(initializer)
         if array is None:
             # Do nothing
@@ -35,10 +41,6 @@ class TransposeInitializer(orp.RewriteRuleClassBase):
             # perm=None is filtered out when the attribute is constructed so we are ok
             return op.Transpose(initializer, perm=perm_attr)
 
-        if perm_attr is not None:
-            perm = perm_attr.as_ints()
-        else:
-            perm = None
         transposed = np.transpose(array, axes=perm)
         new_name = f"{initializer.const_value.name}_transposed"
         return op.initializer(ir.tensor(transposed, name=new_name))
@@ -46,10 +48,12 @@ class TransposeInitializer(orp.RewriteRuleClassBase):
     def check(self, context, initializer: ir.Value) -> orp.MatchResult:
         del context  # Unused
         check_result = orp.MatchResult()
+        if not initializer.is_initializer():
+            return check_result.fail("Value is not an initializer")
+        if initializer.is_graph_input():
+            return check_result.fail("Value is a graph input")
         if initializer.const_value is None:
-            return check_result.fail("Value is not an initializer, const_value is None")
-        if initializer.producer() is not None:
-            return check_result.fail("Value is not an initializer, producer is not None")
+            return check_result.fail("Value.const_value is None")
         if len(initializer.uses()) != 1:
             return check_result.fail("Initializer is used by more than one node")
         # TODO(justinchuby): Avoid matching when it is a graph input
