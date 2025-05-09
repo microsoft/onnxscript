@@ -229,7 +229,7 @@ class _VersionConverter:
     def process_node(
         self, node: ir.Node, opset_version: int, up_conversion: bool = True
     ) -> Replacement | None:
-        if node.domain not in {"", "ai.onnx"}:
+        if node.domain != "":
             return None
         adapter = registry.lookup_adapters(
             node.domain, node.op_type, opset_version, up_conversion
