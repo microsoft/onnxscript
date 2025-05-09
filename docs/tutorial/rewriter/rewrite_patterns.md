@@ -1,10 +1,8 @@
-# Pattern-based Rewrite Using Rules
-
-## Introduction
+# Introduction
 
 The ONNX Rewriter tool provides the user with the functionality to replace certain patterns in an ONNX graph with another pattern based on rewrite rules provided by the user.
 
-## Usage
+# Usage
 
 There are three main components needed when rewriting patterns in the graph:
 

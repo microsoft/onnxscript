@@ -1,5 +1,5 @@
 (heading-target-simple)=
-## A Simple Example
+# A Simple Example
 
 An simple example demonstrating the usage of this functionality using the `GELU` activation function:
 

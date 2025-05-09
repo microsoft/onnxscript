@@ -1,4 +1,4 @@
-## Specifying attributes in the pattern
+# Specifying attributes in the pattern
 
 This section demonstrates the use of attribute values in pattern-based rewriting.
 First, write a target pattern and replacement pattern in a similar way to the previous examples.

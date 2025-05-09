@@ -1,4 +1,4 @@
-## OR Patterns
+# OR Patterns
 
 *Note* : This feature is work-in-progress.
 

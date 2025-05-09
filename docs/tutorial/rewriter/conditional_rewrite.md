@@ -1,4 +1,4 @@
-## Using the `match_condition` parameter for pattern-matching
+# Using the `match_condition` parameter for pattern-matching
 
 This section talks about how to utilize the `match_condition` parameter. The `match_condition` parameter checks if the pattern matches the target pattern with certain constraints in consideration.
 

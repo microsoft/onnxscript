@@ -1,5 +1,5 @@
 (heading-target-commute)=
-## Utilizing `commute` parameter for pattern-matching
+# Utilizing `commute` parameter for pattern-matching
 Extending the previous [simple example](heading-target-simple), assumming a scenario where we have a graph with the following structure.
 
 ![commute](examples/img/erfgelu_03_commute.png){align=center width=500px}
@@ -25,7 +25,7 @@ Only one of the patterns has been successfully matched and replaced by a `GELU` 
 
 (heading-target-commute-ruleset)=
 
-### 1. Creating a rule-set with different patterns.
+## 1. Creating a rule-set with different patterns.
 
 This method requires creating two separate rules and packing them into either a sequence of `PatternRewriteRule`s or a `RewriteRuleSet`. Creating a `RewriteRuleSet` is the preferable option but either can be used. In order to create a `RewriteRuleSet` with multiple rules `rule1` and `rule2` for example:
 
@@ -58,7 +58,7 @@ Then, create two separate `PatternRewriteRule`s, one for each target pattern. Pa
 :pyobject: apply_rewrite_with_ruleset
 ```
 
-### 2. Using the `commute` parameter while creating a rule.
+## 2. Using the `commute` parameter while creating a rule.
 
 Creating multiple target patterns for similar patterns can be tedious. In order to avoid this, the `commute` parameter can be utilized while creating the `RewriteRuleSet`. Simply set `commute=True` in order to avoid creating multiple target pattern for cases where patterns are different due to commutativity. Multiple rules with the different patterns emerging due to satisfying the commutativity property are automatically packed into a `RewriteRuleSet` object. Then apply rewrites by passing the created `RewriteRuleSet` for the `pattern_rewrite_rules` parameter.
 
