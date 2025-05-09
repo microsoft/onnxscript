@@ -317,21 +317,26 @@ class OffloadExternalTensorTest(unittest.TestCase):
         model_same_path = self.model_with_external_data_same_path
         model_diff_path = self.model_with_external_data_diff_path
         model_custom_tensor = self.model_with_custom_tensor_class
-        model.graph.initializers["tensor_same_file"] = model_same_path.graph.initializers[
-            "tensor_same_file"
-        ]
-        model.graph.initializers["tensor_ext1_1"] = model_diff_path.graph.initializers[
-            "tensor_ext1_1"
-        ]
-        model.graph.initializers["tensor_ext1_2"] = model_diff_path.graph.initializers[
-            "tensor_ext1_2"
-        ]
-        model.graph.initializers["tensor_ext2_1"] = model_diff_path.graph.initializers[
-            "tensor_ext2_1"
-        ]
-        model.graph.initializers["custom_tensor"] = model_custom_tensor.graph.initializers[
-            "custom_tensor"
-        ]
+        model.graph.initializers["tensor_same_file"] = ir.Value(
+            name="tensor_same_file",
+            const_value=model_same_path.graph.initializers["tensor_same_file"].const_value,
+        )
+        model.graph.initializers["tensor_ext1_1"] = ir.Value(
+            name="tensor_ext1_1",
+            const_value=model_diff_path.graph.initializers["tensor_ext1_1"].const_value,
+        )
+        model.graph.initializers["tensor_ext1_2"] = ir.Value(
+            name="tensor_ext1_2",
+            const_value=model_diff_path.graph.initializers["tensor_ext1_2"].const_value,
+        )
+        model.graph.initializers["tensor_ext2_1"] = ir.Value(
+            name="tensor_ext2_1",
+            const_value=model_diff_path.graph.initializers["tensor_ext2_1"].const_value,
+        )
+        model.graph.initializers["custom_tensor"] = ir.Value(
+            name="custom_tensor",
+            const_value=model_custom_tensor.graph.initializers["custom_tensor"].const_value,
+        )
         return model
 
     def test_external_data_simple(self):
