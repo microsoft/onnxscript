@@ -2197,6 +2197,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             ValueError: If the initializer is produced by a node.
             ValueError: If the value does not have its ``.const_value`` set.
         """
+        if not value.name:
+            raise ValueError(f"Initializer must have a name: {value!r}")
         if value.name in self._initializers:
             if self._initializers[value.name] is not value:
                 raise ValueError(
@@ -2204,8 +2206,6 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
                     " it is not the same object: existing={self._initializers[value.name]!r},"
                     f" new={value!r}"
                 )
-        if not value.name:
-            raise ValueError(f"Initializer must have a name: {value!r}")
         if value.producer() is not None:
             raise ValueError(
                 f"Value '{value!r}' is produced by a node and cannot be an initializer."
@@ -2896,11 +2896,11 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         self._overload = value
 
     @property
-    def inputs(self) -> list[Value]:
+    def inputs(self) -> MutableSequence[Value]:
         return self._graph.inputs
 
     @property
-    def outputs(self) -> list[Value]:
+    def outputs(self) -> MutableSequence[Value]:
         return self._graph.outputs
 
     @property
