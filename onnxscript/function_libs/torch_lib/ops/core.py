@@ -7649,7 +7649,7 @@ def aten_scatter_reduce(
             value = ir.tensor([1], dtype=dtype)
             reduction_init = "none"
         else:
-            value = 0
+            value = ir.tensor([0], dtype=dtype)
             reduction_init = "none"
 
         cst = op.ConstantOfShape(op.Shape(src), value=value)
