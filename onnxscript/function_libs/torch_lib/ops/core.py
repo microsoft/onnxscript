@@ -7627,6 +7627,8 @@ def aten_scatter_reduce(
                 value = ir.tensor([np.finfo(dtype.numpy()).min], dtype=dtype)
             elif dtype == ir.DataType.BFLOAT16:
                 value = ir.tensor([torch.finfo(torch.bfloat16).min], dtype=dtype)
+            elif dtype == ir.DataType.BOOL:
+                value = ir.tensor([False], dtype=dtype)
             else:
                 value = ir.tensor([np.iinfo(dtype.numpy()).min], dtype=dtype)
             reduction_init = "min"
@@ -7638,7 +7640,9 @@ def aten_scatter_reduce(
             }:
                 value = ir.tensor([np.finfo(dtype.numpy()).max], dtype=dtype)
             elif dtype == ir.DataType.BFLOAT16:
-                value = ir.tensor([torch.finfo(torch.bfloat16).min], dtype=dtype)
+                value = ir.tensor([torch.finfo(torch.bfloat16).max], dtype=dtype)
+            elif dtype == ir.DataType.BOOL:
+                value = ir.tensor([True], dtype=dtype)
             else:
                 value = ir.tensor([np.iinfo(dtype.numpy()).max], dtype=dtype)
             reduction_init = "max"
