@@ -379,6 +379,26 @@ class MatchResult:
         """Adds a node to the list of matched nodes."""
         self._current_match.add_node(node)
 
+    def bind_value(self, pattern_value: ValuePattern, value: Any) -> bool:
+        var_name = pattern_value.name
+        # TODO(rama): Simplify the following. We currently bind values to
+        # pattern variables in two different ways: via their name, or via the
+        # pattern-value itself.
+        if var_name is None:
+            for match in self._partial_matches:
+                if pattern_value in match.value_bindings:
+                    # TODO(rama): Use appropriate equality-check here.
+                    if match.value_bindings[pattern_value] == value:
+                        return True
+                    self._current_match.fail(
+                        f"Binding failure: {pattern_value} bound to two different values.",
+                        [match.value_bindings[pattern_value], value],
+                    )
+                    return False
+            self._current_match.value_bindings[pattern_value] = value
+            return True
+        return self.bind(var_name, value)
+
     def bind(self, var: str, value: Any) -> bool:
         for match in self._partial_matches:
             if var in match.bindings:
@@ -399,6 +419,13 @@ class MatchResult:
         if len(self._partial_matches) > 1:
             raise ValueError("Bindings can be accessed only at the top-level match.")
         return self._current_match.bindings
+
+    @property
+    def value_bindings(self) -> dict[ValuePattern, ir.Value]:
+        """Returns the bindings for the value variables."""
+        if len(self._partial_matches) > 1:
+            raise ValueError("Value bindings can be accessed only at the top-level match.")
+        return self._current_match.value_bindings
 
     @property
     def outputs(self) -> MutableSequence[ir.Value]:
@@ -437,7 +464,9 @@ class PartialMatchResult:
         # For a successful match, bindings is a dictionary of mapping pattern-variable-names
         # to values.
         self._bindings: dict[str, Any] = {}
+        self._value_bindings: dict[ValuePattern, ir.Value] = {}
         self._node_bindings: dict[NodePattern, ir.Node] = {}
+
         self._outputs: list[ir.Value] = []
         # For a failed match, _reason is a string that describes the reason for the failure.
         self._reason: str = ""
@@ -472,23 +501,13 @@ class PartialMatchResult:
         """Adds a node to the list of matched nodes."""
         self._matched_nodes.append(node)
 
-    def bind(self, var: str, value: Any) -> bool:
-        """Binds a pattern variable name to a value from the matched IR.
-
-        Returns True if the binding is successful, False otherwise (when the binding is inconsistent).
-        """
-        if var in self._bindings:
-            # TODO(rama): Use appropriate equality-check here.
-            if self._bindings[var] == value:
-                return True
-            self._success = False
-            return False
-        self._bindings[var] = value
-        return True
-
     @property
     def bindings(self) -> dict[str, Any]:
         return self._bindings
+
+    @property
+    def value_bindings(self) -> dict[ValuePattern, ir.Value]:
+        return self._value_bindings
 
     @property
     def outputs(self) -> MutableSequence[ir.Value]:
@@ -954,7 +973,11 @@ def _nodes_in_pattern(outputs: Sequence[ValuePattern]) -> list[NodePattern]:
     return node_patterns
 
 
-def _add_backward_slice(node: NodePattern, backward_slice: set[NodePattern]) -> None:
+def _add_backward_slice(
+    node: NodePattern,
+    backward_slice: set[NodePattern],
+    backward_slice_values: set[ValuePattern],
+) -> None:
     """Adds all nodes in the backward slice of given node to the set `backward_slice`.
 
     The backward slice of a node is the set of all nodes that are reachable from the node
@@ -965,7 +988,11 @@ def _add_backward_slice(node: NodePattern, backward_slice: set[NodePattern]) -> 
     backward_slice.add(node)
     for value_pattern in node.inputs:
         if isinstance(value_pattern, NodeOutputPattern):
-            _add_backward_slice(value_pattern.producer(), backward_slice)
+            _add_backward_slice(
+                value_pattern.producer(), backward_slice, backward_slice_values
+            )
+        elif isinstance(value_pattern, (_OpIdDispatchOr, _BacktrackingOr)):
+            backward_slice_values.add(value_pattern)
 
 
 class GraphPattern:
@@ -987,20 +1014,26 @@ class GraphPattern:
         # whose backward-slices cover the entire pattern.
         output_nodes: set[NodePattern] = set()
         covered: set[NodePattern] = set()
+        choice_values_returned: set[ValuePattern] = set()
+        covered_choice_values: set[ValuePattern] = set()
         for value_pattern in outputs:
             if not isinstance(value_pattern, ValuePattern):
                 raise TypeError(
                     f"Invalid type {type(value_pattern)} for graph pattern output."
                 )
-            if isinstance(value_pattern, Constant):
-                raise NotImplementedError(
-                    "Constant values are not allowed as graph pattern outputs."
-                )
             if isinstance(value_pattern, NodeOutputPattern):
                 candidate = value_pattern.producer()
                 if candidate not in covered:
                     output_nodes.add(candidate)
-                    _add_backward_slice(candidate, covered)
+                    _add_backward_slice(candidate, covered, covered_choice_values)
+            elif isinstance(value_pattern, (_OpIdDispatchOr, _BacktrackingOr)):
+                choice_values_returned.add(value_pattern)
+
+        # check if all choice_values_returned are contained in covered_choice_values:
+        # We don't yet support the use of a choice-value as a "root" of the search.
+        # This is a limitation of the current implementation, and will be fixed in the future.
+        if not (choice_values_returned <= covered_choice_values):
+            raise NotImplementedError("Returning uncovered choice-values is not supported.")
 
         self.output_nodes: list[NodePattern] = list(output_nodes)
 
@@ -1322,15 +1355,9 @@ class SimplePatternMatcher(PatternMatcher):
                 return False
 
         for i, output_value_pattern in enumerate(pattern_node.outputs):
-            if not self._bind_value(output_value_pattern, node.outputs[i]):
+            if not self._match.bind_value(output_value_pattern, node.outputs[i]):
                 return False
 
-        return True
-
-    def _bind_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
-        """Bind a ValuePattern var to ir Value."""
-        if pattern_value.name is not None:
-            return self._match.bind(pattern_value.name, value)
         return True
 
     def _match_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
@@ -1338,7 +1365,7 @@ class SimplePatternMatcher(PatternMatcher):
         if isinstance(pattern_value, AnyValue):
             return True
 
-        if not self._bind_value(pattern_value, value):
+        if not self._match.bind_value(pattern_value, value):
             return False
 
         if isinstance(pattern_value, NodeOutputPattern):
@@ -1402,16 +1429,11 @@ class SimplePatternMatcher(PatternMatcher):
                     output_values.append(self._match.bindings[value_pattern.name])
                 else:
                     unbound_values.append(value_pattern.name)
-            elif isinstance(value_pattern, NodeOutputPattern):
-                i = value_pattern.output_index
-                node = value_pattern.producer()
-                matched_node = self._match.lookup_node(node)
-                if matched_node is not None:
-                    output_values.append(matched_node.outputs[i])
+            else:
+                if value_pattern in self._match.value_bindings:
+                    output_values.append(self._match.value_bindings[value_pattern])
                 else:
                     unbound_values.append(f"output_{j}")
-            elif isinstance(value_pattern, Constant):
-                raise NotImplementedError("Constant values as return-values not supported.")
         if unbound_values:
             self._match.fail(f"Error: Output values not found: {unbound_values}")
             return None
