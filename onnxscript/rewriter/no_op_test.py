@@ -2,7 +2,6 @@
 # Licensed under the MIT License.
 import unittest
 
-import onnx.parser
 import parameterized
 
 from onnxscript import ir
@@ -11,8 +10,7 @@ from onnxscript.rewriter import no_op
 
 class NoOpTest(unittest.TestCase):
     def _check(self, model_text: str) -> None:
-        model_proto = onnx.parser.parse_model(model_text)
-        model = ir.serde.deserialize_model(model_proto)
+        model = ir.from_onnx_text(model_text)
         count = no_op.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         self.assertEqual(model.graph[-1].op_type, "Identity")

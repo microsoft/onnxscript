@@ -16,6 +16,7 @@
     ir.load
     ir.save
     ir.from_proto
+    ir.from_onnx_text
     ir.to_proto
     ir.tensor
     ir.node

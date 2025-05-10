@@ -8,7 +8,6 @@ import unittest
 from typing import Callable, Sequence
 
 import onnx
-from onnx import parser
 
 from onnxscript import ir
 from onnxscript.ir.passes.common import inliner
@@ -44,14 +43,12 @@ class InlinerTest(unittest.TestCase):
         self, input_model: str, expected_model: str, renameable: Sequence[str] | None = None
     ) -> None:
         name_check = _name_checker(renameable)
-        model_proto = parser.parse_model(input_model)
-        model_ir = ir.serde.deserialize_model(model_proto)
+        model_ir = ir.from_onnx_text(input_model)
         inliner.InlinePass()(model_ir)
         proto = ir.serde.serialize_model(model_ir)
         text = onnx.printer.to_text(proto)
         print(text)
-        expected_proto = parser.parse_model(expected_model)
-        expected_ir = ir.serde.deserialize_model(expected_proto)
+        expected_ir = ir.from_onnx_text(expected_model)
         self.assertEqual(len(model_ir.graph), len(expected_ir.graph))
         for node, expected_node in zip(model_ir.graph, expected_ir.graph):
             # TODO: handle node renaming

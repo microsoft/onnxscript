@@ -13,16 +13,10 @@ from onnxscript import ir
 from onnxscript.optimizer import _constant_folding
 
 
-def _create_model(model_text: str) -> ir.Model:
-    """Create a model from the given text."""
-    model = onnx.parser.parse_model(model_text)
-    return ir.serde.deserialize_model(model)
-
-
 class FoldConstantsTest(unittest.TestCase):
     def _fold(self, model: ir.Model | str, onnx_shape_inference=False, **kwargs):
         if isinstance(model, str):
-            model = _create_model(model)
+            model = ir.from_onnx_text(model)
         _constant_folding.fold_constants(
             model, onnx_shape_inference=onnx_shape_inference, **kwargs
         )
@@ -552,7 +546,7 @@ func (float[1,3] x) => (float[1,3] return_val) {
                 z = MatMul (x, wt)
             }
         """
-        model = _create_model(model_text)
+        model = ir.from_onnx_text(model_text)
         w = model.graph.initializers["w"]
         w.shape = ir.Shape([512, 256])
         w.const_value = ir.tensor(np.random.random((512, 256)).astype(np.float32))
