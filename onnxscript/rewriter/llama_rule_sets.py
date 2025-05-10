@@ -46,7 +46,7 @@ class CastIdentity(orp.RewriteRuleAsClass):
     @classmethod
     def check(cls, context, x, to) -> orp.MatchResult:
         check_result = orp.MatchResult()
-        if x.dtype != to.value:
+        if x.dtype != to.as_int():
             return check_result.fail("Input and output types are not the same")
         return check_result
 
@@ -68,10 +68,10 @@ class CastCast(orp.RewriteRuleAsClass):
     @classmethod
     def check(cls, context, x: ir.Value, to: ir.Attr, to_ignored: ir.Attr) -> orp.MatchResult:
         check_result = orp.MatchResult()
-        if to.value not in cls._allowed_tensor_types:
-            return check_result.fail(f"Output type {to.value} is not allowed")
+        if to.as_int() not in cls._allowed_tensor_types:
+            return check_result.fail(f"Output type {to.as_int()} is not allowed")
         if to_ignored.as_int() not in cls._allowed_tensor_types:
-            return check_result.fail(f"Ignored type {to_ignored.value} is not allowed")
+            return check_result.fail(f"Ignored type {to_ignored.as_int()} is not allowed")
         return check_result
 
     @classmethod
@@ -207,7 +207,7 @@ class TransposeIdentity(orp.RewriteRuleAsClass):
         if isinstance(perm, ir.RefAttr):
             return check_result.fail("Permutation is a reference attribute.")
         if perm.type == ir.AttributeType.INTS:
-            if perm.value == list(range(len(perm.value))):
+            if perm.as_ints() == list(range(len(perm.as_ints()))):
                 return check_result
         return check_result.fail("Permutation is not identity.")
 
@@ -252,8 +252,8 @@ class TransposeTranspose(orp.RewriteRuleAsClass):
 
     @classmethod
     def rewrite(cls, op, x: ir.Value, perm1: ir.Attr, perm2: ir.Attr):
-        first = list(range(len(perm1.value)))
-        last = cls._apply_transposes([perm1.value, perm2.value])
+        first = list(range(len(perm1.as_ints())))
+        last = cls._apply_transposes([perm1.as_ints(), perm2.as_ints()])
         if first == last:
             return op.Identity(x)
         return op.Transpose(x, perm=last)
