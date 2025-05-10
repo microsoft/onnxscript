@@ -1722,7 +1722,32 @@ class RewriteRule:
         return [replace_pattern(p) for p in self._target_pattern.commute()]
 
 
-class RewriteRuleClassBase:
+class RewriteRuleClassBase(abc.ABC):
+    """Base class for implementing rewrite rules as a class.
+
+    Example::
+
+        class TransposeIdentity(RewriteRuleAsClass):
+            def pattern(cls, op, x, perm):
+                return op.Transpose(x, perm=perm)
+
+            def check(cls, context, x: ir.Value, perm: ir.Attr | ir.RefAttr) -> bool:
+                if isinstance(perm, ir.RefAttr):
+                    return False
+                if perm.type == ir.AttributeType.INTS:
+                    if perm.as_ints() == list(range(len(perm.as_ints()))):
+                        return True
+                return False
+
+            def rewrite(cls, op, x: ir.Value, perm: ir.Attr | None = None):
+                return op.Identity(x)
+
+        # Then use
+        # TransposeIdentity.rule()
+        # to create a RewriteRule object.
+
+    """
+
     @classmethod
     def rule(cls, *args, **kwargs):
         instance = cls(*args, **kwargs)
@@ -1744,26 +1769,31 @@ class RewriteRuleClassBase:
         self.remove_nodes = remove_nodes
         self.as_function = as_function
 
+    @abc.abstractmethod
     def pattern(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'pattern' must be implemented by derived class.")
 
     def check(self, op, *args, **kwargs) -> MatchResult:
-        # Default check function that returns a
-        # MatchResult object with success always set to True.
+        """Default check function that returns a MatchResult object with success always set to True."""
         return MatchResult()
 
+    @abc.abstractmethod
     def rewrite(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'rewrite' must be implemented by derived class.")
 
     def setup(self):
-        # Optional setup function that can be overridden by derived classes. Used to do
-        # per model/function initialization.
-        pass
+        """Optional setup function that can be overridden by derived classes.
+
+        Used to do per model/function initialization.
+        """
+        return
 
     def cleanup(self):
-        # Optional cleanup function that can be overridden by derived classes. Used to do
-        # per model/function cleanup.
-        pass
+        """Optional cleanup function that can be overridden by derived classes.
+
+        Used to do per model/function cleanup.
+        """
+        return
 
 
 def _copy_for_function(
