@@ -21,6 +21,7 @@ __all__ = [
     "TensorProtoTensor",
     # Deserialization
     "from_proto",
+    "from_onnx_text",
     "deserialize_attribute",
     "deserialize_dimension",
     "deserialize_function",
@@ -188,6 +189,15 @@ def from_proto(proto: object) -> object:
         f"Deserialization of {type(proto)} in from_proto is not implemented. "
         "Use a specific ir.serde.deserialize* function instead."
     )
+
+
+def from_onnx_text(model_text: str, /) -> _core.Model:
+    """Convert the ONNX textual representation to an IR model.
+
+    Read more about the textual representation at: https://onnx.ai/onnx/repo-docs/Syntax.html
+    """
+    proto = onnx.parser.parse_model(model_text)
+    return deserialize_model(proto)
 
 
 @typing.overload
@@ -1713,8 +1723,3 @@ def serialize_dimension_into(
         if dim.value is not None:
             # TODO(justinchuby): None is probably not a valid value for dim_param
             dim_proto.dim_param = str(dim.value)
-
-
-def from_onnx_text(model_text: str) -> _core.Model:
-    proto = onnx.parser.parse_model(model_text)
-    return deserialize_model(proto)
