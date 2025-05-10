@@ -1722,78 +1722,6 @@ class RewriteRule:
         return [replace_pattern(p) for p in self._target_pattern.commute()]
 
 
-class RewriteRuleAsClass:
-    """Defines a class grouping method pattern, rewrite, check.
-    This class is then given to function :func:`make_rewrite_rule_from_class`
-    to define a new rule.
-    """
-
-    @classmethod
-    def pattern(cls, op, *_) -> Any:
-        raise NotImplementedError("Method 'pattern' must be overwritten.")
-
-    @classmethod
-    def rewrite(cls, op, *_) -> Any:
-        raise NotImplementedError("Method 'rewrite' must be overwritten.")
-
-    @classmethod
-    def check(cls, context, *_, **__) -> bool | MatchResult:
-        return MatchResult()
-
-
-def make_rewrite_rule_from_class(
-    rule_class: type | RewriteRuleAsClass, generic: bool = False
-) -> RewriteRule:
-    """Creates a RewriteRule from a class defining the function
-    pattern, rewrite, check with class method. It makes it is easier
-    to read when a module contains multiple patterns.
-
-    Example::
-
-        class TransposeIdentity(RewriteRuleAsClass):
-            @classmethod
-            def pattern(cls, op, x, perm):
-                return op.Transpose(x, perm=perm)
-
-            @classmethod
-            def check(cls, context, x: ir.Value, perm: ir.Attr | ir.RefAttr) -> bool:
-                if isinstance(perm, ir.RefAttr):
-                    return False
-                if perm.type == ir.AttributeType.INTS:
-                    if perm.value == list(range(len(perm.value))):
-                        return True
-                return False
-
-            @classmethod
-            def rewrite(cls, op, x: ir.Value, perm: ir.Attr | None = None):
-                return op.Identity(x)
-
-        transpose_identity_rule = make_rewrite_rule_from_class(TransposeIdentity)
-    """
-    assert hasattr(rule_class, "pattern"), f"Method 'pattern' is missing from {rule_class!r}."
-    assert hasattr(rule_class, "rewrite"), f"Method 'rewrite' is missing from {rule_class!r}."
-    assert hasattr(rule_class, "check"), f"Method 'check' is missing from {rule_class!r}."
-    if generic:
-        import onnxscript.rewriter.generic_pattern as orpp
-
-        return RewriteRule(
-            rule_class.pattern,
-            rule_class.rewrite,
-            rule_class.check,
-            orpp.GenericPatternMatcher,
-            name=rule_class.__name__,  # type: ignore[union-attr]
-        )
-    return RewriteRule(
-        rule_class.pattern,
-        rule_class.rewrite,
-        rule_class.check,
-        name=rule_class.__name__,  # type: ignore[union-attr]
-    )
-
-
-# Variation of RewriteRuleAsClass that is based on instance methods instead of class methods.
-# Useful to implement a family of rules to support pattern variations.
-# TODO: cleanup the naming conventions for these inter-related classes.
 class RewriteRuleClassBase:
     @classmethod
     def rule(cls, *args, **kwargs):
@@ -1819,7 +1747,7 @@ class RewriteRuleClassBase:
     def pattern(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'pattern' must be implemented by derived class.")
 
-    def check(self, op, *args, **kwargs):
+    def check(self, op, *args, **kwargs) -> MatchResult:
         # Default check function that returns a
         # MatchResult object with success always set to True.
         return MatchResult()
