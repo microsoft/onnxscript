@@ -321,7 +321,7 @@ def create_value_mapping(graph: _core.Graph) -> dict[str, _core.Value]:
     Returns:
         A dictionary mapping names to values.
     """
-    values = {}
+    values: dict[str, _core.Value] = {}
     values.update(graph.initializers)
     # The names of the values can be None or "", which we need to exclude
     for input in graph.inputs:

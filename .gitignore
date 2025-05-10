@@ -45,6 +45,7 @@ test-output.xml
 
 # Sphinx documentation
 docs/_build/
+docs/sg_execution_times.rst
 
 # Jupyter Notebook
 .ipynb_checkpoints
