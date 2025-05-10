@@ -1713,3 +1713,8 @@ def serialize_dimension_into(
         if dim.value is not None:
             # TODO(justinchuby): None is probably not a valid value for dim_param
             dim_proto.dim_param = str(dim.value)
+
+
+def from_onnx_text(model_text: str) -> _core.Model:
+    proto = onnx.parser.parse_model(model_text)
+    return deserialize_model(proto)
