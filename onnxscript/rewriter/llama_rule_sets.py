@@ -212,7 +212,7 @@ class TransposeTranspose(orp.RewriteRuleClassBase):
             return check_result.fail("Permutation is a reference attribute.")
         return check_result
 
-    def _apply_transpose(self, perm: Sequence[int, ...], on: list[int]) -> list[int]:
+    def _apply_transpose(self, perm: Sequence[int], on: list[int]) -> list[int]:
         assert len(perm) == len(on), "length mismatch"
         res = [-1 for i in on]
         for i, p in enumerate(perm):
