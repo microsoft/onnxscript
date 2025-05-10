@@ -32,8 +32,8 @@
     rewriter.pattern.PatternMatcher
     rewriter.pattern.SimplePatternMatcher
     rewriter.pattern.RewriteRule
-    rewriter.pattern.RewriteRuleAsClass
     rewriter.pattern.RewriteRuleSet
+    rewriter.pattern.RewriteRuleClassBase
     rewriter.pattern.MatchStatus
     rewriter.pattern.MatchInfo
     rewriter.pattern.MatchingTracer
