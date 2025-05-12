@@ -8,6 +8,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Any, MutableSequence, Sequence, Union
 
 from onnxscript import ir
+from onnxscript.ir import _tape
 
 if TYPE_CHECKING:
     from onnxscript.rewriter._patterns import NodePattern, ValuePattern
@@ -343,3 +344,17 @@ class MatchingTracer:
             best_match.print()
         else:
             print("No matches found.")
+
+
+@dataclasses.dataclass
+class ReplacementSubgraph:
+    """A subgraph that will replace the matched pattern."""
+
+    match: MatchResult
+    new_outputs: Sequence[ir.Value]
+    new_nodes: Sequence[ir.Node]
+    new_initializers: Sequence[ir.Value]
+    used_opsets: _tape.UsedOpsets
+
+
+RewriterContext = _tape.Builder

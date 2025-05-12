@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import abc
-import dataclasses
 import itertools
 import math
 from typing import (
@@ -13,7 +12,6 @@ from typing import (
 )
 
 from onnxscript import ir
-from onnxscript.ir import _tape
 from onnxscript.rewriter._basics import MatchResult
 from onnxscript.rewriter._pattern_ir import (
     AnyValue,
@@ -24,12 +22,12 @@ from onnxscript.rewriter._pattern_ir import (
 )
 
 if TYPE_CHECKING:
+    from onnxscript.rewriter._basics import MatchingTracer
     from onnxscript.rewriter._pattern_ir import (
         GraphPattern,
         NodePattern,
         ValuePattern,
     )
-    from onnxscript.rewriter._tracer import MatchingTracer
 
 
 def _valid_to_replace(
@@ -51,65 +49,6 @@ def _valid_to_replace(
                 if consumer not in matched_nodes:
                     return False
     return True
-
-
-RewriterContext = _tape.Builder
-
-
-@dataclasses.dataclass
-class ReplacementSubgraph:
-    """A subgraph that will replace the matched pattern."""
-
-    match: MatchResult
-    new_outputs: Sequence[ir.Value]
-    new_nodes: Sequence[ir.Node]
-    new_initializers: Sequence[ir.Value]
-    used_opsets: _tape.UsedOpsets
-
-
-def always_true(*args, **kwargs) -> bool:
-    """A condition function that always returns True.
-
-    This is used when no condition function is provided for a rewrite rule.
-    """
-    return True
-
-
-class ReplacementPatternFunction:
-    """The replacement pattern that will replace the targeted pattern.
-
-    Attributes:
-        function (Callable): The replacement function that will be used to replace the matched pattern.
-    """
-
-    def __init__(self, function) -> None:
-        self._function = function
-
-    def get_replacement(self, match: MatchResult) -> ReplacementSubgraph | None:
-        context = RewriterContext()
-        new_outputs = self._function(context, **match.bindings)
-        if new_outputs is None:
-            return None  # Failed to create replacement subgraph
-        if not isinstance(new_outputs, Sequence):
-            new_outputs = [new_outputs]
-        return ReplacementSubgraph(
-            match, new_outputs, context.nodes, context.initializers, context.used_opsets
-        )
-
-
-def _update_opset_imports(
-    graph_or_function: ir.Graph | ir.Function, delta: ReplacementSubgraph
-):
-    imports = graph_or_function.opset_imports
-    for domain, version in delta.used_opsets:
-        if domain not in imports:
-            # use 1 as default version if not explicitly specified
-            imports[domain] = version if version is not None else 1
-        elif version is not None and version != imports[domain]:
-            raise ValueError(
-                f"Multiple versions of opset {domain} used. "
-                f"Expected version {imports[domain]}, but got {version}."
-            )
 
 
 class PatternMatcher(abc.ABC):

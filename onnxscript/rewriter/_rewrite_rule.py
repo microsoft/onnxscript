@@ -20,28 +20,6 @@ from onnxscript.rewriter._pattern_ir import GraphPattern, _to_graph_pattern
 
 T = TypeVar("T")
 
-
-def _valid_to_replace(
-    matched_nodes: Sequence[ir.Node], output_values: Sequence[ir.Value]
-) -> bool:
-    """Check that values computed by the matched_nodes, except for output_values, are used only by the matched_nodes."""
-    # * Must check that all values matched by pattern are used only by pattern,
-    # except for the value that is replaced.
-    # * Must ensure that replacement subgraph does not use any of the deleted
-    # (intermediate) values. (Not necessary for now. Guaranteed.)
-    for n in matched_nodes:
-        for v in n.outputs:
-            if v in output_values:
-                continue
-            if v.is_graph_output():
-                # value is an output-value of the graph/function.
-                return False
-            for consumer, _ in v.uses():
-                if consumer not in matched_nodes:
-                    return False
-    return True
-
-
 RewriterContext = _tape.Builder
 
 
