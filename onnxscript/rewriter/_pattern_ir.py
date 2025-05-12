@@ -570,7 +570,7 @@ class Constant(ValuePattern):
         return str(self._value)
 
 
-class _OpIdDispatchOr(ValuePattern):
+class OpIdDispatchOr(ValuePattern):
     """Represents a (restricted) form of value pattern disjunction that enables deterministic matching."""
 
     def __init__(
@@ -580,7 +580,7 @@ class _OpIdDispatchOr(ValuePattern):
         tag_var: str | None = None,
     ) -> None:
         """
-        Initialize an _OpIdDispatchOr pattern.
+        Initialize an OpIdDispatchOr pattern.
 
         Args:
             op_to_pattern: A dictionary mapping operator identifiers to tuples of tag values and patterns.
@@ -600,8 +600,8 @@ class _OpIdDispatchOr(ValuePattern):
         """Returns the tag variable associated with the OrValue pattern."""
         return self._tag_var
 
-    def clone(self, node_map: dict[NodePattern, NodePattern]) -> _OpIdDispatchOr:
-        return _OpIdDispatchOr(
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> OpIdDispatchOr:
+        return OpIdDispatchOr(
             {k: (v[0], v[1].clone(node_map)) for k, v in self._op_to_pattern.items()},
             self.name,
             self._tag_var,
@@ -617,7 +617,7 @@ class _OpIdDispatchOr(ValuePattern):
         return None
 
 
-class _BacktrackingOr(ValuePattern):
+class BacktrackingOr(ValuePattern):
     """Represents an unrestricted form of OR pattern implemented using backtracking."""
 
     def __init__(
@@ -628,7 +628,7 @@ class _BacktrackingOr(ValuePattern):
         tag_values: Sequence[Any] | None = None,
     ) -> None:
         """
-        Initialize a _BacktrackingOr pattern.
+        Initialize a BacktrackingOr pattern.
 
         Args:
             values: A sequence of value patterns to match against.
@@ -660,8 +660,8 @@ class _BacktrackingOr(ValuePattern):
         """Returns the tag variable associated with the OrValue pattern."""
         return self._tag_var
 
-    def clone(self, node_map: dict[NodePattern, NodePattern]) -> _BacktrackingOr:
-        return _BacktrackingOr(
+    def clone(self, node_map: dict[NodePattern, NodePattern]) -> BacktrackingOr:
+        return BacktrackingOr(
             [v.clone(node_map) for v in self._values],
             self.name,
             self._tag_var,
@@ -699,7 +699,7 @@ def OrValue(
     else:
         tag_values = tuple(range(len(values)))
 
-    def make_op_id_or_pattern() -> _OpIdDispatchOr | None:
+    def make_op_id_or_pattern() -> OpIdDispatchOr | None:
         mapping: dict[ir.OperatorIdentifier, tuple[Any, NodeOutputPattern]] = {}
         for i, alternative in enumerate(values):
             if not isinstance(alternative, NodeOutputPattern):
@@ -709,10 +709,10 @@ def OrValue(
             if id is None or id in mapping:
                 return None
             mapping[id] = (tag_values[i], alternative)
-        return _OpIdDispatchOr(mapping, name, tag_var)
+        return OpIdDispatchOr(mapping, name, tag_var)
 
     optimized_pattern = make_op_id_or_pattern()
-    return optimized_pattern or _BacktrackingOr(
+    return optimized_pattern or BacktrackingOr(
         values, name, tag_var, tag_values if tag_var else None
     )
 
@@ -752,7 +752,7 @@ def _add_backward_slice(
             _add_backward_slice(
                 value_pattern.producer(), backward_slice, backward_slice_values
             )
-        elif isinstance(value_pattern, (_OpIdDispatchOr, _BacktrackingOr)):
+        elif isinstance(value_pattern, (OpIdDispatchOr, BacktrackingOr)):
             backward_slice_values.add(value_pattern)
 
 
@@ -787,7 +787,7 @@ class GraphPattern:
                 if candidate not in covered:
                     output_nodes.add(candidate)
                     _add_backward_slice(candidate, covered, covered_choice_values)
-            elif isinstance(value_pattern, (_OpIdDispatchOr, _BacktrackingOr)):
+            elif isinstance(value_pattern, (OpIdDispatchOr, BacktrackingOr)):
                 choice_values_returned.add(value_pattern)
 
         # check if all choice_values_returned are contained in covered_choice_values:
@@ -901,4 +901,3 @@ def _to_graph_pattern(pattern_constructor: Callable) -> GraphPattern:
     if isinstance(pattern_outputs, ValuePattern):
         pattern_outputs = [pattern_outputs]
     return GraphPattern(pattern_inputs, pattern_outputs, builder.nodes())
-

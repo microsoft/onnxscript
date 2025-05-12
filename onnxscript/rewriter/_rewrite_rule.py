@@ -2,34 +2,24 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import abc
-import contextlib
 import dataclasses
-import enum
-import inspect
 import itertools
-import math
-from collections import defaultdict
-from collections.abc import Mapping
 from typing import (
     Any,
     Callable,
-    Iterable,
-    Iterator,
-    Protocol,
     Sequence,
     TypeVar,
-    Union,
 )
 
 import onnxscript.optimizer
 from onnxscript import ir
 from onnxscript.ir import _convenience, _tape
-from onnxscript.rewriter._basics import MatchResult, MatchingTracer, MatchStatus
-from onnxscript.rewriter._pattern_ir import GraphPattern, _to_graph_pattern
+from onnxscript.rewriter._basics import MatchingTracer, MatchResult, MatchStatus
 from onnxscript.rewriter._matcher import PatternMatcher, SimplePatternMatcher
+from onnxscript.rewriter._pattern_ir import GraphPattern, _to_graph_pattern
 
 T = TypeVar("T")
+
 
 def _valid_to_replace(
     matched_nodes: Sequence[ir.Node], output_values: Sequence[ir.Value]
@@ -109,6 +99,7 @@ def _update_opset_imports(
                 f"Multiple versions of opset {domain} used. "
                 f"Expected version {imports[domain]}, but got {version}."
             )
+
 
 class RewriteRule:
     def __init__(
@@ -638,4 +629,3 @@ class RewriteRuleSet:
 
     def __iter__(self):
         yield from self.rules
-

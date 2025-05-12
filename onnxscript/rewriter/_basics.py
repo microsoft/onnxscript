@@ -2,15 +2,17 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from collections import defaultdict
 import dataclasses
 import enum
-from typing import Any, MutableSequence, Sequence, Union, TYPE_CHECKING
+from collections import defaultdict
+from typing import TYPE_CHECKING, Any, MutableSequence, Sequence, Union
 
 from onnxscript import ir
 
 if TYPE_CHECKING:
     from onnxscript.rewriter._patterns import NodePattern, ValuePattern
+    from onnxscript.rewriter._rules import RewriteRule
+
 
 class MatchResult:
     """The state object used by the pattern-matching algorithm.
