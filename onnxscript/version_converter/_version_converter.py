@@ -277,7 +277,7 @@ class _VersionConverter:
             self.replace_node(node, replacement, root)
         return None
 
-    def visit_graph(self, graph: ir.Graph) -> None:
+    def visit_graph(self, graph: ir.Graph) -> ir.Graph | None:
         if self.target_version > SUPPORTED_MAX_ONNX_OPSET:
             logger.warning(
                 "Conversion to target opset: %s not currently supported.",
@@ -296,15 +296,14 @@ class _VersionConverter:
                 if node.version is None:
                     node.version = self.model_version
                 if self.target_version < node.version:
-                    up_conversion = False
+                    # up_conversion = False
                     # TODO(shubhambhokare1): Remove once down-conversion adapters are supoorted
                     logger.warning(
                         "Target opset: %s less than %s, downstream version conversion not currently handled.",
                         self.target_version,
                         node.version,
                     )
-                    graph = pre_conversion_graph
-                    return None
+                    return pre_conversion_graph
                 try:
                     self.visit_node(node, graph, self.model_version, up_conversion)
                     self._upgrade_version(node, self.model_version, up_conversion)
@@ -314,8 +313,7 @@ class _VersionConverter:
                         node.op_type,
                         e,
                     )
-                    graph = pre_conversion_graph
-                    return None
+                    return pre_conversion_graph
             self.model_version += 1
             del pre_conversion_graph
         return None
@@ -328,7 +326,9 @@ class _VersionConverter:
             if model_version is None:
                 return None
         self.model_version = model_version
-        self.visit_graph(model.graph)
+        graph = self.visit_graph(model.graph)
+        if graph is not None:
+            model.graph = graph
 
         # Finally, update the opset imports for the model
         if self.model_version != self.target_version:
