@@ -1278,6 +1278,11 @@ def _short_tensor_str_for_node(x: Value) -> str:
     return "{...}"
 
 
+def _normalize_domain(domain: str) -> str:
+    """Normalize 'ai.onnx' to ''"""
+    return "" if domain == "ai.onnx" else domain
+
+
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     """IR Node.
 
@@ -1291,6 +1296,9 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     To change the output values, create a new node and replace the each of the inputs of ``output.uses()`` with
     the new output values by calling :meth:`replace_input_with` on the using nodes
     of this node's outputs.
+
+    .. note:
+        When the ``domain`` is `"ai.onnx"`, it is normalized to `""`.
     """
 
     __slots__ = (
@@ -1328,6 +1336,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
         Args:
             domain: The domain of the operator. For onnx operators, this is an empty string.
+                When it is `"ai.onnx"`, it is normalized to `""`.
             op_type: The name of the operator.
             inputs: The input values. When an input is ``None``, it is an empty input.
             attributes: The attributes. RefAttr can be used only when the node is defined in a Function.
@@ -1350,7 +1359,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             ValueError: If an output value has a producer set already, when outputs is specified.
         """
         self._name = name
-        self._domain: str = domain
+        self._domain: str = _normalize_domain(domain)
         self._op_type: str = op_type
         # NOTE: Make inputs immutable with the assumption that they are not mutated
         # very often. This way all mutations can be tracked.
@@ -1470,6 +1479,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def name(self) -> str | None:
+        """Optional name of the node."""
         return self._name
 
     @name.setter
@@ -1478,14 +1488,26 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def domain(self) -> str:
+        """The domain of the operator. For onnx operators, this is an empty string.
+
+        .. note:
+            When domain is `"ai.onnx"`, it is normalized to `""`.
+        """
         return self._domain
 
     @domain.setter
     def domain(self, value: str) -> None:
-        self._domain = value
+        self._domain = _normalize_domain(value)
 
     @property
     def version(self) -> int | None:
+        """Opset version of the operator called.
+
+        If ``None``, the version is unspecified and will follow that of the graph.
+        This property is special to ONNX IR to allow mixed opset usage in a graph
+        for supporting more flexible graph transformations. It does not exist in the ONNX
+        serialization (protobuf) spec.
+        """
         return self._version
 
     @version.setter
@@ -1494,6 +1516,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def op_type(self) -> str:
+        """The name of the operator called."""
         return self._op_type
 
     @op_type.setter
@@ -1502,6 +1525,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def overload(self) -> str:
+        """The overload name when the node is invoking a function."""
         return self._overload
 
     @overload.setter
@@ -1510,6 +1534,12 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def inputs(self) -> Sequence[Value | None]:
+        """The input values of the node.
+
+        The inputs are immutable. To change the inputs, create a new node and
+        replace the inputs of the using nodes of this node's outputs by calling
+        :meth:`replace_input_with` on the using nodes of this node's outputs.
+        """
         return self._inputs
 
     @inputs.setter
@@ -1590,6 +1620,12 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def outputs(self) -> Sequence[Value]:
+        """The output values of the node.
+
+        The outputs are immutable. To change the outputs, create a new node and
+        replace the inputs of the using nodes of this node's outputs by calling
+        :meth:`replace_input_with` on the using nodes of this node's outputs.
+        """
         return self._outputs
 
     @outputs.setter
@@ -1598,6 +1634,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def attributes(self) -> OrderedDict[str, Attr | RefAttr]:
+        """The attributes of the node."""
         return self._attributes
 
     @property
@@ -1613,12 +1650,21 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def metadata_props(self) -> dict[str, str]:
+        """The metadata properties of the node.
+
+        The metadata properties are used to store additional information about the node.
+        Unlike ``meta``, this property is serialized to the ONNX proto.
+        """
         if self._metadata_props is None:
             self._metadata_props = {}
         return self._metadata_props
 
     @property
     def graph(self) -> Graph | None:
+        """The graph that the node belongs to.
+
+        If the node is not added to any graph, this property is None.
+        """
         return self._graph
 
     @graph.setter
@@ -1626,9 +1672,17 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._graph = value
 
     def op_identifier(self) -> _protocols.OperatorIdentifier:
+        """Return the operator identifier of the node.
+
+        The operator identifier is a tuple of the domain, op_type and overload.
+        """
         return self.domain, self.op_type, self.overload
 
     def display(self, *, page: bool = False) -> None:
+        """Pretty print the node.
+
+        This method is used for debugging and visualization purposes.
+        """
         # Add the node's name to the displayed text
         print(f"Node: {self.name!r}")
         if self.doc_string:
@@ -2885,7 +2939,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
 
     @domain.setter
     def domain(self, value: str) -> None:
-        self._domain = value
+        self._domain = _normalize_domain(value)
 
     @property
     def overload(self) -> str:

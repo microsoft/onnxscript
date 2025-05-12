@@ -850,6 +850,17 @@ class NodeTest(unittest.TestCase):
     def test_successors_are_unique(self):
         self.assertEqual(self.node.successors(), (self.node_a, self.node_b))
 
+    def test_domain_normalizes_ai_onnx(self):
+        # Node domain is always normalized to "" if it is "ai.onnx"
+        node = _core.Node("ai.onnx", "TestOp", inputs=())
+        self.assertEqual(node.domain, "")
+
+        node.domain = ""
+        self.assertEqual(node.domain, "")
+
+        node.domain = "ai.onnx"
+        self.assertEqual(node.domain, "")
+
     # TODO(justinchuby): Test all methods
 
 
