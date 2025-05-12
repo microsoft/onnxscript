@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 import functools
 import logging
@@ -220,38 +221,6 @@ class _VersionConverter:
     def __init__(self, target_version: int):
         self.target_version = target_version
 
-    def _maybe_set_opset_version(
-        self, model_or_function: ir.Model | ir.Function, domain: str, version: int | None
-    ):
-        """Set the opset version for the domain."""
-        current_version = model_or_function.opset_imports.get(domain)
-        if version is None or current_version is None:
-            return
-        if domain == "":
-            model_or_function.opset_imports[domain] = max(version, current_version)
-            return
-        elif domain == "ai.onnx":
-            model_or_function.opset_imports[domain] = max(version, current_version)
-            return
-        else:
-            return
-
-    def _update_opset_imports(self, model: ir.Model) -> None:
-        """Collect all opsets used and add opset imports to the model and functions."""
-        for node in ir.traversal.RecursiveGraphIterator(model.graph):
-            domain = node.domain
-            self._maybe_set_opset_version(model, domain, node.version)
-
-        for function in model.functions.values():
-            for node in ir.traversal.RecursiveGraphIterator(function):
-                domain = node.domain
-                self._maybe_set_opset_version(function, domain, node.version)
-            for domain, version in function.opset_imports.items():
-                # Add all opsets used in the function to the model, because ONNX Runtime
-                # does not handle adding the opset imports to the model after inlining during inference.
-                # This should happen after all opsets are collected for the function from its nodes.
-                self._maybe_set_opset_version(model, domain, version)
-
     def _upgrade_version(self, node: ir.Node, opset_version: int, up_conversion: bool) -> None:
         if up_conversion is True:
             node.version = opset_version + 1
@@ -315,32 +284,40 @@ class _VersionConverter:
                 self.target_version,
             )
             return None
-        for node in graph:
-            up_conversion = True
-            if node.version is None:
-                node.version = self.model_version
-            # Iterate each node from current node version -> target version
-            # and updating node based on the correct adapter
-            # Up-conversion [ver->ver+1] or down-conversion [ver->ver-1]
-            # TODO(shubhambhokare1): Remove once down-conversion adapters are supoorted
-            if self.target_version < node.version:
-                up_conversion = False
-                logger.warning(
-                    "Target opset: %s less than %s, downstream version conversion not currently handled.",
-                    self.target_version,
-                    self.model_version,
-                )
-                return None
-            for opset_version in range(node.version, self.target_version):
+
+        # TODO(shubhambhokare1): Support down-conversion
+        while self.model_version < self.target_version:
+            pre_conversion_graph = copy.copy(graph)
+            # Up-convert each node in the graph from opset_version -> opset_version + 1
+            # or down-convert from opset_version -> opset_version - 1
+            # Return non-converted graph if any node fails to convert.
+            for node in graph:
+                up_conversion = True
+                if node.version is None:
+                    node.version = self.model_version
+                if self.target_version < node.version:
+                    up_conversion = False
+                    # TODO(shubhambhokare1): Remove once down-conversion adapters are supoorted
+                    logger.warning(
+                        "Target opset: %s less than %s, downstream version conversion not currently handled.",
+                        self.target_version,
+                        node.version,
+                    )
+                    graph = pre_conversion_graph
+                    return None
                 try:
-                    self.visit_node(node, graph, opset_version, up_conversion)
-                    self._upgrade_version(node, opset_version, up_conversion)
+                    self.visit_node(node, graph, self.model_version, up_conversion)
+                    self._upgrade_version(node, self.model_version, up_conversion)
                 except VersionConverterError as e:
                     logger.warning(
                         "Skipping version conversion for node %s due to exception: %s",
                         node.op_type,
                         e,
                     )
+                    graph = pre_conversion_graph
+                    return None
+            self.model_version += 1
+            del pre_conversion_graph
         return None
 
     def visit_model(self, model: ir.Model) -> None:
@@ -353,7 +330,7 @@ class _VersionConverter:
         self.model_version = model_version
         self.visit_graph(model.graph)
         # Finally, update the opset imports for the model
-        self._update_opset_imports(model)
+        model.opset_imports[""] = self.model_version
         return None
 
 

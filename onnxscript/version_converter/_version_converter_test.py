@@ -315,7 +315,7 @@ class VersionConverter20to21Test(unittest.TestCase):
 
         self.assertEqual(model.graph.node(0).op_type, "GroupNormalization")
         self.assertEqual(model.graph.node(0).version, 20)
-        self.assertEqual(model.opset_imports[""], 21)
+        self.assertEqual(model.opset_imports[""], 20)
 
 
 class VersionConverter23to24Test(unittest.TestCase):
