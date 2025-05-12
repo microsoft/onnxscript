@@ -115,6 +115,7 @@ class VersionConverter18to19Test(unittest.TestCase):
         )
         model = ir.serde.deserialize_model(model_proto)
         target_version = 19
+        self.assertEqual(model.opset_imports[""], 18)
         version_converter.convert_version(model, target_version=target_version)
 
         self.assertEqual(model.graph.node(0).op_type, "Constant")
@@ -123,6 +124,7 @@ class VersionConverter18to19Test(unittest.TestCase):
         self.assertEqual(model.graph.node(1).version, 19)
         self.assertEqual(model.graph.node(4).op_type, "MatMul")
         self.assertEqual(model.graph.node(4).version, 19)
+        self.assertEqual(model.opset_imports[""], 19)
 
 
 class VersionConverter19to20Test(unittest.TestCase):
@@ -142,6 +144,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         )
         model = ir.serde.deserialize_model(model_proto)
         target_version = 20
+        self.assertEqual(model.opset_imports[""], 18)
         version_converter.convert_version(model, target_version=target_version)
 
         self.assertEqual(model.graph.node(0).op_type, "Constant")
@@ -153,6 +156,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph.node(3).op_type, "DFT")
         self.assertEqual(model.graph.node(3).version, 20)
         self.assertEqual(len(model.graph.node(3).inputs), 2)
+        self.assertEqual(model.opset_imports[""], 20)
 
     def test_version_convert_gridsample_linear(self):
         model_proto = onnx.parser.parse_model(
@@ -175,6 +179,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph.node(4).attributes["mode"].value, "bilinear")
 
         target_version = 20
+        self.assertEqual(model.opset_imports[""], 18)
         version_converter.convert_version(model, target_version=target_version)
 
         self.assertEqual(model.graph.node(0).op_type, "Constant")
@@ -184,6 +189,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph.node(4).op_type, "GridSample")
         self.assertEqual(model.graph.node(4).version, 20)
         self.assertEqual(model.graph.node(4).attributes["mode"].value, "linear")
+        self.assertEqual(model.opset_imports[""], 20)
 
     def test_version_convert_gridsample_cubic(self):
         model_proto = onnx.parser.parse_model(
@@ -206,6 +212,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph.node(4).attributes["mode"].value, "bicubic")
 
         target_version = 20
+        self.assertEqual(model.opset_imports[""], 18)
         version_converter.convert_version(model, target_version=target_version)
 
         self.assertEqual(model.graph.node(0).op_type, "Constant")
@@ -215,6 +222,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph.node(4).op_type, "GridSample")
         self.assertEqual(model.graph.node(4).version, 20)
         self.assertEqual(model.graph.node(4).attributes["mode"].value, "cubic")
+        self.assertEqual(model.opset_imports[""], 20)
 
     def test_version_convert_inline(self):
         model_proto = onnx.parser.parse_model(
@@ -238,6 +246,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         )
         model = ir.serde.deserialize_model(model_proto)
         target_version = 20
+        self.assertEqual(model.opset_imports[""], 18)
         version_converter.convert_version(model, target_version=target_version)
 
         self.assertEqual(model.graph.node(0).op_type, "Constant")
@@ -250,6 +259,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         self.assertEqual(model.graph.node(6).op_type, "DFT")
         self.assertEqual(model.graph.node(6).version, 20)
         self.assertEqual(len(model.graph.node(6).inputs), 2)
+        self.assertEqual(model.opset_imports[""], 20)
 
 
 class VersionConverter20to21Test(unittest.TestCase):
@@ -267,6 +277,7 @@ class VersionConverter20to21Test(unittest.TestCase):
         )
         model = ir.serde.deserialize_model(model_proto)
         target_version = 21
+        self.assertEqual(model.opset_imports[""], 18)
         version_converter.convert_version(model, target_version=target_version)
 
         self.assertEqual(model.graph.node(3).op_type, "Reshape")
@@ -283,6 +294,7 @@ class VersionConverter20to21Test(unittest.TestCase):
         self.assertEqual(model.graph.node(8).version, 21)
         self.assertEqual(model.graph.node(9).op_type, "GroupNormalization")
         self.assertEqual(model.graph.node(9).version, 21)
+        self.assertEqual(model.opset_imports[""], 21)
 
     def test_version_groupnorm_no_bias(self):
         model_proto = onnx.parser.parse_model(
@@ -298,10 +310,12 @@ class VersionConverter20to21Test(unittest.TestCase):
         )
         model = ir.serde.deserialize_model(model_proto)
         target_version = 21
+        self.assertEqual(model.opset_imports[""], 18)
         version_converter.convert_version(model, target_version=target_version)
 
         self.assertEqual(model.graph.node(0).op_type, "GroupNormalization")
         self.assertEqual(model.graph.node(0).version, 20)
+        self.assertEqual(model.opset_imports[""], 21)
 
 
 class VersionConverter23to24Test(unittest.TestCase):

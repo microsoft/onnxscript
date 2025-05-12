@@ -220,6 +220,38 @@ class _VersionConverter:
     def __init__(self, target_version: int):
         self.target_version = target_version
 
+    def _maybe_set_opset_version(
+        self, model_or_function: ir.Model | ir.Function, domain: str, version: int | None
+    ):
+        """Set the opset version for the domain."""
+        current_version = model_or_function.opset_imports.get(domain)
+        if version is None or current_version is None:
+            return
+        if domain == "":
+            model_or_function.opset_imports[domain] = max(version, current_version)
+            return
+        elif domain == "ai.onnx":
+            model_or_function.opset_imports[domain] = max(version, current_version)
+            return
+        else:
+            return
+
+    def _update_opset_imports(self, model: ir.Model) -> None:
+        """Collect all opsets used and add opset imports to the model and functions."""
+        for node in ir.traversal.RecursiveGraphIterator(model.graph):
+            domain = node.domain
+            self._maybe_set_opset_version(model, domain, node.version)
+
+        for function in model.functions.values():
+            for node in ir.traversal.RecursiveGraphIterator(function):
+                domain = node.domain
+                self._maybe_set_opset_version(function, domain, node.version)
+            for domain, version in function.opset_imports.items():
+                # Add all opsets used in the function to the model, because ONNX Runtime
+                # does not handle adding the opset imports to the model after inlining during inference.
+                # This should happen after all opsets are collected for the function from its nodes.
+                self._maybe_set_opset_version(model, domain, version)
+
     def _upgrade_version(self, node: ir.Node, opset_version: int, up_conversion: bool) -> None:
         if up_conversion is True:
             node.version = opset_version + 1
@@ -320,6 +352,8 @@ class _VersionConverter:
                 return None
         self.model_version = model_version
         self.visit_graph(model.graph)
+        # Finally, update the opset imports for the model
+        self._update_opset_imports(model)
         return None
 
 
