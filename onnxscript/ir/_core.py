@@ -2307,6 +2307,93 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         # NOTE: This is a method specific to Graph, not required by the protocol unless proven
         return len(self)
 
+    def duplicate(self) -> Graph:
+        """Create a deep copy of the graph.
+
+        Returns:
+            A new Graph instance that is a deep copy of the current graph.
+            All nodes, values, and relationships are duplicated while maintaining
+            the same structure and connections.
+        """
+        # Create mapping of old values to new values for maintaining connections
+        value_map: dict[Value, Value] = {}
+
+        # Duplicate input values
+        new_inputs = []
+        for input_value in self.inputs:
+            new_input = Value(
+                name=input_value.name,
+                shape=input_value.shape.copy() if input_value.shape else None,
+                type=input_value.type,
+                doc_string=input_value.doc_string,
+                const_value=input_value.const_value,
+            )
+            value_map[input_value] = new_input
+            new_inputs.append(new_input)
+
+        # Duplicate initializers
+        new_initializers = []
+        for init in self.initializers.values():
+            new_init = Value(
+                name=init.name,
+                shape=init.shape.copy() if init.shape else None,
+                type=init.type,
+                doc_string=init.doc_string,
+                const_value=init.const_value,
+            )
+            value_map[init] = new_init
+            new_initializers.append(new_init)
+
+        # Create new graph with inputs and initializers
+        new_graph = Graph(
+            inputs=new_inputs,
+            outputs=[],  # Will be set after nodes are created
+            nodes=[],
+            initializers=new_initializers,
+            doc_string=self.doc_string,
+            opset_imports=dict(self.opset_imports),
+            name=self.name,
+            metadata_props=dict(self.metadata_props) if self.metadata_props else None,
+        )
+
+        # Duplicate nodes while maintaining connections
+        for node in self:
+            # Map old inputs to new inputs using value_map
+            new_inputs = [
+                value_map.get(val) if val is not None else None  # type: ignore[misc]
+                for val in node.inputs
+            ]
+
+            # Create new node
+            new_node = Node(
+                domain=node.domain,
+                op_type=node.op_type,
+                inputs=new_inputs,
+                attributes=list(node.attributes.values()),
+                overload=node.overload,
+                num_outputs=len(node.outputs),
+                version=node.version,
+                graph=new_graph,
+                name=node.name,
+                doc_string=node.doc_string,
+                metadata_props=dict(node.metadata_props) if node.metadata_props else None,
+            )
+
+            # Map old outputs to new outputs
+            for old_output, new_output in zip(node.outputs, new_node.outputs):
+                value_map[old_output] = new_output
+                new_output.name = old_output.name
+                new_output.shape = old_output.shape.copy() if old_output.shape else None
+                new_output.type = old_output.type
+                new_output.doc_string = old_output.doc_string
+                new_output.const_value = old_output.const_value
+
+        # Set graph outputs using mapped values
+        new_outputs = [value_map[output] for output in self.outputs]
+        new_graph.outputs.extend(new_outputs)
+
+        return new_graph
+
     # Mutation methods
     def append(self, node: Node, /) -> None:
         """Append a node to the graph in O(1) time.

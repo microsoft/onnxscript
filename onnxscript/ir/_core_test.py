@@ -878,6 +878,43 @@ class GraphTest(unittest.TestCase):
             opset_imports={"": 1},
         )
 
+    def test_duplicate(self):
+        original_graph = self.graph
+        duplicated_graph = original_graph.duplicate()
+
+        # Test equality of graph properties
+        self.assertEqual(len(original_graph), len(duplicated_graph))
+        self.assertEqual(len(original_graph.inputs), len(duplicated_graph.inputs))
+        self.assertEqual(len(original_graph.outputs), len(duplicated_graph.outputs))
+        self.assertEqual(original_graph.opset_imports, duplicated_graph.opset_imports)
+        self.assertEqual(original_graph.doc_string, duplicated_graph.doc_string)
+        self.assertEqual(original_graph.metadata_props, duplicated_graph.metadata_props)
+        self.assertEqual(original_graph.name, duplicated_graph.name)
+
+        # Verify nodes have same structure but are different instances
+        for orig_node, dup_node in zip(original_graph, duplicated_graph):
+            self.assertEqual(orig_node.op_type, dup_node.op_type)
+            self.assertEqual(orig_node.domain, dup_node.domain)
+            self.assertEqual(orig_node.name, dup_node.name)
+            self.assertEqual(len(orig_node.inputs), len(dup_node.inputs))
+            self.assertEqual(len(orig_node.outputs), len(dup_node.outputs))
+            self.assertNotEqual(id(orig_node), id(dup_node))
+
+        # Verify modifying duplicated graph doesn't affect original
+        new_value = _core.Value(name="add_new")
+        new_node = _core.Node("", "Add", inputs=(new_value,), num_outputs=1)
+        duplicated_graph.append(new_node)
+
+        self.assertEqual(len(original_graph) + 1, len(duplicated_graph))
+        self.assertNotIn(new_node, original_graph)
+
+        # Verify that values are different instances but maintain same properties
+        for orig_val, dup_val in zip(original_graph.inputs, duplicated_graph.inputs):
+            self.assertEqual(orig_val.name, dup_val.name)
+            self.assertEqual(orig_val.shape, dup_val.shape)
+            self.assertEqual(orig_val.type, dup_val.type)
+            self.assertNotEqual(id(orig_val), id(dup_val))
+
     def test_initialize(self):
         self.assertEqual(self.graph.inputs, [self.v0, self.v1])
         self.assertEqual(self.graph.outputs, [*self.node.outputs])
