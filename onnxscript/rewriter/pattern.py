@@ -11,6 +11,7 @@ from onnxscript.rewriter._pattern_ir import (
     OpsetPatternBuilder,
     OrValue,
     pattern_builder,
+    torch_module_op,
 )
 from onnxscript.rewriter._rewrite_rule import (
     RewriteRule,
@@ -39,4 +40,5 @@ __all__ = [
     "MatchStatus",
     "PatternMatcher",
     "SimplePatternMatcher",
+    "torch_module_op",
 ]

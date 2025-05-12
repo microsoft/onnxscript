@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, Any, MutableSequence, Sequence, Union
 from onnxscript import ir
 
 if TYPE_CHECKING:
-    from onnxscript.rewriter._patterns import NodePattern, ValuePattern
-    from onnxscript.rewriter._rules import RewriteRule
+    from onnxscript.rewriter._pattern_ir import NodePattern, ValuePattern
+    from onnxscript.rewriter._rewrite_rule import RewriteRule
 
 
 class MatchResult:
