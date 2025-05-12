@@ -188,6 +188,8 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
 
 ```{eval-rst}
 .. exec_code::
+    from __future__ import annotations
+
     import ctypes
     from typing import Any
 
@@ -242,7 +244,7 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
 
             return self.raw.numpy(force=True)
 
-        def __array__(self, dtype: Any = None, copy: bool | None = None) -> npt.NDArray:
+        def __array__(self, dtype = None, copy: bool | None = None) -> npt.NDArray:
             del copy  # Unused, but needed for the signature
             if dtype is None:
                 return self.numpy()
