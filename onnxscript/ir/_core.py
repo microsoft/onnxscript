@@ -1277,9 +1277,11 @@ def _short_tensor_str_for_node(x: Value) -> str:
         return f"{{{data}}}"
     return "{...}"
 
+
 def _normalize_domain(domain: str) -> str:
     """Normalize 'ai.onnx' to ''"""
     return "" if domain == "ai.onnx" else domain
+
 
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     """IR Node.
