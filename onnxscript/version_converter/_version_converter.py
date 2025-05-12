@@ -329,7 +329,14 @@ class _VersionConverter:
                 return None
         self.model_version = model_version
         self.visit_graph(model.graph)
+
         # Finally, update the opset imports for the model
+        if self.model_version != self.target_version:
+            logger.warning(
+                "Converting to opset %s failed. Model was converted to opset version %s.",
+                self.target_version,
+                self.model_version,
+            )
         model.opset_imports[""] = self.model_version
         return None
 
