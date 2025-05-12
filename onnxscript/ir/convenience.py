@@ -10,6 +10,7 @@ __all__ = [
     "replace_all_uses_with",
     "replace_nodes_and_values",
     "create_value_mapping",
+    "insert_nodes_in_value",
 ]
 
 from onnxscript.ir._convenience import (
@@ -18,6 +19,7 @@ from onnxscript.ir._convenience import (
     create_value_mapping,
     replace_all_uses_with,
     replace_nodes_and_values,
+    insert_nodes_in_value,
 )
 
 # NOTE: Do not implement any other functions in this module.
