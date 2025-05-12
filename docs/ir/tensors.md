@@ -191,7 +191,6 @@ To fully support arrays from other frameworks, it is usually a good idea to crea
     from __future__ import annotations
 
     import ctypes
-    from typing import Any
 
     import numpy.typing as npt
     import torch
