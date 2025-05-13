@@ -139,7 +139,7 @@ class RewriteRule:
             else:
                 import onnxscript.rewriter.generic_pattern as generic_pattern
 
-                self._matcher = generic_pattern.Generic_matcher.PatternMatcher(
+                self._matcher = generic_pattern.GenericPatternMatcher.PatternMatcher(
                     self._target_pattern
                 )
         else:
