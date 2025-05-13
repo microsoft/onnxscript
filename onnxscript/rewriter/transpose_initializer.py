@@ -43,7 +43,7 @@ class TransposeInitializer(orp.RewriteRuleClassBase):
 
         transposed = np.transpose(array, axes=perm)
         initializer.unregister_initializer()
-        new_name = f"{initializer.const_value.name}_transposed"
+        new_name = f"{initializer.name}_transposed"
         return op.initializer(ir.tensor(transposed, name=new_name))
 
     def check(self, context, initializer: ir.Value) -> orp.MatchResult:
