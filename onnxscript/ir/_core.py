@@ -2088,6 +2088,13 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         """Whether the value is an initializer of a graph."""
         return self._is_initializer
 
+    def unregister_initializer(self) -> None:
+        """Unregister the value as an initializer of a graph."""
+        if not self.is_initializer():
+            raise ValueError("The value is not an initializer.")
+        assert self.graph.initializers[self.name] is self
+        self.graph.initializers.pop(self.name)
+
 
 def Input(
     name: str | None = None,
