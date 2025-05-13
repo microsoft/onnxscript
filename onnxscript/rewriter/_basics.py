@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING, Any, MutableSequence, Sequence, Union
 from onnxscript import ir
 
 if TYPE_CHECKING:
-    from onnxscript.rewriter._pattern_ir import NodePattern, ValuePattern
-    from onnxscript.rewriter._rewrite_rule import RewriteRule
+    import onnxscript.rewriter._pattern_ir as _pattern_ir
+    import onnxscript.rewriter._rewrite_rule as _rewrite_rule
 
 
 class MatchResult:
@@ -87,7 +87,7 @@ class MatchResult:
         """Returns the list of nodes that matched the pattern."""
         return self._current_match.nodes
 
-    def bind_node(self, pattern_node: NodePattern, node: ir.Node):
+    def bind_node(self, pattern_node: _pattern_ir.NodePattern, node: ir.Node):
         """Binds a pattern node to a matched node."""
         self.add_node(node)
         self._current_match.node_bindings[pattern_node] = node
@@ -96,7 +96,7 @@ class MatchResult:
         """Adds a node to the list of matched nodes."""
         self._current_match.add_node(node)
 
-    def bind_value(self, pattern_value: ValuePattern, value: Any) -> bool:
+    def bind_value(self, pattern_value: _pattern_ir.ValuePattern, value: Any) -> bool:
         var_name = pattern_value.name
         # TODO(rama): Simplify the following. We currently bind values to
         # pattern variables in two different ways: via their name, or via the
@@ -138,7 +138,7 @@ class MatchResult:
         return self._current_match.bindings
 
     @property
-    def value_bindings(self) -> dict[ValuePattern, ir.Value]:
+    def value_bindings(self) -> dict[_pattern_ir.ValuePattern, ir.Value]:
         """Returns the bindings for the value variables."""
         if len(self._partial_matches) > 1:
             raise ValueError("Value bindings can be accessed only at the top-level match.")
@@ -156,7 +156,7 @@ class MatchResult:
         """Returns the nodes and values that caused the failure."""
         return self._current_match._failure_nodes_and_values
 
-    def lookup_node(self, pattern_node: NodePattern) -> ir.Node | None:
+    def lookup_node(self, pattern_node: _pattern_ir.NodePattern) -> ir.Node | None:
         """Looks up the node that matched the given pattern node."""
         for match in self._partial_matches:
             if pattern_node in match.node_bindings:
@@ -181,8 +181,8 @@ class PartialMatchResult:
         # For a successful match, bindings is a dictionary of mapping pattern-variable-names
         # to values.
         self._bindings: dict[str, Any] = {}
-        self._value_bindings: dict[ValuePattern, ir.Value] = {}
-        self._node_bindings: dict[NodePattern, ir.Node] = {}
+        self._value_bindings: dict[_pattern_ir.ValuePattern, ir.Value] = {}
+        self._node_bindings: dict[_pattern_ir.NodePattern, ir.Node] = {}
 
         self._outputs: list[ir.Value] = []
         # For a failed match, _reason is a string that describes the reason for the failure.
@@ -223,7 +223,7 @@ class PartialMatchResult:
         return self._bindings
 
     @property
-    def value_bindings(self) -> dict[ValuePattern, ir.Value]:
+    def value_bindings(self) -> dict[_pattern_ir.ValuePattern, ir.Value]:
         return self._value_bindings
 
     @property
@@ -231,7 +231,7 @@ class PartialMatchResult:
         return self._outputs
 
     @property
-    def node_bindings(self) -> dict[NodePattern, ir.Node]:
+    def node_bindings(self) -> dict[_pattern_ir.NodePattern, ir.Node]:
         return self._node_bindings
 
     def merge(self, other: PartialMatchResult) -> None:
@@ -304,15 +304,17 @@ class MatchingTracer:
     """
 
     def __init__(self) -> None:
-        self._best_matches_map: dict[RewriteRule, list[MatchInfo]] = defaultdict(list)
+        self._best_matches_map: dict[_rewrite_rule.RewriteRule, list[MatchInfo]] = defaultdict(
+            list
+        )
 
     @property
-    def best_matches_map(self) -> dict[RewriteRule, list[MatchInfo]]:
+    def best_matches_map(self) -> dict[_rewrite_rule.RewriteRule, list[MatchInfo]]:
         return self._best_matches_map
 
     def log(
         self,
-        rule: RewriteRule,
+        rule: _rewrite_rule.RewriteRule,
         container: ir.Graph | ir.Function,
         node: ir.Node,
         match_result: MatchResult,
