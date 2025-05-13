@@ -501,7 +501,7 @@ def deserialize_model(proto: onnx.ModelProto) -> _core.Model:
         model_version=_get_field(proto, "model_version"),
         doc_string=_get_field(proto, "doc_string"),
         functions=functions,
-        meta_data_props=deserialize_metadata_props(proto.metadata_props),
+        metadata_props=deserialize_metadata_props(proto.metadata_props),
     )
 
     # Handle experimental value info for functions created by the dynamo exporter in IR version 9

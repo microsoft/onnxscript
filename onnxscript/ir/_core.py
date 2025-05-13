@@ -2734,7 +2734,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
         model_version: int | None = None,
         doc_string: str | None = None,
         functions: Sequence[Function] = (),
-        meta_data_props: dict[str, str] | None = None,
+        metadata_props: dict[str, str] | None = None,
     ) -> None:
         self.graph: Graph = graph
         self.ir_version = ir_version
@@ -2745,7 +2745,7 @@ class Model(_protocols.ModelProtocol, _display.PrettyPrintable):
         self.doc_string = doc_string
         self._functions = {func.identifier(): func for func in functions}
         self._metadata: _metadata.MetadataStore | None = None
-        self._metadata_props: dict[str, str] | None = meta_data_props
+        self._metadata_props: dict[str, str] | None = metadata_props
 
     @property
     def functions(self) -> dict[_protocols.OperatorIdentifier, Function]:
