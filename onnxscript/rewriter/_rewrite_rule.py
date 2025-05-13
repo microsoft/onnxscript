@@ -139,9 +139,7 @@ class RewriteRule:
             else:
                 import onnxscript.rewriter.generic_pattern as generic_pattern
 
-                self._matcher = generic_pattern.GenericPatternMatcher.PatternMatcher(
-                    self._target_pattern
-                )
+                self._matcher = generic_pattern.GenericPatternMatcher(self._target_pattern)
         else:
             self._matcher = matcher(self._target_pattern)
         self._verbose = verbose
