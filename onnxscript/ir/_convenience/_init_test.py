@@ -7,7 +7,7 @@ import onnx
 import unittest
 
 from onnxscript import ir
-from onnxscript.ir._convenience import insert_nodes_in_value
+from onnxscript.ir._convenience import insert_nodes_in_value, remove_nodes
 
 
 def _create_model(model_text: str) -> ir.Model:
@@ -140,6 +140,108 @@ class ConvenienceTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "The number of values and outputs"):
             insert_nodes_in_value(ir_model.graph[1].outputs, [node])
+
+    def test_remove_nodes(self):
+        # Main graph
+        input = ir.Input("input")
+        node_A = ir.node("op_A", [input])
+        node_B = ir.node("op_B", node_A.outputs)
+        node_C = ir.node("op_C", node_B.outputs)
+
+        # Delete node_B
+        remove_nodes([node_B])
+        self.assertEqual(len(node_A.outputs[0].consumers()), 1)
+        self.assertEqual(node_A.outputs[0].consumers()[0].op_type, "op_C")
+        self.assertEqual(len(node_C.inputs), 1)
+        self.assertEqual(node_C.inputs[0].producer().op_type, "op_A")
+
+        self.assertEqual((len(node_B.inputs), len(node_B.outputs)), (1, 1))
+        self.assertEqual(node_B.inputs, (None,))
+        self.assertEqual(len(node_B.outputs[0].consumers()), 0)
+
+    def test_remove_nodes_in_graph(self):
+        ir_model = _create_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 17]>
+            agraph (float[N] x) => (float[N] z) {
+                two = Constant<value_float=2.0>()
+                a, b = MergeAndSplit(x, two)
+                z = MergeNode(a, b, two)
+            }
+        """
+        )
+        # Sanity check previous to delete nodes
+        x, two = ir_model.graph.inputs[0], ir_model.graph[0].outputs[0]
+        self.assertEqual(len(x.consumers()), 1)
+        self.assertEqual(len(two.consumers()), 2)
+
+        # Delete 'MergeAndSplit'
+        target_node = ir_model.graph[1]
+        remove_nodes([target_node])
+
+        # Check 'MergeNode' has new inputs
+        a, b, _ = ir_model.graph[-1].inputs
+        self.assertEqual(a.name, "x")
+        self.assertEqual(b.name, "two")
+
+        # Check x/two consumers have been updated
+        self.assertEqual(len(x.consumers()), 1)
+        self.assertEqual(len(two.consumers()), 1)
+
+        # Check nodes have been deleted in the graph
+        self.assertEqual(len(ir_model.graph), 2)
+
+    def test_remove_nodes_in_input(self):
+        ir_model = _create_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 17]>
+            agraph (float[N] x) => (float[N] z) {
+                y = Sigmoid(x)
+                z = Mul(y, y)
+            }
+        """
+        )
+        # Remove the node linked to the input
+        remove_nodes([ir_model.graph[0]])
+        self.assertEqual(len(ir_model.graph), 1)
+        self.assertEqual(ir_model.graph[0].op_type, "Mul")
+        self.assertEqual(ir_model.graph[0].inputs[0].name, "x")
+        self.assertEqual(ir_model.graph[0].inputs[1].name, "x")
+        self.assertEqual(ir_model.graph[0].outputs[0].name, "z")
+
+    def test_remove_nodes_in_output(self):
+        ir_model = _create_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 17]>
+            agraph (float[N] x) => (float[N] z) {
+                y = Mul(x, x)
+                z = Sigmoid(y)
+            }
+        """
+        )
+        # Remove the node linked to the input
+        remove_nodes([ir_model.graph[-1]])
+        self.assertEqual(len(ir_model.graph), 1)
+        self.assertEqual(ir_model.graph[0].op_type, "Mul")
+        self.assertEqual(ir_model.graph[0].outputs[0].name, "y")
+        self.assertEqual(ir_model.graph.outputs[0].name, "y")
+
+    def test_remove_nodes_error_for_wrong_number_of_inputs_and_outputs(self):
+        ir_model = _create_model(
+            """
+            <ir_version: 10, opset_import: [ "" : 17]>
+            agraph (float[N] x) => (float[N] z) {
+                two = Constant<value_float=2.0>()
+                a, b = SplitNode(x)
+                z = MergeNode(a, b, two)
+            }
+        """
+        )
+        with self.assertRaisesRegex(ValueError, "The number of inputs"):
+            remove_nodes([ir_model.graph[0]])
+
+        with self.assertRaisesRegex(ValueError, "The number of inputs"):
+            remove_nodes([ir_model.graph[1]])
 
 
 if __name__ == "__main__":

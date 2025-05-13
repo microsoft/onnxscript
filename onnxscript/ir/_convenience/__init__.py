@@ -15,6 +15,7 @@ __all__ = [
     "create_value_mapping",
     "replace_nodes_and_values",
     "insert_nodes_in_value",
+    "remove_nodes",
 ]
 
 from typing import Mapping, Sequence, Union
@@ -487,3 +488,65 @@ def insert_nodes_in_value(
         # Insert new nodes if there is a graph
         graph.extend(new_nodes)
         graph.sort()
+
+
+def remove_nodes(nodes: Sequence[_core.Node]) -> None:
+    """Remove a sequence of nodes.
+
+    This allows to delete a list of LINKED nodes (over the same context).
+
+    For example, suppose we have the following graph::
+
+        input -> A := node_A(input) -> B := node_B(A) -> C := node_C(B) -> output
+
+    We want to prune [node_B]::
+
+        >>> from onnxscript import ir
+        >>> input = ir.Input("input")
+        >>> node_A = ir.node("op_A", [input])
+        >>> node_B = ir.node("op_B", node_A.outputs)
+        >>> node_C = ir.node("op_C", node_B.outputs)
+        >>> # Delete node_B
+        >>> remove_nodes([node_B])
+        >>> len(node_A.outputs[0].consumers())
+        1
+        >>> node_A.outputs[0].consumers()[0].op_type
+        'op_C'
+        >>> len(node_C.inputs)
+        1
+        >>> node_C.inputs[0].producer().op_type
+        'op_A'
+        >>> node_B.inputs
+        (None,)
+        >>> len(node_B.outputs)
+        1
+        >>> len(node_B.outputs[0].consumers())
+        0
+
+    Args:
+        nodes: The nodes to remove.
+    """
+    # Search the unique inputs/outputs in new_nodes, keeping the order.
+    inputs, outputs = _find_inputs_outputs(nodes)
+
+    # Sanity check.
+    if len(inputs) != len(outputs):
+        raise ValueError(
+            f"The number of inputs ({inputs}) and outputs ({outputs}) in nodes must match."
+        )
+
+    # Remove nodes, in several steps:
+    # 1. Reconnect the users of outputs with inputs
+    replace_all_uses_with(outputs, inputs)
+    # 2. Detach nodes for their inputs
+    for node in nodes:
+        for i in range(len(node.inputs)):
+            node.replace_input_with(i, None)
+
+    # Update graph if there is one:
+    if (graph := inputs[-1].graph) is not None:
+        # Update graph/function outputs if the node generates output
+        _update_graph_or_function_outputs(graph, outputs, inputs)
+
+        # Drop nodes from graph
+        graph.remove(nodes, safe=True)
