@@ -15,10 +15,8 @@ from onnxscript.rewriter._pattern_ir import (
 )
 from onnxscript.rewriter._rewrite_rule import (
     RewriteRule,
-    RewriteRuleAsClass,
     RewriteRuleClassBase,
     RewriteRuleSet,
-    make_rewrite_rule_from_class,
 )
 
 RewriterContext = _tape.Builder
@@ -30,10 +28,8 @@ __all__ = [
     "OpsetPatternBuilder",
     "pattern_builder",
     "RewriteRule",
-    "RewriteRuleAsClass",
     "RewriteRuleClassBase",
     "RewriteRuleSet",
-    "make_rewrite_rule_from_class",
     "RewriterContext",
     "MatchingTracer",
     "MatchResult",
