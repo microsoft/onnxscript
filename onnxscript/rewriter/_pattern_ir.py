@@ -20,8 +20,8 @@ from typing import (
     Union,
 )
 
+import onnxscript.rewriter._basics as _basics
 from onnxscript import ir
-from onnxscript.rewriter._basics import MatchResult
 
 T = TypeVar("T")
 
@@ -445,7 +445,7 @@ class NodePattern:
     def op_type(self) -> str:
         return str(self.op)
 
-    def matches(self, node: ir.Node, match: MatchResult) -> MatchResult:
+    def matches(self, node: ir.Node, match: _basics.MatchResult) -> _basics.MatchResult:
         """Matches the pattern represented by self against a node.
 
         This is purely a local node-level match, and does not consider the subgraph rooted at the node.

@@ -14,11 +14,11 @@ from typing import (
 )
 
 import onnxscript.optimizer
+import onnxscript.rewriter._basics as _basics
+import onnxscript.rewriter._matcher as _matcher
+import onnxscript.rewriter._pattern_ir as _pattern_ir
 from onnxscript import ir
 from onnxscript.ir import _convenience, _tape
-from onnxscript.rewriter._basics import MatchingTracer, MatchResult, MatchStatus
-from onnxscript.rewriter._matcher import PatternMatcher, SimplePatternMatcher
-from onnxscript.rewriter._pattern_ir import GraphPattern, _to_graph_pattern
 
 T = TypeVar("T")
 
@@ -29,7 +29,7 @@ RewriterContext = _tape.Builder
 class ReplacementSubgraph:
     """A subgraph that will replace the matched pattern."""
 
-    match: MatchResult
+    match: _basics.MatchResult
     new_outputs: Sequence[ir.Value]
     new_nodes: Sequence[ir.Node]
     new_initializers: Sequence[ir.Value]
@@ -54,7 +54,7 @@ class ReplacementPatternFunction:
     def __init__(self, function) -> None:
         self._function = function
 
-    def get_replacement(self, match: MatchResult) -> ReplacementSubgraph | None:
+    def get_replacement(self, match: _basics.MatchResult) -> ReplacementSubgraph | None:
         context = RewriterContext()
         new_outputs = self._function(context, **match.bindings)
         if new_outputs is None:
@@ -84,10 +84,12 @@ def _update_opset_imports(
 class RewriteRule:
     def __init__(
         self,
-        target_pattern: GraphPattern | Callable,
+        target_pattern: _pattern_ir.GraphPattern | Callable,
         replacement_pattern: ReplacementPatternFunction | Callable,
         condition_function: Callable | None = None,
-        matcher: PatternMatcher | Callable[[GraphPattern], PatternMatcher] | None = None,
+        matcher: _matcher.PatternMatcher
+        | Callable[[_pattern_ir.GraphPattern], _matcher.PatternMatcher]
+        | None = None,
         verbose: int = 0,
         name: str | None = None,
         remove_nodes: bool = True,
@@ -98,8 +100,8 @@ class RewriteRule:
         """Create a rewrite rule.
 
         Args:
-            target_pattern: The GraphPattern that will be matched against the IR.
-                If a callable is provided, it will be converted to a GraphPattern.
+            target_pattern: The _pattern_ir.GraphPattern that will be matched against the IR.
+                If a callable is provided, it will be converted to a _pattern_ir.GraphPattern.
             replacement_pattern: The ReplacementPatternFunction that will be used to
                 replace the matched pattern. If a callable is provided, it will be
                 converted to a ReplacementPatternFunction.
@@ -121,23 +123,25 @@ class RewriteRule:
         """
         if as_function and not remove_nodes:
             raise ValueError("as_function=True is only supported when remove_nodes=True.")
-        if not isinstance(target_pattern, GraphPattern):
-            target_pattern = _to_graph_pattern(target_pattern)
+        if not isinstance(target_pattern, _pattern_ir.GraphPattern):
+            target_pattern = _pattern_ir._to_graph_pattern(target_pattern)
         self._target_pattern = target_pattern
 
         if not isinstance(replacement_pattern, ReplacementPatternFunction):
             replacement_pattern = ReplacementPatternFunction(replacement_pattern)
         self._replacement_pattern = replacement_pattern
         self._condition_function = condition_function or always_true
-        if isinstance(matcher, PatternMatcher):
+        if isinstance(matcher, _matcher.PatternMatcher):
             self._matcher = matcher
         elif matcher is None:
             if target_pattern.has_single_output_node:
-                self._matcher = SimplePatternMatcher(self._target_pattern)
+                self._matcher = _matcher.SimplePatternMatcher(self._target_pattern)
             else:
                 import onnxscript.rewriter.generic_pattern as generic_pattern
 
-                self._matcher = generic_pattern.GenericPatternMatcher(self._target_pattern)
+                self._matcher = generic_pattern.Generic_matcher.PatternMatcher(
+                    self._target_pattern
+                )
         else:
             self._matcher = matcher(self._target_pattern)
         self._verbose = verbose
@@ -157,7 +161,7 @@ class RewriteRule:
         node: ir.Node,
         *,
         verbose: int | None = None,
-        tracer: MatchingTracer | None = None,
+        tracer: _basics.MatchingTracer | None = None,
     ) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
         if verbose and verbose > 2:
@@ -175,21 +179,29 @@ class RewriteRule:
             check_match_result = self._condition_function(context, **match.bindings)
             if not check_match_result:
                 # If check function was provided, but it failed, return the reason for failure to the tracer.
-                if isinstance(check_match_result, MatchResult):
+                if isinstance(check_match_result, _basics.MatchResult):
                     match.fail(
                         check_match_result.reason,
                         check_match_result.failure_nodes_and_values,
                     )
                 if tracer:
                     tracer.log(
-                        self, graph_or_function, node, match, MatchStatus.CONDITION_FAILED
+                        self,
+                        graph_or_function,
+                        node,
+                        match,
+                        _basics.MatchStatus.CONDITION_FAILED,
                     )
                 return None
             replacement_subgraph = self._replacement_pattern.get_replacement(match)
             if replacement_subgraph is None:
                 if tracer:
                     tracer.log(
-                        self, graph_or_function, node, match, MatchStatus.REPLACEMENT_FAILED
+                        self,
+                        graph_or_function,
+                        node,
+                        match,
+                        _basics.MatchStatus.REPLACEMENT_FAILED,
                     )
                 return None
             if len(replacement_subgraph.new_outputs) != self._target_pattern.num_outputs:
@@ -201,10 +213,10 @@ class RewriteRule:
             _update_opset_imports(graph_or_function, replacement_subgraph)
             _update_opset_imports(model.graph, replacement_subgraph)
             if tracer:
-                tracer.log(self, graph_or_function, node, match, MatchStatus.SUCCESS)
+                tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.SUCCESS)
             return replacement_subgraph
         if tracer:
-            tracer.log(self, graph_or_function, node, match, MatchStatus.NO_MATCH)
+            tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.NO_MATCH)
         return None
 
     def apply_to_model(
@@ -213,7 +225,7 @@ class RewriteRule:
         *,
         commute: bool = False,
         verbose: int | None = None,
-        tracer: MatchingTracer | None = None,
+        tracer: _basics.MatchingTracer | None = None,
     ):
         # A convenience method to apply the rule to a model. We use a RewriteRuleSet to
         # handle commutative rules.
@@ -293,9 +305,9 @@ class RewriteRuleClassBase(abc.ABC):
     def pattern(self, op, *args, **kwargs):
         raise NotImplementedError("Method 'pattern' must be implemented by derived class.")
 
-    def check(self, op, *args, **kwargs) -> MatchResult:
-        """Default check function that returns a MatchResult object with success always set to True."""
-        return MatchResult()
+    def check(self, op, *args, **kwargs) -> _basics.MatchResult:
+        """Default check function that returns a _basics.MatchResult object with success always set to True."""
+        return _basics.MatchResult()
 
     @abc.abstractmethod
     def rewrite(self, op, *args, **kwargs):
@@ -434,7 +446,7 @@ class RewriteRuleSet:
         graph_or_function: ir.Graph | ir.Function,
         *,
         verbose: int | None,
-        tracer: MatchingTracer | None = None,
+        tracer: _basics.MatchingTracer | None = None,
     ) -> int:
         """
         Apply the rewrite rules to the given graph or function.
@@ -535,7 +547,7 @@ class RewriteRuleSet:
         model: ir.Model,
         *,
         verbose: int | None = None,
-        tracer: MatchingTracer | None = None,
+        tracer: _basics.MatchingTracer | None = None,
     ) -> int:
         """Apply the rewrite rules in the set to the model.
 
