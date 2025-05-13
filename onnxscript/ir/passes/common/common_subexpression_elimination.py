@@ -74,7 +74,7 @@ class CommonSubexpressionEliminationPass(ir.passes.FunctionalPass):
                 (
                     old_node.op_identifier(),
                     tuple(old_node_inputs),
-                    tuple(attributes),
+                    tuple(sorted(attributes.items())),
                 )
             )
             # TODO(titaiwang): Subgraphs are not supported yet.
