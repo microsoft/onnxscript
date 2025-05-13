@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+"""Rewrite rules for ONNX models."""
+
 from __future__ import annotations
 
 import dataclasses

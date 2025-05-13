@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+"""The Pattern IR: used to describe (source) patterns of rewrite rules."""
+
 from __future__ import annotations
 
 import abc

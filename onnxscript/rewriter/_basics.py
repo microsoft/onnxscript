@@ -1,5 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+"""Basic types for the pattern matching and rewriter API."""
+
 from __future__ import annotations
 
 import dataclasses

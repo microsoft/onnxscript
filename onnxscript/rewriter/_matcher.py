@@ -1,33 +1,20 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+"""Implementation of the pattern matching algorithm."""
+
 from __future__ import annotations
 
 import abc
 import itertools
 import math
 from typing import (
-    TYPE_CHECKING,
     Iterable,
     Sequence,
 )
 
+import onnxscript.rewriter._basics as _basics
+import onnxscript.rewriter._pattern_ir as _pattern_ir
 from onnxscript import ir
-from onnxscript.rewriter._basics import MatchResult
-from onnxscript.rewriter._pattern_ir import (
-    AnyValue,
-    BacktrackingOr,
-    Constant,
-    NodeOutputPattern,
-    OpIdDispatchOr,
-)
-
-if TYPE_CHECKING:
-    from onnxscript.rewriter._basics import MatchingTracer
-    from onnxscript.rewriter._pattern_ir import (
-        GraphPattern,
-        NodePattern,
-        ValuePattern,
-    )
 
 
 def _valid_to_replace(
@@ -52,7 +39,7 @@ def _valid_to_replace(
 
 
 class PatternMatcher(abc.ABC):
-    def __init__(self, pattern: GraphPattern) -> None:
+    def __init__(self, pattern: _pattern_ir.GraphPattern) -> None:
         self.pattern = pattern
 
     @abc.abstractmethod
@@ -64,8 +51,8 @@ class PatternMatcher(abc.ABC):
         *,
         verbose: int = 0,
         remove_nodes: bool = True,
-        tracer: MatchingTracer | None = None,
-    ) -> MatchResult:
+        tracer: _basics.MatchingTracer | None = None,
+    ) -> _basics.MatchResult:
         """Match the pattern against the subgraph ending at the given node."""
 
     def __str__(self) -> str:
@@ -73,7 +60,7 @@ class PatternMatcher(abc.ABC):
 
 
 class SimplePatternMatcher(PatternMatcher):
-    def __init__(self, pattern: GraphPattern) -> None:
+    def __init__(self, pattern: _pattern_ir.GraphPattern) -> None:
         super().__init__(pattern)
         self._current_node: ir.Node | None = None
 
@@ -85,7 +72,7 @@ class SimplePatternMatcher(PatternMatcher):
         self._match.fail(reason, node or self._current_node)
         return False
 
-    def _match_constant(self, pattern_constant: Constant, value: ir.Value) -> bool:
+    def _match_constant(self, pattern_constant: _pattern_ir.Constant, value: ir.Value) -> bool:
         """Match a Constant pattern against a value.
 
         If the constant value is produced by a Constant node, we do not include
@@ -142,7 +129,7 @@ class SimplePatternMatcher(PatternMatcher):
 
         return True
 
-    def _match_node(self, pattern_node: NodePattern, node: ir.Node) -> bool:
+    def _match_node(self, pattern_node: _pattern_ir.NodePattern, node: ir.Node) -> bool:
         """Matches a pattern subgraph against subgraph rooted at node."""
         self._current_node = node
         # Graph-matching: we do not allow the same pattern node to be matched against
@@ -189,23 +176,25 @@ class SimplePatternMatcher(PatternMatcher):
 
         return True
 
-    def _match_value(self, pattern_value: ValuePattern, value: ir.Value | None) -> bool:
+    def _match_value(
+        self, pattern_value: _pattern_ir.ValuePattern, value: ir.Value | None
+    ) -> bool:
         """Match an IR value against a ValuePattern instance."""
-        if isinstance(pattern_value, AnyValue):
+        if isinstance(pattern_value, _pattern_ir.AnyValue):
             return True
 
         if not self._match.bind_value(pattern_value, value):
             return False
 
-        if isinstance(pattern_value, NodeOutputPattern):
+        if isinstance(pattern_value, _pattern_ir.NodeOutputPattern):
             if value is None:
                 return self.fail("Mismatch: Computed node pattern does not match None.")
             return self._match_node_output(pattern_value, value)
-        if isinstance(pattern_value, Constant):
+        if isinstance(pattern_value, _pattern_ir.Constant):
             if value is None:
                 return self.fail("Mismatch: Constant pattern does not match None.")
             return self._match_constant(pattern_value, value)
-        if isinstance(pattern_value, BacktrackingOr):
+        if isinstance(pattern_value, _pattern_ir.BacktrackingOr):
             for i, pattern_choice in enumerate(pattern_value._values):
                 self._match.enter_new_match()
                 if self._match_value(pattern_choice, value):
@@ -215,7 +204,7 @@ class SimplePatternMatcher(PatternMatcher):
                     return True
                 self._match.abandon_current_match()
             return self.fail("None of the alternatives matched.")
-        if isinstance(pattern_value, OpIdDispatchOr):
+        if isinstance(pattern_value, _pattern_ir.OpIdDispatchOr):
             if value is None:
                 return self.fail("Mismatch: OrValue pattern does not match None.")
             alternative = pattern_value.get_pattern(value)
@@ -229,7 +218,9 @@ class SimplePatternMatcher(PatternMatcher):
             return result
         return True
 
-    def _match_node_output(self, pattern_value: NodeOutputPattern, value: ir.Value) -> bool:
+    def _match_node_output(
+        self, pattern_value: _pattern_ir.NodeOutputPattern, value: ir.Value
+    ) -> bool:
         """Match an IR value against a NodeOutputPattern instance."""
         node = value.producer()
         if node is None:
@@ -245,7 +236,7 @@ class SimplePatternMatcher(PatternMatcher):
     def _init_match(self, verbose: int) -> None:
         """Initialize the match state. Invoked before starting a new match."""
         self._verbose = verbose
-        self._match: MatchResult = MatchResult()
+        self._match: _basics.MatchResult = _basics.MatchResult()
         self._current_node = None
 
     def _get_output_values(self) -> list[ir.Value] | None:
@@ -274,7 +265,7 @@ class SimplePatternMatcher(PatternMatcher):
         graph_or_function: ir.Graph | ir.Function,
         node: ir.Node,
         check_removable: bool,
-    ) -> MatchResult:
+    ) -> _basics.MatchResult:
         del model
         del graph_or_function
 
@@ -300,7 +291,9 @@ class SimplePatternMatcher(PatternMatcher):
         match.outputs.extend(output_values)
         return match
 
-    def _multi_match(self, candidate: Iterable[ir.Node], check_removable: bool) -> MatchResult:
+    def _multi_match(
+        self, candidate: Iterable[ir.Node], check_removable: bool
+    ) -> _basics.MatchResult:
         """Find a match for a pattern with multiple output nodes.
 
         For a pattern with K output nodes, the input candidate should specify K nodes
@@ -333,8 +326,8 @@ class SimplePatternMatcher(PatternMatcher):
         *,
         verbose: int = 0,
         remove_nodes: bool = True,
-        tracer: MatchingTracer | None = None,
-    ) -> MatchResult:
+        tracer: _basics.MatchingTracer | None = None,
+    ) -> _basics.MatchResult:
         """Match the pattern against the subgraph ending at the given node.
 
         For patterns with multiple output nodes, the given node is matched
@@ -386,5 +379,5 @@ class SimplePatternMatcher(PatternMatcher):
                 if match:
                     return match
             if match is None:
-                return MatchResult().fail("No match found.")
+                return _basics.MatchResult().fail("No match found.")
             return match
