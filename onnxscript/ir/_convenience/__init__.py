@@ -336,6 +336,18 @@ def create_value_mapping(graph: _core.Graph) -> dict[str, _core.Value]:
     return values
 
 
+def _update_graph_or_function_outputs(
+    graph_or_function: _core.Graph | _core.Function,
+    old_values: Sequence[_core.Value],
+    new_values: Sequence[_core.Value],
+):
+    """Update graph/function outputs"""
+    replacement_mapping = dict(zip(old_values, new_values))
+    for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
+        if graph_or_function_output in replacement_mapping:
+            graph_or_function.outputs[idx] = replacement_mapping[graph_or_function_output]
+
+
 def replace_nodes_and_values(
     graph_or_function: _core.Graph | _core.Function,
     /,
@@ -368,10 +380,7 @@ def replace_nodes_and_values(
     # Reconnect the users of the deleted values to use the new values
     replace_all_uses_with(old_values, new_values)
     # Update graph/function outputs if the node generates output
-    replacement_mapping = dict(zip(old_values, new_values))
-    for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
-        if graph_or_function_output in replacement_mapping:
-            graph_or_function.outputs[idx] = replacement_mapping[graph_or_function_output]
+    _update_graph_or_function_outputs(graph_or_function, old_values, new_values)
 
     # insert new nodes after the index node
     graph_or_function.insert_after(insertion_point, new_nodes)
