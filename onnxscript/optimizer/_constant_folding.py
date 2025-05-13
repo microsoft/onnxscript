@@ -64,7 +64,7 @@ logger = logging.getLogger(__name__)
 
 def _process_constant_node(node: ir.Node) -> None:
     """Sets const_value of output value of a Constant op node."""
-    if node.op_type != "Constant" or node.domain not in {"", "ai.onnx"}:
+    if node.op_type != "Constant" or node.domain != "":
         return
     if len(node.attributes) != 1:
         return
