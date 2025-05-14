@@ -15,7 +15,7 @@ stages:
     steps:
     - download: onnxscript-release-dev
       artifact: drop
-    - task: SFP.release-tasks.custom-build-release-task.EsrpRelease@8
+    - task: SFP.release-tasks.custom-build-release-task.EsrpRelease@9
       displayName: 'ESRP Release'
       inputs:
         ConnectedServiceName: esrp_release
@@ -30,3 +30,4 @@ stages:
         owners: 'justinchu@microsoft.com'
         approvers: 'grama@microsoft.com'
         mainpublisher: AIFrameworks
+        serviceendpointurl: 'https://api.esrp.microsoft.com'
