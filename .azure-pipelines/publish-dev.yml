@@ -18,7 +18,7 @@ stages:
     - task: SFP.release-tasks.custom-build-release-task.EsrpRelease@8
       displayName: 'ESRP Release'
       inputs:
-        ConnectedServiceName: esrprelease
+        ConnectedServiceName: esrp_release
         UseMSIAuthentication: true
         AppRegistrationClientId: '62b7cfed-4d25-454f-880e-010dc21455ac'
         AppRegistrationTenantId: '975f013f-7f24-47e8-a7d3-abc4752bf346'
