@@ -360,10 +360,14 @@ def replace_nodes_and_values(
         # Propagate relevant info from old value to new value
         # TODO(Rama): Perhaps this should be a separate utility function. Also, consider
         # merging old and new type/shape info.
-        new_value.type = old_value.type
-        new_value.shape = old_value.shape
-        new_value.const_value = old_value.const_value
-        new_value.name = old_value.name
+        if new_value.type is None:
+            new_value.type = old_value.type
+        if new_value.shape is None:
+            new_value.shape = old_value.shape
+        if new_value.const_value is None:
+            new_value.const_value = old_value.const_value
+        if new_value.name is None:
+            new_value.name = old_value.name
 
     # Reconnect the users of the deleted values to use the new values
     replace_all_uses_with(old_values, new_values)

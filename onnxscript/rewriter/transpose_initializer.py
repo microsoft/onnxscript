@@ -42,7 +42,6 @@ class TransposeInitializer(orp.RewriteRuleClassBase):
             return op.Transpose(initializer, perm=perm_attr)
 
         transposed = np.transpose(array, axes=perm)
-        initializer.unregister_initializer()
         new_name = f"{initializer.name}_transposed"
         return op.initializer(ir.tensor(transposed, name=new_name))
 
