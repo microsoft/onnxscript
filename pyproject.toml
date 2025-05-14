@@ -8,7 +8,7 @@ dynamic = ["version", "urls"]
 description = "Naturally author ONNX functions and models using a subset of Python"
 authors = [{ name = "Microsoft Corporation", email = "onnx@microsoft.com" }]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = { file = "LICENSE" }
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -17,7 +17,6 @@ classifiers = [
   "Operating System :: POSIX",
   "Operating System :: MacOS :: MacOS X",
   "Operating System :: Microsoft :: Windows",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -25,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "License :: OSI Approved :: MIT License",
 ]
-dependencies = ["numpy", "onnx>=1.16", "typing_extensions>=4.10", "ml_dtypes", "packaging"]
+dependencies = ["numpy", "onnx>=1.18", "typing_extensions>=4.10", "ml_dtypes", "packaging"]
 
 [tool.setuptools.packages.find]
 include = ["onnxscript*"]
