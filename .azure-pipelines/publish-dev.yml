@@ -9,7 +9,7 @@ stages:
 - stage: Release
   dependsOn: []
   jobs:
-  - job: onnxscript-publish-dev
+  - job: onnxscript_publish_dev
     pool:
       vmImage: 'ubuntu-latest'
     steps:
