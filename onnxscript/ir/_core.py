@@ -382,9 +382,10 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
 
         Args:
             value: The backing data of the tensor. It can be a numpy array compatible object or a DLPack compatible object.
-                When the dtype is not one of the numpy native dtypes, the value needs
-                to be ``uint8`` for 4-bit and 8-bit data types, and ``uint16`` for bfloat16
-                when the value is a numpy array; ``dtype`` must be specified in this case.
+                When the dtype is not one of the numpy native dtypes, the value can
+                be ``uint8`` (unpacked) or ml_dtypes types for 4-bit and 8-bit data types,
+                and ``uint16`` or ml_dtype.bfloat16 for bfloat16 when the value is a numpy array;
+                ``dtype`` must be specified in this case.
             dtype: The data type of the tensor. It can be None only when value is a numpy array.
                 Users are responsible for making sure the dtype matches the value when value is not a numpy array.
             shape: The shape of the tensor. If None, the shape is obtained from the value.
@@ -956,6 +957,129 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
     def tobytes(self) -> bytes:
         """Return the bytes of the tensor."""
         return self._evaluate().tobytes()
+
+
+class PackedTensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]):  # pylint: disable=too-many-ancestors
+    """A tensor that stores 4bit datatypes in packed format."""
+
+    __slots__ = (
+        "_dtype",
+        "_raw",
+        "_shape",
+    )
+
+    def __init__(
+        self,
+        value: TArrayCompatible,
+        dtype: _enums.DataType,
+        *,
+        shape: Shape,
+        name: str | None = None,
+        doc_string: str | None = None,
+        metadata_props: dict[str, str] | None = None,
+    ) -> None:
+        """Initialize a tensor.
+
+        Args:
+            value: The backing data of the tensor. It can be a numpy array compatible object or a DLPack compatible object.
+                The value MUST be in ``uint8`` packed format, or in one of the ml_dtypes dtypes, which
+                will be packed when constructing the tensor.
+            dtype: The data type of the tensor. Must be one of INT4, UINT4, FLOAT4E2M1.
+            shape: The shape of the tensor.
+            name: The name of the tensor.
+            doc_string: The documentation string.
+            metadata_props: The metadata properties.
+
+        Raises:
+            TypeError: If the value is not a numpy array compatible or a DLPack compatible object.
+            TypeError: If the value is a numpy array and the dtype is not uint8 or one of the ml_dtypes dtypes.
+        """
+        super().__init__(name=name, doc_string=doc_string, metadata_props=metadata_props)
+        if not _compatible_with_numpy(value) and not _compatible_with_dlpack(value):
+            raise TypeError(f"Expected an array compatible object, got {type(value)}")
+        self._shape = shape
+        self._shape.freeze()
+        if dtype.itemsize != 0.5:
+            raise TypeError(
+                f"PackedTensor only supports INT4, UINT4, FLOAT4E2M1, but got {dtype}"
+            )
+        self._dtype = dtype
+
+        if isinstance(value, np.ndarray):
+            if value.dtype == ml_dtypes.float4_e2m1fn or value.dtype == ml_dtypes.uint4 or value.dtype == ml_dtypes.int4:
+                # Pack the array into uint8
+                value = _type_casting.pack_int4(value)
+        self._raw = value
+
+    def __array__(self, dtype: Any = None) -> np.ndarray:
+        return self.numpy()
+
+    def __dlpack__(self, *, stream: Any = None) -> Any:
+        if _compatible_with_dlpack(self._raw):
+            return self._raw.__dlpack__(stream=stream)
+        return self.__array__().__dlpack__(stream=stream)
+
+    def __dlpack_device__(self) -> tuple[int, int]:
+        if _compatible_with_dlpack(self._raw):
+            return self._raw.__dlpack_device__()
+        return self.__array__().__dlpack_device__()
+
+    def __repr__(self) -> str:
+        return f"{self._repr_base()}({self._raw!r}, name={self.name!r})"
+
+    @property
+    def dtype(self) -> _enums.DataType:
+        """The data type of the tensor. Immutable."""
+        return self._dtype
+
+    @property
+    def shape(self) -> Shape:
+        """The shape of the tensor. Immutable."""
+        return self._shape
+
+    @property
+    def raw(self) -> TArrayCompatible:
+        """Backing data of the tensor. Immutable."""
+        return self._raw  # type: ignore[return-value]
+
+    def numpy(self) -> np.ndarray:
+        """Return the tensor as a numpy array.
+
+        When the data type is not supported by numpy, the dtypes from the ``ml_dtype``
+        package are used. The values can be reinterpreted as bit representations
+        using the ``.view()`` method.
+        """
+        if isinstance(self._raw, np.ndarray) or _compatible_with_numpy(self._raw):
+            array = self._raw.__array__(dtype)
+        assert _compatible_with_dlpack(self._raw), (
+            f"Bug: Expected DLPack or Numpy compatible objects, got {type(self._raw)}"
+        )
+        array = np.from_dlpack(self._raw)
+        # ONNX IR returns the unpacked arrays
+        if self.dtype == _enums.DataType.INT4:
+            return _type_casting.unpack_int4(array, self.shape.numpy())
+        if self.dtype == _enums.DataType.UINT4:
+            return _type_casting.unpack_uint4(array, self.shape.numpy())
+        if self.dtype == _enums.DataType.FLOAT4E2M1:
+            return _type_casting.unpack_float4e2m1(array, self.shape.numpy())
+        raise TypeError(
+            f"PackedTensor only supports INT4, UINT4, FLOAT4E2M1, but got {self.dtype}"
+        )
+
+    def numpy_packed(self) -> npt.NDArray[np.uint8]:
+        """Return the tensor as a packed array."""
+        return np.asarray(self._raw, dtype=np.uint8)
+
+    def tobytes(self) -> bytes:
+        """Returns the value as bytes encoded in little endian.
+
+        Override this method for more efficient serialization when the raw
+        value is not a numpy array.
+        """
+        array = self.numpy()
+        if not _IS_LITTLE_ENDIAN:
+            array = array.view(array.dtype.newbyteorder("<"))
+        return array.tobytes()
 
 
 class SymbolicDim(_protocols.SymbolicDimProtocol, _display.PrettyPrintable):
