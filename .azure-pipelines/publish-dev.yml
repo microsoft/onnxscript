@@ -1,5 +1,5 @@
 trigger: none
-name: onnxscript-release-dev.$(Date:yyyyMMdd).$(Rev:r)
+name: onnxscript-publish-dev.$(Date:yyyyMMdd).$(Rev:r)
 resources:
   pipelines:
   - pipeline: onnxscript-release-dev
@@ -9,7 +9,7 @@ stages:
 - stage: Release
   dependsOn: []
   jobs:
-  - job: Release onnxscript dev
+  - job: Publish onnxscript dev to PyPI
     pool:
       vmImage: 'ubuntu-latest'
     steps:
