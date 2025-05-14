@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import Generic, Iterable, Iterator, Sequence, TypeVar
+from typing import Generic, Iterable, Iterator, Sequence, TypeVar, overload
 
 T = TypeVar("T")
 
@@ -136,27 +136,54 @@ class DoublyLinkedSet(Sequence[T], Generic[T]):
         )
         return self._length
 
-    def __getitem__(self, index: int) -> T:
+    @overload
+    def __getitem__(self, index: int) -> T: ...
+    @overload
+    def __getitem__(self, index: slice) -> list[T]: ...
+
+    def __getitem__(self, index):
         """Get the node at the given index.
 
         Complexity is O(n).
         """
-        if index >= self._length or index < -self._length:
+        if isinstance(index, slice):
+            start, stop, step = index.indices(self._length)
+        elif index < 0:
+            start, stop, step = index, -self._length - 1, -1
+        else:
+            start, stop, step = index, self._length, 1
+
+        if start >= self._length or start < -self._length:
             raise IndexError(
                 f"Index out of range: {index} not in range [-{self._length}, {self._length})"
             )
-        if index < 0:
+        if (step < 0 and stop >= start) or (step > 0 and stop <= start):
+            return []
+        if step < 0:
             # Look up from the end of the list
             iterator = reversed(self)
             item = next(iterator)
-            for _ in range(-index - 1):
+            # Skip index to match with start
+            for _ in range(-start - 1 if start < 0 else self._length - start - 1):
                 item = next(iterator)
         else:
             iterator = iter(self)  # type: ignore[assignment]
             item = next(iterator)
-            for _ in range(index):
+            # Skip index to match with start
+            for _ in range(start):
                 item = next(iterator)
-        return item
+
+        # Return a single element if index is an integer
+        if isinstance(index, int):
+            return item
+
+        # Return a list if index is a slice
+        items = [item]
+        for i in range(1, abs(stop - start)):
+            item = next(iterator)
+            if i % step == 0:
+                items.append(item)
+        return items
 
     def _insert_one_after(
         self,
