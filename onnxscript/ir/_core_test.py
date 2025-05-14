@@ -850,6 +850,17 @@ class NodeTest(unittest.TestCase):
     def test_successors_are_unique(self):
         self.assertEqual(self.node.successors(), (self.node_a, self.node_b))
 
+    def test_domain_normalizes_ai_onnx(self):
+        # Node domain is always normalized to "" if it is "ai.onnx"
+        node = _core.Node("ai.onnx", "TestOp", inputs=())
+        self.assertEqual(node.domain, "")
+
+        node.domain = ""
+        self.assertEqual(node.domain, "")
+
+        node.domain = "ai.onnx"
+        self.assertEqual(node.domain, "")
+
     # TODO(justinchuby): Test all methods
 
 
@@ -1121,13 +1132,13 @@ class GraphTest(unittest.TestCase):
         )
         node6 = _core.Node("", ">", inputs=(node0.outputs[0], node1.outputs[0]), num_outputs=1)
         then_graph = _core.Graph(
-            inputs=(node2.outputs[0], node3.outputs[0]),
+            inputs=(),
             outputs=(node4.outputs[0],),
             nodes=(node4,),
             name="then_graph",
         )
         else_graph = _core.Graph(
-            inputs=(node2.outputs[0], node3.outputs[0]),
+            inputs=(),
             outputs=(node5.outputs[0],),
             nodes=(node5,),
             name="else_graph",
@@ -1155,6 +1166,375 @@ class GraphTest(unittest.TestCase):
         )
 
 
+class GraphContainersTest(unittest.TestCase):
+    """Test containers for input, output and initializers of a graph."""
+
+    def setUp(self):
+        self.graph = _core.Graph(inputs=(), outputs=(), nodes=())
+        self.value1 = _core.Value(name="input1")
+        self.value2 = _core.Value(name="output1")
+        self.value3 = _core.Value(name="initializer1", const_value=ir.tensor([1, 2, 3]))
+
+    def test_initialize(self):
+        graph = _core.Graph(
+            inputs=(self.value1,),
+            outputs=(self.value2,),
+            nodes=(),
+            initializers=(self.value3,),
+        )
+        self.assertEqual(graph.inputs, [self.value1])
+        self.assertTrue(self.value1.is_graph_input())
+        self.assertIs(self.value1.graph, graph)
+        self.assertFalse(self.value1.is_graph_output())
+        self.assertFalse(self.value1.is_initializer())
+        self.assertEqual(graph.outputs, [self.value2])
+        self.assertTrue(self.value2.is_graph_output())
+        self.assertIs(self.value2.graph, graph)
+        self.assertFalse(self.value2.is_graph_input())
+        self.assertFalse(self.value2.is_initializer())
+        self.assertEqual(graph.initializers, {self.value3.name: self.value3})
+        self.assertTrue(self.value3.is_initializer())
+        self.assertIs(self.value3.graph, graph)
+        self.assertFalse(self.value3.is_graph_input())
+        self.assertFalse(self.value3.is_graph_output())
+
+    def test_append_to_inputs(self):
+        self.graph.inputs.append(self.value1)
+        self.assertIn(self.value1, self.graph.inputs)
+        self.assertTrue(self.value1.is_graph_input())
+        self.assertIs(self.value1.graph, self.graph)
+        self.assertFalse(self.value1.is_graph_output())
+        self.assertFalse(self.value1.is_initializer())
+
+    def test_append_input_raises_when_input_belongs_to_another_graph(self):
+        other_graph = _core.Graph(inputs=(), outputs=(), nodes=())
+        other_graph.inputs.append(self.value1)
+        with self.assertRaisesRegex(ValueError, "is already owned by a different graph"):
+            self.graph.inputs.append(self.value1)
+        # Append is ok after the value is removed from the old graph
+        other_graph.inputs.clear()
+        self.graph.inputs.append(self.value1)
+        self.assertTrue(self.value1.is_graph_input())
+        self.assertIs(self.value1.graph, self.graph)
+
+    def test_extend_inputs(self):
+        self.graph.inputs.extend([self.value1, self.value2])
+        self.assertIn(self.value1, self.graph.inputs)
+        self.assertIn(self.value2, self.graph.inputs)
+        self.assertTrue(self.value1.is_graph_input())
+        self.assertTrue(self.value2.is_graph_input())
+        self.assertIs(self.value1.graph, self.graph)
+        self.assertIs(self.value2.graph, self.graph)
+
+    def test_pop_from_inputs(self):
+        self.graph.inputs.append(self.value1)
+        popped = self.graph.inputs.pop()
+        self.assertIs(popped, self.value1)
+        self.assertNotIn(self.value1, self.graph.inputs)
+        self.assertFalse(self.value1.is_graph_input())
+        self.assertIsNone(self.value1.graph)
+
+    def test_pop_from_duplicated_inputs(self):
+        self.graph.inputs.extend([self.value1, self.value1])
+        popped = self.graph.inputs.pop()
+        self.assertIs(popped, self.value1)
+        self.assertIn(self.value1, self.graph.inputs)
+        self.assertTrue(self.value1.is_graph_input())
+        self.assertIs(self.value1.graph, self.graph)
+
+    def test_pop_from_inputs_raises_when_empty(self):
+        with self.assertRaises(IndexError):
+            self.graph.inputs.pop()
+
+    def test_insert_into_inputs(self):
+        self.graph.inputs.insert(0, self.value1)
+        self.assertIs(self.graph.inputs[0], self.value1)
+        self.assertTrue(self.value1.is_graph_input())
+        self.assertIs(self.value1.graph, self.graph)
+
+    def test_remove_from_inputs(self):
+        self.graph.inputs.append(self.value1)
+        self.graph.inputs.remove(self.value1)
+        self.assertNotIn(self.value1, self.graph.inputs)
+        self.assertFalse(self.value1.is_graph_input())
+        self.assertIsNone(self.value1.graph)
+
+    def test_clear_inputs(self):
+        self.graph.inputs.extend([self.value1, self.value2])
+        self.graph.inputs.clear()
+        self.assertEqual(len(self.graph.inputs), 0)
+        self.assertFalse(self.value1.is_graph_input())
+        self.assertIsNone(self.value1.graph)
+        self.assertFalse(self.value2.is_graph_input())
+        self.assertIsNone(self.value2.graph)
+
+    def test_clear_duplicated_inputs(self):
+        self.graph.inputs.extend([self.value1, self.value1])
+        self.graph.inputs.clear()
+        self.assertEqual(len(self.graph.inputs), 0)
+        self.assertFalse(self.value1.is_graph_input())
+        self.assertIsNone(self.value1.graph)
+
+    def test_inputs_set_items(self):
+        self.graph.inputs.append(self.value1)
+        self.graph.inputs[-1] = self.value2
+        self.assertNotIn(self.value1, self.graph.inputs)
+        self.assertIn(self.value2, self.graph.inputs)
+        self.assertIs(self.graph.inputs[0], self.value2)
+        self.assertTrue(self.value2.is_graph_input())
+        self.assertIs(self.value2.graph, self.graph)
+        self.assertFalse(self.value1.is_graph_input())
+        self.assertIsNone(self.value1.graph)
+
+    def test_inputs_set_items_slices(self):
+        self.graph.inputs.extend([self.value1, self.value2])
+        # Replace with one existing and one new input
+        self.graph.inputs[0:2] = [self.value2, self.value3]
+        self.assertNotIn(self.value1, self.graph.inputs)
+        self.assertIn(self.value2, self.graph.inputs)
+        self.assertIn(self.value3, self.graph.inputs)
+        self.assertIs(self.value2.graph, self.graph)
+        self.assertIs(self.value3.graph, self.graph)
+        self.assertTrue(self.value2.is_graph_input())
+        self.assertTrue(self.value3.is_graph_input())
+        self.assertFalse(self.value1.is_graph_input())
+        self.assertIsNone(self.value1.graph)
+
+    def test_take_inputs(self):
+        self.graph.inputs.extend([self.value1, self.value2, self.value3])
+        inputs = self.graph.inputs[:2]
+        self.graph.inputs.clear()
+        self.graph.inputs.extend(inputs)
+        self.assertEqual(len(self.graph.inputs), 2)
+        self.assertEqual(self.graph.inputs, [self.value1, self.value2])
+        self.assertTrue(self.value1.is_graph_input())
+        self.assertTrue(self.value2.is_graph_input())
+        self.assertFalse(self.value3.is_graph_input())
+        self.assertIs(self.value1.graph, self.graph)
+        self.assertIs(self.value2.graph, self.graph)
+        self.assertIsNone(self.value3.graph)
+
+    def test_append_to_outputs(self):
+        self.graph.outputs.append(self.value2)
+        self.assertIn(self.value2, self.graph.outputs)
+        self.assertTrue(self.value2.is_graph_output())
+
+    def test_append_output_raises_when_output_belongs_to_another_graph(self):
+        other_graph = _core.Graph(inputs=(), outputs=(), nodes=())
+        other_graph.outputs.append(self.value2)
+        with self.assertRaisesRegex(ValueError, "is already an output of a different graph"):
+            self.graph.outputs.append(self.value2)
+        # Append is ok after the value is removed from the old graph
+        other_graph.outputs.clear()
+        self.graph.outputs.append(self.value2)
+        self.assertTrue(self.value2.is_graph_output())
+        self.assertIs(self.value2.graph, self.graph)
+
+    def test_extend_outputs(self):
+        self.graph.outputs.extend([self.value1, self.value2])
+        self.assertIn(self.value1, self.graph.outputs)
+        self.assertIn(self.value2, self.graph.outputs)
+
+    def test_pop_from_outputs(self):
+        self.graph.outputs.append(self.value2)
+        popped = self.graph.outputs.pop()
+        self.assertIs(popped, self.value2)
+        self.assertNotIn(self.value2, self.graph.outputs)
+        self.assertFalse(self.value2.is_graph_output())
+        self.assertIsNone(self.value2.graph)
+
+    def test_pop_from_duplicated_outputs(self):
+        self.graph.outputs.extend([self.value1, self.value1])
+        popped = self.graph.outputs.pop()
+        self.assertIs(popped, self.value1)
+        self.assertIn(self.value1, self.graph.outputs)
+        self.assertTrue(self.value1.is_graph_output())
+        self.assertIs(self.value1.graph, self.graph)
+
+    def test_pop_from_outputs_raises_when_empty(self):
+        with self.assertRaises(IndexError):
+            self.graph.outputs.pop()
+
+    def test_insert_into_outputs(self):
+        self.graph.outputs.insert(0, self.value2)
+        self.assertIs(self.graph.outputs[0], self.value2)
+        self.assertTrue(self.value2.is_graph_output())
+        self.assertIs(self.value2.graph, self.graph)
+
+    def test_remove_from_outputs(self):
+        self.graph.outputs.append(self.value2)
+        self.graph.outputs.remove(self.value2)
+        self.assertNotIn(self.value2, self.graph.outputs)
+        self.assertFalse(self.value2.is_graph_output())
+        self.assertIsNone(self.value2.graph)
+
+    def test_clear_outputs(self):
+        self.graph.outputs.extend([self.value1, self.value2])
+        self.graph.outputs.clear()
+        self.assertEqual(len(self.graph.outputs), 0)
+        self.assertFalse(self.value1.is_graph_output())
+        self.assertIsNone(self.value1.graph)
+        self.assertFalse(self.value2.is_graph_output())
+        self.assertIsNone(self.value2.graph)
+
+    def test_clear_duplicated_outputs(self):
+        self.graph.outputs.extend([self.value1, self.value1])
+        self.graph.outputs.clear()
+        self.assertEqual(len(self.graph.outputs), 0)
+        self.assertFalse(self.value1.is_graph_output())
+        self.assertIsNone(self.value1.graph)
+
+    def test_outputs_set_items(self):
+        self.graph.outputs.append(self.value1)
+        self.graph.outputs[-1] = self.value2
+        self.assertNotIn(self.value1, self.graph.outputs)
+        self.assertIn(self.value2, self.graph.outputs)
+        self.assertIs(self.graph.outputs[0], self.value2)
+        self.assertTrue(self.value2.is_graph_output())
+        self.assertIs(self.value2.graph, self.graph)
+        self.assertFalse(self.value1.is_graph_output())
+        self.assertIsNone(self.value1.graph)
+
+    def test_outputs_set_items_slices(self):
+        self.graph.outputs.extend([self.value1, self.value2])
+        # Replace with one existing and one new output
+        self.graph.outputs[0:2] = [self.value2, self.value3]
+        self.assertNotIn(self.value1, self.graph.outputs)
+        self.assertIn(self.value2, self.graph.outputs)
+        self.assertIn(self.value3, self.graph.outputs)
+        self.assertIs(self.value2.graph, self.graph)
+        self.assertIs(self.value3.graph, self.graph)
+        self.assertTrue(self.value2.is_graph_output())
+        self.assertTrue(self.value3.is_graph_output())
+        self.assertFalse(self.value1.is_graph_output())
+        self.assertIsNone(self.value1.graph)
+
+    def test_take_outputs(self):
+        self.graph.outputs.extend([self.value1, self.value2, self.value3])
+        outputs = self.graph.outputs[:2]
+        self.graph.outputs.clear()
+        self.graph.outputs.extend(outputs)
+        self.assertEqual(len(self.graph.outputs), 2)
+        self.assertEqual(self.graph.outputs, [self.value1, self.value2])
+        self.assertTrue(self.value1.is_graph_output())
+        self.assertTrue(self.value2.is_graph_output())
+        self.assertFalse(self.value3.is_graph_output())
+        self.assertIs(self.value1.graph, self.graph)
+        self.assertIs(self.value2.graph, self.graph)
+        self.assertIsNone(self.value3.graph)
+
+    def test_set_initializers(self):
+        self.graph.initializers["initializer1"] = self.value3
+        self.assertIn("initializer1", self.graph.initializers)
+        self.assertTrue(self.value3.is_initializer())
+        self.assertIs(self.value3.graph, self.graph)
+        # Replace initializer
+        self.value1.name = "initializer1"
+        self.graph.initializers["initializer1"] = self.value1
+        self.assertIn("initializer1", self.graph.initializers)
+        self.assertTrue(self.value1.is_initializer())
+        self.assertIs(self.value1.graph, self.graph)
+        self.assertFalse(self.value3.is_initializer())
+        self.assertIsNone(self.value3.graph)
+
+    def test_set_initializers_raises_when_key_does_not_match(self):
+        with self.assertRaisesRegex(ValueError, "does not match the name of the value"):
+            self.graph.initializers["some_key"] = self.value3
+
+    def test_set_initializers_raises_when_it_belongs_to_another_graph(self):
+        other_graph = _core.Graph(inputs=(), outputs=(), nodes=())
+        other_graph.initializers["initializer1"] = self.value3
+        with self.assertRaisesRegex(
+            ValueError, "is already an initializer of a different graph"
+        ):
+            self.graph.initializers["initializer1"] = self.value3
+        # Set is ok after the value is removed from the old graph
+        other_graph.initializers.clear()
+        self.graph.initializers["initializer1"] = self.value3
+        self.assertIn("initializer1", self.graph.initializers)
+        self.assertTrue(self.value3.is_initializer())
+        self.assertIs(self.value3.graph, self.graph)
+
+    def test_set_initializers_raises_when_value_does_not_have_a_name(self):
+        self.value3.name = None
+        with self.assertRaises(TypeError):
+            self.graph.initializers[None] = self.value3
+
+    def test_delete_initializer(self):
+        self.graph.initializers["initializer1"] = self.value3
+        del self.graph.initializers["initializer1"]
+        self.assertNotIn("initializer1", self.graph.initializers)
+        self.assertFalse(self.value3.is_initializer())
+        self.assertIsNone(self.value3.graph)
+
+    def test_delete_initializer_raises_when_key_does_not_exist(self):
+        with self.assertRaises(KeyError):
+            del self.graph.initializers["non_existent"]
+
+    def test_clear_initializers(self):
+        self.graph.initializers["initializer1"] = self.value3
+        self.graph.initializers.clear()
+        self.assertEqual(len(self.graph.initializers), 0)
+        self.assertFalse(self.value3.is_initializer())
+        self.assertIsNone(self.value3.graph)
+
+    def test_pop_initializer(self):
+        self.graph.initializers["initializer1"] = self.value3
+        popped = self.graph.initializers.pop("initializer1")
+        self.assertEqual(popped, self.value3)
+        self.assertNotIn("initializer1", self.graph.initializers)
+        self.assertFalse(self.value3.is_initializer())
+        self.assertIsNone(self.value3.graph)
+
+    def test_update_initializers(self):
+        self.graph.initializers["initializer1"] = self.value3
+        new_initializer = _core.Value(name="initializer2")
+        self.graph.initializers.update({new_initializer.name: new_initializer})
+        self.assertIn(new_initializer.name, self.graph.initializers)
+        self.assertTrue(new_initializer.is_initializer())
+        self.assertEqual(new_initializer.graph, self.graph)
+        self.assertIn("initializer1", self.graph.initializers)
+        self.assertTrue(self.value3.is_initializer())
+        self.assertEqual(self.value3.graph, self.graph)
+
+    def test_iter_initializers(self):
+        self.graph.initializers["initializer1"] = self.value3
+        initializers = list(self.graph.initializers.values())
+        self.assertEqual(len(initializers), 1)
+        self.assertEqual(initializers[0].name, "initializer1")
+        self.assertTrue(initializers[0].is_initializer())
+        self.assertEqual(initializers[0].graph, self.graph)
+
+    def test_contains_initializer(self):
+        self.graph.initializers["initializer1"] = self.value3
+        self.assertIn("initializer1", self.graph.initializers)
+        self.assertTrue(self.value3.is_initializer())
+        self.assertEqual(self.value3.graph, self.graph)
+
+    def test_not_contains_initializer(self):
+        self.assertNotIn("non_existent", self.graph.initializers)
+        self.assertFalse(self.value3.is_initializer())
+        self.assertIsNone(self.value3.graph)
+
+    def test_initializer_can_be_added_as_input(self):
+        self.graph.initializers["initializer1"] = self.value3
+        self.graph.inputs.append(self.value3)
+        self.assertIn(self.value3, self.graph.inputs)
+        self.assertTrue(self.value3.is_graph_input())
+        self.assertIs(self.value3.graph, self.graph)
+        self.assertFalse(self.value3.is_graph_output())
+        self.assertTrue(self.value3.is_initializer())
+
+    def test_initializer_can_be_added_as_output(self):
+        self.graph.initializers["initializer1"] = self.value3
+        self.graph.outputs.append(self.value3)
+        self.assertIn(self.value3, self.graph.outputs)
+        self.assertTrue(self.value3.is_graph_output())
+        self.assertIs(self.value3.graph, self.graph)
+        self.assertFalse(self.value3.is_graph_input())
+        self.assertTrue(self.value3.is_initializer())
+
+
 class ModelTest(unittest.TestCase):
     def test_graphs_returns_all_subgraphs(self):
         # main_graph: nodes=[a,b,c,d,>,if], edges=[(a,>),(b,>),(>,if)], subgraphs={if:[then_graph,else_graph]}
@@ -1176,13 +1556,13 @@ class ModelTest(unittest.TestCase):
         )
         node6 = _core.Node("", ">", inputs=(node0.outputs[0], node1.outputs[0]), num_outputs=1)
         then_graph = _core.Graph(
-            inputs=(node2.outputs[0], node3.outputs[0]),
+            inputs=(),
             outputs=(node4.outputs[0],),
             nodes=(node4,),
             name="then_graph",
         )
         else_graph = _core.Graph(
-            inputs=(node2.outputs[0], node3.outputs[0]),
+            inputs=(),
             outputs=(node5.outputs[0],),
             nodes=(node5,),
             name="else_graph",

@@ -31,6 +31,8 @@ from typing import (
     Generic,
     Iterable,
     Iterator,
+    MutableMapping,
+    MutableSequence,
     NamedTuple,
     OrderedDict,
     Sequence,
@@ -46,6 +48,7 @@ import onnxscript
 from onnxscript.ir import (
     _display,
     _enums,
+    _graph_containers,
     _linked_list,
     _metadata,
     _name_authority,
@@ -1275,6 +1278,11 @@ def _short_tensor_str_for_node(x: Value) -> str:
     return "{...}"
 
 
+def _normalize_domain(domain: str) -> str:
+    """Normalize 'ai.onnx' to ''"""
+    return "" if domain == "ai.onnx" else domain
+
+
 class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     """IR Node.
 
@@ -1288,6 +1296,9 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
     To change the output values, create a new node and replace the each of the inputs of ``output.uses()`` with
     the new output values by calling :meth:`replace_input_with` on the using nodes
     of this node's outputs.
+
+    .. note:
+        When the ``domain`` is `"ai.onnx"`, it is normalized to `""`.
     """
 
     __slots__ = (
@@ -1325,6 +1336,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
         Args:
             domain: The domain of the operator. For onnx operators, this is an empty string.
+                When it is `"ai.onnx"`, it is normalized to `""`.
             op_type: The name of the operator.
             inputs: The input values. When an input is ``None``, it is an empty input.
             attributes: The attributes. RefAttr can be used only when the node is defined in a Function.
@@ -1347,7 +1359,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             ValueError: If an output value has a producer set already, when outputs is specified.
         """
         self._name = name
-        self._domain: str = domain
+        self._domain: str = _normalize_domain(domain)
         self._op_type: str = op_type
         # NOTE: Make inputs immutable with the assumption that they are not mutated
         # very often. This way all mutations can be tracked.
@@ -1467,6 +1479,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def name(self) -> str | None:
+        """Optional name of the node."""
         return self._name
 
     @name.setter
@@ -1475,14 +1488,26 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def domain(self) -> str:
+        """The domain of the operator. For onnx operators, this is an empty string.
+
+        .. note:
+            When domain is `"ai.onnx"`, it is normalized to `""`.
+        """
         return self._domain
 
     @domain.setter
     def domain(self, value: str) -> None:
-        self._domain = value
+        self._domain = _normalize_domain(value)
 
     @property
     def version(self) -> int | None:
+        """Opset version of the operator called.
+
+        If ``None``, the version is unspecified and will follow that of the graph.
+        This property is special to ONNX IR to allow mixed opset usage in a graph
+        for supporting more flexible graph transformations. It does not exist in the ONNX
+        serialization (protobuf) spec.
+        """
         return self._version
 
     @version.setter
@@ -1491,6 +1516,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def op_type(self) -> str:
+        """The name of the operator called."""
         return self._op_type
 
     @op_type.setter
@@ -1499,6 +1525,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def overload(self) -> str:
+        """The overload name when the node is invoking a function."""
         return self._overload
 
     @overload.setter
@@ -1507,6 +1534,12 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def inputs(self) -> Sequence[Value | None]:
+        """The input values of the node.
+
+        The inputs are immutable. To change the inputs, create a new node and
+        replace the inputs of the using nodes of this node's outputs by calling
+        :meth:`replace_input_with` on the using nodes of this node's outputs.
+        """
         return self._inputs
 
     @inputs.setter
@@ -1587,6 +1620,12 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def outputs(self) -> Sequence[Value]:
+        """The output values of the node.
+
+        The outputs are immutable. To change the outputs, create a new node and
+        replace the inputs of the using nodes of this node's outputs by calling
+        :meth:`replace_input_with` on the using nodes of this node's outputs.
+        """
         return self._outputs
 
     @outputs.setter
@@ -1595,6 +1634,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def attributes(self) -> OrderedDict[str, Attr | RefAttr]:
+        """The attributes of the node."""
         return self._attributes
 
     @property
@@ -1610,12 +1650,21 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
 
     @property
     def metadata_props(self) -> dict[str, str]:
+        """The metadata properties of the node.
+
+        The metadata properties are used to store additional information about the node.
+        Unlike ``meta``, this property is serialized to the ONNX proto.
+        """
         if self._metadata_props is None:
             self._metadata_props = {}
         return self._metadata_props
 
     @property
     def graph(self) -> Graph | None:
+        """The graph that the node belongs to.
+
+        If the node is not added to any graph, this property is None.
+        """
         return self._graph
 
     @graph.setter
@@ -1623,9 +1672,17 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
         self._graph = value
 
     def op_identifier(self) -> _protocols.OperatorIdentifier:
+        """Return the operator identifier of the node.
+
+        The operator identifier is a tuple of the domain, op_type and overload.
+        """
         return self.domain, self.op_type, self.overload
 
     def display(self, *, page: bool = False) -> None:
+        """Pretty print the node.
+
+        This method is used for debugging and visualization purposes.
+        """
         # Add the node's name to the displayed text
         print(f"Node: {self.name!r}")
         if self.doc_string:
@@ -1746,18 +1803,19 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
     To find all the nodes that use this value as an input, call :meth:`uses`.
 
-    To check if the value is an output of a graph, call :meth:`is_graph_output`.
+    To check if the value is an is an input, output or initializer of a graph,
+    use :meth:`is_graph_input`, :meth:`is_graph_output` or :meth:`is_initializer`.
 
-    Attributes:
-        name: The name of the value. A value is always named when it is part of a graph.
-        shape: The shape of the value.
-        type: The type of the value.
-        metadata_props: Metadata.
+    Use :meth:`graph` to get the graph that owns the value.
     """
 
     __slots__ = (
         "_const_value",
+        "_graph",
         "_index",
+        "_is_graph_input",
+        "_is_graph_output",
+        "_is_initializer",
         "_metadata",
         "_metadata_props",
         "_name",
@@ -1808,6 +1866,14 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
         self._uses: dict[Usage, None] = {}
         self.doc_string = doc_string
 
+        # The graph this value belongs to. It is set *only* when the value is added as
+        # a graph input, output or initializer.
+        # The four properties can only be set by the Graph class (_GraphIO and GraphInitializers).
+        self._graph: Graph | None = None
+        self._is_graph_input: bool = False
+        self._is_graph_output: bool = False
+        self._is_initializer: bool = False
+
     def __repr__(self) -> str:
         value_name = self.name if self.name else "anonymous:" + str(id(self))
         type_text = f", type={self.type!r}" if self.type is not None else ""
@@ -1846,11 +1912,35 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
                 return f"{{{self.const_value.__class__.__name__}(...)}}"
         return ""
 
+    @property
+    def graph(self) -> Graph | None:
+        """Return the graph that defines this value.
+
+        When the value is an input/output/initializer of a graph, the owning graph
+        is that graph. When the value is an output of a node, the owning graph is the
+        graph that the node belongs to. When the value is not owned by any graph,
+        it returns ``None``.
+        """
+        if self._graph is not None:
+            return self._graph
+        if self._producer is not None:
+            return self._producer.graph
+        return None
+
+    def _owned_by_graph(self) -> bool:
+        """Return True if the value is owned by a graph."""
+        result = self._is_graph_input or self._is_graph_output or self._is_initializer
+        if result:
+            assert self._graph is not None
+        return result
+
     def producer(self) -> Node | None:
         """The node that produces this value.
 
         When producer is ``None``, the value does not belong to a node, and is
-        typically a graph input or an initializer.
+        typically a graph input or an initializer. You can use :meth:`graph``
+        to find the graph that owns this value. Use :meth:`is_graph_input`, :meth:`is_graph_output`
+        or :meth:`is_initializer` to check if the value is an input, output or initializer of a graph.
         """
         return self._producer
 
@@ -1986,15 +2076,17 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
             self._metadata_props = {}
         return self._metadata_props
 
+    def is_graph_input(self) -> bool:
+        """Whether the value is an input of a graph."""
+        return self._is_graph_input
+
     def is_graph_output(self) -> bool:
         """Whether the value is an output of a graph."""
-        if (producer := self.producer()) is None:
-            return False
-        if (graph := producer.graph) is None:
-            return False
-        # Cannot use `in` because __eq__ may be defined by subclasses, even though
-        # it is not recommended
-        return any(output is self for output in graph.outputs)
+        return self._is_graph_output
+
+    def is_initializer(self) -> bool:
+        """Whether the value is an initializer of a graph."""
+        return self._is_initializer
 
 
 def Input(
@@ -2104,9 +2196,9 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self.name = name
 
         # Private fields that are not to be accessed by any other classes
-        self._inputs = list(inputs)
-        self._outputs = list(outputs)
-        self._initializers = {}
+        self._inputs = _graph_containers.GraphInputs(self, inputs)
+        self._outputs = _graph_containers.GraphOutputs(self, outputs)
+        self._initializers = _graph_containers.GraphInitializers(self)
         for initializer in initializers:
             if isinstance(initializer, str):
                 raise TypeError(
@@ -2131,15 +2223,15 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
         self.extend(nodes)
 
     @property
-    def inputs(self) -> list[Value]:
+    def inputs(self) -> MutableSequence[Value]:
         return self._inputs
 
     @property
-    def outputs(self) -> list[Value]:
+    def outputs(self) -> MutableSequence[Value]:
         return self._outputs
 
     @property
-    def initializers(self) -> dict[str, Value]:
+    def initializers(self) -> MutableMapping[str, Value]:
         return self._initializers
 
     def register_initializer(self, value: Value) -> None:
@@ -2159,6 +2251,8 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
             ValueError: If the initializer is produced by a node.
             ValueError: If the value does not have its ``.const_value`` set.
         """
+        if not value.name:
+            raise ValueError(f"Initializer must have a name: {value!r}")
         if value.name in self._initializers:
             if self._initializers[value.name] is not value:
                 raise ValueError(
@@ -2166,8 +2260,6 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
                     " it is not the same object: existing={self._initializers[value.name]!r},"
                     f" new={value!r}"
                 )
-        if not value.name:
-            raise ValueError(f"Initializer must have a name: {value!r}")
         if value.producer() is not None:
             raise ValueError(
                 f"Value '{value!r}' is produced by a node and cannot be an initializer."
@@ -2847,7 +2939,7 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
 
     @domain.setter
     def domain(self, value: str) -> None:
-        self._domain = value
+        self._domain = _normalize_domain(value)
 
     @property
     def overload(self) -> str:
@@ -2858,11 +2950,11 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
         self._overload = value
 
     @property
-    def inputs(self) -> list[Value]:
+    def inputs(self) -> MutableSequence[Value]:
         return self._graph.inputs
 
     @property
-    def outputs(self) -> list[Value]:
+    def outputs(self) -> MutableSequence[Value]:
         return self._graph.outputs
 
     @property
