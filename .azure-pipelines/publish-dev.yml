@@ -9,7 +9,7 @@ stages:
 - stage: Release
   dependsOn: []
   jobs:
-  - job: Publish onnxscript dev to PyPI
+  - job: onnxscript-publish-dev
     pool:
       vmImage: 'ubuntu-latest'
     steps:
