@@ -373,6 +373,15 @@ class DoublyLinkedSetTest(unittest.TestCase):
         self.assertEqual(len(other_linked_list), 1)
         self.assertEqual([elem.value for elem in other_linked_list], [42])
 
+    @parameterized.parameterized.expand(
+        [(s, t, p) for s in [-2, 0, 2, 3] for t in [2, -1, -2] for p in [-3, -1, 1, 2]]
+    )
+    def test_get_item_slice(self, start, stop, step):
+        elems = [_TestElement(i) for i in range(5)]
+        linked_list = _linked_list.DoublyLinkedSet(elems)
+        self.assertEqual(len(linked_list), 5)
+        self.assertEqual(list(linked_list[start:stop:step]), elems[start:stop:step])
+
 
 if __name__ == "__main__":
     unittest.main()
