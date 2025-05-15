@@ -12,7 +12,6 @@
 
 from __future__ import annotations
 
-import abc
 import contextlib
 import dataclasses
 import heapq
@@ -42,7 +41,7 @@ from typing import (
 
 import ml_dtypes
 import numpy as np
-from typing_extensions import TypeIs
+from typing_extensions import Buffer, TypeIs
 
 import onnxscript
 from onnxscript.ir import (
@@ -98,7 +97,7 @@ def _compatible_with_dlpack(obj: Any) -> TypeGuard[_protocols.DLPackCompatible]:
     return hasattr(obj, "__dlpack__")
 
 
-class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
+class TensorBase(Buffer, _protocols.TensorProtocol, _display.PrettyPrintable):
     """Convenience Shared methods for classes implementing TensorProtocol."""
 
     __slots__ = (
@@ -129,6 +128,13 @@ class TensorBase(abc.ABC, _protocols.TensorProtocol, _display.PrettyPrintable):
         Example: Tensor<FLOAT,[5,42]>
         """
         return f"{self.__class__.__name__}<{self._printable_type_shape()}>"
+
+    def __buffer__(self, flags: int, /) -> memoryview:
+        """Return a memoryview of the tensor.
+
+        This is used to support the buffer protocol.
+        """
+        return self.tobytes().__buffer__(flags)
 
     @property
     def name(self) -> str | None:
@@ -458,6 +464,29 @@ class Tensor(TensorBase, _protocols.TensorProtocol, Generic[TArrayCompatible]): 
         tensor_text = " ".join(line.strip() for line in tensor_lines)
         return f"{self._repr_base()}({tensor_text}, name={self.name!r})"
 
+    def __buffer__(self, flags: int, /) -> memoryview:
+        """Return a memoryview of the tensor.
+
+        This is used to support the buffer protocol.
+        """
+        if self.dtype in {
+            _enums.DataType.INT4,
+            _enums.DataType.UINT4,
+            _enums.DataType.FLOAT4E2M1,
+        }:
+            # Packing is required. So we call tobytes() directly
+            return self.tobytes().__buffer__(flags)
+
+        # Otherwise get the memoryview from the numpy array
+        array = self.numpy()
+        if not array.data.c_contiguous:
+            array = np.ascontiguousarray(array)
+        assert self.dtype.itemsize == array.itemsize, "Bug: The itemsize should match"
+        if not _IS_LITTLE_ENDIAN:
+            # Need to copy because we are returning the underlying data directly
+            array = array.view(array.dtype.newbyteorder("<")).copy()
+        return array.__buffer__(flags)
+
     @property
     def dtype(self) -> _enums.DataType:
         """The data type of the tensor. Immutable."""
@@ -686,6 +715,19 @@ class ExternalTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=
             self._load()
         assert self._array is not None
         return self._array.__array__(dtype)
+
+    def __buffer__(self, flags: int, /) -> memoryview:
+        """Return a memoryview of the tensor.
+
+        This is used to support the buffer protocol.
+        """
+        self._check_validity()
+        if self.raw is None:
+            self._load()
+        assert self.raw is not None
+        offset = self._offset or 0
+        length = self._length or self.nbytes
+        return memoryview(self.raw)[offset : offset + length]
 
     def __dlpack__(self, *, stream: Any = None) -> Any:
         raise NotImplementedError(
@@ -934,6 +976,13 @@ class LazyTensor(TensorBase, _protocols.TensorProtocol):  # pylint: disable=too-
 
     def __repr__(self) -> str:
         return f"{self._repr_base()}(func={self._func!r}, name={self.name!r})"
+
+    def __buffer__(self, flags: int, /) -> memoryview:
+        """Return a memoryview of the tensor.
+
+        This is used to support the buffer protocol.
+        """
+        return self._evaluate().__buffer__(flags)
 
     @property
     def raw(self) -> Callable[[], _protocols.TensorProtocol]:
