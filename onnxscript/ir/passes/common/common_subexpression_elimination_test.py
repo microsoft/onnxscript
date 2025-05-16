@@ -15,25 +15,34 @@ from onnxscript.ir.passes.common import common_subexpression_elimination
 class TestCommonSubexpressionEliminationPass(unittest.TestCase):
     def check_graph(self, model: ir.Model, inputs: list[ir.Value], delta_nodes: int = 0):
         """Check if the model applied the CSE pass correctly."""
-        result = common_subexpression_elimination.CommonSubexpressionEliminationPass()(model)
-        # Check if the number of nodes in the model is correct
-        self.assertEqual(len(model.graph), len(result.model.graph) + delta_nodes)
-        self.assertEqual(result.modified, len(model.graph) > len(result.model.graph))
-
+        # Log all results from the original model.
+        # 1. model graph node counts
+        original_graph_node_count = len(model.graph)
         model_proto = ir.serde.serialize_model(model)
-        result_proto = ir.serde.serialize_model(result.model)
-        # Check if the models produce the same output
-        # with the same inputs
+
+        # 2. model outputs
         ort_inputs = {
             k.name: np.random.rand(*v.shape).astype(np.float32)
             for k, v in zip(model.graph.inputs, inputs)
         }
-        ort_session = ort.InferenceSession(model_proto.SerializeToString())
-        ort_results = ort_session.run(None, ort_inputs)
+        original_model_session = ort.InferenceSession(model_proto.SerializeToString())
+        original_model_results = original_model_session.run(None, ort_inputs)
+
+        result = common_subexpression_elimination.CommonSubexpressionEliminationPass()(model)
+        # Check if the number of nodes in the model is correct
+        self.assertEqual(original_graph_node_count, len(result.model.graph) + delta_nodes)
+        self.assertEqual(result.modified, original_graph_node_count > len(result.model.graph))
+
+        result_proto = ir.serde.serialize_model(result.model)
         result_session = ort.InferenceSession(result_proto.SerializeToString())
         result_results = result_session.run(None, ort_inputs)
-        for idx, ort_result in enumerate(ort_results):
-            np.testing.assert_allclose(ort_result, result_results[idx], rtol=1e-5, atol=1e-5)
+
+        # Check if the models produce the same output
+        # with the same inputs
+        for idx, original_model_result in enumerate(original_model_results):
+            np.testing.assert_allclose(
+                original_model_result, result_results[idx], rtol=1e-5, atol=1e-5
+            )
 
     def test_two_branches_with_the_same_operations_is_csed(self):
         """Test if two branches with the same operations are CSEd.
@@ -113,3 +122,27 @@ class TestCommonSubexpressionEliminationPass(unittest.TestCase):
         model_proto = test_model.to_model_proto()
         model = ir.serde.deserialize_model(model_proto)
         self.check_graph(model, [np.random.rand(2, 2)], delta_nodes=3)
+
+    def test_the_ops_with_the_same_inputs_but_different_attributes_are_not_csed(self):
+        """Test if the ops with the same inputs but different attributes are not CSEd.
+
+        def f(x):
+            a = x.sum()
+            b = x.sum(keepdims=True)
+            c = x.sum()
+            d = x.sum(keepdims=True)
+            return a + b + c + d
+
+        x = torch.randn(2, 2)
+
+        """
+
+        @script()
+        def test_model(x: FLOAT[2, 2]) -> FLOAT[2, 2]:
+            a = op.ReduceSum(x, keepdims=False)
+            b = op.ReduceSum(x, keepdims=True)
+            return a + b
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        self.check_graph(model, [np.random.rand(2, 2)], delta_nodes=0)
