@@ -257,7 +257,7 @@ class RewriteRuleClassBase(abc.ABC):
 
     Example::
 
-        class TransposeIdentity(RewriteRuleAsClass):
+        class TransposeIdentity(RewriteRuleClassBase):
             def pattern(cls, op, x, perm):
                 return op.Transpose(x, perm=perm)
 
