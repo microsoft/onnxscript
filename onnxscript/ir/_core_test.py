@@ -1694,6 +1694,56 @@ class AttrTest(unittest.TestCase):
         attr = _core.Attr("test", ir.AttributeType.GRAPHS, [_core.Graph((), (), nodes=())])
         self.assertIsInstance(attr.as_graphs()[0], _core.Graph)
 
+    def test_as_float_type_error(self):
+        attr = _core.Attr("test", ir.AttributeType.INT, 42)
+        with self.assertRaises(TypeError):
+            attr.as_float()
+
+    def test_as_int_type_error(self):
+        attr = _core.Attr("test", ir.AttributeType.FLOAT, 42.0)
+        with self.assertRaises(TypeError):
+            attr.as_int()
+
+    def test_as_string_type_error(self):
+        attr = _core.Attr("test", ir.AttributeType.INT, 42)
+        with self.assertRaises(TypeError):
+            attr.as_string()
+
+    def test_as_tensor_type_error(self):
+        attr = _core.Attr("test", ir.AttributeType.INT, 42)
+        with self.assertRaises(TypeError):
+            attr.as_tensor()
+
+    def test_as_graph_type_error(self):
+        attr = _core.Attr("test", ir.AttributeType.INT, 42)
+        with self.assertRaises(TypeError):
+            attr.as_graph()
+
+    def test_as_floats_type_error(self):
+        attr = _core.Attr("test", ir.AttributeType.INT, 42)
+        with self.assertRaises(TypeError):
+            attr.as_floats()
+
+    def test_as_ints_type_error(self):
+        attr = _core.Attr("test", ir.AttributeType.FLOAT, 42.0)
+        with self.assertRaises(TypeError):
+            attr.as_ints()
+
+    def test_as_strings_type_error(self):
+        attr = _core.Attr("test", ir.AttributeType.INT, 42)
+        with self.assertRaises(TypeError):
+            attr.as_strings()
+
+    def test_as_tensors_type_error(self):
+        attr = _core.Attr("test", ir.AttributeType.INT, 42)
+        with self.assertRaises(TypeError):
+            attr.as_tensors()
+
+    def test_as_graphs_type_error(self):
+        attr = _core.Attr("test", ir.AttributeType.INT, 42)
+        with self.assertRaises(TypeError):
+            attr.as_graphs()
+
 
 class LazyTensorTest(unittest.TestCase):
     def test_lazy_tensor_initialization(self):
