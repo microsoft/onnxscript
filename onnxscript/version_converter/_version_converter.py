@@ -9,8 +9,8 @@ import functools
 import logging
 from typing import Callable, Sequence, Union
 
+import onnxscript.ir._tape as _tape
 import onnxscript.ir.convenience as ir_convenience
-import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
 
 logger = logging.getLogger(__name__)
@@ -54,8 +54,9 @@ class Replacement:
 # A version-adapter function takes a node, a RewriterContext and returns
 # a Replacement for the node or None (if no replacement is needed).
 
+RewriterContext = _tape.Builder
 ReturnValue = Union[Sequence[ir.Value], ir.Value, None]
-AdapterFunction = Callable[[ir.Node, orp.RewriterContext], ReturnValue]
+AdapterFunction = Callable[[ir.Node, RewriterContext], ReturnValue]
 
 
 def version_supported(model: ir.Model, target_version: int) -> bool:
@@ -245,7 +246,7 @@ class _VersionConverter:
         )
         if adapter is None:
             return None
-        context = orp.RewriterContext()
+        context = RewriterContext()
         output = adapter(node, context)
         if output is not None:
             if isinstance(output, ir.Value):
