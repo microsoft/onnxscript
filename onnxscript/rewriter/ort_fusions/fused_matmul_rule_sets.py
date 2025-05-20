@@ -45,6 +45,7 @@ class FusedMatMulDiv2(orp.RewriteRuleClassBase):
     def rewrite(self, op, x, y, cst):
         value = cst.const_value.numpy()
         c = float(value[0] if value.shape == (1,) else value)
+        assert x.consumers()
         node = x.consumers()[0]
 
         kwargs = {}
@@ -76,7 +77,8 @@ class _TransposeMatMulBase(orp.RewriteRuleClassBase):
         return check_result
 
     def rewrite(self, op, x, y):
-        the_value = x if self._pos == 1 else y
+        the_value = x if self._pos == 2 else y
+        assert the_value.consumers()
         node = the_value.consumers()[0]
         kwargs = {}
         for name in ["alpha", "transA", "transB", "transBatchA", "transBatchB"]:
@@ -126,7 +128,9 @@ class MatMulTranspose(orp.RewriteRuleClassBase):
 
     def check(self, context, x, y) -> orp.MatchResult:
         check_result = orp.MatchResult()
+        assert x.consumers()
         matmul = x.consumers()[0]
+        assert matmul.outputs()[0].consumers()
         transpose = matmul.outputs[0].consumers()[0]
         perm = transpose.attributes["perm"].value
         expected_perm = list(range(len(perm)))
@@ -136,6 +140,7 @@ class MatMulTranspose(orp.RewriteRuleClassBase):
         return check_result
 
     def rewrite(self, op, x, y):
+        assert x.consumers()
         node = x.consumers()[0]
         kwargs = {}
         for name in ["alpha", "transA", "transB", "transBatchA", "transBatchB"]:
