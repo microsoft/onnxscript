@@ -59,9 +59,8 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
     def max_pos_id(self, max_pos_id: int):
         self._max_pos_id = max_pos_id  # type: ignore[assignment]
 
-    def _compute_const_freqs(self, op, freqs):
+    def _compute_const_freqs(self, op, angles: np.ndarray):
         """Compute cos/sin values when frequencies are constant."""
-        angles = freqs.const_value.numpy()
         cos_value = np.cos(angles)
         sin_value = np.sin(angles)
         cos_2d = op.Constant(value=ir.tensor(cos_value))
@@ -179,7 +178,7 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         else:
             # Compute cos/sin values based on whether frequencies are constant
             if self._const_freqs:
-                cos_2d, sin_2d = self._compute_const_freqs(op, freqs)
+                cos_2d, sin_2d = self._compute_const_freqs(op, freqs.const_value.numpy())
             else:
                 cos_2d, sin_2d = self._compute_dynamic_freqs(op, inv_freq, position_ids, dtype)
             if self._cast:
