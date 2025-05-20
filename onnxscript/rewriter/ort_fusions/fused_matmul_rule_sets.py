@@ -62,7 +62,13 @@ class _TransposeMatMulBase(orp.RewriteRuleClassBase):
 
     def check(self, context, x, y) -> orp.MatchResult:
         check_result = orp.MatchResult()
-        perm = list((x if self._pos == 1 else y).uses())[0][0].attributes["perm"].value  # noqa: RUF015
+        # The value: x, y could be consumed by multiple nodes.
+        nodes = (x if self._pos == 1 else y).consumers()
+        perm = None
+        for node in nodes:
+            if node.op_type == "Transpose":
+                perm = node.attributes["perm"].value
+        assert perm is not None, "Transpose node not found."
         expected_perm = list(range(len(perm)))
         expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
         if perm != expected_perm:
