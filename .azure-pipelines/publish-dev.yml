@@ -9,16 +9,16 @@ stages:
 - stage: Release
   dependsOn: []
   jobs:
-  - job: Publish onnxscript dev to PyPI
+  - job: onnxscript_publish_dev
     pool:
       vmImage: 'ubuntu-latest'
     steps:
     - download: onnxscript-release-dev
       artifact: drop
-    - task: SFP.release-tasks.custom-build-release-task.EsrpRelease@8
+    - task: SFP.release-tasks.custom-build-release-task.EsrpRelease@9
       displayName: 'ESRP Release'
       inputs:
-        ConnectedServiceName: esrprelease
+        ConnectedServiceName: esrp_release
         UseMSIAuthentication: true
         AppRegistrationClientId: '62b7cfed-4d25-454f-880e-010dc21455ac'
         AppRegistrationTenantId: '975f013f-7f24-47e8-a7d3-abc4752bf346'
@@ -30,3 +30,4 @@ stages:
         owners: 'justinchu@microsoft.com'
         approvers: 'grama@microsoft.com'
         mainpublisher: AIFrameworks
+        serviceendpointurl: 'https://api.esrp.microsoft.com'
