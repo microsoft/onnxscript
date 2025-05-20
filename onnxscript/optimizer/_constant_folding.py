@@ -16,7 +16,7 @@ import onnx
 import onnx.reference.ops
 
 import onnxscript.ir as ir
-import onnxscript.rewriter.pattern as orp
+import onnxscript.ir._tape as _tape
 import onnxscript.utils.utils as utils
 
 DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 1024
@@ -202,10 +202,9 @@ class OptimizerState:
 # the ir.Value or ir.Values to replace the output values of the node, when the new nodes
 # can be inferred from the RewriterContext used to build the new nodes.
 
+RewriterContext = _tape.Builder
 ReturnValue = Union[Replacement, Sequence[ir.Value], ir.Value, None]
-PartialEvaluatorFunction = Callable[
-    [ir.Node, orp.RewriterContext, OptimizerState], ReturnValue
-]
+PartialEvaluatorFunction = Callable[[ir.Node, RewriterContext, OptimizerState], ReturnValue]
 
 
 @dataclasses.dataclass
@@ -991,7 +990,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         op_optimizers = registry.lookup_evaluators(node.domain, node.op_type, version)
         for optimizer in op_optimizers:
             assert optimizer
-            context = orp.RewriterContext()
+            context = RewriterContext()
             output = optimizer(node, context, self._state)
             if output is not None:
                 if isinstance(output, Replacement):
