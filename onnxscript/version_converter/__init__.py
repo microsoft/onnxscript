@@ -11,6 +11,7 @@ import logging
 
 import onnx
 
+import onnxscript.ir.passes
 import onnxscript.ir.passes.common
 from onnxscript import ir
 from onnxscript.ir.passes.common import _c_api_utils
@@ -164,10 +165,13 @@ def convert_version(
         model_proto = None
 
     assert isinstance(model, ir.Model)
-    ConvertVersionPass(target_version=target_version, fallback=fallback)(model)
+    try:
+        ConvertVersionPass(target_version=target_version, fallback=fallback)(model)
 
-    if model_proto is not None:
-        # Update the model proto in-place
-        model_proto.graph.Clear()
-        del model_proto.functions
-        model_proto.graph.CopyFrom(ir.to_proto(model.graph))
+        if model_proto is not None:
+            # Update the model proto in-place
+            model_proto.graph.Clear()
+            del model_proto.functions
+            model_proto.graph.CopyFrom(ir.to_proto(model.graph))
+    except ir.passes.PassError as pe:
+        raise pe.__cause__

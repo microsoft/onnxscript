@@ -42,7 +42,7 @@ class AdapterCoverageTest(unittest.TestCase):
             self.assertEqual(domain, "")
             self.assertIn((name, upgrade_version), op_upgrades)
 
-    def test_version_convert_non_standard_onnx_domain(self):
+    def test_version_convert_no_source_version(self):
         model = ir.from_onnx_text(
             """
             <ir_version: 7, opset_import: [ "local" : 1]>
@@ -62,7 +62,7 @@ class AdapterCoverageTest(unittest.TestCase):
         self.assertEqual(model.graph.node(4).attributes["mode"].value, "bilinear")
 
         target_version = 20
-        with self.assertRaises(Exception):
+        with self.assertRaises(version_converter._version_converter.VersionConverterError):
             version_converter.convert_version(model, target_version=target_version)
 
 
@@ -107,6 +107,7 @@ class VersionConverter18to19Test(unittest.TestCase):
         )
         target_version = 19
         version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(model.opset_imports[""], target_version)
 
         self.assertEqual(model.graph.node(0).op_type, "Constant")
         self.assertEqual(model.graph.node(0).version, 19)
@@ -133,6 +134,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         )
         target_version = 20
         version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(model.opset_imports[""], target_version)
 
         self.assertEqual(model.graph.node(0).op_type, "Constant")
         self.assertEqual(model.graph.node(0).version, 20)
@@ -165,6 +167,7 @@ class VersionConverter19to20Test(unittest.TestCase):
 
         target_version = 20
         version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(model.opset_imports[""], target_version)
 
         self.assertEqual(model.graph.node(0).op_type, "Constant")
         self.assertEqual(model.graph.node(0).version, 20)
@@ -195,6 +198,7 @@ class VersionConverter19to20Test(unittest.TestCase):
 
         target_version = 20
         version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(model.opset_imports[""], target_version)
 
         self.assertEqual(model.graph.node(0).op_type, "Constant")
         self.assertEqual(model.graph.node(0).version, 20)
@@ -226,6 +230,7 @@ class VersionConverter19to20Test(unittest.TestCase):
         )
         target_version = 20
         version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(model.opset_imports[""], target_version)
 
         self.assertEqual(model.graph.node(0).op_type, "Constant")
         self.assertEqual(model.graph.node(0).version, 20)
@@ -254,6 +259,7 @@ class VersionConverter20to21Test(unittest.TestCase):
         )
         target_version = 21
         version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(model.opset_imports[""], target_version)
 
         self.assertEqual(model.graph.node(3).op_type, "Reshape")
         self.assertEqual(model.graph.node(3).version, 21)
@@ -284,6 +290,7 @@ class VersionConverter20to21Test(unittest.TestCase):
         )
         target_version = 21
         version_converter.convert_version(model, target_version=target_version)
+        self.assertEqual(model.opset_imports[""], target_version)
 
         self.assertEqual(model.graph.node(0).op_type, "GroupNormalization")
         self.assertEqual(model.graph.node(0).version, 20)

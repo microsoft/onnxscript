@@ -32,6 +32,13 @@ def _get_onnx_opset_version(model: ir.Model) -> int | None:
     return model_version1 or model_version2
 
 
+def _set_onnx_opset_version(model: ir.Model, version: int) -> None:
+    """Set the ONNX opset version imported by the model."""
+    if "ai.onnx" in model.opset_imports:
+        del model.opset_imports["ai.onnx"]
+    model.opset_imports[""] = version
+
+
 class VersionConverterError(RuntimeError):
     """Raised when an node's version cannot be upgraded/downgraded successfully."""
 
@@ -313,6 +320,7 @@ class _VersionConverter:
     def visit_model(self, model: ir.Model) -> None:
         self._default_onnx_opset = _get_onnx_opset_version(model)
         self.visit_graph(model.graph)
+        _set_onnx_opset_version(model, self._target_version)
 
 
 def convert_version(model: ir.Model, target_version: int) -> None:
