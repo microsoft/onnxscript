@@ -45,7 +45,7 @@ class FusedMatMulDiv2(orp.RewriteRuleClassBase):
     def rewrite(self, op, x, y, cst):
         value = cst.const_value.numpy()
         c = float(value[0] if value.shape == (1,) else value)
-        node = x.consumers()
+        node = x.consumers()[0]
 
         kwargs = {}
         alpha = node.attributes.get("alpha", None)
@@ -77,7 +77,7 @@ class _TransposeMatMulBase(orp.RewriteRuleClassBase):
 
     def rewrite(self, op, x, y):
         the_value = x if self._pos == 1 else y
-        node = the_value.consumers()
+        node = the_value.consumers()[0]
         kwargs = {}
         for name in ["alpha", "transA", "transB", "transBatchA", "transBatchB"]:
             att = node.attributes.get(name)
