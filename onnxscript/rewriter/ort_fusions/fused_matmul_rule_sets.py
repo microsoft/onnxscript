@@ -130,7 +130,7 @@ class MatMulTranspose(orp.RewriteRuleClassBase):
         check_result = orp.MatchResult()
         assert x.consumers()
         matmul = x.consumers()[0]
-        assert matmul.outputs()[0].consumers()
+        assert matmul.outputs[0].consumers()
         transpose = matmul.outputs[0].consumers()[0]
         perm = transpose.attributes["perm"].value
         expected_perm = list(range(len(perm)))
