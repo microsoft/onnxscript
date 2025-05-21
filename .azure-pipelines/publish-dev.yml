@@ -27,7 +27,7 @@ stages:
         AuthSignCertName: 'esrpcodesign'
         intent: 'PackageDistribution'
         contenttype: PyPi
-        folderlocation: '$(System.DefaultWorkingDirectory)/drop'
+        folderlocation: '$(System.DefaultWorkingDirectory)/drop/drop'
         owners: 'justinchu@microsoft.com'
         approvers: 'grama@microsoft.com'
         ServiceEndpointUrl: 'https://api.esrp.microsoft.com/api/v2'
