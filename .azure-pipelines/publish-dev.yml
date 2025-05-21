@@ -27,3 +27,5 @@ stages:
         owners: 'justinchu@microsoft.com'
         approvers: 'grama@microsoft.com'
         mainpublisher: AIFrameworks
+        usemanagedidentity: true
+        domaintenantid: '975f013f-7f24-47e8-a7d3-abc4752bf346'
