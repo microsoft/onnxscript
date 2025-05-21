@@ -15,7 +15,7 @@ stages:
     steps:
     - download: onnxscript-release-dev
       artifact: drop
-      patterns: ['**/*.whl', '**/*.tar.gz']
+      patterns: '**/*.whl,**/*.tar.gz'
     - task: EsrpRelease@9
       displayName: 'ESRP Release'
       inputs:
