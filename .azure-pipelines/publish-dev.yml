@@ -14,7 +14,7 @@ stages:
       vmImage: 'ubuntu-latest'
     steps:
     - download: onnxscript-release-dev
-      artifact: dev-release-artifacts
+      artifact: drop
     - task: EsrpRelease@9
       displayName: 'ESRP Release'
       inputs:
@@ -23,7 +23,7 @@ stages:
         signcertname: 'esrpcodesign'
         clientid: '53d54d02-978d-4305-8572-583cf6711c4f'
         contenttype: PyPi
-        folderlocation: '$(System.DefaultWorkingDirectory)/dev-release-artifacts/drop'
+        folderlocation: '$(System.DefaultWorkingDirectory)/drop/drop'
         owners: 'justinchu@microsoft.com'
         approvers: 'grama@microsoft.com'
         mainpublisher: AIFrameworks
