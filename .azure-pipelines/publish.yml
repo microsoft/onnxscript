@@ -1,0 +1,33 @@
+trigger: none
+name: onnxscript-publish.$(Date:yyyyMMdd).$(Rev:r)
+resources:
+  pipelines:
+  - pipeline: onnxscript-release
+    source: onnxscript-release
+    trigger: true
+stages:
+- stage: Release
+  dependsOn: []
+  jobs:
+  - job: onnxscript_publish_dev
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - download: onnxscript-release
+      artifact: drop
+    - task: SFP.release-tasks.custom-build-release-task.EsrpRelease@9
+      displayName: 'ESRP Release'
+      inputs:
+        ConnectedServiceName: esrp_release
+        UseMSIAuthentication: true
+        AppRegistrationClientId: '62b7cfed-4d25-454f-880e-010dc21455ac'
+        AppRegistrationTenantId: '975f013f-7f24-47e8-a7d3-abc4752bf346'
+        EsrpClientId: "53d54d02-978d-4305-8572-583cf6711c4f"
+        AuthAKVName: 'ortbuildkeyvault'
+        AuthSignCertName: 'esrpcodesign'
+        contenttype: PyPi
+        folderlocation: '$(System.DefaultWorkingDirectory)/drop'
+        owners: 'justinchu@microsoft.com'
+        approvers: 'grama@microsoft.com'
+        mainpublisher: AIFrameworks
+        serviceendpointurl: 'https://api.esrp.microsoft.com'
