@@ -13,7 +13,7 @@ __all__ = [
 import onnx
 
 from onnxscript import ir
-from onnxscript.ir.passes.common import unused_removal
+import onnxscript.ir.passes.common as common_passes
 from onnxscript.rewriter import (
     broadcast_to_matmul,
     cast_constant_of_shape,
@@ -90,9 +90,9 @@ def rewrite(
     rewrite_pass = ir.passes.PassManager(
         (
             RewritePass(pattern_rewrite_rules),
-            unused_removal.RemoveUnusedNodesPass(),
-            unused_removal.RemoveUnusedFunctionsPass(),
-            unused_removal.RemoveUnusedOpsetsPass(),
+            common_passes.RemoveUnusedNodesPass(),
+            common_passes.RemoveUnusedFunctionsPass(),
+            common_passes.RemoveUnusedOpsetsPass(),
         )
     )
     model_ir = rewrite_pass(model_ir).model

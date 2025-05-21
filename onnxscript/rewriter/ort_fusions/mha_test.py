@@ -8,7 +8,7 @@ import packaging.version
 
 import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
-from onnxscript.ir.passes.common import shape_inference
+import onnxscript.ir.passes.common as common_passes
 from onnxscript.rewriter.ort_fusions._test_utils import ORT_VERSION, assert_allclose, ort_run
 from onnxscript.rewriter.ort_fusions.models._smollm_2 import smollm_test_2
 from onnxscript.rewriter.ort_fusions.models._whisper_decoder import whisper_decoder_test
@@ -58,7 +58,7 @@ class TestMultiHeadAttention(unittest.TestCase):
         # Fuse SDPA and MHA
         sdpa_count = xformers.fuse_sdpa(model)
         self.assertGreater(sdpa_count, 0)
-        model = shape_inference.infer_shapes(model)
+        model = common_passes.ShapeInferencePass()(model).model
         mha_count = xformers.fuse_mha(model)
         self.assertGreater(mha_count, 0)
         onnxscript.optimizer.optimize(model)
@@ -83,7 +83,7 @@ class TestMultiHeadAttention(unittest.TestCase):
         # Fuse SDPA and MHA
         sdpa_count = xformers.fuse_sdpa(model)
         self.assertGreater(sdpa_count, 0)
-        model = shape_inference.infer_shapes(model)
+        model = common_passes.ShapeInferencePass()(model).model
         mha_count = xformers.fuse_mha(model)
         self.assertGreater(mha_count, 0)
         onnxscript.optimizer.optimize(model)

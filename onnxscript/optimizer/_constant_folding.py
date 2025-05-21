@@ -16,7 +16,7 @@ import onnx
 import onnx.reference.ops
 
 import onnxscript.ir as ir
-import onnxscript.ir._tape as _tape
+from onnxscript.ir import _tape
 import onnxscript.utils.utils as utils
 
 DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 1024
