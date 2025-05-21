@@ -10,11 +10,11 @@ import parameterized
 
 import onnxscript
 import onnxscript.ir as ir
+import onnxscript.ir.passes.common as common_passes
 import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
-import onnxscript.ir.passes.common as common_passes
 from onnxscript.rewriter.ort_fusions._test_utils import ORT_VERSION, assert_allclose, ort_run
 from onnxscript.rewriter.ort_fusions.models._whisper_encoder import whisper_encoder_test
 

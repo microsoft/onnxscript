@@ -12,8 +12,8 @@ __all__ = [
 
 import onnx
 
-from onnxscript import ir
 import onnxscript.ir.passes.common as common_passes
+from onnxscript import ir
 from onnxscript.rewriter import (
     broadcast_to_matmul,
     cast_constant_of_shape,

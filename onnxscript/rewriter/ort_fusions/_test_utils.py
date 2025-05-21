@@ -8,7 +8,6 @@ import packaging.version
 
 import onnxscript.ir as ir
 
-
 ORT_VERSION = packaging.version.Version(onnxruntime.__version__)
 
 

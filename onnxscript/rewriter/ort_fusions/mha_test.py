@@ -6,9 +6,9 @@ import unittest
 
 import packaging.version
 
+import onnxscript.ir.passes.common as common_passes
 import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
-import onnxscript.ir.passes.common as common_passes
 from onnxscript.rewriter.ort_fusions._test_utils import ORT_VERSION, assert_allclose, ort_run
 from onnxscript.rewriter.ort_fusions.models._smollm_2 import smollm_test_2
 from onnxscript.rewriter.ort_fusions.models._whisper_decoder import whisper_decoder_test

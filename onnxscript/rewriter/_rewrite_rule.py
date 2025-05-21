@@ -18,7 +18,7 @@ import onnxscript.rewriter._basics as _basics
 import onnxscript.rewriter._matcher as _matcher
 import onnxscript.rewriter._pattern_ir as _pattern_ir
 from onnxscript import ir
-from onnxscript.ir import convenience, _tape
+from onnxscript.ir import _tape, convenience
 
 T = TypeVar("T")
 

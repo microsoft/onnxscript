@@ -7,12 +7,12 @@ import unittest
 
 import numpy as np
 import onnx
+import onnx_ir.passes.common.shape_inference as shape_inference
 import onnxruntime as ort
 import torch
 
 import onnxscript
 import onnxscript.ir as ir
-import onnx_ir.passes.common.shape_inference as shape_inference
 import onnxscript.optimizer
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op

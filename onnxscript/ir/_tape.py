@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
-from typing import (
-    Any,
-    Sequence,
-)
+from typing import TYPE_CHECKING, Any, Sequence
 
 from onnx_ir import tape
+
+if TYPE_CHECKING:
+    import onnx_ir as ir
 
 
 class Builder(tape.Tape):
