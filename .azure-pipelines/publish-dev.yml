@@ -16,6 +16,10 @@ stages:
     - download: onnxscript-release-dev
       artifact: drop
       patterns: '**/*.whl,**/*.tar.gz'
+    - task: PowerShell@2
+      inputs:
+        targetType: 'inline'
+        script: ls '$(Pipeline.Workspace)'
     - task: EsrpRelease@9
       displayName: 'ESRP Release'
       inputs:
