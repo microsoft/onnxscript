@@ -7,7 +7,6 @@ from onnxscript.ir.passes.common import shape_inference
 from onnxscript.optimizer import optimize
 from onnxscript.rewriter import rewrite
 from onnxscript.rewriter.ort_fusions import (
-    fused_matmul_rule_sets,
     # group_normalization_merge_silu,
     instance_to_group_normalization,
     softmax,
@@ -37,7 +36,9 @@ ORT_PATTERN_REWRITE_RULES = [
     *instance_to_group_normalization.rules.rules,
     # NOTE: group normalization merge silu should be applied after instance to group normalization
     # *group_normalization_merge_silu.rules.rules,
-    *fused_matmul_rule_sets.fused_matmul_rule_sets(),
+    # NOTE: The rules below are broken:
+    # https://github.com/microsoft/onnxscript/pull/2317#issuecomment-2896058483
+    # *fused_matmul_rule_sets.fused_matmul_rule_sets(),
 ]
 
 
