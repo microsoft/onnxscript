@@ -265,8 +265,23 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                         past_value,
                     )
 
-        # TODO: mask shape check: ideally, it should be (1 or B, 1 or H, S, St)
-        # But this also, unforunately, depends on ORT version.
+        # mask (aka attention_bias) shape check:
+        # ONNX's Attention op (named SDPA here) allows a mask broadcastable to (B, H, S, St)
+        # ORT's contrib ops (MHA, Attention) allow a mask of shape (1 or B, 1 or H, S, St)
+        # That is: broadcast allowed only for the first two dimensions. (Even that is not
+        # supported by some earlier versions of ORT, which are not supported here.)
+        if self._use_mask:
+            if no_match(mask, ["B_or_1", "H_or_1", "S_or_1", "St"]):
+                return check_result.fail(
+                    f"Shape mismatch: {mask} does not match expected dimensions ['1 or B', '1 or H', 'S', 'St']",
+                    mask,
+                )
+            mask_dim_2 = bindings.get("S_or_1")
+            self._use_mask_broadcast = (mask_dim_2 == 1)
+        else:
+            # If mask is not used, we can skip the check
+            self._use_mask_broadcast = False
+
 
         # TODO: verify Reshapes:
         # eg.: verify bindings["B"] * bindings["H"] == bindings["B*H"]:
@@ -314,6 +329,9 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         else:
             query_BSD_emb = query_BSD
             key_BSD_emb = key
+
+    if self._use_mask_broadcast:
+        mask = # ...
 
         num_outputs = 1 + (2 * self._has_past_present)
         return op.MultiHeadAttention(

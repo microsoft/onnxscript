@@ -32,7 +32,7 @@ class FusedMatMulDiv2(orp.RewriteRuleClassBase):
     """Replaces ``FusedMatMul + Div`` by FusedMatMul."""
 
     def pattern(self, op, x, y, cst):
-        return op.Div(op.FusedMatMul(x, y, _domain="com.microsoft"), cst)
+        return op.Div(op.FusedMatMul(x, y, _domain="com.microsoft", _output=["fused"]), cst)
 
     def check(self, context, x, y, cst) -> orp.MatchResult:
         check_result = orp.MatchResult()
@@ -42,10 +42,10 @@ class FusedMatMulDiv2(orp.RewriteRuleClassBase):
             return check_result.fail("Divisor is not a scalar value.")
         return check_result
 
-    def rewrite(self, op, x, y, cst):
+    def rewrite(self, op, x, y, cst, fused):
         value = cst.const_value.numpy()
         c = float(value[0] if value.shape == (1,) else value)
-        node = list(x.uses())[0][0]  # noqa: RUF015
+        node = list(x.uses())[0][0]  # noqa: RUF015 # fused.producer()
 
         kwargs = {}
         alpha = node.attributes.get("alpha", None)
