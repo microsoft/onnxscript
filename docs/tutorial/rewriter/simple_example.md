@@ -46,6 +46,19 @@ rule = pattern.RewriteRule(
 )
 ```
 
+It is more convenient to organize more complex rewrite-rules as a class. The above rule can be
+alternatively expressed as below.
+
+```{literalinclude} examples/erfgelu.py
+:pyobject: ErfGeluFusion
+```
+
+The corresponding rewrite-rule can be obtained as below:
+
+```python
+erf_gelu_rule_from_class = ErfGeluFusion.rule()
+```
+
 Now that the rewrite rule has been created, the next step is to apply these pattern-based rewrite rules. The `rewriter.rewrite` call consists of three main components:
 
 1. `model` : The original model on which the pattern rewrite rules are to be applied. This is of type `onnx.ModelProto`.
