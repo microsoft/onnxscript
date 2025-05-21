@@ -2282,7 +2282,12 @@ class Graph(_protocols.GraphProtocol, Sequence[Node], _display.PrettyPrintable):
     def opset_imports(self) -> dict[str, int]:
         return self._opset_imports
 
-    def __getitem__(self, index: int) -> Node:
+    @typing.overload
+    def __getitem__(self, index: int) -> Node: ...
+    @typing.overload
+    def __getitem__(self, index: slice) -> Sequence[Node]: ...
+
+    def __getitem__(self, index):
         return self._nodes[index]
 
     def __len__(self) -> int:
@@ -2712,7 +2717,12 @@ class GraphView(Sequence[Node], _display.PrettyPrintable):
         self._metadata_props: dict[str, str] | None = metadata_props
         self._nodes: tuple[Node, ...] = tuple(nodes)
 
-    def __getitem__(self, index: int) -> Node:
+    @typing.overload
+    def __getitem__(self, index: int) -> Node: ...
+    @typing.overload
+    def __getitem__(self, index: slice) -> Sequence[Node]: ...
+
+    def __getitem__(self, index):
         return self._nodes[index]
 
     def __len__(self) -> int:
@@ -2961,7 +2971,12 @@ class Function(_protocols.FunctionProtocol, Sequence[Node], _display.PrettyPrint
     def attributes(self) -> OrderedDict[str, Attr]:
         return self._attributes
 
-    def __getitem__(self, index: int) -> Node:
+    @typing.overload
+    def __getitem__(self, index: int) -> Node: ...
+    @typing.overload
+    def __getitem__(self, index: slice) -> Sequence[Node]: ...
+
+    def __getitem__(self, index):
         return self._graph.__getitem__(index)
 
     def __len__(self) -> int:
