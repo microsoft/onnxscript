@@ -9,7 +9,7 @@ import onnxruntime as ort
 
 import onnxscript
 import onnxscript.ir as ir
-import onnxscript.ir.passes.common.shape_inference as shape_inference
+import onnx_ir.passes.common.shape_inference as shape_inference
 import onnxscript.optimizer
 from onnxscript import FLOAT, INT32, script
 from onnxscript import opset18 as op

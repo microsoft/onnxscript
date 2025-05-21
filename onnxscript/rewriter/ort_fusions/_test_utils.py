@@ -3,20 +3,10 @@
 from __future__ import annotations
 
 import numpy as np
-import onnx
 import onnxruntime
 import packaging.version
 
 import onnxscript.ir as ir
-import onnxscript.ir._io as io
-
-
-def _save(model, modelpath):
-    if isinstance(model, onnx.ModelProto):
-        onnx.save(model, modelpath)
-    else:
-        assert isinstance(model, ir.Model)
-        io.save(model, modelpath)
 
 
 ORT_VERSION = packaging.version.Version(onnxruntime.__version__)
