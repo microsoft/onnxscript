@@ -172,7 +172,7 @@ class TestAttentionFusion(unittest.TestCase):
         # Fuse SDPA and MHA
         sdpa_count = xformers.fuse_sdpa(model)
         self.assertGreater(sdpa_count, 0)
-        model = shape_inference.infer_shapes(model)
+        model = common_passes.ShapeInferencePass()(model).model
         mha_count = xformers.fuse_mha(model)
         self.assertGreater(mha_count, 0)
         fused_mha_bias_count = xformers.fuse_mha_bias(model)
