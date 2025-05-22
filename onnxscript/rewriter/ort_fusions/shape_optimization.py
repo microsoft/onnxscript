@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import onnxscript.ir as ir
 import onnxscript.rewriter.pattern as pattern
-import onnxscript.rewriter._ir_utils as ir_utils
+
 
 class ExtractDim(pattern.RewriteRuleClassBase):
     def __init__(self):
@@ -16,6 +16,7 @@ class ExtractDim(pattern.RewriteRuleClassBase):
     """This is a pattern observed in causal mask generation that hinders fusion optimizations.
     It can be simplified away.
     """
+
     def pattern(self, op, x, dim0, dim1, dim2, dim3):
         shape = op.Concat(dim0, dim1, dim2, dim3, axis=0)
         reshaped = op.Reshape(x, shape, allowzero=0)
@@ -38,8 +39,9 @@ class ExtractDim(pattern.RewriteRuleClassBase):
             start_attr = shape_node.attributes["start"]
             return isinstance(start_attr, ir.Attr) and start_attr.value == 0
         return True
-    
+
     def rewrite(self, op, dim1, **_):
         return dim1
+
 
 rules = pattern.RewriteRuleSet([ExtractDim.rule()])
