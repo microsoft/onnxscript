@@ -36,6 +36,7 @@ from typing import (
     Collection,
     Iterable,
     Iterator,
+    Literal,
     Mapping,
     MutableMapping,
     MutableSequence,
@@ -422,6 +423,8 @@ class AttributeProtocol(Protocol):
     value: Any
     doc_string: str | None
 
+    def is_ref(self) -> Literal[False]: ...
+
 
 @typing.runtime_checkable
 class ReferenceAttributeProtocol(Protocol):
@@ -440,6 +443,8 @@ class ReferenceAttributeProtocol(Protocol):
     ref_attr_name: str
     type: _enums.AttributeType
     doc_string: str | None
+
+    def is_ref(self) -> Literal[True]: ...
 
 
 @typing.runtime_checkable

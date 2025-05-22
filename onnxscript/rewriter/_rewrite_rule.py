@@ -261,8 +261,8 @@ class RewriteRuleClassBase(abc.ABC):
             def pattern(cls, op, x, perm):
                 return op.Transpose(x, perm=perm)
 
-            def check(cls, context, x: ir.Value, perm: ir.Attr | ir.RefAttr) -> bool:
-                if isinstance(perm, ir.RefAttr):
+            def check(cls, context, x: ir.Value, perm: ir.Attr) -> bool:
+                if perm.is_ref():
                     return False
                 if perm.type == ir.AttributeType.INTS:
                     if perm.as_ints() == list(range(len(perm.as_ints()))):
@@ -364,8 +364,8 @@ def _copy_for_function(
             raise ValueError(f"Value {value} not found in value_map.")
         return value_map[value]
 
-    def copy_attr_value(attr: ir.Attr | ir.RefAttr) -> ir.Attr | ir.RefAttr:
-        if not isinstance(attr, ir.Attr):
+    def copy_attr_value(attr: ir.Attr) -> ir.Attr:
+        if attr.is_ref():
             # No need to support this currently, as rewriting inside a function is
             # not used, as it has several challenges.
             raise NotImplementedError("RefAttr not supported.")
