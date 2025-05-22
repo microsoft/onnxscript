@@ -271,17 +271,40 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         # That is: broadcast allowed only for the first two dimensions. (Even that is not
         # supported by some earlier versions of ORT, which are not supported here.)
         if self._use_mask:
-            if no_match(mask, ["B_or_1", "H_or_1", "S_or_1", "St"]):
+            if (mask_shape := mask.shape) is None:
                 return check_result.fail(
-                    f"Shape mismatch: {mask} does not match expected dimensions ['1 or B', '1 or H', 'S', 'St']",
+                    "Mask shape cannot be determined.",
                     mask,
                 )
-            mask_dim_2 = bindings.get("S_or_1")
-            self._use_mask_broadcast = (mask_dim_2 == 1)
+            if mask_shape.rank() == 4:
+                if no_match(mask, ["B_or_1", "H_or_1", "S_or_1", "St"]):
+                    return check_result.fail(
+                        f"Shape mismatch: {mask} does not match expected dimensions ['1 or B', '1 or H', '1 or S', 'St']",
+                        mask,
+                    )
+                mask_dim_2 = bindings.get("S_or_1")
+                if mask_dim_2 == bindings.get("S"):
+                    self._use_mask_broadcast = False
+                elif mask_dim_2 == 1:
+                    self._use_mask_broadcast = True
+                else:
+                    return check_result.fail(
+                        "Mask dimension 2 cannot be verified to be 1 or S"
+                    )
+            elif mask_shape.rank() == 2:
+                if no_match(mask, ["S_or_1", "St"]):
+                    return check_result.fail(
+                        f"Shape mismatch: {mask} does not match expected dimensions ['1 or S', 'St']",
+                        mask,
+                    )
+                self._use_mask_broadcast = True
+            else:
+                return check_result.fail(
+                    f"Mask shape {mask_shape} is not supported. Expected 2D or 4D.",
+                    mask,
+                )
         else:
-            # If mask is not used, we can skip the check
             self._use_mask_broadcast = False
-
 
         # TODO: verify Reshapes:
         # eg.: verify bindings["B"] * bindings["H"] == bindings["B*H"]:
@@ -330,8 +353,11 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             query_BSD_emb = query_BSD
             key_BSD_emb = key
 
-    if self._use_mask_broadcast:
-        mask = # ...
+        if self._use_mask_broadcast:
+            one = op.Constant(value_ints=[1])
+            S = op.Shape(query_BSD, start=1, end=2)
+            shape_11S1 = op.Concat(one, one, S, one, axis=0)
+            mask = op.Expand(mask, shape_11S1)
 
         num_outputs = 1 + (2 * self._has_past_present)
         return op.MultiHeadAttention(
