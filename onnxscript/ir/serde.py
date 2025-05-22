@@ -234,9 +234,10 @@ def to_proto(ir_object: object) -> object:
         return serialize_tensor(ir_object)
     if isinstance(ir_object, _protocols.ValueProtocol):
         return serialize_value(ir_object)
-    if isinstance(ir_object, _protocols.AttributeProtocol):
+    if isinstance(ir_object, _protocols.AttributeProtocol) and not ir_object.is_ref():
         return serialize_attribute(ir_object)
     if isinstance(ir_object, _protocols.ReferenceAttributeProtocol):
+        assert ir_object.is_ref()
         return serialize_reference_attribute_into(onnx.AttributeProto(), ir_object)
     if isinstance(ir_object, _protocols.TypeProtocol):
         return serialize_type_into(onnx.TypeProto(), ir_object)
