@@ -5,10 +5,11 @@ from __future__ import annotations
 from typing import ClassVar
 
 import onnxscript.rewriter.pattern as orp
+from onnxscript import ir
 
 
 class FusedMatMulDiv1(orp.RewriteRuleClassBase):
-    """Replaces ``MatMul + Div`` by FusedMatMul."""
+    """Replaces ``MatMul + Div`` with FusedMatMul."""
 
     def pattern(self, op, x, y, cst):
         return op.Div(op.MatMul(x, y), cst)
@@ -29,12 +30,12 @@ class FusedMatMulDiv1(orp.RewriteRuleClassBase):
 
 
 class FusedMatMulDiv2(orp.RewriteRuleClassBase):
-    """Replaces ``FusedMatMul + Div`` by FusedMatMul."""
+    """Replaces ``FusedMatMul + Div`` with FusedMatMul."""
 
     def pattern(self, op, x, y, cst):
-        return op.Div(op.FusedMatMul(x, y, _domain="com.microsoft"), cst)
+        return op.Div(op.FusedMatMul(x, y, _domain="com.microsoft", _outputs=["fused"]), cst)
 
-    def check(self, context, x, y, cst) -> orp.MatchResult:
+    def check(self, context, x, y, cst, fused: ir.Value) -> orp.MatchResult:
         check_result = orp.MatchResult()
         if cst.const_value is None:
             return check_result.fail("Divisor is not a constant value.")
@@ -42,14 +43,13 @@ class FusedMatMulDiv2(orp.RewriteRuleClassBase):
             return check_result.fail("Divisor is not a scalar value.")
         return check_result
 
-    def rewrite(self, op, x, y, cst):
+    def rewrite(self, op, x, y, cst, fused: ir.Value):
         value = cst.const_value.numpy()
         c = float(value[0] if value.shape == (1,) else value)
-        node = list(x.uses())[0][0]  # noqa: RUF015
+        node: ir.Node = fused.producer()  # type: ignore[assignment]
 
         kwargs = {}
-        alpha = node.attributes.get("alpha", None)
-        kwargs["alpha"] = alpha.value / c if alpha else 1.0 / c
+        kwargs["alpha"] = node.attributes["alpha"].as_float() / c
         for name in ["transA", "transB", "transBatchA", "transBatchB"]:
             att = node.attributes.get(name)
             if att:
@@ -60,91 +60,106 @@ class FusedMatMulDiv2(orp.RewriteRuleClassBase):
 class _TransposeMatMulBase(orp.RewriteRuleClassBase):
     _pos: ClassVar = 1
 
-    def check(self, context, x, y) -> orp.MatchResult:
+    def check(self, context, x, y, transposed: ir.Value, **_) -> orp.MatchResult:
         check_result = orp.MatchResult()
-        perm = list((x if self._pos == 1 else y).uses())[0][0].attributes["perm"].value  # noqa: RUF015
+        node: ir.Node = transposed.producer()  # type: ignore[assignment]
+        perm = node.attributes["perm"].as_ints()
         expected_perm = list(range(len(perm)))
         expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
         if perm != expected_perm:
             return check_result.fail("Permutation values for Transpose are not correct.")
         return check_result
 
-    def rewrite(self, op, x, y):
-        node = list((x if self._pos == 2 else y).uses())[0][0]  # noqa: RUF015
+    def rewrite(self, op, x, y, fused: ir.Value | None = None, **_):
         kwargs = {}
-        for name in ["alpha", "transA", "transB", "transBatchA", "transBatchB"]:
-            att = node.attributes.get(name)
-            if att:
-                kwargs[name] = att.value
+        if fused:
+            node: ir.Node = fused.producer()  # type: ignore[assignment]
+            for name in ["alpha", "transA", "transB", "transBatchA", "transBatchB"]:
+                att = node.attributes.get(name)
+                if att:
+                    kwargs[name] = att.value
         name = "transA" if self._pos == 1 else "transB"
         kwargs[name] = 1 - kwargs.get(name, 0)
         return op.FusedMatMul(x, y, **kwargs, _domain="com.microsoft")
 
 
 class TransposeMatMul1(_TransposeMatMulBase):
-    """Replaces ``Transpose + (Fused)MatMul`` by FusedMatMul."""
+    """Replaces ``Transpose + MatMul`` with FusedMatMul."""
 
     def pattern(self, op, x, y):
-        return op.MatMul(op.Transpose(x), y)
+        return op.MatMul(op.Transpose(x, _outputs=["transposed"]), y)
 
 
 class TransposeFusedMatMul1(TransposeMatMul1):
-    """Replaces ``Transpose + (Fused)MatMul`` by FusedMatMul."""
+    """Replaces ``Transpose + (Fused)MatMul`` with FusedMatMul."""
 
     def pattern(self, op, x, y):
-        return op.FusedMatMul(op.Transpose(x), y, _domain="com.microsoft")
+        return op.FusedMatMul(
+            op.Transpose(x, _outputs=["transposed"]),
+            y,
+            _domain="com.microsoft",
+            _outputs=["fused"],
+        )
 
 
 class TransposeMatMul2(_TransposeMatMulBase):
-    """Replaces ``Transpose + (Fused)MatMul`` by FusedMatMul."""
+    """Replaces ``Transpose + MatMul`` with FusedMatMul."""
 
     _pos: ClassVar = 2
 
     def pattern(self, op, x, y):
-        return op.MatMul(x, op.Transpose(y))
+        return op.MatMul(x, op.Transpose(y, _outputs=["transposed"]))
 
 
 class TransposeFusedMatMul2(TransposeMatMul2):
-    """Replaces ``Transpose + (Fused)MatMul`` by FusedMatMul."""
+    """Replaces ``Transpose + (Fused)MatMul`` with FusedMatMul."""
 
     def pattern(self, op, x, y):
-        return op.FusedMatMul(x, op.Transpose(y), _domain="com.microsoft")
+        return op.FusedMatMul(
+            x,
+            op.Transpose(y, _outputs=["transposed"]),
+            _domain="com.microsoft",
+            _outputs=["fused"],
+        )
 
 
 class MatMulTranspose(orp.RewriteRuleClassBase):
-    """Replaces ``MatMul + Transpose`` by FusedMatMul."""
+    """Replaces ``MatMul + Transpose`` with FusedMatMul."""
 
     def pattern(self, op, x, y):
-        return op.Transpose(op.MatMul(x, y))
+        return op.Transpose(op.MatMul(x, y), _outputs=["transposed"])
 
-    def check(self, context, x, y) -> orp.MatchResult:
+    def check(self, context, x, y, transposed: ir.Value, **_) -> orp.MatchResult:
         check_result = orp.MatchResult()
-        matmul = list(x.uses())[0][0]  # noqa: RUF015
-        transpose = list(matmul.outputs[0].uses())[0][0]  # noqa: RUF015
-        perm = transpose.attributes["perm"].value
+        transpose: ir.Node = transposed.producer()  # type: ignore[assignment]
+        perm = transpose.attributes["perm"].as_ints()
         expected_perm = list(range(len(perm)))
         expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
         if perm != expected_perm:
             return check_result.fail("Permutation values for Transpose are not correct.")
         return check_result
 
-    def rewrite(self, op, x, y):
-        node = list(x.uses())[0][0]  # noqa: RUF015
+    def rewrite(self, op, x, y, fused: ir.Value | None = None, **_):
         kwargs = {}
-        for name in ["alpha", "transA", "transB", "transBatchA", "transBatchB"]:
-            att = node.attributes.get(name)
-            if att:
-                kwargs[name] = att.value
+        if fused:
+            node: ir.Node = fused.producer()  # type: ignore[assignment]
+            for name in ["alpha", "transA", "transB", "transBatchA", "transBatchB"]:
+                att = node.attributes.get(name)
+                if att:
+                    kwargs[name] = att.value
         for name in ["transA", "transB"]:
             kwargs[name] = 1 - kwargs.get(name, 0)
         return op.FusedMatMul(y, x, **kwargs, _domain="com.microsoft")
 
 
 class FusedMatMulTranspose(MatMulTranspose):
-    """Replaces ``MatMul + Transpose`` by FusedMatMul."""
+    """Replaces ``FusedMatMul + Transpose`` with FusedMatMul."""
 
     def pattern(self, op, x, y):
-        return op.Transpose(op.FusedMatMul(x, y, _domain="com.microsoft"))
+        return op.Transpose(
+            op.FusedMatMul(x, y, _domain="com.microsoft", _outputs=["fused"]),
+            _outputs=["transposed"],
+        )
 
 
 def fused_matmul_rule_sets() -> orp.RewriteRuleSet:
