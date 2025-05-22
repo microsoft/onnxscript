@@ -73,7 +73,7 @@ class PrefixPattern(StringPattern):
         return f"{self._value}*"
 
 
-class AttrPattern(Pattern[Union[ir.Attr, ir.RefAttr]]):
+class AttrPattern(Pattern[ir.Attr]):
     """Base class for an attribute pattern. Matches any attribute value by default."""
 
     def __init__(self, name: str | None):
@@ -83,7 +83,7 @@ class AttrPattern(Pattern[Union[ir.Attr, ir.RefAttr]]):
     def name(self) -> str | None:
         return self._name
 
-    def matches(self, attr: ir.Attr | ir.RefAttr) -> bool:
+    def matches(self, attr: ir.Attr) -> bool:
         return True
 
     def __str__(self) -> str:
@@ -112,7 +112,7 @@ class AttrConstantPattern(AttrPattern):
         super().__init__(None)
         self._value = value
 
-    def matches(self, attr: ir.Attr | ir.RefAttr) -> bool:
+    def matches(self, attr: ir.Attr) -> bool:
         return isinstance(attr, ir.Attr) and attr.value == self._value
 
     def __str__(self) -> str:
