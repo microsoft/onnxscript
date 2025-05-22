@@ -25,6 +25,7 @@ from onnxscript.rewriter.ort_fusions.rotary_embedding import (
     fuse_partial_rotary_embedding,
     fuse_rotary_embedding,
 )
+import onnxscript.rewriter.ort_fusions.shape_optimization as shape_optimization
 from onnxscript.rewriter.ort_fusions.sdpa import fuse_sdpa
 from onnxscript.rewriter.ort_fusions.skip_normalization import (
     fuse_skip_layer_normalization,
@@ -51,6 +52,7 @@ def _pre_optimize(model: ir.Model) -> ir.Model:
     # incorporated in our optimizer.
     shape_inference.infer_shapes(model)
     optimize(model)
+    shape_optimization.rules.apply_to_model(model)
     return model
 
 
