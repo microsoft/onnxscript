@@ -18,7 +18,10 @@ class SDPA(pattern.RewriteRuleClassBase):
         use_mul: bool,
         has_3d_query: bool,
     ):
-        super().__init__(name=name)
+        # SDPA helps to fuse a large set of patterns to attention family
+        # However, it could fail and stay with op.SDPA, so we need to
+        # make sure the node can be kept as a local function
+        super().__init__(name=name, as_function=True)
         self._use_mask = use_mask
         self._pre_scale = pre_scale
         # There are some patterns where only the query is scaled before the dot product
