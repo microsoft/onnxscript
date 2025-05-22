@@ -423,8 +423,7 @@ class AttributeProtocol(Protocol):
     value: Any
     doc_string: str | None
 
-    def is_ref(self) -> Literal[False]:
-        ...
+    def is_ref(self) -> Literal[False]: ...
 
 
 @typing.runtime_checkable
@@ -445,8 +444,7 @@ class ReferenceAttributeProtocol(Protocol):
     type: _enums.AttributeType
     doc_string: str | None
 
-    def is_ref(self) -> Literal[True]:
-        ...
+    def is_ref(self) -> Literal[True]: ...
 
 
 @typing.runtime_checkable

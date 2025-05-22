@@ -3106,7 +3106,11 @@ def {full_name}(
         return f"{self.__class__.__name__}({self.domain!r}, {self.name!r}, {self.overload!r}, inputs={self.inputs!r}, attributes={self.attributes!r}), outputs={self.outputs!r})"
 
 
-class Attr(_protocols.AttributeProtocol, _protocols.ReferenceAttributeProtocol, _display.PrettyPrintable):
+class Attr(
+    _protocols.AttributeProtocol,
+    _protocols.ReferenceAttributeProtocol,
+    _display.PrettyPrintable,
+):
     """Base class for ONNX attributes or references."""
 
     __slots__ = ("_name", "_ref_attr_name", "_type", "_value", "doc_string")
