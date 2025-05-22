@@ -52,7 +52,7 @@ class _CopyReplace:
     def __init__(
         self,
         inliner: InlinePass,
-        attr_map: dict[str, ir.Attr | ir.RefAttr],
+        attr_map: dict[str, ir.Attr],
         value_map: dict[ir.Value, ir.Value | None],
         metadata_props: dict[str, str],
         call_stack: CallStack,
@@ -83,8 +83,8 @@ class _CopyReplace:
             return None
         return self.clone_value(value)
 
-    def clone_attr(self, key: str, attr: ir.Attr | ir.RefAttr) -> ir.Attr | ir.RefAttr | None:
-        if isinstance(attr, ir.Attr):
+    def clone_attr(self, key: str, attr: ir.Attr) -> ir.Attr | None:
+        if not attr.is_ref():
             if attr.type == ir.AttributeType.GRAPH:
                 graph = self.clone_graph(attr.as_graph())
                 return ir.Attr(key, ir.AttributeType.GRAPH, graph, doc_string=attr.doc_string)
@@ -94,15 +94,15 @@ class _CopyReplace:
                     key, ir.AttributeType.GRAPHS, graphs, doc_string=attr.doc_string
                 )
             return attr
-        assert isinstance(attr, ir.RefAttr)
+        assert attr.is_ref()
         ref_attr_name = attr.ref_attr_name
         if ref_attr_name in self._attr_map:
             ref_attr = self._attr_map[ref_attr_name]
-            if isinstance(ref_attr, ir.Attr):
+            if not ref_attr.is_ref():
                 return ir.Attr(
                     key, ref_attr.type, ref_attr.value, doc_string=ref_attr.doc_string
                 )
-            assert isinstance(ref_attr, ir.RefAttr)
+            assert ref_attr.ref_attr_name is not None
             return ir.RefAttr(
                 key, ref_attr.ref_attr_name, ref_attr.type, doc_string=ref_attr.doc_string
             )
@@ -237,7 +237,7 @@ class InlinePass(ir.passes.InPlacePass):
                 )
 
         # Identify substitutions for both inputs and attributes of the function:
-        attributes: dict[str, ir.Attr | ir.RefAttr] = node.attributes
+        attributes: dict[str, ir.Attr] = node.attributes
         default_attr_values = {
             attr.name: attr
             for attr in function.attributes.values()

@@ -70,7 +70,7 @@ def _all_tensors(
     # Look at constant attributes in nodes
     for node in _traversal.RecursiveGraphIterator(graph):
         for attr in node.attributes.values():
-            if isinstance(attr, _core.RefAttr):
+            if attr.is_ref():
                 continue
             if attr.type == _enums.AttributeType.TENSOR and attr.value is not None:
                 yield attr.value

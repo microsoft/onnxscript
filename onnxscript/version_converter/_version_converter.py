@@ -261,13 +261,14 @@ class _VersionConverter:
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
 
-    def visit_attribute(self, attr: ir.Attr | ir.RefAttr) -> None:
-        if isinstance(attr, ir.Attr):
-            if attr.type == ir.AttributeType.GRAPH:
-                self.visit_graph(attr.value)  # type: ignore[arg-type]
-            elif attr.type == ir.AttributeType.GRAPHS:
-                for graph in attr.value:
-                    self.visit_graph(graph)  # type: ignore[arg-type]
+    def visit_attribute(self, attr: ir.Attr) -> None:
+        if attr.is_ref():
+            return
+        if attr.type == ir.AttributeType.GRAPH:
+            self.visit_graph(attr.as_graph())
+        elif attr.type == ir.AttributeType.GRAPHS:
+            for graph in attr.as_graphs():
+                self.visit_graph(graph)
 
     def visit_node(
         self,

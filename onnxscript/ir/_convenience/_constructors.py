@@ -194,7 +194,7 @@ def node(
         A node with the given op_type and inputs.
     """
     if attributes is None:
-        attrs: Sequence[ir.Attr | ir.RefAttr] = ()
+        attrs: Sequence[ir.Attr] = ()
     else:
         attrs = _convenience.convert_attributes(attributes)
     return _core.Node(

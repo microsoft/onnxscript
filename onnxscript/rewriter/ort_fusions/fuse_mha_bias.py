@@ -15,19 +15,6 @@ Dim = Union[int, ir.SymbolicDim]
 
 
 class FuseBiasMHA(pattern.RewriteRuleClassBase):
-    def __init__(
-        self,
-        name,
-        *,
-        q_no_bias: bool,
-        k_no_bias: bool,
-        v_no_bias: bool,
-    ):
-        super().__init__(name)
-        self._q_no_bias = q_no_bias
-        self._k_no_bias = k_no_bias
-        self._v_no_bias = v_no_bias
-
     def pattern(
         self,
         op,
@@ -43,18 +30,21 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
         num_heads,
         # scale,
     ):
-        if not self._q_no_bias:
-            query_BSD = op.Add(query_matmul, q_bias)
-        else:
-            query_BSD = query_matmul
-        if not self._k_no_bias:
-            key_BSD = op.Add(key_matmul, k_bias)
-        else:
-            key_BSD = key_matmul
-        if not self._v_no_bias:
-            value_BSD = op.Add(value_matmul, v_bias)
-        else:
-            value_BSD = value_matmul
+        query_BSD = pattern.OrValue(
+            [op.Add(query_matmul, q_bias), query_matmul],
+            tag_var="has_q_bias",
+            tag_values=[True, False],
+        )
+        key_BSD = pattern.OrValue(
+            [op.Add(key_matmul, k_bias), key_matmul],
+            tag_var="has_k_bias",
+            tag_values=[True, False],
+        )
+        value_BSD = pattern.OrValue(
+            [op.Add(value_matmul, v_bias), value_matmul],
+            tag_var="has_v_bias",
+            tag_values=[True, False],
+        )
 
         return op.MultiHeadAttention(
             query_BSD,
@@ -72,13 +62,19 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
 
     def check(
         self,
-        op,
+        context,
         query_matmul,
         key_matmul,
         value_matmul,
+        has_q_bias,
+        has_k_bias,
+        has_v_bias,
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
+
+        if not (has_q_bias or has_k_bias or has_v_bias):
+            return check_result.fail("None of query, key, or value have a bias.")
 
         self.bindings: dict[str, Dim] = {}
 
@@ -139,15 +135,15 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
         # scale,
         **_,
     ):
-        if self._q_no_bias:
+        if q_bias is None:
             q_bias = op.Constant(
                 value=ir.tensor(numpy.zeros((self.Dh_q,), dtype=query_matmul.dtype.numpy()))
             )
-        if self._k_no_bias:
+        if k_bias is None:
             k_bias = op.Constant(
                 value=ir.tensor(numpy.zeros((self.Dh_k,), dtype=key_matmul.dtype.numpy()))
             )
-        if self._v_no_bias:
+        if v_bias is None:
             v_bias = op.Constant(
                 value=ir.tensor(numpy.zeros((self.Dh_v,), dtype=value_matmul.dtype.numpy()))
             )
@@ -167,30 +163,7 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
         )
 
 
-parameter_combinations = [
-    {
-        "q_no_bias": q_no_bias,
-        "k_no_bias": k_no_bias,
-        "v_no_bias": v_no_bias,
-    }
-    for q_no_bias in [False, True]
-    for k_no_bias in [False, True]
-    for v_no_bias in [False, True]
-]
-
-# Dynamically create the rules
-fuse_mha_bias_rules = pattern.RewriteRuleSet(
-    [
-        FuseBiasMHA.rule(
-            f"MHABias{'_NoQBias' if params['q_no_bias'] else ''}"
-            f"{'_NoKBias' if params['k_no_bias'] else ''}"
-            f"{'_NoVBias' if params['v_no_bias'] else ''}",
-            **params,
-        )
-        # Exclude (True, True, True) as it is an unnecessary case
-        for params in parameter_combinations[:-1]
-    ]
-)
+fuse_mha_bias_rules = pattern.RewriteRuleSet([FuseBiasMHA.rule()])
 
 
 fuse_mha_bias = _fusion_utils.apply_fusion_rules(fuse_mha_bias_rules)
