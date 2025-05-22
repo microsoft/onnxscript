@@ -10,7 +10,7 @@ stages:
   dependsOn: []
   jobs:
   - job: onnxscript_publish
-    environment: 
+    environment:
       name: 'onnxscript-release'
     pool:
       vmImage: 'ubuntu-latest'
