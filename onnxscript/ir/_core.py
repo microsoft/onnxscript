@@ -3134,6 +3134,10 @@ class Attr(
     def name(self) -> str:
         return self._name
 
+    @name.setter
+    def name(self, value: str) -> None:
+        self._name = value
+
     @property
     def type(self) -> _enums.AttributeType:
         return self._type
