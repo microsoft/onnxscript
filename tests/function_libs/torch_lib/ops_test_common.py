@@ -420,7 +420,7 @@ def add_torchlib_common_imports(model: ir.Model) -> None:
     is_scalar_func = ir.serde.deserialize_function(common_ops.IsScalar.to_function_proto())
     model.functions[rank_func.identifier()] = rank_func
     model.functions[is_scalar_func.identifier()] = is_scalar_func
-    removal_pass = onnxscript.ir.passes.common.unused_removal.RemoveUnusedFunctionsPass()
+    removal_pass = onnxscript.ir.passes.common.RemoveUnusedFunctionsPass()
     assert removal_pass.in_place
     removal_pass(model)
 

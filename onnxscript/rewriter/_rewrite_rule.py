@@ -18,7 +18,7 @@ import onnxscript.rewriter._basics as _basics
 import onnxscript.rewriter._matcher as _matcher
 import onnxscript.rewriter._pattern_ir as _pattern_ir
 from onnxscript import ir
-from onnxscript.ir import _convenience, _tape
+from onnxscript.ir import _tape, convenience
 
 T = TypeVar("T")
 
@@ -525,7 +525,7 @@ class RewriteRuleSet:
                     )
                     f = ir.Function(domain, name, overload, graph=graph, attributes=())
                     model.functions[f.identifier()] = f
-                _convenience.replace_nodes_and_values(
+                convenience.replace_nodes_and_values(
                     graph_or_function,
                     node,
                     delta.match.nodes if rule.remove_nodes else [],
