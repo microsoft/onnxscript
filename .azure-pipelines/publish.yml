@@ -1,19 +1,21 @@
 trigger: none
-name: onnxscript-publish-dev.$(Date:yyyyMMdd).$(Rev:r)
+name: onnxscript-publish.$(Date:yyyyMMdd).$(Rev:r)
 resources:
   pipelines:
-  - pipeline: onnxscript-release-dev
-    source: onnxscript-release-dev
+  - pipeline: onnxscript-release
+    source: onnxscript-release
     trigger: true
 stages:
 - stage: Release
   dependsOn: []
   jobs:
-  - job: onnxscript_publish_dev
+  - job: onnxscript_publish
+    environment:
+      name: 'onnxscript-release'
     pool:
       vmImage: 'ubuntu-latest'
     steps:
-    - download: onnxscript-release-dev
+    - download: onnxscript-release
       artifact: drop
     - task: EsrpRelease@9
       displayName: 'ESRP Release'
@@ -23,7 +25,7 @@ stages:
         signcertname: 'esrpcodesign'
         clientid: '53d54d02-978d-4305-8572-583cf6711c4f'
         contenttype: PyPi
-        folderlocation: '$(Pipeline.Workspace)/onnxscript-release-dev/drop'
+        folderlocation: '$(Pipeline.Workspace)/onnxscript-release/drop'
         owners: 'justinchu@microsoft.com'
         approvers: 'grama@microsoft.com'
         mainpublisher: AIFrameworks
