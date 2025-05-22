@@ -262,12 +262,13 @@ class _VersionConverter:
         )
 
     def visit_attribute(self, attr: ir.Attr) -> None:
-        if isinstance(attr, ir.Attr):
-            if attr.type == ir.AttributeType.GRAPH:
-                self.visit_graph(attr.value)  # type: ignore[arg-type]
-            elif attr.type == ir.AttributeType.GRAPHS:
-                for graph in attr.value:
-                    self.visit_graph(graph)  # type: ignore[arg-type]
+        if attr.is_ref():
+            return
+        if attr.type == ir.AttributeType.GRAPH:
+            self.visit_graph(attr.value)  # type: ignore[arg-type]
+        elif attr.type == ir.AttributeType.GRAPHS:
+            for graph in attr.value:
+                self.visit_graph(graph)  # type: ignore[arg-type]
 
     def visit_node(
         self,
