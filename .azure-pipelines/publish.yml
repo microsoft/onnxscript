@@ -9,7 +9,7 @@ stages:
 - stage: Release
   dependsOn: []
   jobs:
-  - job: onnxscript_publish
+  - deployment: onnxscript_publish
     environment:
       name: 'onnxscript-release'
     pool:
