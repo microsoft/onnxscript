@@ -905,14 +905,14 @@ def deserialize_metadata_props(
 _deserialize_string_string_maps = deserialize_metadata_props
 
 
-def deserialize_attribute(proto: onnx.AttributeProto) -> _core.Attr | _core.RefAttr:
+def deserialize_attribute(proto: onnx.AttributeProto) -> _core.Attr:
     return _deserialize_attribute(proto, [])
 
 
 @_capture_errors(lambda proto, scoped_values: str(proto))
 def _deserialize_attribute(
     proto: onnx.AttributeProto, scoped_values: list[dict[str, _core.Value]]
-) -> _core.Attr | _core.RefAttr:
+) -> _core.Attr:
     name = proto.name
     doc_string = _get_field(proto, "doc_string")
     type_ = _enums.AttributeType(proto.type)
@@ -1465,20 +1465,10 @@ def serialize_node_into(node_proto: onnx.NodeProto, from_: _protocols.NodeProtoc
         node_proto.output.append(output.name)
 
     for attr in from_.attributes.values():
-        if isinstance(attr, _core.Attr):
+        if not attr.is_ref():
             serialize_attribute_into(node_proto.attribute.add(), from_=attr)
-        elif isinstance(attr, _core.RefAttr):
-            serialize_reference_attribute_into(node_proto.attribute.add(), from_=attr)
-        # Handle protocol attributes for completeness. We do not check them first because
-        # calling isinstance on a protocol can be slow.
-        # Most of the time, we will have Attr or RefAttr so the two branches below
-        # will not be taken.
-        elif isinstance(attr, _protocols.AttributeProtocol):
-            serialize_attribute_into(node_proto.attribute.add(), from_=attr)
-        elif isinstance(attr, _protocols.ReferenceAttributeProtocol):
-            serialize_reference_attribute_into(node_proto.attribute.add(), from_=attr)
         else:
-            raise TypeError(f"Unsupported attribute type: {type(attr)}")
+            serialize_reference_attribute_into(node_proto.attribute.add(), from_=attr)
 
 
 def serialize_tensor(tensor: _protocols.TensorProtocol) -> onnx.TensorProto:

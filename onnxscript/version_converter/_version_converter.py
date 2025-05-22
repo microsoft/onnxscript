@@ -261,7 +261,7 @@ class _VersionConverter:
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
 
-    def visit_attribute(self, attr: ir.Attr | ir.RefAttr) -> None:
+    def visit_attribute(self, attr: ir.Attr) -> None:
         if isinstance(attr, ir.Attr):
             if attr.type == ir.AttributeType.GRAPH:
                 self.visit_graph(attr.value)  # type: ignore[arg-type]

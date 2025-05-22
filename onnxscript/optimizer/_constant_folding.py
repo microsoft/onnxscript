@@ -1059,7 +1059,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         # TODO: what about new opset_imports?
         # TODO: track statistics about replaced nodes and sizes of new constants
 
-    def visit_attribute(self, attr: ir.Attr | ir.RefAttr) -> None:
+    def visit_attribute(self, attr: ir.Attr) -> None:
         if isinstance(attr, ir.Attr):
             if attr.type == ir.AttributeType.GRAPH:
                 self.visit_graph(attr.as_graph())
