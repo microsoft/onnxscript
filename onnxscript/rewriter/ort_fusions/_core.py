@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import onnxscript.ir as ir
+import onnxscript.rewriter.ort_fusions.shape_optimization as shape_optimization
 from onnxscript.ir.passes.common import shape_inference
 from onnxscript.optimizer import optimize
 from onnxscript.rewriter import rewrite
@@ -51,6 +52,7 @@ def _pre_optimize(model: ir.Model) -> ir.Model:
     # incorporated in our optimizer.
     shape_inference.infer_shapes(model)
     optimize(model)
+    shape_optimization.rules.apply_to_model(model)
     return model
 
 
