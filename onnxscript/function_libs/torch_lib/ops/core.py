@@ -6751,12 +6751,12 @@ def aten_pow_tensor_scalar(self: TReal, exponent: float) -> TReal:
     """pow(Tensor self, Scalar exponent) -> Tensor"""
     if self.dtype.is_floating_point():
         # Handle cases when e.g. (1) self is float16 or int
-        return op.Pow(self, op.Cast(exponent, to=self.dtype))
-
+        return op.Pow(self, ir.tensor(exponent, dtype=self.dtype))
     # For integer types, we need to cast self to the exponent type
     if isinstance(exponent, int):
         # The scalar exponent can be an int
-        return op.Pow(self, op.Cast(exponent, to=self.dtype))
+        return op.Pow(self, ir.tensor(exponent, dtype=self.dtype))
+
     # exponent is float so we cast self to match the exponent type.
     # More precisely if self is float64, we should cast exponent to float64; but
     # this is uncommon and should be fixed when we create a general type promotion
