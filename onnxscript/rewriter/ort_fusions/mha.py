@@ -375,46 +375,49 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             _outputs=num_outputs,
         )
 
-
-parameter_combinations = [
-    {
-        "double_transpose": double_transpose,
-        "transpose_4d": transpose_4d,
-        "pre_scale_q": pre_scale_q,
-        "is_rotary": is_rotary,
-        "use_mask": use_mask,
-        "has_past_present": has_past_present,
-        "is_cross_attention": is_cross_attention,
-    }
-    for double_transpose in [False, True]
-    for transpose_4d in (
-        [False, True] if double_transpose else [False]
-    )  # Only generate patterns when double_transpose is True
-    for pre_scale_q in [True, False]
-    for is_rotary in [False, True]
-    for use_mask in [False, True]
-    for is_cross_attention in [False, True]
-    for has_past_present in ([False] if is_cross_attention else [True, False])
-    # Skip if both has_past_present and is_cross_attention are True
-    if not (has_past_present and is_cross_attention)
-]
-
-# Dynamically create the rules
-mha_rules = pattern.RewriteRuleSet(
-    [
-        MultiHeadAttention.rule(
-            f"MHA_{'4D' if params['transpose_4d'] else '3D'}_Transpose"
-            f"{'_Twice' if params['double_transpose'] else ''}"
-            f"{'_PreScaleQ' if params['pre_scale_q'] else ''}"
-            f"{'_Rotary' if params['is_rotary'] else ''}"
-            f"{'_Masked' if params['use_mask'] else ''}"
-            f"{'_Past' if params['has_past_present'] else ''}"
-            f"{'_CrossAttention' if params['is_cross_attention'] else ''}",
-            **params,
-        )
-        for params in parameter_combinations
+def _make_rule_set(has_past_present:bool):
+    parameter_combinations = [
+        {
+            "double_transpose": double_transpose,
+            "transpose_4d": transpose_4d,
+            "pre_scale_q": pre_scale_q,
+            "is_rotary": is_rotary,
+            "use_mask": use_mask,
+            "has_past_present": has_past_present,
+            "is_cross_attention": is_cross_attention,
+        }
+        for double_transpose in [False, True]
+        for transpose_4d in (
+            [False, True] if double_transpose else [False]
+        )  # Only generate patterns when double_transpose is True
+        for pre_scale_q in [True, False]
+        for is_rotary in [False, True]
+        for use_mask in [False, True]
+        for is_cross_attention in [False] if has_past_present else [False, True]
     ]
-)
 
+    # Dynamically create the rules
+    mha_rules = pattern.RewriteRuleSet(
+        [
+            MultiHeadAttention.rule(
+                f"MHA_{'4D' if params['transpose_4d'] else '3D'}_Transpose"
+                f"{'_Twice' if params['double_transpose'] else ''}"
+                f"{'_PreScaleQ' if params['pre_scale_q'] else ''}"
+                f"{'_Rotary' if params['is_rotary'] else ''}"
+                f"{'_Masked' if params['use_mask'] else ''}"
+                f"{'_Past' if params['has_past_present'] else ''}"
+                f"{'_CrossAttention' if params['is_cross_attention'] else ''}",
+                **params,
+            )
+            for params in parameter_combinations
+        ]
+    )
 
-fuse_mha = _fusion_utils.apply_fusion_rules(mha_rules)
+    return mha_rules
+
+mha_rules_no_past = _make_rule_set(has_past_present=False)
+mha_rules_with_past = _make_rule_set(has_past_present=True)
+
+# Try rules with past first, and then rules without past.
+fuse_mha1 = _fusion_utils.apply_fusion_rules(mha_rules_with_past)
+fuse_mha2 = _fusion_utils.apply_fusion_rules(mha_rules_no_past)
