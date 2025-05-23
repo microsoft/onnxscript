@@ -1266,7 +1266,7 @@ class Usage(NamedTuple):
     idx: int
 
 
-def _short_tensor_str_for_node(x: Value) -> str:
+def _short_tensor_str(x: Value) -> str:
     if x.const_value is None:
         return ""
     if x.const_value.size <= 10:
@@ -1451,7 +1451,7 @@ class Node(_protocols.NodeProtocol, _display.PrettyPrintable):
             + ", ".join(
                 [
                     (
-                        f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}{_short_tensor_str_for_node(x)}"
+                        f"%{_quoted(x.name) if x.name else 'anonymous:' + str(id(x))}{_short_tensor_str(x)}"
                         if x is not None
                         else "None"
                     )
@@ -1898,9 +1898,7 @@ class Value(_protocols.ValueProtocol, _display.PrettyPrintable):
 
         # Quote the name because in reality the names can have invalid characters
         # that make them hard to read
-        return (
-            f"%{_quoted(value_name)}<{type_text},{shape_text}>{self._constant_tensor_part()}"
-        )
+        return f"%{_quoted(value_name)}<{type_text},{shape_text}>{_short_tensor_str(self)}"
 
     def _constant_tensor_part(self) -> str:
         """Display string for the constant tensor attached to str of Value."""
