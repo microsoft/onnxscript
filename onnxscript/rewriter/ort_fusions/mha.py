@@ -328,6 +328,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         q_scale=None,
         **_,
     ):
+        print(self.name)
         scale = _ir_utils.get_singleton_value(q_scale)
         num_heads = _ir_utils.get_dim(query_BSHDh, 2)
         if not isinstance(num_heads, int):
@@ -349,6 +350,13 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 )
             else:
                 key_BSD_emb = key
+        elif self._is_cross_attention:
+            query_BSD_emb = query_BSD
+            # Must convert key/value from 4D to 3D for use in MHA
+            key = op.Transpose(key, perm=[0, 2, 1, 3])
+            key_BSD_emb = op.Reshape(key, op.Constant(value_ints=[0, 0, -1]))
+            value = op.Transpose(value, perm=[0, 2, 1, 3])
+            value = op.Reshape(value, op.Constant(value_ints=[0, 0, -1]))
         else:
             query_BSD_emb = query_BSD
             key_BSD_emb = key
