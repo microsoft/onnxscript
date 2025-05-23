@@ -375,7 +375,8 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             _outputs=num_outputs,
         )
 
-def _make_rule_set(has_past_present:bool):
+
+def _make_rule_set(has_past_present: bool):
     parameter_combinations = [
         {
             "double_transpose": double_transpose,
@@ -393,7 +394,7 @@ def _make_rule_set(has_past_present:bool):
         for pre_scale_q in [True, False]
         for is_rotary in [False, True]
         for use_mask in [False, True]
-        for is_cross_attention in [False] if has_past_present else [False, True]
+        for is_cross_attention in ([False] if has_past_present else [False, True])
     ]
 
     # Dynamically create the rules
@@ -414,6 +415,7 @@ def _make_rule_set(has_past_present:bool):
     )
 
     return mha_rules
+
 
 mha_rules_no_past = _make_rule_set(has_past_present=False)
 mha_rules_with_past = _make_rule_set(has_past_present=True)
