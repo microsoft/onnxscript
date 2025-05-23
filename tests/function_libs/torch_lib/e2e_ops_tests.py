@@ -36,7 +36,7 @@ class TorchLibe2eTest(unittest.TestCase):
         onnx_program = torch.onnx.export(model, xs, dynamo=True)
         _testing.assert_onnx_program(onnx_program)
 
-    def test_pow_scalar_int_float(self):
+    def test_pow_tensor_scalar_int_float(self):
         class PowModel(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
                 return x**0.5
@@ -46,7 +46,7 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
-    def test_pow_scalar_int_int(self):
+    def test_pow_tensor_scalar_int_int(self):
         class PowModel(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
                 return x**2
@@ -56,7 +56,7 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
-    def test_pow_scalar_float16_int(self):
+    def test_pow_tensor_scalar_float16_int(self):
         class PowModel(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
                 return x**2
@@ -66,7 +66,7 @@ class TorchLibe2eTest(unittest.TestCase):
         )
         _testing.assert_onnx_program(onnx_program)
 
-    def test_pow_scalar_float16_float(self):
+    def test_pow_tensor_scalar_float16_float(self):
         class PowModel(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
                 return x**0.5
