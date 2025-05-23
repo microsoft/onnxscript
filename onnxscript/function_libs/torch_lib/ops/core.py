@@ -6757,7 +6757,10 @@ def aten_pow_tensor_scalar(self: TReal, exponent: float) -> TReal:
     if isinstance(exponent, int):
         # The scalar exponent can be an int
         return op.Pow(self, op.Cast(exponent, to=self.dtype))
-    # exponent is float
+    # exponent is float so we cast self to match the exponent type.
+    # More precisely if self is float64, we should cast exponent to float64; but
+    # this is uncommon and should be fixed when we create a general type promotion
+    # mechanism for torchlib
     return op.Pow(op.Cast(self, to=FLOAT.dtype), exponent)
 
 
