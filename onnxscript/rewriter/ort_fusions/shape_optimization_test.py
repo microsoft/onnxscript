@@ -2,13 +2,13 @@
 # Licensed under the MIT License.
 import unittest
 
+import numpy as np
+import onnx
 import parameterized
 
-import onnx
-from onnxscript import script, FLOAT, INT64, opset18
-from onnxscript import ir
+from onnxscript import FLOAT, INT64, ir, opset18, script
 from onnxscript.rewriter.ort_fusions import shape_optimization
-import numpy as np
+
 
 def _make_model(starts: list[int], ends: list[int]) -> onnx.ModelProto:
     @script()
@@ -29,6 +29,7 @@ def _make_model(starts: list[int], ends: list[int]) -> onnx.ModelProto:
     model_proto = model_script.to_model_proto()
     return model_proto
 
+
 # Example input data
 _model_inputs = {
     "x": np.zeros((24,), dtype=np.float32),
@@ -38,15 +39,18 @@ _model_inputs = {
     "dim3": np.array([1], dtype=np.int64),
 }
 
+
 class ShapeOptimizationTest(unittest.TestCase):
-    @parameterized.parameterized.expand([
-        ([0], [1], "singleton"),
-        ([1], [3], "two_elements"),
-        ([1], [-1], "negative_index"),
-        ([-2], [1000], "out_of_bounds"),
-        ([-200], [-1], "negative_out_of_bounds"),
-        ([2],[2], "empty_slice"),
-    ])
+    @parameterized.parameterized.expand(
+        [
+            ([0], [1], "singleton"),
+            ([1], [3], "two_elements"),
+            ([1], [-1], "negative_index"),
+            ([-2], [1000], "out_of_bounds"),
+            ([-200], [-1], "negative_out_of_bounds"),
+            ([2], [2], "empty_slice"),
+        ]
+    )
     def test_shape_optimization(self, starts: list[int], ends: list[int], _name: str):
         model_proto = _make_model(starts, ends)
         model = ir.serde.deserialize_model(model_proto)
@@ -56,12 +60,18 @@ class ShapeOptimizationTest(unittest.TestCase):
         optimized_proto = ir.serde.serialize_model(model)
 
         import onnxruntime as ort
-        sess = ort.InferenceSession(model_proto.SerializeToString(), providers=["CPUExecutionProvider"])
+
+        sess = ort.InferenceSession(
+            model_proto.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
         outputs = sess.run(None, _model_inputs)
-        sess = ort.InferenceSession(optimized_proto.SerializeToString(), providers=["CPUExecutionProvider"])
+        sess = ort.InferenceSession(
+            optimized_proto.SerializeToString(), providers=["CPUExecutionProvider"]
+        )
         optimized_outputs = sess.run(None, _model_inputs)
         for orig, opt in zip(outputs, optimized_outputs):
-            np.testing.assert_array_equal(orig, opt)               
+            np.testing.assert_array_equal(orig, opt)
+
 
 if __name__ == "__main__":
     unittest.main()
