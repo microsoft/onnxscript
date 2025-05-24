@@ -68,7 +68,7 @@ def get_numpy_value(val: ir.Value | None) -> np.ndarray | None:
     """
     if val is None:
         return None
-    const_value = val.const_value
+    const_value = get_const_value(val)
     if const_value is not None:
         try:
             return const_value.numpy()

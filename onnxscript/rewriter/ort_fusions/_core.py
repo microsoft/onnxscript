@@ -53,6 +53,7 @@ def _pre_optimize(model: ir.Model) -> ir.Model:
     shape_inference.infer_shapes(model)
     optimize(model)
     shape_optimization.rules.apply_to_model(model)
+    optimize(model)
     return model
 
 
