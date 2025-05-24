@@ -1,9 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 """Fuses BatchNormalization nodes into preceding nodes. Supported fusion patterns:
-- BatchNormalization + Conv         -> Conv
-- BatchNormalization + ConvTranpose -> ConvTranpose
-- BatchNormalization + Gemm         -> Gemm
+- BatchNormalization ∘ Conv         -> Conv
+- BatchNormalization ∘ ConvTranpose -> ConvTranpose
+- BatchNormalization ∘ Gemm         -> Gemm
 
 Approach:
     Given an inbound operation output: Y = W * X + B
@@ -15,6 +15,7 @@ Approach:
 """
 
 from abc import ABC, abstractmethod
+from typing import Mapping
 
 import numpy as np
 
@@ -22,7 +23,13 @@ from onnxscript import ir
 from onnxscript.rewriter import pattern as orp
 
 
-class FuseBatchNormBase(orp.RewriteRuleClassBase, ABC):
+def _reshape_for_broadcast(x: np.ndarray, rank: int, axis: int = 1) -> np.ndarray:
+    # Build shape: 1s everywhere except -1 at the target axis
+    broadcast_shape = [1 if axis != i else -1 for i in range(rank)]
+    return np.reshape(x, broadcast_shape)
+
+
+class _FuseBatchNormBase(orp.RewriteRuleClassBase, ABC):
     """Interface for BatchNormalization nodes fusion."""
 
     def __init__(
@@ -36,17 +43,8 @@ class FuseBatchNormBase(orp.RewriteRuleClassBase, ABC):
         self.op_type = op_type
 
     @abstractmethod
-    def get_filters_axis(self, attributes) -> int:
+    def get_filters_axis(self, attributes: Mapping[str, ir.Attr]) -> int:
         """Return the axis along which BatchNorm scale should be broadcasted."""
-
-    def _reshape_for_broadcast(self, x: np.ndarray, rank: int, axis: int = 1) -> np.ndarray:
-        # Convert axis to positive
-        if axis < 0:
-            axis += rank
-
-        # Build shape: 1s everywhere except -1 at the target axis
-        broadcast_shape = [1 if axis != i else -1 for i in range(rank)]
-        return np.reshape(x, broadcast_shape)
 
     def rewrite(self, op, x: ir.Value, inbound_out: ir.Value, batchnorm_out: ir.Value):
         batchnorm_node = batchnorm_out.producer()
@@ -70,7 +68,7 @@ class FuseBatchNormBase(orp.RewriteRuleClassBase, ABC):
         # Reshape scale factor so it is broadcastable
         axis = self.get_filters_axis(inbound_node.attributes)
         fused_weights = ir.tensor(
-            weights * self._reshape_for_broadcast(scale_factor, weights.ndim, axis=axis)
+            weights * _reshape_for_broadcast(scale_factor, weights.ndim, axis=axis)
         )
 
         # Update bias
@@ -92,7 +90,9 @@ class FuseBatchNormBase(orp.RewriteRuleClassBase, ABC):
             attributes=inbound_node.attributes,
         )
 
-    def check(self, context, x, inbound_out, batchnorm_out) -> orp.MatchResult:
+    def check(
+        self, context, x, inbound_out: ir.Value, batchnorm_out: ir.Value
+    ) -> orp.MatchResult:
         del context  # Unused
         check_result = orp.MatchResult()
 
@@ -100,24 +100,27 @@ class FuseBatchNormBase(orp.RewriteRuleClassBase, ABC):
         batchnorm_node = batchnorm_out.producer()
 
         # Check that inbound weights + (inbound bias) + batchnorm params are initializers
+        # and that they are not graph inputs
         initializers = [inbound_node.inputs[1], *batchnorm_node.inputs[1:]]
         if len(inbound_node.inputs) > 2:
             initializers.append(inbound_node.inputs[2])
 
         for initializer in initializers:
             if not initializer.is_initializer() or initializer.const_value is None:
-                return check_result.fail(f"{initializer.name} is not a constant initializer")
+                return check_result.fail(f"{initializer.name} is not a constant initializer.")
+            if initializer.is_graph_input():
+                return check_result.fail(f"{initializer.name} is a graph input.")
 
         return check_result
 
 
-class FuseBatchNormIntoConv(FuseBatchNormBase):
+class FuseBatchNormIntoConv(_FuseBatchNormBase):
     """Replaces ``BatchNormalization(Conv(x))`` with ``Conv(x)``."""
 
     def __init__(self):
         super().__init__("Conv")
 
-    def get_filters_axis(self, attributes) -> int:
+    def get_filters_axis(self, attributes: Mapping[str, ir.Attr]) -> int:
         return 0
 
     def pattern(self, op, x):
@@ -128,13 +131,13 @@ class FuseBatchNormIntoConv(FuseBatchNormBase):
         )
 
 
-class FuseBatchNormIntoConvTranspose(FuseBatchNormBase):
+class FuseBatchNormIntoConvTranspose(_FuseBatchNormBase):
     """Replaces ``BatchNormalization(ConvTranspose(x))`` with ``ConvTranspose(x)``."""
 
     def __init__(self):
         super().__init__("ConvTranspose")
 
-    def get_filters_axis(self, attributes) -> int:
+    def get_filters_axis(self, attributes: Mapping[str, ir.Attr]) -> int:
         return 1
 
     def pattern(self, op, x):
@@ -145,14 +148,16 @@ class FuseBatchNormIntoConvTranspose(FuseBatchNormBase):
         )
 
 
-class FuseBatchNormIntoGemm(FuseBatchNormBase):
+class FuseBatchNormIntoGemm(_FuseBatchNormBase):
     """Replaces ``BatchNormalization(Gemm(x))`` with ``Gemm(x)``."""
 
     def __init__(self):
         super().__init__("Gemm")
 
-    def get_filters_axis(self, attributes) -> int:
-        return 0 if attributes.get("transB") is not None and attributes["transB"].value else 1
+    def get_filters_axis(self, attributes: Mapping[str, ir.Attr]) -> int:
+        return (
+            0 if attributes.get("transB") is not None and attributes["transB"].as_int() else 1
+        )
 
     def pattern(self, op, x):
         return op.BatchNormalization(

@@ -12,6 +12,22 @@ from onnxscript.rewriter import fuse_batchnorm, testing
 
 
 class FuseBatchnormTest(unittest.TestCase):
+    def _create_batchnorm_params(self, size: int):
+        return [
+            onnx.numpy_helper.from_array(
+                np.random.randn(size).astype(np.float32), name="gamma"
+            ),
+            onnx.numpy_helper.from_array(
+                np.random.randn(size).astype(np.float32), name="beta"
+            ),
+            onnx.numpy_helper.from_array(
+                np.random.randn(size).astype(np.float32), name="input_mean"
+            ),
+            onnx.numpy_helper.from_array(
+                np.abs(np.random.randn(size)).astype(np.float32), name="input_var"
+            ),
+        ]
+
     @parameterized.parameterized.expand(
         [
             ("bias_false", False),
@@ -45,14 +61,7 @@ class FuseBatchnormTest(unittest.TestCase):
             onnx.numpy_helper.from_array(
                 np.random.randn(32, 64, 3, 3).astype(np.float32), name="W"
             ),
-            onnx.numpy_helper.from_array(np.random.randn(64).astype(np.float32), name="gamma"),
-            onnx.numpy_helper.from_array(np.random.randn(64).astype(np.float32), name="beta"),
-            onnx.numpy_helper.from_array(
-                np.random.randn(64).astype(np.float32), name="input_mean"
-            ),
-            onnx.numpy_helper.from_array(
-                np.abs(np.random.randn(64)).astype(np.float32), name="input_var"
-            ),
+            *self._create_batchnorm_params(size=64),
         ]
         if convtranspose_bias:
             initializers.append(
@@ -111,14 +120,7 @@ class FuseBatchnormTest(unittest.TestCase):
             onnx.numpy_helper.from_array(
                 np.random.randn(64, 32, 3, 3).astype(np.float32), name="W"
             ),
-            onnx.numpy_helper.from_array(np.random.randn(64).astype(np.float32), name="gamma"),
-            onnx.numpy_helper.from_array(np.random.randn(64).astype(np.float32), name="beta"),
-            onnx.numpy_helper.from_array(
-                np.random.randn(64).astype(np.float32), name="input_mean"
-            ),
-            onnx.numpy_helper.from_array(
-                np.abs(np.random.randn(64)).astype(np.float32), name="input_var"
-            ),
+            *self._create_batchnorm_params(size=64),
         ]
         if conv_bias:
             initializers.append(
@@ -182,14 +184,7 @@ class FuseBatchnormTest(unittest.TestCase):
         # Add initializers
         initializers = [
             onnx.numpy_helper.from_array(weights, name="W"),
-            onnx.numpy_helper.from_array(np.random.randn(64).astype(np.float32), name="gamma"),
-            onnx.numpy_helper.from_array(np.random.randn(64).astype(np.float32), name="beta"),
-            onnx.numpy_helper.from_array(
-                np.random.randn(64).astype(np.float32), name="input_mean"
-            ),
-            onnx.numpy_helper.from_array(
-                np.abs(np.random.randn(64)).astype(np.float32), name="input_var"
-            ),
+            *self._create_batchnorm_params(size=64),
         ]
         if gemm_bias:
             initializers.append(
@@ -231,6 +226,30 @@ class FuseBatchnormTest(unittest.TestCase):
         count = fuse_batchnorm.fuse_batchnorm_rule_set().apply_to_model(model)
 
         # No changes were applied
+        self.assertEqual(count, 0)
+
+    def test_fuse_batchnorm_graph_inputs(self):
+        model_proto = onnx.parser.parse_model("""
+            < ir_version: 7, opset_import: ["" : 17] >
+            test_model (float[N, 32, 14, 16] X, float[64, 32, 3, 3] W) => (float [N, ?, ?, ?] Y)
+            {
+                X1 = Conv(X, W)
+                Y = BatchNormalization(X1, gamma, beta, input_mean, input_var)
+            }
+        """)
+        initializers = [
+            onnx.numpy_helper.from_array(
+                np.random.randn(64, 32, 3, 3).astype(np.float32), name="W"
+            ),
+            *self._create_batchnorm_params(size=64),
+        ]
+        model_proto.graph.initializer.extend(initializers)
+        onnx.checker.check_model(model_proto, True)
+
+        model = ir.serde.deserialize_model(model_proto)
+        count = fuse_batchnorm.fuse_batchnorm_rule_set().apply_to_model(model)
+
+        # No changes were applied as W is a graph input
         self.assertEqual(count, 0)
 
 
