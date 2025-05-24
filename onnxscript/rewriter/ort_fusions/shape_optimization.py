@@ -20,9 +20,13 @@ class ExtractDim(pattern.RewriteRuleClassBase):
 
     def pattern(self, op, x, dim0, dim1, dim2, dim3, start, end):
         shape = op.Concat(dim0, dim1, dim2, dim3, axis=0)
-        reshaped = op.Reshape(x, shape, allowzero=0)
+        # Note: The allowzero=1 attribute enables us to infer that the shape of the
+        # reshaped tensor is the same as the value of the shape parameter below.
+        # Otherwise, we need to know that there are no zeros in the value of "shape"
+        # for this optimization to be valid.
+        reshaped = op.Reshape(x, shape, allowzero=1)
         transposed = op.Transpose(reshaped, perm=[0, 2, 1, 3])
-        final_shape = op.Shape(transposed, _outputs=["final_shape"], start=0)
+        final_shape = op.Shape(transposed, _outputs=["final_shape"])
         final_dim = op.Slice(final_shape, start, end)
         return final_dim
 
@@ -49,10 +53,10 @@ class ExtractDim(pattern.RewriteRuleClassBase):
     def rewrite(self, op, dim0, dim1, dim2, dim3, **_):
         transposed_dims = [dim0, dim2, dim1, dim3]
         sliced_result = transposed_dims[self._start_val : self._end_val]
-        if len(sliced_result) == 1:
-            return sliced_result[0]
         if len(sliced_result) == 0:
-            return False
+            return op.Constant(value_ints=[])
+        if len(sliced_result) == 1:
+            return op.Identity(sliced_result[0])
         return op.Concat(*sliced_result, axis=0)
 
 
