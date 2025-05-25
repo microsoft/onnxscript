@@ -832,7 +832,7 @@ def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) ->
         # In rare cases the weight can be 1d
         weight_transposed = op.Unsqueeze(weight, [1])
     else:
-        assert len(weight.shape) == 2:
+        assert len(weight.shape) == 2
         weight_transposed = op.Transpose(weight, perm=[1, 0])
     mul = op.MatMul(input, weight_transposed)
     if bias is None:
