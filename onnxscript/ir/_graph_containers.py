@@ -12,7 +12,7 @@ __all__ = [
 ]
 
 import collections
-from typing import TYPE_CHECKING, Iterable, Self, SupportsIndex
+from typing import TYPE_CHECKING, Iterable, SupportsIndex
 
 import onnxscript
 
