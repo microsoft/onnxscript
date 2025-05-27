@@ -368,11 +368,6 @@ def unload_from_model(
     initializers_to_load_to_memory = []
     for graph in model.graphs():
         for value in graph.initializers.values():
-            if value.name is None:
-                raise ValueError(
-                    "Initializer name cannot be None. "
-                    "Please ensure all initializers have unique names."
-                )
             if value.const_value is None:
                 # Filter out the uninitialized initializer values
                 continue
