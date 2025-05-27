@@ -21,12 +21,14 @@ extends:
         templateContext:
           type: releaseJob
           isProduction: true
+          inputs:
+          - input: pipelineArtifact
+            artifactName: drop
+            pipeline: onnxscript-release-dev
+            targetPath: $(Pipeline.Workspace)/drop
         pool:
           name: 'onnxruntime-Win-CPU-2022'
         steps:
-        - task: 1ES.DownloadPipelineArtifact@1
-          inputs:
-            artifactName: drop
         - task: EsrpRelease@9
           displayName: 'ESRP Release'
           inputs:
