@@ -1296,12 +1296,18 @@ def serialize_graph_into(
     graph_proto: onnx.GraphProto,
     from_: _protocols.GraphProtocol | _protocols.GraphViewProtocol,
 ) -> None:
+    """Serialize an IR graph into a GraphProto."""
+
+    # Values with value info added to prevent double adding infos
+    value_info_added: set[_protocols.ValueProtocol] = set()
+
     if from_.name:
         graph_proto.name = from_.name
     if from_.doc_string:
         graph_proto.doc_string = from_.doc_string
     for input_ in from_.inputs:
         serialize_value_into(graph_proto.input.add(), input_)
+        value_info_added.add(input_)
         if input_.name not in from_.initializers:
             # Annotations for initializers will be added below to avoid double adding
             # TODO(justinchuby): We should add a method is_initializer() on Value when
@@ -1315,6 +1321,7 @@ def serialize_graph_into(
             # Serialize information about all initializers into value_info,
             # except for those that are also graph inputs
             serialize_value_into(graph_proto.value_info.add(), value)
+            value_info_added.add(value)
         if value.const_value is None:
             # Skip initializers without constant values
             logger.warning("Initializer '%s' does not have a constant value set.", value.name)
@@ -1324,6 +1331,16 @@ def serialize_graph_into(
         serialize_tensor_into(graph_proto.initializer.add(), from_=value.const_value)
     for node in from_:
         serialize_node_into(graph_proto.node.add(), from_=node)
+        for node_input in node.inputs:
+            if (
+                node_input not in value_info_added
+                and _should_create_value_info_for_value(node_input)
+            ):
+                # NOTE:
+                # If the input is from an outer graph, we add its information in the subgraph as well
+                # so that model consumers can find all relevant value_info in the same graph
+                serialize_value_into(graph_proto.value_info.add(), node_input)
+                value_info_added.add(node_input)
         for node_output in node.outputs:
             if node_output.is_graph_output():
                 # No need to serialize info for these outputs because they are handled as graph outputs
@@ -1334,8 +1351,10 @@ def serialize_graph_into(
                 continue
             else:
                 serialize_value_into(graph_proto.value_info.add(), node_output)
+                value_info_added.add(node_output)
     for output in from_.outputs:
         serialize_value_into(graph_proto.output.add(), from_=output)
+        value_info_added.add(output)
         _maybe_add_quantization_annotation(graph_proto, output)
     if from_.metadata_props:
         _serialize_metadata_props_into(graph_proto.metadata_props, from_.metadata_props)
