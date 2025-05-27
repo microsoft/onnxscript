@@ -34,7 +34,6 @@ SupportedAttrTypes = Union[
     _protocols.TensorProtocol,  # This includes all in-memory tensor types
     onnx.TensorProto,
     _core.Attr,
-    _core.RefAttr,
     _protocols.GraphProtocol,
     Sequence[_protocols.GraphProtocol],
     onnx.GraphProto,
@@ -52,7 +51,7 @@ def _infer_attribute_type(attr: SupportedAttrTypes) -> _enums.AttributeType:
         return _enums.AttributeType.FLOAT
     if isinstance(attr, str):
         return _enums.AttributeType.STRING
-    if isinstance(attr, (_core.Attr, _core.RefAttr)):
+    if isinstance(attr, _core.Attr):
         return attr.type
     if isinstance(attr, Sequence) and all(isinstance(x, int) for x in attr):
         return _enums.AttributeType.INTS
@@ -99,7 +98,7 @@ def convert_attribute(
     name: str,
     attr: SupportedAttrTypes,
     attr_type: _enums.AttributeType | None = None,
-) -> _core.Attr | _core.RefAttr:
+) -> _core.Attr:
     """Convert a Python object to a _core.Attr object.
 
     This method is useful when constructing nodes with attributes. It infers the
@@ -123,7 +122,7 @@ def convert_attribute(
             raise ValueError("attr_type must be provided when attr is None")
         return _core.Attr(name, attr_type, None)
 
-    if isinstance(attr, (_core.Attr, _core.RefAttr)):
+    if isinstance(attr, _core.Attr):
         if attr.name != name:
             raise ValueError(
                 f"Attribute name '{attr.name}' does not match provided name '{name}'"
@@ -183,7 +182,7 @@ def convert_attribute(
 
 def convert_attributes(
     attrs: Mapping[str, SupportedAttrTypes],
-) -> list[_core.Attr | _core.RefAttr]:
+) -> list[_core.Attr]:
     """Convert a dictionary of attributes to a list of _core.Attr objects.
 
     It infers the attribute type based on the type of the value. The supported
@@ -249,7 +248,7 @@ def convert_attributes(
     Returns:
         A list of _core.Attr objects.
     """
-    attributes: list[_core.Attr | _core.RefAttr] = []
+    attributes: list[_core.Attr] = []
     for name, attr in attrs.items():
         if attr is not None:
             attributes.append(convert_attribute(name, attr))

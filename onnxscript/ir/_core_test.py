@@ -1314,6 +1314,16 @@ class GraphContainersTest(unittest.TestCase):
         self.assertIs(self.value2.graph, self.graph)
         self.assertIsNone(self.value3.graph)
 
+    def test_inputs_copy(self):
+        self.graph.inputs.extend([self.value1, self.value2])
+        inputs_copy = self.graph.inputs.copy()
+        self.assertEqual(inputs_copy, [self.value1, self.value2])
+        self.assertIsNot(inputs_copy, self.graph.inputs)
+        # Modifying the copy does not affect the original
+        inputs_copy.append(self.value3)
+        self.assertNotIn(self.value3, self.graph.inputs)
+        self.assertIn(self.value3, inputs_copy)
+
     def test_append_to_outputs(self):
         self.graph.outputs.append(self.value2)
         self.assertIn(self.value2, self.graph.outputs)
@@ -1422,6 +1432,16 @@ class GraphContainersTest(unittest.TestCase):
         self.assertIs(self.value1.graph, self.graph)
         self.assertIs(self.value2.graph, self.graph)
         self.assertIsNone(self.value3.graph)
+
+    def test_outputs_copy(self):
+        self.graph.outputs.extend([self.value1, self.value2])
+        outputs_copy = self.graph.outputs.copy()
+        self.assertEqual(outputs_copy, [self.value1, self.value2])
+        self.assertIsNot(outputs_copy, self.graph.outputs)
+        # Modifying the copy does not affect the original
+        outputs_copy.append(self.value3)
+        self.assertNotIn(self.value3, self.graph.outputs)
+        self.assertIn(self.value3, outputs_copy)
 
     def test_set_initializers(self):
         self.graph.initializers["initializer1"] = self.value3

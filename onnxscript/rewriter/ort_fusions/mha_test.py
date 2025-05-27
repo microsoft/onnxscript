@@ -35,7 +35,8 @@ class TestMultiHeadAttention(unittest.TestCase):
         # Fuse SDPA and MHA
         sdpa_count = xformers.fuse_sdpa(model)
         self.assertGreater(sdpa_count, 0)
-        mha_count = xformers.fuse_mha(model)
+        mha_count = xformers.fuse_mha1(model)
+        mha_count += xformers.fuse_mha2(model)
         self.assertGreater(mha_count, 0)
 
         if test_with_ort:
@@ -59,7 +60,8 @@ class TestMultiHeadAttention(unittest.TestCase):
         sdpa_count = xformers.fuse_sdpa(model)
         self.assertGreater(sdpa_count, 0)
         model = shape_inference.infer_shapes(model)
-        mha_count = xformers.fuse_mha(model)
+        mha_count = xformers.fuse_mha1(model)
+        mha_count += xformers.fuse_mha2(model)
         self.assertGreater(mha_count, 0)
         onnxscript.optimizer.optimize(model)
 
@@ -84,7 +86,8 @@ class TestMultiHeadAttention(unittest.TestCase):
         sdpa_count = xformers.fuse_sdpa(model)
         self.assertGreater(sdpa_count, 0)
         model = shape_inference.infer_shapes(model)
-        mha_count = xformers.fuse_mha(model)
+        mha_count = xformers.fuse_mha1(model)
+        mha_count += xformers.fuse_mha2(model)
         self.assertGreater(mha_count, 0)
         onnxscript.optimizer.optimize(model)
 

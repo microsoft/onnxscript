@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import onnxscript.ir as ir
+import onnxscript.rewriter.ort_fusions.shape_optimization as shape_optimization
 from onnxscript.ir.passes.common import shape_inference
 from onnxscript.optimizer import optimize
 from onnxscript.rewriter import rewrite
 from onnxscript.rewriter.ort_fusions import (
-    fused_matmul_rule_sets,
     # group_normalization_merge_silu,
     instance_to_group_normalization,
     softmax,
@@ -20,7 +20,7 @@ from onnxscript.rewriter.ort_fusions.fuse_mha_bias import fuse_mha_bias
 from onnxscript.rewriter.ort_fusions.fuse_packed_qkv_gqa import fuse_qkv_gqa
 from onnxscript.rewriter.ort_fusions.gelu import fuse_gelu
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
-from onnxscript.rewriter.ort_fusions.mha import fuse_mha
+from onnxscript.rewriter.ort_fusions.mha import fuse_mha1, fuse_mha2
 from onnxscript.rewriter.ort_fusions.rms_normalization import fuse_rms_normalization
 from onnxscript.rewriter.ort_fusions.rotary_embedding import (
     fuse_partial_rotary_embedding,
@@ -37,7 +37,9 @@ ORT_PATTERN_REWRITE_RULES = [
     *instance_to_group_normalization.rules.rules,
     # NOTE: group normalization merge silu should be applied after instance to group normalization
     # *group_normalization_merge_silu.rules.rules,
-    *fused_matmul_rule_sets.fused_matmul_rule_sets(),
+    # NOTE: The rules below are broken:
+    # https://github.com/microsoft/onnxscript/pull/2317#issuecomment-2896058483
+    # *fused_matmul_rule_sets.fused_matmul_rule_sets(),
 ]
 
 
@@ -49,6 +51,8 @@ def _pre_optimize(model: ir.Model) -> ir.Model:
     # extra shape-propagation and partial-data-propagation rules in ONNX that are not yet
     # incorporated in our optimizer.
     shape_inference.infer_shapes(model)
+    optimize(model)
+    shape_optimization.rules.apply_to_model(model)
     optimize(model)
     return model
 
@@ -84,8 +88,9 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
     # in the rewrite rule for certain patterns of SDPA.
     fusion_count["sdpa"] = fuse(fuse_sdpa, apply_shape_inference=True)
     # Optimize to avoid trying multiple attention-based fusions
-    fusion_count["mha"] = fuse(fuse_mha)
-    if fusion_count["mha"] == 0:
+    fusion_count["mha1"] = fuse(fuse_mha1)
+    fusion_count["mha2"] = fuse(fuse_mha2)
+    if (fusion_count["mha1"] == 0) and (fusion_count["mha2"] == 0):
         # If no MHA fusion was applied, we can try the GQA fusion.
         # and avoid trying the attention fusion.
         fusion_count["gqa"] = fuse(fuse_gqa)
