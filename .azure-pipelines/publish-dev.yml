@@ -22,7 +22,7 @@ extends:
           type: releaseJob
           isProduction: true
         pool:
-          vmImage: 'ubuntu-latest'
+          name: 'onnxruntime-Win-CPU-2022'
         steps:
         - task: 1ES.DownloadPipelineArtifact@1
           inputs:
