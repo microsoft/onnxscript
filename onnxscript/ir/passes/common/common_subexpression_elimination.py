@@ -58,7 +58,18 @@ def _eliminate_common_subexpression(graph: ir.Graph, modified: bool) -> bool:
             if isinstance(v, ir.Graph):
                 control_flow_op = True
                 logger.debug("Skipping control flow op %s", node)
-            attributes[k] = v.value
+            # The attribute value could be directly taken from the original
+            # protobuf, so we need to make a copy of it.
+            value = v.value
+            if v.type in (
+                ir.AttributeType.INTS,
+                ir.AttributeType.FLOATS,
+                ir.AttributeType.STRINGS,
+            ):
+                # For INT, FLOAT and STRING attributes, we convert them to tuples
+                # to ensure they are hashable.
+                value = tuple(value)
+            attributes[k] = value
 
         if control_flow_op:
             # If the node is a control flow op, we skip it.
@@ -71,6 +82,7 @@ def _eliminate_common_subexpression(graph: ir.Graph, modified: bool) -> bool:
             tuple(id(input) for input in node.inputs),
             tuple(sorted(attributes.items())),
         )
+
         # Check if the node is a common subexpression.
         if node_info in existing_node_info_to_the_node:
             # If it is, this node has an existing node with the same
