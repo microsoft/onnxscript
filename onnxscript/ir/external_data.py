@@ -306,17 +306,20 @@ def convert_tensors_to_external(
 def load_to_model(model: _core.Model) -> _core.Model:
     """Convert all external model initializers to memory tensors in-place.
 
+    All initializers in the main graph and subgraphs are be handled.
+
     Args:
         model: Model to process.
     """
-    # TODO(justinchuby): Load attributes and initializers in subgraphs
+    # TODO(justinchuby): Load tensor attributes in subgraphs
     values_to_convert = []
-    for value in model.graph.initializers.values():
-        if value.const_value is None:
-            # Filter out the uninitialized initializer values
-            continue
-        if isinstance(value.const_value, _core.ExternalTensor):
-            values_to_convert.append(value)
+    for graph in model.graphs():
+        for value in graph.initializers.values():
+            if value.const_value is None:
+                # Filter out the uninitialized initializer values
+                continue
+            if isinstance(value.const_value, _core.ExternalTensor):
+                values_to_convert.append(value)
     loaded_tensors = convert_tensors_from_external(
         [v.const_value for v in values_to_convert]  # type: ignore[misc]
     )
@@ -346,6 +349,8 @@ def unload_from_model(
     to load the newly saved model, or provide a different external data path that
     is not currently referenced by any tensors in the model.
 
+    All initializers in the main graph and subgraphs are be handled.
+
     Args:
         model: Model to process.
         base_dir: Path the directory where the ONNX model file is.
@@ -361,14 +366,27 @@ def unload_from_model(
     initializers_to_become_external = []
     # Existing external tensors, if below the threshold, should be loaded to memory
     initializers_to_load_to_memory = []
-    for value in model.graph.initializers.values():
-        if value.const_value is None:
-            # Filter out the uninitialized initializer values
-            continue
-        if value.const_value.nbytes > size_threshold_bytes:
-            initializers_to_become_external.append(value)
-        elif isinstance(value.const_value, _core.ExternalTensor):
-            initializers_to_load_to_memory.append(value)
+    seen_names: set[str] = set()
+    for graph in model.graphs():
+        for value in graph.initializers.values():
+            if value.name is None:
+                raise ValueError(
+                    "Initializer name cannot be None. "
+                    "Please ensure all initializers have unique names."
+                )
+            if value.name in seen_names:
+                raise ValueError(
+                    f"Initializer name '{value.name}' is not unique in the model. "
+                    "Please ensure all initializers have unique names."
+                )
+            seen_names.add(value.name)
+            if value.const_value is None:
+                # Filter out the uninitialized initializer values
+                continue
+            if value.const_value.nbytes > size_threshold_bytes:
+                initializers_to_become_external.append(value)
+            elif isinstance(value.const_value, _core.ExternalTensor):
+                initializers_to_load_to_memory.append(value)
 
     # Load to memory first, then convert to external tensors, because
     # the existing external tensors may be overwritten by the new external data

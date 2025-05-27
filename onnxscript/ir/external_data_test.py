@@ -497,6 +497,5 @@ class OffloadExternalTensorTest(unittest.TestCase):
                 self.assertEqual(tensor_data, tensor_bytes)
                 self.assertEqual(tensor_data, expected_tensor_order[i])
 
-
 if __name__ == "__main__":
     unittest.main()
