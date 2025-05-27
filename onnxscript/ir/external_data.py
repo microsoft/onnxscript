@@ -306,7 +306,7 @@ def convert_tensors_to_external(
 def load_to_model(model: _core.Model) -> _core.Model:
     """Convert all external model initializers to memory tensors in-place.
 
-    All initializers in the main graph and subgraphs are be handled.
+    All initializers in the main graph and subgraphs are handled.
 
     Args:
         model: Model to process.
