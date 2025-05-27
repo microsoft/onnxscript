@@ -21,6 +21,11 @@ extends:
         templateContext:
           type: releaseJob
           isProduction: true
+          inputs:
+          - input: pipelineArtifact
+            artifactName: drop
+            pipeline: onnxscript-release
+            targetPath: $(Pipeline.Workspace)/drop
         environment:
           name: 'onnxscript-release'
         pool:
@@ -29,9 +34,6 @@ extends:
           runOnce:
             deploy:
               steps:
-              - task: 1ES.DownloadPipelineArtifact@1
-                inputs:
-                  artifactName: drop
               - task: EsrpRelease@9
                 displayName: 'ESRP Release'
                 inputs:
