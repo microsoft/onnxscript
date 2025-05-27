@@ -23,7 +23,7 @@ class CommonSubexpressionEliminationPass(ir.passes.InPlacePass):
         modified = False
         graph = model.graph
 
-        modified = _common_subexpression_elimination(graph, modified)
+        modified = _eliminate_common_subexpression(graph, modified)
 
         return ir.passes.PassResult(
             model,
@@ -31,7 +31,7 @@ class CommonSubexpressionEliminationPass(ir.passes.InPlacePass):
         )
 
 
-def _common_subexpression_elimination(graph: ir.Graph, modified: bool) -> bool:
+def _eliminate_common_subexpression(graph: ir.Graph, modified: bool) -> bool:
     """Eliminate common subexpression in ONNX graphs."""
 
     # node to node identifier, length of outputs, inputs, and attributes
@@ -47,13 +47,23 @@ def _common_subexpression_elimination(graph: ir.Graph, modified: bool) -> bool:
     previous_node = None
 
     for node in graph:
+        # Skip control flow ops like Loop and If.
+        control_flow_op: bool = False
         # Use equality to check if the node is a common subexpression.
         attributes = {}
         for k, v in node.attributes.items():
             # TODO(exporter team): CSE subgraphs.
             # NOTE: control flow ops like Loop and If won't be CSEd
             # because attribute: graph won't match.
+            if isinstance(v, ir.Graph):
+                control_flow_op = True
+                logger.debug("Skipping control flow op %s", node)
             attributes[k] = v.value
+
+        if control_flow_op:
+            # If the node is a control flow op, we skip it.
+            previous_node = node
+            continue
 
         node_info = (
             node.op_identifier(),
@@ -63,8 +73,9 @@ def _common_subexpression_elimination(graph: ir.Graph, modified: bool) -> bool:
         )
         # Check if the node is a common subexpression.
         if node_info in existing_node_info_to_the_node:
-            # If it is, this node is already in the new graph, so
-            # we don't need to create a new node.
+            # If it is, this node has an existing node with the same
+            # operator, number of outputs, inputs, and attributes.
+            # We replace the node with the existing node.
             modified = True
             existing_node = existing_node_info_to_the_node[node_info]
             ir.convenience.replace_nodes_and_values(
@@ -76,7 +87,7 @@ def _common_subexpression_elimination(graph: ir.Graph, modified: bool) -> bool:
                 new_values=existing_node.outputs,
             )
             previous_node = existing_node
-            logger.debug("Reusing node %s", existing_node.name)
+            logger.debug("Reusing node %s", existing_node)
         else:
             # If it is not, add to the mapping.
             existing_node_info_to_the_node[node_info] = node

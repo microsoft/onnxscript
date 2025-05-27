@@ -14,7 +14,19 @@ from onnxscript.ir.passes.common import common_subexpression_elimination
 
 class TestCommonSubexpressionEliminationPass(unittest.TestCase):
     def check_graph(self, model: ir.Model, inputs: list[ir.Value], delta_nodes: list[int]):
-        """Check if the model applied the CSE pass correctly."""
+        """Check if the model applied the CSE pass correctly.
+
+        Args:
+            model (ir.Model): The model to check.
+            inputs (list[ir.Value]): The inputs to the model.
+            delta_nodes (list[int]): The expected change in the number of nodes in the model.
+                                     The length of this list should match the number of graphs
+                                     in the model. (to support subgraphs in the future)
+
+        Raises:
+            AssertionError: If the model does not match the expected number of nodes or outputs.
+
+        """
         assert len(list(model.graphs())) == len(delta_nodes)
         # Log all results from the original model.
         # 1. model graph node counts
@@ -32,7 +44,6 @@ class TestCommonSubexpressionEliminationPass(unittest.TestCase):
         result = common_subexpression_elimination.CommonSubexpressionEliminationPass()(model)
 
         result_graphs_node_count = np.array([graph.num_nodes() for graph in model.graphs()])
-
         # Check if the number of nodes in the model is correct
         self.assertTrue(
             np.array_equal(
@@ -193,4 +204,42 @@ class TestCommonSubexpressionEliminationPass(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         self.check_graph(
             model, [np.random.rand(2, 2), np.random.rand(2, 2)], delta_nodes=[0, 0, 0, 0, 0]
+        )
+
+    def test_the_nodes_following_control_flow_ops_are_csed(self):
+        """Test if the nodes following control flow ops are CSEd.
+
+        def f(a, b):
+            rank = a.rank()
+            if rank == 2:
+                x = a - b
+            else:
+                x = a + b
+            a = x.cos().sin()
+            b = x.cos().sin()
+            c = a + a
+            d = b + b
+            return c + d
+
+            x = torch.randn(2, 2)
+
+        """
+
+        @script()
+        def test_model(a: FLOAT[2, 2], b: FLOAT[2, 2]) -> FLOAT[2, 2]:
+            rank = op.Size(op.Shape(a))
+            if rank == 2:
+                x = a - b
+            else:
+                x = a + b
+            a = op.Sin(op.Cos(x))
+            b = op.Sin(op.Cos(x))
+            c = a + a
+            d = b + b
+            return c + d
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        self.check_graph(
+            model, [np.random.rand(2, 2), np.random.rand(2, 2)], delta_nodes=[3, 0, 0]
         )
