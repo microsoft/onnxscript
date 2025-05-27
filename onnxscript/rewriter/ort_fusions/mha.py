@@ -328,7 +328,6 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         q_scale=None,
         **_,
     ):
-        print(self.name)
         scale = _ir_utils.get_singleton_value(q_scale)
         num_heads = _ir_utils.get_dim(query_BSHDh, 2)
         if not isinstance(num_heads, int):
