@@ -4531,7 +4531,6 @@ def aten_instance_norm(
     bn_input = op.Reshape(
         input,
         op.Concat(op.Constant(value_ints=[1, -1]), op.Shape(input, start=2), axis=0),
-        allowzero=True,
     )
     weight = op.Tile(weight, batch_size)
     bias = op.Tile(bias, batch_size)
@@ -6238,7 +6237,7 @@ def _aten_native_group_norm_onnx(
     group_tensor = op.Reshape(group, neg_1)
     # 0 in the shape list keeps dimension value unchanged, for InstanceNorm need [0,group,-1]
     shape_input = op.Concat(op.Constant(value_ints=[0]), group_tensor, neg_1, axis=0)
-    input_reshaped = op.Reshape(input, shape_input, allowzero=True)
+    input_reshaped = op.Reshape(input, shape_input)
     weight_inst_norm = op.Expand(op.CastLike(1.0, input), group_tensor)
     bias_inst_norm = op.Expand(op.CastLike(0.0, input), group_tensor)
     norm = op.InstanceNormalization(
@@ -6260,7 +6259,7 @@ def _aten_native_group_norm_onnx(
     # The returned shape for mean and vstd should be [N, group, -1]
     N = op.Shape(input, start=0, end=1)
     shape_N_group_neg1 = op.Concat(N, group_tensor, neg_1, axis=0)
-    input_N_group_neg1 = op.Reshape(input, shape_N_group_neg1, allowzero=True)
+    input_N_group_neg1 = op.Reshape(input, shape_N_group_neg1)
     # The output size is [N, group], so dims = [2]
     axes = op.Constant(value_ints=[2])
     # Get mean which size is [N, group, 1], for broadcasting
