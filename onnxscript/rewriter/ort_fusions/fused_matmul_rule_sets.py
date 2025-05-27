@@ -46,14 +46,10 @@ class FusedMatMulDiv2(orp.RewriteRuleClassBase):
     def rewrite(self, op, x, y, cst, fused: ir.Value):
         value = cst.const_value.numpy()
         c = float(value[0] if value.shape == (1,) else value)
-        node: ir.Node = fused.producer()  # type: ignore[assignment]
-
-        kwargs = {}
+        node = fused.producer()
+        assert node is not None, "FusedMatMul node should not be None"
+        kwargs = {key: val.value for key, val in node.attributes.items()}
         kwargs["alpha"] = node.attributes["alpha"].as_float() / c
-        for name in ["transA", "transB", "transBatchA", "transBatchB"]:
-            att = node.attributes.get(name)
-            if att:
-                kwargs[name] = att.value
         return op.FusedMatMul(x, y, **kwargs, _domain="com.microsoft")
 
 
@@ -62,8 +58,10 @@ class _TransposeMatMulBase(orp.RewriteRuleClassBase):
 
     def check(self, context, x, y, transposed: ir.Value, **_) -> orp.MatchResult:
         check_result = orp.MatchResult()
-        node: ir.Node = transposed.producer()  # type: ignore[assignment]
+        node = transposed.producer()
+        assert node is not None, "Transpose node should not be None"
         perm = node.attributes["perm"].as_ints()
+        # Check that last two dimensions are swapped
         expected_perm = list(range(len(perm)))
         expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
         if perm != expected_perm:
@@ -73,11 +71,9 @@ class _TransposeMatMulBase(orp.RewriteRuleClassBase):
     def rewrite(self, op, x, y, fused: ir.Value | None = None, **_):
         kwargs = {}
         if fused:
-            node: ir.Node = fused.producer()  # type: ignore[assignment]
-            for name in ["alpha", "transA", "transB", "transBatchA", "transBatchB"]:
-                att = node.attributes.get(name)
-                if att:
-                    kwargs[name] = att.value
+            node = fused.producer()
+            assert node is not None, "FusedMatMul node should not be None"
+            kwargs = {key: val.value for key, val in node.attributes.items()}
         name = "transA" if self._pos == 1 else "transB"
         kwargs[name] = 1 - kwargs.get(name, 0)
         return op.FusedMatMul(x, y, **kwargs, _domain="com.microsoft")
@@ -131,7 +127,8 @@ class MatMulTranspose(orp.RewriteRuleClassBase):
 
     def check(self, context, x, y, transposed: ir.Value, **_) -> orp.MatchResult:
         check_result = orp.MatchResult()
-        transpose: ir.Node = transposed.producer()  # type: ignore[assignment]
+        transpose = transposed.producer()
+        assert transpose is not None, "Transpose node should not be None"
         perm = transpose.attributes["perm"].as_ints()
         expected_perm = list(range(len(perm)))
         expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
@@ -142,11 +139,9 @@ class MatMulTranspose(orp.RewriteRuleClassBase):
     def rewrite(self, op, x, y, fused: ir.Value | None = None, **_):
         kwargs = {}
         if fused:
-            node: ir.Node = fused.producer()  # type: ignore[assignment]
-            for name in ["alpha", "transA", "transB", "transBatchA", "transBatchB"]:
-                att = node.attributes.get(name)
-                if att:
-                    kwargs[name] = att.value
+            node = fused.producer()
+            assert node is not None, "FusedMatMul node should not be None"
+            kwargs = {key: val.value for key, val in node.attributes.items()}
         for name in ["transA", "transB"]:
             kwargs[name] = 1 - kwargs.get(name, 0)
         return op.FusedMatMul(y, x, **kwargs, _domain="com.microsoft")
