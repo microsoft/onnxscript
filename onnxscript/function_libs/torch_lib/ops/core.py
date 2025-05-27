@@ -4531,7 +4531,7 @@ def aten_instance_norm(
     bn_input = op.Reshape(
         input,
         op.Concat(op.Constant(value_ints=[1, -1]), op.Shape(input, start=2), axis=0),
-        allowzero=True
+        allowzero=True,
     )
     weight = op.Tile(weight, batch_size)
     bias = op.Tile(bias, batch_size)
