@@ -29,9 +29,9 @@ extends:
           runOnce:
             deploy:
               steps:
-              - input: pipelineArtifact
-                pipeline: onnxscript-release-dev
-                artifactName: drop
+              - task: 1ES.DownloadPipelineArtifact@1
+                inputs:
+                  artifactName: drop
               - task: EsrpRelease@9
                 displayName: 'ESRP Release'
                 inputs:
