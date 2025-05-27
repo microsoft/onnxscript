@@ -24,8 +24,9 @@ extends:
         pool:
           vmImage: 'ubuntu-latest'
         steps:
-        - download: onnxscript-release-dev
-          artifact: drop
+        - input: pipelineArtifact
+          pipeline: onnxscript-release-dev
+          artifactName: drop
         - task: EsrpRelease@9
           displayName: 'ESRP Release'
           inputs:
