@@ -366,7 +366,6 @@ def unload_from_model(
     initializers_to_become_external = []
     # Existing external tensors, if below the threshold, should be loaded to memory
     initializers_to_load_to_memory = []
-    seen_names: set[str] = set()
     for graph in model.graphs():
         for value in graph.initializers.values():
             if value.name is None:
@@ -374,12 +373,6 @@ def unload_from_model(
                     "Initializer name cannot be None. "
                     "Please ensure all initializers have unique names."
                 )
-            if value.name in seen_names:
-                raise ValueError(
-                    f"Initializer name '{value.name}' is not unique in the model. "
-                    "Please ensure all initializers have unique names."
-                )
-            seen_names.add(value.name)
             if value.const_value is None:
                 # Filter out the uninitialized initializer values
                 continue
