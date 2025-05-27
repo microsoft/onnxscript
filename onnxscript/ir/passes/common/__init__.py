@@ -5,6 +5,7 @@ __all__ = [
     "AddInitializersToInputsPass",
     "CheckerPass",
     "ClearMetadataAndDocStringPass",
+    "CommonSubexpressionEliminationPass",
     "InlinePass",
     "LiftConstantsToInitializersPass",
     "LiftSubgraphInitializersToMainGraphPass",
@@ -18,6 +19,9 @@ __all__ = [
 
 from onnxscript.ir.passes.common.clear_metadata_and_docstring import (
     ClearMetadataAndDocStringPass,
+)
+from onnxscript.ir.passes.common.common_subexpression_elimination import (
+    CommonSubexpressionEliminationPass,
 )
 from onnxscript.ir.passes.common.constant_manipulation import (
     AddInitializersToInputsPass,
