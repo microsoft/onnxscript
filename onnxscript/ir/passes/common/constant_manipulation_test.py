@@ -248,12 +248,12 @@ class TestLiftConstantsToInitializersPass(unittest.TestCase):
 class TestLiftSubgraphInitializersToMainGraphPass(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
-            ("then_initializer", "else_initializer"),
-            ("initializer", "initializer"),
+            ("unique_init_names", "then_initializer", "else_initializer"),
+            ("duplicated_init_names", "initializer", "initializer"),
         ]
     )
     def test_pass_with_lifting_constants_to_initializers_within_subgraph(
-        self, then_initializer_name, else_initializer_name
+        self, _: str, then_initializer_name: str, else_initializer_name: str
     ):
         input_value = ir.Value(
             name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
@@ -313,7 +313,7 @@ class TestLiftSubgraphInitializersToMainGraphPass(unittest.TestCase):
         )
         if then_initializer_name == else_initializer_name:
             with self.assertRaisesRegex(
-                ValueError,
+                ir.passes.PreconditionError,
                 "Initializer name must be unique across the main graph and subgraphs",
             ):
                 constant_manipulation.LiftSubgraphInitializersToMainGraphPass()(model)
@@ -332,12 +332,12 @@ class TestLiftSubgraphInitializersToMainGraphPass(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         [
-            ("then_initializer", "else_initializer"),
-            ("initializer", "initializer"),
+            ("unique_init_names", "then_initializer", "else_initializer"),
+            ("duplicated_init_names", "initializer", "initializer"),
         ]
     )
     def test_pass_does_not_lift_initialized_inputs_in_subgraph(
-        self, then_initializer_name, else_initializer_name
+        self, _: str, then_initializer_name: str, else_initializer_name: str
     ):
         input_value = ir.Value(
             name="input", type=ir.TensorType(ir.DataType.FLOAT), shape=ir.Shape((2, 3))
@@ -399,7 +399,7 @@ class TestLiftSubgraphInitializersToMainGraphPass(unittest.TestCase):
         )
         if then_initializer_name == else_initializer_name:
             with self.assertRaisesRegex(
-                ValueError,
+                ir.passes.PreconditionError,
                 "Initializer name must be unique across the main graph and subgraphs",
             ):
                 constant_manipulation.LiftSubgraphInitializersToMainGraphPass()(model)

@@ -137,16 +137,21 @@ class LiftSubgraphInitializersToMainGraphPass(ir.passes.InPlacePass):
     This pass lifts the initializers of a subgraph to the main graph.
     It is used to ensure that the initializers are available in the main graph
     for further processing or optimization.
+
+    Initializers that are also graph inputs will not be lifted.
+
+    Preconditions:
+        - All initializers in the model must have unique names across the main graph and subgraphs.
     """
 
-    def call(self, model: ir.Model) -> ir.passes.PassResult:
-        # 1. Ensure all initializer names are unique
+    def requires(self, model: ir.Model) -> None:
+        # Ensure all initializer names are unique
         registered_initializer_names: set[str] = set()
         duplicated_initializers: list[ir.Value] = []
         for graph in model.graphs():
             for initializer in graph.initializers.values():
                 if initializer.name is None:
-                    raise ValueError(
+                    raise ir.passes.PreconditionError(
                         f"Initializer name is None. Please ensure all initializers have unique names: {initializer!r}"
                     )
                 if initializer.name in registered_initializer_names:
@@ -154,14 +159,14 @@ class LiftSubgraphInitializersToMainGraphPass(ir.passes.InPlacePass):
                 else:
                     registered_initializer_names.add(initializer.name)
         if duplicated_initializers:
-            raise ValueError(
+            raise ir.passes.PreconditionError(
                 "Found duplicated initializers in the model. "
                 "Initializer name must be unique across the main graph and subgraphs. "
                 "Please ensure all initializers have unique names. Duplicated: "
                 f"{duplicated_initializers!r}"
             )
 
-        # 2. Lift the initializers
+    def call(self, model: ir.Model) -> ir.passes.PassResult:
         count = 0
         for graph in model.graphs():
             if graph is model.graph:
@@ -177,6 +182,7 @@ class LiftSubgraphInitializersToMainGraphPass(ir.passes.InPlacePass):
                     continue
                 # Remove the initializer from the subgraph
                 graph.initializers.pop(name)
+                model.graph.register_initializer(initializer)
                 count += 1
                 logger.debug(
                     "Lifted initializer '%s' from subgraph '%s' to main graph",
