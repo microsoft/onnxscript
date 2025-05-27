@@ -156,6 +156,7 @@ class LiftSubgraphInitializersToMainGraphPass(ir.passes.InPlacePass):
         if duplicated_initializers:
             raise ValueError(
                 "Found duplicated initializers in the model. "
+                "Initializer name must be unique across the main graph and subgraphs. "
                 "Please ensure all initializers have unique names. Duplicated: "
                 f"{duplicated_initializers!r}"
             )
