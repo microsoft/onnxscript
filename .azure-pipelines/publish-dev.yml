@@ -26,7 +26,7 @@ extends:
         steps:
         - task: 1ES.DownloadPipelineArtifact@1
           inputs:
-            artifact: drop
+            artifactName: drop
         - task: EsrpRelease@9
           displayName: 'ESRP Release'
           inputs:
