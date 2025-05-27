@@ -13,12 +13,12 @@ from onnxscript.rewriter.ort_fusions import shape_optimization
 def _make_model(starts: list[int], ends: list[int]) -> onnx.ModelProto:
     @script()
     def model_script(
-        x: FLOAT["N"],
+        x: FLOAT["N"],  # noqa: F821
         dim0: INT64[1],
         dim1: INT64[1],
         dim2: INT64[1],
         dim3: INT64[1],
-    ) -> INT64["M"]:
+    ) -> INT64["M"]:  # noqa: F821
         shape = opset18.Concat(dim0, dim1, dim2, dim3, axis=0)
         reshaped = opset18.Reshape(x, shape, allowzero=1)
         transposed = opset18.Transpose(reshaped, perm=[0, 2, 1, 3])
