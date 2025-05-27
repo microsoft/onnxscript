@@ -1,6 +1,11 @@
 trigger: none
 name: onnxscript-publish-dev.$(Date:yyyyMMdd).$(Rev:r)
 resources:
+  repositories:
+  - repository: 1esPipelines
+    type: git
+    name: 1ESPipelineTemplates/1ESPipelineTemplates
+    ref: refs/tags/release
   pipelines:
   - pipeline: onnxscript-release-dev
     source: onnxscript-release-dev
