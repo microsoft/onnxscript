@@ -3654,6 +3654,19 @@ def aten_floor_divide(self: TFloat, other: TFloat) -> TFloat:
     return op.Floor(op.Div(self, other))
 
 
+@torch_op("aten::floor_divide", trace_only=True)
+def aten_floor_divide_int(self: TInt, other: TInt) -> TInt:
+    """floor_divide(Tensor self, Tensor other) -> Tensor"""
+
+    # TODO(justinchuby): This can be simplified if we can constrain the
+    # inputs to be positive integers. Consider how we can embed constraints in the model.
+    dtype = self.dtype
+    self = op.Cast(self, to=FLOAT.dtype)
+    other = op.Cast(other, to=FLOAT.dtype)
+    result = op.Floor(op.Div(self, other))
+    return op.Cast(result, to=dtype)
+
+
 @torch_op("_operator::floordiv", trace_only=True)
 def operator_floordiv(self: INT64, other: INT64) -> INT64:
     # We implement floor_divide only for positive inputs (using integer division)

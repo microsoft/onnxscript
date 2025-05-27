@@ -3183,34 +3183,58 @@ class Attr(
     # Well typed getters
     def as_float(self) -> float:
         """Get the attribute value as a float."""
+        if self.type != _enums.AttributeType.FLOAT:
+            raise TypeError(
+                f"Attribute '{self.name}' is not of type FLOAT. Actual type: {self.type}"
+            )
         # Do not use isinstance check because it may prevent np.float32 etc. from being used
         return float(self.value)
 
     def as_int(self) -> int:
         """Get the attribute value as an int."""
+        if self.type != _enums.AttributeType.INT:
+            raise TypeError(
+                f"Attribute '{self.name}' is not of type INT. Actual type: {self.type}"
+            )
         # Do not use isinstance check because it may prevent np.int32 etc. from being used
         return int(self.value)
 
     def as_string(self) -> str:
         """Get the attribute value as a string."""
+        if self.type != _enums.AttributeType.STRING:
+            raise TypeError(
+                f"Attribute '{self.name}' is not of type STRING. Actual type: {self.type}"
+            )
         if not isinstance(self.value, str):
             raise TypeError(f"Value of attribute '{self!r}' is not a string.")
         return self.value
 
     def as_tensor(self) -> _protocols.TensorProtocol:
         """Get the attribute value as a tensor."""
+        if self.type != _enums.AttributeType.TENSOR:
+            raise TypeError(
+                f"Attribute '{self.name}' is not of type TENSOR. Actual type: {self.type}"
+            )
         if not isinstance(self.value, _protocols.TensorProtocol):
             raise TypeError(f"Value of attribute '{self!r}' is not a tensor.")
         return self.value
 
     def as_graph(self) -> Graph:
         """Get the attribute value as a graph."""
+        if self.type != _enums.AttributeType.GRAPH:
+            raise TypeError(
+                f"Attribute '{self.name}' is not of type GRAPH. Actual type: {self.type}"
+            )
         if not isinstance(self.value, Graph):
             raise TypeError(f"Value of attribute '{self!r}' is not a graph.")
         return self.value
 
     def as_floats(self) -> Sequence[float]:
         """Get the attribute value as a sequence of floats."""
+        if self.type != _enums.AttributeType.FLOATS:
+            raise TypeError(
+                f"Attribute '{self.name}' is not of type FLOATS. Actual type: {self.type}"
+            )
         if not isinstance(self.value, Sequence):
             raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
         # Do not use isinstance check on elements because it may prevent np.int32 etc. from being used
@@ -3219,6 +3243,10 @@ class Attr(
 
     def as_ints(self) -> Sequence[int]:
         """Get the attribute value as a sequence of ints."""
+        if self.type != _enums.AttributeType.INTS:
+            raise TypeError(
+                f"Attribute '{self.name}' is not of type INTS. Actual type: {self.type}"
+            )
         if not isinstance(self.value, Sequence):
             raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
         # Do not use isinstance check on elements because it may prevent np.int32 etc. from being used
@@ -3227,6 +3255,10 @@ class Attr(
 
     def as_strings(self) -> Sequence[str]:
         """Get the attribute value as a sequence of strings."""
+        if self.type != _enums.AttributeType.STRINGS:
+            raise TypeError(
+                f"Attribute '{self.name}' is not of type STRINGS. Actual type: {self.type}"
+            )
         if not isinstance(self.value, Sequence):
             raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
         if onnxscript.DEBUG:
@@ -3237,6 +3269,10 @@ class Attr(
 
     def as_tensors(self) -> Sequence[_protocols.TensorProtocol]:
         """Get the attribute value as a sequence of tensors."""
+        if self.type != _enums.AttributeType.TENSORS:
+            raise TypeError(
+                f"Attribute '{self.name}' is not of type TENSORS. Actual type: {self.type}"
+            )
         if not isinstance(self.value, Sequence):
             raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
         if onnxscript.DEBUG:
@@ -3247,6 +3283,10 @@ class Attr(
 
     def as_graphs(self) -> Sequence[Graph]:
         """Get the attribute value as a sequence of graphs."""
+        if self.type != _enums.AttributeType.GRAPHS:
+            raise TypeError(
+                f"Attribute '{self.name}' is not of type GRAPHS. Actual type: {self.type}"
+            )
         if not isinstance(self.value, Sequence):
             raise TypeError(f"Value of attribute '{self!r}' is not a Sequence.")
         if onnxscript.DEBUG:
