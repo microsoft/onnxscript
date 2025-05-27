@@ -145,7 +145,7 @@ class LiftSubgraphInitializersToMainGraphPass(ir.passes.InPlacePass):
     """
 
     def requires(self, model: ir.Model) -> None:
-        # Ensure all initializer names are unique
+        """Ensure all initializer names are unique."""
         registered_initializer_names: set[str] = set()
         duplicated_initializers: list[ir.Value] = []
         for graph in model.graphs():
