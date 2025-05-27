@@ -358,6 +358,40 @@ class OrtRuleSetsTest(unittest.TestCase):
             )
             self._check_model(model_proto, rewritten_model, atol=1e-6)
 
+    # Add unit tests to check that fusion rewrite can work even if Transpose is not the first node.
+    @classmethod
+    def _fused_matmul_with_transpose_in_middle(cls):
+        models = [
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Identity", ["X"], ["Y"]),
+                        onnx.helper.make_node("MatMul", ["X", "Y"], ["xy"]),
+                        onnx.helper.make_node("Transpose", ["xy"], ["Z"], perm=[1, 0]),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+        ]
+        return models
+
+    def test_fused_matmul_with_transpose_in_middle(self):
+        rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
+        for model_proto in self._fused_matmul_with_transpose_in_middle():
+            ir_model = ir.serde.deserialize_model(model_proto)
+            rule_set.apply_to_model(ir_model)
+            rewritten_model = ir.serde.serialize_model(ir_model)
+
+            self.assertEqual(['Identity', "FusedMatMul"], [n.op_type for n in rewritten_model.graph.node])
+            self._check_model(model_proto, rewritten_model, atol=1e-6)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
