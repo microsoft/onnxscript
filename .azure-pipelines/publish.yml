@@ -5,32 +5,38 @@ resources:
   - pipeline: onnxscript-release
     source: onnxscript-release
     trigger: true
-stages:
-- stage: Release
-  dependsOn: []
-  jobs:
-  - deployment: onnxscript_publish
-    environment:
-      name: 'onnxscript-release'
-    pool:
-      vmImage: 'ubuntu-latest'
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - download: onnxscript-release
-            artifact: drop
-          - task: EsrpRelease@9
-            displayName: 'ESRP Release'
-            inputs:
-              connectedservicename: esrp_release
-              keyvaultname: 'ortbuildkeyvault'
-              signcertname: 'esrpcodesign'
-              clientid: '53d54d02-978d-4305-8572-583cf6711c4f'
-              contenttype: PyPi
-              folderlocation: '$(Pipeline.Workspace)/onnxscript-release/drop'
-              owners: 'justinchu@microsoft.com'
-              approvers: 'grama@microsoft.com'
-              mainpublisher: AIFrameworks
-              usemanagedidentity: true
-              domaintenantid: '975f013f-7f24-47e8-a7d3-abc4752bf346'
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1ESPipelineTemplates
+  parameters:
+    stages:
+    - stage: Release
+      dependsOn: []
+      jobs:
+      - deployment: onnxscript_publish
+        templateContext:
+          type: releaseJob
+          isProduction: true
+        environment:
+          name: 'onnxscript-release'
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+              - download: onnxscript-release
+                artifact: drop
+              - task: EsrpRelease@9
+                displayName: 'ESRP Release'
+                inputs:
+                  connectedservicename: esrp_release
+                  keyvaultname: 'ortbuildkeyvault'
+                  signcertname: 'esrpcodesign'
+                  clientid: '53d54d02-978d-4305-8572-583cf6711c4f'
+                  contenttype: PyPi
+                  folderlocation: '$(Pipeline.Workspace)/onnxscript-release/drop'
+                  owners: 'justinchu@microsoft.com'
+                  approvers: 'grama@microsoft.com'
+                  mainpublisher: AIFrameworks
+                  usemanagedidentity: true
+                  domaintenantid: '975f013f-7f24-47e8-a7d3-abc4752bf346'
