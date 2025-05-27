@@ -24,7 +24,7 @@ extends:
         environment:
           name: 'onnxscript-release'
         pool:
-          vmImage: 'ubuntu-latest'
+          name: 'onnxruntime-Win-CPU-2022'
         strategy:
           runOnce:
             deploy:
