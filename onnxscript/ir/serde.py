@@ -1332,9 +1332,8 @@ def serialize_graph_into(
     for node in from_:
         serialize_node_into(graph_proto.node.add(), from_=node)
         for node_input in node.inputs:
-            if (
-                node_input not in value_info_added
-                and _should_create_value_info_for_value(node_input)
+            if node_input not in value_info_added and _should_create_value_info_for_value(
+                node_input
             ):
                 # NOTE:
                 # If the input is from an outer graph, we add its information in the subgraph as well
