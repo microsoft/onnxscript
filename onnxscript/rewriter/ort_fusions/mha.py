@@ -265,8 +265,46 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                         past_value,
                     )
 
-        # TODO: mask shape check: ideally, it should be (1 or B, 1 or H, S, St)
-        # But this also, unforunately, depends on ORT version.
+        # mask (aka attention_bias) shape check:
+        # ONNX's Attention op (named SDPA here) allows a mask broadcastable to (B, H, S, St)
+        # ORT's contrib ops (MHA, Attention) allow a mask of shape (1 or B, 1 or H, S, St)
+        # That is: broadcast allowed only for the first two dimensions. (Even that is not
+        # supported by some earlier versions of ORT, which are not supported here.)
+        if self._use_mask:
+            if (mask_shape := mask.shape) is None:
+                return check_result.fail(
+                    "Mask shape cannot be determined.",
+                    mask,
+                )
+            if mask_shape.rank() == 4:
+                if no_match(mask, ["B_or_1", "H_or_1", "S_or_1", "St"]):
+                    return check_result.fail(
+                        f"Shape mismatch: {mask} does not match expected dimensions ['1 or B', '1 or H', '1 or S', 'St']",
+                        mask,
+                    )
+                mask_dim_2 = bindings.get("S_or_1")
+                if mask_dim_2 == bindings.get("S"):
+                    self._use_mask_broadcast = False
+                elif mask_dim_2 == 1:
+                    self._use_mask_broadcast = True
+                else:
+                    return check_result.fail(
+                        "Mask dimension 2 cannot be verified to be 1 or S"
+                    )
+            elif mask_shape.rank() == 2:
+                if no_match(mask, ["S_or_1", "St"]):
+                    return check_result.fail(
+                        f"Shape mismatch: {mask} does not match expected dimensions ['1 or S', 'St']",
+                        mask,
+                    )
+                self._use_mask_broadcast = True
+            else:
+                return check_result.fail(
+                    f"Mask shape {mask_shape} is not supported. Expected 2D or 4D.",
+                    mask,
+                )
+        else:
+            self._use_mask_broadcast = False
 
         # TODO: verify Reshapes:
         # eg.: verify bindings["B"] * bindings["H"] == bindings["B*H"]:
@@ -315,6 +353,12 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             query_BSD_emb = query_BSD
             key_BSD_emb = key
 
+        if self._use_mask_broadcast:
+            one = op.Constant(value_ints=[1])
+            S = op.Shape(query_BSD, start=1, end=2)
+            shape_11S1 = op.Concat(one, one, S, one, axis=0)
+            mask = op.Expand(mask, shape_11S1)
+
         num_outputs = 1 + (2 * self._has_past_present)
         return op.MultiHeadAttention(
             query_BSD_emb,
@@ -332,45 +376,50 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         )
 
 
-parameter_combinations = [
-    {
-        "double_transpose": double_transpose,
-        "transpose_4d": transpose_4d,
-        "pre_scale_q": pre_scale_q,
-        "is_rotary": is_rotary,
-        "use_mask": use_mask,
-        "has_past_present": has_past_present,
-        "is_cross_attention": is_cross_attention,
-    }
-    for double_transpose in [False, True]
-    for transpose_4d in (
-        [False, True] if double_transpose else [False]
-    )  # Only generate patterns when double_transpose is True
-    for pre_scale_q in [True, False]
-    for is_rotary in [False, True]
-    for use_mask in [False, True]
-    for is_cross_attention in [False, True]
-    for has_past_present in ([False] if is_cross_attention else [True, False])
-    # Skip if both has_past_present and is_cross_attention are True
-    if not (has_past_present and is_cross_attention)
-]
-
-# Dynamically create the rules
-mha_rules = pattern.RewriteRuleSet(
-    [
-        MultiHeadAttention.rule(
-            f"MHA_{'4D' if params['transpose_4d'] else '3D'}_Transpose"
-            f"{'_Twice' if params['double_transpose'] else ''}"
-            f"{'_PreScaleQ' if params['pre_scale_q'] else ''}"
-            f"{'_Rotary' if params['is_rotary'] else ''}"
-            f"{'_Masked' if params['use_mask'] else ''}"
-            f"{'_Past' if params['has_past_present'] else ''}"
-            f"{'_CrossAttention' if params['is_cross_attention'] else ''}",
-            **params,
-        )
-        for params in parameter_combinations
+def _make_rule_set(has_past_present: bool):
+    parameter_combinations = [
+        {
+            "double_transpose": double_transpose,
+            "transpose_4d": transpose_4d,
+            "pre_scale_q": pre_scale_q,
+            "is_rotary": is_rotary,
+            "use_mask": use_mask,
+            "has_past_present": has_past_present,
+            "is_cross_attention": is_cross_attention,
+        }
+        for double_transpose in [False, True]
+        for transpose_4d in (
+            [False, True] if double_transpose else [False]
+        )  # Only generate patterns when double_transpose is True
+        for pre_scale_q in [True, False]
+        for is_rotary in [False, True]
+        for use_mask in [False, True]
+        for is_cross_attention in ([False] if has_past_present else [False, True])
     ]
-)
+
+    # Dynamically create the rules
+    mha_rules = pattern.RewriteRuleSet(
+        [
+            MultiHeadAttention.rule(
+                f"MHA_{'4D' if params['transpose_4d'] else '3D'}_Transpose"
+                f"{'_Twice' if params['double_transpose'] else ''}"
+                f"{'_PreScaleQ' if params['pre_scale_q'] else ''}"
+                f"{'_Rotary' if params['is_rotary'] else ''}"
+                f"{'_Masked' if params['use_mask'] else ''}"
+                f"{'_Past' if params['has_past_present'] else ''}"
+                f"{'_CrossAttention' if params['is_cross_attention'] else ''}",
+                **params,
+            )
+            for params in parameter_combinations
+        ]
+    )
+
+    return mha_rules
 
 
-fuse_mha = _fusion_utils.apply_fusion_rules(mha_rules)
+mha_rules_no_past = _make_rule_set(has_past_present=False)
+mha_rules_with_past = _make_rule_set(has_past_present=True)
+
+# Try rules with past first, and then rules without past.
+fuse_mha1 = _fusion_utils.apply_fusion_rules(mha_rules_with_past)
+fuse_mha2 = _fusion_utils.apply_fusion_rules(mha_rules_no_past)
