@@ -349,7 +349,7 @@ def unload_from_model(
     to load the newly saved model, or provide a different external data path that
     is not currently referenced by any tensors in the model.
 
-    All initializers in the main graph and subgraphs are be handled.
+    All initializers in the main graph and subgraphs are handled.
 
     Args:
         model: Model to process.
