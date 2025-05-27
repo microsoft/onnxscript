@@ -37,7 +37,7 @@ def _common_subexpression_elimination(graph: ir.Graph, modified: bool) -> bool:
     # node to node identifier, length of outputs, inputs, and attributes
     existing_node_info_to_the_node: dict[
         tuple[
-            tuple[str, str, str],  # op_identifier
+            ir.OperatorIdentifier,
             int,  # len(outputs)
             tuple[int, ...],  # input ids
             tuple[tuple[str, object], ...],  # attributes
@@ -50,9 +50,9 @@ def _common_subexpression_elimination(graph: ir.Graph, modified: bool) -> bool:
         # Use equality to check if the node is a common subexpression.
         attributes = {}
         for k, v in node.attributes.items():
-            assert isinstance(v, ir.Attr)
-            if isinstance(v.value, ir.Graph):
-                modified = _common_subexpression_elimination(v.value, modified)
+            # TODO(exporter team): CSE subgraphs.
+            # NOTE: control flow ops like Loop and If won't be CSEd
+            # because attribute: graph won't match.
             attributes[k] = v.value
 
         node_info = (
