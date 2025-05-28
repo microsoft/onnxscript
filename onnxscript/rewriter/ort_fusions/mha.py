@@ -349,6 +349,13 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 )
             else:
                 key_BSD_emb = key
+        elif self._is_cross_attention:
+            query_BSD_emb = query_BSD
+            # Must convert key/value from 4D to 3D for use in MHA
+            key = op.Transpose(key, perm=[0, 2, 1, 3])
+            key_BSD_emb = op.Reshape(key, op.Constant(value_ints=[0, 0, -1]))
+            value = op.Transpose(value, perm=[0, 2, 1, 3])
+            value = op.Reshape(value, op.Constant(value_ints=[0, 0, -1]))
         else:
             query_BSD_emb = query_BSD
             key_BSD_emb = key
