@@ -127,8 +127,8 @@ def test_onnx_ir_git(session):
         PYTORCH,
         TORCHVISON,
         ONNX,
+        ONNX_RUNTIME,
         TRANSFORMERS,
-        *ONNX_RUNTIME_NIGHTLY_DEPENDENCIES,
     )
     session.install(ONNX_IR_MAIN)
     session.install(".", "--no-deps")
