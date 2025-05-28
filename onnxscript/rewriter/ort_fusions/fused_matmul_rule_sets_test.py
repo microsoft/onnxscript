@@ -29,8 +29,23 @@ class FusedMatMul(onnx.reference.op_run.OpRun):
         transBatchA: int = 0,
         transBatchB: int = 0,
     ):
-        assert transBatchA == 0, f"Not implemented for transBatchA==1 and {A.shape}x{B.shape}"
-        assert transBatchB == 0, f"Not implemented for transBatchB==1 and {A.shape}x{B.shape}"
+        if transBatchA != 0 or transBatchB != 0:
+            assert len(A.shape) >= 3 and len(B.shape) >= 3, (
+                f"Batch dimensions must be at least 3 for A: {A.shape} and B: {B.shape}"
+            )
+            assert len(A.shape) == len(B.shape), (
+                f"Batch dimensions must match for A: {A.shape} and B: {B.shape}"
+            )
+        if transBatchA:
+            perm = list(range(len(A.shape)))
+            dim = len(perm)
+            perm = perm[1 : dim - 1] + [perm[0], perm[dim - 1]]
+            A = np.transpose(A, perm)
+        if transBatchB:
+            perm = list(range(len(B.shape)))
+            dim = len(perm)
+            perm = perm[1 : dim - 1] + [perm[0], perm[dim - 1]]
+            B = np.transpose(B, perm)
         if transA:
             perm = list(range(len(A.shape)))
             dim = len(perm)
@@ -187,6 +202,10 @@ class OrtRuleSetsTest(unittest.TestCase):
                             ["xy"],
                             domain="com.microsoft",
                             alpha=0.5,
+                            transA=0,
+                            transB=0,
+                            transBatchA=0,
+                            transBatchB=0,
                         ),
                         onnx.helper.make_node("Transpose", ["xy"], ["Z"], perm=[1, 0]),
                     ],
@@ -248,6 +267,10 @@ class OrtRuleSetsTest(unittest.TestCase):
                             ["Z"],
                             domain="com.microsoft",
                             alpha=0.5,
+                            transA=0,
+                            transB=0,
+                            transBatchA=0,
+                            transBatchB=0,
                         ),
                     ],
                     "name",
@@ -290,6 +313,10 @@ class OrtRuleSetsTest(unittest.TestCase):
                             ["Z"],
                             domain="com.microsoft",
                             alpha=0.5,
+                            transA=0,
+                            transB=0,
+                            transBatchA=0,
+                            transBatchB=0,
                         ),
                     ],
                     "name",
@@ -358,9 +385,9 @@ class OrtRuleSetsTest(unittest.TestCase):
             )
             self._check_model(model_proto, rewritten_model, atol=1e-6)
 
-    # Add unit tests to check that fusion rewrite can work even if Transpose is not the first node.
+    # Add unit tests to check that fusion rewrite can work even if MatMul is not the first node.
     @classmethod
-    def _fused_matmul_with_transpose_in_middle(cls):
+    def _fused_matmul_with_transpose_or_matmul_in_middle(cls):
         models = [
             onnx.helper.make_model(
                 onnx.helper.make_graph(
@@ -380,17 +407,194 @@ class OrtRuleSetsTest(unittest.TestCase):
                     onnx.helper.make_opsetid("com.microsoft", 1),
                 ],
             ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Identity", ["X"], ["Y"]),
+                        onnx.helper.make_node("Transpose", ["X"], ["xy"], perm=[1, 0]),
+                        onnx.helper.make_node("MatMul", ["xy", "Y"], ["Z"]),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
         ]
         return models
 
-    def test_fused_matmul_with_transpose_in_middle(self):
+    def test_fused_matmul_with_transpose_or_matmul_in_middle(self):
         rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
-        for model_proto in self._fused_matmul_with_transpose_in_middle():
+        for model_proto in self._fused_matmul_with_transpose_or_matmul_in_middle():
             ir_model = ir.serde.deserialize_model(model_proto)
             rule_set.apply_to_model(ir_model)
             rewritten_model = ir.serde.serialize_model(ir_model)
 
-            self.assertEqual(['Identity', "FusedMatMul"], [n.op_type for n in rewritten_model.graph.node])
+            self.assertEqual(
+                ["Identity", "FusedMatMul"], [n.op_type for n in rewritten_model.graph.node]
+            )
+            self._check_model(model_proto, rewritten_model, atol=1e-6)
+
+
+    @classmethod
+    def _transposed_fused_matmul_batch_models(cls):
+        models = [
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["X"], ["Xt"], perm=[1, 2, 0, 3]),
+                        onnx.helper.make_node(
+                            "FusedMatMul",
+                            ["Xt", "Y"],
+                            ["Z"],
+                            domain="com.microsoft",
+                            alpha=0.5,
+                            transA=0,
+                            transB=0,
+                            transBatchA=0,
+                            transBatchB=0,
+                        ),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4, 4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4, 4, 4]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["X"], ["Xt"], perm=[2, 0, 1, 3]),
+                        onnx.helper.make_node(
+                            "FusedMatMul",
+                            ["Xt", "Y"],
+                            ["Z"],
+                            domain="com.microsoft",
+                            alpha=0.5,
+                            transA=0,
+                            transB=0,
+                            transBatchA=1,
+                            transBatchB=0,
+                        ),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4, 4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4, 4, 4]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["X"], ["Xt"], perm=[1, 2, 3, 0]),
+                        onnx.helper.make_node(
+                            "FusedMatMul",
+                            ["Xt", "Y"],
+                            ["Z"],
+                            domain="com.microsoft",
+                            alpha=0.5,
+                            transA=0,
+                            transB=0,
+                            transBatchA=0,
+                            transBatchB=0,
+                        ),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4, 4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4, 4, 4]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["X"], ["Xt"], perm=[3, 0, 1, 2]),
+                        onnx.helper.make_node(
+                            "FusedMatMul",
+                            ["Xt", "Y"],
+                            ["Z"],
+                            domain="com.microsoft",
+                            alpha=0.5,
+                            transA=0,
+                            transB=0,
+                            transBatchA=1,
+                            transBatchB=0,
+                        ),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4, 4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4, 4, 4]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["X"], ["Xt"], perm=[3, 1, 2, 0]),
+                        onnx.helper.make_node(
+                            "FusedMatMul",
+                            ["Xt", "Y"],
+                            ["Z"],
+                            domain="com.microsoft",
+                            alpha=0.5,
+                            transA=0,
+                            transB=0,
+                            transBatchA=1,
+                            transBatchB=0,
+                        ),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4, 4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4, 4, 4]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+        ]
+        return models
+
+    def test_transposed_fused_matmul_batch_models(self):
+        rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
+        for model_proto in self._transposed_fused_matmul_batch_models():
+            ir_model = ir.serde.deserialize_model(model_proto)
+            rule_set.apply_to_model(ir_model)
+            rewritten_model = ir.serde.serialize_model(ir_model)
+
+            self.assertEqual(["FusedMatMul"], [n.op_type for n in rewritten_model.graph.node])
             self._check_model(model_proto, rewritten_model, atol=1e-6)
 
 if __name__ == "__main__":
