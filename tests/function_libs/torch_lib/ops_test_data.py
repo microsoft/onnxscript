@@ -1457,13 +1457,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.bool,),
         reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
     ),
-    TorchLibOpInfo(
-        "unflatten",
-        core_ops.aten_unflatten,
-    ).xfail(
-        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
-        reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
-    ),
+    TorchLibOpInfo("unflatten", core_ops.aten_unflatten),
     TorchLibOpInfo("unfold", core_ops.aten_unfold),
     TorchLibOpInfo("ops.aten.unfold", core_ops.aten_unfold),
     TorchLibOpInfo("unsqueeze", core_ops.aten_unsqueeze),

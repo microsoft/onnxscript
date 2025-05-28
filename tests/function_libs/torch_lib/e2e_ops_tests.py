@@ -5,13 +5,11 @@
 
 import unittest
 
-import onnxruntime
 import torch
+from torch.onnx._internal.exporter import _testing
 
-from tests.common import testutils
 
-
-class TorchLibe2eTest(testutils.TestBase):
+class TorchLibe2eTest(unittest.TestCase):
     def test_investigate_one_particular_model(self):
         """This test can be used to investigate a particular issue."""
         red, include, stype = "amin", False, "int32"
@@ -35,19 +33,48 @@ class TorchLibe2eTest(testutils.TestBase):
             torch.tensor([[0, 0, 0], [1, 1, 1]], dtype=torch.int64),
             torch.tensor([[-1, -1, -1], [-1, -1, -1]], dtype=dtype),
         )
-        expected = model(*xs)
-        model_path = (
-            f"test_aten_scatter_{red}_{'include' if include else 'exclude'}_{stype}.onnx"
-        )
-        torch.onnx.export(model, xs, model_path, dynamo=True)
-        feeds = dict(zip(["x", "indices", "updates"], [x.numpy() for x in xs]))
+        onnx_program = torch.onnx.export(model, xs, dynamo=True)
+        _testing.assert_onnx_program(onnx_program)
 
-        sess_options = onnxruntime.SessionOptions()
-        sess = onnxruntime.InferenceSession(
-            model_path, sess_options=sess_options, providers=["CPUExecutionProvider"]
+    def test_pow_tensor_scalar_int_float(self):
+        class PowModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return x**0.5
+
+        onnx_program = torch.onnx.export(
+            PowModel(), (torch.tensor(2),), dynamo=True, optimize=False
         )
-        got = sess.run(None, feeds)[0]
-        torch.testing.assert_close(expected, torch.from_numpy(got), atol=1e-5, rtol=1e-5)
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_pow_tensor_scalar_int_int(self):
+        class PowModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return x**2
+
+        onnx_program = torch.onnx.export(
+            PowModel(), (torch.tensor(2),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_pow_tensor_scalar_float16_int(self):
+        class PowModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return x**2
+
+        onnx_program = torch.onnx.export(
+            PowModel(), (torch.tensor(0.5, dtype=torch.float16),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
+
+    def test_pow_tensor_scalar_float16_float(self):
+        class PowModel(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return x**0.5
+
+        onnx_program = torch.onnx.export(
+            PowModel(), (torch.tensor(0.5, dtype=torch.float16),), dynamo=True, optimize=False
+        )
+        _testing.assert_onnx_program(onnx_program)
 
 
 if __name__ == "__main__":
