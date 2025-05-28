@@ -84,18 +84,14 @@ class SDPA(pattern.RewriteRuleClassBase):
         if query_scaling == "None":
             query_scale_value = 1.0
         elif query_scaling == "Mul":
-            if (
-                query_scale_value := _ir_utils.get_singleton_value(query_scale, rank=0)
-            ) is None:
+            if (query_scale_value := _ir_utils.get_singleton_value(query_scale)) is None:
                 return check_result.fail(
                     "Query scale is not a scalar.",
                     query_scale,
                 )
         else:
             assert query_scaling == "Div", "Unexpected query scaling operation"
-            if (
-                query_scale_value := _ir_utils.get_singleton_value(query_scale, rank=0)
-            ) is None:
+            if (query_scale_value := _ir_utils.get_singleton_value(query_scale)) is None:
                 return check_result.fail(
                     "Query scale is not a scalar.",
                     query_scale,
@@ -105,14 +101,14 @@ class SDPA(pattern.RewriteRuleClassBase):
         if key_scaling == "None":
             key_scale_value = 1.0
         elif key_scaling == "Mul":
-            if (key_scale_value := _ir_utils.get_singleton_value(key_scale, rank=0)) is None:
+            if (key_scale_value := _ir_utils.get_singleton_value(key_scale)) is None:
                 return check_result.fail(
                     "Key scale is not a scalar.",
                     key_scale,
                 )
         else:
             assert key_scaling == "Div", "Unexpected key scaling operation"
-            if (key_scale_value := _ir_utils.get_singleton_value(key_scale, rank=0)) is None:
+            if (key_scale_value := _ir_utils.get_singleton_value(key_scale)) is None:
                 return check_result.fail(
                     "Key scale is not a scalar.",
                     key_scale,
@@ -122,14 +118,14 @@ class SDPA(pattern.RewriteRuleClassBase):
         if qk_scaling == "None":
             qk_scale_value = 1.0
         elif qk_scaling == "Mul":
-            if (qk_scale_value := _ir_utils.get_singleton_value(qk_scale, rank=0)) is None:
+            if (qk_scale_value := _ir_utils.get_singleton_value(qk_scale)) is None:
                 return check_result.fail(
                     "QK scale is not a scalar.",
                     qk_scale,
                 )
         else:
             assert qk_scaling == "Div", "Unexpected QK scaling operation"
-            if (qk_scale_value := _ir_utils.get_singleton_value(qk_scale, rank=0)) is None:
+            if (qk_scale_value := _ir_utils.get_singleton_value(qk_scale)) is None:
                 return check_result.fail(
                     "QK scale is not a scalar.",
                     qk_scale,
