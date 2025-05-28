@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 
+from onnxscript import ir
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 
@@ -66,17 +67,14 @@ class SDPA(pattern.RewriteRuleClassBase):
 
     def check(
         self,
-        op,
-        query,
-        key_transposed,
-        value,
-        mask,
-        query_scaling,
-        query_scale,
-        key_scaling,
-        key_scale,
-        qk_scaling,
-        qk_scale,
+        context,
+        query: ir.Value | None,
+        query_scaling: str,
+        query_scale: ir.Value | None,
+        key_scaling: str,
+        key_scale: ir.Value | None,
+        qk_scaling: str,
+        qk_scale: ir.Value | None,
         **_,
     ):
         check_result = pattern.MatchResult()
@@ -155,10 +153,10 @@ class SDPA(pattern.RewriteRuleClassBase):
     def rewrite(
         self,
         op,
-        query,
-        key_transposed,
-        value,
-        mask,
+        query: ir.Value | None,
+        key_transposed: ir.Value | None,
+        value: ir.Value | None,
+        mask: ir.Value | None,
         **_,
     ):
         sdpa_args = [query, key_transposed, value]
