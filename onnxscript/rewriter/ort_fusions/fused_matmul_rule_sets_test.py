@@ -440,7 +440,6 @@ class OrtRuleSetsTest(unittest.TestCase):
             )
             self._check_model(model_proto, rewritten_model, atol=1e-6)
 
-
     @classmethod
     def _transposed_fused_matmul_batch_models(cls):
         models = [
@@ -596,6 +595,7 @@ class OrtRuleSetsTest(unittest.TestCase):
 
             self.assertEqual(["FusedMatMul"], [n.op_type for n in rewritten_model.graph.node])
             self._check_model(model_proto, rewritten_model, atol=1e-6)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -71,11 +71,11 @@ class _TransposeMatMulBase(orp.RewriteRuleClassBase):
         if fused:
             fused_node = fused.producer()
             assert fused_node is not None, "FusedMatMul node should not be None"
-            if fused_node.attributes["transBatchA"].as_int() == 1 and self._pos == 2:
+            if fused_node.attributes.get("transBatchA", 0).as_int() == 1 and self._pos == 1:  # type: ignore[union-attr]
                 return check_result.fail(
                     "FusedMatMul with transBatchA cannot be used with Transpose(A)."
                 )
-            if fused_node.attributes["transBatchB"].as_int() == 1 and self._pos == 1:
+            if fused_node.attributes.get("transBatchB", 0).as_int() == 1 and self._pos == 2:  # type: ignore[union-attr]
                 return check_result.fail(
                     "FusedMatMul with transBatchB cannot be used with Transpose(B)."
                 )
@@ -190,13 +190,13 @@ class TransposeFusedMatMulWithFlippedBatch1(_TransposeFusedMatMulBaseWithBatch):
         perm = node.attributes["perm"].as_ints()
         # Check that last two dimensions are swapped
         list_perm = list(range(len(perm)))
-        expected_perm0 = list_perm[1:-1] + [list_perm[0], list_perm[-1]]
-        expected_perm1 = [list_perm[-2]] + list_perm[0:-2] + [list_perm[-1]]
+        expected_perm0 = [*list_perm[1:-1], list_perm[0], list_perm[-1]]
+        expected_perm1 = [list_perm[-2], *list_perm[0:-2], list_perm[-1]]
         if self._pos == 1:
             property = "transBatchA"
         else:
             property = "transBatchB"
-        transBatch = fused_node.attributes[property].as_int()
+        transBatch = fused_node.attributes.get(property, 0).as_int()  # type: ignore[union-attr]
         if (expected_perm0 == perm and transBatch == 0) or (
             expected_perm1 == perm and transBatch == 1
         ):
@@ -235,13 +235,13 @@ class TransposeFusedMatMulWithFlippedBatchAndTranspose1(_TransposeFusedMatMulBas
         perm = node.attributes["perm"].as_ints()
         # Check that last two dimensions are swapped
         list_perm = list(range(len(perm)))
-        expected_perm0 = list_perm[1:] + [list_perm[0]]
-        expected_perm1 = [list_perm[-1]] + list_perm[0:-1]
+        expected_perm0 = [*list_perm[1:], list_perm[0]]
+        expected_perm1 = [list_perm[-1], *list_perm[0:-1]]
         if self._pos == 1:
             property = "transBatchA"
         else:
             property = "transBatchB"
-        transBatch = fused_node.attributes[property].as_int()
+        transBatch = fused_node.attributes.get(property, 0).as_int()  # type: ignore[union-attr]
         if (expected_perm0 == perm and transBatch == 0) or (
             expected_perm1 == perm and transBatch == 1
         ):
@@ -280,12 +280,12 @@ class TransposeFusedMatMulWithBatchAndTranspose1(_TransposeFusedMatMulBaseWithBa
         perm = node.attributes["perm"].as_ints()
         # Check that last two dimensions are swapped
         list_perm = list(range(len(perm)))
-        expected_perm = [list_perm[-1]] + list_perm[1:-1] + [list_perm[0]]
+        expected_perm = [list_perm[-1], *list_perm[1:-1], list_perm[0]]
         if self._pos == 1:
             property = "transBatchA"
         else:
             property = "transBatchB"
-        transBatch = fused_node.attributes[property].as_int()
+        transBatch = fused_node.attributes.get(property, 0).as_int()  # type: ignore[union-attr]
         if expected_perm == perm and transBatch == 1:
             return check_result
         return check_result.fail("Permutation values for Transpose are not correct.")
