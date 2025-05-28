@@ -45,102 +45,107 @@ class SDPA(pattern.RewriteRuleClassBase):
         # from 3D to 4D and scaling is applied before the reshaping.
         query_reshape,
     ):
-        if self._pre_scale:
-            # Some implementations scale the query and key before computing the dot product
-            if self._use_mul:
-                if self._pre_scale_q:
-                    query = op.Mul(query, qk_scale)
-                else:
-                    query = op.Mul(query, query_scale)
-                    key_transposed = op.Mul(key_transposed, key_scale)
-            else:
-                if self._pre_scale_q:
-                    query = op.Div(query, qk_scale)
-                else:
-                    query = op.Div(query, query_scale)
-                    key_transposed = op.Div(key_transposed, key_scale)
+        # Some implementations scale the query and key before computing the dot product
+        query = pattern.OrValue([
+            op.Mul(query, query_scale),
+            op.Div(query, query_scale),
+            query,
+        ], tag_var="query_scaling", tag_values=["Mul", "Div", "None"])
+        key_transposed = pattern.OrValue([
+            op.Mul(key_transposed, key_scale),
+            op.Div(key_transposed, key_scale),
+            key_transposed,
+        ], tag_var="key_scaling", tag_values=["Mul", "Div", "None"])
 
-        # There might be patterns where the reshape and transpose are done
-        # after the pre-scaling. If the inputs are 3D, we need to reshape them to 4D
-        # and apply the approriate transposes to query.
-        if self._has_3d_query and self._pre_scale_q:
-            # Reshape and transpose 3D input of shape (B, S, D)
-            # to 4D input of shape (B, N, S, H)
-            queryBNSH = op.Reshape(query, query_reshape)
-            query = op.Transpose(queryBNSH, perm=[0, 2, 1, 3])
 
         attn_score = op.MatMul(query, key_transposed)
-        if not self._pre_scale:
-            # Some implementations scale the dot product.
-            if self._use_mul:
-                attn_score = op.Mul(attn_score, qk_scale)
-            else:
-                attn_score = op.Div(attn_score, qk_scale)
-        if self._use_mask:
-            # Some implementations add a mask to the dot product.
-            attn_score = op.Add(attn_score, mask)
+
+        # Some implementations scale the dot product.
+        attn_score = pattern.OrValues ([
+            op.Mul(attn_score, qk_scale),
+            op.Div(attn_score, qk_scale),
+            attn_score,
+        ], tag_var="qk_scaling", tag_values=["Mul", "Div", "None"])
+
+        # Some implementations add a mask to the dot product.
+        masked_attn_score = op.Add(attn_score, mask)
+        attn_score = pattern.OrValue([masked_attn_score, attn_score], tag_var="has_mask", tag_values=[True, False])
+
         attn_weight = op.Softmax(attn_score, axis=-1)
         attn_output = op.MatMul(attn_weight, value)
         return attn_output
 
     def check(
-        self, op, query, key_transposed, value, mask, query_scale, key_scale, qk_scale, **_
+        self, op, query, key_transposed, value, mask, query_scaling, query_scale, key_scaling, key_scale, qk_scale, **_
     ):
         check_result = pattern.MatchResult()
-        # Check that the scaling factors match what SDPA implements:
-
-        # We need to know the hidden size to check the scaling factors.
-        if query is None or query.shape is None or len(query.shape) < 2:
-            return check_result.fail(
-                "Query shape is not known or has less than 2 dimensions.", query
-            )
-        hidden_size = query.shape[-1]
-        if not isinstance(hidden_size, int):
-            return check_result.fail("Hidden size is not an integer.")
-
-        expected_scaling_factor = math.sqrt(hidden_size)
-        if self._use_mul:
-            expected_scaling_factor = 1.0 / expected_scaling_factor
-
-        if self._pre_scale and not self._pre_scale_q:
-            # Check if query_scale and key_scale are scalars == sqrt(expected_scaling_factor)
-            # If they are scalars but != sqrt(expected_scaling_factor), a custom scale is being used.
-            sqrt_scaling_factor = math.sqrt(expected_scaling_factor)
-            # Calculate the scaling factor for query
-            if (query_scale_value := _ir_utils.get_singleton_value(query_scale)) is None:
+        
+        if query_scaling == "None":
+            query_scale_value = 1.0
+        elif query_scaling == "Mul":
+            if (query_scale_value := _ir_utils.get_singleton_value(query_scale, rank=0)) is None:
                 return check_result.fail(
                     "Query scale is not a scalar.",
                     query_scale,
                 )
-            # Ensure the scaling factor for key is the same as for query
-            if (key_scale_value := _ir_utils.get_singleton_value(key_scale)) is None:
+        else:
+            assert query_scaling == "Div", "Unexpected query scaling operation"
+            if (query_scale_value := _ir_utils.get_singleton_value(query_scale, rank=0)) is None:
+                return check_result.fail(
+                    "Query scale is not a scalar.",
+                    query_scale,
+                )
+            query_scale_value = 1.0 / query_scale_value
+
+        if key_scaling == "None":
+            key_scale_value = 1.0
+        elif key_scaling == "Mul":
+            if (key_scale_value := _ir_utils.get_singleton_value(key_scale, rank=0)) is None:
                 return check_result.fail(
                     "Key scale is not a scalar.",
                     key_scale,
                 )
-            if not math.isclose(query_scale_value, key_scale_value, rel_tol=1e-3):
-                return check_result.fail(
-                    "Query and key scales are not equal.",
-                    query_scale,
-                )
-            if not math.isclose(query_scale_value, sqrt_scaling_factor, rel_tol=1e-3):
-                self._scale = query_scale_value * query_scale_value
-            else:
-                # Pass no scaling factor to SDPA, SDPA will use the default scaling factor
-                self._scale = None
         else:
-            # Check if qk_scale is a scalar == expected_scaling_factor)
-            # If it is a scalar but != sqrt(expected_scaling_factor), a custom scale is being used
-            if (qk_scale_value := _ir_utils.get_singleton_value(qk_scale)) is None:
+            assert key_scaling == "Div", "Unexpected key scaling operation"
+            if (key_scale_value := _ir_utils.get_singleton_value(key_scale, rank=0)) is None:
+                return check_result.fail(
+                    "Key scale is not a scalar.",
+                    key_scale,
+                )
+            key_scale_value = 1.0 / key_scale_value
+
+        if qk_scale == "None":
+            qk_scale_value = 1.0
+        elif qk_scale == "Mul":
+            if (qk_scale_value := _ir_utils.get_singleton_value(qk_scale, rank=0)) is None:
                 return check_result.fail(
                     "QK scale is not a scalar.",
                     qk_scale,
                 )
-            if not math.isclose(qk_scale_value, expected_scaling_factor, rel_tol=1e-3):
-                self._scale = qk_scale_value
-            else:
-                # Pass no scaling factor to SDPA, SDPA will use the default scaling factor
-                self._scale = None
+        else:
+            assert qk_scale == "Div", "Unexpected QK scaling operation"
+            if (qk_scale_value := _ir_utils.get_singleton_value(qk_scale, rank=0)) is None:
+                return check_result.fail(
+                    "QK scale is not a scalar.",
+                    qk_scale,
+                )
+            qk_scale_value = 1.0 / qk_scale_value
+
+        self._scale = query_scale_value * key_scale_value * qk_scale_value            
+
+        # If the scaling factor is the default one, we can skip passing it to SDPA.
+
+        if query is None or query.shape is None or len(query.shape) < 2:
+            return
+        hidden_size = query.shape[-1]
+        if not isinstance(hidden_size, int):
+            return
+
+        default_scaling_factor = math.sqrt(hidden_size)
+
+        if self._scale == default_scaling_factor:
+            # Pass no scaling factor to SDPA, SDPA will use the default scaling factor
+            self._scale = None
 
         # check ranks/shapes
 
