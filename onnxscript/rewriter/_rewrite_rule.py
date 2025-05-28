@@ -18,7 +18,7 @@ import onnxscript.rewriter._basics as _basics
 import onnxscript.rewriter._matcher as _matcher
 import onnxscript.rewriter._pattern_ir as _pattern_ir
 from onnxscript import ir
-from onnxscript.ir import _convenience, _tape
+from onnxscript.ir import _tape
 
 T = TypeVar("T")
 
@@ -79,6 +79,50 @@ def _update_opset_imports(
                 f"Multiple versions of opset {domain} used. "
                 f"Expected version {imports[domain]}, but got {version}."
             )
+
+
+def _replace_nodes_and_values(
+    graph_or_function: ir.Graph | ir.Function,
+    /,
+    insertion_point: ir.Node,
+    old_nodes: Sequence[ir.Node],
+    new_nodes: Sequence[ir.Node],
+    old_values: Sequence[ir.Value],
+    new_values: Sequence[ir.Value],
+) -> None:
+    """Replaces nodes and values in the graph or function.
+
+    Args:
+        graph_or_function: The graph or function to replace nodes and values in.
+        insertion_point: The node to insert the new nodes after.
+        old_nodes: The nodes to replace.
+        new_nodes: The nodes to replace with.
+        old_values: The values to replace.
+        new_values: The values to replace with.
+    """
+
+    for old_value, new_value in zip(old_values, new_values):
+        # Propagate relevant info from old value to new value
+        if new_value.type is None:
+            new_value.type = old_value.type
+        if new_value.shape is None:
+            new_value.shape = old_value.shape
+        if new_value.const_value is None:
+            new_value.const_value = old_value.const_value
+        if new_value.name is None:
+            new_value.name = old_value.name
+
+    # Reconnect the users of the deleted values to use the new values
+    ir.convenience.replace_all_uses_with(old_values, new_values)
+    # Update graph/function outputs if the node generates output
+    replacement_mapping = dict(zip(old_values, new_values))
+    for idx, graph_or_function_output in enumerate(graph_or_function.outputs):
+        if graph_or_function_output in replacement_mapping:
+            graph_or_function.outputs[idx] = replacement_mapping[graph_or_function_output]
+
+    # insert new nodes after the index node
+    graph_or_function.insert_after(insertion_point, new_nodes)
+    graph_or_function.remove(old_nodes, safe=True)
 
 
 class RewriteRule:
@@ -525,7 +569,7 @@ class RewriteRuleSet:
                     )
                     f = ir.Function(domain, name, overload, graph=graph, attributes=())
                     model.functions[f.identifier()] = f
-                _convenience.replace_nodes_and_values(
+                _replace_nodes_and_values(
                     graph_or_function,
                     node,
                     delta.match.nodes if rule.remove_nodes else [],
