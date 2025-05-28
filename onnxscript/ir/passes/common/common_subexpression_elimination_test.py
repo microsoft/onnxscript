@@ -65,8 +65,8 @@ class TestCommonSubexpressionEliminationPass(unittest.TestCase):
                 original_model_result, result_results[idx], rtol=1e-5, atol=1e-5
             )
 
-    def test_two_branches_with_the_same_operations_is_csed(self):
-        """Test if two branches with the same operations are CSEd.
+    def test_duplicate_operations_are_csed(self):
+        """Test if the same operations are CSEd.
 
         def test_simple(self):
             def f(x):
@@ -92,8 +92,8 @@ class TestCommonSubexpressionEliminationPass(unittest.TestCase):
 
         self.check_graph(model, [np.random.rand(2, 2)], delta_nodes=[2])
 
-    def test_more_operations_in_two_branches_with_the_same_operations_is_csed(self):
-        """Test if two branches with the same operations are CSEd.
+    def test_more_operations_in_duplicated_operations_is_csed(self):
+        """Test if the same operations are CSEd.
 
         def test_simple(self):
             def f(x):

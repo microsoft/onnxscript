@@ -44,7 +44,6 @@ def _eliminate_common_subexpression(graph: ir.Graph, modified: bool) -> bool:
         ],
         ir.Node,
     ] = {}
-    previous_node = None
 
     for node in graph:
         # Skip control flow ops like Loop and If.
@@ -55,7 +54,7 @@ def _eliminate_common_subexpression(graph: ir.Graph, modified: bool) -> bool:
             # TODO(exporter team): CSE subgraphs.
             # NOTE: control flow ops like Loop and If won't be CSEd
             # because attribute: graph won't match.
-            if isinstance(v, ir.Graph):
+            if v.type in (ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS):
                 control_flow_op = True
                 logger.debug("Skipping control flow op %s", node)
             # The attribute value could be directly taken from the original
@@ -73,7 +72,6 @@ def _eliminate_common_subexpression(graph: ir.Graph, modified: bool) -> bool:
 
         if control_flow_op:
             # If the node is a control flow op, we skip it.
-            previous_node = node
             continue
 
         node_info = (
@@ -92,16 +90,14 @@ def _eliminate_common_subexpression(graph: ir.Graph, modified: bool) -> bool:
             existing_node = existing_node_info_to_the_node[node_info]
             ir.convenience.replace_nodes_and_values(
                 graph,
-                insertion_point=previous_node or node,
+                insertion_point=node,
                 old_nodes=[node],
-                new_nodes=[existing_node],
+                new_nodes=[],  # Delete the duplicate node.
                 old_values=node.outputs,
                 new_values=existing_node.outputs,
             )
-            previous_node = existing_node
             logger.debug("Reusing node %s", existing_node)
         else:
             # If it is not, add to the mapping.
             existing_node_info_to_the_node[node_info] = node
-            previous_node = node
     return modified
