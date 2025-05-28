@@ -137,11 +137,37 @@ class LiftSubgraphInitializersToMainGraphPass(ir.passes.InPlacePass):
     This pass lifts the initializers of a subgraph to the main graph.
     It is used to ensure that the initializers are available in the main graph
     for further processing or optimization.
+
+    Initializers that are also graph inputs will not be lifted.
+
+    Preconditions:
+        - All initializers in the model must have unique names across the main graph and subgraphs.
     """
+
+    def requires(self, model: ir.Model) -> None:
+        """Ensure all initializer names are unique."""
+        registered_initializer_names: set[str] = set()
+        duplicated_initializers: list[ir.Value] = []
+        for graph in model.graphs():
+            for initializer in graph.initializers.values():
+                if initializer.name is None:
+                    raise ir.passes.PreconditionError(
+                        f"Initializer name is None. Please ensure all initializers have unique names: {initializer!r}"
+                    )
+                if initializer.name in registered_initializer_names:
+                    duplicated_initializers.append(initializer)
+                else:
+                    registered_initializer_names.add(initializer.name)
+        if duplicated_initializers:
+            raise ir.passes.PreconditionError(
+                "Found duplicated initializers in the model. "
+                "Initializer name must be unique across the main graph and subgraphs. "
+                "Please ensure all initializers have unique names. Duplicated: "
+                f"{duplicated_initializers!r}"
+            )
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
         count = 0
-        registered_initializer_names: dict[str, int] = {}
         for graph in model.graphs():
             if graph is model.graph:
                 continue
@@ -156,15 +182,6 @@ class LiftSubgraphInitializersToMainGraphPass(ir.passes.InPlacePass):
                     continue
                 # Remove the initializer from the subgraph
                 graph.initializers.pop(name)
-                # To avoid name conflicts, we need to rename the initializer
-                # to a unique name in the main graph
-                if name in registered_initializer_names:
-                    name_count = registered_initializer_names[name]
-                    initializer.name = f"{name}_{name_count}"
-                    registered_initializer_names[name] = name_count + 1
-                else:
-                    assert initializer.name is not None
-                    registered_initializer_names[initializer.name] = 1
                 model.graph.register_initializer(initializer)
                 count += 1
                 logger.debug(
