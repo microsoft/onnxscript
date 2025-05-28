@@ -799,6 +799,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("flatten", core_ops.aten_flatten),
     TorchLibOpInfo("floor", core_ops.aten_floor),
     TorchLibOpInfo("ops.aten.floor_divide", core_ops.aten_floor_divide),
+    TorchLibOpInfo("ops.aten.floor_divide.int", core_ops.aten_floor_divide_int),
     TorchLibOpInfo("fmod", core_ops.aten_fmod),
     TorchLibOpInfo("frac", core_ops.aten_frac),
     TorchLibOpInfo("full", core_ops.aten_full),
@@ -1456,13 +1457,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.bool,),
         reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
     ),
-    TorchLibOpInfo(
-        "unflatten",
-        core_ops.aten_unflatten,
-    ).xfail(
-        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
-        reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
-    ),
+    TorchLibOpInfo("unflatten", core_ops.aten_unflatten),
     TorchLibOpInfo("unfold", core_ops.aten_unfold),
     TorchLibOpInfo("ops.aten.unfold", core_ops.aten_unfold),
     TorchLibOpInfo("unsqueeze", core_ops.aten_unsqueeze),
