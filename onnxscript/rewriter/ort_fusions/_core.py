@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import onnxscript.ir as ir
+import onnxscript.rewriter.ort_fusions.shape_optimization as shape_optimization
 import onnxscript.ir.passes.common as common_passes
 from onnxscript.optimizer import optimize
 from onnxscript.rewriter import rewrite
@@ -19,7 +20,7 @@ from onnxscript.rewriter.ort_fusions.fuse_mha_bias import fuse_mha_bias
 from onnxscript.rewriter.ort_fusions.fuse_packed_qkv_gqa import fuse_qkv_gqa
 from onnxscript.rewriter.ort_fusions.gelu import fuse_gelu
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
-from onnxscript.rewriter.ort_fusions.mha import fuse_mha
+from onnxscript.rewriter.ort_fusions.mha import fuse_mha1, fuse_mha2
 from onnxscript.rewriter.ort_fusions.rms_normalization import fuse_rms_normalization
 from onnxscript.rewriter.ort_fusions.rotary_embedding import (
     fuse_partial_rotary_embedding,
@@ -50,6 +51,8 @@ def _pre_optimize(model: ir.Model) -> ir.Model:
     # extra shape-propagation and partial-data-propagation rules in ONNX that are not yet
     # incorporated in our optimizer.
     common_passes.ShapeInferencePass()(model)
+    optimize(model)
+    shape_optimization.rules.apply_to_model(model)
     optimize(model)
     return model
 
@@ -85,8 +88,9 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
     # in the rewrite rule for certain patterns of SDPA.
     fusion_count["sdpa"] = fuse(fuse_sdpa, apply_shape_inference=True)
     # Optimize to avoid trying multiple attention-based fusions
-    fusion_count["mha"] = fuse(fuse_mha)
-    if fusion_count["mha"] == 0:
+    fusion_count["mha1"] = fuse(fuse_mha1)
+    fusion_count["mha2"] = fuse(fuse_mha2)
+    if (fusion_count["mha1"] == 0) and (fusion_count["mha2"] == 0):
         # If no MHA fusion was applied, we can try the GQA fusion.
         # and avoid trying the attention fusion.
         fusion_count["gqa"] = fuse(fuse_gqa)
