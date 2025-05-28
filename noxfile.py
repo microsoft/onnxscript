@@ -42,6 +42,8 @@ ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "packaging",
     "protobuf",
 )
+ONNX_IR = "onnx_ir==0.1.0"
+ONNX_IR_MAIN = "git+https://github.com/onnx/ir-py.git@main#egg=onnx_ir"
 
 
 @nox.session(tags=["build"])
@@ -59,6 +61,7 @@ def test(session):
         PYTORCH,
         TORCHVISON,
         ONNX,
+        ONNX_IR,
         ONNX_RUNTIME,
         TRANSFORMERS,
     )
@@ -78,6 +81,7 @@ def test_torch_nightly(session):
     )
     session.install("-r", "requirements/ci/requirements-onnx-weekly.txt")
     session.install("-r", "requirements/ci/requirements-pytorch-nightly.txt")
+    session.install(ONNX_IR, "--no-deps")
     session.install(".", "--no-deps")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", "--doctest-modules", *session.posargs)
@@ -88,6 +92,7 @@ def test_torch_nightly(session):
 def test_onnx_weekly(session):
     """Test with ONNX weekly (preview) build."""
     session.install(*COMMON_TEST_DEPENDENCIES, ONNX_RUNTIME, PYTORCH, TORCHVISON, TRANSFORMERS)
+    session.install(ONNX_IR, "--no-deps")
     session.install("-r", "requirements/ci/requirements-onnx-weekly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
@@ -103,6 +108,7 @@ def test_ort_nightly(session):
         PYTORCH,
         TORCHVISON,
         ONNX,
+        ONNX_IR,
         TRANSFORMERS,
         *ONNX_RUNTIME_NIGHTLY_DEPENDENCIES,
     )
@@ -113,22 +119,19 @@ def test_ort_nightly(session):
     session.run("pytest", "tests", *session.posargs)
 
 
-@nox.session(tags=["test-experimental-torchlib-tracing"])
-def test_experimental_torchlib_tracing(session):
-    """Test TorchLib with the experimental TORCHLIB_EXPERIMENTAL_PREFER_TRACING flag on."""
+@nox.session(tags=["test-onnx-ir-git"])
+def test_onnx_ir_git(session):
+    """Test with ONNX IR Git builds."""
     session.install(
         *COMMON_TEST_DEPENDENCIES,
         PYTORCH,
         TORCHVISON,
         ONNX,
+        TRANSFORMERS,
         *ONNX_RUNTIME_NIGHTLY_DEPENDENCIES,
     )
-    session.install("-r", "requirements/ci/requirements-ort-nightly.txt")
+    session.install(ONNX_IR_MAIN)
     session.install(".", "--no-deps")
     session.run("pip", "list")
-    session.run(
-        "pytest",
-        "tests/function_libs/torch_lib/ops_test.py",
-        *session.posargs,
-        env={"TORCHLIB_EXPERIMENTAL_PREFER_TRACING": "1"},
-    )
+    session.run("pytest", "onnxscript", "--doctest-modules", *session.posargs)
+    session.run("pytest", "tests", *session.posargs)
