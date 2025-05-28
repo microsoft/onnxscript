@@ -39,12 +39,12 @@ class FusedMatMul(onnx.reference.op_run.OpRun):
         if transBatchA:
             perm = list(range(len(A.shape)))
             dim = len(perm)
-            perm = perm[1 : dim - 1] + [perm[0], perm[dim - 1]]
+            perm = [*perm[1 : dim - 1], perm[0], perm[dim - 1]]
             A = np.transpose(A, perm)
         if transBatchB:
             perm = list(range(len(B.shape)))
             dim = len(perm)
-            perm = perm[1 : dim - 1] + [perm[0], perm[dim - 1]]
+            perm = [*perm[1 : dim - 1], perm[0], perm[dim - 1]]
             B = np.transpose(B, perm)
         if transA:
             perm = list(range(len(A.shape)))
