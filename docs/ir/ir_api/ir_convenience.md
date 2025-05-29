@@ -12,4 +12,6 @@
 .. autofunction:: replace_all_uses_with
 .. autofunction:: replace_nodes_and_values
 .. autofunction:: create_value_mapping
+.. autofunction:: insert_nodes_in_value
+.. autofunction:: remove_nodes
 ```
