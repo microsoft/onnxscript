@@ -1006,21 +1006,22 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             _process_constant_node(node)
             return None
 
-        input_values = [_get_numpy_value(x) for x in node.inputs]
-        if any(x is None for x in input_values):
+        if any(x.is_graph_input() for x in node.inputs if x is not None):
             return None
 
-        if any(self._state.is_initializer_input(x) for x in node.inputs):  # type: ignore[arg-type]
-            return None
-
-        if any(input.nbytes > self._input_size_limit for input in input_values):  # type: ignore[union-attr]
+        # TODO: Ensure all inputs are constant first, somewhere
+        if any(x.const_value.nbytes > self._input_size_limit for x in node.inputs if x is not None):
             if logger.isEnabledFor(logging.DEBUG):
-                input_sizes = [input.size for input in input_values]  # type: ignore[union-attr]
+                input_sizes = [input.size for input in node.inputs]
                 logger.debug(
                     "Skipping constant folding for op %s due to large input size: %s",
                     node.op_type,
                     input_sizes,
                 )
+            return None
+
+        input_values = [_get_numpy_value(x) for x in node.inputs]
+        if any(x is None for x in input_values):
             return None
 
         # Filter out bfloat16 cases?
@@ -1079,13 +1080,6 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             self.replace_node(node, replacement, root)
 
     def visit_graph(self, graph: ir.Graph) -> None:
-        # Track inputs that have a const_value (which is really a default-value, and should not
-        # be used for constant-folding).
-        self._state.push_initializer_inputs()
-        for input in graph.inputs:
-            if input.const_value is not None:
-                self._state.add_initializer_input(input)
-
         for node in graph:
             self.visit_node(node, graph)
 
@@ -1104,8 +1098,6 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             sym_value.name = output.name
             graph.outputs[i] = sym_value
             self.modified = True
-
-        self._state.pop_initializer_inputs()
 
     def visit_function(self, function: ir.Function) -> None:
         for node in function:
