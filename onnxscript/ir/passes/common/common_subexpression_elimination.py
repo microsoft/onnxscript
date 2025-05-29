@@ -81,7 +81,6 @@ def _eliminate_common_subexpression(graph: ir.Graph, modified: bool) -> bool:
             tuple(id(input) for input in node.inputs),
             tuple(sorted(attributes.items())),
         )
-
         # Check if the node is a common subexpression.
         if node_info in existing_node_info_to_the_node:
             # If it is, this node has an existing node with the same
@@ -89,9 +88,9 @@ def _eliminate_common_subexpression(graph: ir.Graph, modified: bool) -> bool:
             # We replace the node with the existing node.
             modified = True
             existing_node = existing_node_info_to_the_node[node_info]
-            _remove_node_and_replace__values(
+            _remove_node_and_replace_values(
                 graph,
-                remove_nodes=[node],
+                remove_node=node,
                 remove_values=node.outputs,
                 new_values=existing_node.outputs,
             )
@@ -102,10 +101,10 @@ def _eliminate_common_subexpression(graph: ir.Graph, modified: bool) -> bool:
     return modified
 
 
-def _remove_node_and_replace__values(
+def _remove_node_and_replace_values(
     graph: ir.Graph,
     /,
-    remove_nodes: ir.Node,
+    remove_node: ir.Node,
     remove_values: Sequence[ir.Value],
     new_values: Sequence[ir.Value],
 ) -> None:
@@ -113,26 +112,35 @@ def _remove_node_and_replace__values(
 
     Args:
         graph: The graph to replace nodes and values in.
-        remove_nodes: The nodes to remove.
+        remove_node: The node to remove.
         remove_values: The values to replace.
         new_values: The values to replace with.
     """
-
-    for old_value, new_value in zip(remove_values, new_values):
-        # Propagate relevant info from old value to new value
-        # TODO(Rama): Perhaps this should be a separate utility function. Also, consider
-        # merging old and new type/shape info.
-        new_value.type = old_value.type
-        new_value.shape = old_value.shape
-        new_value.const_value = old_value.const_value
-        new_value.name = old_value.name
-
     # Reconnect the users of the deleted values to use the new values
     ir.convenience.replace_all_uses_with(remove_values, new_values)
     # Update graph/function outputs if the node generates output
-    replacement_mapping = dict(zip(remove_values, new_values))
-    for idx, graph_or_function_output in enumerate(graph.outputs):
-        if graph_or_function_output in replacement_mapping:
-            graph.outputs[idx] = replacement_mapping[graph_or_function_output]
+    if any(remove_value.is_graph_output() for remove_value in remove_values):
+        replacement_mapping = dict(zip(remove_values, new_values))
+        for idx, graph_output in enumerate(graph.outputs):
+            if graph_output in replacement_mapping:
+                new_value = replacement_mapping[graph_output]
+                if new_value.is_graph_output():
+                    # If the new value is also a graph output, we need to
+                    # create a Identity node to preserve the remove_value.
+                    identity_node = ir.node(
+                        "Identity",
+                        inputs=[new_value],
+                        num_outputs=1,
+                    )
+                    # reuse the name of the graph output
+                    identity_node.outputs[0].name = graph_output.name
+                    graph.outputs[idx] = identity_node.outputs[0]
+                    graph.insert_before(
+                        remove_node,
+                        identity_node,
+                    )
+                else:
+                    new_value.name = graph_output.name
+                    graph.outputs[idx] = new_value
 
-    graph.remove(remove_nodes, safe=True)
+    graph.remove(remove_node, safe=True)

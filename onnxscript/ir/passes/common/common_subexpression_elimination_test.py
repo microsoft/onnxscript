@@ -243,3 +243,61 @@ class TestCommonSubexpressionEliminationPass(unittest.TestCase):
         self.check_graph(
             model, [np.random.rand(2, 2), np.random.rand(2, 2)], delta_nodes=[3, 0, 0]
         )
+
+    def test_graph_output_value_replacement_preserves_name(self):
+        @script()
+        def test_model(x: FLOAT[2, 2]) -> (FLOAT[2, 2], FLOAT[2, 2]):
+            a = op.Cos(x)
+            b = op.Cos(x)
+            return a + b, b
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        # Set custom output names
+        output_name_0 = "my_output_0"
+        output_name_1 = "my_output_1"
+        model.graph.outputs[0].name = output_name_0
+        model.graph.outputs[1].name = output_name_1
+        original_output_value_0 = model.graph.outputs[0]
+        original_output_value_1 = model.graph.outputs[1]
+
+        # Run CSE pass
+        result = common_subexpression_elimination.CommonSubexpressionEliminationPass()(model)
+        new_output_value_0 = result.model.graph.outputs[0]
+        new_output_value_1 = result.model.graph.outputs[1]
+
+        # The Value objects should be replaced (different id)
+        self.assertIs(original_output_value_0, new_output_value_0)
+        self.assertIsNot(original_output_value_1, new_output_value_1)
+        # But the names should be preserved
+        self.assertEqual(new_output_value_0.name, output_name_0)
+        self.assertEqual(new_output_value_1.name, output_name_1)
+
+    def test_identity_inserted_when_both_outputs_are_graph_outputs(self):
+        @script()
+        def test_model(x: FLOAT[2, 2]) -> (FLOAT[2, 2], FLOAT[2, 2]):
+            a = op.Cos(x)
+            b = op.Cos(x)
+            return a, b
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+        # Set custom output names
+        output_name_0 = "output0"
+        output_name_1 = "output1"
+        model.graph.outputs[0].name = output_name_0
+        model.graph.outputs[1].name = output_name_1
+
+        # Run CSE pass
+        result = common_subexpression_elimination.CommonSubexpressionEliminationPass()(model)
+        new_graph = result.model.graph
+
+        # There should be an Identity node in the graph
+        identity_nodes = [node for node in new_graph if node.op_type == "Identity"]
+        self.assertTrue(
+            identity_nodes, "No Identity node inserted for duplicated graph outputs."
+        )
+
+        # The outputs should still have the correct names
+        self.assertEqual(new_graph.outputs[0].name, output_name_0)
+        self.assertEqual(new_graph.outputs[1].name, output_name_1)
