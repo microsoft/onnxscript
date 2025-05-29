@@ -1041,7 +1041,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             if tensor is not None
         ):
             if logger.isEnabledFor(logging.DEBUG):
-                input_sizes = [input.size for input in input_tensors if input is not None]
+                input_sizes = [tensor.nbytes for tensor in input_tensors if tensor is not None]
                 logger.debug(
                     "Skipping constant folding for node %s due to large input size: %s",
                     node,
