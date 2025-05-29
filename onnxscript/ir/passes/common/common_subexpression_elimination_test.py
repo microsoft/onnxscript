@@ -17,11 +17,11 @@ class TestCommonSubexpressionEliminationPass(unittest.TestCase):
         """Check if the model applied the CSE pass correctly.
 
         Args:
-            model (ir.Model): The model to check.
-            inputs (list[ir.Value]): The inputs to the model.
-            delta_nodes (list[int]): The expected change in the number of nodes in the model.
-                                     The length of this list should match the number of graphs
-                                     in the model. (to support subgraphs in the future)
+            model: The model to check.
+            inputs: The inputs to the model.
+            delta_nodes: The expected change in the number of nodes in the model.
+                         The length of this list should match the number of graphs
+                         in the model. (to support subgraphs in the future)
 
         Raises:
             AssertionError: If the model does not match the expected number of nodes or outputs.

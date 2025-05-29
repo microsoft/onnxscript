@@ -130,16 +130,23 @@ def _remove_node_and_replace_values(
                     identity_node = ir.node(
                         "Identity",
                         inputs=[new_value],
-                        num_outputs=1,
+                        outputs=[
+                            ir.Value(
+                                name=graph_output.name,
+                                type=graph_output.type,
+                                shape=graph_output.shape,
+                            )
+                        ],
                     )
                     # reuse the name of the graph output
-                    identity_node.outputs[0].name = graph_output.name
                     graph.outputs[idx] = identity_node.outputs[0]
                     graph.insert_before(
                         remove_node,
                         identity_node,
                     )
                 else:
+                    # if new_value is not graph output, we just
+                    # update it to use old_value name.
                     new_value.name = graph_output.name
                     graph.outputs[idx] = new_value
 
