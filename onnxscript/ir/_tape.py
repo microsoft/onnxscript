@@ -4,12 +4,16 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 from onnx_ir import tape
 
 if TYPE_CHECKING:
     import onnx_ir as ir
+
+
+# A type representing the domains/versions used in creating nodes in IR.
+UsedOpsets = set[tuple[str, Optional[int]]]
 
 
 class Builder(tape.Tape):

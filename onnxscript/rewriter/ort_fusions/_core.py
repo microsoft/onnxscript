@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import onnxscript.ir as ir
-import onnxscript.rewriter.ort_fusions.shape_optimization as shape_optimization
 import onnxscript.ir.passes.common as common_passes
+import onnxscript.rewriter.ort_fusions.shape_optimization as shape_optimization
 from onnxscript.optimizer import optimize
 from onnxscript.rewriter import rewrite
 from onnxscript.rewriter.ort_fusions import (
