@@ -1173,6 +1173,7 @@ def fold_constants(
     onnx_shape_inference: bool = False,
     input_size_limit: int = DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
     output_size_limit: int = DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
+    always_fold_ops: Collection[str] = frozenset(["Transpose"]),
 ) -> FoldConstantsResult:
     """
     Applies constant folding optimization to the model.
@@ -1187,6 +1188,8 @@ def fold_constants(
         output_size_limit: The maximum size (in bytes) of output tensors
             that can be stored after constant folding. Defaults to
             `DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT`.
+        always_fold_ops: A collection of op types that should always be folded,
+            regardless of their input or output sizes.
 
     Returns:
         An instance of `FoldConstantsResult`.
@@ -1196,5 +1199,6 @@ def fold_constants(
         shape_inference=onnx_shape_inference,
         input_size_limit=input_size_limit,
         output_size_limit=output_size_limit,
+        always_fold_ops=always_fold_ops,
     )
     return folder_pass(model)  # type: ignore[return-value]
