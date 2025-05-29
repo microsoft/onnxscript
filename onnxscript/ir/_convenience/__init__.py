@@ -373,6 +373,5 @@ def replace_nodes_and_values(
             graph_or_function.outputs[idx] = replacement_mapping[graph_or_function_output]
 
     # insert new nodes after the index node
-    if new_nodes:
-        graph_or_function.insert_after(insertion_point, new_nodes)
+    graph_or_function.insert_after(insertion_point, new_nodes)
     graph_or_function.remove(old_nodes, safe=True)

@@ -9,6 +9,7 @@ __all__ = [
 ]
 
 import logging
+from typing import Sequence
 
 from onnxscript import ir
 
@@ -88,12 +89,10 @@ def _eliminate_common_subexpression(graph: ir.Graph, modified: bool) -> bool:
             # We replace the node with the existing node.
             modified = True
             existing_node = existing_node_info_to_the_node[node_info]
-            ir.convenience.replace_nodes_and_values(
+            _remove_node_and_replace__values(
                 graph,
-                insertion_point=node,
-                old_nodes=[node],
-                new_nodes=[],  # Delete the duplicate node.
-                old_values=node.outputs,
+                remove_nodes=[node],
+                remove_values=node.outputs,
                 new_values=existing_node.outputs,
             )
             logger.debug("Reusing node %s", existing_node)
@@ -101,3 +100,39 @@ def _eliminate_common_subexpression(graph: ir.Graph, modified: bool) -> bool:
             # If it is not, add to the mapping.
             existing_node_info_to_the_node[node_info] = node
     return modified
+
+
+def _remove_node_and_replace__values(
+    graph: ir.Graph,
+    /,
+    remove_nodes: ir.Node,
+    remove_values: Sequence[ir.Value],
+    new_values: Sequence[ir.Value],
+) -> None:
+    """Replaces nodes and values in the graph or function.
+
+    Args:
+        graph: The graph to replace nodes and values in.
+        remove_nodes: The nodes to remove.
+        remove_values: The values to replace.
+        new_values: The values to replace with.
+    """
+
+    for old_value, new_value in zip(remove_values, new_values):
+        # Propagate relevant info from old value to new value
+        # TODO(Rama): Perhaps this should be a separate utility function. Also, consider
+        # merging old and new type/shape info.
+        new_value.type = old_value.type
+        new_value.shape = old_value.shape
+        new_value.const_value = old_value.const_value
+        new_value.name = old_value.name
+
+    # Reconnect the users of the deleted values to use the new values
+    ir.convenience.replace_all_uses_with(remove_values, new_values)
+    # Update graph/function outputs if the node generates output
+    replacement_mapping = dict(zip(remove_values, new_values))
+    for idx, graph_or_function_output in enumerate(graph.outputs):
+        if graph_or_function_output in replacement_mapping:
+            graph.outputs[idx] = replacement_mapping[graph_or_function_output]
+
+    graph.remove(remove_nodes, safe=True)
