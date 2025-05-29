@@ -539,27 +539,30 @@ func (float[1,3] x) => (float[1,3] return_val) {
     def test_input_size_limit(self):
         model_text = """
             <ir_version: 7, opset_import: [ "" : 17]>
-            agraph (float[M, 256] x) => (float[M, 512] z)
-            <float[1, 1] w = {1.0}> # placeholder for large initializer of shape [512, 256]
+            agraph (float[M, 256] x) => (float[M, 256] z)
+            <float[1, 1] w = {1.0}> # placeholder for large initializer of shape [256, 256]
             {
-                z = Mul (x, x)
+                w_squared = Mul (w, w)
+                z = Add (x, w_squared)
             }
         """
         model = ir.from_onnx_text(model_text)
         w = model.graph.initializers["w"]
-        w.shape = ir.Shape([512, 256])
-        w.const_value = ir.tensor(np.random.random((512, 256)).astype(np.float32))
+        w.shape = ir.Shape([256, 256])
+        w.const_value = ir.tensor(np.random.random((256, 256)).astype(np.float32))
 
         # Input size limit will prevent folding of Mul op
-        optimized = self._fold(model, input_size_limit=3 * 512 * 256)
+        optimized = self._fold(model, input_size_limit=3 * 256 * 256)
         ops = [node.op_type for node in optimized.graph]
-        self.assertEqual(ops, ["Mul"])
+        self.assertEqual(ops, ["Mul", "Add"])
 
-        # Input size limit will allow folding of Transpose op
+        # Input size limit will allow folding of Mul op
         # Since there is no increase in model-size, output-size is not a concern.
-        optimized = self._fold(model, input_size_limit=4 * 512 * 256)
+        optimized = self._fold(
+            model, input_size_limit=4 * 256 * 256, output_size_limit=4 * 256 * 256
+        )
         ops = [node.op_type for node in optimized.graph]
-        self.assertEqual(ops, ["Constant"])
+        self.assertEqual(ops, ["Constant", "Add"])
 
     def test_transpose_is_always_folded(self):
         model_text = """
