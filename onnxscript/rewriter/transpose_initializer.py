@@ -27,7 +27,6 @@ class TransposeInitializer(orp.RewriteRuleClassBase):
     def rewrite(self, op, initializer: ir.Value) -> ir.Value:
         original_transpose = initializer.consumers()[0]
         perm_attr = original_transpose.attributes.get("perm")
-        assert isinstance(perm_attr, ir.Attr)
 
         if perm_attr is not None:
             perm = perm_attr.as_ints()
@@ -41,6 +40,7 @@ class TransposeInitializer(orp.RewriteRuleClassBase):
             # perm=None is filtered out when the attribute is constructed so we are ok
             return op.Transpose(initializer, perm=perm_attr)
 
+        # np.transpose does not create a copy. So we don't need to use LazyTensors.
         transposed = np.transpose(array, axes=perm)
         new_name = f"{initializer.name}_transposed"
         return op.initializer(ir.tensor(transposed, name=new_name))
