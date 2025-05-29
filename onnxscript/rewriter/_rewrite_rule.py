@@ -176,7 +176,7 @@ class RewriteRule:
                         match.bind(var.name, None)
             try:
                 check_match_result = self._condition_function(context, **match.bindings)
-            except _basics.MatchFailureException as e:
+            except _basics.MatchFailureError as e:
                 check_match_result = _basics.MatchResult()
                 check_match_result.fail(
                     e.reason,
