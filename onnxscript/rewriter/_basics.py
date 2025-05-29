@@ -25,7 +25,6 @@ class MatchFailureInfo:
         *failure_source: ir.Node | ir.Value,
     ):
         self.reason = reason
-        # failure_source is a tuple; convert to list for consistency
         self.failure_sources: tuple[ir.Node | ir.Value, ...] = failure_source
         assert all(isinstance(item, (ir.Node, ir.Value)) for item in failure_source), (
             f"All items in failure_source must be ir.Node or ir.Value, got {[type(item) for item in failure_source]}"
