@@ -163,19 +163,6 @@ class OptimizerState:
     def set_sym_value(self, value: ir.Value, sym_value: SymbolicValue) -> None:
         self._sym_value_map[value] = sym_value
 
-    def push_initializer_inputs(self) -> None:
-        self._initializer_inputs.append(set())
-
-    def pop_initializer_inputs(self) -> None:
-        self._initializer_inputs.pop()
-
-    def add_initializer_input(self, value: ir.Value) -> None:
-        assert self._initializer_inputs
-        self._initializer_inputs[-1].add(value)
-
-    def is_initializer_input(self, value: ir.Value) -> bool:
-        return any(value in inputs for inputs in self._initializer_inputs)
-
     def get_shape_value(self, value: ir.Value | None) -> ir.Shape | None:
         const_value = _get_numpy_value(value, ir.DataType.INT64, size_limit=10)
         if const_value is not None:
