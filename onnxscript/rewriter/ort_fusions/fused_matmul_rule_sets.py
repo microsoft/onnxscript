@@ -15,7 +15,7 @@ def get_node(value: ir.Value, name: str) -> ir.Node:
     return node
 
 
-def get_kwargs(node: ir.Node) -> dict[str, ir.Attr]:
+def get_kwargs(node: ir.Node) -> dict[str, float | int]:
     """Get the kwargs from the node."""
     kwargs = {key: val.value for key, val in node.attributes.items()}
     return kwargs
@@ -81,11 +81,11 @@ class _TransposeMatMulBase(orp.RewriteRuleClassBase):
             return check_result.fail("Permutation values for Transpose are not correct.")
         if fused:
             fused_node = get_node(fused, "FusedMatMul")
-            if fused_node.attributes.get("transBatchA", 0).as_int() == 1 and self._pos == 1:  # type: ignore[union-attr]
+            if fused_node.attributes.get("transBatchA", 0).value == 1 and self._pos == 1:  # type: ignore[union-attr]
                 return check_result.fail(
                     "FusedMatMul with transBatchA cannot be used with Transpose(A)."
                 )
-            if fused_node.attributes.get("transBatchB", 0).as_int() == 1 and self._pos == 2:  # type: ignore[union-attr]
+            if fused_node.attributes.get("transBatchB", 0).value == 1 and self._pos == 2:  # type: ignore[union-attr]
                 return check_result.fail(
                     "FusedMatMul with transBatchB cannot be used with Transpose(B)."
                 )
@@ -97,7 +97,7 @@ class _TransposeMatMulBase(orp.RewriteRuleClassBase):
             fused_node = get_node(fused, "FusedMatMul")
             kwargs = get_kwargs(fused_node)
         name = "transA" if self._pos == 1 else "transB"
-        kwargs[name] = 1 - kwargs.get(name, 0)  # type: ignore[assignment]
+        kwargs[name] = 1 - kwargs.get(name, 0)
         return op.FusedMatMul(x, y, **kwargs, _domain="com.microsoft")
 
 
@@ -153,10 +153,7 @@ class _TransposeFusedMatMulBaseWithBatch(orp.RewriteRuleClassBase):
     ) -> orp.MatchResult:
         check_result = orp.MatchResult()
         fused_node = get_node(fused, "FusedMatMul")
-        if self._pos == 1:
-            transBatchProperty = "transBatchA"
-        else:
-            transBatchProperty = "transBatchB"
+        transBatchProperty = "transBatchA" if self._pos == 1 else "transBatchB"
         transBatch = fused_node.attributes.get(transBatchProperty, 0).as_int()  # type: ignore[union-attr]
         transposed_node = get_node(transposed, "Transpose")
         perm = transposed_node.attributes["perm"].as_ints()
