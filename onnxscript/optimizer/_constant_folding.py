@@ -9,7 +9,7 @@ import dataclasses
 import logging
 import math
 import typing
-from typing import Any, Callable, Iterable, Sequence, Union
+from typing import Any, Callable, Collection, Iterable, Sequence, Union
 
 import numpy as np
 import onnx
@@ -301,6 +301,11 @@ def _get_numpy_value(
             array = const_value.numpy().view(const_value.dtype.numpy())
         except FileNotFoundError:
             # External data is not available.
+            logger.warning(
+                "External data for value '%s' is not available. "
+                "This may lead to incorrect constant folding.",
+                val.name,
+            )
             return None
         assert isinstance(array, np.ndarray)
         return array
@@ -841,28 +846,39 @@ def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape 
 
 
 class FoldConstantsPass(ir.passes.InPlacePass):
+    """A pass that folds constant expressions in the model.
+
+    Attributes:
+        shape_inference: Whether to perform shape inference.
+        input_size_limit: Maximum size of input tensors to fold.
+        output_size_limit: Maximum size of output tensors to fold.
+        always_fold_ops: Collection of op types that should always be folded.
+    """
     def __init__(
         self,
         *,
         shape_inference: bool,
         input_size_limit: int,
         output_size_limit: int,
+        always_fold_ops: Collection[str] = frozenset(["Transpose"]),
     ) -> None:
-        self._shape_inference = shape_inference
-        self._input_size_limit = input_size_limit
-        self._output_size_limit = output_size_limit
-        self.opset_imports: dict[str, int] = {}
-        self.counts: dict[str, int] = {}
-        self.sizes: dict[str, int] = {}
-        self.modified: bool = False
+        self.shape_inference = shape_inference
+        self.input_size_limit = input_size_limit
+        self.output_size_limit = output_size_limit
+        self.always_fold_ops: frozenset[str] = frozenset(always_fold_ops)
+
+        self._opset_imports: dict[str, int] = {}
+        self._counts: dict[str, int] = {}
+        self._sizes: dict[str, int] = {}
+        self._modified: bool = False
         self._state = OptimizerState()
         self._reset()
 
     def _reset(self) -> None:
         """Reset internal states for a new run."""
-        self.counts = {}
-        self.sizes = {}
-        self.modified = False
+        self._counts = {}
+        self._sizes = {}
+        self._modified = False
         self._state = OptimizerState()
 
     def _do_inference(self, node: ir.Node) -> None:
@@ -896,7 +912,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             # TODO: pass in constant values, ir_version
             try:
                 schema = onnx.defs.get_schema(
-                    node.op_type, self.opset_imports[node.domain], node.domain
+                    node.op_type, self._opset_imports[node.domain], node.domain
                 )
                 output_types = onnx.shape_inference.infer_node_outputs(
                     schema,
@@ -937,7 +953,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         tensor.name = irvalue.name
         irvalue.const_value = tensor
 
-        if value.nbytes > self._output_size_limit:
+        if value.nbytes > self.output_size_limit:
             # Handle examples like Transpose(weight) to be folded even if the size is large,
             # as long as weight has no other uses. This won't increase model size.
             removed_input_size = 0
@@ -967,6 +983,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         return node
 
     def process_node(self, node: ir.Node) -> Replacement | None:
+        """Process a node and return a Replacement if the node can be replaced."""
         for i, value in enumerate(node.inputs):
             sym_value = self._state.get_sym_value(value)
             if isinstance(sym_value, ir.Value):
@@ -977,16 +994,16 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                     sym_value.name,
                 )
                 node.replace_input_with(i, sym_value)
-                self.modified = True
+                self._modified = True
                 # TODO(rama): consider merging type/other info from both values
 
         # Do incremental shape inference
-        if self._shape_inference and not is_control_flow_op(node):
+        if self.shape_inference and not is_control_flow_op(node):
             self._do_inference(node)
 
-        if node.domain not in self.opset_imports:
+        if node.domain not in self._opset_imports:
             return None
-        version = self.opset_imports[node.domain]
+        version = self._opset_imports[node.domain]
         op_optimizers = registry.lookup_evaluators(node.domain, node.op_type, version)
         for optimizer in op_optimizers:
             assert optimizer
@@ -1007,24 +1024,33 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             return None
 
         if any(x.is_graph_input() for x in node.inputs if x is not None):
+            # Do not fold any graph inputs to preserve graph signature
             return None
 
-        # TODO: Ensure all inputs are constant first, somewhere
-        if any(x.const_value.nbytes > self._input_size_limit for x in node.inputs if x is not None):
+        # Ensure all node inputs are constants
+        if any(x.const_value is None for x in node.inputs if x is not None):
             if logger.isEnabledFor(logging.DEBUG):
-                input_sizes = [input.size for input in node.inputs]
                 logger.debug(
-                    "Skipping constant folding for op %s due to large input size: %s",
-                    node.op_type,
+                    "Skipping constant folding for node %s because it has None constant inputs",
+                    node,
+                    [x.name for x in node.inputs if x is not None],
+                )
+            return None
+
+        input_tensors = [x.const_value if x is not None else None for x in node.inputs]
+
+        if node.op_type not in self.always_fold_ops and any(tensor.nbytes > self.input_size_limit for tensor in input_tensors if tensor is not None):
+            if logger.isEnabledFor(logging.DEBUG):
+                input_sizes = [input.size for input in input_tensors if input is not None]
+                logger.debug(
+                    "Skipping constant folding for node %s due to large input size: %s",
+                    node,
                     input_sizes,
                 )
             return None
 
         input_values = [_get_numpy_value(x) for x in node.inputs]
-        if any(x is None for x in input_values):
-            return None
 
-        # Filter out bfloat16 cases?
         def convert(av):
             if av.type == ir.AttributeType.TENSOR:
                 return ir.serde.serialize_tensor(av.value)
@@ -1055,7 +1081,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
 
-        self.modified = True
+        self._modified = True
 
         # TODO: what about new opset_imports?
         # TODO: track statistics about replaced nodes and sizes of new constants
@@ -1097,20 +1123,20 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             # Rename sym_value to match the output name
             sym_value.name = output.name
             graph.outputs[i] = sym_value
-            self.modified = True
+            self._modified = True
 
     def visit_function(self, function: ir.Function) -> None:
         for node in function:
             self.visit_node(node, function)
 
-    def call(self, model: ir.Model) -> ir.passes.PassResult:
+    def call(self, model: ir.Model) -> FoldConstantsResult:
         self._reset()
-        self.opset_imports = model.opset_imports
+        self._opset_imports = model.opset_imports
         self.visit_graph(model.graph)
         for function in model.functions.values():
             # TODO(rama): Should we specialize functions?
             self.visit_function(function)
-        return FoldConstantsResult(model, self.modified, self._state.symbolic_value_map)
+        return FoldConstantsResult(model, self._modified, self._state.symbolic_value_map)
 
 
 def _sym_value_can_replace_graph_output(
