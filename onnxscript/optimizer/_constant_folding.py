@@ -24,12 +24,7 @@ DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 1024
 DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = 1024 * 1024
 
 
-def is_control_flow_op(node: ir.Node) -> bool:
-    graph_types = {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}
-    return any(attr.type in graph_types for attr in node.attributes.values())
-
-
-non_deterministic_ops = frozenset(
+_NON_DETERMINISTIC_OPS = frozenset(
     {
         "RandomUniform",
         "RandomNormal",
@@ -40,21 +35,21 @@ non_deterministic_ops = frozenset(
 )
 
 
-def is_non_deterministic_op(node: ir.Node) -> bool:
-    return node.op_type in non_deterministic_ops and utils.is_onnx_domain(node.domain)
+logger = logging.getLogger(__name__)
 
 
-def is_onnx_op(node: ir.Node, op_type: str) -> bool:
+def _is_control_flow_op(node: ir.Node) -> bool:
+    graph_types = {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}
+    return any(attr.type in graph_types for attr in node.attributes.values())
+
+
+def _is_non_deterministic_op(node: ir.Node) -> bool:
+    return node.op_type in _NON_DETERMINISTIC_OPS and utils.is_onnx_domain(node.domain)
+
+
+def _is_onnx_op(node: ir.Node, op_type: str) -> bool:
     return node.op_type == op_type and utils.is_onnx_domain(node.domain)
 
-
-def is_constant_op(node: ir.Node) -> bool:
-    return node.op_type in {"Constant", "ConstantOfShape"} and utils.is_onnx_domain(
-        node.domain
-    )
-
-
-logger = logging.getLogger(__name__)
 
 # "Standard" evaluators are used to perform constant-folding.
 # The API below works only for non-control-flow ops (ops without any graph-attributes).
@@ -854,6 +849,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         output_size_limit: Maximum size of output tensors to fold.
         always_fold_ops: Collection of op types that should always be folded.
     """
+
     def __init__(
         self,
         *,
@@ -998,7 +994,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 # TODO(rama): consider merging type/other info from both values
 
         # Do incremental shape inference
-        if self.shape_inference and not is_control_flow_op(node):
+        if self.shape_inference and not _is_control_flow_op(node):
             self._do_inference(node)
 
         if node.domain not in self._opset_imports:
@@ -1016,10 +1012,10 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                     output = [output]
                 return Replacement(output, context.nodes)
 
-        if is_control_flow_op(node) or is_non_deterministic_op(node):
+        if _is_control_flow_op(node) or _is_non_deterministic_op(node):
             return None
 
-        if is_onnx_op(node, "Constant"):
+        if _is_onnx_op(node, "Constant"):
             _process_constant_node(node)
             return None
 
@@ -1039,7 +1035,11 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 
         input_tensors = [x.const_value if x is not None else None for x in node.inputs]
 
-        if node.op_type not in self.always_fold_ops and any(tensor.nbytes > self.input_size_limit for tensor in input_tensors if tensor is not None):
+        if node.op_type not in self.always_fold_ops and any(
+            tensor.nbytes > self.input_size_limit
+            for tensor in input_tensors
+            if tensor is not None
+        ):
             if logger.isEnabledFor(logging.DEBUG):
                 input_sizes = [input.size for input in input_tensors if input is not None]
                 logger.debug(
@@ -1065,7 +1065,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             return None
         if len(node.outputs) == 1 and not isinstance(outputs, (tuple, list)):
             replacement = self.new_constant(node, outputs)
-            if is_onnx_op(node, "ConstantOfShape") or replacement is None:
+            if _is_onnx_op(node, "ConstantOfShape") or replacement is None:
                 return None
             return Replacement(replacement.outputs, [replacement])
         else:
