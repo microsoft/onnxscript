@@ -7,6 +7,7 @@ from typing import Callable, Sequence, Union
 import onnxscript.ir as ir
 from onnxscript.ir.passes.common import shape_inference
 from onnxscript.rewriter import pattern
+from onnxscript.rewriter._basics import MatchFailureError
 
 Dim = Union[int, ir.SymbolicDim]
 
@@ -22,6 +23,22 @@ def _check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]) 
         elif actual != bindings[expected]:
             return False
     return True
+
+
+def check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]):
+    if val.shape is None:
+        raise MatchFailureError(f"The shape of {val} is unknown.")
+    if val.shape.rank() != len(shape):
+        raise MatchFailureError(
+            f"The rank of {val} ({val.shape.rank()} does not match the expected rank {len(shape)}."
+        )
+    for i, (actual, expected) in enumerate(zip(val.shape, shape)):
+        if expected not in bindings:
+            bindings[expected] = actual  # type: ignore[assignment]
+        elif actual != bindings[expected]:
+            raise MatchFailureError(
+                f"Dimenion {i} of {val} ({actual}) does not have expected size ({bindings[expected]})."
+            )
 
 
 def apply_fusion_rules(rules: pattern.RewriteRule | pattern.RewriteRuleSet) -> Callable:

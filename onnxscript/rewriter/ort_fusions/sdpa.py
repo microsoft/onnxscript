@@ -164,12 +164,9 @@ class SDPA(pattern.RewriteRuleClassBase):
         # which is usually achieved via tiling/expanding K/V num-heads to match Q num-heads.
         # Query and Key should have same head-size (Dh) while value can have different head-size (Dv).
         # Key and Value should have same sequence length (Skv), while Query can have different sequence length (S).
-        if no_match(query, ["B", "H", "S", "Dh"]):
-            return False
-        if no_match(key_transposed, ["B", "H", "Dh", "Skv"]):
-            return False
-        if no_match(value, ["B", "H", "Skv", "Dv"]):
-            return False
+        _fusion_utils.check_shape(bindings, query, ["B", "H", "S", "Dh"])
+        _fusion_utils.check_shape(bindings, key_transposed, ["B", "H", "Dh", "Skv"])
+        _fusion_utils.check_shape(bindings, value, ["B", "H", "Skv", "Dv"])
 
         return check_result
 
