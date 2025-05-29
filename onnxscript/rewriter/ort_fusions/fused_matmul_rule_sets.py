@@ -22,7 +22,7 @@ def get_kwargs(node: ir.Node) -> dict[str, ir.Attr]:
 
 
 class FusedMatMulDiv1(orp.RewriteRuleClassBase):
-    """Replaces ``MatMul + Div`` with FusedMatMul."""
+    """Replaces ``MatMul + Div`` with MatMul."""
 
     def pattern(self, op, x, y, cst):
         return op.Div(op.MatMul(x, y), cst)
@@ -48,7 +48,7 @@ class FusedMatMulDiv2(orp.RewriteRuleClassBase):
     def pattern(self, op, x, y, cst):
         return op.Div(op.FusedMatMul(x, y, _domain="com.microsoft", _outputs=["fused"]), cst)
 
-    def check(self, context, x, y, cst, fused: ir.Value) -> orp.MatchResult:
+    def check(self, context, x, y, cst, **_) -> orp.MatchResult:
         check_result = orp.MatchResult()
         if cst.const_value is None:
             return check_result.fail("Divisor is not a constant value.")
@@ -109,7 +109,7 @@ class TransposeMatMul1(_TransposeMatMulBase):
 
 
 class TransposeFusedMatMul1(TransposeMatMul1):
-    """Replaces ``Transpose + (Fused)MatMul`` with FusedMatMul."""
+    """Replaces ``Transpose + FusedMatMul`` with FusedMatMul."""
 
     def pattern(self, op, x, y):
         return op.FusedMatMul(
@@ -130,7 +130,7 @@ class TransposeMatMul2(_TransposeMatMulBase):
 
 
 class TransposeFusedMatMul2(TransposeMatMul2):
-    """Replaces ``Transpose + (Fused)MatMul`` with FusedMatMul."""
+    """Replaces ``Transpose + FusedMatMul`` with FusedMatMul."""
 
     def pattern(self, op, x, y):
         return op.FusedMatMul(
