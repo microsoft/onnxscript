@@ -7,6 +7,7 @@ from typing import Sequence, Union
 
 from onnxscript import ir
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
+from onnxscript.rewriter._basics import MatchFailureError
 
 Dim = Union[int, ir.SymbolicDim]
 
@@ -75,66 +76,28 @@ class SDPA(pattern.RewriteRuleClassBase):
         key_transposed: ir.Value | None,
         value: ir.Value | None,
         mask: ir.Value | None,
-        query_scaling: str,
-        query_scale: ir.Value | None,
-        key_scaling: str,
-        key_scale: ir.Value | None,
-        qk_scaling: str,
-        qk_scale: ir.Value | None,
-        **_,
+        **match_bindings,
     ):
         check_result = pattern.MatchResult()
 
-        if query_scaling == "None":
-            query_scale_value = 1.0
-        elif query_scaling == "Mul":
-            if (query_scale_value := _ir_utils.get_singleton_value(query_scale)) is None:
-                return check_result.fail(
-                    "Query scale is not a scalar.",
-                    query_scale,
-                )
-        else:
-            assert query_scaling == "Div", "Unexpected query scaling operation"
-            if (query_scale_value := _ir_utils.get_singleton_value(query_scale)) is None:
-                return check_result.fail(
-                    "Query scale is not a scalar.",
-                    query_scale,
-                )
-            query_scale_value = 1.0 / query_scale_value
+        def get_scale_value(tag_name: str, scale_name: str) -> float:
+            scaling_type = match_bindings.get(tag_name, "None")
+            if scaling_type == "None":
+                return 1.0
+            else:
+                scale = match_bindings.get(scale_name)
+                value = _ir_utils.get_singleton_value(scale)
+                if value is None:
+                    raise MatchFailureError(f"{scale_name} is not a scalar.", scale)
+                if scaling_type == "Mul":
+                    return value
+                else:
+                    assert scaling_type == "Div", f"Unexpected {scale_name} scaling operation"
+                    return 1.0 / value
 
-        if key_scaling == "None":
-            key_scale_value = 1.0
-        elif key_scaling == "Mul":
-            if (key_scale_value := _ir_utils.get_singleton_value(key_scale)) is None:
-                return check_result.fail(
-                    "Key scale is not a scalar.",
-                    key_scale,
-                )
-        else:
-            assert key_scaling == "Div", "Unexpected key scaling operation"
-            if (key_scale_value := _ir_utils.get_singleton_value(key_scale)) is None:
-                return check_result.fail(
-                    "Key scale is not a scalar.",
-                    key_scale,
-                )
-            key_scale_value = 1.0 / key_scale_value
-
-        if qk_scaling == "None":
-            qk_scale_value = 1.0
-        elif qk_scaling == "Mul":
-            if (qk_scale_value := _ir_utils.get_singleton_value(qk_scale)) is None:
-                return check_result.fail(
-                    "QK scale is not a scalar.",
-                    qk_scale,
-                )
-        else:
-            assert qk_scaling == "Div", "Unexpected QK scaling operation"
-            if (qk_scale_value := _ir_utils.get_singleton_value(qk_scale)) is None:
-                return check_result.fail(
-                    "QK scale is not a scalar.",
-                    qk_scale,
-                )
-            qk_scale_value = 1.0 / qk_scale_value
+        query_scale_value = get_scale_value("query_scaling", "query_scale")
+        key_scale_value = get_scale_value("key_scaling", "key_scale")
+        qk_scale_value = get_scale_value("qk_scaling", "qk_scale")
 
         self._scale = query_scale_value * key_scale_value * qk_scale_value
 
