@@ -536,14 +536,13 @@ func (float[1,3] x) => (float[1,3] return_val) {
         optimized = self._fold(model)
         self.assertEqual(optimized.graph.node(-1).op_type, "Identity")
 
-    def test_large_transpose(self):
+    def test_input_size_limit(self):
         model_text = """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[M, 256] x) => (float[M, 512] z)
             <float[1, 1] w = {1.0}> # placeholder for large initializer of shape [512, 256]
             {
-                wt = Transpose (w)
-                z = MatMul (x, wt)
+                z = Mul (x, x)
             }
         """
         model = ir.from_onnx_text(model_text)
@@ -551,16 +550,35 @@ func (float[1,3] x) => (float[1,3] return_val) {
         w.shape = ir.Shape([512, 256])
         w.const_value = ir.tensor(np.random.random((512, 256)).astype(np.float32))
 
-        # Input size limit will prevent folding of Transpose op
+        # Input size limit will prevent folding of Mul op
         optimized = self._fold(model, input_size_limit=3 * 512 * 256)
         ops = [node.op_type for node in optimized.graph]
-        self.assertEqual(ops, ["Transpose", "MatMul"])
+        self.assertEqual(ops, ["Mul"])
 
         # Input size limit will allow folding of Transpose op
         # Since there is no increase in model-size, output-size is not a concern.
         optimized = self._fold(model, input_size_limit=4 * 512 * 256)
         ops = [node.op_type for node in optimized.graph]
-        self.assertEqual(ops, ["Constant", "MatMul"])
+        self.assertEqual(ops, ["Constant"])
+
+    def test_transpose_is_always_folded(self):
+        model_text = """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[M, 256] x) => (float[M, 512] z)
+            <float[1, 1] w = {1.0}> # placeholder for large initializer of shape [512, 256]
+            {
+                z = Transpose (w)
+            }
+        """
+        model = ir.from_onnx_text(model_text)
+        w = model.graph.initializers["w"]
+        w.shape = ir.Shape([512, 256])
+        w.const_value = ir.tensor(np.random.random((512, 256)).astype(np.float32))
+
+        # Input size limit will not prevent folding of Transpose op
+        optimized = self._fold(model, input_size_limit=1)
+        ops = [node.op_type for node in optimized.graph]
+        self.assertEqual(ops, ["Constant"])
 
     def test_multi_graph_identity_output_preserves_output_name(self):
         model = """
