@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import math
+from typing import Sequence, Union
 
 from onnxscript import ir
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
+
+Dim = Union[int, ir.SymbolicDim]
 
 
 class SDPA(pattern.RewriteRuleClassBase):
@@ -69,6 +72,9 @@ class SDPA(pattern.RewriteRuleClassBase):
         self,
         context,
         query: ir.Value | None,
+        key_transposed: ir.Value | None,
+        value: ir.Value | None,
+        mask: ir.Value | None,
         query_scaling: str,
         query_scale: ir.Value | None,
         key_scaling: str,
@@ -147,6 +153,23 @@ class SDPA(pattern.RewriteRuleClassBase):
             self._scale = None
 
         # TODO: check ranks/shapes
+        bindings: dict[str, Dim] = {}
+
+        def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
+            return not _fusion_utils._check_shape(bindings, val, dims)
+
+        # Check that query/key/value have the expected shapes:
+        # They all should have same batch-size (B) and number of heads (H). Conceptually, it is
+        # different for Q and K/V, but the certain op implementations require them to be the same,
+        # which is usually achieved via tiling/expanding K/V num-heads to match Q num-heads.
+        # Query and Key should have same head-size (Dh) while value can have different head-size (Dv).
+        # Key and Value should have same sequence length (Skv), while Query can have different sequence length (S).
+        if no_match(query, ["B", "H", "S", "Dh"]):
+            return False
+        if no_match(key_transposed, ["B", "H", "Dh", "Skv"]):
+            return False
+        if no_match(value, ["B", "H", "Skv", "Dv"]):
+            return False
 
         return check_result
 
