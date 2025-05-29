@@ -42,7 +42,9 @@ class MatchResult:
         """Returns a string representation of the match result."""
         if not self._partial_matches:
             return "MatchResult()"
-        return f"MatchResult(success={bool(self)}, reason={self.reason!r}, nodes={self.nodes!r})"
+        return (
+            f"MatchResult(success={bool(self)}, reason={self.reason!r}, nodes={self.nodes!r})"
+        )
 
     @property
     def _current_match(self) -> PartialMatchResult:
