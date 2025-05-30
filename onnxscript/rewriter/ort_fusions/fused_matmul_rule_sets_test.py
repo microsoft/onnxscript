@@ -583,6 +583,146 @@ class OrtRuleSetsTest(unittest.TestCase):
                     onnx.helper.make_opsetid("com.microsoft", 1),
                 ],
             ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["Y"], ["Yt"], perm=[1, 2, 0, 3]),
+                        onnx.helper.make_node(
+                            "FusedMatMul",
+                            ["X", "Yt"],
+                            ["Z"],
+                            domain="com.microsoft",
+                            alpha=0.5,
+                            transA=0,
+                            transB=0,
+                            transBatchA=0,
+                            transBatchB=0,
+                        ),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4, 4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4, 4, 4]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["Y"], ["Yt"], perm=[2, 0, 1, 3]),
+                        onnx.helper.make_node(
+                            "FusedMatMul",
+                            ["X", "Yt"],
+                            ["Z"],
+                            domain="com.microsoft",
+                            alpha=0.5,
+                            transA=0,
+                            transB=0,
+                            transBatchA=0,
+                            transBatchB=1,
+                        ),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4, 4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4, 4, 4]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["Y"], ["Yt"], perm=[1, 2, 3, 0]),
+                        onnx.helper.make_node(
+                            "FusedMatMul",
+                            ["X", "Yt"],
+                            ["Z"],
+                            domain="com.microsoft",
+                            alpha=0.5,
+                            transA=0,
+                            transB=0,
+                            transBatchA=0,
+                            transBatchB=0,
+                        ),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4, 4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4, 4, 4]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["Y"], ["Yt"], perm=[3, 0, 1, 2]),
+                        onnx.helper.make_node(
+                            "FusedMatMul",
+                            ["X", "Yt"],
+                            ["Z"],
+                            domain="com.microsoft",
+                            alpha=0.5,
+                            transA=0,
+                            transB=0,
+                            transBatchA=0,
+                            transBatchB=1,
+                        ),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4, 4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4, 4, 4]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
+            onnx.helper.make_model(
+                onnx.helper.make_graph(
+                    [
+                        onnx.helper.make_node("Transpose", ["Y"], ["Yt"], perm=[3, 1, 2, 0]),
+                        onnx.helper.make_node(
+                            "FusedMatMul",
+                            ["X", "Yt"],
+                            ["Z"],
+                            domain="com.microsoft",
+                            alpha=0.5,
+                            transA=0,
+                            transB=0,
+                            transBatchA=0,
+                            transBatchB=1,
+                        ),
+                    ],
+                    "name",
+                    [
+                        onnx.helper.make_tensor_value_info("X", FLOAT, [4, 4, 4, 4]),
+                        onnx.helper.make_tensor_value_info("Y", FLOAT, [4, 4, 4, 4]),
+                    ],
+                    [onnx.helper.make_tensor_value_info("Z", FLOAT, [None, None])],
+                ),
+                opset_imports=[
+                    onnx.helper.make_opsetid("", 18),
+                    onnx.helper.make_opsetid("com.microsoft", 1),
+                ],
+            ),
         ]
         return models
 
