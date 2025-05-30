@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 """Fuses Pad nodes into preceding nodes. Supported fusion patterns:
 - Pad ∘ Conv          -> Conv
+- Pad ∘ ConvInteger   -> ConvInteger
 """
 
 import typing
@@ -125,14 +126,35 @@ class FusePadConv(_FusePadConvBase):
         return check_result
 
 
+class FusePadConvInteger(FusePadConv):
+    """Replaces ``Pad(ConvInteger(x))`` with ``ConvInteger(x)``."""
+
+    def __init__(self, as_function: bool = False):
+        super(FusePadConv, self).__init__(name="FusePadConvInteger", as_function=as_function)
+
+    def pattern(self, op: ir.tape.Tape, x: ir.Value) -> ir.Value:
+        return op.ConvInteger(
+            op.Pad(x, _allow_other_inputs=True, _outputs=["pad"]),
+            _allow_other_inputs=True,
+            _outputs=["conv"],
+        )
+
+
 fuse_pad_into_conv = FusePadConv.rule()
+fuse_pad_into_conv_integer = FusePadConvInteger.rule()
 
 
 def fuse_pad_into_conv_rule_set() -> orp.RewriteRuleSet:
     """Returns a set of rewrite rules that fuse Pad nodes into preceding:
     - Conv
+    - ConvInteger
 
     Returns:
         RewriteRuleSet
     """
-    return orp.RewriteRuleSet([fuse_pad_into_conv])
+    return orp.RewriteRuleSet(
+        [
+            fuse_pad_into_conv,
+            fuse_pad_into_conv_integer,
+        ]
+    )
