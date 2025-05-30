@@ -31,6 +31,7 @@ jobs:
           - py311-torch-nightly
           - py311-onnx-weekly
           - py311-ort-nightly
+          - py311-onnx-ir-git
           - py310
         include:
           - name: py312
@@ -51,6 +52,9 @@ jobs:
           - name: py311-ort-nightly
             python-version: "3.11"
             nox-tag: test-ort-nightly
+          - name: py311-onnx-ir-git
+            python-version: "3.11"
+            nox-tag: test-onnx-ir-git
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
