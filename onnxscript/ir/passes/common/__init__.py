@@ -2,31 +2,36 @@
 # Licensed under the MIT License.
 
 __all__ = [
-    "clear_metadata_and_docstring",
-    "constant_manipulation",
-    "inliner",
-    "onnx_checker",
-    "shape_inference",
-    "topological_sort",
-    "unused_removal",
+    "AddInitializersToInputsPass",
+    "CheckerPass",
+    "ClearMetadataAndDocStringPass",
+    "CommonSubexpressionEliminationPass",
+    "InlinePass",
+    "LiftConstantsToInitializersPass",
+    "LiftSubgraphInitializersToMainGraphPass",
+    "RemoveInitializersFromInputsPass",
+    "RemoveUnusedFunctionsPass",
+    "RemoveUnusedNodesPass",
+    "RemoveUnusedOpsetsPass",
+    "ShapeInferencePass",
+    "TopologicalSortPass",
 ]
 
-from onnxscript.ir.passes.common import (
-    clear_metadata_and_docstring,
-    constant_manipulation,
-    inliner,
-    onnx_checker,
-    shape_inference,
-    topological_sort,
-    unused_removal,
+from onnx_ir.passes.common import (
+    AddInitializersToInputsPass,
+    CheckerPass,
+    ClearMetadataAndDocStringPass,
+    InlinePass,
+    LiftConstantsToInitializersPass,
+    LiftSubgraphInitializersToMainGraphPass,
+    RemoveInitializersFromInputsPass,
+    RemoveUnusedFunctionsPass,
+    RemoveUnusedNodesPass,
+    RemoveUnusedOpsetsPass,
+    ShapeInferencePass,
+    TopologicalSortPass,
 )
 
-
-def __set_module() -> None:
-    """Set the module of all functions in this module to this public module."""
-    global_dict = globals()
-    for name in __all__:
-        global_dict[name].__module__ = __name__
-
-
-__set_module()
+from onnxscript.ir.passes.common.common_subexpression_elimination import (
+    CommonSubexpressionEliminationPass,
+)

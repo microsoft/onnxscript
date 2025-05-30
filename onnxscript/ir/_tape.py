@@ -4,179 +4,19 @@
 
 from __future__ import annotations
 
-from typing import (
-    Any,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-)
+from typing import TYPE_CHECKING, Any, Optional, Sequence
 
-from onnxscript import ir
-from onnxscript.ir import _convenience
+from onnx_ir import tape
+
+if TYPE_CHECKING:
+    import onnx_ir as ir
+
 
 # A type representing the domains/versions used in creating nodes in IR.
-UsedOpsets = set[Tuple[str, Optional[int]]]
+UsedOpsets = set[tuple[str, Optional[int]]]
 
 
-class Tape:
-    """Tape class.
-
-    A tape is a recorder that collects nodes and initializers that are created so
-    that they can be used for creating a graph.
-
-    Example::
-
-        from onnxscript import ir
-
-        tape = ir.tape.Tape()
-        a = tape.initializer(ir.tensor([1, 2, 3], name="a"))
-        b: ir.Value = ...
-        c: ir.Value = ...
-        x = tape.op("Add", [a, b], attributes={"alpha": 1.0})
-        y = tape.op("Mul", [x, c], attributes={"beta": 2.0})
-        model = ir.Model(
-            graph := ir.Graph(
-                inputs=[b, c],
-                outputs=[y],
-                nodes=tape.nodes,
-                initializers=tape.initializers
-                opset_imports={"": 20},
-            ),
-            ir_version=10,
-        )
-
-    Attributes:
-        graph_like: The graph to append the new nodes and initializers to. When
-            it is None, the nodes and initializers are creating without owned by a graph.
-            Initializers will not be added to functions because it is not supported by ONNX.
-    """
-
-    def __init__(self, graph_like: ir.Graph | ir.Function | None = None) -> None:
-        self._nodes: list[ir.Node] = []
-        self._initializers: list[ir.Value] = []
-        self._used_opsets: UsedOpsets = set()
-        self.graph_like = graph_like
-
-    def __repr__(self) -> str:
-        return f"Tape(nodes={self._nodes}, initializers={self._initializers})"
-
-    @property
-    def nodes(self) -> Sequence[ir.Node]:
-        return tuple(self._nodes)
-
-    @property
-    def initializers(self) -> Sequence[ir.Value]:
-        return tuple(self._initializers)
-
-    @property
-    def used_opsets(self) -> UsedOpsets:
-        return self._used_opsets
-
-    def op(
-        self,
-        op_type: str,
-        inputs: Sequence[ir.Value | None],
-        attributes: Mapping[str, _convenience.SupportedAttrTypes] | None = None,
-        *,
-        domain: str = "",
-        overload: str = "",
-        version: int | None = None,
-        graph: ir.Graph | None = None,
-        name: str | None = None,
-        doc_string: str | None = None,
-        metadata_props: dict[str, str] | None = None,
-        output: ir.Value | None = None,
-    ) -> ir.Value:
-        if attributes is None:
-            attrs: Sequence[ir.Attr | ir.RefAttr] = ()
-        else:
-            attrs = _convenience.convert_attributes(attributes)
-        output_kwargs: dict[str, Any]
-        if output is None:
-            output_kwargs = dict(num_outputs=1)
-        else:
-            output_kwargs = dict(outputs=[output])
-        node = ir.Node(
-            domain,
-            op_type,
-            inputs,
-            attributes=attrs,
-            **output_kwargs,
-            overload=overload,
-            version=version,
-            graph=graph or self.graph_like,
-            name=name,
-            doc_string=doc_string,
-            metadata_props=metadata_props,
-        )
-        self._nodes.append(node)
-        self._used_opsets.add((domain, version))
-
-        return node.outputs[0]
-
-    def op_multi_out(
-        self,
-        op_type: str,
-        inputs: Sequence[ir.Value | None],
-        attributes: Mapping[str, _convenience.SupportedAttrTypes] | None = None,
-        *,
-        num_outputs: int | None = None,
-        outputs: Sequence[ir.Value] | None = None,
-        domain: str = "",
-        overload: str = "",
-        version: int | None = None,
-        graph: ir.Graph | None = None,
-        name: str | None = None,
-        doc_string: str | None = None,
-        metadata_props: dict[str, str] | None = None,
-    ) -> Sequence[ir.Value]:
-        if num_outputs is None and outputs is None:
-            raise ValueError("Either num_outputs or outputs must be provided.")
-        if num_outputs is not None and outputs is not None:
-            raise ValueError("Both num_outputs and outputs cannot be provided simultaneously.")
-        output_kwargs: dict[str, Any]
-        if outputs is None:
-            output_kwargs = dict(num_outputs=num_outputs)
-        else:
-            output_kwargs = dict(outputs=outputs)
-        if attributes is None:
-            attrs: Sequence[ir.Attr | ir.RefAttr] = ()
-        else:
-            attrs = _convenience.convert_attributes(attributes)
-        node = ir.Node(
-            domain,
-            op_type,
-            inputs,
-            attributes=attrs,
-            **output_kwargs,
-            overload=overload,
-            version=version,
-            graph=graph or self.graph_like,
-            name=name,
-            doc_string=doc_string,
-            metadata_props=metadata_props,
-        )
-        self._nodes.append(node)
-        self._used_opsets.add((domain, version))
-
-        return node.outputs
-
-    def initializer(self, tensor: ir.TensorProtocol, name: str | None = None) -> ir.Value:
-        name = name or tensor.name
-        if name is None:
-            raise ValueError("Name must be provided for initializer.")
-        shape = ir.Shape((d if isinstance(d, int) else d.value) for d in tensor.shape.dims)
-        value = ir.Value(
-            name=name, shape=shape, type=ir.TensorType(tensor.dtype), const_value=tensor
-        )
-        self._initializers.append(value)
-        if isinstance(self.graph_like, ir.Graph):
-            self.graph_like.register_initializer(value)
-        return value
-
-
-class Builder(Tape):
+class Builder(tape.Tape):
     """An extension of the tape that provides a more convenient API for constructing the IR."""
 
     def __getattr__(self, op_type: str) -> Any:

@@ -1,19 +1,3 @@
-<table>
-<tr>
-<td>⚠️</td>
-<td>
-<strong>NOTE:</strong> ONNX Script is in <strong><em>very early
-and active development</em></strong> and the team anticipates
-<strong><em>breaking changes</em></strong> as the project evolves.
-ONNX Script is <strong><ins>not ready for production</ins></strong>,
-but early feedback is welcome.
-</td>
-<td>⚠️</td>
-</tr>
-</table>
-
-----
-
 # Contributing to ONNX Script
 
 We're always looking for your help to improve the product (bug fixes, new features, documentation, etc). Currently ONNX Script is under early and heavy development, so we encourage proposing any major changes by [filing an issue](https://github.com/microsoft/onnxscript/issues) to discuss your idea with the team first.
