@@ -21,13 +21,8 @@ from onnx_ir.passes.common import (
     AddInitializersToInputsPass,
     CheckerPass,
     ClearMetadataAndDocStringPass,
-    InlinePass,
-)
-from onnxscript.ir.passes.common.common_subexpression_elimination import (
     CommonSubexpressionEliminationPass,
-)
-from onnxscript.ir.passes.common.constant_manipulation import (
-    AddInitializersToInputsPass,
+    InlinePass,
     LiftConstantsToInitializersPass,
     LiftSubgraphInitializersToMainGraphPass,
     RemoveInitializersFromInputsPass,
