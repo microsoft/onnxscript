@@ -2,31 +2,44 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import ClassVar, Optional, Sequence
 
 import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
 
 
-def get_node(value: ir.Value, name: str) -> ir.Node:
+def _get_node(value: ir.Value, name: str) -> ir.Node:
     """Get the node from the output value."""
     node = value.producer()
     assert node is not None, f"{name} node should not be None"
     return node
 
 
-def get_kwargs(node: ir.Node) -> dict[str, float | int]:
+def _get_kwargs(node: ir.Node) -> dict[str, float | int]:
     """Get the kwargs from the node."""
     kwargs = {key: val.value for key, val in node.attributes.items()}
     return kwargs
 
 
-def get_int_or_default(node: ir.Node, name: str, default: int = 0) -> int:
-    """Get the value from the node attribute dictionary or return default."""
+def _get_int_or_default(node: ir.Node, name: str, default: int = 0) -> int:
+    """Get the int value from the node attribute dictionary or return default."""
     if name in node.attributes:
         value = node.attributes[name].as_int()
     else:
         value = default
+    return value
+
+
+def _get_ints_or_default(
+    node: ir.Node, name: str, default: Optional[Sequence[int]] = None
+) -> Sequence[int]:
+    """Get the Sequence[int] value from the node attribute dictionary or return default."""
+    if name in node.attributes:
+        value = node.attributes[name].as_ints()
+    elif default is not None:
+        value = default
+    else:
+        value = []
     return value
 
 
@@ -68,9 +81,9 @@ class FusedMatMulDiv2(orp.RewriteRuleClassBase):
     def rewrite(self, op, x, y, cst, fused: ir.Value):
         value = cst.const_value.numpy()
         c = float(value[0] if value.shape == (1,) else value)
-        fused_node = get_node(fused, "FusedMatMul")
-        kwargs = get_kwargs(fused_node)
-        kwargs["alpha"] = fused_node.attributes["alpha"].as_float() / c
+        fused_node = _get_node(fused, "FusedMatMul")
+        kwargs = _get_kwargs(fused_node)
+        kwargs["alpha"] = kwargs.get("alpha", 1.0) / c
         return op.FusedMatMul(x, y, **kwargs, _domain="com.microsoft")
 
 
@@ -81,29 +94,32 @@ class _TransposeMatMulBase(orp.RewriteRuleClassBase):
         self, context, x, y, transposed: ir.Value, fused: ir.Value | None = None, **_
     ) -> orp.MatchResult:
         check_result = orp.MatchResult()
-        transposed_node = get_node(transposed, "Transpose")
-        perm = transposed_node.attributes["perm"].as_ints()
-        # Check that last two dimensions are swapped
-        expected_perm = list(range(len(perm)))
-        expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
-        if perm != expected_perm:
-            return check_result.fail("Permutation values for Transpose are not correct.")
+        transposed_node = _get_node(transposed, "Transpose")
+        perm = _get_ints_or_default(transposed_node, "perm")
+        # If perm is not defined, the default transpose behavior is to swap
+        #    the last two dimensions, which is the correct permutation.
+        if perm:
+            # Check that last two dimensions are swapped
+            expected_perm = list(range(len(perm)))
+            expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
+            if perm != expected_perm:
+                return check_result.fail("Permutation values for Transpose are not correct.")
         if fused:
-            fused_node = get_node(fused, "FusedMatMul")
-            transBatchProperty = "transBatchA" if self._pos == 1 else "transBatchB"
-            if get_int_or_default(fused_node, transBatchProperty):
+            fused_node = _get_node(fused, "FusedMatMul")
+            trans_batch_property = "transBatchA" if self._pos == 1 else "transBatchB"
+            if _get_int_or_default(fused_node, trans_batch_property):
                 return check_result.fail(
-                    "FusedMatMul with transposed batch cannot be used with op.Transpose."
+                    "FusedMatMul with transposed batch cannot be used with op.Transpose in this rule."
                 )
         return check_result
 
     def rewrite(self, op, x, y, fused: ir.Value | None = None, **_):
         kwargs = {}
         if fused:
-            fused_node = get_node(fused, "FusedMatMul")
-            kwargs = get_kwargs(fused_node)
-        name = "transA" if self._pos == 1 else "transB"
-        kwargs[name] = 1 - kwargs.get(name, 0)
+            fused_node = _get_node(fused, "FusedMatMul")
+            kwargs = _get_kwargs(fused_node)
+        trans_name = "transA" if self._pos == 1 else "transB"
+        kwargs[trans_name] = 1 - kwargs.get(trans_name, 0)
         return op.FusedMatMul(x, y, **kwargs, _domain="com.microsoft")
 
 
@@ -148,7 +164,24 @@ class TransposeFusedMatMul2(TransposeMatMul2):
 
 
 class _TransposeFusedMatMulBaseWithBatch(orp.RewriteRuleClassBase):
-    """Base class for Transpose + FusedMatMul with batch transpose support."""
+    """Replaces ``Transpose + FusedMatMul`` with FusedMatMul, either
+       when transBatchA or transBatchB in FusedMatMul is 1, or
+       can be inverted based on the permutation dims of the Transpose, in
+       contrast to the original FusedMatMul rule which assumes that
+       transBatchA and transBatchB are always 0 before and after rewriting.
+    The flipping logic is based on the following cases:
+       Case 1: transposeBatchA is 0, Transpose "perm" is [1, 2, ..., N-1, 0]
+            or transposeBatchA is 1, Transpose "perm" is [N-1, 0, 1, ..., N-2]
+        - Then transBatchA and transA can be flipped in FusedMatMul when rewriting.
+       Case 2: transposeBatchA is 0, Transpose "perm" is [1, 2, ..., N-2, 0, N-1]
+            or transposeBatchA is 1, Transpose "perm" is [N-2, 0, 1, ..., N-3, N-1]
+        - Then transBatchA can be flipped in FusedMatMul when rewriting.
+       Case 3: transposeBatchA is 1, Transpose "perm" is [N-1, 1, ..., N-2, 0]
+        - Then transA can be flipped in FusedMatMul when rewriting.
+    The same logic applies for transposeBatchB and transB, when _pos is set to 2.
+    The _flip_transpose_batch and _flip_transpose flags are used to control
+    which case is applied by the rules of inheriting classes that change these class vars.
+    """
 
     _pos: ClassVar = 1
     _flip_transpose_batch: ClassVar = False
@@ -158,50 +191,55 @@ class _TransposeFusedMatMulBaseWithBatch(orp.RewriteRuleClassBase):
         self, context, x, y, transposed: ir.Value, fused: ir.Value, **_
     ) -> orp.MatchResult:
         check_result = orp.MatchResult()
-        fused_node = get_node(fused, "FusedMatMul")
-        transBatchProperty = "transBatchA" if self._pos == 1 else "transBatchB"
-        transBatch = get_int_or_default(fused_node, transBatchProperty)
-        transposed_node = get_node(transposed, "Transpose")
+        fused_node = _get_node(fused, "FusedMatMul")
+        trans_batch_property = "transBatchA" if self._pos == 1 else "transBatchB"
+        trans_batch = _get_int_or_default(fused_node, trans_batch_property)
+        transposed_node = _get_node(transposed, "Transpose")
         perm = transposed_node.attributes["perm"].as_ints()
-        list_perm = list(range(len(perm)))
+        if not perm:
+            return check_result.fail("Permutation values for Transpose are not correct.")
 
+        list_perm = list(range(len(perm)))
         if self._flip_transpose_batch and self._flip_transpose:
-            # Check when transposeBatch is 0 or 1 and transpose can be flipped i.e., when the first index is moved to the end
-            # for transposeBatch = 0 or last index is moved to the front for transposeBatch = 1
-            expected_perm0 = [*list_perm[1:], list_perm[0]]
-            expected_perm1 = [list_perm[-1], *list_perm[0:-1]]
-            if (expected_perm0 == perm and transBatch == 0) or (
-                expected_perm1 == perm and transBatch == 1
-            ):
+            #  Case 1: transposeBatchA/B is 0, Transpose "perm" is [1, 2, ..., N-1, 0]
+            #       or transposeBatchA/B is 1, Transpose "perm" is [N-1, 0, 1, ..., N-2]
+            #   - Then transBatchA/B and transA/B can be flipped in FusedMatMul when rewriting.
+            if trans_batch == 0:
+                expected_perm = [*list_perm[1:], list_perm[0]]
+            else:
+                expected_perm = [list_perm[-1], *list_perm[0:-1]]
+            if expected_perm == perm:
                 return check_result
         elif self._flip_transpose_batch:
-            # Check when transposeBatch can be flipped i.e., when the first index is moved to the second-to-last position
-            # for transposeBatch = 0 or second-to-last index is moved to the front for transposeBatch = 1
-            expected_perm0 = [*list_perm[1:-1], list_perm[0], list_perm[-1]]
-            expected_perm1 = [list_perm[-2], *list_perm[0:-2], list_perm[-1]]
-            if (expected_perm0 == perm and transBatch == 0) or (
-                expected_perm1 == perm and transBatch == 1
-            ):
+            #  Case 2: transposeBatchA/B is 0, Transpose "perm" is [1, 2, ..., N-2, 0, N-1]
+            #       or transposeBatchA/B is 1, Transpose "perm" is [N-2, 0, 1, ..., N-3, N-1]
+            #   - Then transBatchA/B can be flipped in FusedMatMul when rewriting.
+            if trans_batch == 0:
+                expected_perm = [*list_perm[1:-1], list_perm[0], list_perm[-1]]
+            else:
+                expected_perm = [list_perm[-2], *list_perm[0:-2], list_perm[-1]]
+            if expected_perm == perm:
                 return check_result
         elif self._flip_transpose:
-            # Check when transposeBatch = 1 and transpose can be flipped i.e., when the first and last indices are flipped.
+            #  Case 3: transposeBatchA is 1, Transpose "perm" is [N-1, 1, ..., N-2, 0]
+            #   - Then transA can be flipped in FusedMatMul when rewriting.
             expected_perm = [list_perm[-1], *list_perm[1:-1], list_perm[0]]
-            if expected_perm == perm and transBatch == 1:
+            if expected_perm == perm and trans_batch == 1:
                 return check_result
 
         return check_result.fail("Permutation values for Transpose are not correct.")
 
     def rewrite(self, op, x, y, fused: ir.Value, **_):
         kwargs = {}
-        fused_node = get_node(fused, "FusedMatMul")
-        kwargs = get_kwargs(fused_node)
+        fused_node = _get_node(fused, "FusedMatMul")
+        kwargs = _get_kwargs(fused_node)
         name = "A" if self._pos == 1 else "B"
         if self._flip_transpose_batch:
-            transBatchName = f"transBatch{name}"
-            kwargs[transBatchName] = 1 - kwargs[transBatchName]
+            trans_batch_property = f"transBatch{name}"
+            kwargs[trans_batch_property] = 1 - kwargs.get(trans_batch_property, 0)
         if self._flip_transpose:
-            transName = f"trans{name}"
-            kwargs[transName] = 1 - kwargs[transName]
+            trans_property = f"trans{name}"
+            kwargs[trans_property] = 1 - kwargs.get(trans_property, 0)
         return op.FusedMatMul(x, y, **kwargs, _domain="com.microsoft")
 
     def pattern(self, op, x, y):
@@ -261,19 +299,23 @@ class MatMulTranspose(orp.RewriteRuleClassBase):
 
     def check(self, context, x, y, transposed: ir.Value, **_) -> orp.MatchResult:
         check_result = orp.MatchResult()
-        transpose_node = get_node(transposed, "Transpose")
-        perm = transpose_node.attributes["perm"].as_ints()
-        expected_perm = list(range(len(perm)))
-        expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
-        if perm != expected_perm:
-            return check_result.fail("Permutation values for Transpose are not correct.")
+        transpose_node = _get_node(transposed, "Transpose")
+        perm = _get_ints_or_default(transpose_node, "perm")
+        # If perm is not defined, the default transpose behavior is to swap
+        #    the last two dimensions, which is the correct permutation.
+        if perm:
+            # Check that last two dimensions are swapped
+            expected_perm = list(range(len(perm)))
+            expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
+            if perm != expected_perm:
+                return check_result.fail("Permutation values for Transpose are not correct.")
         return check_result
 
     def rewrite(self, op, x, y, fused: ir.Value | None = None, **_):
         kwargs = {}
         if fused:
-            fused_node = get_node(fused, "FusedMatMul")
-            kwargs = get_kwargs(fused_node)
+            fused_node = _get_node(fused, "FusedMatMul")
+            kwargs = _get_kwargs(fused_node)
         for name in ["transA", "transB"]:
             kwargs[name] = 1 - kwargs.get(name, 0)
         return op.FusedMatMul(y, x, **kwargs, _domain="com.microsoft")
