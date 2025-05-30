@@ -848,7 +848,13 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         self.shape_inference = shape_inference
         self.input_size_limit = input_size_limit
         self.output_size_limit = output_size_limit
-        self.always_fold_ops: frozenset[str] = frozenset(always_fold_ops)
+        ops = []
+        for name in always_fold_ops:
+            domain, op_type = name.split("::", 1) if "::" in name else ("", name)
+            if domain == "ai.onnx":
+                domain = ""
+            ops.append((domain, op_type))
+        self.always_fold_ops: frozenset[tuple[str, str]] = frozenset(ops)
 
         self._opset_imports: dict[str, int] = {}
         self._counts: dict[str, int] = {}
@@ -1014,7 +1020,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         if any(x.const_value is None for x in node.inputs if x is not None):
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug(
-                    "Skipping constant folding for node %s because it has None constant inputs",
+                    "Skipping constant folding for node %s because it has non-constant inputs",
                     node,
                     [x.name for x in node.inputs if x is not None],
                 )
@@ -1022,7 +1028,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 
         input_tensors = [x.const_value if x is not None else None for x in node.inputs]
 
-        if node.op_type not in self.always_fold_ops and any(
+        if (node.domain, node.op_type) not in self.always_fold_ops and any(
             tensor.nbytes > self.input_size_limit
             for tensor in input_tensors
             if tensor is not None
