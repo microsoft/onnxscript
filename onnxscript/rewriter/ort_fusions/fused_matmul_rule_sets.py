@@ -21,6 +21,15 @@ def get_kwargs(node: ir.Node) -> dict[str, float | int]:
     return kwargs
 
 
+def get_int_or_default(node: ir.Node, name: str, default: int = 0) -> int:
+    """Get the value from the node attribute dictionary or return default."""
+    if name in node.attributes:
+        value = node.attributes[name].as_int()
+    else:
+        value = default
+    return value
+
+
 class FusedMatMulDiv1(orp.RewriteRuleClassBase):
     """Replaces ``MatMul + Div`` with MatMul."""
 
@@ -61,7 +70,7 @@ class FusedMatMulDiv2(orp.RewriteRuleClassBase):
         c = float(value[0] if value.shape == (1,) else value)
         fused_node = get_node(fused, "FusedMatMul")
         kwargs = get_kwargs(fused_node)
-        kwargs["alpha"] = fused_node.attributes["alpha"].as_float() / c  # type: ignore[assignment]
+        kwargs["alpha"] = fused_node.attributes["alpha"].as_float() / c
         return op.FusedMatMul(x, y, **kwargs, _domain="com.microsoft")
 
 
@@ -81,13 +90,10 @@ class _TransposeMatMulBase(orp.RewriteRuleClassBase):
             return check_result.fail("Permutation values for Transpose are not correct.")
         if fused:
             fused_node = get_node(fused, "FusedMatMul")
-            if fused_node.attributes.get("transBatchA", 0).value == 1 and self._pos == 1:  # type: ignore[union-attr]
+            transBatchProperty = "transBatchA" if self._pos == 1 else "transBatchB"
+            if get_int_or_default(fused_node, transBatchProperty):
                 return check_result.fail(
-                    "FusedMatMul with transBatchA cannot be used with Transpose(A)."
-                )
-            if fused_node.attributes.get("transBatchB", 0).value == 1 and self._pos == 2:  # type: ignore[union-attr]
-                return check_result.fail(
-                    "FusedMatMul with transBatchB cannot be used with Transpose(B)."
+                    "FusedMatMul with transposed batch cannot be used with op.Transpose."
                 )
         return check_result
 
@@ -154,7 +160,7 @@ class _TransposeFusedMatMulBaseWithBatch(orp.RewriteRuleClassBase):
         check_result = orp.MatchResult()
         fused_node = get_node(fused, "FusedMatMul")
         transBatchProperty = "transBatchA" if self._pos == 1 else "transBatchB"
-        transBatch = fused_node.attributes.get(transBatchProperty, 0).as_int()  # type: ignore[union-attr]
+        transBatch = get_int_or_default(fused_node, transBatchProperty)
         transposed_node = get_node(transposed, "Transpose")
         perm = transposed_node.attributes["perm"].as_ints()
         list_perm = list(range(len(perm)))
@@ -192,10 +198,10 @@ class _TransposeFusedMatMulBaseWithBatch(orp.RewriteRuleClassBase):
         name = "A" if self._pos == 1 else "B"
         if self._flip_transpose_batch:
             transBatchName = f"transBatch{name}"
-            kwargs[transBatchName] = 1 - kwargs[transBatchName]  # type: ignore[assignment]
+            kwargs[transBatchName] = 1 - kwargs[transBatchName]
         if self._flip_transpose:
             transName = f"trans{name}"
-            kwargs[transName] = 1 - kwargs[transName]  # type: ignore[assignment]
+            kwargs[transName] = 1 - kwargs[transName]
         return op.FusedMatMul(x, y, **kwargs, _domain="com.microsoft")
 
     def pattern(self, op, x, y):
@@ -269,7 +275,7 @@ class MatMulTranspose(orp.RewriteRuleClassBase):
             fused_node = get_node(fused, "FusedMatMul")
             kwargs = get_kwargs(fused_node)
         for name in ["transA", "transB"]:
-            kwargs[name] = 1 - kwargs.get(name, 0)  # type: ignore[assignment]
+            kwargs[name] = 1 - kwargs.get(name, 0)
         return op.FusedMatMul(y, x, **kwargs, _domain="com.microsoft")
 
 
