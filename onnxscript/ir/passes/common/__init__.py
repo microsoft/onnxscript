@@ -5,6 +5,7 @@ __all__ = [
     "AddInitializersToInputsPass",
     "CheckerPass",
     "ClearMetadataAndDocStringPass",
+    "CommonSubexpressionEliminationPass",
     "InlinePass",
     "LiftConstantsToInitializersPass",
     "LiftSubgraphInitializersToMainGraphPass",
@@ -29,4 +30,8 @@ from onnx_ir.passes.common import (
     RemoveUnusedOpsetsPass,
     ShapeInferencePass,
     TopologicalSortPass,
+)
+
+from onnxscript.ir.passes.common.common_subexpression_elimination import (
+    CommonSubexpressionEliminationPass,
 )
