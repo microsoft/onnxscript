@@ -32,3 +32,7 @@ from onnx_ir.passes.common import (
     ShapeInferencePass,
     TopologicalSortPass,
 )
+
+from onnxscript.ir.passes.common.common_subexpression_elimination import (
+    CommonSubexpressionEliminationPass,
+)
