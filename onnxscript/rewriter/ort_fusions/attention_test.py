@@ -10,11 +10,11 @@ import parameterized
 
 import onnxscript
 import onnxscript.ir as ir
+import onnxscript.ir.passes.common as common_passes
 import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
-from onnxscript.ir.passes.common import shape_inference
 from onnxscript.rewriter.ort_fusions._test_utils import ORT_VERSION, assert_allclose, ort_run
 from onnxscript.rewriter.ort_fusions.models._whisper_encoder import whisper_encoder_test
 
@@ -141,7 +141,7 @@ class TestAttentionFusion(unittest.TestCase):
         """Test the model with or without past inputs."""
         inputs = self.random_inputs(with_past=with_past)
         model = self.create_model(with_past=with_past)
-        model = shape_inference.infer_shapes(model)
+        model = common_passes.ShapeInferencePass()(model).model
 
         test_with_ort = packaging.version.Version("1.20") <= ORT_VERSION
         if test_with_ort:
@@ -172,7 +172,7 @@ class TestAttentionFusion(unittest.TestCase):
         # Fuse SDPA and MHA
         sdpa_count = xformers.fuse_sdpa(model)
         self.assertGreater(sdpa_count, 0)
-        model = shape_inference.infer_shapes(model)
+        model = common_passes.ShapeInferencePass()(model).model
         mha_count = xformers.fuse_mha1(model)
         mha_count += xformers.fuse_mha2(model)
         self.assertGreater(mha_count, 0)
