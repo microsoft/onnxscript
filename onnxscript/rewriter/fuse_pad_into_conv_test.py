@@ -33,6 +33,7 @@ class FusePadConvBaseTest(unittest.TestCase):
 
     def build_model(
         self,
+        op_type: str,
         input_shape: ir.Shape,
         weight_shape: typing.Sequence[int],
         pad_inputs: typing.Sequence[ir.TensorProtocol | ir.Value | None],
@@ -57,14 +58,17 @@ class FusePadConvBaseTest(unittest.TestCase):
                 raise ValueError(f"Unsupported type for pad input ({x}): {type(x)}.")
 
         # Register operations in the tape
-        x = ir.Input("X", shape=input_shape, type=ir.TensorType(ir.DataType.FLOAT))
+        idtype = ir.DataType.UINT8 if op_type == "ConvInteger" else ir.DataType.FLOAT
+        x = ir.Input("X", shape=input_shape, type=ir.TensorType(idtype))
         y = tape.op("Pad", inputs=[x, *pad_inputs], attributes=pad_attributes)
         y = tape.op(
-            "Conv",
+            op_type,
             inputs=[y, self.get_conv_weights(weight_shape, tape)],
             attributes=conv_attributes,
             output=ir.Input("Y", shape=output_shape, type=ir.TensorType(x.dtype)),
         )
+        if op_type == "ConvInteger":
+            y.dtype = ir.DataType.INT32
 
         # Build the model
         ir_model = ir.Model(
@@ -101,6 +105,7 @@ class FusePadConvTest(FusePadConvBaseTest):
         if axes is not None:
             pad_inputs.append(axes)
         base_model = self.build_model(
+            op_type="Conv",
             input_shape=ir.Shape(("N", 32, 14, 16)),
             weight_shape=(10, 32, 3, 3),
             pad_inputs=pad_inputs,
@@ -190,6 +195,7 @@ class FusePadConvTest(FusePadConvBaseTest):
         self, mode, pads, const_value, axes, auto_pad, err_msg
     ):
         base_model = self.build_model(
+            op_type="Conv",
             input_shape=ir.Shape(("N", 32, 14, 16, 12)),
             weight_shape=(10, 32, 3, 4, 5),
             pad_inputs=[pads, const_value, axes],
@@ -206,6 +212,52 @@ class FusePadConvTest(FusePadConvBaseTest):
         tracer_match = tracer.best_matches_map[fuse_pad_into_conv][0]
         self.assertEqual(tracer_match.status.value, orp.MatchStatus.CONDITION_FAILED)
         self.assertRegex(tracer_match.match_result.reason, err_msg)
+
+
+class FusePadConvIntegerTest(FusePadConvBaseTest):
+    def get_conv_weights(self, shape: typing.Sequence[int], tape: ir.tape.Tape = None):
+        w = ir.tensor(self.rng.integers(0, 256, shape).astype("uint8"), name="W")
+        if tape is not None:
+            w = tape.initializer(w)
+        return w
+
+    @parameterized.parameterized.expand(
+        [
+            (pad_pads, const_value, axes, conv_pads)
+            for pad_pads, axes, conv_pads in [
+                ([0, 0, 3, 2, 0, 0, 1, 4], None, [1, 1, 1, 1]),
+                ([2, 2, 0, 2, 2, 0], ir.tensor([-2, -1, 1], name="axes"), None),
+                ([1, 2, 2, 1], ir.tensor([-1, 2], name="axes"), [0, 1, 0, 1]),
+            ]
+            for const_value in [None, ir.tensor(np.array([0], "uint8"), name="const_value")]
+        ]
+    )
+    def test_fuse_pad_into_conv_integer(self, pad_pads, const_value, axes, conv_pads):
+        pad_inputs = [ir.tensor(pad_pads, name="pads")]
+        if const_value is not None or axes is not None:
+            pad_inputs.append(const_value)
+        if axes is not None:
+            pad_inputs.append(axes)
+        base_model = self.build_model(
+            op_type="ConvInteger",
+            input_shape=ir.Shape(("N", 24, 19, 23)),
+            weight_shape=(8, 24, 3, 3),
+            pad_inputs=pad_inputs,
+            conv_attributes={"pads": conv_pads},
+        )
+        updated_model = _clone_model(base_model)
+
+        # Apply rule
+        count = fuse_pad_into_conv_rule_set().apply_to_model(updated_model)
+
+        # Check that Pad was fused
+        self.assertEqual(count, 1)
+        self.assertEqual(updated_model.graph.num_nodes(), 1)
+        onnx_checker.CheckerPass(True)(updated_model)
+
+        # Check inference
+        inputs = self.rng.integers(0, 255, (1, 24, 19, 23), dtype="uint8")
+        testing.assert_numerically_equal(base_model, updated_model, (inputs,), atol=0, rtol=0)
 
 
 if __name__ == "__main__":
