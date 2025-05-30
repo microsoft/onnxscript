@@ -169,16 +169,24 @@ class _TransposeFusedMatMulBaseWithBatch(orp.RewriteRuleClassBase):
        can be inverted based on the permutation dims of the Transpose, in
        contrast to the original FusedMatMul rule which assumes that
        transBatchA and transBatchB are always 0 before and after rewriting.
+
+    transBatchA = 1, transA = 0 applies a batch transpose by moving the first dimension to the second-to-last position
+        i.e., equivalent to a Transpose with "perm" [1, 2, ..., N-2, 0, N-1].
+    transBatchA = 0, transA = 1 flips the last two dimensions
+        i.e., equivalent to a Transpose with "perm" [0, 1, ... N-3, N-1, N-2].
+    transBatchA = 1, transA = 1 applies a batch transpose, then flips the last two dimensions
+        i.e., equivalent to a Transpose with "perm" [1, 2, ..., N-1, 0].
+
     The flipping logic is based on the following cases:
-       Case 1: transposeBatchA is 0, Transpose "perm" is [1, 2, ..., N-1, 0]
-            or transposeBatchA is 1, Transpose "perm" is [N-1, 0, 1, ..., N-2]
+       Case 1: transBatchA is 0, Transpose "perm" is [1, 2, ..., N-1, 0]
+            or transBatchA is 1, Transpose "perm" is [N-1, 0, 1, ..., N-2]
         - Then transBatchA and transA can be flipped in FusedMatMul when rewriting.
-       Case 2: transposeBatchA is 0, Transpose "perm" is [1, 2, ..., N-2, 0, N-1]
-            or transposeBatchA is 1, Transpose "perm" is [N-2, 0, 1, ..., N-3, N-1]
+       Case 2: transBatchA is 0, Transpose "perm" is [1, 2, ..., N-2, 0, N-1]
+            or transBatchA is 1, Transpose "perm" is [N-2, 0, 1, ..., N-3, N-1]
         - Then transBatchA can be flipped in FusedMatMul when rewriting.
-       Case 3: transposeBatchA is 1, Transpose "perm" is [N-1, 1, ..., N-2, 0]
+       Case 3: transBatchA is 1, Transpose "perm" is [N-1, 1, ..., N-2, 0]
         - Then transA can be flipped in FusedMatMul when rewriting.
-    The same logic applies for transposeBatchB and transB, when _pos is set to 2.
+    The same logic applies for transBatchB and transB, when _pos is set to 2.
     The _flip_transpose_batch and _flip_transpose flags are used to control
     which case is applied by the rules of inheriting classes that change these class vars.
     """
@@ -201,8 +209,8 @@ class _TransposeFusedMatMulBaseWithBatch(orp.RewriteRuleClassBase):
 
         list_perm = list(range(len(perm)))
         if self._flip_transpose_batch and self._flip_transpose:
-            #  Case 1: transposeBatchA/B is 0, Transpose "perm" is [1, 2, ..., N-1, 0]
-            #       or transposeBatchA/B is 1, Transpose "perm" is [N-1, 0, 1, ..., N-2]
+            #  Case 1: transBatchA/B is 0, Transpose "perm" is [1, 2, ..., N-1, 0]
+            #       or transBatchA/B is 1, Transpose "perm" is [N-1, 0, 1, ..., N-2]
             #   - Then transBatchA/B and transA/B can be flipped in FusedMatMul when rewriting.
             if trans_batch == 0:
                 expected_perm = [*list_perm[1:], list_perm[0]]
@@ -211,8 +219,8 @@ class _TransposeFusedMatMulBaseWithBatch(orp.RewriteRuleClassBase):
             if expected_perm == perm:
                 return check_result
         elif self._flip_transpose_batch:
-            #  Case 2: transposeBatchA/B is 0, Transpose "perm" is [1, 2, ..., N-2, 0, N-1]
-            #       or transposeBatchA/B is 1, Transpose "perm" is [N-2, 0, 1, ..., N-3, N-1]
+            #  Case 2: transBatchA/B is 0, Transpose "perm" is [1, 2, ..., N-2, 0, N-1]
+            #       or transBatchA/B is 1, Transpose "perm" is [N-2, 0, 1, ..., N-3, N-1]
             #   - Then transBatchA/B can be flipped in FusedMatMul when rewriting.
             if trans_batch == 0:
                 expected_perm = [*list_perm[1:-1], list_perm[0], list_perm[-1]]
@@ -221,7 +229,7 @@ class _TransposeFusedMatMulBaseWithBatch(orp.RewriteRuleClassBase):
             if expected_perm == perm:
                 return check_result
         elif self._flip_transpose:
-            #  Case 3: transposeBatchA is 1, Transpose "perm" is [N-1, 1, ..., N-2, 0]
+            #  Case 3: transBatchA is 1, Transpose "perm" is [N-1, 1, ..., N-2, 0]
             #   - Then transA can be flipped in FusedMatMul when rewriting.
             expected_perm = [list_perm[-1], *list_perm[1:-1], list_perm[0]]
             if expected_perm == perm and trans_batch == 1:
