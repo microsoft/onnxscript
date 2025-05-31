@@ -3,6 +3,8 @@
 """Fuses Pad nodes into preceding nodes. Supported fusion patterns:
 - Pad ∘ Conv          -> Conv
 - Pad ∘ ConvInteger   -> ConvInteger
+
+To make some rules possible, we implicitly transform `auto_pad` attribute into its explicit list.
 """
 
 import typing
@@ -22,6 +24,26 @@ def fill_pads_with_axes(
         new_pads[axis] = pads[start_idx]
         new_pads[axis + rank] = pads[start_idx + N]
     return new_pads
+
+
+def read_conv_attributes(ir_conv: ir.Node) -> dict[str, typing.Sequence[int] | str]:
+    # Read attributes
+    attributes = {}
+    if (kernel_shape := ir_conv.attributes.get("kernel_shape", None)) is not None:
+        attributes["kernel_shape"] = kernel_shape.as_ints()
+    else:
+        attributes["kernel_shape"] = ir_conv.inputs[1].shape[2:]
+    if (strides := ir_conv.attributes.get("strides", None)) is not None:
+        attributes["strides"] = strides.as_ints()
+    else:
+        attributes["strides"] = [1] * len(ir_conv.inputs[0].shape[2:])
+    if (auto_pad := ir_conv.attributes.get("auto_pad", None)) is not None:
+        attributes["auto_pad"] = auto_pad.as_string()
+    else:
+        attributes["auto_pad"] = "NOTSET"
+    if (pads := ir_conv.attributes.get("pads", None)) is not None:
+        attributes["pads"] = pads.as_ints()
+    return attributes
 
 
 class _FusePadConvBase(orp.RewriteRuleClassBase):
@@ -140,6 +162,103 @@ class FusePadConvInteger(FusePadConv):
         )
 
 
+class _NormalizePadFormatBase(orp.RewriteRuleClassBase):
+    """Interface to normalize pad attributes in conv nodes."""
+
+    def compute_pads(
+        self,
+        input_shape: typing.Sequence[int],
+        output_shape: typing.Sequence[int],
+        attributes: dict[str, typing.Sequence[int] | str],
+    ) -> typing.Sequence[int]:
+        raise NotImplementedError("Child have to implement this function")
+
+    def rewrite(self, op: ir.tape.Tape, conv: ir.Value, **__) -> ir.Value:
+        cnode = conv.producer()
+
+        # Read spatial dimensions and attributes
+        input_shape = cnode.inputs[0].shape[2:]
+        output_shape = cnode.outputs[0].shape[2:]
+        attributes = read_conv_attributes(cnode)
+
+        # Convert auto_pad mode into an explicit list
+        pads = self.compute_pads(input_shape, output_shape, attributes)
+
+        # Replace auto_pad, forcing to the explicit list
+        conv_attr: typing.Mapping[str, ir.Attr] = cnode.attributes.copy()
+        conv_attr["auto_pad"] = ir.convenience.convert_attribute("auto_pad", "NOTSET")
+        if any(x != 0 for x in pads):
+            conv_attr["pads"] = ir.convenience.convert_attribute("pads", pads)
+
+        return op.op(
+            cnode.op_type,
+            inputs=cnode.inputs,
+            attributes=conv_attr,
+            domain=cnode.domain,
+            name=cnode.name,
+        )
+
+    def check(self, context, conv: ir.Value, **__) -> orp.MatchResult:
+        del context
+        check_result = orp.MatchResult()
+
+        # Conv constraints: attributes
+        cnode = conv.producer()
+        auto_pad = cnode.attributes.get("auto_pad", None)
+        if auto_pad is None or auto_pad.as_string() == "NOTSET":
+            return check_result.fail(f"{cnode.name} auto_pad must be different to 'NOTSET'.")
+
+        # Conv constraints: inputs/outputs
+        if cnode.inputs[0].shape is None:
+            return check_result.fail(f"Input shapes are not defined on {cnode.name}.")
+        if cnode.outputs[0].shape is None:
+            return check_result.fail(f"Output shapes are not defined on {cnode.name}.")
+        return check_result
+
+
+class NormalizePadFormatConv(_NormalizePadFormatBase):
+    """Convert auto_pad attribute into 'NOTSET' in Conv nodes ."""
+
+    def compute_pads(
+        self,
+        input_shape: typing.Sequence[int],
+        output_shape: typing.Sequence[int],
+        attributes: dict[str, typing.Sequence[int] | str],
+    ) -> typing.Sequence[int]:
+        # Compute pads, following auto_pad/pads attributes
+        if attributes["auto_pad"] in ["NOTSET", "VALID"]:
+            return attributes.get("pads", [0] * len(input_shape) * 2)
+
+        bottom_pads, top_pads = [], []
+        kernel_shape, strides = attributes["kernel_shape"], attributes["strides"]
+        for x, y, k, s in zip(input_shape, output_shape, kernel_shape, strides):
+            # Compute the output shape and the total padding to apply
+            total_pads = max(0, (y - 1) * s + k - x)
+
+            # Depending of mode, apply the padding to the upper or lower part
+            pad1 = total_pads // 2
+            pad2 = total_pads - pad1
+            if attributes["auto_pad"] == "SAME_UPPER":
+                bottom_pads.append(pad1)
+                top_pads.append(pad2)
+            else:
+                top_pads.append(pad1)
+                bottom_pads.append(pad2)
+        return bottom_pads + top_pads
+
+    def pattern(self, op: ir.tape.Tape, x: ir.Value) -> ir.Value:
+        return op.Conv(x, _allow_other_inputs=True, _outputs=["conv"])
+
+
+class NormalizePadFormatConvInteger(NormalizePadFormatConv):
+    """Convert auto_pad attribute into 'NOTSET' in ConvInteger nodes ."""
+
+    def pattern(self, op: ir.tape.Tape, x: ir.Value) -> ir.Value:
+        return op.ConvInteger(x, _allow_other_inputs=True, _outputs=["conv"])
+
+
+normalize_pad_format_conv = NormalizePadFormatConv.rule()
+normalize_pad_format_conv_integer = NormalizePadFormatConvInteger.rule()
 fuse_pad_into_conv = FusePadConv.rule()
 fuse_pad_into_conv_integer = FusePadConvInteger.rule()
 
@@ -154,6 +273,8 @@ def fuse_pad_into_conv_rule_set() -> orp.RewriteRuleSet:
     """
     return orp.RewriteRuleSet(
         [
+            normalize_pad_format_conv,
+            normalize_pad_format_conv_integer,
             fuse_pad_into_conv,
             fuse_pad_into_conv_integer,
         ]
