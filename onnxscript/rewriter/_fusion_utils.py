@@ -38,7 +38,7 @@ def check_shape(bindings: dict[str, Dim], val: ir.Value, shape: Sequence[str]):
             bindings[expected] = actual  # type: ignore[assignment]
         elif actual != bindings[expected]:
             raise MatchFailureError(
-                f"Dimenion {i} of {val} ({actual}) does not have expected size ({bindings[expected]}).",
+                f"Dimension {i} of {val} ({actual}) does not have expected size ({bindings[expected]}).",
                 val,
             )
 
