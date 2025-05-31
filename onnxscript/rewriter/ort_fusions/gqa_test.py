@@ -44,6 +44,7 @@ class GQAFusionTest(unittest.TestCase):
             "num_heads must be divisible by kv_num_heads"
         )
         self.num_groups = self.num_heads // self.kv_num_heads
+        self.total_seqlen = self.seqlen + self.past_seqlen
 
         # Abbreviations
         B = self.batchsize
@@ -311,12 +312,24 @@ class GQAFusionTest(unittest.TestCase):
             onnx.TensorProto.FLOAT,
             ["B", self.seqlen, self.kv_num_heads, self.head_size],
         )
+        key_transposed_value_info = onnx.helper.make_tensor_value_info(
+            "key_transposed",
+            onnx.TensorProto.FLOAT,
+            ["B", self.num_heads, self.head_size, self.total_seqlen],
+        )
+        value_BHSDh_value_info = onnx.helper.make_tensor_value_info(
+            "value_BHSDh",
+            onnx.TensorProto.FLOAT,
+            ["B", self.num_heads, self.total_seqlen, self.head_size],
+        )
         source_model.graph.value_info.extend(
             [
                 query_BHSDh_rope_value_info,
                 key_BHkvSDh_rope_value_info,
                 query_BSHDh_value_info,
                 key_BSHkvDh_value_info,
+                key_transposed_value_info,
+                value_BHSDh_value_info,
             ]
         )
 
