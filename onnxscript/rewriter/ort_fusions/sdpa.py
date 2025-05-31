@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import Sequence, Union
+from typing import Union
 
 from onnxscript import ir
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
@@ -80,6 +80,18 @@ class SDPA(pattern.RewriteRuleClassBase):
     ):
         check_result = pattern.MatchResult()
 
+        bindings: dict[str, Dim] = {}
+
+        # Check that query/key/value have the expected shapes:
+        # They all should have same batch-size (B) and number of heads (H). Conceptually, it is
+        # different for Q and K/V, but the certain op implementations require them to be the same,
+        # which is usually achieved via tiling/expanding K/V num-heads to match Q num-heads.
+        # Query and Key should have same head-size (Dh) while value can have different head-size (Dv).
+        # Key and Value should have same sequence length (Skv), while Query can have different sequence length (S).
+        _fusion_utils.check_shape(bindings, query, ["B", "H", "S", "Dh"])
+        _fusion_utils.check_shape(bindings, key_transposed, ["B", "H", "Dh", "Skv"])
+        _fusion_utils.check_shape(bindings, value, ["B", "H", "Skv", "Dv"])
+
         def get_scale_value(tag_name: str, scale_name: str) -> float:
             scaling_type = match_bindings.get(tag_name, "None")
             if scaling_type == "None":
@@ -103,32 +115,15 @@ class SDPA(pattern.RewriteRuleClassBase):
 
         # If the scaling factor is the default one, we can skip passing it to SDPA.
 
-        if query is None or query.shape is None or len(query.shape) < 2:
-            return
-        hidden_size = query.shape[-1]
-        if not isinstance(hidden_size, int):
-            return
+        head_size = bindings["Dh"]
+        if not isinstance(head_size, int):
+            return check_result
 
-        default_scaling_factor = 1.0 / math.sqrt(hidden_size)
+        default_scaling_factor = 1.0 / math.sqrt(head_size)
 
         if math.isclose(self._scale, default_scaling_factor, rel_tol=1e-5, abs_tol=1e-8):
             # Pass no scaling factor to SDPA, SDPA will use the default scaling factor
             self._scale = None
-
-        # TODO: check ranks/shapes
-        bindings: dict[str, Dim] = {}
-
-# Removed unused local variable `no_match`.
-
-        # Check that query/key/value have the expected shapes:
-        # They all should have same batch-size (B) and number of heads (H). Conceptually, it is
-        # different for Q and K/V, but the certain op implementations require them to be the same,
-        # which is usually achieved via tiling/expanding K/V num-heads to match Q num-heads.
-        # Query and Key should have same head-size (Dh) while value can have different head-size (Dv).
-        # Key and Value should have same sequence length (Skv), while Query can have different sequence length (S).
-        _fusion_utils.check_shape(bindings, query, ["B", "H", "S", "Dh"])
-        _fusion_utils.check_shape(bindings, key_transposed, ["B", "H", "Dh", "Skv"])
-        _fusion_utils.check_shape(bindings, value, ["B", "H", "Skv", "Dv"])
 
         return check_result
 
