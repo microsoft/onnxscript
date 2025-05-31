@@ -118,8 +118,7 @@ class SDPA(pattern.RewriteRuleClassBase):
         # TODO: check ranks/shapes
         bindings: dict[str, Dim] = {}
 
-        def no_match(val: ir.Value, dims: Sequence[str]) -> bool:
-            return not _fusion_utils._check_shape(bindings, val, dims)
+# Removed unused local variable `no_match`.
 
         # Check that query/key/value have the expected shapes:
         # They all should have same batch-size (B) and number of heads (H). Conceptually, it is
