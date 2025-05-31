@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import onnxscript.ir as ir
+import onnxscript.ir.passes.common as common_passes
 import onnxscript.rewriter.ort_fusions.shape_optimization as shape_optimization
-from onnxscript.ir.passes.common import shape_inference
 from onnxscript.optimizer import optimize
 from onnxscript.rewriter import rewrite
 from onnxscript.rewriter.ort_fusions import (
@@ -50,7 +50,7 @@ def _pre_optimize(model: ir.Model) -> ir.Model:
     # TODO: Do we need this dependence on ONNX's partial-data-propagation? There are some
     # extra shape-propagation and partial-data-propagation rules in ONNX that are not yet
     # incorporated in our optimizer.
-    shape_inference.infer_shapes(model)
+    common_passes.ShapeInferencePass()(model)
     optimize(model)
     shape_optimization.rules.apply_to_model(model)
     optimize(model)

@@ -15,7 +15,7 @@ __all__ = [
     "PassError",
 ]
 
-from onnxscript.ir.passes._pass_infra import (
+from onnx_ir.passes import (
     FunctionalPass,
     InPlacePass,
     InvariantError,
@@ -27,13 +27,3 @@ from onnxscript.ir.passes._pass_infra import (
     PreconditionError,
     Sequential,
 )
-
-
-def __set_module() -> None:
-    """Set the module of all functions in this module to this public module."""
-    global_dict = globals()
-    for name in __all__:
-        global_dict[name].__module__ = __name__
-
-
-__set_module()

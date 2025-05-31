@@ -68,6 +68,14 @@ class MatchResult:
         # We use a stack of partial matches to handle OR patterns that require backtracking.
         self._partial_matches: list[PartialMatchResult] = [PartialMatchResult()]
 
+    def __repr__(self) -> str:
+        """Returns a string representation of the match result."""
+        if not self._partial_matches:
+            return "MatchResult()"
+        return (
+            f"MatchResult(success={bool(self)}, reason={self.reason!r}, nodes={self.nodes!r})"
+        )
+
     @property
     def _current_match(self) -> PartialMatchResult:
         """Returns the current match result."""

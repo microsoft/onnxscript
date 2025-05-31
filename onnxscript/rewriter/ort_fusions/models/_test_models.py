@@ -2,17 +2,11 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import os
-import tempfile
-
-import numpy as np
-import onnxruntime
 import torch
 import transformers
 from transformers import LlamaConfig
 
 import onnxscript.ir as ir
-import onnxscript.ir._io as io
 import onnxscript.optimizer
 
 # Create a LlamaConfig object with the desired parameters
@@ -96,27 +90,3 @@ class _SmollmTestData:
         return {
             f"input{i}": input.numpy() for i, input in enumerate(inputs) if input is not None
         }
-
-
-def _ort_check(model_name: str, model, inputs, expected_outputs, rtol=1e-2, atol=1e-2):
-    providers = ["CPUExecutionProvider"]
-    with tempfile.TemporaryDirectory() as temp_dir:
-        model_path = os.path.join(temp_dir, f"{model_name}.onnx")
-        io.save(model, model_path)
-        # Run model
-        session = onnxruntime.InferenceSession(model_path, providers=providers)
-        ort_outputs = session.run(None, inputs)
-
-        for i, (baseline_output, optimized_output) in enumerate(
-            zip(expected_outputs, ort_outputs)
-        ):
-            try:
-                np.testing.assert_equal(baseline_output.shape, optimized_output.shape)
-                np.testing.assert_allclose(
-                    baseline_output, optimized_output, rtol=rtol, atol=atol
-                )
-            except AssertionError as e:
-                print(
-                    f"Failed for model {model_name} and output {i} with rtol={rtol} and atol={atol}\n{e}"
-                )
-                raise
