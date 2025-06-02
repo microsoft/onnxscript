@@ -7,9 +7,8 @@ import unittest
 from parameterized import parameterized
 
 import onnxscript.optimizer
-from onnxscript.rewriter.ort_fusions.models._rotary_embedding_models import test_case_1
-from onnxscript.rewriter.ort_fusions.models._smollm_1 import smollm_test_1
-from onnxscript.rewriter.ort_fusions.rotary_embedding import fuse_rotary_embedding
+from onnxscript.rewriter.ort_fusions import rotary_embedding
+from onnxscript.rewriter.ort_fusions.models import _rotary_embedding_models, _smollm_1
 
 
 class TestRotaryEmbedding(unittest.TestCase):
@@ -17,19 +16,19 @@ class TestRotaryEmbedding(unittest.TestCase):
         [
             (
                 "test_case_1",
-                test_case_1,
+                _rotary_embedding_models.test_case_1,
             ),
             (
                 "smollm_test_1",
-                smollm_test_1,
+                _smollm_1.smollm_test_1,
             ),
         ]
     )
-    def test_rotary_embedding_fusion(self, name, test_data_constructor):
+    def test_rotary_embedding_fusion(self, _: str, test_data_constructor):
         test = test_data_constructor()
         model = test.get_onnx_model()
         onnxscript.optimizer.optimize(model)
-        fuse_rotary_embedding(model)
+        rotary_embedding.fuse_rotary_embedding(model)
         op_types = [n.op_type for n in model.graph]
         self.assertIn("RotaryEmbedding", op_types)
 
