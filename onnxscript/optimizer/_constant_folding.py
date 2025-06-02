@@ -1028,19 +1028,32 @@ class FoldConstantsPass(ir.passes.InPlacePass):
 
         input_tensors = [x.const_value if x is not None else None for x in node.inputs]
 
-        if (node.domain, node.op_type) not in self.always_fold_ops and any(
+        if any(
             tensor.nbytes > self.input_size_limit
             for tensor in input_tensors
             if tensor is not None
         ):
-            if logger.isEnabledFor(logging.DEBUG):
-                input_sizes = [tensor.nbytes for tensor in input_tensors if tensor is not None]
+            if (node.domain, node.op_type) in self.always_fold_ops and all(
+                len(input.consumers()) == 1 for input in node.inputs if input is not None
+            ):
+                # If the op is in always_fold_ops and all inputs are used only by this node,
+                # we can still fold it even if the input size exceeds the limit.
                 logger.debug(
-                    "Skipping constant folding for node %s due to large input size: %s",
+                    "Folding large constant for node %s because it is in the always_fold_ops list",
                     node,
-                    input_sizes,
                 )
-            return None
+            else:
+                # Skip folding large tensors
+                if logger.isEnabledFor(logging.DEBUG):
+                    input_sizes = [
+                        tensor.nbytes for tensor in input_tensors if tensor is not None
+                    ]
+                    logger.debug(
+                        "Skipping constant folding for node %s due to large input size: %s",
+                        node,
+                        input_sizes,
+                    )
+                return None
 
         input_values = [_get_numpy_value(x) for x in node.inputs]
 
