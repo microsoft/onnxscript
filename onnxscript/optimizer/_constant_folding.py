@@ -835,6 +835,8 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         input_size_limit: Maximum size of input tensors to fold.
         output_size_limit: Maximum size of output tensors to fold.
         always_fold_ops: Collection of op types that should always be folded.
+            For ops from the default opset, only op_type is neede (e.g. "Transpose"),
+            otherwise specify the domain with ``{domain}::{op_type}``.
     """
 
     def __init__(
@@ -1195,7 +1197,9 @@ def fold_constants(
             that can be stored after constant folding. Defaults to
             `DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT`.
         always_fold_ops: A collection of op types that should always be folded,
-            regardless of their input or output sizes.
+            regardless of their input or output sizes. For ops from the default opset,
+            only op_type is neede (e.g. "Transpose"), otherwise specify the domain
+            with ``{domain}::{op_type}``.
 
     Returns:
         An instance of `FoldConstantsResult`.
