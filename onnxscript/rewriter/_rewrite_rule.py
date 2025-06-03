@@ -178,10 +178,7 @@ class RewriteRule:
                 check_match_result = self._condition_function(context, **match.bindings)
             except _basics.MatchFailureError as e:
                 check_match_result = _basics.MatchResult()
-                check_match_result.fail(
-                    e.reason,
-                    list(e.failure_nodes_and_values),
-                )
+                check_match_result.fail(e.reason, list(e.failure_sources))
             if not check_match_result:
                 # If check function was provided, but it failed, return the reason for failure to the tracer.
                 if isinstance(check_match_result, _basics.MatchResult):
