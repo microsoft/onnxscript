@@ -35,7 +35,13 @@ class MatchFailureInfo:
 
 
 class MatchFailureError(MatchFailureInfo, Exception):
-    """Exception raised when a pattern match fails."""
+    """Exception raised when a pattern match fails.
+
+    This makes it easier to handle match failures in a compositional way,
+    for example, during the condition-checking phase of a pattern match.
+    It allows us to define utility functions without having to check for
+    and propagate match failures explicitly.
+    """
 
     def __init__(
         self,
