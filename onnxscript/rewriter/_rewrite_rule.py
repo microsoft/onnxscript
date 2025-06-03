@@ -174,7 +174,11 @@ class RewriteRule:
                 if var.name is not None:
                     if var.name not in match.bindings:
                         match.bind(var.name, None)
-            check_match_result = self._condition_function(context, **match.bindings)
+            try:
+                check_match_result = self._condition_function(context, **match.bindings)
+            except _basics.MatchFailureError as e:
+                check_match_result = _basics.MatchResult()
+                check_match_result.fail(e.reason, list(e.failure_sources))
             if not check_match_result:
                 # If check function was provided, but it failed, return the reason for failure to the tracer.
                 if isinstance(check_match_result, _basics.MatchResult):
