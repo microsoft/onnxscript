@@ -354,7 +354,9 @@ class TestSDPAFusion(unittest.TestCase):
             # of scale_factor (is =default_scaling_factor)
             self.assertIsNone(sdpa_node.attributes.get("scale"))
 
-        replace_sdpa_by_mha(model)
+        replace_sdpa_by_mha(model, debug=True)
+
+        self.assertNotIn("SDPA", [n.op_type for n in model.graph])
 
         new_outputs = ort_run("optimized", model, inputs)
         assert_allclose(new_outputs, original_outputs)
