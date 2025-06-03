@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Sequence
 
 import onnx
 
@@ -26,14 +26,13 @@ def rewrite(
     model_proto: onnx.ModelProto,
     /,
     function_rules=None,
-    pattern_rules: list[pattern.RewriteRule] | None = None,
+    pattern_rules: Sequence[pattern.RewriteRule] | None = None,
 ) -> onnx.ModelProto:
     """Rewrite the model using the given rules.
 
     Args:
         model_proto: The model to rewrite.
-        function_rules: The function rewrite rules to apply. If None, the default rules
-            for onnxruntime are used.
+        function_rules: The function rewrite rules to apply. Deprecated.
         pattern_rules: The pattern rewrite rules to apply. If None, the default rules
             for onnxruntime are used.
 

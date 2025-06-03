@@ -207,10 +207,6 @@ return model_with_rewrite_applied
 
 For a detailed tutorial on how to create target_pattern, replacement_pattern and match_condition blocks in order to utilize the pattern-based rewriter, refer to the tutorial [Pattern-based Rewrite Using Rules](https://onnxscript.ai/tutorial/rewriter/rewrite_patterns.html)
 
-### Function-based rewriting
-
-This style of rewriting matches a `FUNCTION_KEYWORD` and `PACKAGE_NAME` provided by the user to an existing function within the graph and replaces it with a new function provided by the user.
-
 ## Development Guidelines
 
 Every change impacting the converter or the eager evaluation must be
