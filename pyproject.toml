@@ -24,7 +24,14 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "License :: OSI Approved :: MIT License",
 ]
-dependencies = ["numpy", "onnx>=1.16", "typing_extensions>=4.10", "ml_dtypes", "packaging"]
+dependencies = [
+  "ml_dtypes",
+  "numpy",
+  "onnx_ir>=0.1,<2",  # Expect onnx_ir to have a breaking change in 2.0. If not, extend this range.
+  "onnx>=1.16",
+  "packaging",
+  "typing_extensions>=4.10",
+]
 
 [tool.setuptools.packages.find]
 include = ["onnxscript*"]

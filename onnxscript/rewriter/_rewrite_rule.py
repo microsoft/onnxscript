@@ -18,7 +18,7 @@ import onnxscript.rewriter._basics as _basics
 import onnxscript.rewriter._matcher as _matcher
 import onnxscript.rewriter._pattern_ir as _pattern_ir
 from onnxscript import ir
-from onnxscript.ir import _convenience, _tape
+from onnxscript.ir import _tape, convenience
 
 T = TypeVar("T")
 
@@ -178,10 +178,7 @@ class RewriteRule:
                 check_match_result = self._condition_function(context, **match.bindings)
             except _basics.MatchFailureError as e:
                 check_match_result = _basics.MatchResult()
-                check_match_result.fail(
-                    e.reason,
-                    list(e.failure_nodes_and_values),
-                )
+                check_match_result.fail(e.reason, list(e.failure_sources))
             if not check_match_result:
                 # If check function was provided, but it failed, return the reason for failure to the tracer.
                 if isinstance(check_match_result, _basics.MatchResult):
@@ -532,7 +529,7 @@ class RewriteRuleSet:
                     )
                     f = ir.Function(domain, name, overload, graph=graph, attributes=())
                     model.functions[f.identifier()] = f
-                _convenience.replace_nodes_and_values(
+                convenience.replace_nodes_and_values(
                     graph_or_function,
                     node,
                     delta.match.nodes if rule.remove_nodes else [],

@@ -35,7 +35,13 @@ class MatchFailureInfo:
 
 
 class MatchFailureError(MatchFailureInfo, Exception):
-    """Exception raised when a pattern match fails."""
+    """Exception raised when a pattern match fails.
+
+    This makes it easier to handle match failures in a compositional way,
+    for example, during the condition-checking phase of a pattern match.
+    It allows us to define utility functions without having to check for
+    and propagate match failures explicitly.
+    """
 
     def __init__(
         self,
@@ -67,6 +73,14 @@ class MatchResult:
     def __init__(self) -> None:
         # We use a stack of partial matches to handle OR patterns that require backtracking.
         self._partial_matches: list[PartialMatchResult] = [PartialMatchResult()]
+
+    def __repr__(self) -> str:
+        """Returns a string representation of the match result."""
+        if not self._partial_matches:
+            return "MatchResult()"
+        return (
+            f"MatchResult(success={bool(self)}, reason={self.reason!r}, nodes={self.nodes!r})"
+        )
 
     @property
     def _current_match(self) -> PartialMatchResult:

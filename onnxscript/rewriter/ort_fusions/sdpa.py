@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from typing import Union
 
+import onnx_ir as ir
+
 from onnxscript import ir
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 from onnxscript.rewriter._basics import MatchFailureError
@@ -139,6 +141,7 @@ class SDPA(pattern.RewriteRuleClassBase):
         sdpa_args = [query, key_transposed, value]
         if mask is not None:
             sdpa_args.append(mask)
+        # If the scale is None, SDPA will use the default scaling factor, which is 1/sqrt(head_size).
         return op.SDPA(*sdpa_args, scale=self._scale, _domain="ai.onnxruntime.fusion")
 
 

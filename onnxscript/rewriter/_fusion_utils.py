@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Callable, Sequence, Union
 
 import onnxscript.ir as ir
-from onnxscript.ir.passes.common import shape_inference
+import onnxscript.ir.passes.common as common_passes
 from onnxscript.rewriter import pattern
 from onnxscript.rewriter._basics import MatchFailureError
 
@@ -57,7 +57,7 @@ def apply_fusion_rules(rules: pattern.RewriteRule | pattern.RewriteRuleSet) -> C
     ) -> int:
         count = rules.apply_to_model(model)
         if apply_shape_inference:
-            shape_inference.infer_shapes(model)
+            common_passes.ShapeInferencePass()(model)
         if count == 0 and debug:
             tracer = pattern.MatchingTracer()
             rules.apply_to_model(model, tracer=tracer)
