@@ -162,7 +162,7 @@ import onnxscript
 onnxscript.optimizer.optimize(onnx_model)
 ```
 
-For a detailed summary of all the optimizations applied by the optimizer call, refer to the tutorial [Optimizing a Model using the Optimizer](https://onnxscript.ai/tutorial/optimizer/optimize.html)
+For a detailed summary of all the optimizations applied by the optimizer call, refer to the tutorial [Optimizing a Model using the Optimizer](https://microsoft.github.io/onnxscript/tutorial/optimizer/optimize.html)
 
 ### ONNX Rewriter
 
@@ -205,7 +205,7 @@ model_with_rewrite_applied = onnxscript.rewriter.rewrite(
 return model_with_rewrite_applied
 ```
 
-For a detailed tutorial on how to create target_pattern, replacement_pattern and match_condition blocks in order to utilize the pattern-based rewriter, refer to the tutorial [Pattern-based Rewrite Using Rules](https://onnxscript.ai/tutorial/rewriter/rewrite_patterns.html)
+For a detailed tutorial on how to create target_pattern, replacement_pattern and match_condition blocks in order to utilize the pattern-based rewriter, refer to the tutorial [Pattern-based Rewrite Using Rules](https://microsoft.github.io/onnxscript/tutorial/rewriter/rewrite_patterns.html)
 
 ## Development Guidelines
 
