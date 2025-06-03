@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import ClassVar, Optional, Sequence
 
+from onnxscript.rewriter import _ir_utils
 import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
 
@@ -96,14 +97,16 @@ class _TransposeMatMulBase(orp.RewriteRuleClassBase):
         check_result = orp.MatchResult()
         transposed_node = _get_node(transposed, "Transpose")
         perm = _get_ints_or_default(transposed_node, "perm")
-        # If perm is not defined, the default transpose behavior is to swap
-        #    the last two dimensions, which is the correct permutation.
         if perm:
             # Check that last two dimensions are swapped
             expected_perm = list(range(len(perm)))
             expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
             if perm != expected_perm:
                 return check_result.fail("Permutation values for Transpose are not correct.")
+        elif not (self._pos == 1 and _ir_utils.has_rank(x, 2)) and (self._pos == 2 and _ir_utils.has_rank(y, 2)):
+            # If perm is not defined, the default transpose behavior is to swap
+            #   all dimensions, which is correct for MatMul with rank = 2.
+            return check_result.fail("Permutation values for Transpose are not correct.")
         if fused:
             fused_node = _get_node(fused, "FusedMatMul")
             trans_batch_property = "transBatchA" if self._pos == 1 else "transBatchB"
@@ -309,14 +312,16 @@ class MatMulTranspose(orp.RewriteRuleClassBase):
         check_result = orp.MatchResult()
         transpose_node = _get_node(transposed, "Transpose")
         perm = _get_ints_or_default(transpose_node, "perm")
-        # If perm is not defined, the default transpose behavior is to swap
-        #    the last two dimensions, which is the correct permutation.
         if perm:
             # Check that last two dimensions are swapped
             expected_perm = list(range(len(perm)))
             expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
             if perm != expected_perm:
                 return check_result.fail("Permutation values for Transpose are not correct.")
+        elif not (self._pos == 1 and _ir_utils.has_rank(x, 2)) and (self._pos == 2 and _ir_utils.has_rank(y, 2)):
+            # If perm is not defined, the default transpose behavior is to swap
+            #   all dimensions, which is correct for MatMul with rank = 2.
+            return check_result.fail("Permutation values for Transpose are not correct.")
         return check_result
 
     def rewrite(self, op, x, y, fused: ir.Value | None = None, **_):
