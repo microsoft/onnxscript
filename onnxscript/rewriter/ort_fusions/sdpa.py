@@ -140,6 +140,7 @@ class SDPA(pattern.RewriteRuleClassBase):
         sdpa_args = [query, key_transposed, value]
         if mask is not None:
             sdpa_args.append(mask)
+        # If the scale is None, SDPA will use the default scaling factor, which is 1/sqrt(head_size).
         return op.SDPA(*sdpa_args, scale=self._scale, _domain="ai.onnxruntime.fusion")
 
 
