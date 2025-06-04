@@ -51,6 +51,7 @@ def optimize_ir(
             early_stop=stop_if_no_change,
         ),
         onnxscript.ir.passes.common.RemoveUnusedNodesPass(),
+        onnxscript.ir.passes.common.CommonSubexpressionEliminationPass(),
         onnxscript.ir.passes.common.LiftConstantsToInitializersPass(),
         onnxscript.ir.passes.common.LiftSubgraphInitializersToMainGraphPass(),
     ]
