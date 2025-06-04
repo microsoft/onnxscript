@@ -28,6 +28,9 @@ class SDPAImplementation(pattern.RewriteRuleClassBase):
         _fusion_utils.check_shape(bindings, value, ["B", "H", "Skv", "Dv"])
 
         self._num_heads = bindings["H"]
+        if not isinstance(self._num_heads, int):
+            return False
+        self._use_mask_broadcast = True
         return isinstance(self._num_heads, int)
 
     def rewrite(self, op, query, key_transposed, value, sdpa_output):
@@ -44,11 +47,11 @@ class SDPAImplementation(pattern.RewriteRuleClassBase):
             mask = sdpa_node.inputs[3]
             inputs.extend([None, None, mask])
 
-        # if self._use_mask_broadcast:
-        #     one = op.Constant(value_ints=[1])
-        #     S = op.Shape(query, start=2, end=3)
-        #     shape_11S1 = op.Concat(one, one, S, one, axis=0)
-        #     mask = op.Expand(mask, shape_11S1)
+        if self._use_mask_broadcast:
+            one = op.Constant(value_ints=[1])
+            S = op.Shape(query, start=2, end=3)
+            shape_11S1 = op.Concat(one, one, S, one, axis=0)
+            mask = op.Expand(mask, shape_11S1)
 
         output = op.MultiHeadAttention(
             *inputs,
