@@ -30,7 +30,7 @@ class SDPAImplementation(pattern.RewriteRuleClassBase):
         self._num_heads = bindings["H"]
         if not isinstance(self._num_heads, int):
             return False
-        self._use_mask_broadcast = True
+        self._use_mask_broadcast = True  # TODO: optimize to avoid broadcast if not needed
         return isinstance(self._num_heads, int)
 
     def rewrite(self, op, query, key_transposed, value, sdpa_output):
@@ -45,13 +45,14 @@ class SDPAImplementation(pattern.RewriteRuleClassBase):
         inputs = [query_3d, key_3d, value_3d]
         if len(sdpa_node.inputs) > 3:
             mask = sdpa_node.inputs[3]
-            inputs.extend([None, None, mask])
 
-        if self._use_mask_broadcast:
-            one = op.Constant(value_ints=[1])
-            S = op.Shape(query, start=2, end=3)
-            shape_11S1 = op.Concat(one, one, S, one, axis=0)
-            mask = op.Expand(mask, shape_11S1)
+            if self._use_mask_broadcast:
+                one = op.Constant(value_ints=[1])
+                query_length = op.Shape(query, start=2, end=3)
+                shape_11S1 = op.Concat(one, one, query_length, one, axis=0)
+                mask = op.Expand(mask, shape_11S1)
+
+            inputs.extend([None, None, mask])
 
         output = op.MultiHeadAttention(
             *inputs,
