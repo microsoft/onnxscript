@@ -4,12 +4,13 @@
 import unittest
 
 import numpy as np
+import parameterized
 
 import onnxscript
 import onnxscript.ir as ir
 import onnxscript.rewriter.ort_fusions._test_utils as test_utils
 from onnxscript import FLOAT, script
-from onnxscript import opset18 as op
+from onnxscript import opset20 as op
 from onnxscript.optimizer import optimize, remove_unused_nodes
 from onnxscript.rewriter.ort_fusions.bias_gelu import fuse_bias_gelu
 
@@ -17,12 +18,27 @@ msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
 
 class BiasGeluFusionTest(unittest.TestCase):
-    def test_bias_gelu_fusion(self):
-        @script()
-        def bias_gelu_model(x, y):
-            gelu_add = op.Add(x, y)
-            gelu = msft_op.Gelu(gelu_add)
-            return gelu
+    @parameterized.parameterized.expand(
+        [
+            ("with_onnx_op", False),
+            ("with_contrib_op", True),
+        ]
+    )
+    def test_bias_gelu_fusion(self, _: str, has_contrib_op: bool):
+        if has_contrib_op:
+
+            @script()
+            def bias_gelu_model(x, y):
+                gelu_add = op.Add(x, y)
+                gelu = msft_op.Gelu(gelu_add)
+                return gelu
+        else:
+
+            @script()
+            def bias_gelu_model(x, y):
+                gelu_add = op.Add(x, y)
+                gelu = op.Gelu(gelu_add)
+                return gelu
 
         model_proto = bias_gelu_model.to_model_proto(
             input_types=[FLOAT[10], FLOAT[10]],
