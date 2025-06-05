@@ -253,6 +253,10 @@ def _transpose_fused_matmul_flip_transB(
 
 
 class TestFusedMatmulRules(unittest.TestCase):
+    def _apply_fusion_rules(self, ir_model: ir.Model):
+        rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
+        rule_set.apply_to_model(ir_model)
+
     def _get_random_inputs(self, model: onnx.ModelProto) -> dict[str, Any]:
         feeds: dict[str, Any] = {}
         for i in model.graph.input:
@@ -354,28 +358,18 @@ class TestFusedMatmulRules(unittest.TestCase):
             input_types=[FLOAT[4, 4], FLOAT[4, 4]], output_types=[FLOAT[4, 4]]
         )
         ir_model = ir.serde.deserialize_model(model_proto)
-        rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
-        rule_set.apply_to_model(ir_model)
+        self._apply_fusion_rules(ir_model)
         rewritten_model = ir.serde.serialize_model(ir_model)
         self.assertEqual(["FusedMatMul"], [n.op_type for n in ir_model.graph])
         self._check_model(model_proto, rewritten_model, atol=1e-6)
 
-    @parameterized.parameterized.expand(
-        [
-            (
-                "should_not_match",
-                _should_not_match,
-            ),
-        ]
-    )
+    @parameterized.parameterized.expand([("should_not_match", _should_not_match)])
     def test_should_not_match(self, _, script_func):
         model_proto = script_func.to_model_proto(
             input_types=[FLOAT[4, 4], FLOAT[4, 4]], output_types=[FLOAT[4, 4], FLOAT[4, 4]]
         )
         ir_model = ir.serde.deserialize_model(model_proto)
-        common_passes.ShapeInferencePass()(ir_model)
-        rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
-        rule_set.apply_to_model(ir_model)
+        self._apply_fusion_rules(ir_model)
         rewritten_model = ir.serde.serialize_model(ir_model)
         self.assertEqual(
             ["Transpose", "MatMul", "Transpose"],
@@ -401,8 +395,7 @@ class TestFusedMatmulRules(unittest.TestCase):
         )
         ir_model = ir.serde.deserialize_model(model_proto)
         common_passes.ShapeInferencePass()(ir_model)
-        rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
-        rule_set.apply_to_model(ir_model)
+        self._apply_fusion_rules(ir_model)
         rewritten_model = ir.serde.serialize_model(ir_model)
         self.assertEqual(["Identity", "FusedMatMul"], [n.op_type for n in ir_model.graph])
         self._check_model(model_proto, rewritten_model, atol=1e-6)
@@ -451,8 +444,7 @@ class TestFusedMatmulRules(unittest.TestCase):
             output_types=[FLOAT[4, 4, 4, 4]],
         )
         ir_model = ir.serde.deserialize_model(model_proto)
-        rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
-        rule_set.apply_to_model(ir_model)
+        self._apply_fusion_rules(ir_model)
         rewritten_model = ir.serde.serialize_model(ir_model)
         self.assertEqual(["FusedMatMul"], [n.op_type for n in ir_model.graph])
         self._check_model(model_proto, rewritten_model, atol=1e-6)
