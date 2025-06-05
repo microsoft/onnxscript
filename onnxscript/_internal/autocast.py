@@ -63,10 +63,10 @@ def pyvalue_to_onnx_attribute(
             raise ValueError("Attribute type must be specified for empty list value.")
         if attr_type not in _REPEATED_ATTRIBUTE_TYPES:
             raise ValueError("Empty list value is only allowed for repeated attribute types.")
-        return onnx.AttributeProto(name=key, type=int(attr_type))
+        return onnx.AttributeProto(name=key, type=attr_type)
     elif attr_type == onnx.AttributeProto.TENSOR and not isinstance(value, onnx.TensorProto):
         return onnx.AttributeProto(
-            name=key, type=int(attr_type), t=pyvalue_to_onnx_tensor(name_generator(), value)
+            name=key, type=attr_type, t=pyvalue_to_onnx_tensor(name_generator(), value)
         )
     else:
         # When the value is a subgraph, ONNX IR will complain that some values are

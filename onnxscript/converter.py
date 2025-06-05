@@ -298,7 +298,7 @@ class Converter:
         return r
 
     def _make_onnx_attr(
-        self, attrname: str, attrval: Any, attrtype: Optional[int] = None
+        self, attrname: str, attrval: Any, attrtype: int | None = None
     ) -> irbuilder.IRAttributeValue:
         def tensor_name_generator() -> str:
             """Return name to be used for tensor, if we need to create one."""
@@ -518,8 +518,8 @@ class Converter:
             if attr_meta and attr_meta.required:
                 self.fail(expr, f"Attribute '{attr_name}' is required.")
             return None
-        attr_type = attr_meta.type if attr_meta else None
-        attr = self._make_onnx_attr(attr_name, val, attr_type)
+        attr_type = int(attr_meta.type) if attr_meta else None
+        attr = self._make_onnx_attr(attr_name, val, attrtype=attr_type)
         if attr_meta and (attr.type != attr_meta.type):
             self.fail(
                 expr,
