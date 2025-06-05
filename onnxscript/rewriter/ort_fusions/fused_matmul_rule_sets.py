@@ -87,7 +87,7 @@ class _TransposeMatMulBase(orp.RewriteRuleClassBase):
     ) -> orp.MatchResult:
         check_result = orp.MatchResult()
         transposed_node = _get_node(transposed, "Transpose")
-        perm = _get_ints_or_default(transposed_node, "perm")
+        perm = transposed_node.attributes.get_ints("perm")
         if perm:
             # Check that last two dimensions are swapped
             expected_perm = list(range(len(perm)))
