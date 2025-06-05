@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import unittest
-from typing import Any
+from typing import Any, Tuple
 
 import numpy as np
 import onnx
@@ -11,13 +11,12 @@ import onnx.reference
 import onnx.reference.op_run
 import parameterized
 
-# import onnxscript.ir as ir
+import onnxscript.ir.passes.common as common_passes
 import onnxscript.rewriter.ort_fusions.fused_matmul_rule_sets as fused_matmul_rule_sets
 from onnxscript import FLOAT, ir, script
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.values import Opset
 
-# FLOAT = onnx.TensorProto.FLOAT
 ms_op = Opset("com.microsoft", 1)
 
 
@@ -127,7 +126,7 @@ def _transpose_fused_matmul_1(A: FLOAT[4, 4], B: FLOAT[4, 4]) -> FLOAT[4, 4]:
 @script()
 def _transpose_matmul_2(A: FLOAT[4, 4], B: FLOAT[4, 4]) -> FLOAT[4, 4]:
     Bt = op.Transpose(B, perm=[1, 0])
-    out = ms_op.MatMul(A, Bt)
+    out = op.MatMul(A, Bt)
     return out
 
 
@@ -138,12 +137,12 @@ def _transpose_fused_matmul_2(A: FLOAT[4, 4], B: FLOAT[4, 4]) -> FLOAT[4, 4]:
     return out
 
 
-# @script()
-# def _should_not_match(A: FLOAT[4, 4], B: FLOAT[4,4], C: FLOAT[4,4]) -> FLOAT[4, 4]:
-#     At = op.Transpose(A, perm=[1, 0])
-#     out1 = op.MatMul(At, B)
-#     out2 = op.Transpose(At, C, perm=[1, 0])
-#     return out1, out2
+@script()
+def _should_not_match(A: FLOAT[4, 4], B: FLOAT[4, 4]) -> Tuple[FLOAT[4, 4], FLOAT[4, 4]]:
+    At = op.Transpose(A, perm=[1, 0])
+    ab = op.MatMul(At, B)
+    C = op.Transpose(At, perm=[1, 0])
+    return ab, C
 
 
 # Add unit tests to check that fusion rewrite can work even if MatMul is not the first node.
@@ -366,6 +365,29 @@ class TestFusedMatmulRules(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
             (
+                "should_not_match",
+                _should_not_match,
+            ),
+        ]
+    )
+    def test_should_not_match(self, _, script_func):
+        model_proto = script_func.to_model_proto(
+            input_types=[FLOAT[4, 4], FLOAT[4, 4]], output_types=[FLOAT[4, 4], FLOAT[4, 4]]
+        )
+        ir_model = ir.serde.deserialize_model(model_proto)
+        common_passes.ShapeInferencePass()(ir_model)
+        rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
+        rule_set.apply_to_model(ir_model)
+        rewritten_model = ir.serde.serialize_model(ir_model)
+        self.assertEqual(
+            ["Transpose", "MatMul", "Transpose"],
+            [n.op_type for n in rewritten_model.graph.node],
+        )
+        self._check_model(model_proto, rewritten_model, atol=1e-6)
+
+    @parameterized.parameterized.expand(
+        [
+            (
                 "fused_matmul_with_identity_before_matmul",
                 _fused_matmul_with_identity_before_matmul,
             ),
@@ -380,7 +402,7 @@ class TestFusedMatmulRules(unittest.TestCase):
             input_types=[FLOAT[4, 4]], output_types=[FLOAT[4, 4]]
         )
         ir_model = ir.serde.deserialize_model(model_proto)
-        print(ir_model.graph)
+        common_passes.ShapeInferencePass()(ir_model)
         rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
         rule_set.apply_to_model(ir_model)
         rewritten_model = ir.serde.serialize_model(ir_model)
@@ -439,25 +461,6 @@ class TestFusedMatmulRules(unittest.TestCase):
         self.assertEqual(["FusedMatMul"], [n.op_type for n in rewritten_model.graph.node])
         self._check_model(model_proto, rewritten_model, atol=1e-6)
 
-
-# class TestTransposeFusedMatmulWithBatch(unittest.TestCase):
-#     def test_transpose_fused_matmul_with_batch(self):
-#         model_proto = onnx.parser.parse_model(
-#             """
-#             <ir_version: 11, opset_import: [ "" : 18, "com.microsoft" : 1 ]>
-#             agraph (float[4, 4, 4, 4] input_x, float[4, 4, 4, 4] input_y) => (float[4, 4, 4, 4] output)
-#             {
-#                 x_t = Transpose<perm=[1, 2, 3, 0]>(input_x)
-#                 output = com.microsoft.FusedMatMul<alpha=0.5> (x_t, input_y)
-#             }
-#         """
-#         )
-#         ir_model = ir.serde.deserialize_model(model_proto)
-#         rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
-#         rule_set.apply_to_model(ir_model)
-#         rewritten_model = ir.serde.serialize_model(ir_model)
-#         self.assertEqual(["FusedMatMul"], [n.op_type for n in rewritten_model.graph.node])
-#         self._check_model(model_proto, rewritten_model, atol=1e-6)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -311,10 +311,8 @@ class MatMulTranspose(orp.RewriteRuleClassBase):
         # so we can only apply this rule if the inputs are rank 2.
         if _ir_utils.has_rank(x, 2) and _ir_utils.has_rank(y, 2):
             if perm:
-                # Check that last two dimensions are swapped
-                expected_perm = list(range(len(perm)))
-                expected_perm[-2], expected_perm[-1] = expected_perm[-1], expected_perm[-2]
-                if perm != expected_perm:
+                # Check that the two dimensions are swapped
+                if perm != [1, 0]:
                     return check_result.fail(
                         "Permutation values for Transpose are not correct."
                     )
