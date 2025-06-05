@@ -30,15 +30,13 @@ class BiasGeluFusionTest(unittest.TestCase):
             @script()
             def bias_gelu_model(x, y):
                 gelu_add = op.Add(x, y)
-                gelu = msft_op.Gelu(gelu_add)
-                return gelu
+                return msft_op.Gelu(gelu_add)
         else:
 
             @script()
             def bias_gelu_model(x, y):
                 gelu_add = op.Add(x, y)
-                gelu = op.Gelu(gelu_add)
-                return gelu
+                return op.Gelu(gelu_add)
 
         model_proto = bias_gelu_model.to_model_proto(
             input_types=[FLOAT[10], FLOAT[10]],

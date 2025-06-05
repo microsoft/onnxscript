@@ -6,19 +6,25 @@ from onnxscript.rewriter import _fusion_utils, pattern
 
 
 class BiasGeluFusion(pattern.RewriteRuleClassBase):
+    """Fuses a Bias-Gelu pattern into a single BiasGelu operator.
+
+    Attributes:
+        contrib_op (bool): If True, matches the Gelu operator from the 'com.microsoft' domain.
+                           If False, matches the standard ONNX Gelu operator.
+    """
+
     def __init__(
         self,
-        name,
+        name: str,
         *,
-        has_contrib_op: bool,
+        contrib_op: bool,
     ):
         super().__init__(name)
-        self._has_contrib_op = has_contrib_op
+        self._contrib_op = contrib_op
 
     def pattern(self, op, x, y):
         gelu_add = op.Add(x, y)
-        # see: gh-2362. Match against Gelu from onnx op or contrib ops.
-        if self._has_contrib_op:
+        if self._contrib_op:
             return op.Gelu(gelu_add, _domain="com.microsoft")
         else:
             return op.Gelu(gelu_add)
@@ -29,8 +35,8 @@ class BiasGeluFusion(pattern.RewriteRuleClassBase):
 
 bias_gelu_rules = pattern.RewriteRuleSet(
     [
-        BiasGeluFusion.rule("gelu_onnx_op", has_contrib_op=False),
-        BiasGeluFusion.rule("gelu_contrib_op", has_contrib_op=True),
+        BiasGeluFusion.rule("gelu_onnx_op", contrib_op=False),
+        BiasGeluFusion.rule("gelu_contrib_op", contrib_op=True),
     ]
 )
 
