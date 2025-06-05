@@ -27,6 +27,7 @@ class BiasGeluFusion(pattern.RewriteRuleClassBase):
         if self._contrib_op:
             return op.Gelu(gelu_add, _domain="com.microsoft")
         else:
+            # match behavior of onnxruntime fusion_biasgelu.py
             return op.Gelu(gelu_add)
 
     def rewrite(self, op, x, y):

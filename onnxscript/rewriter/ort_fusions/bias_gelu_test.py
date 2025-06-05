@@ -9,7 +9,7 @@ import parameterized
 import onnxscript
 import onnxscript.ir as ir
 import onnxscript.rewriter.ort_fusions._test_utils as test_utils
-from onnxscript import FLOAT, script
+from onnxscript import FLOAT, OnnxFunction, script
 from onnxscript import opset20 as op
 from onnxscript.optimizer import optimize, remove_unused_nodes
 from onnxscript.rewriter.ort_fusions.bias_gelu import fuse_bias_gelu
@@ -17,32 +17,34 @@ from onnxscript.rewriter.ort_fusions.bias_gelu import fuse_bias_gelu
 msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
 
+@script()
+def _test_script_onnx_default(x: FLOAT[10], y: FLOAT[10]) -> FLOAT[10]:
+    gelu_add = op.Add(x, y)
+    return op.Gelu(gelu_add)
+
+
+@script()
+def _test_script_onnx_none(x: FLOAT[10], y: FLOAT[10]) -> FLOAT[10]:
+    gelu_add = op.Add(x, y)
+    return op.Gelu(gelu_add, approximate="none")
+
+
+@script()
+def _test_script_msft_op(x: FLOAT[10], y: FLOAT[10]) -> FLOAT[10]:
+    gelu_add = op.Add(x, y)
+    return msft_op.Gelu(gelu_add)
+
+
 class BiasGeluFusionTest(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
-            ("with_onnx_op", False),
-            ("with_contrib_op", True),
+            ("with_onnx_op_default", _test_script_onnx_default),
+            ("with_onnx_op_none", _test_script_onnx_none),
+            ("with_contrib_op", _test_script_msft_op),
         ]
     )
-    def test_bias_gelu_fusion(self, _: str, has_contrib_op: bool):
-        if has_contrib_op:
-
-            @script()
-            def bias_gelu_model(x, y):
-                gelu_add = op.Add(x, y)
-                return msft_op.Gelu(gelu_add)
-        else:
-
-            @script()
-            def bias_gelu_model(x, y):
-                gelu_add = op.Add(x, y)
-                return op.Gelu(gelu_add)
-
-        model_proto = bias_gelu_model.to_model_proto(
-            input_types=[FLOAT[10], FLOAT[10]],
-            output_types=[FLOAT[10]],
-            ir_version=10,
-        )
+    def test_bias_gelu_fusion(self, _: str, test_data_constructor: OnnxFunction):
+        model_proto = test_data_constructor.to_model_proto()
         model = ir.serde.deserialize_model(model_proto)
         optimize(model)
 
