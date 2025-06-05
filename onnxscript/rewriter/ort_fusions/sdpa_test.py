@@ -300,34 +300,6 @@ class InvalidSDPATestCase:
         return self._ort_inputs
 
 
-class InvalidSDPATestCase:
-    def __init__(self, script_func):
-        self.script_func = script_func
-
-    def get_onnx_model(self):
-        if not hasattr(self, "_onnx_model"):
-            qk_type = FLOAT[B, N, S, H]
-            # We broadcast value in the batch dimension, which is not supported by SDPA fusion
-            v_type = FLOAT[1, N, S, H]
-            mask_type = FLOAT[B, N, S, S]
-            model_proto = self.script_func.to_model_proto(
-                input_types=[qk_type, qk_type, v_type, mask_type], output_types=[qk_type]
-            )
-            self._onnx_model = ir.serde.deserialize_model(model_proto)
-        return self._onnx_model
-
-    def get_ort_inputs(self):
-        if not hasattr(self, "_ort_inputs"):
-            inputs = {
-                "query": numpy.random.rand(B, N, S, H).astype(numpy.float32),
-                "key": numpy.random.rand(B, N, S, H).astype(numpy.float32),
-                "value": numpy.random.rand(1, N, S, H).astype(numpy.float32),
-                "mask": numpy.random.rand(B, N, S, S).astype(numpy.float32),
-            }
-            self._ort_inputs = inputs
-        return self._ort_inputs
-
-
 class TestSDPAFusion(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
@@ -388,13 +360,6 @@ class TestSDPAFusion(unittest.TestCase):
 
         new_outputs = ort_run("optimized", model, inputs)
         assert_allclose(new_outputs, original_outputs)
-
-    def test_invalid_sdpa_fusion_value_batch_dim(self):
-        test_case = InvalidSDPATestCase(_masked_pre_mul_sdpa_script)
-        model = test_case.get_onnx_model()
-        onnxscript.optimizer.optimize(model)
-        count = fuse_sdpa(model)
-        self.assertEqual(count, 0)
 
     def test_invalid_sdpa_fusion_value_batch_dim(self):
         test_case = InvalidSDPATestCase(_masked_pre_mul_sdpa_script)
