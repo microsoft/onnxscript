@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from typing import ClassVar, Optional, Sequence
+from typing import ClassVar
 
 import onnxscript.rewriter.pattern as orp
 from onnxscript import ir
@@ -20,8 +20,6 @@ def _get_kwargs(node: ir.Node) -> dict[str, float | int]:
     """Get the kwargs from the node."""
     kwargs = {key: val.value for key, val in node.attributes.items()}
     return kwargs
-
-
 
 
 class FusedMatMulDiv1(orp.RewriteRuleClassBase):
@@ -254,36 +252,33 @@ class _TransposeFusedMatMulBaseWithBatch(orp.RewriteRuleClassBase):
             )
 
 
-TransposeFusedMatMulWithFlippedBatchAndTranspose1 = type(
-    "TransposeFusedMatMulWithFlippedBatchAndTranspose1",
-    (_TransposeFusedMatMulBaseWithBatch,),
-    {"_flip_transpose": True, "_flip_transpose_batch": True},
-)
-TransposeFusedMatMulWithFlippedBatchAndTranspose2 = type(
-    "TransposeFusedMatMulWithFlippedBatchAndTranspose2",
-    (_TransposeFusedMatMulBaseWithBatch,),
-    {"_pos": 2, "_flip_transpose": True, "_flip_transpose_batch": True},
-)
-TransposeFusedMatMulWithFlippedBatch1 = type(
-    "TransposeFusedMatMulWithFlippedBatch1",
-    (_TransposeFusedMatMulBaseWithBatch,),
-    {"_flip_transpose_batch": True},
-)
-TransposeFusedMatMulWithFlippedBatch2 = type(
-    "TransposeFusedMatMulWithFlippedBatch2",
-    (_TransposeFusedMatMulBaseWithBatch,),
-    {"_pos": 2, "_flip_transpose_batch": True},
-)
-TransposeFusedMatMulWithBatchAndTranspose1 = type(
-    "TransposeFusedMatMulWithBatchAndTranspose1",
-    (_TransposeFusedMatMulBaseWithBatch,),
-    {"_flip_transpose": True},
-)
-TransposeFusedMatMulWithBatchAndTranspose2 = type(
-    "TransposeFusedMatMulWithBatchAndTranspose2",
-    (_TransposeFusedMatMulBaseWithBatch,),
-    {"_pos": 2, "_flip_transpose": True},
-)
+class TransposeFusedMatMulWithFlippedBatchAndTranspose1(_TransposeFusedMatMulBaseWithBatch):
+    _flip_transpose = True
+    _flip_transpose_batch = True
+
+
+class TransposeFusedMatMulWithFlippedBatchAndTranspose2(_TransposeFusedMatMulBaseWithBatch):
+    _pos = 2
+    _flip_transpose = True
+    _flip_transpose_batch = True
+
+
+class TransposeFusedMatMulWithFlippedBatch1(_TransposeFusedMatMulBaseWithBatch):
+    _flip_transpose_batch = True
+
+
+class TransposeFusedMatMulWithFlippedBatch2(_TransposeFusedMatMulBaseWithBatch):
+    _pos = 2
+    _flip_transpose_batch = True
+
+
+class TransposeFusedMatMulWithBatchAndTranspose1(_TransposeFusedMatMulBaseWithBatch):
+    _flip_transpose = True
+
+
+class TransposeFusedMatMulWithBatchAndTranspose2(_TransposeFusedMatMulBaseWithBatch):
+    _pos = 2
+    _flip_transpose = True
 
 
 class MatMulTranspose(orp.RewriteRuleClassBase):
@@ -295,7 +290,7 @@ class MatMulTranspose(orp.RewriteRuleClassBase):
     def check(self, context, x, y, transposed: ir.Value, **_) -> orp.MatchResult:
         check_result = orp.MatchResult()
         transpose_node = _get_node(transposed, "Transpose")
-        perm = _get_ints_or_default(transpose_node, "perm")
+        perm = transpose_node.attributes.get_ints("perm")
         # transA/transB only work on the last two dimensions of the input,
         # so we can only apply this rule if the inputs are rank 2.
         if _ir_utils.has_rank(x, 2) and _ir_utils.has_rank(y, 2):
@@ -349,11 +344,11 @@ def fused_matmul_rule_sets() -> orp.RewriteRuleSet:
             TransposeFusedMatMul1.rule(),
             TransposeMatMul2.rule(),
             TransposeFusedMatMul2.rule(),
-            TransposeFusedMatMulWithFlippedBatch1.rule(),  # type: ignore[attr-defined]
-            TransposeFusedMatMulWithFlippedBatch2.rule(),  # type: ignore[attr-defined]
-            TransposeFusedMatMulWithFlippedBatchAndTranspose1.rule(),  # type: ignore[attr-defined]
-            TransposeFusedMatMulWithFlippedBatchAndTranspose2.rule(),  # type: ignore[attr-defined]
-            TransposeFusedMatMulWithBatchAndTranspose1.rule(),  # type: ignore[attr-defined]
-            TransposeFusedMatMulWithBatchAndTranspose2.rule(),  # type: ignore[attr-defined]
+            TransposeFusedMatMulWithFlippedBatch1.rule(),
+            TransposeFusedMatMulWithFlippedBatch2.rule(),
+            TransposeFusedMatMulWithFlippedBatchAndTranspose1.rule(),
+            TransposeFusedMatMulWithFlippedBatchAndTranspose2.rule(),
+            TransposeFusedMatMulWithBatchAndTranspose1.rule(),
+            TransposeFusedMatMulWithBatchAndTranspose2.rule(),
         ]
     )
