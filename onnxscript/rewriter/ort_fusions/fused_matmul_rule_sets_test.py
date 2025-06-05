@@ -322,7 +322,7 @@ class TestFusedMatmulRules(unittest.TestCase):
         rule_set.apply_to_model(ir_model)
         rewritten_model = ir.serde.serialize_model(ir_model)
         self.assertEqual(
-            ["Constant", "FusedMatMul"], [n.op_type for n in rewritten_model.graph.node]
+            ["Constant", "FusedMatMul"], [n.op_type for n in ir_model.graph]
         )
         self._check_model(model_proto, rewritten_model, atol=1e-6)
 
@@ -359,7 +359,7 @@ class TestFusedMatmulRules(unittest.TestCase):
         rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
         rule_set.apply_to_model(ir_model)
         rewritten_model = ir.serde.serialize_model(ir_model)
-        self.assertEqual(["FusedMatMul"], [n.op_type for n in rewritten_model.graph.node])
+        self.assertEqual(["FusedMatMul"], [n.op_type for n in ir_model.graph])
         self._check_model(model_proto, rewritten_model, atol=1e-6)
 
     @parameterized.parameterized.expand(
@@ -381,7 +381,7 @@ class TestFusedMatmulRules(unittest.TestCase):
         rewritten_model = ir.serde.serialize_model(ir_model)
         self.assertEqual(
             ["Transpose", "MatMul", "Transpose"],
-            [n.op_type for n in rewritten_model.graph.node],
+            [n.op_type for n in ir_model.graph],
         )
         self._check_model(model_proto, rewritten_model, atol=1e-6)
 
@@ -407,7 +407,7 @@ class TestFusedMatmulRules(unittest.TestCase):
         rule_set.apply_to_model(ir_model)
         rewritten_model = ir.serde.serialize_model(ir_model)
         self.assertEqual(
-            ["Identity", "FusedMatMul"], [n.op_type for n in rewritten_model.graph.node]
+            ["Identity", "FusedMatMul"], [n.op_type for n in ir_model.graph]
         )
         self._check_model(model_proto, rewritten_model, atol=1e-6)
 
@@ -458,7 +458,7 @@ class TestFusedMatmulRules(unittest.TestCase):
         rule_set = fused_matmul_rule_sets.fused_matmul_rule_sets()
         rule_set.apply_to_model(ir_model)
         rewritten_model = ir.serde.serialize_model(ir_model)
-        self.assertEqual(["FusedMatMul"], [n.op_type for n in rewritten_model.graph.node])
+        self.assertEqual(["FusedMatMul"], [n.op_type for n in ir_model.graph])
         self._check_model(model_proto, rewritten_model, atol=1e-6)
 
 
