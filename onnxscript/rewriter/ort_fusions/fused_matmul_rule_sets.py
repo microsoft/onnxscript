@@ -22,17 +22,6 @@ def _get_kwargs(node: ir.Node) -> dict[str, float | int]:
     return kwargs
 
 
-def _get_ints_or_default(
-    node: ir.Node, name: str, default: Optional[Sequence[int]] = None
-) -> Sequence[int]:
-    """Get the Sequence[int] value from the node attribute dictionary or return default."""
-    if name in node.attributes:
-        value = node.attributes[name].as_ints()
-    elif default is not None:
-        value = default
-    else:
-        value = []
-    return value
 
 
 class FusedMatMulDiv1(orp.RewriteRuleClassBase):
