@@ -10,7 +10,7 @@ class BiasGeluFusion(pattern.RewriteRuleClassBase):
 
     Attributes:
         contrib_op (bool): If True, matches the Gelu operator from the 'com.microsoft' domain.
-                           If False, matches the standard ONNX Gelu operator.
+            If False, matches the standard ONNX Gelu operator.
     """
 
     def __init__(
