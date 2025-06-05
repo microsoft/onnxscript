@@ -66,32 +66,26 @@ class FusedMatMul(onnx.reference.op_run.OpRun):
 
 @script()
 def _fused_matmul_div(A: FLOAT[4, 4], B: FLOAT[4, 4]) -> FLOAT[4, 4]:
-    D = op.Constant(
-        value=onnx.helper.make_tensor("scalar_half", onnx.TensorProto.FLOAT, (), [0.6])
-    )
+    C = 0.6
     ab = ms_op.FusedMatMul(A, B, alpha=0.4, transA=1)
-    out = op.Div(ab, D)
+    out = op.Div(ab, C)
     return out
 
 
 @script()
 def _matmul_div(A: FLOAT[4, 4], B: FLOAT[4, 4]) -> FLOAT[4, 4]:
-    D = op.Constant(
-        value=onnx.helper.make_tensor("scalar_half", onnx.TensorProto.FLOAT, (), [0.8])
-    )
+    C = 0.8
     ab = op.MatMul(A, B)
-    out = op.Div(ab, D)
+    out = op.Div(ab, C)
     return out
 
 
 @script()
 def _matmul_div_div(A: FLOAT[4, 4], B: FLOAT[4, 4]) -> FLOAT[4, 4]:
-    D = op.Constant(
-        value=onnx.helper.make_tensor("scalar_half", onnx.TensorProto.FLOAT, (), [0.6])
-    )
+    C = 0.6
     ab = op.MatMul(A, B)
-    abd = op.Div(ab, D)
-    out = op.Div(abd, D)
+    abd = op.Div(ab, C)
+    out = op.Div(abd, C)
     return out
 
 
