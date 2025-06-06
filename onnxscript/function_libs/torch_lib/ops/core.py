@@ -61,7 +61,7 @@ _MATH_PI = math.pi
 Rank = common_ops.Rank
 
 
-@torch_op("aten::_local_scalar_dense")
+@torch_op("aten::_local_scalar_dense", trace_only=True)
 def aten__local_scalar_dense(self: TensorType) -> TensorType:
     """_local_scalar_dense(Tensor self) -> Scalar"""
 
