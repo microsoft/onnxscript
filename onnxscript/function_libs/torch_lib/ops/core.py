@@ -61,20 +61,18 @@ _MATH_PI = math.pi
 Rank = common_ops.Rank
 
 
-@torch_op("aten::_local_scalar_dense")
-def aten__local_scalar_dense(self: Union[FLOAT16, FLOAT, DOUBLE, BFLOAT16]) -> FLOAT:
+@torch_op("aten::_local_scalar_dense", trace_only=True)
+def aten__local_scalar_dense(self: TensorType) -> TensorType:
     """_local_scalar_dense(Tensor self) -> Scalar"""
 
     # Return the first element in tensor as a scalar.
-    return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=FLOAT.dtype)
-
-
-@torch_op("aten::_local_scalar_dense")
-def aten__local_scalar_dense_int(self: IntType) -> INT64:
-    """_local_scalar_dense(Tensor self) -> Scalar"""
-
-    # Return the first element in tensor as a scalar.
-    return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=INT64.dtype)
+    if self.dtype.is_floating_point():
+        dtype = ir.DataType.FLOAT
+    elif self.dtype == ir.DataType.BOOL:
+        dtype = ir.DataType.BOOL
+    else:
+        dtype = ir.DataType.INT64
+    return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=dtype)
 
 
 @torch_op("aten::_log_softmax", trace_only=True)
