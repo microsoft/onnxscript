@@ -77,6 +77,14 @@ def aten__local_scalar_dense_int(self: IntType) -> INT64:
     return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=INT64.dtype)
 
 
+@torch_op("aten::_local_scalar_dense")
+def aten__local_scalar_dense_bool(self: BOOL) -> BOOL:
+    """_local_scalar_dense(Tensor self) -> Scalar"""
+
+    # Return the first element in tensor as a scalar.
+    return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=BOOL.dtype)
+
+
 @torch_op("aten::_log_softmax", trace_only=True)
 def aten__log_softmax_half(
     self: Union[FLOAT16, BFLOAT16], dim: int, half_to_float: bool
