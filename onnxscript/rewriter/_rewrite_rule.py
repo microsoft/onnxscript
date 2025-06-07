@@ -15,6 +15,7 @@ from typing import (
 
 import onnxscript.optimizer
 import onnxscript.rewriter._basics as _basics
+import onnxscript.rewriter._ir_utils as _ir_utils
 import onnxscript.rewriter._matcher as _matcher
 import onnxscript.rewriter._pattern_ir as _pattern_ir
 from onnxscript import ir
@@ -529,6 +530,15 @@ class RewriteRuleSet:
                     )
                     f = ir.Function(domain, name, overload, graph=graph, attributes=())
                     model.functions[f.identifier()] = f
+
+                if verbose:
+                    name = f"{rule.name}: " if rule.name else ""
+                    print(f"----{name}Matched Nodes----")
+                    _ir_utils.display_nodes(delta.match.nodes)
+                    print("++++Replacement Nodes++++")
+                    _ir_utils.display_nodes(delta.new_nodes)
+                    print("++++End Replacement Nodes++++")
+
                 convenience.replace_nodes_and_values(
                     graph_or_function,
                     node,
