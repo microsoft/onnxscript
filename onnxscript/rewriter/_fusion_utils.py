@@ -53,14 +53,14 @@ def apply_fusion_rules(rules: pattern.RewriteRule | pattern.RewriteRuleSet) -> C
     """
 
     def apply_to(
-        model: ir.Model, debug: bool = False, apply_shape_inference: bool = False
+        model: ir.Model, debug: bool = False, apply_shape_inference: bool = False, **kwargs
     ) -> int:
-        count = rules.apply_to_model(model)
+        count = rules.apply_to_model(model, **kwargs)
         if apply_shape_inference:
             common_passes.ShapeInferencePass()(model)
         if count == 0 and debug:
             tracer = pattern.MatchingTracer()
-            rules.apply_to_model(model, tracer=tracer)
+            rules.apply_to_model(model, tracer=tracer, **kwargs)
             tracer.report()
         return count
 

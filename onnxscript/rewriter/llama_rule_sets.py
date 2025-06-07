@@ -51,22 +51,30 @@ class CastIdentity(orp.RewriteRuleClassBase):
 class CastCast(orp.RewriteRuleClassBase):
     """Replaces ``Cast(Cast(X, ...), to=to)`` by ``Cast(X, to=to)``."""
 
-    _allowed_tensor_types: ClassVar = {
-        ir.DataType.FLOAT,
-        ir.DataType.FLOAT16,
-        ir.DataType.BFLOAT16,
-        ir.DataType.DOUBLE,
-    }
+    # Simplify "cast type1 => type2 => type3" to "cast type1 => type3".
+    # This rule is not valid for all combinations of types: e.g.,
+    # it is not valid for float32 => float16 => float32 or float32 => int32 => string.
+    # TODO: fill out the list of allowed combinations: the following is just a couple
+    # that shows up in practice where it is valid
+    _allowed_type2_type3: ClassVar = frozenset(
+        {
+            (ir.DataType.FLOAT, ir.DataType.FLOAT16),
+            (ir.DataType.FLOAT, ir.DataType.BFLOAT16),
+        }
+    )
 
     def pattern(self, op, x, to, to_ignored):
         return op.Cast(op.Cast(x, to=to_ignored), to=to)
 
     def check(self, context, x: ir.Value, to: ir.Attr, to_ignored: ir.Attr) -> orp.MatchResult:
         check_result = orp.MatchResult()
-        if to.as_int() not in self._allowed_tensor_types:
-            return check_result.fail(f"Output type {to.as_int()} is not allowed")
-        if to_ignored.as_int() not in self._allowed_tensor_types:
-            return check_result.fail(f"Ignored type {to_ignored.as_int()} is not allowed")
+        type2 = to_ignored.as_int()
+        type3 = to.as_int()
+        if (type2, type3) not in self._allowed_type2_type3:
+            return check_result.fail(
+                f"Intermediate cast elimination not recognized as valid from {type2} to {type3}. "
+                f"Cast-Cast rule may be incomplete for this combination."
+            )
         return check_result
 
     def rewrite(self, op, x: ir.Value, to: ir.Attr, to_ignored: ir.Attr):
@@ -284,7 +292,7 @@ def llama_p0_rule_set() -> orp.RewriteRuleSet:
     """
     return orp.RewriteRuleSet(
         [
-            # cast_cast_rule,  # Might have precision issues.
+            cast_cast_rule,
             cast_identity_rule,
             expand_identity_rule,
             reshape_reshape_rule,
