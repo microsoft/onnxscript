@@ -74,8 +74,8 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
 
     model = _pre_optimize(model)
 
-    def fuse(func, apply_shape_inference: bool = False):
-        return func(model, debug=debug, apply_shape_inference=apply_shape_inference)
+    def fuse(func, **kwargs):
+        return func(model, debug=debug, **kwargs)
 
     fusion_count["erf_gelu"] = fuse(fuse_erfgelu)
     fusion_count["rms_normalization"] = fuse(fuse_rms_normalization)
