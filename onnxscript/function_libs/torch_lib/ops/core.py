@@ -5329,6 +5329,13 @@ def aten_maximum_bool(self: BOOL, other: BOOL) -> BOOL:
     return op.Or(self, other)
 
 
+@torch_op(("aten::maximum", "aten::max.other"))
+def aten_maximum_real(self: RealType, other: RealType) -> RealType:
+    """maximum(Tensor self, Tensor other) -> Tensor"""
+
+    return op.Max(self, other)
+
+
 @torch_op("aten::mean")
 def aten_mean(self: TReal) -> TReal:
     """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
