@@ -327,9 +327,8 @@ class FusedMatMulTranspose(MatMulTranspose):
 
 
 def fused_matmul_rule_sets() -> orp.RewriteRuleSet:
-    """Returns a set of rules introducing onnxruntime contrib obs.
-    This requires onnxruntime to run the model after
-    it is rewritten.
+    """Returns a set of rules introducing onnxruntime contrib ops.
+    This requires onnxruntime to run the model after it is rewritten.
 
     Returns:
         RewriteRuleSet
