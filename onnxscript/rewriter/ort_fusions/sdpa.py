@@ -20,13 +20,26 @@ class SDPA(pattern.RewriteRuleClassBase):
         self,
         op,
         query,
-        key_transposed,
+        key,
         value,
         mask,
         query_scale,
         key_scale,
         qk_scale,
     ):
+        # The last two axes of key must be transposed before computing the dot product with query.
+        # Two patterns are observed in practice:
+
+        # Pattern 1: Transpose 4D key directly
+        key_transposed_1 = op.Transpose(key, perm=[0, 1, 3, 2])
+
+        # Pattern 2: Transpose key after converting to 3D and then convert back to 4D
+        key_3d = op.Reshape(key, pattern.ANY_VALUE)
+        key_3d_transposed = op.Transpose(key_3d, perm=[0, 2, 1])
+        key_transposed_2 = op.Reshape(key_3d_transposed, pattern.ANY_VALUE)
+
+        key_transposed = pattern.OrValue([key_transposed_1, key_transposed_2])
+
         # Some implementations scale the query and key before computing the dot product
         query = pattern.OrValue(
             [
@@ -74,7 +87,7 @@ class SDPA(pattern.RewriteRuleClassBase):
         self,
         context,
         query: ir.Value | None,
-        key_transposed: ir.Value | None,
+        key: ir.Value | None,
         value: ir.Value | None,
         mask: ir.Value | None,
         **match_bindings,
@@ -90,7 +103,7 @@ class SDPA(pattern.RewriteRuleClassBase):
         # Query and Key should have same head-size (Dh) while value can have different head-size (Dv).
         # Key and Value should have same sequence length (Skv), while Query can have different sequence length (S).
         _fusion_utils.check_shape(bindings, query, ["B", "H", "S", "Dh"])
-        _fusion_utils.check_shape(bindings, key_transposed, ["B", "H", "Dh", "Skv"])
+        _fusion_utils.check_shape(bindings, key, ["B", "H", "Skv", "Dh"])
         _fusion_utils.check_shape(bindings, value, ["B", "H", "Skv", "Dv"])
 
         def get_scale_value(tag_name: str, scale_name: str) -> float:
@@ -132,20 +145,49 @@ class SDPA(pattern.RewriteRuleClassBase):
         self,
         op,
         query: ir.Value | None,
-        key_transposed: ir.Value | None,
+        key: ir.Value | None,
         value: ir.Value | None,
         mask: ir.Value | None,
         **_,
     ):
-        sdpa_args = [query, key_transposed, value]
+        sdpa_args = [query, key, value]
         if mask is not None:
             sdpa_args.append(mask)
         # If the scale is None, SDPA will use the default scaling factor, which is 1/sqrt(head_size).
         return op.SDPA(*sdpa_args, scale=self._scale, _domain="ai.onnxruntime.fusion")
 
 
-# Dynamically create the rules
-sdpa_rules = pattern.RewriteRuleSet([SDPA.rule()])
+class SDPAKeyTranspose(pattern.RewriteRuleClassBase):
+    def pattern(self, op, query, key, value, mask):
+        # Pattern 1: Transpose 4D key directly
+        key_transposed_1 = op.Transpose(key, perm=[0, 1, 3, 2])
 
+        # Pattern 2: Transpose key after converting to 3D
+        key_3d = op.Reshape(key, pattern.ANY_VALUE)
+        key_3d_transposed = op.Transpose(key_3d, perm=[0, 2, 1])
+        key_transposed_2 = op.Reshape(key_3d_transposed, pattern.ANY_VALUE)
+
+        key_transposed = pattern.OrValue([key_transposed_1, key_transposed_2])
+        return op.SDPA(
+            query,
+            key_transposed,
+            value,
+            mask,
+            _domain="ai.onnxruntime.fusion",
+            _outputs=["output"],
+        )
+
+    def rewrite(self, op, query, key, value, mask, **_):
+        return op.SDPA(
+            query, key, value, mask, transposed_key=0, _domain="ai.onnxruntime.fusion"
+        )
+
+
+# Dynamically create the rules
+sdpa_rules = pattern.RewriteRuleSet(
+    [
+        SDPA.rule(),
+    ]
+)
 
 fuse_sdpa = _fusion_utils.apply_fusion_rules(sdpa_rules)
