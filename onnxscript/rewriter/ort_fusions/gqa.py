@@ -149,6 +149,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
             key_seq_BHTDh,
             value_seq_BHTDh,
             mask,
+            key_format="BHSd",
             _domain="ai.onnxruntime.fusion",
         )
 

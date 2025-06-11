@@ -16,6 +16,7 @@ class SDPAImplementation(pattern.RewriteRuleClassBase):
             query,
             key,
             value,
+            key_format="BHSd",
             _allow_other_inputs=True,  # Mask is optional
             _outputs=["sdpa_output"],
             _domain="ai.onnxruntime.fusion",

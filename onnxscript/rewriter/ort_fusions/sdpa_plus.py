@@ -3,13 +3,11 @@
 
 from __future__ import annotations
 
-import math
 from typing import Union
 
 import onnx_ir as ir
 
-from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
-from onnxscript.rewriter._basics import MatchFailureError
+from onnxscript.rewriter import _fusion_utils, pattern
 
 Dim = Union[int, ir.SymbolicDim]
 
@@ -31,11 +29,14 @@ class SDPAPlus(pattern.RewriteRuleClassBase):
             value,
             mask,
             _domain="ai.onnxruntime.fusion",
-            _outputs=["output"]
+            _outputs=["output"],
         )
 
     def rewrite(self, op, query, key, value, mask, **_):
-        return op.SDPA(query, key, value, mask, transposed_key=False, _domain="ai.onnxruntime.fusion")
+        return op.SDPA(
+            query, key, value, mask, transposed_key=False, _domain="ai.onnxruntime.fusion"
+        )
+
 
 sdpa_rule = pattern.RewriteRuleSet([SDPAPlus.rule()])
 
