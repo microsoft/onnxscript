@@ -142,8 +142,6 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
             value_seq_BHkvGTDh, pattern.ANY_VALUE, _outputs=["value_seq_BHTDh"]
         )
 
-        # mask = causal_mask_pattern(op, input_ids, some_kv_cache, shape_B111)
-
         attention_BHSDh = op.SDPA(
             query_BHSDh_rope,
             key_seq_BHTDh,

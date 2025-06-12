@@ -102,7 +102,7 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
     fusion_count["bias_gelu"] = fuse(fuse_bias_gelu)
     # Finally: inline any intermediate fusion functions introduced that were not
     # consumed by other fusions, and eliminate any remaining unused nodes.
-    # optimize(model)
+    optimize(model)
     return model, fusion_count
 
 
