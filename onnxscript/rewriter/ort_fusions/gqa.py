@@ -78,13 +78,11 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         value_BSDkv,
         past_key,
         past_value,
-        input_ids,
-        past_seq_length,
-        total_seq_length,
+        position_ids_q,
+        position_ids_k,
         cos,
         sin,
-        some_kv_cache,
-        shape_B111,
+        mask,
     ):
         # Reshape query from (B, S, D) to (B, S, H, D/H)
         query_BSHDh = op.Reshape(query_BSD, pattern.ANY_VALUE, _outputs=["query_BSHDh"])
@@ -100,10 +98,6 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         value_BSHkvDh = op.Reshape(value_BSDkv, pattern.ANY_VALUE, _outputs=["value_BSHkvDh"])
         # Transpose from (B, S, Hkv, D/H) to (B, Hkv, S, D/H)
         value_BHkvSDh = op.Transpose(value_BSHkvDh, perm=[0, 2, 1, 3])
-
-        position_ids = op.Range(past_seq_length, total_seq_length, 1)
-        position_ids_q = op.Unsqueeze(position_ids, [0])
-        position_ids_k = op.Unsqueeze(position_ids, [0])
 
         query_BHSDh_rope = op.RotaryEmbedding(
             query_BHSDh,
@@ -141,15 +135,13 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
             value_seq_BHkvGTDh, pattern.ANY_VALUE, _outputs=["value_seq_BHTDh"]
         )
 
-        mask = causal_mask_pattern(op, input_ids, some_kv_cache, shape_B111)
-
-        key_seq_BHDhT = op.Transpose(key_seq_BHTDh, perm=[0, 1, 3, 2])
         attention_BHSDh = op.SDPA(
             query_BHSDh_rope,
-            key_seq_BHDhT,
+            key_seq_BHTDh,
             value_seq_BHTDh,
             mask,
-            _domain="ai.onnxruntime.fusion",
+            key_format="BHSd",
+            _domain="ai.onnxruntime._fusion",
         )
 
         # Transpose attention back to (B, S, H, D/H)
@@ -209,8 +201,8 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         # Rotary embedding attributes
         query_rotary_attributes = query_BHSDh_rope.producer().attributes
         key_rotary_attributes = key_BHkvSDh_rope.producer().attributes
-        query_interleaved = query_rotary_attributes.get("interleaved", 0)
-        key_interleaved = key_rotary_attributes.get("interleaved", 0)
+        query_interleaved = query_rotary_attributes.get_int("interleaved", 0)
+        key_interleaved = key_rotary_attributes.get_int("interleaved", 0)
         if query_interleaved != key_interleaved:
             return pattern.MatchResult().fail(
                 "Rotary embedding interleaved attribute mismatch",
@@ -228,11 +220,71 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         value_BSDkv,
         past_key,
         past_value,
-        total_seq_length,
+        position_ids_q,
+        position_ids_k,
         cos,
         sin,
+        mask,
         **_,
     ):
+        return op.GQA(
+            mask,
+            position_ids_k,
+            position_ids_q,
+            query_BSD,
+            key_BSDkv,
+            value_BSDkv,
+            past_key,
+            past_value,
+            None,  # seqlens_k,
+            None,  # total_seq_length_int32,
+            cos,
+            sin,
+            num_heads=self.num_heads,
+            kv_num_heads=self.kv_num_heads,
+            do_rotary=1,
+            rotary_interleaved=self._interleaved,
+            # skipped optional attributes: local_window_size, scale, smooth_softmax, softcap
+            _domain="ai.onnxruntime._fusion",
+            _outputs=3,
+        )
+
+
+class GQACausalMask(pattern.RewriteRuleClassBase):
+    def __init__(self):
+        super().__init__("GQACausalMask", remove_nodes=False)
+
+    def pattern(
+        self,
+        op,
+        mask,
+        input_ids,
+        some_kv_cache,
+        shape_B111,
+        past_seq_length,
+        total_seq_length,
+    ):
+        mask = causal_mask_pattern(op, input_ids, some_kv_cache, shape_B111)
+        position_ids = op.Range(past_seq_length, total_seq_length, 1)
+        position_ids_q = op.Unsqueeze(position_ids, [0])
+        position_ids_k = op.Unsqueeze(position_ids, [0])
+        return op.GQA(
+            mask,
+            position_ids_k,
+            position_ids_q,
+            _allow_other_inputs=True,
+            _domain="ai.onnxruntime._fusion",
+            _outputs=["attn_output", "key_seq", "value_seq"],
+        )
+
+    def rewrite(
+        self,
+        op,
+        total_seq_length,
+        attn_output,
+        **_,
+    ):
+        # Construct total_seq_length_int32 and seqlens_k
         total_seq_length_int32 = op.Cast(total_seq_length, to=ir.DataType.INT32)
         one_0D = op.Constant(value_int=1)
         one_0D_int32 = op.Cast(one_0D, to=ir.DataType.INT32)
@@ -240,30 +292,32 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         zero_1D = op.Constant(value_int=0, dtype=ir.DataType.INT64, shape=[1])
         seqlens_k = op.Unsqueeze(seqlens_k_0D, zero_1D)
 
-        return op.GroupQueryAttention(
-            query_BSD,
-            key_BSDkv,
-            value_BSDkv,
+        gqa_node = attn_output.producer()
+        assert len(gqa_node.inputs) == 12, (
+            f"Expected 12 inputs for GQA node, got {len(gqa_node.inputs)}"
+        )
+        query, key, value, past_key, past_value = gqa_node.inputs[3:8]
+        cos, sin = gqa_node.inputs[10:12]
+        updated_inputs = [
+            query,
+            key,
+            value,
             past_key,
             past_value,
             seqlens_k,
             total_seq_length_int32,
             cos,
             sin,
-            # mask, # TODO: this is not a valid input for GQA
-            num_heads=self.num_heads,
-            kv_num_heads=self.kv_num_heads,
-            do_rotary=1,
-            rotary_interleaved=self._interleaved,
-            # skipped optional attributes: local_window_size, scale, smooth_softmax, softcap
-            _domain="com.microsoft",
-            _outputs=3,
+        ]
+        attributes = gqa_node.attributes
+        return op.GroupQueryAttention(
+            *updated_inputs, **attributes, _domain="com.microsoft", _outputs=3
         )
 
 
-_rule1 = GroupQueryAttention.rule()
+_basic_gqa_rule = GroupQueryAttention.rule()
+_gqa_causal_mask_rule = GQACausalMask.rule()
 
-gqa_rules = pattern.RewriteRuleSet([_rule1])
-
+gqa_rules = pattern.RewriteRuleSet([_basic_gqa_rule, _gqa_causal_mask_rule])
 
 fuse_gqa = _fusion_utils.apply_fusion_rules(gqa_rules)

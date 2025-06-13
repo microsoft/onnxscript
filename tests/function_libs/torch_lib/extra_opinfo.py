@@ -2308,7 +2308,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "ops.aten._local_scalar_dense",
         aten_name="_local_scalar_dense",
-        dtypes=common_dtype.all_types(),
+        dtypes=common_dtype.all_types_and(torch.bool),
         sample_inputs_func=sample_inputs__local_scalar_dense,
         supports_out=False,
     ),

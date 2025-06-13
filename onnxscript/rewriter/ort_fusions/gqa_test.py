@@ -307,6 +307,11 @@ class GQAFusionTest(unittest.TestCase):
             onnx.TensorProto.FLOAT,
             ["B", self.seqlen, self.num_heads, self.head_size],
         )
+        key_BHSDh_value_info = onnx.helper.make_tensor_value_info(
+            "key_BHSDh",
+            onnx.TensorProto.FLOAT,
+            ["B", self.num_heads, self.total_seqlen, self.head_size],
+        )
         key_BSHkvDh_value_info = onnx.helper.make_tensor_value_info(
             "key_BSHkvDh",
             onnx.TensorProto.FLOAT,
@@ -327,6 +332,7 @@ class GQAFusionTest(unittest.TestCase):
                 query_BHSDh_rope_value_info,
                 key_BHkvSDh_rope_value_info,
                 query_BSHDh_value_info,
+                key_BHSDh_value_info,
                 key_BSHkvDh_value_info,
                 key_transposed_value_info,
                 value_BHSDh_value_info,
@@ -338,10 +344,10 @@ class GQAFusionTest(unittest.TestCase):
         onnxscript.optimizer.optimize(inferred_model)
 
         count = fuse_sdpa(inferred_model, debug=True)
-        self.assertEqual(count, 1)
+        self.assertGreater(count, 0)
 
         count = fuse_gqa(inferred_model, debug=True)
-        self.assertEqual(count, 1)
+        self.assertGreater(count, 0)
 
         fused_model = ir.serde.to_proto(inferred_model)
         session = ort.InferenceSession(

@@ -79,17 +79,7 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
 
         if not self._is_cross_attention:
             # Reshape from (B, S, D) to (B, S, H, D/H)
-            key_BSHDh = op.Reshape(key, pattern.ANY_VALUE, _outputs=["key_BSHDh"])
-
-            # Possible Transpose patterns for key:
-            # This scenario optimizes the need for a double transpose
-            # 1. (B, S, H, D/H) -> (B, H, D/H, S)
-            # Patterns with double transpose of key
-            # Double transpose should handle this optimization
-            # 2. (B, S, H, D/H) -> (B, H, S, D/H) -> (B, H, D/H, S)
-            # Patterns where key is reshaped to 3D, transposed and reshaped back to 4D
-            # 3. (B, S, H, D/H) -> (B, H, S, D/H) -> R (B, S, D) -> (B, D, S) -> R (B, H, D/H, S)
-            key_BHSDh = op.Transpose(key_BSHDh, perm=key_perm)
+            key = op.Reshape(key, pattern.ANY_VALUE, _outputs=["key_BSHDh"])
 
             # Reshape from (B, S, D) to (B, S, H, D/H)
             value_BSHDh = op.Reshape(value, pattern.ANY_VALUE, _outputs=["value_BSHDh"])
@@ -97,7 +87,6 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             value_BHSDh = op.Transpose(value_BSHDh, perm=[0, 2, 1, 3])
         else:
             # For cross-attention, key and value are not reshaped
-            key_BHSDh = key
             value_BHSDh = value
 
         if self._is_rotary:
@@ -118,14 +107,14 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             )
             if not self._is_cross_attention:
                 key_BHSDh_emb = op.RotaryEmbedding(
-                    key_BHSDh, position_ids_k, cos, sin, _domain="com.microsoft"
+                    key, position_ids_k, cos, sin, _domain="com.microsoft"
                 )
             else:
-                key_BHSDh_emb = key_BHSDh
+                key_BHSDh_emb = key
         else:
             # If rotary embedding is not used, we fuse with positional_embeddings
             query_BHSDh_emb = query_BHSDh
-            key_BHSDh_emb = key_BHSDh
+            key_BHSDh_emb = key
 
         # Concatenate past_key cache and current key, and transpose to enable
         # dot-product attention computation.
@@ -144,20 +133,6 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         key_seq_to_sdpa = key_seq
         value_seq_to_sdpa = value_seq
 
-        # Transpose last two axes of key_seq to compute dot-product via matmul.
-        if self._double_transpose:
-            if self._transpose_4d:
-                key_seq_to_sdpa = op.Transpose(key_seq_to_sdpa, perm=[0, 1, 3, 2])
-            else:
-                # Transpose after converting to 3D
-                key_seq_BH_Skv_Dh = op.Reshape(
-                    key_seq_to_sdpa, pattern.ANY_VALUE, _outputs=["key_seq_BH_Skv_Dh"]
-                )
-                key_seq_BH_Dh_Skv = op.Transpose(key_seq_BH_Skv_Dh, perm=[0, 2, 1])
-                key_seq_to_sdpa = op.Reshape(
-                    key_seq_BH_Dh_Skv, pattern.ANY_VALUE, _outputs=["key_seq_B_H_Dh_Skv"]
-                )
-
         # TODO: Remove use_mask once SDPA op is usable
         if self._use_mask:
             sdpa = op.SDPA(
@@ -165,14 +140,14 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 key_seq_to_sdpa,
                 value_seq_to_sdpa,
                 mask,
-                _domain="ai.onnxruntime.fusion",
+                _domain="ai.onnxruntime._fusion",
             )
         else:
             sdpa = op.SDPA(
                 query_BHSDh_emb,
                 key_seq_to_sdpa,
                 value_seq_to_sdpa,
-                _domain="ai.onnxruntime.fusion",
+                _domain="ai.onnxruntime._fusion",
             )
 
         # Transpose attention back to (B, S, H, D/H)
