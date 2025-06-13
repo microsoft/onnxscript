@@ -157,13 +157,14 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
             x = _complex2float(c)
             for s in (4, 5, 6):
                 le = np.array([s], dtype=np.int64)
+                le_int = int(le[0])
                 we = np.array([1] * le[0], dtype=np.float32)
                 expected1 = _fft(c, le)
                 expected2 = _cfft(x, le)
                 np.testing.assert_allclose(expected1, expected2)
                 with self.subTest(
                     c_shape=c.shape,
-                    le=list(le),
+                    le=list(le_int),
                     expected_shape=expected1.shape,
                     weights=we,
                 ):
@@ -187,12 +188,13 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
         x = x_[..., np.newaxis]
 
         le = np.array([s], dtype=np.int64)
+        le_int = int(le[0])
         for ax in range(len(x_.shape)):
             expected = _fft(x_, le, axis=ax)
             nax = np.array([ax], dtype=np.int64)
             with self.subTest(
                 x_shape=x.shape,
-                le=list(le),
+                le=list(le_int),
                 ax=ax,
                 expected_shape=expected.shape,
             ):
@@ -223,6 +225,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
         x = _complex2float(c)
         for s in (4, 5, 6):
             le = np.array([s], dtype=np.int64)
+            le_int = int(le[0])
             for ax in range(len(c.shape)):
                 nax = np.array([ax], dtype=np.int64)
                 expected1 = _fft(c, le, axis=ax)
@@ -230,7 +233,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
                 np.testing.assert_allclose(expected1, expected2)
                 with self.subTest(
                     c_shape=c.shape,
-                    le=list(le),
+                    le=list(le_int),
                     ax=ax,
                     expected_shape=expected1.shape,
                 ):
@@ -251,12 +254,13 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
         x = x_[..., np.newaxis]
         for s in (4, 5, 6):
             le = np.array([s], dtype=np.int64)
+            le_int = int(le[0])
             for ax in range(len(x_.shape)):
                 expected = _ifft(x_, le, axis=ax)
                 nax = np.array([ax], dtype=np.int64)
                 with self.subTest(
                     x_shape=x.shape,
-                    le=list(le),
+                    le=list(le_int),
                     ax=str(ax),
                     expected_shape=expected.shape,
                 ):
@@ -288,6 +292,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
         x = _complex2float(c)
         for s in (4, 5, 6):
             le = np.array([s], dtype=np.int64)
+            le_int = int(le[0])
             for ax in range(len(c.shape)):
                 nax = np.array([ax], dtype=np.int64)
                 expected1 = _ifft(c, le, axis=ax)
@@ -295,7 +300,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
                 np.testing.assert_allclose(expected1, expected2)
                 with self.subTest(
                     c_shape=c.shape,
-                    le=list(le),
+                    le=list(le_int),
                     ax=str(ax),
                     expected_shape=expected1.shape,
                 ):
