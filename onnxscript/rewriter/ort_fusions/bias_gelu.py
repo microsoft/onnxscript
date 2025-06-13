@@ -25,12 +25,20 @@ class BiasGeluFusion(pattern.RewriteRuleClassBase):
     def pattern(self, op, x, y):
         gelu_add = op.Add(x, y)
         if self._contrib_op:
-            return op.Gelu(gelu_add, _domain="com.microsoft")
+            return op.Gelu(gelu_add, _domain="com.microsoft", _outputs=["gelu"])
         else:
-            # match behavior of onnxruntime fusion_biasgelu.py
-            return op.Gelu(gelu_add)
+            return op.Gelu(gelu_add, _outputs=["gelu"])
 
-    def rewrite(self, op, x, y):
+    def check(self, op, gelu, **_) -> pattern.MatchResult:
+        check_result = pattern.MatchResult()
+        approximate = gelu.producer().attributes.get("approximate", None)
+        if approximate is not None and approximate.value == "tanh":
+            return check_result.fail(
+                "Gelu operator with 'approximate' set to 'tanh' is not supported."
+            )
+        return check_result
+
+    def rewrite(self, op, x, y, **_):
         return op.BiasGelu(x, y, _domain="com.microsoft")
 
 
