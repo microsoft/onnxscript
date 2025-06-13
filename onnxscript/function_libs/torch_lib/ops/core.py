@@ -5313,14 +5313,14 @@ def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, I
     return result, indices
 
 
-@torch_op(("aten::maximum", "aten::max.other"))
+@torch_op("aten::maximum")
 def aten_maximum(self: TReal, other: TReal) -> TReal:
     """maximum(Tensor self, Tensor other) -> Tensor"""
 
     return op.Max(self, other)
 
 
-@torch_op(("aten::maximum", "aten::max.other"))
+@torch_op("aten::maximum")
 def aten_maximum_bool(self: BOOL, other: BOOL) -> BOOL:
     """maximum(Tensor self, Tensor other) -> Tensor"""
 
@@ -5380,14 +5380,14 @@ def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, T
     return result, indices
 
 
-@torch_op(("aten::minimum", "aten::min.other"))
+@torch_op("aten::minimum")
 def aten_minimum(self: TReal, other: TReal) -> TReal:
     """minimum(Tensor self, Tensor other) -> Tensor"""
 
     return op.Min(self, other)
 
 
-@torch_op(("aten::minimum", "aten::min.other"))
+@torch_op("aten::minimum")
 def aten_minimum_bool(self: BOOL, other: BOOL) -> BOOL:
     """minimum(Tensor self, Tensor other) -> Tensor"""
 
