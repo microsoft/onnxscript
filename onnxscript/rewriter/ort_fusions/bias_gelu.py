@@ -31,8 +31,8 @@ class BiasGeluFusion(pattern.RewriteRuleClassBase):
 
     def check(self, op, gelu, **_) -> pattern.MatchResult:
         check_result = pattern.MatchResult()
-        approximate = gelu.producer().attributes.get("approximate", None)
-        if approximate is not None and approximate.value == "tanh":
+        approximate = gelu.producer().attributes.get_string("approximate")
+        if approximate is not None and approximate == "tanh":
             return check_result.fail(
                 "Gelu operator with 'approximate' set to 'tanh' is not supported."
             )
