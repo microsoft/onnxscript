@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import onnxscript.ir as ir
 import onnxscript.ir.passes.common as common_passes
+import onnxscript.rewriter.ort_fusions.fused_matmul_rule_sets as fused_matmul_rule_sets
 import onnxscript.rewriter.ort_fusions.shape_optimization as shape_optimization
 from onnxscript.optimizer import optimize
 from onnxscript.rewriter import rewrite
@@ -37,9 +38,7 @@ ORT_PATTERN_REWRITE_RULES = [
     *instance_to_group_normalization.rules.rules,
     # NOTE: group normalization merge silu should be applied after instance to group normalization
     # *group_normalization_merge_silu.rules.rules,
-    # NOTE: The rules below are broken:
-    # https://github.com/microsoft/onnxscript/pull/2317#issuecomment-2896058483
-    # *fused_matmul_rule_sets.fused_matmul_rule_sets(),
+    *fused_matmul_rule_sets.fused_matmul_rule_sets().rules,
 ]
 
 
@@ -74,8 +73,8 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
 
     model = _pre_optimize(model)
 
-    def fuse(func, apply_shape_inference: bool = False):
-        return func(model, debug=debug, apply_shape_inference=apply_shape_inference)
+    def fuse(func, **kwargs):
+        return func(model, debug=debug, **kwargs)
 
     fusion_count["erf_gelu"] = fuse(fuse_erfgelu)
     fusion_count["rms_normalization"] = fuse(fuse_rms_normalization)

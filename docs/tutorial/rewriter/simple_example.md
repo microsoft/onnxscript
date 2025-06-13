@@ -49,8 +49,8 @@ rule = pattern.RewriteRule(
 Now that the rewrite rule has been created, the next step is to apply these pattern-based rewrite rules. The `rewriter.rewrite` call consists of three main components:
 
 1. `model` : The original model on which the pattern rewrite rules are to be applied. This is of type `onnx.ModelProto`.
-2. `function_rewrite_rules` : `(Optional)` This parameter is used to pass rewrite rules based on function names. Steps on how to use this parameter will be covered in a different tutorial. This parameter is of type `Sequence[type[FunctionRewriteRule]]`
-3. `pattern_rewrite_rules` : `(Optional)` This parameter is used to pass rewrite rules based on a provided replacement pattern. For the purpose of this tutorial, we will be using only this parameter in conjunction with `model`. This parameter is of either one of these types:
+
+2. `pattern_rewrite_rules` : `(Optional)` This parameter is used to pass rewrite rules based on a provided replacement pattern. This parameter is of either one of these types:
     - `Sequence[PatternRewriteRule]`
     - `RewriteRuleSet`
 
