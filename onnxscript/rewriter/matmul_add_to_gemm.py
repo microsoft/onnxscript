@@ -7,13 +7,13 @@
 - Add(MatMul(Transpose(X), Transpose(W)), B) -> Gemm
 """
 
-from abc import ABC
+import abc
 from typing import ClassVar
 
 from onnxscript.rewriter import pattern as orp
 
 
-class _MatMulAddToGemmBase(orp.RewriteRuleClassBase, ABC):
+class _MatMulAddToGemmBase(orp.RewriteRuleClassBase, abc.ABC):
     trans_a: ClassVar = False
     trans_b: ClassVar = False
 

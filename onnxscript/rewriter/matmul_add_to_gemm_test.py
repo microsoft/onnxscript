@@ -67,6 +67,7 @@ class _MatMulAddToGemmTestBase(unittest.TestCase):
             b = ir.tensor(self.rng.uniform(-0.5, 0.5, bias_shape).astype("float32"), name="B")
             b = tape.initializer(b)
 
+        x_t, w_t = None, None
         if transA:
             x_t = tape.op("Transpose", inputs=[x], attributes={"perm": permA})
 
