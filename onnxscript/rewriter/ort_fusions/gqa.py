@@ -141,7 +141,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
             value_seq_BHTDh,
             mask,
             key_format="BHSd",
-            _domain="ai.onnxruntime.fusion",
+            _domain="ai.onnxruntime._fusion",
         )
 
         # Transpose attention back to (B, S, H, D/H)
@@ -245,7 +245,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
             do_rotary=1,
             rotary_interleaved=self._interleaved,
             # skipped optional attributes: local_window_size, scale, smooth_softmax, softcap
-            _domain="ai.onnxruntime.fusion",
+            _domain="ai.onnxruntime._fusion",
             _outputs=3,
         )
 
@@ -273,7 +273,7 @@ class GQACausalMask(pattern.RewriteRuleClassBase):
             position_ids_k,
             position_ids_q,
             _allow_other_inputs=True,
-            _domain="ai.onnxruntime.fusion",
+            _domain="ai.onnxruntime._fusion",
             _outputs=["attn_output", "key_seq", "value_seq"],
         )
 

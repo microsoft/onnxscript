@@ -140,14 +140,14 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 key_seq_to_sdpa,
                 value_seq_to_sdpa,
                 mask,
-                _domain="ai.onnxruntime.fusion",
+                _domain="ai.onnxruntime._fusion",
             )
         else:
             sdpa = op.SDPA(
                 query_BHSDh_emb,
                 key_seq_to_sdpa,
                 value_seq_to_sdpa,
-                _domain="ai.onnxruntime.fusion",
+                _domain="ai.onnxruntime._fusion",
             )
 
         # Transpose attention back to (B, S, H, D/H)

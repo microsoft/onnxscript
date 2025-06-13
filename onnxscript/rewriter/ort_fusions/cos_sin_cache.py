@@ -156,7 +156,7 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
             sin_4d,
             interleaved=interleaved,
             num_heads=num_heads,
-            _domain="ai.onnxruntime.fusion",
+            _domain="ai.onnxruntime._fusion",
         )
 
     def check(

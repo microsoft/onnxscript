@@ -19,7 +19,7 @@ class SDPAImplementation(pattern.RewriteRuleClassBase):
             key_format="BHSd",
             _allow_other_inputs=True,  # Mask is optional
             _outputs=["sdpa_output"],
-            _domain="ai.onnxruntime.fusion",
+            _domain="ai.onnxruntime._fusion",
         )
 
     def check(self, context, query, key, value, sdpa_output):

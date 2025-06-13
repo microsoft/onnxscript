@@ -172,7 +172,7 @@ class SDPA(pattern.RewriteRuleClassBase):
             *sdpa_args,
             scale=self._scale,
             key_format=key_format,
-            _domain="ai.onnxruntime.fusion",
+            _domain="ai.onnxruntime._fusion",
         )
 
 
