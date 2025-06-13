@@ -164,7 +164,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
                 np.testing.assert_allclose(expected1, expected2)
                 with self.subTest(
                     c_shape=c.shape,
-                    le=list(le_int),
+                    le=[le_int],
                     expected_shape=expected1.shape,
                     weights=we,
                 ):
@@ -194,7 +194,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
             nax = np.array([ax], dtype=np.int64)
             with self.subTest(
                 x_shape=x.shape,
-                le=list(le_int),
+                le=[le_int],
                 ax=ax,
                 expected_shape=expected.shape,
             ):
@@ -233,7 +233,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
                 np.testing.assert_allclose(expected1, expected2)
                 with self.subTest(
                     c_shape=c.shape,
-                    le=list(le_int),
+                    le=[le_int],
                     ax=ax,
                     expected_shape=expected1.shape,
                 ):
@@ -260,7 +260,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
                 nax = np.array([ax], dtype=np.int64)
                 with self.subTest(
                     x_shape=x.shape,
-                    le=list(le_int),
+                    le=[le_int],
                     ax=str(ax),
                     expected_shape=expected.shape,
                 ):
@@ -300,7 +300,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
                 np.testing.assert_allclose(expected1, expected2)
                 with self.subTest(
                     c_shape=c.shape,
-                    le=list(le_int),
+                    le=[le_int],
                     ax=str(ax),
                     expected_shape=expected1.shape,
                 ):
