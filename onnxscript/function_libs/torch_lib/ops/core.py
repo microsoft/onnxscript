@@ -5382,14 +5382,14 @@ def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, T
     return result, indices
 
 
-@torch_op(("aten::minimum", "aten::min.other"))
+@torch_op("aten::minimum")
 def aten_minimum(self: TReal, other: TReal) -> TReal:
     """minimum(Tensor self, Tensor other) -> Tensor"""
 
     return op.Min(self, other)
 
 
-@torch_op(("aten::minimum", "aten::min.other"))
+@torch_op("aten::minimum")
 def aten_minimum_bool(self: BOOL, other: BOOL) -> BOOL:
     """minimum(Tensor self, Tensor other) -> Tensor"""
 
