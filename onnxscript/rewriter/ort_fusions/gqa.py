@@ -78,13 +78,10 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         value_BSDkv,
         past_key,
         past_value,
-        input_ids,
-        past_seq_length,
-        total_seq_length,
+        position_ids_q,
+        position_ids_k,
         cos,
         sin,
-        some_kv_cache,
-        shape_B111,
         mask,
     ):
         # Reshape query from (B, S, D) to (B, S, H, D/H)
@@ -101,10 +98,6 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         value_BSHkvDh = op.Reshape(value_BSDkv, pattern.ANY_VALUE, _outputs=["value_BSHkvDh"])
         # Transpose from (B, S, Hkv, D/H) to (B, Hkv, S, D/H)
         value_BHkvSDh = op.Transpose(value_BSHkvDh, perm=[0, 2, 1, 3])
-
-        position_ids = op.Range(past_seq_length, total_seq_length, 1)
-        position_ids_q = op.Unsqueeze(position_ids, [0])
-        position_ids_k = op.Unsqueeze(position_ids, [0])
 
         query_BHSDh_rope = op.RotaryEmbedding(
             query_BHSDh,
@@ -227,30 +220,26 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         value_BSDkv,
         past_key,
         past_value,
-        total_seq_length,
+        position_ids_q,
+        position_ids_k,
         cos,
         sin,
         mask,
         **_,
     ):
-        total_seq_length_int32 = op.Cast(total_seq_length, to=ir.DataType.INT32)
-        one_0D = op.Constant(value_int=1)
-        one_0D_int32 = op.Cast(one_0D, to=ir.DataType.INT32)
-        seqlens_k_0D = op.Sub(total_seq_length_int32, one_0D_int32)
-        zero_1D = op.Constant(value_int=0, dtype=ir.DataType.INT64, shape=[1])
-        seqlens_k = op.Unsqueeze(seqlens_k_0D, zero_1D)
-
-        return op.MaskedGroupQueryAttention(
+        return op.GQA(
+            mask,
+            position_ids_k,
+            position_ids_q,
             query_BSD,
             key_BSDkv,
             value_BSDkv,
             past_key,
             past_value,
-            seqlens_k,
-            total_seq_length_int32,
+            None,  # seqlens_k,
+            None,  # total_seq_length_int32,
             cos,
             sin,
-            mask,  # this is not a valid input for vanilla GQA
             num_heads=self.num_heads,
             kv_num_heads=self.kv_num_heads,
             do_rotary=1,
@@ -268,31 +257,22 @@ class GQACausalMask(pattern.RewriteRuleClassBase):
     def pattern(
         self,
         op,
-        query_BSD,
-        key_BSDkv,
-        value_BSDkv,
-        past_key,
-        past_value,
+        mask,
         input_ids,
         some_kv_cache,
         shape_B111,
-        cos,
-        sin,
-        seqlens_k,
-        total_seq_length_int32,
+        past_seq_length,
+        total_seq_length,
     ):
         mask = causal_mask_pattern(op, input_ids, some_kv_cache, shape_B111)
-        return op.MaskedGroupQueryAttention(
-            query_BSD,
-            key_BSDkv,
-            value_BSDkv,
-            past_key,
-            past_value,
-            seqlens_k,
-            total_seq_length_int32,
-            cos,
-            sin,
+        position_ids = op.Range(past_seq_length, total_seq_length, 1)
+        position_ids_q = op.Unsqueeze(position_ids, [0])
+        position_ids_k = op.Unsqueeze(position_ids, [0])
+        return op.GQA(
             mask,
+            position_ids_k,
+            position_ids_q,
+            _allow_other_inputs=True,
             _domain="ai.onnxruntime.fusion",
             _outputs=["attn_output", "key_seq", "value_seq"],
         )
@@ -300,36 +280,38 @@ class GQACausalMask(pattern.RewriteRuleClassBase):
     def rewrite(
         self,
         op,
-        query_BSD,
-        key_BSDkv,
-        value_BSDkv,
-        past_key,
-        past_value,
-        input_ids,
-        some_kv_cache,
-        shape_B111,
-        cos,
-        sin,
-        seqlens_k,
-        total_seq_length_int32,
+        total_seq_length,
         attn_output,
         **_,
     ):
+        # Construct total_seq_length_int32 and seqlens_k
+        total_seq_length_int32 = op.Cast(total_seq_length, to=ir.DataType.INT32)
+        one_0D = op.Constant(value_int=1)
+        one_0D_int32 = op.Cast(one_0D, to=ir.DataType.INT32)
+        seqlens_k_0D = op.Sub(total_seq_length_int32, one_0D_int32)
+        zero_1D = op.Constant(value_int=0, dtype=ir.DataType.INT64, shape=[1])
+        seqlens_k = op.Unsqueeze(seqlens_k_0D, zero_1D)
+
         gqa_node = attn_output.producer()
-        attributes = gqa_node.attributes
-        return op.GroupQueryAttention(
-            query_BSD,
-            key_BSDkv,
-            value_BSDkv,
+        assert len(gqa_node.inputs) == 12, (
+            f"Expected 12 inputs for GQA node, got {len(gqa_node.inputs)}"
+        )
+        query, key, value, past_key, past_value = gqa_node.inputs[3:8]
+        cos, sin = gqa_node.inputs[10:12]
+        updated_inputs = [
+            query,
+            key,
+            value,
             past_key,
             past_value,
             seqlens_k,
             total_seq_length_int32,
             cos,
             sin,
-            **attributes,
-            _domain="com.microsoft",
-            _outputs=3,
+        ]
+        attributes = gqa_node.attributes
+        return op.GroupQueryAttention(
+            *updated_inputs, **attributes, _domain="com.microsoft", _outputs=3
         )
 
 
