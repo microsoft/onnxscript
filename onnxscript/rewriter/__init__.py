@@ -15,11 +15,11 @@ import onnx
 import onnxscript.ir.passes.common as common_passes
 from onnxscript import ir
 from onnxscript.rewriter import (
+    basic_rules,
     broadcast_to_matmul,
     cast_constant_of_shape,
     collapse_slices,
     gemm_to_matmul_add,
-    llama_rule_sets,
     no_op,
     pattern,
 )
@@ -31,7 +31,7 @@ _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
     gemm_to_matmul_add.rule,  # type: ignore[has-type]
     *cast_constant_of_shape.rules.rules,
     *collapse_slices.rules.rules,
-    *llama_rule_sets.llama_p0_rule_set().rules,
+    *basic_rules.basic_optimization_rules().rules,
 )
 
 
