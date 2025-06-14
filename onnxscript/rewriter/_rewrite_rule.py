@@ -531,6 +531,15 @@ class RewriteRuleSet:
                     f = ir.Function(domain, name, overload, graph=graph, attributes=())
                     model.functions[f.identifier()] = f
 
+                # If we are fusing nodes, update the metadata props of the new node(s)
+                if delta.match.nodes and delta.new_nodes:
+                    # Concatenate metadata props from all original nodes
+                    fused_metadata_props = "Fused: " + "\t\n".join(
+                        n.metadata_props for n in delta.match.nodes if getattr(n, "metadata_props", None)
+                    )
+                    # Assign to all new nodes (or just the first, depending on your policy)
+                    delta.new_nodes[0].metadata_props += fused_metadata_props
+
                 if verbose:
                     name = f"{rule.name}: " if rule.name else ""
                     print(f"----{name}Matched Nodes----")
