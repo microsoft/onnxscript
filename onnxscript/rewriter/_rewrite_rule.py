@@ -546,11 +546,14 @@ class RewriteRuleSet:
         count = 0
 
         # NOTE: Rules should be prioritized in the order they are added to the RewriteRuleSet.
-        # And the graph is applied in order.
+        # The graph is processed in order, but we need to be careful about modification during iteration.
         for rule in self.rules:
             if rule.graph_pre_visitor:
                 rule.graph_pre_visitor()
-            for node in graph_or_function:
+            
+            # Convert to list to avoid issues if graph is modified during iteration
+            nodes_to_process = list(graph_or_function)
+            for node in nodes_to_process:
                 delta = rule.try_rewrite(
                     model, graph_or_function, node, verbose=verbose, tracer=tracer
                 )
@@ -655,18 +658,30 @@ class RewriteRuleSet:
             The number of applications of rewrite rules.
         """
         assert isinstance(model, ir.Model)
+        
+        # Apply initial constant propagation once at the start
         onnxscript.optimizer.basic_constant_propagation(model.graph)
+        
         # Rewriting may introduce new functions. In the following loop,
         # we restrict rewriting to original functions, not newly introduced ones.
         original_functions = list(model.functions.values())
+        
+        # Apply constant propagation to original functions before rewriting
+        for function in original_functions:
+            onnxscript.optimizer.basic_constant_propagation(function)
+        
+        # Apply rewrite rules to main graph
         count = self._apply_to_graph_or_function(
             model, model.graph, verbose=verbose, tracer=tracer
         )
+        
+        # Apply rewrite rules to original functions
         for function in original_functions:
-            onnxscript.optimizer.basic_constant_propagation(function)
             count += self._apply_to_graph_or_function(
                 model, function, verbose=verbose, tracer=tracer
             )
+        
+        # Final cleanup if needed
         if self.remove_unused_nodes:
             onnxscript.optimizer.remove_unused_nodes(model)
         return count
