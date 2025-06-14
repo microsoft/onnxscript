@@ -552,10 +552,16 @@ class GenericPatternTest(unittest.TestCase):
         def transpose_transpose_apply_pattern(op, X, XT: ir.Value, Y, **_):
             perm0 = XT.producer().attributes.get("perm")
             if perm0 is not None:
-                perm0 = perm0.value  # TODO(rama): handle RefAttr
+                if perm0.is_ref():
+                    # Cannot optimize when attribute is a reference, as we don't have the concrete value
+                    return None
+                perm0 = perm0.value
             perm1 = Y.producer().attributes.get("perm")
             if perm1 is not None:
-                perm1 = perm1.value  # TODO(rama): handle RefAttr
+                if perm1.is_ref():
+                    # Cannot optimize when attribute is a reference, as we don't have the concrete value
+                    return None
+                perm1 = perm1.value
             if perm0 is None and perm1 is None:
                 return op.Identity(X)
             if perm0 is None:
