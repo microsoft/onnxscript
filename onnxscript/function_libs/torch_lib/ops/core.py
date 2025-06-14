@@ -3089,16 +3089,19 @@ def aten_embedding_bag_padding_idx(
     sparse: bool = False,
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
-    padding_idx: int = -1,
+    padding_idx: Optional[int] = -1,
 ) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
     """embedding_bag.padding_idx(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq, int mode, bool sparse, Tensor? per_sample_weights, bool include_last_offset, int? padding_idx) -> (Tensor, Tensor, Tensor, Tensor)
 
     We add default values for the attributes to accommodate _embedding_bag as well:
     _embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False, int padding_idx=-1)
     """
-    assert padding_idx is not None, (
-        "padding_idx must not be None. This is likely a dispatcher error"
-    )
+    # If padding_idx is None, use regular embedding_bag without padding
+    if padding_idx is None:
+        return aten_embedding_bag(
+            weight, indices, offsets, scale_grad_by_freq, mode, sparse, 
+            per_sample_weights, include_last_offset
+        )
 
     if per_sample_weights is None:
         per_sample_weights = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(indices))
