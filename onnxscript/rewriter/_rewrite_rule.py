@@ -371,9 +371,10 @@ def _copy_for_function(
 
     def copy_attr_value(attr: ir.Attr) -> ir.Attr:
         if attr.is_ref():
-            # No need to support this currently, as rewriting inside a function is
-            # not used, as it has several challenges.
-            raise NotImplementedError("RefAttr not supported.")
+            # RefAttr objects are immutable and can be shared as-is.
+            # The referenced attribute parameter will be handled separately
+            # when the function signature is created.
+            return attr
         if attr.type in {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}:
             # No need to support this currently, as rewriting control-flow constructs
             # is not used and has several challenges.

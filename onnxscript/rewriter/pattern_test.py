@@ -779,6 +779,73 @@ class RewriteRuleTest(unittest.TestCase):
         rule.apply_to_model(model)
         self.assertEqual([x.op_type for x in model.graph], ["ReluPlus"])
 
+    def test_rewrite_rule_with_ref_attr(self):
+        """Test that rewrite rules handle RefAttr correctly in as_function mode."""
+        
+        # Create a pattern that matches Transpose nodes
+        def transpose_pattern(op, x):
+            return op.Transpose(x, _outputs=["result"])
+        
+        def replacement(op, x, result: ir.Value):
+            return op.Identity(x)
+        
+        # This should work with as_function=True even when encountering RefAttr
+        rule = pattern.RewriteRule(transpose_pattern, replacement, as_function=True)
+        
+        # Create a model with a node that has a RefAttr
+        input_val = ir.Value(name="x", type=ir.TensorType(ir.DataType.FLOAT))
+        output_val = ir.Value(name="y", type=ir.TensorType(ir.DataType.FLOAT))
+        
+        # Create a transpose node with a ref attribute  
+        perm_ref_attr = ir.RefAttr("perm", "axis_param", ir.AttributeType.INTS)
+        
+        transpose_node = ir.Node(
+            domain="",
+            op_type="Transpose", 
+            inputs=[input_val],
+            outputs=[output_val],
+            attributes={"perm": perm_ref_attr}
+        )
+        
+        # Create graph and model
+        graph = ir.Graph(
+            inputs=[input_val],
+            outputs=[output_val],
+            nodes=[transpose_node]
+        )
+        
+        model = ir.Model(graph=graph, ir_version=8)
+        
+        # Verify the original node has RefAttr
+        original_node = model.graph[0]
+        self.assertEqual(original_node.op_type, "Transpose")
+        perm_attr = original_node.attributes["perm"]
+        self.assertTrue(perm_attr.is_ref())
+        self.assertEqual(perm_attr.ref_attr_name, "axis_param")
+        
+        # Apply the rewrite rule - this should not fail
+        count = rule.apply_to_model(model)
+        self.assertEqual(count, 1)
+        
+        # Verify the result: main graph should have function call, function should exist
+        self.assertEqual(len(model.graph), 1)
+        call_node = model.graph[0]
+        self.assertEqual(call_node.op_type, "Identity")  # Function name becomes op_type
+        
+        # Verify function was created
+        self.assertEqual(len(model.functions), 1)
+        func = list(model.functions.values())[0]
+        self.assertEqual(func.name, "Identity")
+        
+        # Verify function contains the original Transpose with RefAttr preserved
+        func_nodes = list(func)
+        self.assertEqual(len(func_nodes), 1)
+        func_transpose = func_nodes[0]
+        self.assertEqual(func_transpose.op_type, "Transpose")
+        func_perm_attr = func_transpose.attributes["perm"]
+        self.assertTrue(func_perm_attr.is_ref())
+        self.assertEqual(func_perm_attr.ref_attr_name, "axis_param")
+
 
 class PatternBuilderTest(unittest.TestCase):
     def test_pattern_builder_context(self):
