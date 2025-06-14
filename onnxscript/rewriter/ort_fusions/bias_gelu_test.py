@@ -4,31 +4,52 @@
 import unittest
 
 import numpy as np
+import parameterized
 
 import onnxscript
 import onnxscript.ir as ir
 import onnxscript.rewriter.ort_fusions._test_utils as test_utils
-from onnxscript import FLOAT, script
-from onnxscript import opset18 as op
+from onnxscript import FLOAT, OnnxFunction, script
+from onnxscript import opset20 as op
 from onnxscript.optimizer import optimize, remove_unused_nodes
 from onnxscript.rewriter.ort_fusions.bias_gelu import fuse_bias_gelu
 
 msft_op = onnxscript.values.Opset("com.microsoft", 1)
 
 
-class BiasGeluFusionTest(unittest.TestCase):
-    def test_bias_gelu_fusion(self):
-        @script()
-        def bias_gelu_model(x, y):
-            gelu_add = op.Add(x, y)
-            gelu = msft_op.Gelu(gelu_add)
-            return gelu
+@script()
+def _test_script_onnx_default(x: FLOAT[10], y: FLOAT[10]) -> FLOAT[10]:
+    gelu_add = op.Add(x, y)
+    return op.Gelu(gelu_add)
 
-        model_proto = bias_gelu_model.to_model_proto(
-            input_types=[FLOAT[10], FLOAT[10]],
-            output_types=[FLOAT[10]],
-            ir_version=10,
-        )
+
+@script()
+def _test_script_onnx_none(x: FLOAT[10], y: FLOAT[10]) -> FLOAT[10]:
+    gelu_add = op.Add(x, y)
+    return op.Gelu(gelu_add, approximate="none")
+
+
+@script()
+def _test_script_onnx_unsupported(x: FLOAT[10], y: FLOAT[10]) -> FLOAT[10]:
+    gelu_add = op.Add(x, y)
+    return op.Gelu(gelu_add, approximate="tanh")
+
+
+@script()
+def _test_script_msft_op(x: FLOAT[10], y: FLOAT[10]) -> FLOAT[10]:
+    gelu_add = op.Add(x, y)
+    return msft_op.Gelu(gelu_add)
+
+
+class BiasGeluFusionTest(unittest.TestCase):
+    def _check(
+        self,
+        test_data_constructor: OnnxFunction,
+        expected_graph_len: int,
+        expected_op_type: str,
+    ):
+        """Helper method to run a fusion test scenario."""
+        model_proto = test_data_constructor.to_model_proto()
         model = ir.serde.deserialize_model(model_proto)
         optimize(model)
 
@@ -41,11 +62,41 @@ class BiasGeluFusionTest(unittest.TestCase):
         fuse_bias_gelu(model)
         remove_unused_nodes(model)
 
-        self.assertEqual(len(model.graph), 1)
-        self.assertEqual(model.graph.node(0).op_type, "BiasGelu")
+        self.assertEqual(len(model.graph), expected_graph_len)
+        self.assertEqual(model.graph.node(0).op_type, expected_op_type)
 
         optimized_output = test_utils.ort_run("Optimized", model, input)
         test_utils.assert_allclose(original_output, optimized_output)
+
+    @parameterized.parameterized.expand(
+        [
+            ("with_onnx_op_default", _test_script_onnx_default, 1, "BiasGelu"),
+            ("with_onnx_op_none", _test_script_onnx_none, 1, "BiasGelu"),
+            ("with_contrib_op", _test_script_msft_op, 1, "BiasGelu"),
+        ]
+    )
+    def test_bias_gelu_fusion(
+        self,
+        _,
+        test_data_constructor: OnnxFunction,
+        expected_graph_len: int,
+        expected_op_type: str,
+    ):
+        self._check(test_data_constructor, expected_graph_len, expected_op_type)
+
+    @parameterized.parameterized.expand(
+        [
+            ("approximate_tanh", _test_script_onnx_unsupported, 2, "Add"),
+        ]
+    )
+    def test_bias_gelu_fusion_unsupported_attr(
+        self,
+        _,
+        test_data_constructor: OnnxFunction,
+        expected_graph_len: int,
+        expected_op_type: str,
+    ):
+        self._check(test_data_constructor, expected_graph_len, expected_op_type)
 
 
 if __name__ == "__main__":
