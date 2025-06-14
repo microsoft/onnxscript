@@ -198,7 +198,7 @@ def prims_broadcast_in_dim(
     # We'll construct it by concatenating the right values for each position
     
     # Create base shape of all 1s
-    ones = op.ConstantOfShape(op.Constant(value_ints=[target_rank]), value=op.Constant(value_int=1))
+    ones = [1] * target_rank
     
     # For each broadcast dimension, we'll replace the 1 with the actual input dimension
     # Since broadcast_dimensions is compile-time known, we can do this with individual operations
