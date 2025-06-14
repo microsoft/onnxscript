@@ -2317,6 +2317,7 @@ def _aten_upsample_output_size(
     output_size: INT64,
     mode: str,
     coordinate_transformation_mode: str,
+    antialias: int = 0,
 ) -> TReal:
     batch_and_channel = op.Shape(self, end=2, start=0)
     # When output_size is passed in as a list of integers, the torch.onnx
@@ -2333,6 +2334,7 @@ def _aten_upsample_output_size(
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
         nearest_mode="floor",
+        antialias=antialias,
     )
 
 
@@ -2341,6 +2343,7 @@ def _aten_upsample_scales(
     scale_factors: Sequence[float],
     mode: str,
     coordinate_transformation_mode: str,
+    antialias: int = 0,
 ) -> TReal:
     return op.Resize(
         self,
@@ -2352,6 +2355,7 @@ def _aten_upsample_scales(
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
         nearest_mode="floor",
+        antialias=antialias,
     )
 
 
@@ -2373,6 +2377,28 @@ def aten_upsample_bicubic2d(
         output_size,
         mode="cubic",
         coordinate_transformation_mode=coordinate_transformation_mode,
+    )
+
+
+@torch_op("aten::_upsample_bicubic2d_aa", trace_only=True)
+def aten__upsample_bicubic2d_aa(
+    self: TReal,
+    output_size: INT64,
+    align_corners: bool,
+    scales_h: Optional[float] = None,
+    scales_w: Optional[float] = None,
+) -> TReal:
+    """_upsample_bicubic2d_aa(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
+
+    # NOTE: Based on experimentation, scales_h and scales_w are always ignored in PyTorch,
+    # unless when align_corners is True, in which case we do not know what is going on.
+    coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    return _aten_upsample_output_size(
+        self,
+        output_size,
+        mode="cubic",
+        coordinate_transformation_mode=coordinate_transformation_mode,
+        antialias=1,
     )
 
 
@@ -2435,6 +2461,28 @@ def aten_upsample_bilinear2d(
         output_size,
         coordinate_transformation_mode=coordinate_transformation_mode,
         mode="linear",
+    )
+
+
+@torch_op("aten::_upsample_bilinear2d_aa", trace_only=True)
+def aten__upsample_bilinear2d_aa(
+    self: TReal,
+    output_size: INT64,
+    align_corners: bool,
+    scales_h: Optional[float] = None,
+    scales_w: Optional[float] = None,
+) -> TReal:
+    """_upsample_bilinear2d_aa(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
+
+    # NOTE: Based on experimentation, scales_h and scales_w are always ignored in PyTorch,
+    # unless when align_corners is True, in which case we do not know what is going on.
+    coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    return _aten_upsample_output_size(
+        self,
+        output_size,
+        coordinate_transformation_mode=coordinate_transformation_mode,
+        mode="linear",
+        antialias=1,
     )
 
 
