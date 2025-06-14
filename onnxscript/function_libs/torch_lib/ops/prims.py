@@ -182,30 +182,45 @@ def prims_broadcast_in_dim(
 ) -> TensorType:
     """broadcast_in_dim(Tensor(a) a, SymInt[] shape, int[] broadcast_dimensions) -> Tensor(a)"""
     
-    # Get the shape of the input tensor
+    # Simplified approach that replaces ScatterElements with more basic operations
+    # while still leveraging compile-time knowledge of broadcast_dimensions
+    
     input_shape = op.Shape(a)
     target_rank = op.Size(shape)
     
-    # Create the intermediate shape by constructing it with the right dimensions
-    # Start with a shape of all 1s
+    if not broadcast_dimensions:
+        # Special case: no broadcast dimensions - all target dims should be 1  
+        ones = op.ConstantOfShape(op.Unsqueeze(target_rank, axes=[0]), value=op.Constant(value_int=1))
+        reshaped = op.Reshape(a, ones)
+        return op.Expand(reshaped, shape)
+    
+    # Build intermediate shape using a simpler approach than ScatterElements
+    # We'll construct it by concatenating the right values for each position
+    
+    # Create base shape of all 1s
     ones = op.ConstantOfShape(op.Unsqueeze(target_rank, axes=[0]), value=op.Constant(value_int=1))
     
-    # Since broadcast_dimensions is known at compile time, we can create the mapping directly
-    # Convert broadcast_dimensions and input shape to tensors we can work with
-    broadcast_dims_tensor = op.Constant(value_ints=list(broadcast_dimensions))
+    # For each broadcast dimension, we'll replace the 1 with the actual input dimension
+    # Since broadcast_dimensions is compile-time known, we can do this with individual operations
+    intermediate_shape = ones
     
-    # Scatter the input dimensions into the intermediate shape at the specified positions
-    intermediate_shape = op.ScatterElements(
-        ones, 
-        op.Unsqueeze(broadcast_dims_tensor, axes=[0]), 
-        op.Unsqueeze(input_shape, axes=[0]), 
-        axis=0
-    )
+    for i, broadcast_dim in enumerate(broadcast_dimensions):
+        # Get the input dimension value
+        input_dim_value = op.Gather(input_shape, op.Constant(value_int=i))
+        
+        # Create a one-hot mask for this position
+        indices = op.Range(op.Constant(value_int=0), target_rank, op.Constant(value_int=1))
+        mask = op.Equal(indices, op.Constant(value_int=broadcast_dim))
+        
+        # Use Where to replace the 1 with the input dimension value at this position
+        intermediate_shape = op.Where(
+            mask,
+            op.Cast(input_dim_value, to=ir.TensorType.INT64),
+            intermediate_shape
+        )
     
-    # Reshape the input tensor to the intermediate shape
+    # Reshape input to intermediate shape and expand to target
     reshaped = op.Reshape(a, intermediate_shape)
-    
-    # Expand to the target shape  
     return op.Expand(reshaped, shape)
 
 
