@@ -25,8 +25,11 @@ from onnxscript.rewriter import (
 )
 
 _ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
+
+# Default rewrite rules applied by the rewriter
+# These rules implement common optimizations and transformations
 _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
-    *no_op.rules.rules,  # TODO: merge this rule into constant folding?
+    *no_op.rules.rules,  # Remove no-op operations (e.g., Add with 0, Mul by 1)
     *broadcast_to_matmul.rules.rules,
     gemm_to_matmul_add.rule,  # type: ignore[has-type]
     *cast_constant_of_shape.rules.rules,
@@ -36,6 +39,20 @@ _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
 
 
 class RewritePass(ir.passes.InPlacePass):
+    """A pass that applies pattern-based rewrite rules to an IR model.
+    
+    This pass takes a collection of rewrite rules and applies them to the model,
+    transforming matching patterns according to the rule definitions. The pass
+    operates in-place, modifying the provided model directly.
+    
+    Args:
+        rules: A sequence of RewriteRule objects or a RewriteRuleSet containing
+               the rules to apply during rewriting.
+               
+    Raises:
+        ValueError: If the rules sequence is empty.
+    """
+    
     def __init__(
         self,
         rules: Sequence[pattern.RewriteRule] | pattern.RewriteRuleSet,
