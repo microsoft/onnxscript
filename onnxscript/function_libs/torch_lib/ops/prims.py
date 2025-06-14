@@ -193,14 +193,12 @@ def prims_broadcast_in_dim(
     # Since broadcast_dimensions is known at compile time, we can create the mapping directly
     # Convert broadcast_dimensions and input shape to tensors we can work with
     broadcast_dims_tensor = op.Constant(value_ints=list(broadcast_dimensions))
-    input_rank = op.Size(input_shape)
-    indices = op.Range(op.Constant(value_int=0), input_rank, op.Constant(value_int=1))
     
     # Scatter the input dimensions into the intermediate shape at the specified positions
     intermediate_shape = op.ScatterElements(
         ones, 
         op.Unsqueeze(broadcast_dims_tensor, axes=[0]), 
-        op.Unsqueeze(op.Gather(input_shape, indices), axes=[0]), 
+        op.Unsqueeze(input_shape, axes=[0]), 
         axis=0
     )
     
