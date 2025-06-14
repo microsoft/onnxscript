@@ -176,12 +176,37 @@ def prims_bitwise_xor(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("prims::broadcast_in_dim", trace_only=True)
 def prims_broadcast_in_dim(
     a: TensorType, shape: INT64, broadcast_dimensions: Sequence[int]
 ) -> TensorType:
     """broadcast_in_dim(Tensor(a) a, SymInt[] shape, int[] broadcast_dimensions) -> Tensor(a)"""
-
-    raise NotImplementedError()
+    
+    # Get the shape of the input tensor
+    input_shape = op.Shape(a)
+    
+    # Create the intermediate shape for reshaping
+    # Start with all 1s, then fill in the actual dimensions according to broadcast_dimensions
+    target_rank = op.Size(shape)
+    ones = op.Expand(op.Constant(value_ints=[1]), target_rank)
+    
+    # Create the intermediate shape by placing input dimensions at specified positions
+    intermediate_shape = ones
+    for i, dim_idx in enumerate(broadcast_dimensions):
+        # Get the size of dimension i from input tensor
+        input_dim_size = op.Gather(input_shape, op.Constant(value_ints=[i]))
+        # Update the intermediate shape at position dim_idx
+        # Use ScatterElements to update the specific position
+        indices = op.Constant(value_ints=[dim_idx])
+        intermediate_shape = op.ScatterElements(
+            intermediate_shape, indices, input_dim_size, axis=0
+        )
+    
+    # Reshape the input tensor to the intermediate shape
+    reshaped = op.Reshape(a, intermediate_shape)
+    
+    # Expand to the target shape
+    return op.Expand(reshaped, shape)
 
 
 def prims_cat(tensors: Sequence[TensorType], dim: int) -> TensorType:
