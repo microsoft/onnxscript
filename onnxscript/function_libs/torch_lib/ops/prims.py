@@ -184,28 +184,30 @@ def prims_broadcast_in_dim(
     
     # Get the shape of the input tensor
     input_shape = op.Shape(a)
-    
-    # Create the intermediate shape for reshaping
-    # Start with all 1s, then fill in the actual dimensions according to broadcast_dimensions
     target_rank = op.Size(shape)
-    ones = op.Expand(op.Constant(value_ints=[1]), target_rank)
     
-    # Create the intermediate shape by placing input dimensions at specified positions
-    intermediate_shape = ones
-    for i, dim_idx in enumerate(broadcast_dimensions):
-        # Get the size of dimension i from input tensor
-        input_dim_size = op.Gather(input_shape, op.Constant(value_ints=[i]))
-        # Update the intermediate shape at position dim_idx
-        # Use ScatterElements to update the specific position
-        indices = op.Constant(value_ints=[dim_idx])
-        intermediate_shape = op.ScatterElements(
-            intermediate_shape, indices, input_dim_size, axis=0
-        )
+    # Create the intermediate shape by constructing it with the right dimensions
+    # Start with a shape of all 1s
+    ones = op.ConstantOfShape(op.Unsqueeze(target_rank, axes=[0]), value=op.Constant(value_int=1))
+    
+    # Since broadcast_dimensions is known at compile time, we can create the mapping directly
+    # Convert broadcast_dimensions and input shape to tensors we can work with
+    broadcast_dims_tensor = op.Constant(value_ints=list(broadcast_dimensions))
+    input_rank = op.Size(input_shape)
+    indices = op.Range(op.Constant(value_int=0), input_rank, op.Constant(value_int=1))
+    
+    # Scatter the input dimensions into the intermediate shape at the specified positions
+    intermediate_shape = op.ScatterElements(
+        ones, 
+        op.Unsqueeze(broadcast_dims_tensor, axes=[0]), 
+        op.Unsqueeze(op.Gather(input_shape, indices), axes=[0]), 
+        axis=0
+    )
     
     # Reshape the input tensor to the intermediate shape
     reshaped = op.Reshape(a, intermediate_shape)
     
-    # Expand to the target shape
+    # Expand to the target shape  
     return op.Expand(reshaped, shape)
 
 
