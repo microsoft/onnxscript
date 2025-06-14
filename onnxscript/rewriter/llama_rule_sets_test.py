@@ -1,5 +1,11 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+"""Test file for basic optimization rules (formerly llama_rule_sets).
+
+.. deprecated:: 
+    This test file is deprecated. New tests should be added to basic_rules_test.py.
+    This file is kept for backward compatibility and to ensure existing tests pass.
+"""
 from __future__ import annotations
 
 import unittest
@@ -12,7 +18,7 @@ import parameterized
 
 import onnxscript
 import onnxscript.onnx_types as ot
-import onnxscript.rewriter.llama_rule_sets as llama_rule_sets
+import onnxscript.rewriter.basic_rules as basic_rules
 from onnxscript import ir
 from onnxscript.onnx_opset import opset18
 
@@ -29,7 +35,7 @@ def _make_model(*args, **kwargs) -> ir.Model:
     return ir.serde.deserialize_model(onnx.helper.make_model(*args, **kwargs))
 
 
-class LlamaRuleSetsTest(unittest.TestCase):
+class BasicRuleSetsTest(unittest.TestCase):
     def _get_random_inputs(self, model: onnx.ModelProto) -> dict[str, Any]:
         feeds: dict[str, Any] = {}
         for i in model.graph.input:
@@ -98,7 +104,7 @@ class LlamaRuleSetsTest(unittest.TestCase):
         ]
     )
     def test_llama_p0_rule_set_identity(self, _: str, model: ir.Model):
-        rule_set = llama_rule_sets.llama_p0_rule_set()
+        rule_set = basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -126,7 +132,7 @@ class LlamaRuleSetsTest(unittest.TestCase):
         ]
     )
     def test_llama_p0_rule_set_transpose_transpose(self, _: str, model: ir.Model):
-        rule_set = llama_rule_sets.llama_p0_rule_set()
+        rule_set = basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -153,10 +159,10 @@ class LlamaRuleSetsTest(unittest.TestCase):
         ]
     )
     def test_llama_p0_rule_set_cast_cast(self, _: str, type1, type2, type3):
-        rule_set = llama_rule_sets.cast_cast_rule
+        rule = basic_rules.cast_cast_rule
         model_proto = self._double_cast_model(type1, type2, type3)
         model = ir.serde.deserialize_model(model_proto)
-        rule_set.apply_to_model(model)
+        rule.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
 
         self.assertEqual(["Cast"], [n.op_type for n in model.graph])
@@ -173,7 +179,7 @@ class LlamaRuleSetsTest(unittest.TestCase):
         ]
     )
     def test_llama_p0_rule_set_cast_identity(self, _: str, model: ir.Model):
-        rule_set = llama_rule_sets.llama_p0_rule_set()
+        rule_set = basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -229,7 +235,7 @@ class LlamaRuleSetsTest(unittest.TestCase):
     def test_llama_p0_rule_set_expand_identity(
         self, _: str, model: ir.Model, expected_nodes: tuple[str, ...]
     ):
-        rule_set = llama_rule_sets.llama_p0_rule_set()
+        rule_set = basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -311,7 +317,7 @@ class LlamaRuleSetsTest(unittest.TestCase):
         ]
     )
     def test_llama_p0_rule_set_unsqueeze_unsqueeze(self, _: str, model: ir.Model):
-        rule_set = llama_rule_sets.llama_p0_rule_set()
+        rule_set = basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -370,7 +376,7 @@ class LlamaRuleSetsTest(unittest.TestCase):
         ]
     )
     def test_llama_p0_rule_set_reshape_reshape(self, _: str, model: ir.Model):
-        rule_set = llama_rule_sets.llama_p0_rule_set()
+        rule_set = basic_rules.basic_optimization_rules()
         model_proto = ir.serde.serialize_model(model)
         rule_set.apply_to_model(model)
         rewritten_model = ir.serde.serialize_model(model)
@@ -421,7 +427,7 @@ class LlamaRuleSetsTest(unittest.TestCase):
     def test_llama_p0_rule_set_slice_split(self):
         for model_proto in self._slides_split_models():
             ir_model = ir.serde.deserialize_model(model_proto)
-            rule_set = llama_rule_sets.llama_p0_rule_set()
+            rule_set = basic_rules.basic_optimization_rules()
             rule_set.apply_to_model(ir_model)
             rewritten_model = ir.serde.serialize_model(ir_model)
 
@@ -429,7 +435,7 @@ class LlamaRuleSetsTest(unittest.TestCase):
             self._check_model(model_proto, rewritten_model)
 
     def test_squeeze_reshape_1d_test(self):
-        rule = llama_rule_sets.squeeze_reshape_1d_rule
+        rule = basic_rules.squeeze_reshape_1d_rule
 
         def check(model_script, expected_count) -> None:
             model_proto = model_script.to_model_proto()
