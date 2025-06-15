@@ -49,8 +49,8 @@ class BiasGeluFusion(pattern.RewriteRuleClassBase):
 
 bias_gelu_rules = pattern.RewriteRuleSet(
     [
-        BiasGeluFusion.rule("gelu_onnx_op", contrib_op=False),
-        BiasGeluFusion.rule("gelu_contrib_op", contrib_op=True),
+        *BiasGeluFusion.rule("gelu_onnx_op", contrib_op=False).commute(),
+        *BiasGeluFusion.rule("gelu_contrib_op", contrib_op=True).commute(),
     ]
 )
 

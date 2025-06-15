@@ -36,6 +36,12 @@ def _test_script_msft_op(x: FLOAT[10, 10], y: FLOAT[10]) -> FLOAT[10]:
 
 
 @script()
+def _test_script_reversed_order(x: FLOAT[10, 10], y: FLOAT[10]) -> FLOAT[10]:
+    gelu_add = op.Add(y, x)
+    return op.Gelu(gelu_add)
+
+
+@script()
 def _test_script_onnx_unsupported(x: FLOAT[10, 10], y: FLOAT[10]) -> FLOAT[10]:
     gelu_add = op.Add(x, y)
     return op.Gelu(gelu_add, approximate="tanh")
@@ -44,12 +50,6 @@ def _test_script_onnx_unsupported(x: FLOAT[10, 10], y: FLOAT[10]) -> FLOAT[10]:
 @script()
 def _test_script_shape_unsupported(x: FLOAT[10, 10], y: FLOAT[10]) -> FLOAT[10]:
     gelu_add = op.Add(x, x)
-    return op.Gelu(gelu_add)
-
-
-@script()
-def _test_script_reversed_order(x: FLOAT[10, 10], y: FLOAT[10]) -> FLOAT[10]:
-    gelu_add = op.Add(y, x)
     return op.Gelu(gelu_add)
 
 
@@ -85,6 +85,7 @@ class BiasGeluFusionTest(unittest.TestCase):
             ("with_onnx_op_default", _test_script_onnx_default, 1, "BiasGelu"),
             ("with_onnx_op_none", _test_script_onnx_none, 1, "BiasGelu"),
             ("with_contrib_op", _test_script_msft_op, 1, "BiasGelu"),
+            ("reversed_order", _test_script_reversed_order, 1, "BiasGelu"),
         ]
     )
     def test_bias_gelu_fusion(
@@ -100,7 +101,6 @@ class BiasGeluFusionTest(unittest.TestCase):
         [
             ("approximate_tanh", _test_script_onnx_unsupported, 2, "Add"),
             ("unsupported_shape", _test_script_shape_unsupported, 2, "Add"),
-            ("reversed_order", _test_script_reversed_order, 2, "Add"),
         ]
     )
     def test_bias_gelu_fusion_unsupported_attr(
