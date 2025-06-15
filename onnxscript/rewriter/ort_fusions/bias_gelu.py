@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-from onnxscript.rewriter import _fusion_utils, pattern
+from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 
 class BiasGeluFusion(pattern.RewriteRuleClassBase):
@@ -22,24 +22,29 @@ class BiasGeluFusion(pattern.RewriteRuleClassBase):
         super().__init__(name)
         self._contrib_op = contrib_op
 
-    def pattern(self, op, x, y):
-        gelu_add = op.Add(x, y)
+    def pattern(self, op, input, bias):
+        gelu_add = op.Add(input, bias)
+
         if self._contrib_op:
             return op.Gelu(gelu_add, _domain="com.microsoft", _outputs=["gelu"])
         else:
             return op.Gelu(gelu_add, _outputs=["gelu"])
 
-    def check(self, op, gelu, **_) -> pattern.MatchResult:
+    def check(self, op, gelu, input, bias, **_) -> pattern.MatchResult:
         check_result = pattern.MatchResult()
         approximate = gelu.producer().attributes.get_string("approximate")
         if approximate is not None and approximate == "tanh":
             return check_result.fail(
                 "Gelu operator with 'approximate' set to 'tanh' is not supported."
             )
+
+        if not _ir_utils.has_rank(bias, 1):
+            return check_result.fail("bias is not of shape 1D tensor", bias)
+
         return check_result
 
-    def rewrite(self, op, x, y, **_):
-        return op.BiasGelu(x, y, _domain="com.microsoft")
+    def rewrite(self, op, input, bias, **_):
+        return op.BiasGelu(input, bias, _domain="com.microsoft")
 
 
 bias_gelu_rules = pattern.RewriteRuleSet(
