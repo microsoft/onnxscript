@@ -8,6 +8,8 @@ __all__ = [
     "pattern",
     "rewrite",
     "RewritePass",
+    "egraph",
+    "egraph_pattern",
 ]
 
 import onnx
@@ -18,6 +20,8 @@ from onnxscript.rewriter import (
     broadcast_to_matmul,
     cast_constant_of_shape,
     collapse_slices,
+    egraph,
+    egraph_pattern,
     gemm_to_matmul_add,
     llama_rule_sets,
     no_op,
