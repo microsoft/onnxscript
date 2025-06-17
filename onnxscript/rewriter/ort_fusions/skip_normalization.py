@@ -36,11 +36,7 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         # Note: ORT's SimplifiedLayerNormalization was placed in onnx domain by mistake.
         # No need to use com.microsoft domain here; but this is a custom op in ORT.
         normalized = op.SimplifiedLayerNormalization(
-            skip_sum,
-            gamma,
-            axis=-1,
-            epsilon=epsilon,
-            stash_type=stash_type,
+            skip_sum, gamma, axis=-1, _outputs=["simplified_layer_norm"]
         )
         return normalized, skip_sum
 
@@ -51,8 +47,6 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         skip,
         gamma,
         bias,
-        epsilon,
-        stash_type,
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         """Check if the pattern matches conditions for use of SkipSimplifiedLayerNormalization op."""
@@ -93,10 +87,11 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         skip,
         gamma,
         bias,
-        epsilon,
-        stash_type,
+        simplified_layer_norm,
         **_,
     ):
+        epsilon = simplified_layer_norm.producer().attributes.get_float("epsilon")
+
         if self._has_bias:
             normalized, _mean, _inv_std_var, skip_sum = op.SkipSimplifiedLayerNormalization(
                 input,
@@ -141,7 +136,7 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
         self._has_bias = has_bias
         self._bias_pre_add = bias_pre_add
 
-    def pattern(self, op, input, skip, gamma, beta, bias, epsilon, stash_type):
+    def pattern(self, op, input, skip, gamma, beta, bias):
         if self._has_bias and self._bias_pre_add:
             input = op.Add(input, bias)
 
@@ -149,16 +144,11 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
         skip_sum_pattern_1 = op.Add(skip, input)
         skip_sum_pattern_2 = op.Add(input, skip)
         skip_sum = pattern.OrValue([skip_sum_pattern_1, skip_sum_pattern_2], name="skip_sum")
-
+        # TODO: check if combo is missed.
         if self._has_bias and not self._bias_pre_add:
             skip_sum = op.Add(skip_sum, bias)
         normalized = op.LayerNormalization(
-            skip_sum,
-            gamma,
-            beta,
-            axis=-1,
-            epsilon=epsilon,
-            stash_type=stash_type,
+            skip_sum, gamma, beta, axis=-1, _outputs=["layer_norm"]
         )
         return normalized, skip_sum
 
@@ -170,8 +160,6 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
         gamma,
         beta,
         bias,
-        epsilon,
-        stash_type,
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         """Check if the pattern matches conditions for use of SimplifiedLayerNormalization op."""
@@ -218,10 +206,10 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
         gamma,
         beta,
         bias,
-        epsilon,
-        stash_type,
+        layer_norm,
         **_,
     ):
+        epsilon = layer_norm.producer().attributes.get_float("epsilon")
         normalized, _mean, _inv_std_var, skip_sum = op.SkipLayerNormalization(
             input,
             skip,
@@ -246,7 +234,6 @@ _skip_layer_rule = SkipLayerNormFusion.rule("SkipLayerNorm", has_bias=False)
 skip_layer_normalization_ruleset = pattern.RewriteRuleSet(
     [_skip_layer_pre_add_bias_rule, _skip_layer_add_bias_rule, _skip_layer_rule]
 )
-
 
 fuse_skip_layer_normalization = _fusion_utils.apply_fusion_rules(
     skip_layer_normalization_ruleset
