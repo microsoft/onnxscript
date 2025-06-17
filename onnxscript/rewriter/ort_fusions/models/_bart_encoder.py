@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
 """
 Onnxscript version of "hf-internal-testing_tiny-random-bart".
 
@@ -5,8 +7,6 @@ See: https://huggingface.co/hf-internal-testing/tiny-random-bart
 """
 
 import numpy as np
-from onnx import TensorProto
-from onnx.helper import make_tensor
 
 import onnxscript.ir as ir
 from onnxscript import script
@@ -34,7 +34,7 @@ def make_model(
     matmul_288,
 ):
     @script()
-    def main_graph(input_ids: INT64[1, None]) -> FLOAT[None]:
+    def main_graph(input_ids: INT64[1, None]) -> FLOAT[None, None, 16]:
         encoder_layernorm_embedding_bias = opset20.Identity(
             encoder_layers_0_self_attn_layer_norm_weight
         )
@@ -151,7 +151,7 @@ def make_model(
         )
         encoder_embed_positions_constantofshape_output_0 = opset20.ConstantOfShape(
             encoder_embed_positions_shape_1_output_0,
-            value=make_tensor("onef", TensorProto.INT64, [1], [1]),
+            value=ir.tensor(np.array([1], dtype=np.int64)),
         )
         encoder_embed_positions_constant_6_output_0 = opset20.Constant(value=[-1])
         encoder_embed_positions_mul_output_0 = opset20.Mul(
