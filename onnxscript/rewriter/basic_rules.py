@@ -6,6 +6,7 @@ This module contains fundamental optimization rules that are generally applicabl
 to most ONNX models, including cast elimination, transpose simplification,
 shape operation fusion, and other common patterns.
 """
+
 from __future__ import annotations
 
 from typing import ClassVar, Sequence
@@ -291,13 +292,13 @@ squeeze_reshape_1d_rule = SqueezeReshape.rule()
 
 def basic_optimization_rules() -> orp.RewriteRuleSet:
     """Returns a set of basic optimization rules.
-    
+
     These rules perform fundamental optimizations such as:
     - Eliminating redundant cast operations
     - Simplifying consecutive operations of the same type
     - Removing identity operations
     - Optimizing shape manipulation operations
-    
+
     These rules are generally safe to apply as a first optimization pass
     before other more specialized optimizations.
 
