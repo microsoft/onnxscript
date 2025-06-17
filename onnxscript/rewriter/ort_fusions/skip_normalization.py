@@ -36,7 +36,11 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         # Note: ORT's SimplifiedLayerNormalization was placed in onnx domain by mistake.
         # No need to use com.microsoft domain here; but this is a custom op in ORT.
         normalized = op.SimplifiedLayerNormalization(
-            skip_sum, gamma, axis=-1, _outputs=["simplified_layer_norm"]
+            skip_sum,
+            gamma,
+            axis=-1,
+            _allow_other_attributes=True,
+            _outputs=["simplified_layer_norm"],
         )
         return normalized, skip_sum
 
@@ -145,7 +149,12 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
             skip_sum = op.Add(skip_sum, bias)
 
         normalized = op.LayerNormalization(
-            skip_sum, gamma, beta, axis=-1, _outputs=["layer_norm"]
+            skip_sum,
+            gamma,
+            beta,
+            axis=-1,
+            _allow_other_attributes=True,
+            _outputs=["layer_norm"],
         )
         return normalized, skip_sum
 
