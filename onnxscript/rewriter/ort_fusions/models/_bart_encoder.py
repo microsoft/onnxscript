@@ -34,7 +34,7 @@ def make_model(
     MatMul_288,
 ):
     @script()
-    def main_graph(input_ids: INT64[1, 16]) -> FLOAT[None]:
+    def main_graph(input_ids: INT64[1, None]) -> FLOAT[None]:
         encoder_layernorm_embedding_bias = opset20.Identity(
             encoder_layers_0_self_attn_layer_norm_weight
         )
@@ -94,13 +94,13 @@ def make_model(
         )
 
         encoder_Shape_output_0 = opset20.Shape(input_ids)
-        encoder_Constant_output_0 = opset20.Constant(value_ints=1)
+        encoder_Constant_output_0 = opset20.Constant(value=1)
         encoder_Gather_output_0 = opset20.Gather(
             encoder_Shape_output_0, encoder_Constant_output_0
         )
 
-        encoder_Constant_1_output_0 = opset20.Constant(value_int=-1)
-        Unsqueeze_43 = opset20.Constant(int_values=[0])
+        encoder_Constant_1_output_0 = opset20.Constant(value=[-1])
+        Unsqueeze_43 = opset20.Constant(value=[0])
         encoder_Unsqueeze_output_0 = opset20.Unsqueeze(encoder_Gather_output_0, Unsqueeze_43)
         encoder_Concat_output_0 = opset20.Concat(
             encoder_Constant_1_output_0, encoder_Unsqueeze_output_0, axis=0
@@ -111,37 +111,37 @@ def make_model(
         encoder_embed_tokens_Gather_output_0 = opset20.Gather(
             encoder_embed_tokens_weight, encoder_Reshape_output_0
         )
-        encoder_embed_tokens_Constant_output_0 = opset20.Constant(value_floats=[1.0])
+        encoder_embed_tokens_Constant_output_0 = opset20.Constant(value=[1.0])
         encoder_embed_tokens_Mul_output_0 = opset20.Mul(
             encoder_embed_tokens_Gather_output_0, encoder_embed_tokens_Constant_output_0
         )
         encoder_embed_positions_Shape_output_0 = opset20.Shape(input_ids)
-        encoder_embed_positions_Constant_output_0 = opset20.Constant(value_int=0)
+        encoder_embed_positions_Constant_output_0 = opset20.Constant(value=0)
         encoder_embed_positions_Gather_output_0 = opset20.Gather(
             encoder_embed_positions_Shape_output_0,
             encoder_embed_positions_Constant_output_0,
             axis=0,
         )
-        encoder_embed_positions_Constant_1_output_0 = opset20.Constant(value_int=0)
+        encoder_embed_positions_Constant_1_output_0 = opset20.Constant(value=0)
         encoder_embed_positions_Cast_output_0 = opset20.Cast(encoder_Gather_output_0, to=7)
-        encoder_embed_positions_Constant_2_output_0 = opset20.Constant(value_int=1)
+        encoder_embed_positions_Constant_2_output_0 = opset20.Constant(value=1)
         encoder_embed_positions_Range_output_0 = opset20.Range(
             encoder_embed_positions_Constant_1_output_0,
             encoder_embed_positions_Cast_output_0,
             encoder_embed_positions_Constant_2_output_0,
         )
-        encoder_embed_positions_Constant_3_output_0 = opset20.Constant(value_ints=[0])
+        encoder_embed_positions_Constant_3_output_0 = opset20.Constant(value=[0])
         encoder_embed_positions_Unsqueeze_output_0 = opset20.Unsqueeze(
             encoder_embed_positions_Gather_output_0,
             encoder_embed_positions_Constant_3_output_0,
         )
-        encoder_embed_positions_Constant_4_output_0 = opset20.Constant(value_ints=[-1])
+        encoder_embed_positions_Constant_4_output_0 = opset20.Constant(value=[-1])
         encoder_embed_positions_Concat_output_0 = opset20.Concat(
             encoder_embed_positions_Unsqueeze_output_0,
             encoder_embed_positions_Constant_4_output_0,
             axis=0,
         )
-        encoder_embed_positions_Constant_5_output_0 = opset20.Constant(value_ints=[-1])
+        encoder_embed_positions_Constant_5_output_0 = opset20.Constant(value=[-1])
         encoder_embed_positions_Reshape_output_0 = opset20.Reshape(
             encoder_embed_positions_Concat_output_0,
             encoder_embed_positions_Constant_5_output_0,
@@ -151,9 +151,9 @@ def make_model(
         )
         encoder_embed_positions_ConstantOfShape_output_0 = opset20.ConstantOfShape(
             encoder_embed_positions_Shape_1_output_0,
-            value=make_tensor("onef", TensorProto.FLOAT, [1], [1]),
+            value=make_tensor("onef", TensorProto.INT64, [1], [1]),
         )
-        encoder_embed_positions_Constant_6_output_0 = opset20.Constant(value_ints=[-1])
+        encoder_embed_positions_Constant_6_output_0 = opset20.Constant(value=[-1])
         encoder_embed_positions_Mul_output_0 = opset20.Mul(
             encoder_embed_positions_ConstantOfShape_output_0,
             encoder_embed_positions_Constant_6_output_0,
@@ -169,7 +169,7 @@ def make_model(
         encoder_embed_positions_Expand_output_0 = opset20.Expand(
             encoder_embed_positions_Range_output_0, encoder_embed_positions_Where_output_0
         )
-        encoder_embed_positions_Constant_7_output_0 = opset20.Constant(value_int=2)
+        encoder_embed_positions_Constant_7_output_0 = opset20.Constant(value=2)
         encoder_embed_positions_Add_output_0 = opset20.Add(
             encoder_embed_positions_Expand_output_0,
             encoder_embed_positions_Constant_7_output_0,
@@ -191,7 +191,7 @@ def make_model(
         encoder_layers_0_self_attn_Shape_output_0 = opset20.Shape(
             encoder_layernorm_embedding_LayerNormalization_output_0
         )
-        encoder_layers_0_self_attn_Constant_output_0 = opset20.Constant(value_int=0)
+        encoder_layers_0_self_attn_Constant_output_0 = opset20.Constant(value=0)
         encoder_layers_0_self_attn_Gather_output_0 = opset20.Gather(
             encoder_layers_0_self_attn_Shape_output_0,
             encoder_layers_0_self_attn_Constant_output_0,
@@ -200,7 +200,7 @@ def make_model(
         encoder_layers_0_self_attn_Shape_1_output_0 = opset20.Shape(
             encoder_layernorm_embedding_LayerNormalization_output_0
         )
-        encoder_layers_0_self_attn_Constant_1_output_0 = opset20.Constant(value_int=1)
+        encoder_layers_0_self_attn_Constant_1_output_0 = opset20.Constant(value=1)
         encoder_layers_0_self_attn_Gather_1_output_0 = opset20.Gather(
             encoder_layers_0_self_attn_Shape_1_output_0,
             encoder_layers_0_self_attn_Constant_1_output_0,
@@ -213,13 +213,13 @@ def make_model(
             encoder_layers_0_self_attn_q_proj_bias,
             encoder_layers_0_self_attn_q_proj_MatMul_output_0,
         )
-        Unsqueeze_88 = opset20.Constant(value_ints=[0])
+        Unsqueeze_88 = opset20.Constant(value=[0])
         encoder_layers_0_self_attn_Unsqueeze_output_0 = opset20.Unsqueeze(
             encoder_layers_0_self_attn_Gather_output_0, Unsqueeze_88
         )
-        encoder_layers_0_self_attn_Constant_2_output_0 = opset20.Constant(value_ints=[-1])
-        encoder_layers_0_self_attn_Constant_3_output_0 = opset20.Constant(value_ints=[4])
-        encoder_layers_0_self_attn_Constant_4_output_0 = opset20.Constant(value_ints=[4])
+        encoder_layers_0_self_attn_Constant_2_output_0 = opset20.Constant(value=[-1])
+        encoder_layers_0_self_attn_Constant_3_output_0 = opset20.Constant(value=[4])
+        encoder_layers_0_self_attn_Constant_4_output_0 = opset20.Constant(value=[4])
         encoder_layers_0_self_attn_Concat_output_0 = opset20.Concat(
             encoder_layers_0_self_attn_Unsqueeze_output_0,
             encoder_layers_0_self_attn_Constant_2_output_0,
@@ -227,13 +227,13 @@ def make_model(
             encoder_layers_0_self_attn_Constant_4_output_0,
             axis=0,
         )
-        Unsqueeze_97 = opset20.Constant(value_ints=[1])
+        Unsqueeze_97 = opset20.Constant(value=[0])
         encoder_layers_0_self_attn_Unsqueeze_1_output_0 = opset20.Unsqueeze(
             encoder_layers_0_self_attn_Gather_output_0, Unsqueeze_97
         )
-        encoder_layers_0_self_attn_Constant_5_output_0 = opset20.Constant(value_ints=[-1])
-        encoder_layers_0_self_attn_Constant_6_output_0 = opset20.Constant(value_ints=[4])
-        encoder_layers_0_self_attn_Constant_7_output_0 = opset20.Constant(value_ints=[4])
+        encoder_layers_0_self_attn_Constant_5_output_0 = opset20.Constant(value=[-1])
+        encoder_layers_0_self_attn_Constant_6_output_0 = opset20.Constant(value=[4])
+        encoder_layers_0_self_attn_Constant_7_output_0 = opset20.Constant(value=[4])
         encoder_layers_0_self_attn_Concat_1_output_0 = opset20.Concat(
             encoder_layers_0_self_attn_Unsqueeze_1_output_0,
             encoder_layers_0_self_attn_Constant_5_output_0,
@@ -241,13 +241,13 @@ def make_model(
             encoder_layers_0_self_attn_Constant_7_output_0,
             axis=0,
         )
-        Unsqueeze_106 = opset20.Constant(value_ints=[1])
+        Unsqueeze_106 = opset20.Constant(value=[0])
         encoder_layers_0_self_attn_Unsqueeze_2_output_0 = opset20.Unsqueeze(
             encoder_layers_0_self_attn_Gather_output_0, Unsqueeze_106
         )
-        encoder_layers_0_self_attn_Constant_8_output_0 = opset20.Constant(value_ints=[-1])
-        encoder_layers_0_self_attn_Constant_9_output_0 = opset20.Constant(value_ints=[4])
-        encoder_layers_0_self_attn_Constant_10_output_0 = opset20.Constant(value_ints=[4])
+        encoder_layers_0_self_attn_Constant_8_output_0 = opset20.Constant(value=[-1])
+        encoder_layers_0_self_attn_Constant_9_output_0 = opset20.Constant(value=[4])
+        encoder_layers_0_self_attn_Constant_10_output_0 = opset20.Constant(value=[4])
         encoder_layers_0_self_attn_Concat_2_output_0 = opset20.Concat(
             encoder_layers_0_self_attn_Unsqueeze_2_output_0,
             encoder_layers_0_self_attn_Constant_8_output_0,
@@ -294,9 +294,9 @@ def make_model(
         encoder_layers_0_self_attn_Shape_2_output_0 = opset20.Shape(
             encoder_layers_0_self_attn_Transpose_output_0
         )
-        encoder_layers_0_self_attn_Constant_11_output_0 = opset20.Constant(value_ints=[-1])
+        encoder_layers_0_self_attn_Constant_11_output_0 = opset20.Constant(value=[-1])
         encoder_layers_0_self_attn_Constant_12_output_0 = opset20.Constant(
-            value_ints=[9223372036854775807]
+            value=[9223372036854775807]
         )
         encoder_layers_0_self_attn_Slice_output_0 = opset20.Slice(
             encoder_layers_0_self_attn_Shape_2_output_0,
@@ -309,7 +309,7 @@ def make_model(
         encoder_layers_0_self_attn_Sqrt_output_0 = opset20.Sqrt(
             encoder_layers_0_self_attn_Cast_output_0
         )
-        encoder_layers_0_self_attn_Constant_13_output_0 = opset20.Constant(value_floats=[1.0])
+        encoder_layers_0_self_attn_Constant_13_output_0 = opset20.Constant(value=[1.0])
         encoder_layers_0_self_attn_Div_output_0 = opset20.Div(
             encoder_layers_0_self_attn_Constant_13_output_0,
             encoder_layers_0_self_attn_Sqrt_output_0,
@@ -347,15 +347,15 @@ def make_model(
         encoder_layers_0_self_attn_Transpose_3_output_0 = opset20.Transpose(
             encoder_layers_0_self_attn_MatMul_1_output_0, perm=[0, 2, 1, 3]
         )
-        Unsqueeze_145 = opset20.Constant(value_ints=[0])
+        Unsqueeze_145 = opset20.Constant(value=[0])
         encoder_layers_0_self_attn_Unsqueeze_3_output_0 = opset20.Unsqueeze(
             encoder_layers_0_self_attn_Gather_output_0, Unsqueeze_145
         )
-        Unsqueeze_147 = opset20.Constant(value_ints=[0])
+        Unsqueeze_147 = opset20.Constant(value=[0])
         encoder_layers_0_self_attn_Unsqueeze_4_output_0 = opset20.Unsqueeze(
             encoder_layers_0_self_attn_Gather_1_output_0, Unsqueeze_147
         )
-        encoder_layers_0_self_attn_Constant_14_output_0 = opset20.Constant(value_ints=[16])
+        encoder_layers_0_self_attn_Constant_14_output_0 = opset20.Constant(value=[16])
         encoder_layers_0_self_attn_Concat_3_output_0 = opset20.Concat(
             encoder_layers_0_self_attn_Unsqueeze_3_output_0,
             encoder_layers_0_self_attn_Unsqueeze_4_output_0,
@@ -417,7 +417,7 @@ def make_model(
         encoder_layers_1_self_attn_Shape_output_0 = opset20.Shape(
             encoder_layers_0_final_layer_norm_LayerNormalization_output_0
         )
-        encoder_layers_1_self_attn_Constant_output_0 = opset20.Constant(value_int=0)
+        encoder_layers_1_self_attn_Constant_output_0 = opset20.Constant(value=0)
         encoder_layers_1_self_attn_Gather_output_0 = opset20.Gather(
             encoder_layers_1_self_attn_Shape_output_0,
             encoder_layers_1_self_attn_Constant_output_0,
@@ -426,7 +426,7 @@ def make_model(
         encoder_layers_1_self_attn_Shape_1_output_0 = opset20.Shape(
             encoder_layers_0_final_layer_norm_LayerNormalization_output_0
         )
-        encoder_layers_1_self_attn_Constant_1_output_0 = opset20.Constant(value_int=1)
+        encoder_layers_1_self_attn_Constant_1_output_0 = opset20.Constant(value=1)
         encoder_layers_1_self_attn_Gather_1_output_0 = opset20.Gather(
             encoder_layers_1_self_attn_Shape_1_output_0,
             encoder_layers_1_self_attn_Constant_1_output_0,
@@ -439,13 +439,13 @@ def make_model(
             encoder_layers_1_self_attn_q_proj_bias,
             encoder_layers_1_self_attn_q_proj_MatMul_output_0,
         )
-        Unsqueeze_176 = opset20.Constant(value_ints=[0])
+        Unsqueeze_176 = opset20.Constant(value=[0])
         encoder_layers_1_self_attn_Unsqueeze_output_0 = opset20.Unsqueeze(
             encoder_layers_1_self_attn_Gather_output_0, Unsqueeze_176
         )
-        encoder_layers_1_self_attn_Constant_2_output_0 = opset20.Constant(value_ints=[-1])
-        encoder_layers_1_self_attn_Constant_3_output_0 = opset20.Constant(value_ints=[4])
-        encoder_layers_1_self_attn_Constant_4_output_0 = opset20.Constant(value_ints=[4])
+        encoder_layers_1_self_attn_Constant_2_output_0 = opset20.Constant(value=[-1])
+        encoder_layers_1_self_attn_Constant_3_output_0 = opset20.Constant(value=[4])
+        encoder_layers_1_self_attn_Constant_4_output_0 = opset20.Constant(value=[4])
         encoder_layers_1_self_attn_Concat_output_0 = opset20.Concat(
             encoder_layers_1_self_attn_Unsqueeze_output_0,
             encoder_layers_1_self_attn_Constant_2_output_0,
@@ -453,27 +453,27 @@ def make_model(
             encoder_layers_1_self_attn_Constant_4_output_0,
             axis=0,
         )
-        Unsqueeze_185 = opset20.Constant(value_ints=[0])
+        Unsqueeze_185 = opset20.Constant(value=[0])
         encoder_layers_1_self_attn_Unsqueeze_1_output_0 = opset20.Unsqueeze(
             encoder_layers_1_self_attn_Gather_output_0, Unsqueeze_185
         )
-        encoder_layers_1_self_attn_Constant_5_output_0 = opset20.Constant(value_ints=[-1])
-        encoder_layers_1_self_attn_Constant_6_output_0 = opset20.Constant(value_ints=[4])
-        encoder_layers_1_self_attn_Constant_7_output_0 = opset20.Constant(value_ints=[4])
-        encoder_layers_1_self_attn_Concat_1_output_0 = opset20.Constant(
+        encoder_layers_1_self_attn_Constant_5_output_0 = opset20.Constant(value=[-1])
+        encoder_layers_1_self_attn_Constant_6_output_0 = opset20.Constant(value=[4])
+        encoder_layers_1_self_attn_Constant_7_output_0 = opset20.Constant(value=[4])
+        encoder_layers_1_self_attn_Concat_1_output_0 = opset20.Concat(
             encoder_layers_1_self_attn_Unsqueeze_1_output_0,
             encoder_layers_1_self_attn_Constant_5_output_0,
             encoder_layers_1_self_attn_Constant_6_output_0,
             encoder_layers_1_self_attn_Constant_7_output_0,
             axis=0,
         )
-        Unsqueeze_194 = opset20.Constant(value_ints=[0])
+        Unsqueeze_194 = opset20.Constant(value=[0])
         encoder_layers_1_self_attn_Unsqueeze_2_output_0 = opset20.Unsqueeze(
             encoder_layers_1_self_attn_Gather_output_0, Unsqueeze_194
         )
-        encoder_layers_1_self_attn_Constant_8_output_0 = opset20.Constant(value_ints=[-1])
-        encoder_layers_1_self_attn_Constant_9_output_0 = opset20.Constant(value_ints=[4])
-        encoder_layers_1_self_attn_Constant_10_output_0 = opset20.Constant(value_ints=[4])
+        encoder_layers_1_self_attn_Constant_8_output_0 = opset20.Constant(value=[-1])
+        encoder_layers_1_self_attn_Constant_9_output_0 = opset20.Constant(value=[4])
+        encoder_layers_1_self_attn_Constant_10_output_0 = opset20.Constant(value=[4])
         encoder_layers_1_self_attn_Concat_2_output_0 = opset20.Concat(
             encoder_layers_1_self_attn_Unsqueeze_2_output_0,
             encoder_layers_1_self_attn_Constant_8_output_0,
@@ -519,9 +519,9 @@ def make_model(
         encoder_layers_1_self_attn_Shape_2_output_0 = opset20.Shape(
             encoder_layers_1_self_attn_Transpose_output_0
         )
-        encoder_layers_1_self_attn_Constant_11_output_0 = opset20.Constant(value_ints=[-1])
+        encoder_layers_1_self_attn_Constant_11_output_0 = opset20.Constant(value=[-1])
         encoder_layers_1_self_attn_Constant_12_output_0 = opset20.Constant(
-            value_ints=[9223372036854775807]
+            value=[9223372036854775807]
         )
         encoder_layers_1_self_attn_Slice_output_0 = opset20.Slice(
             encoder_layers_1_self_attn_Shape_2_output_0,
@@ -534,7 +534,7 @@ def make_model(
         encoder_layers_1_self_attn_Sqrt_output_0 = opset20.Sqrt(
             encoder_layers_1_self_attn_Cast_output_0
         )
-        encoder_layers_1_self_attn_Constant_13_output_0 = opset20.Constant(value_floats=[1.0])
+        encoder_layers_1_self_attn_Constant_13_output_0 = opset20.Constant(value=[1.0])
         encoder_layers_1_self_attn_Div_output_0 = opset20.Div(
             encoder_layers_1_self_attn_Constant_13_output_0,
             encoder_layers_1_self_attn_Sqrt_output_0,
@@ -572,15 +572,15 @@ def make_model(
         encoder_layers_1_self_attn_Transpose_3_output_0 = opset20.Transpose(
             encoder_layers_1_self_attn_MatMul_1_output_0, perm=[0, 2, 1, 3]
         )
-        Unsqueeze_232 = opset20.Constant(int_values=[0])
+        Unsqueeze_232 = opset20.Constant(value=[0])
         encoder_layers_1_self_attn_Unsqueeze_3_output_0 = opset20.Unsqueeze(
             encoder_layers_1_self_attn_Gather_output_0, Unsqueeze_232
         )
-        Unsqueeze_234 = opset20.Constant(int_values=[0])
+        Unsqueeze_234 = opset20.Constant(value=[0])
         encoder_layers_1_self_attn_Unsqueeze_4_output_0 = opset20.Unsqueeze(
             encoder_layers_1_self_attn_Gather_1_output_0, Unsqueeze_234
         )
-        encoder_layers_1_self_attn_Constant_14_output_0 = opset20.Constant(value_ints=[16])
+        encoder_layers_1_self_attn_Constant_14_output_0 = opset20.Constant(value=[16])
 
         encoder_layers_1_self_attn_Concat_3_output_0 = opset20.Concat(
             encoder_layers_1_self_attn_Unsqueeze_3_output_0,
@@ -645,7 +645,7 @@ def make_model(
 
 
 def make_model_with_random_weights():
-    encoder_embed_tokens_weight = np.random.rand(1000, 16).astype(np.float32)
+    encoder_embed_tokens_weight = np.random.rand(1024, 16).astype(np.float32)
     encoder_embed_positions_weight = np.random.rand(102, 16).astype(np.float32)
     encoder_layers_0_self_attn_k_proj_bias = np.random.rand(16).astype(np.float32)
     encoder_layers_0_self_attn_layer_norm_weight = np.random.rand(16).astype(np.float32)
@@ -661,8 +661,8 @@ def make_model_with_random_weights():
     MatMul_283 = np.random.rand(16, 16).astype(np.float32)
     MatMul_284 = np.random.rand(16, 16).astype(np.float32)
     MatMul_286 = np.random.rand(16, 16).astype(np.float32)
-    MatMul_287 = np.random.rand(16, 16).astype(np.float32)
-    MatMul_288 = np.random.rand(16, 16).astype(np.float32)
+    MatMul_287 = np.random.rand(16, 4).astype(np.float32)
+    MatMul_288 = np.random.rand(4, 16).astype(np.float32)
 
     model = make_model(
         encoder_embed_positions_weight=encoder_embed_positions_weight,
@@ -697,7 +697,7 @@ class _BartEncoderTest:
     def get_ort_inputs(self):
         if not hasattr(self, "_ort_inputs"):
             inputs = {
-                "input_ids": np.random.randint(0, 49152, (1, 16)).astype(np.int64),
+                "input_ids": np.random.randint(0, 1024, (1, 16)).astype(np.int64),
             }
             self._ort_inputs = inputs
         return self._ort_inputs

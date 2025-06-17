@@ -6,6 +6,7 @@ import unittest
 
 import onnxscript.optimizer
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
+from onnxscript.rewriter.ort_fusions.models._bart_encoder import bart_encoder_test
 from onnxscript.rewriter.ort_fusions.models._smollm_1 import smollm_test_1
 from onnxscript.rewriter.ort_fusions.models._whisper_decoder import whisper_decoder_test
 from onnxscript.rewriter.ort_fusions.models._whisper_encoder import whisper_encoder_test
@@ -63,7 +64,7 @@ class TestSkipNormalization(unittest.TestCase):
         assert_allclose(new_outputs, original_outputs)
 
     def test_bart_encoder(self):
-        bart_encoder = whisper_decoder_test()
+        bart_encoder = bart_encoder_test()
         model = bart_encoder.get_onnx_model()
         onnxscript.optimizer.optimize(model)
 
