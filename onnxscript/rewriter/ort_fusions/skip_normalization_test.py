@@ -62,7 +62,20 @@ class TestSkipNormalization(unittest.TestCase):
         new_outputs = ort_run("optimized", model, inputs)
         assert_allclose(new_outputs, original_outputs)
 
-    # TODO: add more testcases with default attrs.
+    def test_bart_encoder(self):
+        bart_encoder = whisper_decoder_test()
+        model = bart_encoder.get_onnx_model()
+        onnxscript.optimizer.optimize(model)
+
+        inputs = bart_encoder.get_ort_inputs()
+        original_outputs = ort_run("original", model, inputs)
+
+        fuse_skip_layer_normalization(model)
+        op_types = [n.op_type for n in model.graph]
+        self.assertIn("SkipLayerNormalization", op_types)
+        self.assertEqual(op_types.count("SkipLayerNormalization"), 4)
+        new_outputs = ort_run("optimized", model, inputs)
+        assert_allclose(new_outputs, original_outputs)
 
 
 if __name__ == "__main__":
