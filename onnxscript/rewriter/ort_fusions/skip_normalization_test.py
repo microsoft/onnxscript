@@ -73,7 +73,7 @@ class TestSkipNormalization(unittest.TestCase):
         fuse_skip_layer_normalization(model)
         op_types = [n.op_type for n in model.graph]
         self.assertIn("SkipLayerNormalization", op_types)
-        self.assertEqual(op_types.count("SkipLayerNormalization"), 4)
+        self.assertEqual(op_types.count("SkipLayerNormalization"), 5)
         new_outputs = ort_run("optimized", model, inputs)
         assert_allclose(new_outputs, original_outputs)
 

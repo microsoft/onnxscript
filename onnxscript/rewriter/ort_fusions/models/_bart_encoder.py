@@ -50,15 +50,11 @@ def make_model(
         )
 
         encoder_layers_1_fc2_bias = opset20.Identity(encoder_layers_0_self_attn_k_proj_bias)
-        encoder_layers_1_fc1_bias = opset20.Identity(encoder_layers_0_fc1_bias)
         encoder_layers_1_self_attn_layer_norm_bias = opset20.Identity(
             encoder_layers_0_self_attn_k_proj_bias
         )
         encoder_layers_1_self_attn_layer_norm_weight = opset20.Identity(
             encoder_layers_0_self_attn_layer_norm_weight
-        )
-        encoder_layers_1_self_attn_layer_norm_weight = opset20.Identity(
-            encoder_layers_1_self_attn_layer_norm_weight
         )
         encoder_layers_1_self_attn_out_proj_bias = opset20.Identity(
             encoder_layers_0_self_attn_k_proj_bias
@@ -79,10 +75,7 @@ def make_model(
             encoder_layers_0_self_attn_layer_norm_weight
         )
         encoder_layers_0_fc2_bias = opset20.Identity(encoder_layers_0_self_attn_k_proj_bias)
-        encoder_layers_1_fc2_bias = opset20.Identity(encoder_layers_0_self_attn_k_proj_bias)
-        encoder_layers_1_self_attn_layer_norm_bias = opset20.Identity(
-            encoder_layers_0_self_attn_k_proj_bias
-        )
+        encoder_layers_1_fc1_bias = opset20.Identity(encoder_layers_0_fc1_bias)
         encoder_layers_0_self_attn_out_proj_bias = opset20.Identity(
             encoder_layers_0_self_attn_k_proj_bias
         )
@@ -382,6 +375,7 @@ def make_model(
             opset20.LayerNormalization(
                 encoder_layers_0_add_output_0,
                 encoder_layers_0_self_attn_layer_norm_weight,
+                encoder_layernorm_embedding_bias,
                 axis=-1,
                 epsilon=9.999999747378752e-0,
             )
