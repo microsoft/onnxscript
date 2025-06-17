@@ -157,12 +157,11 @@ class BasicRulesTest(unittest.TestCase):
         model_proto = self._double_cast_model(type1, type2, type3)
         model = ir.serde.deserialize_model(model_proto)
         rule.apply_to_model(model)
-        rewritten_model = ir.serde.serialize_model(model)
+        _rewritten_model = ir.serde.serialize_model(model)
 
         self.assertEqual(["Cast"], [n.op_type for n in model.graph])
         # TODO: (random) fp16 inputs
         # self._check_model(model_proto, rewritten_model, atol=1e-2)
-        del rewritten_model  # to avoid unused variable warning
 
     @parameterized.parameterized.expand(
         [
