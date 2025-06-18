@@ -51,7 +51,7 @@ def call_onnx_api(func: Callable[[onnx.ModelProto], _R], model: ir.Model) -> _R:
             initializer.dtype = initializer.const_value.dtype
         if initializer not in model.graph.inputs:
             model.graph.inputs.append(initializer)
-        if initializer.const_value.nbytes > _BIG_TENSOR_SIZE_LIMIT:
+        if initializer.size > _BIG_TENSOR_SIZE_LIMIT:
             # Temporarily remove the initializer value to reduce model size
             # for onnx.shape_inference
             initializer.const_value = None
