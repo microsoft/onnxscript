@@ -12,7 +12,7 @@ pattern matching algorithm). Reimplementing commutativity handling using pattern
 work.
 ```
 
-Extending the previous [simple example](heading-target-simple), assumming a scenario where we have a graph with the following structure.
+Extending the previous [simple example](heading-target-simple), assuming a scenario where we have a graph with the following structure.
 
 ![commute](examples/img/erfgelu_03_commute.png){align=center width=500px}
 
