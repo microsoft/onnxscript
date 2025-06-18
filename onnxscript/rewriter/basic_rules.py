@@ -1,5 +1,12 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+"""Basic rewrite rules for general optimization patterns.
+
+This module contains fundamental optimization rules that are generally applicable
+to most ONNX models, including cast elimination, transpose simplification,
+shape operation fusion, and other common patterns.
+"""
+
 from __future__ import annotations
 
 from typing import ClassVar, Sequence
@@ -271,6 +278,7 @@ class UnsqueezeUnsqueeze(orp.RewriteRuleClassBase):
         return check_result
 
 
+# Create rule instances
 cast_cast_rule = CastCast.rule()
 cast_identity_rule = CastIdentity.rule()
 expand_identity_rule = ExpandIdentity.rule()
@@ -282,13 +290,20 @@ unsqueeze_unsqueeze_rule = UnsqueezeUnsqueeze.rule()
 squeeze_reshape_1d_rule = SqueezeReshape.rule()
 
 
-def llama_p0_rule_set() -> orp.RewriteRuleSet:
-    """Returns a set of rules which should be applied
-    before any other one as they usually remove unnecessary computation
-    such as the multiplication by 1 or two consecutive transpose.
+def basic_optimization_rules() -> orp.RewriteRuleSet:
+    """Returns a set of basic optimization rules.
+
+    These rules perform fundamental optimizations such as:
+    - Eliminating redundant cast operations
+    - Simplifying consecutive operations of the same type
+    - Removing identity operations
+    - Optimizing shape manipulation operations
+
+    These rules are generally safe to apply as a first optimization pass
+    before other more specialized optimizations.
 
     Returns:
-        RewriteRuleSet
+        RewriteRuleSet: A collection of basic optimization rules
     """
     return orp.RewriteRuleSet(
         [
@@ -296,7 +311,7 @@ def llama_p0_rule_set() -> orp.RewriteRuleSet:
             cast_identity_rule,
             expand_identity_rule,
             reshape_reshape_rule,
-            slice_split_rule,  # Affect collapse slices rules?
+            slice_split_rule,
             transpose_identity_rule,
             transpose_transpose_rule,
             unsqueeze_unsqueeze_rule,
