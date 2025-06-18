@@ -1,7 +1,8 @@
 (heading-target-commute)=
 # Utilizing `commute` parameter for pattern-matching
 
-_WARNING_ : Please note that the section below describes a convenience feature for handling commutative operators
+```{warning}
+Please note that the section below describes a convenience feature for handling commutative operators
 in pattern matching. However, the implementation is a simple, brute-force, technique that generates a collection
 of rewrite-rules from a given rule, taking commutativity of addition and multiplication into account. This can
 lead to an exponential increase in the number of rewrite-rules. So, it should be used with caution. Pattern
