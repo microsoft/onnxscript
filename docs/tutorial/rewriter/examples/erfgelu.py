@@ -106,6 +106,7 @@ def apply_rewrite(model):
     )
     return model_with_rewrite_applied
 
+
 ####################################
 # Rewrite Rule as a Class
 # =====================
