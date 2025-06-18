@@ -14,7 +14,7 @@ import onnx
 import onnxscript.ir.passes
 import onnxscript.ir.passes.common
 from onnxscript import ir
-from onnxscript.ir.passes.common import _c_api_utils
+from . import _c_api_utils
 from onnxscript.version_converter import _version_converter
 
 logger = logging.getLogger(__name__)
