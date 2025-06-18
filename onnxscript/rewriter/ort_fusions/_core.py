@@ -7,9 +7,8 @@ import onnxscript.ir.passes.common as common_passes
 import onnxscript.rewriter.ort_fusions.fused_matmul_rule_sets as fused_matmul_rule_sets
 import onnxscript.rewriter.ort_fusions.shape_optimization as shape_optimization
 from onnxscript.optimizer import optimize
-from onnxscript.rewriter import rewrite
+from onnxscript.rewriter import gemm_to_matmul_add, rewrite
 from onnxscript.rewriter.ort_fusions import (
-    # group_normalization_merge_silu,
     instance_to_group_normalization,
     softmax,
 )
@@ -38,7 +37,7 @@ ORT_PATTERN_REWRITE_RULES = [
     *instance_to_group_normalization.rules.rules,
     # NOTE: group normalization merge silu should be applied after instance to group normalization
     # *group_normalization_merge_silu.rules.rules,
-    *fused_matmul_rule_sets.fused_matmul_rule_sets().rules,
+    *fused_matmul_rule_sets.fused_matmul_rule_sets(),
 ]
 
 
@@ -130,7 +129,7 @@ def optimize_for_ort(
         - The optimized `ir.Model` after applying transformer-specific fusions.
         - A dictionary with a count of each of the fusions applied.
     """
-
+    rewrite(model, [gemm_to_matmul_add.rule])
     model, fusion_count = fuse_xformers(
         model,
         debug=debug,
