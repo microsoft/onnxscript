@@ -10,6 +10,7 @@ disjunctions (_OR Patterns_) described earlier can be used judiciously to get a 
 implementation in practice (even though the potential for exponential increase still exists within the
 pattern matching algorithm). Reimplementing commutativity handling using pattern disjunctions is future
 work.
+```
 
 Extending the previous [simple example](heading-target-simple), assumming a scenario where we have a graph with the following structure.
 
