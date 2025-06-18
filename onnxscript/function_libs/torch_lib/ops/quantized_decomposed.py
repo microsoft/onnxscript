@@ -11,12 +11,13 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from onnxscript.function_libs.torch_lib.ops import common
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_opset import opset23 as op23
 from onnxscript.onnx_types import TensorType
-from typing import Optional
 
 
 @torch_op(
@@ -84,7 +85,7 @@ def quantized_decomposed_quantize_per_channel(
 ) -> TensorType:
     """Affine per channel quantization for the Tensor using the same quantization
     parameters for each channel/axis to map from floating point to quantized values.
-    
+
     Uses ONNX QuantizeLinear with per-axis quantization support.
     """
     # Use opset23 for per-axis quantization support
@@ -111,7 +112,7 @@ def quantized_decomposed_dequantize_per_channel(
 ) -> TensorType:
     """Affine per channel dequantization for the Tensor using the same quantization
     parameters for each channel/axis to map from quantized values to floating point values.
-    
+
     Uses ONNX DequantizeLinear with per-axis quantization support.
     """
     # Use opset23 for per-axis quantization support with optional output_dtype
@@ -120,4 +121,6 @@ def quantized_decomposed_dequantize_per_channel(
         return op23.DequantizeLinear(input, scales, zero_points, axis=axis)
     else:
         assert out_dtype > 0, f"out_dtype must be -1 or > 0 not {out_dtype}"
-        return op23.DequantizeLinear(input, scales, zero_points, axis=axis, output_dtype=out_dtype)
+        return op23.DequantizeLinear(
+            input, scales, zero_points, axis=axis, output_dtype=out_dtype
+        )
