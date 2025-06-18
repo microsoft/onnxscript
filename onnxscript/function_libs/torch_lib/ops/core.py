@@ -61,20 +61,18 @@ _MATH_PI = math.pi
 Rank = common_ops.Rank
 
 
-@torch_op("aten::_local_scalar_dense")
-def aten__local_scalar_dense(self: Union[FLOAT16, FLOAT, DOUBLE, BFLOAT16]) -> FLOAT:
+@torch_op("aten::_local_scalar_dense", trace_only=True)
+def aten__local_scalar_dense(self: TensorType) -> TensorType:
     """_local_scalar_dense(Tensor self) -> Scalar"""
 
     # Return the first element in tensor as a scalar.
-    return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=FLOAT.dtype)
-
-
-@torch_op("aten::_local_scalar_dense")
-def aten__local_scalar_dense_int(self: IntType) -> INT64:
-    """_local_scalar_dense(Tensor self) -> Scalar"""
-
-    # Return the first element in tensor as a scalar.
-    return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=INT64.dtype)
+    if self.dtype.is_floating_point():
+        dtype = ir.DataType.FLOAT
+    elif self.dtype == ir.DataType.BOOL:
+        dtype = ir.DataType.BOOL
+    else:
+        dtype = ir.DataType.INT64
+    return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=dtype)
 
 
 @torch_op("aten::_log_softmax", trace_only=True)
@@ -5315,14 +5313,14 @@ def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, I
     return result, indices
 
 
-@torch_op(("aten::maximum", "aten::max.other"))
+@torch_op("aten::maximum")
 def aten_maximum(self: TReal, other: TReal) -> TReal:
     """maximum(Tensor self, Tensor other) -> Tensor"""
 
     return op.Max(self, other)
 
 
-@torch_op(("aten::maximum", "aten::max.other"))
+@torch_op("aten::maximum")
 def aten_maximum_bool(self: BOOL, other: BOOL) -> BOOL:
     """maximum(Tensor self, Tensor other) -> Tensor"""
 
@@ -5382,14 +5380,14 @@ def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, T
     return result, indices
 
 
-@torch_op(("aten::minimum", "aten::min.other"))
+@torch_op("aten::minimum")
 def aten_minimum(self: TReal, other: TReal) -> TReal:
     """minimum(Tensor self, Tensor other) -> Tensor"""
 
     return op.Min(self, other)
 
 
-@torch_op(("aten::minimum", "aten::min.other"))
+@torch_op("aten::minimum")
 def aten_minimum_bool(self: BOOL, other: BOOL) -> BOOL:
     """minimum(Tensor self, Tensor other) -> Tensor"""
 

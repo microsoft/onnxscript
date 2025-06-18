@@ -57,7 +57,7 @@ class TestMultiHeadAttention(unittest.TestCase):
             original_outputs = ort_run("original", model, inputs)
 
         # Fuse SDPA and MHA
-        sdpa_count = xformers.fuse_sdpa(model)
+        sdpa_count = xformers.fuse_sdpa(model, debug=True)
         self.assertGreater(sdpa_count, 0)
         model = common_passes.ShapeInferencePass()(model).model
         mha_count = xformers.fuse_mha1(model)

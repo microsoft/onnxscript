@@ -86,20 +86,18 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
     # We apply shape inference after the SDPA fusion as new nodes are added
     # in the rewrite rule for certain patterns of SDPA.
     fusion_count["sdpa"] = fuse(fuse_sdpa, apply_shape_inference=True)
-    # Optimize to avoid trying multiple attention-based fusions
+
+    fusion_count["gqa"] = fuse(fuse_gqa)
+    fusion_count["packed_qkv_for_gqa"] = fuse(fuse_qkv_gqa)
+
     fusion_count["mha1"] = fuse(fuse_mha1)
     fusion_count["mha2"] = fuse(fuse_mha2)
     if (fusion_count["mha1"] == 0) and (fusion_count["mha2"] == 0):
-        # If no MHA fusion was applied, we can try the GQA fusion.
-        # and avoid trying the attention fusion.
-        fusion_count["gqa"] = fuse(fuse_gqa)
-        fusion_count["packed_qkv_for_gqa"] = fuse(fuse_qkv_gqa)
         fusion_count["mha_bias"] = 0
         fusion_count["attention"] = 0
     else:
         fusion_count["mha_bias"] = fuse(fuse_mha_bias)
         fusion_count["attention"] = fuse(fuse_attention)
-        fusion_count["gqa"] = 0
     fusion_count["gelu"] = fuse(fuse_gelu)
     fusion_count["bias_gelu"] = fuse(fuse_bias_gelu)
     # Finally: inline any intermediate fusion functions introduced that were not
