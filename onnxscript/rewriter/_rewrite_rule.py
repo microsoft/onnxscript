@@ -15,10 +15,11 @@ from typing import (
 
 import onnxscript.optimizer
 import onnxscript.rewriter._basics as _basics
+import onnxscript.rewriter._ir_utils as _ir_utils
 import onnxscript.rewriter._matcher as _matcher
 import onnxscript.rewriter._pattern_ir as _pattern_ir
 from onnxscript import ir
-from onnxscript.ir import _convenience, _tape
+from onnxscript.ir import _tape, convenience
 
 T = TypeVar("T")
 
@@ -174,7 +175,11 @@ class RewriteRule:
                 if var.name is not None:
                     if var.name not in match.bindings:
                         match.bind(var.name, None)
-            check_match_result = self._condition_function(context, **match.bindings)
+            try:
+                check_match_result = self._condition_function(context, **match.bindings)
+            except _basics.MatchFailureError as e:
+                check_match_result = _basics.MatchResult()
+                check_match_result.fail(e.reason, list(e.failure_sources))
             if not check_match_result:
                 # If check function was provided, but it failed, return the reason for failure to the tracer.
                 if isinstance(check_match_result, _basics.MatchResult):
@@ -261,8 +266,8 @@ class RewriteRuleClassBase(abc.ABC):
             def pattern(cls, op, x, perm):
                 return op.Transpose(x, perm=perm)
 
-            def check(cls, context, x: ir.Value, perm: ir.Attr | ir.RefAttr) -> bool:
-                if isinstance(perm, ir.RefAttr):
+            def check(cls, context, x: ir.Value, perm: ir.Attr) -> bool:
+                if perm.is_ref():
                     return False
                 if perm.type == ir.AttributeType.INTS:
                     if perm.as_ints() == list(range(len(perm.as_ints()))):
@@ -364,8 +369,8 @@ def _copy_for_function(
             raise ValueError(f"Value {value} not found in value_map.")
         return value_map[value]
 
-    def copy_attr_value(attr: ir.Attr | ir.RefAttr) -> ir.Attr | ir.RefAttr:
-        if not isinstance(attr, ir.Attr):
+    def copy_attr_value(attr: ir.Attr) -> ir.Attr:
+        if attr.is_ref():
             # No need to support this currently, as rewriting inside a function is
             # not used, as it has several challenges.
             raise NotImplementedError("RefAttr not supported.")
@@ -525,7 +530,16 @@ class RewriteRuleSet:
                     )
                     f = ir.Function(domain, name, overload, graph=graph, attributes=())
                     model.functions[f.identifier()] = f
-                _convenience.replace_nodes_and_values(
+
+                if verbose:
+                    name = f"{rule.name}: " if rule.name else ""
+                    print(f"----{name}Matched Nodes----")
+                    _ir_utils.display_nodes(delta.match.nodes)
+                    print("++++Replacement Nodes++++")
+                    _ir_utils.display_nodes(delta.new_nodes)
+                    print("++++End Replacement Nodes++++")
+
+                convenience.replace_nodes_and_values(
                     graph_or_function,
                     node,
                     delta.match.nodes if rule.remove_nodes else [],

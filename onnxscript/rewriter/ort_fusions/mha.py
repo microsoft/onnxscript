@@ -40,7 +40,6 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         transpose_4d: bool,
         pre_scale_q: bool,
         is_rotary: bool,
-        use_mask: bool,
         has_past_present: bool,
         is_cross_attention: bool,
     ):
@@ -49,7 +48,6 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         self._transpose_4d = transpose_4d
         self._pre_scale_q = pre_scale_q
         self._is_rotary = is_rotary
-        self._use_mask = use_mask
         self._has_past_present = has_past_present
         self._is_cross_attention = is_cross_attention
 
@@ -59,13 +57,11 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         query_BSD,
         key,
         value,
-        mask,
         past_key,
         past_value,
         position_ids,
         cos,
         sin,
-        key_perm,
         q_scale,
     ):
         # First, query, key, and value are reshaped+transposed from (B, S, D) to (B, H, S, D/H)
@@ -79,17 +75,13 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
 
         if not self._is_cross_attention:
             # Reshape from (B, S, D) to (B, S, H, D/H)
-            key_BSHDh = op.Reshape(key, pattern.ANY_VALUE, _outputs=["key_BSHDh"])
-
-            # Possible Transpose patterns for key:
-            # This scenario optimizes the need for a double transpose
-            # 1. (B, S, H, D/H) -> (B, H, D/H, S)
-            # Patterns with double transpose of key
-            # Double transpose should handle this optimization
-            # 2. (B, S, H, D/H) -> (B, H, S, D/H) -> (B, H, D/H, S)
-            # Patterns where key is reshaped to 3D, transposed and reshaped back to 4D
-            # 3. (B, S, H, D/H) -> (B, H, S, D/H) -> R (B, S, D) -> (B, D, S) -> R (B, H, D/H, S)
-            key_BHSDh = op.Transpose(key_BSHDh, perm=key_perm)
+            key = op.Reshape(key, pattern.ANY_VALUE, _outputs=["key_BSHDh"])
+            # Key may or may not be transposed at this point, based on usage pattern
+            key = pattern.OrValue(
+                [op.Transpose(key, perm=[0, 2, 1, 3]), key],
+                tag_var="key_transposed",
+                tag_values=[True, False],
+            )
 
             # Reshape from (B, S, D) to (B, S, H, D/H)
             value_BSHDh = op.Reshape(value, pattern.ANY_VALUE, _outputs=["value_BSHDh"])
@@ -97,7 +89,6 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             value_BHSDh = op.Transpose(value_BSHDh, perm=[0, 2, 1, 3])
         else:
             # For cross-attention, key and value are not reshaped
-            key_BHSDh = key
             value_BHSDh = value
 
         if self._is_rotary:
@@ -118,14 +109,14 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
             )
             if not self._is_cross_attention:
                 key_BHSDh_emb = op.RotaryEmbedding(
-                    key_BHSDh, position_ids_k, cos, sin, _domain="com.microsoft"
+                    key, position_ids_k, cos, sin, _domain="com.microsoft"
                 )
             else:
-                key_BHSDh_emb = key_BHSDh
+                key_BHSDh_emb = key
         else:
             # If rotary embedding is not used, we fuse with positional_embeddings
             query_BHSDh_emb = query_BHSDh
-            key_BHSDh_emb = key_BHSDh
+            key_BHSDh_emb = key
 
         # Concatenate past_key cache and current key, and transpose to enable
         # dot-product attention computation.
@@ -144,36 +135,14 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         key_seq_to_sdpa = key_seq
         value_seq_to_sdpa = value_seq
 
-        # Transpose last two axes of key_seq to compute dot-product via matmul.
-        if self._double_transpose:
-            if self._transpose_4d:
-                key_seq_to_sdpa = op.Transpose(key_seq_to_sdpa, perm=[0, 1, 3, 2])
-            else:
-                # Transpose after converting to 3D
-                key_seq_BH_Skv_Dh = op.Reshape(
-                    key_seq_to_sdpa, pattern.ANY_VALUE, _outputs=["key_seq_BH_Skv_Dh"]
-                )
-                key_seq_BH_Dh_Skv = op.Transpose(key_seq_BH_Skv_Dh, perm=[0, 2, 1])
-                key_seq_to_sdpa = op.Reshape(
-                    key_seq_BH_Dh_Skv, pattern.ANY_VALUE, _outputs=["key_seq_B_H_Dh_Skv"]
-                )
-
-        # TODO: Remove use_mask once SDPA op is usable
-        if self._use_mask:
-            sdpa = op.SDPA(
-                query_BHSDh_emb,
-                key_seq_to_sdpa,
-                value_seq_to_sdpa,
-                mask,
-                _domain="ai.onnxruntime.fusion",
-            )
-        else:
-            sdpa = op.SDPA(
-                query_BHSDh_emb,
-                key_seq_to_sdpa,
-                value_seq_to_sdpa,
-                _domain="ai.onnxruntime.fusion",
-            )
+        sdpa = op.SDPA(
+            query_BHSDh_emb,
+            key_seq_to_sdpa,
+            value_seq_to_sdpa,
+            _allow_other_inputs=True,
+            _outputs=["sdpa_output"],
+            _domain="ai.onnxruntime._fusion",
+        )
 
         # Transpose attention back to (B, S, H, D/H)
         attention_transposed = op.Transpose(sdpa, perm=[0, 2, 1, 3])
@@ -192,16 +161,18 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         query_BSD,
         key,
         value,
-        mask,
+        sdpa_output,
         past_key,
         past_value,
-        key_perm,
         query_BSHDh,
+        key_transposed=None,
         key_BSHDh=None,
         value_BSHDh=None,
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
+
+        sdpa_node = sdpa_output.producer()
 
         bindings: dict[str, Dim] = {}
 
@@ -248,6 +219,13 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                     f"Shape mismatch: {key} does not match expected dimensions ['B', 'Skv', 'D']",
                     query_BSD,
                 )
+            sdpa_key_format = sdpa_node.attributes.get_string("key_format")
+            expected_key_format = "BHSd" if key_transposed else "BSHd"
+            if sdpa_key_format != expected_key_format:
+                return check_result.fail(
+                    f"Unexpected key format: {sdpa_key_format}. Expected: {expected_key_format}",
+                    sdpa_node,
+                )
             if no_match(value, ["B", "Skv", "D"]):
                 return check_result.fail(
                     f"Shape mismatch: {value} does not match expected dimensions ['B', 'Skv', 'D']",
@@ -265,8 +243,50 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                         past_value,
                     )
 
-        # TODO: mask shape check: ideally, it should be (1 or B, 1 or H, S, St)
-        # But this also, unforunately, depends on ORT version.
+        # mask (aka attention_bias) shape check:
+        # ONNX's Attention op (named SDPA here) allows a mask broadcastable to (B, H, S, St)
+        # ORT's contrib ops (MHA, Attention) allow a mask of shape (1 or B, 1 or H, S, St)
+        # That is: broadcast allowed only for the first two dimensions. (Even that is not
+        # supported by some earlier versions of ORT, which are not supported here.)
+        mask = None
+        if len(sdpa_node.inputs) > 3:
+            mask = sdpa_node.inputs[3]
+        self.mask = mask
+        if mask is not None:
+            if (mask_shape := mask.shape) is None:
+                return check_result.fail(
+                    "Mask shape cannot be determined.",
+                    mask,
+                )
+            if mask_shape.rank() == 4:
+                if no_match(mask, ["B_or_1", "H_or_1", "S_or_1", "St"]):
+                    return check_result.fail(
+                        f"Shape mismatch: {mask} does not match expected dimensions ['1 or B', '1 or H', '1 or S', 'St']",
+                        mask,
+                    )
+                mask_dim_2 = bindings.get("S_or_1")
+                if mask_dim_2 == bindings.get("S"):
+                    self._use_mask_broadcast = False
+                elif mask_dim_2 == 1:
+                    self._use_mask_broadcast = True
+                else:
+                    return check_result.fail(
+                        "Mask dimension 2 cannot be verified to be 1 or S"
+                    )
+            elif mask_shape.rank() == 2:
+                if no_match(mask, ["S_or_1", "St"]):
+                    return check_result.fail(
+                        f"Shape mismatch: {mask} does not match expected dimensions ['1 or S', 'St']",
+                        mask,
+                    )
+                self._use_mask_broadcast = True
+            else:
+                return check_result.fail(
+                    f"Mask shape {mask_shape} is not supported. Expected 2D or 4D.",
+                    mask,
+                )
+        else:
+            self._use_mask_broadcast = False
 
         # TODO: verify Reshapes:
         # eg.: verify bindings["B"] * bindings["H"] == bindings["B*H"]:
@@ -280,7 +300,6 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         query_BSD,
         key,
         value,
-        mask,
         past_key,
         past_value,
         query_BSHDh,
@@ -311,9 +330,23 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
                 )
             else:
                 key_BSD_emb = key
+        elif self._is_cross_attention:
+            query_BSD_emb = query_BSD
+            # Must convert key/value from 4D to 3D for use in MHA
+            key = op.Transpose(key, perm=[0, 2, 1, 3])
+            key_BSD_emb = op.Reshape(key, op.Constant(value_ints=[0, 0, -1]))
+            value = op.Transpose(value, perm=[0, 2, 1, 3])
+            value = op.Reshape(value, op.Constant(value_ints=[0, 0, -1]))
         else:
             query_BSD_emb = query_BSD
             key_BSD_emb = key
+
+        mask = self.mask
+        if self._use_mask_broadcast:
+            one = op.Constant(value_ints=[1])
+            S = op.Shape(query_BSD, start=1, end=2)
+            shape_11S1 = op.Concat(one, one, S, one, axis=0)
+            mask = op.Expand(mask, shape_11S1)
 
         num_outputs = 1 + (2 * self._has_past_present)
         return op.MultiHeadAttention(
@@ -332,45 +365,47 @@ class MultiHeadAttention(pattern.RewriteRuleClassBase):
         )
 
 
-parameter_combinations = [
-    {
-        "double_transpose": double_transpose,
-        "transpose_4d": transpose_4d,
-        "pre_scale_q": pre_scale_q,
-        "is_rotary": is_rotary,
-        "use_mask": use_mask,
-        "has_past_present": has_past_present,
-        "is_cross_attention": is_cross_attention,
-    }
-    for double_transpose in [False, True]
-    for transpose_4d in (
-        [False, True] if double_transpose else [False]
-    )  # Only generate patterns when double_transpose is True
-    for pre_scale_q in [True, False]
-    for is_rotary in [False, True]
-    for use_mask in [False, True]
-    for is_cross_attention in [False, True]
-    for has_past_present in ([False] if is_cross_attention else [True, False])
-    # Skip if both has_past_present and is_cross_attention are True
-    if not (has_past_present and is_cross_attention)
-]
-
-# Dynamically create the rules
-mha_rules = pattern.RewriteRuleSet(
-    [
-        MultiHeadAttention.rule(
-            f"MHA_{'4D' if params['transpose_4d'] else '3D'}_Transpose"
-            f"{'_Twice' if params['double_transpose'] else ''}"
-            f"{'_PreScaleQ' if params['pre_scale_q'] else ''}"
-            f"{'_Rotary' if params['is_rotary'] else ''}"
-            f"{'_Masked' if params['use_mask'] else ''}"
-            f"{'_Past' if params['has_past_present'] else ''}"
-            f"{'_CrossAttention' if params['is_cross_attention'] else ''}",
-            **params,
-        )
-        for params in parameter_combinations
+def _make_rule_set(has_past_present: bool):
+    parameter_combinations = [
+        {
+            "double_transpose": double_transpose,
+            "transpose_4d": transpose_4d,
+            "pre_scale_q": pre_scale_q,
+            "is_rotary": is_rotary,
+            "has_past_present": has_past_present,
+            "is_cross_attention": is_cross_attention,
+        }
+        for double_transpose in [False, True]
+        for transpose_4d in (
+            [False, True] if double_transpose else [False]
+        )  # Only generate patterns when double_transpose is True
+        for pre_scale_q in [True, False]
+        for is_rotary in [False, True]
+        for is_cross_attention in ([False] if has_past_present else [False, True])
     ]
-)
+
+    # Dynamically create the rules
+    mha_rules = pattern.RewriteRuleSet(
+        [
+            MultiHeadAttention.rule(
+                f"MHA_{'4D' if params['transpose_4d'] else '3D'}_Transpose"
+                f"{'_Twice' if params['double_transpose'] else ''}"
+                f"{'_PreScaleQ' if params['pre_scale_q'] else ''}"
+                f"{'_Rotary' if params['is_rotary'] else ''}"
+                f"{'_Past' if params['has_past_present'] else ''}"
+                f"{'_CrossAttention' if params['is_cross_attention'] else ''}",
+                **params,
+            )
+            for params in parameter_combinations
+        ]
+    )
+
+    return mha_rules
 
 
-fuse_mha = _fusion_utils.apply_fusion_rules(mha_rules)
+mha_rules_no_past = _make_rule_set(has_past_present=False)
+mha_rules_with_past = _make_rule_set(has_past_present=True)
+
+# Try rules with past first, and then rules without past.
+fuse_mha1 = _fusion_utils.apply_fusion_rules(mha_rules_with_past)
+fuse_mha2 = _fusion_utils.apply_fusion_rules(mha_rules_no_past)

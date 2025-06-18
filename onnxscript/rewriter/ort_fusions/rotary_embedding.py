@@ -56,7 +56,7 @@ class RotaryEmbeddingFusion(pattern.RewriteRuleClassBase):
     def rewrite(self, op, x, cos, sin, **_):
         num_heads = x.shape[1]
         return op.RotaryEmbedding(
-            x, cos, sin, interleaved=0, num_heads=num_heads, _domain="ai.onnxruntime.fusion"
+            x, cos, sin, interleaved=0, num_heads=num_heads, _domain="ai.onnxruntime._fusion"
         )
 
 

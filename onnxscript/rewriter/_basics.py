@@ -16,6 +16,42 @@ if TYPE_CHECKING:
     import onnxscript.rewriter._rewrite_rule as _rewrite_rule
 
 
+class MatchFailureInfo:
+    """Encapsulates information about a pattern match failure."""
+
+    def __init__(
+        self,
+        reason: str = "",
+        *failure_source: ir.Node | ir.Value,
+    ):
+        self.reason = reason
+        self.failure_sources: tuple[ir.Node | ir.Value, ...] = failure_source
+        assert all(isinstance(item, (ir.Node, ir.Value)) for item in failure_source), (
+            f"All items in failure_source must be ir.Node or ir.Value, got {[type(item) for item in failure_source]}"
+        )
+
+    def __str__(self):
+        return f"MatchFailureInfo(reason={self.reason!r}, failure_sources={self.failure_sources!r})"
+
+
+class MatchFailureError(MatchFailureInfo, Exception):
+    """Exception raised when a pattern match fails.
+
+    This makes it easier to handle match failures in a compositional way,
+    for example, during the condition-checking phase of a pattern match.
+    It allows us to define utility functions without having to check for
+    and propagate match failures explicitly.
+    """
+
+    def __init__(
+        self,
+        reason: str = "",
+        *failure_source: ir.Node | ir.Value,
+    ):
+        MatchFailureInfo.__init__(self, reason, *failure_source)
+        Exception.__init__(self, reason)
+
+
 class MatchResult:
     """The state object used by the pattern-matching algorithm.
 
@@ -37,6 +73,14 @@ class MatchResult:
     def __init__(self) -> None:
         # We use a stack of partial matches to handle OR patterns that require backtracking.
         self._partial_matches: list[PartialMatchResult] = [PartialMatchResult()]
+
+    def __repr__(self) -> str:
+        """Returns a string representation of the match result."""
+        if not self._partial_matches:
+            return "MatchResult()"
+        return (
+            f"MatchResult(success={bool(self)}, reason={self.reason!r}, nodes={self.nodes!r})"
+        )
 
     @property
     def _current_match(self) -> PartialMatchResult:

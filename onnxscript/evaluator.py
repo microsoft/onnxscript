@@ -420,7 +420,7 @@ def _prepare_model_and_inputs_for_eager(
             return f"attr_{key}"
 
         return autocast.pyvalue_to_onnx_attribute(
-            key, value, make_tensor_name, schema.attributes[key].type
+            key, value, make_tensor_name, int(schema.attributes[key].type)
         )
 
     # Construct ONNX model with a single op call:
