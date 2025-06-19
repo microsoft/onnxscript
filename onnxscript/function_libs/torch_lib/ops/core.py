@@ -3545,6 +3545,9 @@ def aten_feature_dropout(input: TFloat, p: FLOAT, train: BOOL) -> TFloat:
     # Feature dropout applies dropout to entire feature maps/channels
     # rather than individual elements
     
+    if p == 0 or not train:
+        return input
+    
     # Get input shape
     input_shape = op.Shape(input)
     ndim = op.Size(input_shape)
