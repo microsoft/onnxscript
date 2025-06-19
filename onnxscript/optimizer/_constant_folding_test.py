@@ -15,7 +15,6 @@ from onnxscript.optimizer import _constant_folding
 
 class FoldConstantsTest(unittest.TestCase):
     def _fold(self, model: ir.Model | str, onnx_shape_inference=False, **kwargs):
-        print("Folding constants with kwargs:", kwargs)
         if isinstance(model, str):
             model = ir.from_onnx_text(model)
         _constant_folding.fold_constants(
