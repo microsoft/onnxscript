@@ -2,6 +2,7 @@
 
 [tool.pylint.messages_control]
 disable = [
+  "arguments-differ",               # TODO: abstract methods in Rewriter
   "attribute-defined-outside-init", # TODO: mostly in onnxscript/converter.py
   "cell-var-from-loop",             # Bugbear B023
   "consider-using-from-import",

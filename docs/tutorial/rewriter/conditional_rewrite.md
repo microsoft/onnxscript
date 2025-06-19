@@ -31,7 +31,11 @@ The target pattern in this case has 5 inputs `input_a`, `input_b`, `shape_a`, `s
 Similarly for writing the condition checking function, we require only `input_a`, `input_b` and `shape_c`. Use `**_` to represent all the unused parameters in the condition matching function signature.
 :::
 
-In order to validate whether matmul broadcast is sufficient, we write a condition checking function as follows:
+In order to validate whether matmul broadcast is sufficient, we write a condition checking function as below.
+Note that the relevant inputs passed to the check function are all instances of :class:`onnx_ir.Value`. These represent
+the values in the input graph IR that matched against the corresponding _pattern variables_ in the target
+pattern. Please see documentation of the [IR API](https://onnx.ai/ir-py/) for more details on how to use it, for example to identify
+the type or shape or rank of these values.
 
 ```{literalinclude} examples/broadcast_matmul.py
 :pyobject: check_if_not_need_reshape
