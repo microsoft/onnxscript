@@ -3548,15 +3548,14 @@ def aten_feature_dropout(input: TFloat, p: FLOAT, train: BOOL) -> TFloat:
     if p == 0 or not train:
         return input
     
-    # Get input shape
-    input_shape = op.Shape(input)
-    ndim = op.Size(input_shape)
+    # Get input dimensions
+    ndim = op.Size(op.Shape(input))
     
     # Create mask shape for feature dropout
     # For 2D tensors [N, C]: mask shape is [N, C]
     # For higher dim tensors [N, C, ...]: mask shape is [N, C, 1, 1, ...]
-    batch_size = op.Gather(input_shape, [0])
-    channel_size = op.Gather(input_shape, [1])
+    batch_size = op.Shape(input, start=0, end=1)
+    channel_size = op.Shape(input, start=1, end=2)
     
     # Create the appropriate mask shape based on tensor dimensions
     is_2d = op.Equal(ndim, 2)
