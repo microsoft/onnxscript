@@ -16,8 +16,10 @@ import onnxscript.ir as ir
 import onnxscript.optimizer
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
+from onnxscript.rewriter.ort_fusions import optimize_for_ort
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
+from onnxscript.rewriter.ort_fusions.models._phi2lm import phi2lm_test
 from onnxscript.rewriter.ort_fusions.sdpa import fuse_sdpa
 
 msft_op = onnxscript.values.Opset("com.microsoft", 1)
@@ -357,6 +359,16 @@ class GQAFusionTest(unittest.TestCase):
 
         self.assertEqual(len(outputs3), len(source_model_outputs))
         assert_allclose(outputs3, source_model_outputs)
+
+
+class GQAFusionTest2(unittest.TestCase):
+    def test_phi2lm(self):
+        test_case = phi2lm_test()
+        model = test_case.get_onnx_model()
+        model = shape_inference.infer_shapes(model)
+        onnxscript.optimizer.optimize(model)
+        model, count = optimize_for_ort(model, debug=True)
+        print(count)
 
 
 if __name__ == "__main__":
