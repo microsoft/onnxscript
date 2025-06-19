@@ -15,6 +15,7 @@ from onnxscript.optimizer import _constant_folding
 
 class FoldConstantsTest(unittest.TestCase):
     def _fold(self, model: ir.Model | str, onnx_shape_inference=False, **kwargs):
+        print("Folding constants with kwargs:", kwargs)
         if isinstance(model, str):
             model = ir.from_onnx_text(model)
         _constant_folding.fold_constants(
@@ -552,15 +553,13 @@ func (float[1,3] x) => (float[1,3] return_val) {
         w.const_value = ir.tensor(np.random.random((256, 256)).astype(np.float32))
 
         # Input size limit will prevent folding of Mul op
-        optimized = self._fold(model, input_size_limit=3 * 256 * 256)
+        optimized = self._fold(model, onnx_shape_inference=False, input_size_limit=128 * 128)
         ops = [node.op_type for node in optimized.graph]
         self.assertEqual(ops, ["Mul", "Add"])
 
         # Input size limit will allow folding of Mul op
         # Since there is no increase in model-size, output-size is not a concern.
-        optimized = self._fold(
-            model, input_size_limit=4 * 256 * 256, output_size_limit=4 * 256 * 256
-        )
+        optimized = self._fold(model, input_size_limit=256 * 256, output_size_limit=256 * 256)
         ops = [node.op_type for node in optimized.graph]
         self.assertEqual(ops, ["Constant", "Add"])
 

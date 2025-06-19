@@ -19,9 +19,9 @@ import onnxscript.ir as ir
 import onnxscript.utils.utils as utils
 from onnxscript.ir import _tape
 
-DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 1024
+DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 512
 
-DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = 1024 * 1024
+DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = 512 * 512
 
 
 _NON_DETERMINISTIC_OPS = frozenset(
@@ -1029,7 +1029,6 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             return None
 
         input_tensors = [x.const_value if x is not None else None for x in node.inputs]
-
         if any(
             tensor.size > self.input_size_limit
             for tensor in input_tensors
@@ -1190,10 +1189,10 @@ def fold_constants(
         model: The ONNX model to optimize.
         onnx_shape_inference: Whether to enable ONNX shape inference during
             constant folding. Defaults to False.
-        input_size_limit: The maximum size (in bytes) of input tensors
+        input_size_limit: The maximum size of input tensors
             that can be considered for constant folding. Defaults to
             `DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT`.
-        output_size_limit: The maximum size (in bytes) of output tensors
+        output_size_limit: The maximum size of output tensors
             that can be stored after constant folding. Defaults to
             `DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT`.
         always_fold_ops: A collection of op types that should always be folded,
