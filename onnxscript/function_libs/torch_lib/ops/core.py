@@ -3545,10 +3545,6 @@ def aten_feature_dropout(input: TFloat, p: FLOAT, train: BOOL) -> TFloat:
     # Feature dropout applies dropout to entire feature maps/channels
     # rather than individual elements
     
-    # Use ONNX operations to handle control flow
-    # In inference mode or when p=0, return input unchanged
-    should_dropout = op.And(train, p > 0.0)
-    
     # Get input shape
     input_shape = op.Shape(input)
     ndim = op.Size(input_shape)
@@ -3576,27 +3572,13 @@ def aten_feature_dropout(input: TFloat, p: FLOAT, train: BOOL) -> TFloat:
     # Select appropriate mask shape
     mask_shape = op.Where(is_2d, mask_shape_2d, mask_shape_nd)
     
-    # Generate random uniform values between 0 and 1
-    random_vals = op.RandomUniformLike(
-        op.ConstantOfShape(mask_shape, value=0.0),
-        dtype=1,  # float32
-        low=0.0,
-        high=1.0
-    )
-    
-    # Create binary mask: 1 where random_vals >= p, 0 otherwise
-    mask = op.Cast(random_vals >= p, to=input.dtype)
-    
-    # Scale by 1/(1-p) to maintain expected value
-    scale = op.Div(1.0, op.Sub(1.0, p))
-    scaled_mask = op.Mul(mask, scale)
-    
-    # Apply dropout only if we should dropout, otherwise use all-ones mask
-    ones_mask = op.ConstantOfShape(mask_shape, value=1.0)
-    final_mask = op.Where(should_dropout, scaled_mask, ones_mask)
+    # Create a dummy tensor of ones with the mask shape and apply dropout to it
+    # This leverages op.Dropout to handle training mode, scaling, and random generation
+    dummy_tensor = op.ConstantOfShape(mask_shape, value=1.0)
+    mask, _ = op.Dropout(dummy_tensor, p, train)
     
     # Apply mask to input (broadcasting will handle different shapes)
-    result = op.Mul(input, final_mask)
+    result = op.Mul(input, mask)
     
     return result
 
