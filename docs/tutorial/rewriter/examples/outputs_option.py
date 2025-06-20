@@ -45,10 +45,9 @@ def custom_split_replacement(op, input, **_):
     # Replace with a custom split operation using named outputs
     # _outputs=["first_half", "second_half"] assigns names to the outputs
     # IMPORTANT: The number of outputs must match the pattern (2 outputs)
-    return op.CustomSplit(input, _domain="custom.domain", _outputs=["first_half", "second_half"])
-
-
-
+    return op.CustomSplit(
+        input, _domain="custom.domain", _outputs=["first_half", "second_half"]
+    )
 
 
 ####################################
