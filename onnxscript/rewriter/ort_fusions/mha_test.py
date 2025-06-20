@@ -10,8 +10,8 @@ import onnxscript.ir.passes.common as common_passes
 import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
 from onnxscript.rewriter.ort_fusions._test_utils import ORT_VERSION, assert_allclose, ort_run
-from onnxscript.rewriter.ort_fusions.models._smollm_2 import smollm_test_2
 from onnxscript.rewriter.ort_fusions.models._phi2lm import phi2lm_test
+from onnxscript.rewriter.ort_fusions.models._smollm_2 import smollm_test_2
 from onnxscript.rewriter.ort_fusions.models._whisper_decoder import whisper_decoder_test
 from onnxscript.rewriter.ort_fusions.models._whisper_encoder import whisper_encoder_test
 
@@ -103,12 +103,17 @@ class TestMultiHeadAttention(unittest.TestCase):
         onnxscript.optimizer.optimize(model)
         xformers.optimize_for_ort(model)
         mha_nodes = [n for n in model.graph if n.op_type == "MultiHeadAttention"]
-        self.assertEqual(len(mha_nodes), 1, "Expected exactly one MultiHeadAttention node after optimization")
+        self.assertEqual(
+            len(mha_nodes),
+            1,
+            "Expected exactly one MultiHeadAttention node after optimization",
+        )
         mha_node = mha_nodes[0]
         # Check that the MHA node has past kv cache inputs
         self.assertEqual(len(mha_node.inputs), 8, "Expected MHA node to have 8 inputs")
         self.assertIsNotNone(mha_node.inputs[6], "Expected MHA node to have past key input")
         self.assertIsNotNone(mha_node.inputs[7], "Expected MHA node to have past value input")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -365,10 +365,10 @@ class GQAFusionTest2(unittest.TestCase):
     def test_phi4lm(self):
         test_case = phi4lm_test()
         model = test_case.get_onnx_model()
-        model = shape_inference.infer_shapes(model)
         onnxscript.optimizer.optimize(model)
-        model, count = optimize_for_ort(model, debug=True)
-        print(count)
+        optimize_for_ort(model, debug=True)
+        gqa_nodes = [n for n in model.graph if n.op_type == "GQA"]
+        self.assertEqual(len(gqa_nodes), 2, "Expected 2i GQA nodes after fusion")
 
 
 if __name__ == "__main__":

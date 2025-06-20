@@ -1,10 +1,8 @@
 import numpy
-from onnx import TensorProto
-from onnx.helper import make_tensor
-from onnxscript import script, external_tensor
-from onnxscript.values import Opset
-from onnxscript.onnx_types import FLOAT, INT64
+
+from onnxscript import script
 from onnxscript.onnx_opset import opset18
+from onnxscript.onnx_types import FLOAT, INT64
 
 
 def make_model(
@@ -26,7 +24,20 @@ def make_model(
     expand_2,
 ):
     @script()
-    def main_graph(input_ids: INT64['s34','s16'], attention_mask: INT64['s34','s16 + s17'], past_key_values_key_cache_0: FLOAT['s34',10,'s17',128], past_key_values_key_cache_1: FLOAT['s34',10,'s17',128], past_key_values_value_cache_0: FLOAT['s34',10,'s17',128], past_key_values_value_cache_1: FLOAT['s34',10,'s17',128]) -> (FLOAT['s34','s16',100352], FLOAT['s34',10,'s16 + s17',128], FLOAT['s34',10,'s16 + s17',128], FLOAT['s34',10,'s16 + s17',128], FLOAT['s34',10,'s16 + s17',128]):
+    def main_graph(
+        input_ids: INT64["s34", "s16"],
+        attention_mask: INT64["s34", "s16 + s17"],
+        past_key_values_key_cache_0: FLOAT["s34", 10, "s17", 128],
+        past_key_values_key_cache_1: FLOAT["s34", 10, "s17", 128],
+        past_key_values_value_cache_0: FLOAT["s34", 10, "s17", 128],
+        past_key_values_value_cache_1: FLOAT["s34", 10, "s17", 128],
+    ) -> (
+        FLOAT["s34", "s16", 100352],
+        FLOAT["s34", 10, "s16 + s17", 128],
+        FLOAT["s34", 10, "s16 + s17", 128],
+        FLOAT["s34", 10, "s16 + s17", 128],
+        FLOAT["s34", 10, "s16 + s17", 128],
+    ):
         val_1 = opset18.Shape(input_ids, end=2, start=1)
         sym_size_int_61 = opset18.Squeeze(val_1)
         val_5 = opset18.Shape(past_key_values_key_cache_1, end=3, start=2)
@@ -38,7 +49,7 @@ def make_model(
         unsqueeze = opset18.Unsqueeze(arange, [np.int64(0)])
         val_18 = opset18.Reshape(add_4, [np.int64(-1)], allowzero=0)
         val_19 = opset18.Concat(val_1, val_18, axis=0)
-        full = opset18.Expand(np.float32(-3.4028235e+38), val_19)
+        full = opset18.Expand(np.float32(-3.4028235e38), val_19)
         arange_1 = opset18.Range(np.int64(0), add_4, np.int64(1))
         view = opset18.Reshape(arange, [np.int64(-1), np.int64(1)], allowzero=1)
         gt = opset18.Greater(arange_1, view)
@@ -62,27 +73,29 @@ def make_model(
         val_126 = opset18.Reshape(add_4, val_125, allowzero=0)
         val_130 = opset18.Constant(value_ints=[1])
         slice_14 = opset18.Slice(expand_1, val_123, val_126, [np.int64(3)], val_130)
-        masked_fill = opset18.Where(eq_65, np.float32(-3.4028235e+38), slice_14)
+        masked_fill = opset18.Where(eq_65, np.float32(-3.4028235e38), slice_14)
         val_183 = opset18.Shape(expand_1, start=0)
         val_184 = opset18.Gather(val_183, np.int64(2), axis=0)
         val_185 = opset18.Range(np.int64(0), val_184, np.int64(1))
         val_190 = opset18.Unsqueeze(val_185, [np.int64(-1)])
         val_191 = opset18.Transpose(masked_fill, perm=[2, 1, 0, 3])
         val_192 = opset18.Transpose(expand_1, perm=[2, 1, 0, 3])
-        val_193 = opset18.ScatterND(val_192, val_190, val_191, reduction='none')
+        val_193 = opset18.ScatterND(val_192, val_190, val_191, reduction="none")
         val_195 = opset18.Shape(expand_1, start=0)
         val_196 = opset18.Gather(val_195, np.int64(1), axis=0)
         val_197 = opset18.Range(np.int64(0), val_196, np.int64(1))
         val_202 = opset18.Unsqueeze(val_197, [np.int64(-1)])
         val_203 = opset18.Transpose(val_193, perm=[1, 2, 0, 3])
         val_204 = opset18.Transpose(expand_1, perm=[1, 0, 2, 3])
-        val_205 = opset18.ScatterND(val_204, val_202, val_203, reduction='none')
+        val_205 = opset18.ScatterND(val_204, val_202, val_203, reduction="none")
         slice_scatter_1 = opset18.Transpose(val_205, perm=[1, 0, 2, 3])
         val_207 = opset18.Shape(expand_1, start=0)
         val_208 = opset18.Gather(val_207, np.int64(0), axis=0)
         val_209 = opset18.Range(np.int64(0), val_208, np.int64(1))
         val_214 = opset18.Unsqueeze(val_209, [np.int64(-1)])
-        slice_scatter_2 = opset18.ScatterND(expand_1, val_214, slice_scatter_1, reduction='none')
+        slice_scatter_2 = opset18.ScatterND(
+            expand_1, val_214, slice_scatter_1, reduction="none"
+        )
         unsqueeze_9 = opset18.Unsqueeze(unsqueeze, [np.int64(1)])
         _to_copy = opset18.Cast(unsqueeze_9, to=1)
         matmul = opset18.MatMul(expand_2, _to_copy)
@@ -100,11 +113,17 @@ def make_model(
         val_253 = opset18.Transpose(model_layers_0_self_attn_qkv_proj_weight, perm=[1, 0])
         linear = opset18.MatMul(mul_171, val_253)
         val_264 = opset18.Constant(value_ints=[1])
-        slice_26 = opset18.Slice(linear, [np.int64(0)], [np.int64(5120)], [np.int64(2)], val_264)
+        slice_26 = opset18.Slice(
+            linear, [np.int64(0)], [np.int64(5120)], [np.int64(2)], val_264
+        )
         val_275 = opset18.Constant(value_ints=[1])
-        slice_27 = opset18.Slice(linear, [np.int64(5120)], [np.int64(6400)], [np.int64(2)], val_275)
+        slice_27 = opset18.Slice(
+            linear, [np.int64(5120)], [np.int64(6400)], [np.int64(2)], val_275
+        )
         val_285 = opset18.Constant(value_ints=[1])
-        slice_28 = opset18.Slice(linear, [np.int64(6400)], [np.int64(9223372036854775807)], [np.int64(2)], val_285)
+        slice_28 = opset18.Slice(
+            linear, [np.int64(6400)], [np.int64(9223372036854775807)], [np.int64(2)], val_285
+        )
         val_291 = opset18.Concat(val_6, val_1, [np.int64(-1)], [np.int64(128)], axis=0)
         view_1 = opset18.Reshape(slice_26, val_291, allowzero=1)
         transpose_1 = opset18.Transpose(view_1, perm=[0, 2, 1, 3])
@@ -118,18 +137,34 @@ def make_model(
         unsqueeze_11 = opset18.Unsqueeze(sin, [np.int64(1)])
         mul_223 = opset18.Mul(transpose_1, unsqueeze_10)
         val_336 = opset18.Constant(value_ints=[1])
-        slice_31 = opset18.Slice(transpose_1, [np.int64(0)], [np.int64(64)], [np.int64(3)], val_336)
+        slice_31 = opset18.Slice(
+            transpose_1, [np.int64(0)], [np.int64(64)], [np.int64(3)], val_336
+        )
         val_346 = opset18.Constant(value_ints=[1])
-        slice_32 = opset18.Slice(transpose_1, [np.int64(64)], [np.int64(9223372036854775807)], [np.int64(3)], val_346)
+        slice_32 = opset18.Slice(
+            transpose_1,
+            [np.int64(64)],
+            [np.int64(9223372036854775807)],
+            [np.int64(3)],
+            val_346,
+        )
         neg = opset18.Neg(slice_32)
         cat_1 = opset18.Concat(neg, slice_31, axis=-1)
         mul_240 = opset18.Mul(cat_1, unsqueeze_11)
         add_304 = opset18.Add(mul_223, mul_240)
         mul_252 = opset18.Mul(transpose_2, unsqueeze_10)
         val_356 = opset18.Constant(value_ints=[1])
-        slice_33 = opset18.Slice(transpose_2, [np.int64(0)], [np.int64(64)], [np.int64(3)], val_356)
+        slice_33 = opset18.Slice(
+            transpose_2, [np.int64(0)], [np.int64(64)], [np.int64(3)], val_356
+        )
         val_366 = opset18.Constant(value_ints=[1])
-        slice_34 = opset18.Slice(transpose_2, [np.int64(64)], [np.int64(9223372036854775807)], [np.int64(3)], val_366)
+        slice_34 = opset18.Slice(
+            transpose_2,
+            [np.int64(64)],
+            [np.int64(9223372036854775807)],
+            [np.int64(3)],
+            val_366,
+        )
         neg_1 = opset18.Neg(slice_34)
         cat_3 = opset18.Concat(neg_1, slice_33, axis=-1)
         mul_269 = opset18.Mul(cat_3, unsqueeze_11)
@@ -138,7 +173,9 @@ def make_model(
         cat_6 = opset18.Concat(past_key_values_value_cache_0, transpose_3, axis=-2)
         unsqueeze_12 = opset18.Unsqueeze(cat_5, [np.int64(2)])
         val_413 = opset18.Reshape(add_4, [np.int64(-1)], allowzero=0)
-        val_414 = opset18.Concat(val_6, [np.int64(10)], [np.int64(4)], val_413, [np.int64(128)], axis=0)
+        val_414 = opset18.Concat(
+            val_6, [np.int64(10)], [np.int64(4)], val_413, [np.int64(128)], axis=0
+        )
         val_416 = opset18.Abs(val_414)
         expand_3 = opset18.Expand(unsqueeze_12, val_416)
         val_421 = opset18.Reshape(add_4, [np.int64(-1)], allowzero=0)
@@ -146,7 +183,9 @@ def make_model(
         _unsafe_view = opset18.Reshape(expand_3, val_422, allowzero=1)
         unsqueeze_13 = opset18.Unsqueeze(cat_6, [np.int64(2)])
         val_467 = opset18.Reshape(add_4, [np.int64(-1)], allowzero=0)
-        val_468 = opset18.Concat(val_6, [np.int64(10)], [np.int64(4)], val_467, [np.int64(128)], axis=0)
+        val_468 = opset18.Concat(
+            val_6, [np.int64(10)], [np.int64(4)], val_467, [np.int64(128)], axis=0
+        )
         val_470 = opset18.Abs(val_468)
         expand_4 = opset18.Expand(unsqueeze_13, val_470)
         val_474 = opset18.Reshape(add_4, [np.int64(-1)], allowzero=0)
@@ -195,11 +234,17 @@ def make_model(
         val_524 = opset18.Transpose(model_layers_1_self_attn_qkv_proj_weight, perm=[1, 0])
         linear_4 = opset18.MatMul(mul_552, val_524)
         val_534 = opset18.Constant(value_ints=[1])
-        slice_51 = opset18.Slice(linear_4, [np.int64(0)], [np.int64(5120)], [np.int64(2)], val_534)
+        slice_51 = opset18.Slice(
+            linear_4, [np.int64(0)], [np.int64(5120)], [np.int64(2)], val_534
+        )
         val_544 = opset18.Constant(value_ints=[1])
-        slice_52 = opset18.Slice(linear_4, [np.int64(5120)], [np.int64(6400)], [np.int64(2)], val_544)
+        slice_52 = opset18.Slice(
+            linear_4, [np.int64(5120)], [np.int64(6400)], [np.int64(2)], val_544
+        )
         val_554 = opset18.Constant(value_ints=[1])
-        slice_53 = opset18.Slice(linear_4, [np.int64(6400)], [np.int64(9223372036854775807)], [np.int64(2)], val_554)
+        slice_53 = opset18.Slice(
+            linear_4, [np.int64(6400)], [np.int64(9223372036854775807)], [np.int64(2)], val_554
+        )
         val_559 = opset18.Concat(val_6, val_1, [np.int64(-1)], [np.int64(128)], axis=0)
         view_5 = opset18.Reshape(slice_51, val_559, allowzero=1)
         transpose_6 = opset18.Transpose(view_5, perm=[0, 2, 1, 3])
@@ -213,18 +258,34 @@ def make_model(
         unsqueeze_15 = opset18.Unsqueeze(sin, [np.int64(1)])
         mul_604 = opset18.Mul(transpose_6, unsqueeze_14)
         val_602 = opset18.Constant(value_ints=[1])
-        slice_56 = opset18.Slice(transpose_6, [np.int64(0)], [np.int64(64)], [np.int64(3)], val_602)
+        slice_56 = opset18.Slice(
+            transpose_6, [np.int64(0)], [np.int64(64)], [np.int64(3)], val_602
+        )
         val_612 = opset18.Constant(value_ints=[1])
-        slice_57 = opset18.Slice(transpose_6, [np.int64(64)], [np.int64(9223372036854775807)], [np.int64(3)], val_612)
+        slice_57 = opset18.Slice(
+            transpose_6,
+            [np.int64(64)],
+            [np.int64(9223372036854775807)],
+            [np.int64(3)],
+            val_612,
+        )
         neg_2 = opset18.Neg(slice_57)
         cat_7 = opset18.Concat(neg_2, slice_56, axis=-1)
         mul_621 = opset18.Mul(cat_7, unsqueeze_15)
         add_720 = opset18.Add(mul_604, mul_621)
         mul_633 = opset18.Mul(transpose_7, unsqueeze_14)
         val_622 = opset18.Constant(value_ints=[1])
-        slice_58 = opset18.Slice(transpose_7, [np.int64(0)], [np.int64(64)], [np.int64(3)], val_622)
+        slice_58 = opset18.Slice(
+            transpose_7, [np.int64(0)], [np.int64(64)], [np.int64(3)], val_622
+        )
         val_632 = opset18.Constant(value_ints=[1])
-        slice_59 = opset18.Slice(transpose_7, [np.int64(64)], [np.int64(9223372036854775807)], [np.int64(3)], val_632)
+        slice_59 = opset18.Slice(
+            transpose_7,
+            [np.int64(64)],
+            [np.int64(9223372036854775807)],
+            [np.int64(3)],
+            val_632,
+        )
         neg_3 = opset18.Neg(slice_59)
         cat_9 = opset18.Concat(neg_3, slice_58, axis=-1)
         mul_650 = opset18.Mul(cat_9, unsqueeze_15)
@@ -233,7 +294,9 @@ def make_model(
         cat_12 = opset18.Concat(past_key_values_value_cache_1, transpose_8, axis=-2)
         unsqueeze_16 = opset18.Unsqueeze(cat_11, [np.int64(2)])
         val_676 = opset18.Reshape(add_4, [np.int64(-1)], allowzero=0)
-        val_677 = opset18.Concat(val_6, [np.int64(10)], [np.int64(4)], val_676, [np.int64(128)], axis=0)
+        val_677 = opset18.Concat(
+            val_6, [np.int64(10)], [np.int64(4)], val_676, [np.int64(128)], axis=0
+        )
         val_679 = opset18.Abs(val_677)
         expand_5 = opset18.Expand(unsqueeze_16, val_679)
         val_683 = opset18.Reshape(add_4, [np.int64(-1)], allowzero=0)
@@ -241,7 +304,9 @@ def make_model(
         _unsafe_view_2 = opset18.Reshape(expand_5, val_684, allowzero=1)
         unsqueeze_17 = opset18.Unsqueeze(cat_12, [np.int64(2)])
         val_729 = opset18.Reshape(add_4, [np.int64(-1)], allowzero=0)
-        val_730 = opset18.Concat(val_6, [np.int64(10)], [np.int64(4)], val_729, [np.int64(128)], axis=0)
+        val_730 = opset18.Concat(
+            val_6, [np.int64(10)], [np.int64(4)], val_729, [np.int64(128)], axis=0
+        )
         val_732 = opset18.Abs(val_730)
         expand_6 = opset18.Expand(unsqueeze_17, val_732)
         val_736 = opset18.Reshape(add_4, [np.int64(-1)], allowzero=0)
@@ -294,23 +359,40 @@ def make_model(
     model = main_graph.to_model_proto()
     return model
 
+
 def make_model_with_random_weights():
-    model_embed_tokens_weight = numpy.random.rand(100352,5120).astype(numpy.float32)
-    model_layers_0_self_attn_o_proj_weight = numpy.random.rand(5120,5120).astype(numpy.float32)
-    model_layers_0_self_attn_qkv_proj_weight = numpy.random.rand(7680,5120).astype(numpy.float32)
-    model_layers_0_mlp_gate_up_proj_weight = numpy.random.rand(35840,5120).astype(numpy.float32)
-    model_layers_0_mlp_down_proj_weight = numpy.random.rand(5120,17920).astype(numpy.float32)
+    model_embed_tokens_weight = numpy.random.rand(100352, 5120).astype(numpy.float32)
+    model_layers_0_self_attn_o_proj_weight = numpy.random.rand(5120, 5120).astype(
+        numpy.float32
+    )
+    model_layers_0_self_attn_qkv_proj_weight = numpy.random.rand(7680, 5120).astype(
+        numpy.float32
+    )
+    model_layers_0_mlp_gate_up_proj_weight = numpy.random.rand(35840, 5120).astype(
+        numpy.float32
+    )
+    model_layers_0_mlp_down_proj_weight = numpy.random.rand(5120, 17920).astype(numpy.float32)
     model_layers_0_input_layernorm_weight = numpy.random.rand(5120).astype(numpy.float32)
-    model_layers_0_post_attention_layernorm_weight = numpy.random.rand(5120).astype(numpy.float32)
-    model_layers_1_self_attn_o_proj_weight = numpy.random.rand(5120,5120).astype(numpy.float32)
-    model_layers_1_self_attn_qkv_proj_weight = numpy.random.rand(7680,5120).astype(numpy.float32)
-    model_layers_1_mlp_gate_up_proj_weight = numpy.random.rand(35840,5120).astype(numpy.float32)
-    model_layers_1_mlp_down_proj_weight = numpy.random.rand(5120,17920).astype(numpy.float32)
+    model_layers_0_post_attention_layernorm_weight = numpy.random.rand(5120).astype(
+        numpy.float32
+    )
+    model_layers_1_self_attn_o_proj_weight = numpy.random.rand(5120, 5120).astype(
+        numpy.float32
+    )
+    model_layers_1_self_attn_qkv_proj_weight = numpy.random.rand(7680, 5120).astype(
+        numpy.float32
+    )
+    model_layers_1_mlp_gate_up_proj_weight = numpy.random.rand(35840, 5120).astype(
+        numpy.float32
+    )
+    model_layers_1_mlp_down_proj_weight = numpy.random.rand(5120, 17920).astype(numpy.float32)
     model_layers_1_input_layernorm_weight = numpy.random.rand(5120).astype(numpy.float32)
-    model_layers_1_post_attention_layernorm_weight = numpy.random.rand(5120).astype(numpy.float32)
+    model_layers_1_post_attention_layernorm_weight = numpy.random.rand(5120).astype(
+        numpy.float32
+    )
     model_norm_weight = numpy.random.rand(5120).astype(numpy.float32)
-    lm_head_weight = numpy.random.rand(100352,5120).astype(numpy.float32)
-    expand_2 = numpy.random.rand(1,64,1).astype(numpy.float32)
+    lm_head_weight = numpy.random.rand(100352, 5120).astype(numpy.float32)
+    expand_2 = numpy.random.rand(1, 64, 1).astype(numpy.float32)
     model = make_model(
         model_embed_tokens_weight,
         model_layers_0_self_attn_o_proj_weight,
@@ -330,4 +412,3 @@ def make_model_with_random_weights():
         expand_2,
     )
     return model
-
