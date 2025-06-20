@@ -26,17 +26,9 @@ specification ensures the pattern only matches operations with this specific out
 In the replacement, `_outputs=["first_half", "second_half"]` creates two outputs with
 descriptive names. This can make the replacement pattern more readable and maintainable.
 
-## Alternative replacement patterns
-
-### Single output replacement
-```{literalinclude} examples/outputs_option.py
-:pyobject: identity_replacement
-```
-
-### Multiple output replacement
-```{literalinclude} examples/outputs_option.py
-:pyobject: triple_split_replacement
-```
+**Important**: The number of outputs in the replacement pattern must match the number of 
+outputs in the target pattern. Since the pattern specifies `_outputs=2`, the replacement
+must also produce exactly 2 outputs.
 
 ## Complete rewrite example
 

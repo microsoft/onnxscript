@@ -44,29 +44,11 @@ def split_pattern(op, input):
 def custom_split_replacement(op, input, **_):
     # Replace with a custom split operation using named outputs
     # _outputs=["first_half", "second_half"] assigns names to the outputs
+    # IMPORTANT: The number of outputs must match the pattern (2 outputs)
     return op.CustomSplit(input, _domain="custom.domain", _outputs=["first_half", "second_half"])
 
 
-####################################
-# Alternative: Single output replacement
-# =====================
 
-
-def identity_replacement(op, input, **_):
-    # Replace split with identity (single output)
-    # _outputs=1 or just omitting _outputs (default is 1)
-    return op.Identity(input, _outputs=1)
-
-
-####################################
-# Example with explicit output count
-# =====================
-
-
-def triple_split_replacement(op, input, **_):
-    # Replace with operation that produces 3 outputs
-    # _outputs=3 specifies 3 unnamed outputs  
-    return op.Split(input, num_outputs=3, axis=0, _outputs=3)
 
 
 ####################################
