@@ -1,5 +1,38 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+"""ONNX Model Rewriter.
+
+This module provides pattern-based rewriting capabilities for ONNX models.
+The rewriter allows you to define patterns that match subgraphs in ONNX models
+and replace them with equivalent but potentially more efficient implementations.
+
+Main Components:
+    - pattern: Main API for defining and applying rewrite rules
+    - rewrite(): High-level function to apply rules to models
+    - RewritePass: Integration with the IR passes framework
+
+Example Usage:
+    
+    ```python
+    import onnxscript.rewriter as rewriter
+    
+    # Apply default optimization rules
+    optimized_model = rewriter.rewrite(model)
+    
+    # Apply custom rules
+    from onnxscript.rewriter import pattern
+    
+    class MyOptimization(pattern.RewriteRuleClassBase):
+        def pattern(self, op, x):
+            return op.Add(x, op.Constant(value=0.0))
+        
+        def rewrite(self, op, x, zero=None):
+            return op.Identity(x)
+    
+    custom_rules = [MyOptimization.rule()]
+    optimized_model = rewriter.rewrite(model, custom_rules)
+    ```
+"""
 from __future__ import annotations
 
 from typing import Sequence, TypeVar, Union
@@ -25,11 +58,8 @@ from onnxscript.rewriter import (
 )
 
 _ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
-
-# Default rewrite rules applied by the rewriter
-# These rules implement common optimizations and transformations
 _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
-    *no_op.rules.rules,  # Remove no-op operations (e.g., Add with 0, Mul by 1)
+    *no_op.rules.rules,  # TODO: merge this rule into constant folding?
     *broadcast_to_matmul.rules.rules,
     gemm_to_matmul_add.rule,  # type: ignore[has-type]
     *cast_constant_of_shape.rules.rules,
@@ -39,20 +69,6 @@ _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
 
 
 class RewritePass(ir.passes.InPlacePass):
-    """A pass that applies pattern-based rewrite rules to an IR model.
-    
-    This pass takes a collection of rewrite rules and applies them to the model,
-    transforming matching patterns according to the rule definitions. The pass
-    operates in-place, modifying the provided model directly.
-    
-    Args:
-        rules: A sequence of RewriteRule objects or a RewriteRuleSet containing
-               the rules to apply during rewriting.
-               
-    Raises:
-        ValueError: If the rules sequence is empty.
-    """
-    
     def __init__(
         self,
         rules: Sequence[pattern.RewriteRule] | pattern.RewriteRuleSet,

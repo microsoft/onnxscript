@@ -5,16 +5,41 @@
 This module provides the core functionality for pattern-based rewriting of ONNX models.
 It includes:
 
+- RewriteRuleClassBase: Recommended base class for implementing rewrite rules using a class-based API
 - RewriteRule: Defines a single pattern-to-replacement rewrite transformation
 - RewriteRuleSet: Manages a collection of rewrite rules and applies them to models
-- RewriteRuleClassBase: Base class for implementing rewrite rules using a class-based API
 - Supporting utilities for pattern matching, replacement, and context management
 
 The rewriter enables users to define patterns that match subgraphs in ONNX models
 and replace them with equivalent but potentially more efficient implementations.
 
-Example usage:
-    # Define a simple pattern and replacement
+Example usage with class-based rules (recommended):
+    
+    ```python
+    class ConstantFolding(RewriteRuleClassBase):
+        \"\"\"Fold Add operations with two constants\"\"\"
+        
+        def pattern(self, op, x, y):
+            return op.Add(x, y)
+        
+        def check(self, context, x, y):
+            # Only apply if both inputs are constants
+            return (x.const_value is not None and 
+                    y.const_value is not None)
+        
+        def rewrite(self, op, x, y):
+            # Compute the result and create a constant
+            result = x.const_value + y.const_value
+            return op.Constant(value=result)
+    
+    # Apply the rule
+    rule = ConstantFolding.rule()
+    rule.apply_to_model(model)
+    ```
+    
+Function-based usage (lower-level API):
+    
+    ```python
     def add_zero_pattern(op, x):
         return op.Add(x, op.Constant(value=0.0))
     
@@ -24,6 +49,7 @@ Example usage:
     # Create and apply the rule
     rule = RewriteRule(add_zero_pattern, identity_replacement)
     rule.apply_to_model(model)
+    ```
 """
 
 from __future__ import annotations
@@ -48,26 +74,6 @@ from onnxscript.ir import _tape, convenience
 T = TypeVar("T")
 
 RewriterContext = _tape.Builder
-
-
-@dataclasses.dataclass
-class _RewriteContext:
-    """Context object providing information to condition functions during pattern matching.
-    
-    This object provides access to the model, graph/function, current node, and match
-    information that condition functions can use to make decisions about whether to
-    apply a rewrite rule.
-    
-    Attributes:
-        model: The IR model being processed
-        graph_or_function: The graph or function containing the matched node
-        node: The current node being matched
-        match: The match result containing bindings and matched nodes
-    """
-    model: ir.Model
-    graph_or_function: ir.Graph | ir.Function  
-    node: ir.Node
-    match: _basics.MatchResult
 
 
 @dataclasses.dataclass
@@ -127,24 +133,6 @@ def _update_opset_imports(
 
 
 class RewriteRule:
-    """A pattern-based rewrite rule for transforming ONNX models.
-    
-    A RewriteRule defines a pattern to match in an ONNX graph and a replacement
-    that should be substituted when the pattern is found. The rule can include
-    an optional condition function to further validate whether the replacement
-    should be applied.
-    
-    The rewrite process involves:
-    1. Pattern matching: Finding subgraphs that match the target pattern
-    2. Condition checking: Validating that the match satisfies additional constraints
-    3. Replacement: Substituting the matched subgraph with the replacement pattern
-    
-    Attributes:
-        name: Optional name for the rule (used in verbose output and debugging)
-        remove_nodes: Whether matched nodes should be removed after replacement
-        as_function: Whether to extract the replacement as a model-local function
-    """
-    
     def __init__(
         self,
         target_pattern: _pattern_ir.GraphPattern | Callable,
@@ -232,8 +220,7 @@ class RewriteRule:
             model, graph_or_function, node, verbose=verbose, remove_nodes=self.remove_nodes
         )
         if match:
-            # Create a simple context object containing useful information for condition functions
-            context = _RewriteContext(model, graph_or_function, node, match)
+            context = None  # TODO(rama)
             for var in self._target_pattern.inputs:
                 if var.name is not None:
                     if var.name not in match.bindings:
@@ -275,9 +262,7 @@ class RewriteRule:
                     f"Number of outputs from replacement function does not match the number of outputs from the target pattern. "
                     f"Expected {self._target_pattern.num_outputs}, but got {len(replacement_subgraph.new_outputs)}."
                 )
-            # Update opset imports for new operations introduced by the replacement
-            # Note: Cleaning up unused opset imports from deleted nodes is handled by
-            # the RemoveUnusedOpsetsPass that runs after rewriting is complete
+            # TODO(rama): Remove the opset imports from deleted nodes?
             _update_opset_imports(graph_or_function, replacement_subgraph)
             _update_opset_imports(model.graph, replacement_subgraph)
             if tracer:
@@ -302,30 +287,15 @@ class RewriteRule:
         )
 
     def commute(self) -> Sequence[RewriteRule]:
-        """Generate commutative variants of this rule.
-        
-        Returns a list of rules that match commutative variants of the target pattern.
-        For example, if the pattern matches Add(x, y), commutative variants would
-        include Add(y, x).
-        
-        Returns:
-            A sequence of RewriteRule instances for commutative pattern variants
-        """
         def replace_pattern(new_pattern):
-            """Create a new rule with the given pattern, preserving other settings."""
-            # Use the same matcher creation logic as in __init__ for consistency
-            if isinstance(self._matcher, _matcher.SimplePatternMatcher):
-                new_matcher = _matcher.SimplePatternMatcher(new_pattern)
-            else:
-                # For more complex matchers, try to create an equivalent one
-                import onnxscript.rewriter.generic_pattern as generic_pattern
-                new_matcher = generic_pattern.GenericPatternMatcher(new_pattern)
-            
+            """Return a shallow copy of self with node_pattern replaced by new_pattern."""
+            # TODO(rama): Maybe we should use a better alternative to construct new matcher.
+            matcher_class = type(self._matcher)
             return RewriteRule(
                 new_pattern,
                 self._replacement_pattern,
                 self._condition_function,
-                new_matcher,
+                matcher_class(new_pattern),
                 self._verbose,
                 self.name,
                 self.remove_nodes,
@@ -546,14 +516,11 @@ class RewriteRuleSet:
         count = 0
 
         # NOTE: Rules should be prioritized in the order they are added to the RewriteRuleSet.
-        # The graph is processed in order, but we need to be careful about modification during iteration.
+        # And the graph is applied in order.
         for rule in self.rules:
             if rule.graph_pre_visitor:
                 rule.graph_pre_visitor()
-            
-            # Convert to list to avoid issues if graph is modified during iteration
-            nodes_to_process = list(graph_or_function)
-            for node in nodes_to_process:
+            for node in graph_or_function:
                 delta = rule.try_rewrite(
                     model, graph_or_function, node, verbose=verbose, tracer=tracer
                 )
@@ -577,12 +544,10 @@ class RewriteRuleSet:
                             continue
                     for initializer in delta.new_initializers:
                         initializers[initializer.name] = initializer  # type: ignore[index]
-                
-                # Apply basic constant propagation to newly created nodes
-                # Note: For patterns with multiple output nodes, the insertion point
-                # is determined by the convenience.replace_nodes_and_values function.
-                # This works correctly for most cases, but complex patterns with
-                # specific ordering requirements may need additional consideration.
+                # TODO: This does not yet handle the problem of determining the correct insertion point
+                # for inserted nodes in the case of patterns with multiple output-nodes. The following
+                # is sufficient for patterns with a single output-node "node", which can serve as the
+                # insertion-point.
                 onnxscript.optimizer.basic_constant_propagation(delta.new_nodes)
                 if rule.as_function:
                     # Create a function out of a copy of the matched nodes
@@ -658,30 +623,18 @@ class RewriteRuleSet:
             The number of applications of rewrite rules.
         """
         assert isinstance(model, ir.Model)
-        
-        # Apply initial constant propagation once at the start
         onnxscript.optimizer.basic_constant_propagation(model.graph)
-        
         # Rewriting may introduce new functions. In the following loop,
         # we restrict rewriting to original functions, not newly introduced ones.
         original_functions = list(model.functions.values())
-        
-        # Apply constant propagation to original functions before rewriting
-        for function in original_functions:
-            onnxscript.optimizer.basic_constant_propagation(function)
-        
-        # Apply rewrite rules to main graph
         count = self._apply_to_graph_or_function(
             model, model.graph, verbose=verbose, tracer=tracer
         )
-        
-        # Apply rewrite rules to original functions
         for function in original_functions:
+            onnxscript.optimizer.basic_constant_propagation(function)
             count += self._apply_to_graph_or_function(
                 model, function, verbose=verbose, tracer=tracer
             )
-        
-        # Final cleanup if needed
         if self.remove_unused_nodes:
             onnxscript.optimizer.remove_unused_nodes(model)
         return count

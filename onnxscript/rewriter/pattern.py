@@ -6,50 +6,77 @@ This module provides the main user-facing API for the ONNX pattern rewriter.
 It allows users to define patterns that match subgraphs in ONNX models and
 replace them with more efficient implementations.
 
-Example Usage:
-    Basic pattern rewriting:
+Recommended Usage with Class-Based Rules:
     
     ```python
     from onnxscript.rewriter import pattern
     
-    # Define a pattern that matches Add(x, 0)
-    def add_zero_pattern(op, x):
-        zero = op.Constant(value=0.0)
-        return op.Add(x, zero)
-    
-    # Define replacement that just returns x  
-    def identity_replacement(op, x):
-        return op.Identity(x)
+    class AddZeroElimination(pattern.RewriteRuleClassBase):
+        \"\"\"Removes addition with zero: Add(x, 0) -> Identity(x)\"\"\"
+        
+        def pattern(self, op, x):
+            zero = op.Constant(value=0.0)
+            return op.Add(x, zero)
+        
+        def check(self, context, x, zero):
+            # Optional: Add conditions for when to apply this rule
+            return zero.const_value is not None and zero.const_value.item() == 0.0
+        
+        def rewrite(self, op, x, zero=None):
+            return op.Identity(x)
     
     # Create and apply the rule
-    rule = pattern.RewriteRule(add_zero_pattern, identity_replacement)
+    rule = AddZeroElimination.rule()
     rule.apply_to_model(model)
     ```
     
-    Pattern with condition:
+    Multiple pattern example:
     
     ```python
-    def conditional_pattern(op, x, y):
-        return op.Mul(x, y)
+    class TransposeElimination(pattern.RewriteRuleClassBase):
+        \"\"\"Removes redundant transpose: Transpose(Transpose(x, perm), reverse_perm) -> x\"\"\"
+        
+        def pattern(self, op, x, perm):
+            return op.Transpose(x, perm=perm)
+        
+        def check(self, context, x, perm):
+            # Only apply if permutation is identity (no-op transpose)
+            if perm.is_ref():
+                return False
+            if perm.type == ir.AttributeType.INTS:
+                perm_list = perm.as_ints()
+                return perm_list == list(range(len(perm_list)))
+            return False
+        
+        def rewrite(self, op, x, perm=None):
+            return op.Identity(x)
     
-    def optimized_replacement(op, x, y):
-        return op.Mul(y, x)  # Commute for some optimization
-    
-    def check_condition(context, x, y):
-        # Only apply if y is a constant
-        return y.const_value is not None
-    
-    rule = pattern.RewriteRule(
-        conditional_pattern,
-        optimized_replacement, 
-        check_condition
-    )
+    # Apply multiple rules as a set
+    rules = pattern.RewriteRuleSet([
+        AddZeroElimination.rule(),
+        TransposeElimination.rule()
+    ])
+    rules.apply_to_model(model)
     ```
     
+    Function-based rules (lower-level API):
+    
+    ```python
+    # For simple cases, you can still use function-based rules
+    def mul_one_pattern(op, x):
+        one = op.Constant(value=1.0)
+        return op.Mul(x, one)
+    
+    def identity_replacement(op, x):
+        return op.Identity(x)
+    
+    rule = pattern.RewriteRule(mul_one_pattern, identity_replacement)
+    ```
+
 Classes and functions exported:
+    - RewriteRuleClassBase: Recommended base class for implementing rewrite rules
     - RewriteRule: Core class for defining pattern-to-replacement rules
-    - RewriteRuleSet: Collection of rules with application logic
-    - RewriteRuleClassBase: Base class for implementing rules as classes
+    - RewriteRuleSet: Collection of rules with application logic  
     - Pattern building utilities: OpsetPatternBuilder, pattern_builder, etc.
     - Matching utilities: MatchResult, MatchingTracer, etc.
 """

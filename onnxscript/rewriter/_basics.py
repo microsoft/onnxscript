@@ -1,21 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Basic types for the pattern matching and rewriter API.
-
-This module contains fundamental data structures and utilities used throughout
-the rewriter system:
-
-- MatchResult: Tracks the state of pattern matching operations
-- MatchFailureInfo/MatchFailureError: Handle match failure scenarios  
-- PartialMatchResult: Internal state for managing backtracking during OR patterns
-- Utility functions for value comparison and binding management
-
-The matching system supports advanced features like:
-- OR patterns with backtracking
-- Robust value binding with conflict detection
-- Detailed failure reporting for debugging
-- Support for both named and anonymous pattern variables
-"""
+"""Basic types for the pattern matching and rewriter API."""
 
 from __future__ import annotations
 
@@ -25,33 +10,6 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Any, MutableSequence, Sequence, Union
 
 from onnxscript import ir
-
-def _values_equal(value1: Any, value2: Any) -> bool:
-    """Check if two values are equal for binding purposes.
-    
-    This function provides a more robust equality check than direct comparison,
-    handling special cases for IR values and nodes.
-    
-    Args:
-        value1: First value to compare
-        value2: Second value to compare
-        
-    Returns:
-        True if the values are considered equal for binding purposes
-    """
-    if value1 is value2:
-        return True
-    
-    # For IR values and nodes, use identity comparison
-    if isinstance(value1, (ir.Value, ir.Node)) or isinstance(value2, (ir.Value, ir.Node)):
-        return value1 is value2
-    
-    # For other types, use regular equality
-    try:
-        return value1 == value2
-    except Exception:
-        # If comparison fails, values are not equal
-        return False
 
 if TYPE_CHECKING:
     import onnxscript.rewriter._pattern_ir as _pattern_ir
@@ -183,66 +141,37 @@ class MatchResult:
         self._current_match.add_node(node)
 
     def bind_value(self, pattern_value: _pattern_ir.ValuePattern, value: Any) -> bool:
-        """Bind a pattern value to an actual value.
-        
-        Args:
-            pattern_value: The pattern value to bind
-            value: The actual value to bind to
-            
-        Returns:
-            True if binding succeeded, False if there was a conflict
-        """
         var_name = pattern_value.name
+        # TODO(rama): Simplify the following. We currently bind values to
+        # pattern variables in two different ways: via their name, or via the
+        # pattern-value itself.
         if var_name is None:
-            # Use the pattern value itself as the key
-            return self._bind_to_key(pattern_value, value, self._current_match.value_bindings)
-        else:
-            # Use the variable name as the key
-            return self.bind(var_name, value)
+            for match in self._partial_matches:
+                if pattern_value in match.value_bindings:
+                    # TODO(rama): Use appropriate equality-check here.
+                    if match.value_bindings[pattern_value] == value:
+                        return True
+                    self._current_match.fail(
+                        f"Binding failure: {pattern_value} bound to two different values.",
+                        [match.value_bindings[pattern_value], value],
+                    )
+                    return False
+            self._current_match.value_bindings[pattern_value] = value
+            return True
+        return self.bind(var_name, value)
 
     def bind(self, var: str, value: Any) -> bool:
-        """Bind a variable name to a value.
-        
-        Args:
-            var: The variable name to bind
-            value: The value to bind to
-            
-        Returns:
-            True if binding succeeded, False if there was a conflict
-        """
-        return self._bind_to_key(var, value, self._current_match.bindings)
-    
-    def _bind_to_key(self, key: Any, value: Any, binding_dict: dict[Any, Any]) -> bool:
-        """Helper method to bind a key to a value, checking for conflicts.
-        
-        Args:
-            key: The key to bind (variable name or pattern value)
-            value: The value to bind to
-            binding_dict: The dictionary to store the binding in
-            
-        Returns:
-            True if binding succeeded, False if there was a conflict
-        """
-        # Check all partial matches for existing bindings
         for match in self._partial_matches:
-            relevant_bindings = (
-                match.value_bindings if binding_dict is self._current_match.value_bindings
-                else match.bindings
-            )
-            if key in relevant_bindings:
-                existing_value = relevant_bindings[key]
-                if _values_equal(existing_value, value):
+            if var in match.bindings:
+                # TODO(rama): Use appropriate equality-check here.
+                if match.bindings[var] == value:
                     return True
-                # Binding conflict - report failure
                 self._current_match.fail(
-                    f"Binding conflict: {key} already bound to {existing_value}, "
-                    f"cannot rebind to {value}",
-                    [existing_value, value]
+                    f"Binding failure: {var} bound to two different values.",
+                    [match.bindings[var], value],
                 )
                 return False
-        
-        # No existing binding found, create new binding
-        binding_dict[key] = value
+        self._current_match.bindings[var] = value
         return True
 
     @property
