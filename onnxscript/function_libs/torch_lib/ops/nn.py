@@ -1786,7 +1786,7 @@ def aten_scaled_dot_product_attention(
         )
 
     return _aten_scaled_dot_product_attention_float_mask_onnx(
-        query, key, value, attn_mask, scale, dropout_p
+        query, key, value, attn_mask, scale, dropout_p, enable_gqa
     )
 
 
@@ -1978,28 +1978,24 @@ def aten_scaled_dot_product_attention_bool_mask(
         "is_causal and attn_mask cannot be set at the same time"
     )
 
-    assert not enable_gqa, (
-        "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
-    )
-
     if scale is None:
         scale = _attention_scale(query)
     scale = op.CastLike(scale, query)
 
     if is_causal:
         attn_mask = _causal_attention_mask(query, key)
-        # The causal mask is always float
-        return _aten_scaled_dot_product_attention_float_mask_onnx(
-            query, key, value, attn_mask, scale, dropout_p
-        )
 
     if attn_mask is None:
         return _aten_scaled_dot_product_attention_no_mask_onnx(
-            query, key, value, scale, dropout_p
+            query, key, value, scale, dropout_p, enable_gqa=enable_gqa
         )
 
-    return _aten_scaled_dot_product_attention_bool_mask_onnx(
-        query, key, value, attn_mask, scale, dropout_p
+    if attn_mask.dtype == ir.DataType.BOOL:
+        return _aten_scaled_dot_product_attention_bool_mask_onnx(
+            query, key, value, attn_mask, scale, dropout_p, enable_gqa=enable_gqa
+        )
+    return _aten_scaled_dot_product_attention_float_mask_onnx(
+        query, key, value, attn_mask, scale, dropout_p, enable_gqa=enable_gqa
     )
 
 
