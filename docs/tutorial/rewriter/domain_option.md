@@ -15,7 +15,7 @@ ONNX operators can belong to different domains:
 :pyobject: custom_relu_pattern
 ```
 
-In this pattern, `_domain="custom.domain"` ensures that only `Relu` operations from the 
+In this pattern, `_domain="custom.domain"` ensures that only `Relu` operations from the
 "custom.domain" domain will be matched, not standard ONNX `Relu` operations.
 
 ## Creating replacement operations in a specific domain
