@@ -2007,6 +2007,53 @@ def _aten_scaled_dot_product_attention_no_mask_onnx(
     dropout_p: float,
     enable_gqa: bool,
 ) -> TFloat:
+    # Handle Grouped Query Attention (GQA) if enabled
+    if enable_gqa:
+        # Get head dimensions
+        query_shape = op.Shape(query)
+        key_shape = op.Shape(key)
+        query_heads = op.Slice(query_shape, [-3], [-2])  # query.size(-3)
+        key_heads = op.Slice(key_shape, [-3], [-2])      # key.size(-3)
+
+        # Calculate the repeat factor: query_heads // key_heads
+        repeat_factor = op.Div(query_heads, key_heads)
+
+        # Expand key and value to match query head dimension
+        # Implement key.repeat_interleave(repeat_factor, -3) using Expand
+        # First, get the shape of key and modify the head dimension
+        key_shape_expanded = op.Concat(
+            op.Slice(key_shape, [0], [-3]),  # batch and other dims
+            op.Mul(key_heads, repeat_factor),  # expanded head dimension
+            op.Slice(key_shape, [-2], [_INT64_MAX]),  # remaining dims
+            axis=0
+        )
+        # Expand key by repeating each head 'repeat_factor' times
+        key_unsqueezed = op.Unsqueeze(key, [-2])  # Add dimension for repeating
+        key_tiled = op.Tile(key_unsqueezed, op.Concat(
+            op.Constant(value_ints=[1, 1, 1]),  # don't repeat batch, seq, head dims
+            repeat_factor,  # repeat factor for the new dimension
+            op.Constant(value_ints=[1, 1]),  # don't repeat the remaining dims
+            axis=0
+        ))
+        key = op.Reshape(key_tiled, key_shape_expanded)
+
+        # Same for value
+        value_shape = op.Shape(value)
+        value_shape_expanded = op.Concat(
+            op.Slice(value_shape, [0], [-3]),  # batch and other dims
+            op.Mul(key_heads, repeat_factor),  # expanded head dimension
+            op.Slice(value_shape, [-2], [_INT64_MAX]),  # remaining dims
+            axis=0
+        )
+        value_unsqueezed = op.Unsqueeze(value, [-2])
+        value_tiled = op.Tile(value_unsqueezed, op.Concat(
+            op.Constant(value_ints=[1, 1, 1]),
+            repeat_factor,
+            op.Constant(value_ints=[1, 1]),
+            axis=0
+        ))
+        value = op.Reshape(value_tiled, value_shape_expanded)
+
     # Swap the last two axes of key
     key_shape = op.Shape(key)
     key_last_dim = op.Slice(key_shape, [-1], op.Constant(value_ints=[_INT64_MAX]))
@@ -2044,6 +2091,53 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
     dropout_p: float,
     enable_gqa: bool,
 ) -> TFloat:
+    # Handle Grouped Query Attention (GQA) if enabled
+    if enable_gqa:
+        # Get head dimensions
+        query_shape = op.Shape(query)
+        key_shape = op.Shape(key)
+        query_heads = op.Slice(query_shape, [-3], [-2])  # query.size(-3)
+        key_heads = op.Slice(key_shape, [-3], [-2])      # key.size(-3)
+
+        # Calculate the repeat factor: query_heads // key_heads
+        repeat_factor = op.Div(query_heads, key_heads)
+
+        # Expand key and value to match query head dimension
+        # Implement key.repeat_interleave(repeat_factor, -3) using Expand
+        # First, get the shape of key and modify the head dimension
+        key_shape_expanded = op.Concat(
+            op.Slice(key_shape, [0], [-3]),  # batch and other dims
+            op.Mul(key_heads, repeat_factor),  # expanded head dimension
+            op.Slice(key_shape, [-2], [_INT64_MAX]),  # remaining dims
+            axis=0
+        )
+        # Expand key by repeating each head 'repeat_factor' times
+        key_unsqueezed = op.Unsqueeze(key, [-2])  # Add dimension for repeating
+        key_tiled = op.Tile(key_unsqueezed, op.Concat(
+            op.Constant(value_ints=[1, 1, 1]),  # don't repeat batch, seq, head dims
+            repeat_factor,  # repeat factor for the new dimension
+            op.Constant(value_ints=[1, 1]),  # don't repeat the remaining dims
+            axis=0
+        ))
+        key = op.Reshape(key_tiled, key_shape_expanded)
+
+        # Same for value
+        value_shape = op.Shape(value)
+        value_shape_expanded = op.Concat(
+            op.Slice(value_shape, [0], [-3]),  # batch and other dims
+            op.Mul(key_heads, repeat_factor),  # expanded head dimension
+            op.Slice(value_shape, [-2], [_INT64_MAX]),  # remaining dims
+            axis=0
+        )
+        value_unsqueezed = op.Unsqueeze(value, [-2])
+        value_tiled = op.Tile(value_unsqueezed, op.Concat(
+            op.Constant(value_ints=[1, 1, 1]),
+            repeat_factor,
+            op.Constant(value_ints=[1, 1]),
+            axis=0
+        ))
+        value = op.Reshape(value_tiled, value_shape_expanded)
+
     # Swap the last two axes of key
     key_shape = op.Shape(key)
     key_last_dim = op.Slice(key_shape, [-1], op.Constant(value_ints=[_INT64_MAX]))
@@ -2085,6 +2179,53 @@ def _aten_scaled_dot_product_attention_float_mask_onnx(
     dropout_p: float,
     enable_gqa: bool,
 ) -> TFloat:
+    # Handle Grouped Query Attention (GQA) if enabled
+    if enable_gqa:
+        # Get head dimensions
+        query_shape = op.Shape(query)
+        key_shape = op.Shape(key)
+        query_heads = op.Slice(query_shape, [-3], [-2])  # query.size(-3)
+        key_heads = op.Slice(key_shape, [-3], [-2])      # key.size(-3)
+
+        # Calculate the repeat factor: query_heads // key_heads
+        repeat_factor = op.Div(query_heads, key_heads)
+
+        # Expand key and value to match query head dimension
+        # Implement key.repeat_interleave(repeat_factor, -3) using Expand
+        # First, get the shape of key and modify the head dimension
+        key_shape_expanded = op.Concat(
+            op.Slice(key_shape, [0], [-3]),  # batch and other dims
+            op.Mul(key_heads, repeat_factor),  # expanded head dimension
+            op.Slice(key_shape, [-2], [_INT64_MAX]),  # remaining dims
+            axis=0
+        )
+        # Expand key by repeating each head 'repeat_factor' times
+        key_unsqueezed = op.Unsqueeze(key, [-2])  # Add dimension for repeating
+        key_tiled = op.Tile(key_unsqueezed, op.Concat(
+            op.Constant(value_ints=[1, 1, 1]),  # don't repeat batch, seq, head dims
+            repeat_factor,  # repeat factor for the new dimension
+            op.Constant(value_ints=[1, 1]),  # don't repeat the remaining dims
+            axis=0
+        ))
+        key = op.Reshape(key_tiled, key_shape_expanded)
+
+        # Same for value
+        value_shape = op.Shape(value)
+        value_shape_expanded = op.Concat(
+            op.Slice(value_shape, [0], [-3]),  # batch and other dims
+            op.Mul(key_heads, repeat_factor),  # expanded head dimension
+            op.Slice(value_shape, [-2], [_INT64_MAX]),  # remaining dims
+            axis=0
+        )
+        value_unsqueezed = op.Unsqueeze(value, [-2])
+        value_tiled = op.Tile(value_unsqueezed, op.Concat(
+            op.Constant(value_ints=[1, 1, 1]),
+            repeat_factor,
+            op.Constant(value_ints=[1, 1]),
+            axis=0
+        ))
+        value = op.Reshape(value_tiled, value_shape_expanded)
+
     # Swap the last two axes of key
     key_shape = op.Shape(key)
     key_last_dim = op.Slice(key_shape, [-1], op.Constant(value_ints=[_INT64_MAX]))
