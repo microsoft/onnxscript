@@ -68,9 +68,10 @@ def _get_const_repr(const_node):
         rank = len(tensor_proto.dims)
         if rank == 0:
             array = onnx.numpy_helper.to_array(tensor_proto).reshape(1)  # noqa: TID251
-            return repr(array[0])
+            return str(array[0])
         if rank == 1 and tensor_proto.dims[0] < 5:
-            return repr(list(onnx.numpy_helper.to_array(tensor_proto)))  # noqa: TID251
+            nparray = onnx.numpy_helper.to_array(tensor_proto)  # noqa: TID251
+            return repr(nparray.tolist())
     return None
 
 
@@ -136,6 +137,15 @@ def _translate_signature(inputs, outputs):
     if outputs and isinstance(outputs[0], ValueInfoProto):
         result += f" -> ({', '.join([_translate_type(x.type) for x in outputs])})"
     return f"{result}:"
+
+
+def _translate_value_infos(value_infos: Sequence[ValueInfoProto]) -> str:
+    def _translate_value_info(value_info: ValueInfoProto) -> str:
+        return f"{_SINGLE_INDENT}'{_cleanup_variable_name(value_info.name)}': {_translate_type(value_info.type)},"
+
+    lines = [_translate_value_info(x) for x in value_infos]
+    lines_joined = "\n".join(lines)
+    return "{\n" + lines_joined + "\n}"
 
 
 def _to_str(s):
@@ -710,10 +720,13 @@ class _Exporter:
         add(f"{indent}return {return_values}")
         script = "\n".join(result)
         if self.skipped_initializers:
-            return self._substitute_initializers(script, function_name)
+            value_infos = _translate_value_infos(graph.value_info)
+            return self._substitute_initializers(script, function_name, value_infos)
         return script
 
-    def _substitute_initializers(self, script: str, script_function_name: str) -> str:
+    def _substitute_initializers(
+        self, script: str, script_function_name: str, value_infos: str
+    ) -> str:
         init_names = self.skipped_initializers.keys()
         # Formal parameters representing initializers (single level indentation)
         __ = _SINGLE_INDENT
@@ -733,12 +746,14 @@ class _Exporter:
         # Actual parameter values for initializers (double level indentation)
         indented_initializers_as_params = "\n".join(f"{__}{__}{x}," for x in init_names)
         return f"""
+value_infos = {value_infos}
+
 def make_model(
 {initializers_as_params}
 ):
 {script}
 
-{__}model = {script_function_name}.to_model_proto()
+{__}model = {script_function_name}.to_model_proto(value_infos=value_infos)
 {__}return model
 
 def make_model_with_random_weights():
