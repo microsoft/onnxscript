@@ -1,3 +1,8 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# Generated from Phi2LM 1 Layer ONNX model produced by the new (Dynamo) exporter
+
 import numpy
 import onnx_ir as ir
 from onnxscript import script

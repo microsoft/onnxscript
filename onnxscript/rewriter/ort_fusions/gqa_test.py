@@ -19,7 +19,7 @@ from onnxscript import opset18 as op
 from onnxscript.rewriter.ort_fusions import optimize_for_ort
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
-from onnxscript.rewriter.ort_fusions.models._phi2lm import phi2lm_test
+from onnxscript.rewriter.ort_fusions.models._phi4lm import phi4lm_test
 from onnxscript.rewriter.ort_fusions.sdpa import fuse_sdpa
 
 msft_op = onnxscript.values.Opset("com.microsoft", 1)
@@ -362,8 +362,8 @@ class GQAFusionTest(unittest.TestCase):
 
 
 class GQAFusionTest2(unittest.TestCase):
-    def test_phi2lm(self):
-        test_case = phi2lm_test()
+    def test_phi4lm(self):
+        test_case = phi4lm_test()
         model = test_case.get_onnx_model()
         model = shape_inference.infer_shapes(model)
         onnxscript.optimizer.optimize(model)
