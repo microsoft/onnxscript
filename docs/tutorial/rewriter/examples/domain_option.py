@@ -9,19 +9,47 @@ from specific domains and replaces them with operations in other domains.
 import onnx
 
 import onnxscript
-from onnxscript import FLOAT, opset18, script
 from onnxscript.rewriter import pattern
 
 
-@script()
-def original_model(A: FLOAT[2, 2]) -> FLOAT[2, 2]:
-    # This would represent a custom operation in a specific domain
-    # For demonstration, we'll use a standard Relu but imagine it's in a custom domain
-    result = opset18.Relu(A)
-    return result
+def create_model_with_custom_domain():
+    """Create a model with a Relu operation in a custom domain."""
+    import onnx
+    from onnx import helper, TensorProto
+    
+    # Create input
+    input_tensor = helper.make_tensor_value_info('A', TensorProto.FLOAT, [2, 2])
+    
+    # Create output
+    output_tensor = helper.make_tensor_value_info('result', TensorProto.FLOAT, [2, 2])
+    
+    # Create Relu node with custom domain
+    relu_node = helper.make_node(
+        'Relu',
+        inputs=['A'],
+        outputs=['result'],
+        domain='custom.domain'  # Set the custom domain
+    )
+    
+    # Create the graph
+    graph = helper.make_graph(
+        [relu_node],  # nodes
+        'custom_domain_model',  # name
+        [input_tensor],  # inputs
+        [output_tensor]  # outputs
+    )
+    
+    # Create the model with opset for custom domain
+    opset_imports = [
+        helper.make_opsetid("", 18),  # Standard ONNX opset
+        helper.make_opsetid("custom.domain", 1)  # Custom domain opset
+    ]
+    
+    model = helper.make_model(graph, opset_imports=opset_imports)
+    return model
 
 
-_model = original_model.to_model_proto()
+_model = create_model_with_custom_domain()
 onnx.checker.check_model(_model)
 
 
@@ -77,7 +105,7 @@ def apply_rewrite(model):
     return model_with_rewrite
 
 
-# Note: This example is demonstrative. In practice, you would modify the model
-# to have operations in the custom domain before applying the rewrite.
+# The rewrite rule will now match the Relu operation in the custom domain
+# and replace it with a standard ONNX Relu operation
 _model_with_rewrite = apply_rewrite(_model)
 onnx.checker.check_model(_model_with_rewrite)
