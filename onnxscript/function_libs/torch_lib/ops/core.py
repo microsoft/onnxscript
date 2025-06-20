@@ -8655,29 +8655,36 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
         # Handle negative dimension
         if dimension < 0:
             dimension = dimension + self_rank
-        dim_size = self.shape[dimension]
 
-        low_indices = range(0, dim_size, step)
-        hi_indices = range(size, dim_size + 1, step)
-        stack = [
-            op.Slice(
-                self,
-                op.Constant(value_ints=[low]),
-                op.Constant(value_ints=[hi]),
-                op.Constant(value_ints=[dimension]),
-            )
-            for low, hi in zip(low_indices, hi_indices)
-        ]
+        input_shape = op.Shape(self)
+        dim_size = op.Gather(input_shape, op.Constant(value_ints=[dimension]))
 
+        # Create indices for each window
+        window_starts = op.Range(0, op.Sub(dim_size, size - 1), step)
+
+        # Create the base indices for one window
+        window_indices = list(range(size))
+
+        # Broadcast to create all indices
+        starts_expanded = op.Unsqueeze(window_starts, [1])  # [num_windows, 1]
+        indices_expanded = op.Unsqueeze(window_indices, [0])  # [1, size]
+        all_indices = op.Add(starts_expanded, indices_expanded)  # [num_windows, size]
+
+        # Gather along the specified dimension
+        result = op.Gather(self, all_indices, axis=dimension)
+
+        # The result shape is now [..., num_windows, size, ...] with num_windows at position 'dimension'.
+        # We need to move the size dimension to the end:
+        #   Current shape: [..., num_windows, size, ...]
+        #   Target shape:  [..., num_windows, ..., size]
+
+        # Move the size dimension (at position dimension+1) to the end
         # perm need to be list[int], so have to be generated in trace_only mode
-        perm = list(range(self_rank))
-        # from [0,1,2,3,4] -> [0,1,3,4,2] when dimension=1
-        perm.append(perm.pop(dimension))
-        unsqueeze = [
-            op.Unsqueeze(op.Transpose(t, perm=perm), op.Constant(value_ints=[dimension]))
-            for t in stack
-        ]
-        result = op.Concat(*unsqueeze, axis=dimension)
+        perm = list(range(self_rank + 1))
+        perm.append(perm.pop(dimension + 1))
+
+        result = op.Transpose(result, perm=perm)
+
     return result
 
 
