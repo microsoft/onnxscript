@@ -2005,6 +2005,7 @@ def _aten_scaled_dot_product_attention_no_mask_onnx(
     value: TFloat,
     scale: TFloat,
     dropout_p: float,
+    enable_gqa: bool,
 ) -> TFloat:
     # Swap the last two axes of key
     key_shape = op.Shape(key)
@@ -2029,7 +2030,8 @@ def _aten_scaled_dot_product_attention_no_mask_onnx(
         op.MatMul(query_scaled, key_transposed_scaled),
         axis=-1,
     )
-    attn_weight, _ = op.Dropout(attn_weight, dropout_p)
+    if dropout_p > 0.0:
+        attn_weight, _ = op.Dropout(attn_weight, dropout_p)
     return op.MatMul(attn_weight, value)
 
 
@@ -2040,6 +2042,7 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
     attn_mask: BOOL,
     scale: TFloat,
     dropout_p: float,
+    enable_gqa: bool,
 ) -> TFloat:
     # Swap the last two axes of key
     key_shape = op.Shape(key)
@@ -2068,7 +2071,8 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
         op.Add(op.MatMul(query_scaled, key_transposed_scaled), attn_mask),
         axis=-1,
     )
-    attn_weight, _ = op.Dropout(attn_weight, dropout_p)
+    if dropout_p > 0.0:
+        attn_weight, _ = op.Dropout(attn_weight, dropout_p)
     return op.MatMul(attn_weight, value)
 
 
@@ -2079,6 +2083,7 @@ def _aten_scaled_dot_product_attention_float_mask_onnx(
     attn_mask: TFloat,
     scale: TFloat,
     dropout_p: float,
+    enable_gqa: bool,
 ) -> TFloat:
     # Swap the last two axes of key
     key_shape = op.Shape(key)
@@ -2103,7 +2108,8 @@ def _aten_scaled_dot_product_attention_float_mask_onnx(
         op.Add(op.MatMul(query_scaled, key_transposed_scaled), attn_mask),
         axis=-1,
     )
-    attn_weight, _ = op.Dropout(attn_weight, dropout_p)
+    if dropout_p > 0.0:
+        attn_weight, _ = op.Dropout(attn_weight, dropout_p)
     return op.MatMul(attn_weight, value)
 
 
