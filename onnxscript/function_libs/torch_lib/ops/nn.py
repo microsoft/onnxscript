@@ -1772,10 +1772,6 @@ def aten_scaled_dot_product_attention(
         "is_causal and attn_mask cannot be set at the same time"
     )
 
-    assert not enable_gqa, (
-        "conversion of scaled_dot_product_attention not implemented if enable_gqa is True"
-    )
-
     # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     if scale is None:
         scale = _attention_scale(query)
