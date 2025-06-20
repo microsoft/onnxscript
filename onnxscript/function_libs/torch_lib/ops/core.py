@@ -8659,32 +8659,15 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
         input_shape = op.Shape(self)
         dim_size = op.Gather(input_shape, op.Constant(value_ints=[dimension]))
 
-        # Calculate output size: (input_size - kernel_size) // stride + 1
-        output_size = op.Add(
-            op.Div(
-                op.Sub(dim_size, op.Constant(value_ints=[size])),
-                op.Constant(value_ints=[step])
-            ),
-            op.Constant(value_ints=[1])
-        )
-
         # Create indices for each window
-        window_starts = op.Range(
-            op.Constant(value_ints=[0]),
-            op.Sub(dim_size, op.Sub(op.Constant(value_ints=[size]), op.Constant(value_ints=[1]))),
-            op.Constant(value_ints=[step])
-        )
+        window_starts = op.Range(0, op.Sub(dim_size, size - 1), step)
 
         # Create the base indices for one window
-        window_indices = op.Range(
-            op.Constant(value_ints=[0]),
-            op.Constant(value_ints=[size]),
-            op.Constant(value_ints=[1])
-        )
+        window_indices = list(range(size))
 
         # Broadcast to create all indices
-        starts_expanded = op.Unsqueeze(window_starts, op.Constant(value_ints=[1]))  # [num_windows, 1]
-        indices_expanded = op.Unsqueeze(window_indices, op.Constant(value_ints=[0]))  # [1, size]
+        starts_expanded = op.Unsqueeze(window_starts, [1])  # [num_windows, 1]
+        indices_expanded = op.Unsqueeze(window_indices, [0])  # [1, size]
         all_indices = op.Add(starts_expanded, indices_expanded)  # [num_windows, size]
 
         # Gather along the specified dimension
