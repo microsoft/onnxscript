@@ -9,47 +9,22 @@ from specific domains and replaces them with operations in other domains.
 import onnx
 
 import onnxscript
+from onnxscript import script
 from onnxscript.rewriter import pattern
+from onnxscript.values import Opset
+
+# Create an opset for the custom domain
+opset = Opset("custom.domain", 1)
 
 
-def create_model_with_custom_domain():
+@script(opset)
+def create_model_with_custom_domain(input: onnxscript.FLOAT[2, 2]) -> onnxscript.FLOAT[2, 2]:
     """Create a model with a Relu operation in a custom domain."""
-    import onnx
-    from onnx import helper, TensorProto
-    
-    # Create input
-    input_tensor = helper.make_tensor_value_info('A', TensorProto.FLOAT, [2, 2])
-    
-    # Create output
-    output_tensor = helper.make_tensor_value_info('result', TensorProto.FLOAT, [2, 2])
-    
-    # Create Relu node with custom domain
-    relu_node = helper.make_node(
-        'Relu',
-        inputs=['A'],
-        outputs=['result'],
-        domain='custom.domain'  # Set the custom domain
-    )
-    
-    # Create the graph
-    graph = helper.make_graph(
-        [relu_node],  # nodes
-        'custom_domain_model',  # name
-        [input_tensor],  # inputs
-        [output_tensor]  # outputs
-    )
-    
-    # Create the model with opset for custom domain
-    opset_imports = [
-        helper.make_opsetid("", 18),  # Standard ONNX opset
-        helper.make_opsetid("custom.domain", 1)  # Custom domain opset
-    ]
-    
-    model = helper.make_model(graph, opset_imports=opset_imports)
-    return model
+    return opset.Relu(input)
 
 
-_model = create_model_with_custom_domain()
+_model = create_model_with_custom_domain.to_model_proto()
+_model = onnx.shape_inference.infer_shapes(_model)
 onnx.checker.check_model(_model)
 
 
