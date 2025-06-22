@@ -193,7 +193,7 @@ class TestConverter(testutils.TestBase):
 
     def test_set_value_info(self):
         @script()
-        def double_square(x: FLOAT["N"]) -> FLOAT["N"]:
+        def double_square(x):
             square = op.Mul(x, x)
             return op.Add(square, square)
 
@@ -202,7 +202,9 @@ class TestConverter(testutils.TestBase):
         model = double_square.to_model_proto()
         graph = model.graph
         self.assertEqual(len(graph.value_info), 0)
-        model = double_square.to_model_proto(value_infos={"square": FLOAT["N"]})
+        model = double_square.to_model_proto(
+            io_types=FLOAT["N"], value_infos={"square": FLOAT["N"]}
+        )
         graph = model.graph
         self.assertEqual(len(graph.value_info), 1)
         value_info = graph.value_info[0]

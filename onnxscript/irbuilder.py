@@ -417,6 +417,8 @@ class IRFunction:
         Args:
             use_default_type: if True, the function uses a default type
                 for inputs and outputs that do not have a type
+            value_infos: a sequence of :class:`onnx.ValueInfoProto` to be added
+                to the graph.
 
         Returns:
             a pair of a :class:`onnx.GraphProto` and list of :class:`onnx.FunctionProto`
