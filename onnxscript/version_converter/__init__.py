@@ -169,5 +169,5 @@ def convert_version(
     if model_proto is not None:
         # Update the model proto in-place
         model_proto.graph.Clear()
-        del model_proto.functions
+        del model_proto.functions[:]
         model_proto.graph.CopyFrom(ir.to_proto(model.graph))
