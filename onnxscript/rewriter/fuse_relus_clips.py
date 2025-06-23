@@ -158,10 +158,10 @@ class FuseSuccessiveReluClip(FuseSuccessiveClipRelu):
 fuse_successive_relu_rule = FuseSuccessiveRelu().rule()
 fuse_successive_clip_rule = FuseSuccessiveClip().rule()
 fuse_successive_clip_relu_rule = FuseSuccessiveClipRelu().rule()
-fuse_sucessive_relu_clip_rule = FuseSuccessiveReluClip().rule()
+fuse_successive_relu_clip_rule = FuseSuccessiveReluClip().rule()
 
 
-def fuse_relus_clips() -> orp.RewriteRuleSet:
+def fuse_relus_clips_rules() -> orp.RewriteRuleSet:
     """Returns a set of rewrite rules that fuse successive Relu/Clip nodes.
 
     Returns:
@@ -172,7 +172,7 @@ def fuse_relus_clips() -> orp.RewriteRuleSet:
     return orp.RewriteRuleSet(
         [
             fuse_successive_clip_relu_rule,
-            fuse_sucessive_relu_clip_rule,
+            fuse_successive_relu_clip_rule,
             fuse_successive_relu_rule,
             fuse_successive_clip_rule,
         ]
