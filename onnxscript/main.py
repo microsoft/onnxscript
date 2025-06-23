@@ -8,11 +8,10 @@ import inspect
 import sys
 from typing import Any, Callable, Optional, Sequence, TypeVar
 
-import onnx.helper
 from typing_extensions import ParamSpec
 
 import onnxscript
-from onnxscript import converter, irbuilder, values
+from onnxscript import converter, ir, irbuilder, values
 from onnxscript._internal import ast_utils
 
 _R = TypeVar("_R")
@@ -161,11 +160,17 @@ def export_onnx_lib(functions: Sequence[values.OnnxFunction], filename: str) -> 
     # Since we don't yet have LibProto defined, we use a ModelProto as a temporary
     # container for the list of functions exported as a library, with an empty graph
     # and dummy opset_imports.
-    model = onnx.helper.make_model(
-        onnx.GraphProto(),
-        functions=[f.to_function_proto() for f in functions],
-        producer_name="p2o",
-        opset_imports=[onnx.helper.make_opsetid("", 15)],
-    )
 
-    onnx.save(model, filename)
+    # TODO(justinchuby): This function is not well supported. We should consider removing it
+    model = ir.Model(
+        ir.Graph(
+            inputs=[],
+            outputs=[],
+            nodes=[],
+            opset_imports={"": 15},
+        ),
+        functions=[ir.serde.deserialize_function(f.to_function_proto()) for f in functions],
+        ir_version=10,
+        producer_name="p2o",
+    )
+    ir.save(model, filename)

@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 
 import numpy as np
 import onnx
-from onnx import helper, numpy_helper
+import onnx.helper  # noqa: TID251
 from onnx.defs import OpSchema
 
-from onnxscript import tensor
+from onnxscript import ir, tensor
 
 if TYPE_CHECKING:
     from onnxscript import converter
@@ -24,42 +24,8 @@ if TYPE_CHECKING:
 # Utilities to convert a python value to TensorProto (for use by the script converter)
 
 
-def _py_type_to_onnx_type(pytype: type):
-    if pytype is bool:
-        return onnx.TensorProto.BOOL
-    if pytype is int:
-        return onnx.TensorProto.INT64
-    if pytype is float:
-        return onnx.TensorProto.FLOAT
-    if pytype is str:
-        return onnx.TensorProto.STRING
-    raise ValueError(f"Tensor element of type {pytype} not supported")
-
-
 def pyvalue_to_onnx_tensor(tensor_name: str, pyvalue):
-    if isinstance(pyvalue, np.ndarray):
-        return numpy_helper.from_array(pyvalue, tensor_name)
-    if isinstance(pyvalue, list):
-        if len(pyvalue) == 0:
-            raise ValueError("Cannot convert an empty list to tensor")
-        pytype = type(pyvalue[0])
-        if not all(isinstance(e, pytype) for e in pyvalue):
-            raise ValueError(
-                "Cannot convert an list with elements of different types to tensor"
-            )
-        return helper.make_tensor(
-            tensor_name,
-            _py_type_to_onnx_type(pytype),
-            [len(pyvalue)],
-            pyvalue,
-        )
-    onnx_type = _py_type_to_onnx_type(type(pyvalue))
-    if onnx_type is onnx.TensorProto.BOOL:
-        return helper.make_tensor(tensor_name, onnx_type, [], [int(pyvalue)])
-    if onnx_type is onnx.TensorProto.STRING:
-        return helper.make_tensor(tensor_name, onnx_type, [], vals=[pyvalue.encode("utf-8")])
-
-    return helper.make_tensor(tensor_name, onnx_type, [], [pyvalue])
+    return ir.serde.serialize_tensor(ir.tensor(pyvalue, name=tensor_name))
 
 
 _REPEATED_ATTRIBUTE_TYPES = frozenset(
@@ -79,7 +45,7 @@ def pyvalue_to_onnx_attribute(
     key: str,
     value: Any,
     name_generator: Callable[[], str],
-    attr_type: Optional[onnx.AttributeProto.AttributeType] = None,
+    attr_type: onnx.AttributeProto.AttributeType | None = None,
 ) -> onnx.AttributeProto:
     """Helper function to create an ONNX AttributeProto.
 
@@ -103,7 +69,9 @@ def pyvalue_to_onnx_attribute(
             name=key, type=attr_type, t=pyvalue_to_onnx_tensor(name_generator(), value)
         )
     else:
-        return onnx.helper.make_attribute(key, value)
+        # When the value is a subgraph, ONNX IR will complain that some values are
+        # not found from the scope.
+        return onnx.helper.make_attribute(key, value)  # noqa: TID251
 
 
 # Utilities to convert python values into onnxscript tensors.

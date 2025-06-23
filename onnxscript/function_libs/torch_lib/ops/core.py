@@ -61,20 +61,18 @@ _MATH_PI = math.pi
 Rank = common_ops.Rank
 
 
-@torch_op("aten::_local_scalar_dense")
-def aten__local_scalar_dense(self: Union[FLOAT16, FLOAT, DOUBLE, BFLOAT16]) -> FLOAT:
+@torch_op("aten::_local_scalar_dense", trace_only=True)
+def aten__local_scalar_dense(self: TensorType) -> TensorType:
     """_local_scalar_dense(Tensor self) -> Scalar"""
 
     # Return the first element in tensor as a scalar.
-    return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=FLOAT.dtype)
-
-
-@torch_op("aten::_local_scalar_dense")
-def aten__local_scalar_dense_int(self: IntType) -> INT64:
-    """_local_scalar_dense(Tensor self) -> Scalar"""
-
-    # Return the first element in tensor as a scalar.
-    return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=INT64.dtype)
+    if self.dtype.is_floating_point():
+        dtype = ir.DataType.FLOAT
+    elif self.dtype == ir.DataType.BOOL:
+        dtype = ir.DataType.BOOL
+    else:
+        dtype = ir.DataType.INT64
+    return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=dtype)
 
 
 @torch_op("aten::_log_softmax", trace_only=True)
@@ -3654,6 +3652,19 @@ def aten_floor_divide(self: TFloat, other: TFloat) -> TFloat:
     return op.Floor(op.Div(self, other))
 
 
+@torch_op("aten::floor_divide", trace_only=True)
+def aten_floor_divide_int(self: TInt, other: TInt) -> TInt:
+    """floor_divide(Tensor self, Tensor other) -> Tensor"""
+
+    # TODO(justinchuby): This can be simplified if we can constrain the
+    # inputs to be positive integers. Consider how we can embed constraints in the model.
+    dtype = self.dtype
+    self = op.Cast(self, to=FLOAT.dtype)
+    other = op.Cast(other, to=FLOAT.dtype)
+    result = op.Floor(op.Div(self, other))
+    return op.Cast(result, to=dtype)
+
+
 @torch_op("_operator::floordiv", trace_only=True)
 def operator_floordiv(self: INT64, other: INT64) -> INT64:
     # We implement floor_divide only for positive inputs (using integer division)
@@ -4380,7 +4391,7 @@ def aten_index_put(
         reshape_list = _make_reshape_list_broadcastable(reshape_list, values_shape, values_rank)
 
         # Reshape and expand the index.
-        idx = op.Reshape(idx, reshape_list)
+        idx = op.Reshape(idx, reshape_list, allowzero=True)
         idx = op.Expand(idx, values_shape)
 
         # Flatten the index to 1D and unsqueeze to form a column vector.
@@ -4537,7 +4548,7 @@ def aten_instance_norm(
         momentum=1.0 - momentum,
         training_mode=False,
     )
-    return op.Reshape(norm, op.Shape(input))
+    return op.Reshape(norm, op.Shape(input), allowzero=True)
 
 
 def aten_int_repr(self: TensorType) -> TensorType:
@@ -5305,14 +5316,14 @@ def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, I
     return result, indices
 
 
-@torch_op(("aten::maximum", "aten::max.other"))
+@torch_op("aten::maximum")
 def aten_maximum(self: TReal, other: TReal) -> TReal:
     """maximum(Tensor self, Tensor other) -> Tensor"""
 
     return op.Max(self, other)
 
 
-@torch_op(("aten::maximum", "aten::max.other"))
+@torch_op("aten::maximum")
 def aten_maximum_bool(self: BOOL, other: BOOL) -> BOOL:
     """maximum(Tensor self, Tensor other) -> Tensor"""
 
@@ -5372,14 +5383,14 @@ def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, T
     return result, indices
 
 
-@torch_op(("aten::minimum", "aten::min.other"))
+@torch_op("aten::minimum")
 def aten_minimum(self: TReal, other: TReal) -> TReal:
     """minimum(Tensor self, Tensor other) -> Tensor"""
 
     return op.Min(self, other)
 
 
-@torch_op(("aten::minimum", "aten::min.other"))
+@torch_op("aten::minimum")
 def aten_minimum_bool(self: BOOL, other: BOOL) -> BOOL:
     """minimum(Tensor self, Tensor other) -> Tensor"""
 
@@ -6234,7 +6245,7 @@ def _aten_native_group_norm_onnx(
         input_reshaped, weight_inst_norm, bias_inst_norm, epsilon=eps
     )
     # Reshape back to input's shape
-    norm = op.Reshape(norm, op.Shape(input))
+    norm = op.Reshape(norm, op.Shape(input), allowzero=True)
     # Using the input weight and bias to do affine
     # But need to unsqueeze to the target shape for broading cast easy
     input_rank = Rank(input)
@@ -6683,7 +6694,7 @@ def aten_pixel_shuffle(self: TReal, upscale_factor: int) -> TReal:
     )
     depth_to_space = op.DepthToSpace(reshaped_self, blocksize=upscale_factor, mode="CRD")
     output_shape = op.Concat(batch_dims, op.Shape(depth_to_space)[1:], axis=0)
-    return op.Reshape(depth_to_space, output_shape)
+    return op.Reshape(depth_to_space, output_shape, allowzero=True)
 
 
 @torch_op("aten::pixel_unshuffle")
@@ -6699,7 +6710,7 @@ def aten_pixel_unshuffle(self: TReal, downscale_factor: int) -> TReal:
     )
     space_to_depth = op.SpaceToDepth(reshaped_self, blocksize=downscale_factor)
     output_shape = op.Concat(batch_dims, op.Shape(space_to_depth)[1:], axis=0)
-    return op.Reshape(space_to_depth, output_shape)
+    return op.Reshape(space_to_depth, output_shape, allowzero=True)
 
 
 def aten_poisson(self: TensorType, generator: Optional[str] = None) -> TensorType:
@@ -6745,13 +6756,26 @@ def aten_positive(self: TensorType) -> TensorType:
 @torch_op(("aten::pow.Tensor_Tensor", "_operator::pow"), trace_only=True)
 def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     """pow(Tensor self, Tensor exponent) -> Tensor"""
+    # TODO(justinchuby): Add type promotion
     return op.Pow(self, exponent)
 
 
 @torch_op("aten::pow.Tensor_Scalar", trace_only=True)
 def aten_pow_tensor_scalar(self: TReal, exponent: float) -> TReal:
     """pow(Tensor self, Scalar exponent) -> Tensor"""
-    return op.Pow(self, exponent)
+    if self.dtype.is_floating_point():
+        # Handle cases when e.g. (1) self is float16 or int
+        return op.Pow(self, ir.tensor(exponent, dtype=self.dtype))
+    # For integer types, we need to cast self to the exponent type
+    if isinstance(exponent, int):
+        # The scalar exponent can be an int
+        return op.Pow(self, ir.tensor(exponent, dtype=self.dtype))
+
+    # exponent is float so we cast self to match the exponent type.
+    # More precisely if self is float64, we should cast exponent to float64; but
+    # this is uncommon and should be fixed when we create a general type promotion
+    # mechanism for torchlib
+    return op.Pow(op.Cast(self, to=FLOAT.dtype), exponent)
 
 
 @torch_op("aten::pow.Scalar", trace_only=True)
@@ -7630,6 +7654,8 @@ def aten_scatter_reduce(
                 value = ir.tensor([np.finfo(dtype.numpy()).min], dtype=dtype)
             elif dtype == ir.DataType.BFLOAT16:
                 value = ir.tensor([torch.finfo(torch.bfloat16).min], dtype=dtype)
+            elif dtype == ir.DataType.BOOL:
+                value = ir.tensor([False], dtype=dtype)
             else:
                 value = ir.tensor([np.iinfo(dtype.numpy()).min], dtype=dtype)
             reduction_init = "min"
@@ -7641,7 +7667,9 @@ def aten_scatter_reduce(
             }:
                 value = ir.tensor([np.finfo(dtype.numpy()).max], dtype=dtype)
             elif dtype == ir.DataType.BFLOAT16:
-                value = ir.tensor([torch.finfo(torch.bfloat16).min], dtype=dtype)
+                value = ir.tensor([torch.finfo(torch.bfloat16).max], dtype=dtype)
+            elif dtype == ir.DataType.BOOL:
+                value = ir.tensor([True], dtype=dtype)
             else:
                 value = ir.tensor([np.iinfo(dtype.numpy()).max], dtype=dtype)
             reduction_init = "max"
@@ -7652,7 +7680,7 @@ def aten_scatter_reduce(
             value = ir.tensor([1], dtype=dtype)
             reduction_init = "none"
         else:
-            value = 0
+            value = ir.tensor([0], dtype=dtype)
             reduction_init = "none"
 
         cst = op.ConstantOfShape(op.Shape(src), value=value)
@@ -8376,7 +8404,7 @@ def aten_tile(self: TTensor, dims: INT64) -> TTensor:
         exapnd_ones = op.Expand(op.Constant(value_ints=[1]), diff_1d)
         self_shape = op.Shape(self)
         self_final_shape = op.Concat(exapnd_ones, self_shape, axis=0)
-        self = op.Reshape(self, self_final_shape)
+        self = op.Reshape(self, self_final_shape, allowzero=True)
 
     return op.Tile(self, dims)
 
@@ -8616,7 +8644,7 @@ def aten_unflatten(self: TReal, dim: int, sizes: Sequence[INT64]):
         final_shape = op.Concat(head_part_rank, *sizes, axis=0)
     else:
         final_shape = op.Concat(head_part_rank, *sizes, tail_part_rank, axis=0)
-    return op.Reshape(self, final_shape)
+    return op.Reshape(self, final_shape, allowzero=True)
 
 
 @torch_op("aten::unfold", trace_only=True)
@@ -8630,29 +8658,36 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
         # Handle negative dimension
         if dimension < 0:
             dimension = dimension + self_rank
-        dim_size = self.shape[dimension]
 
-        low_indices = range(0, dim_size, step)
-        hi_indices = range(size, dim_size + 1, step)
-        stack = [
-            op.Slice(
-                self,
-                op.Constant(value_ints=[low]),
-                op.Constant(value_ints=[hi]),
-                op.Constant(value_ints=[dimension]),
-            )
-            for low, hi in zip(low_indices, hi_indices)
-        ]
+        input_shape = op.Shape(self)
+        dim_size = op.Gather(input_shape, op.Constant(value_ints=[dimension]))
 
+        # Create indices for each window
+        window_starts = op.Range(0, op.Sub(dim_size, size - 1), step)
+
+        # Create the base indices for one window
+        window_indices = list(range(size))
+
+        # Broadcast to create all indices
+        starts_expanded = op.Unsqueeze(window_starts, [1])  # [num_windows, 1]
+        indices_expanded = op.Unsqueeze(window_indices, [0])  # [1, size]
+        all_indices = op.Add(starts_expanded, indices_expanded)  # [num_windows, size]
+
+        # Gather along the specified dimension
+        result = op.Gather(self, all_indices, axis=dimension)
+
+        # The result shape is now [..., num_windows, size, ...] with num_windows at position 'dimension'.
+        # We need to move the size dimension to the end:
+        #   Current shape: [..., num_windows, size, ...]
+        #   Target shape:  [..., num_windows, ..., size]
+
+        # Move the size dimension (at position dimension+1) to the end
         # perm need to be list[int], so have to be generated in trace_only mode
-        perm = list(range(self_rank))
-        # from [0,1,2,3,4] -> [0,1,3,4,2] when dimension=1
-        perm.append(perm.pop(dimension))
-        unsqueeze = [
-            op.Unsqueeze(op.Transpose(t, perm=perm), op.Constant(value_ints=[dimension]))
-            for t in stack
-        ]
-        result = op.Concat(*unsqueeze, axis=dimension)
+        perm = list(range(self_rank + 1))
+        perm.append(perm.pop(dimension + 1))
+
+        result = op.Transpose(result, perm=perm)
+
     return result
 
 
@@ -8692,11 +8727,11 @@ def aten__unique(
     unique_values, _, inverse_indices, _ = op.Unique(self, axis=None, sorted=True)
     input_size = op.Shape(self)
     if return_inverse:
-        inverse_indices = op.Reshape(inverse_indices, input_size)
+        inverse_indices = op.Reshape(inverse_indices, input_size, allowzero=True)
     else:
         input_numel = op.ReduceProd(input_size, keepdims=False)
         if input_numel == 0:
-            inverse_indices = op.Reshape(inverse_indices, input_size)
+            inverse_indices = op.Reshape(inverse_indices, input_size, allowzero=True)
         else:
             inverse_indices = op.ConstantOfShape([0])
             inverse_indices = op.Cast(inverse_indices, to=INT64.dtype)
@@ -8715,11 +8750,11 @@ def aten__unique2(
     unique_values, _, inverse_indices, counts = op.Unique(self, axis=None, sorted=True)
     input_size = op.Shape(self)
     if return_inverse:
-        inverse_indices = op.Reshape(inverse_indices, input_size)
+        inverse_indices = op.Reshape(inverse_indices, input_size, allowzero=True)
     else:
         input_numel = op.ReduceProd(input_size, keepdims=False)
         if input_numel == 0:
-            inverse_indices = op.Reshape(inverse_indices, input_size)
+            inverse_indices = op.Reshape(inverse_indices, input_size, allowzero=True)
         else:
             inverse_indices = op.ConstantOfShape([0])
             inverse_indices = op.Cast(inverse_indices, to=INT64.dtype)
@@ -9005,7 +9040,7 @@ def aten_view(self: TTensor, size: IntType) -> TTensor:
     """view(Tensor(a) self, SymInt[] size) -> Tensor(a)"""
 
     size = op.Cast(size, to=INT64.dtype)  # Reshape only support INT64 as second input
-    return op.Reshape(self, size)
+    return op.Reshape(self, size, allowzero=True)
 
 
 @torch_op(("aten::view", "aten::_unsafe_view"), complex=True)
@@ -9014,7 +9049,7 @@ def aten_view_complex(self: TTensor, size: IntType) -> TTensor:
 
     size = op.Cast(size, to=INT64.dtype)  # Reshape only support INT64 as second input
     complex_size = op.Concat(size, op.Constant(value_ints=[2]), axis=0)
-    return op.Reshape(self, complex_size)
+    return op.Reshape(self, complex_size, allowzero=True)
 
 
 @torch_op("aten::view_as")
@@ -9022,7 +9057,7 @@ def aten_view_as(self: TTensor, other: TTensor2) -> TTensor:
     """view_as(Tensor(a) self, Tensor other) -> Tensor(a)"""
 
     size = op.Shape(other)
-    return op.Reshape(self, size)
+    return op.Reshape(self, size, allowzero=True)
 
 
 @torch_op("aten::view_as_complex", trace_only=True)

@@ -163,9 +163,9 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
                 np.testing.assert_allclose(expected1, expected2)
                 with self.subTest(
                     c_shape=c.shape,
-                    le=list(le),
+                    le=le.tolist(),
                     expected_shape=expected1.shape,
-                    weights=we,
+                    weights=we.tolist(),
                 ):
                     case = onnx_script_test_case.FunctionTestParams(
                         signal_dft.dft_last_axis, [x, le, False], [expected1]
@@ -192,7 +192,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
             nax = np.array([ax], dtype=np.int64)
             with self.subTest(
                 x_shape=x.shape,
-                le=list(le),
+                le=le.tolist(),
                 ax=ax,
                 expected_shape=expected.shape,
             ):
@@ -230,7 +230,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
                 np.testing.assert_allclose(expected1, expected2)
                 with self.subTest(
                     c_shape=c.shape,
-                    le=list(le),
+                    le=le.tolist(),
                     ax=ax,
                     expected_shape=expected1.shape,
                 ):
@@ -256,7 +256,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
                 nax = np.array([ax], dtype=np.int64)
                 with self.subTest(
                     x_shape=x.shape,
-                    le=list(le),
+                    le=le.tolist(),
                     ax=str(ax),
                     expected_shape=expected.shape,
                 ):
@@ -295,7 +295,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
                 np.testing.assert_allclose(expected1, expected2)
                 with self.subTest(
                     c_shape=c.shape,
-                    le=list(le),
+                    le=le.tolist(),
                     ax=str(ax),
                     expected_shape=expected1.shape,
                 ):

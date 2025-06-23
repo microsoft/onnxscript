@@ -71,6 +71,7 @@ __all__ = [
     "TensorProtoTensor",
     # Conversion functions
     "from_proto",
+    "from_onnx_text",
     "to_proto",
     # Convenience constructors
     "tensor",
@@ -82,14 +83,15 @@ __all__ = [
     "save",
 ]
 
-from onnxscript.ir import convenience, external_data, passes, serde, tape, traversal
-from onnxscript.ir._convenience._constructors import node, tensor
-from onnxscript.ir._core import (
+from onnx_ir import (
+    ArrayCompatible,
     Attr,
     AttrFloat32,
     AttrFloat32s,
     AttrGraph,
     AttrGraphs,
+    AttributeProtocol,
+    AttributeType,
     AttrInt64,
     AttrInt64s,
     AttrSparseTensor,
@@ -100,58 +102,53 @@ from onnxscript.ir._core import (
     AttrTensors,
     AttrTypeProto,
     AttrTypeProtos,
+    DataType,
+    DLPackCompatible,
     ExternalTensor,
     Function,
+    FunctionProtocol,
     Graph,
+    GraphProtocol,
     GraphView,
+    GraphViewProtocol,
     Input,
     LazyTensor,
+    MapTypeProtocol,
     Model,
+    ModelProtocol,
     Node,
+    NodeProtocol,
+    OperatorIdentifier,
     OptionalType,
     RefAttr,
+    ReferenceAttributeProtocol,
     SequenceType,
     Shape,
+    ShapeProtocol,
+    SparseTensorProtocol,
     SparseTensorType,
     StringTensor,
     SymbolicDim,
+    SymbolicDimProtocol,
     Tensor,
+    TensorProtocol,
+    TensorProtoTensor,
     TensorType,
     TypeAndShape,
-    Value,
-)
-from onnxscript.ir._enums import (
-    AttributeType,
-    DataType,
-)
-from onnxscript.ir._io import load, save
-from onnxscript.ir._protocols import (
-    ArrayCompatible,
-    AttributeProtocol,
-    DLPackCompatible,
-    FunctionProtocol,
-    GraphProtocol,
-    GraphViewProtocol,
-    MapTypeProtocol,
-    ModelProtocol,
-    NodeProtocol,
-    OperatorIdentifier,
-    ReferenceAttributeProtocol,
-    ShapeProtocol,
-    SparseTensorProtocol,
-    SymbolicDimProtocol,
-    TensorProtocol,
     TypeProtocol,
+    Value,
     ValueProtocol,
+    convenience,
+    external_data,
+    from_onnx_text,
+    from_proto,
+    load,
+    node,
+    passes,
+    save,
+    serde,
+    tape,
+    tensor,
+    to_proto,
+    traversal,
 )
-from onnxscript.ir.serde import TensorProtoTensor, from_proto, to_proto
-
-
-def __set_module() -> None:
-    """Set the module of all functions in this module to this public module."""
-    global_dict = globals()
-    for name in __all__:
-        global_dict[name].__module__ = __name__
-
-
-__set_module()

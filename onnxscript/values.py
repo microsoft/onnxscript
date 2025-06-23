@@ -176,7 +176,7 @@ def _get_attribute_value(attr_proto: onnx.AttributeProto) -> Any:
     """Get the default value of an ONNX attribute."""
     if attr_proto.type == onnx.AttributeProto.UNDEFINED:
         return _EmptyDefault
-    return onnx.helper.get_attribute_value(attr_proto)
+    return onnx.helper.get_attribute_value(attr_proto)  # noqa: TID251
 
 
 def _param_schemas_from_op_schema(
@@ -320,11 +320,6 @@ class Op(OpLike):
     def op_schema(self) -> Optional[onnx.defs.OpSchema]:
         return self._op_schema
 
-    @deprecation.deprecated(
-        since="0.1",
-        removed_in="the future",
-        instructions="check if '.op_schema' is not None instead",
-    )
     def has_schema(self) -> bool:
         """Returns True if this op has an OpSchema."""
         return self.op_schema is not None
@@ -345,11 +340,6 @@ class Op(OpLike):
     def op_signature(self, value: _schemas.OpSignature):
         self._signature = value
 
-    @deprecation.deprecated(
-        since="0.1",
-        removed_in="the future",
-        instructions="use '.op_signature' instead",
-    )
     def param_schemas(self) -> Optional[tuple[ParamSchema, ...]]:
         """Returns the parameter schemas for this op, if it has one."""
         if self._param_schemas is not None:
@@ -583,11 +573,6 @@ class OnnxFunction(Op, Generic[_P, _R]):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.function!r})"
 
-    @deprecation.deprecated(
-        since="0.1",
-        removed_in="the future",
-        instructions="use '.op_signature' instead",
-    )
     def param_schemas(self) -> tuple[ParamSchema, ...]:
         """Returns the parameter schemas of this function."""
         if self._param_schemas is not None:
@@ -691,11 +676,6 @@ class TracedOnnxFunction(Op):
     def op_signature(self, value: _schemas.OpSignature):
         self._signature = value
 
-    @deprecation.deprecated(
-        since="0.1",
-        removed_in="the future",
-        instructions="use '.op_signature' instead",
-    )
     def param_schemas(self) -> tuple[ParamSchema, ...]:
         """Returns the parameter schemas of this function."""
         if self._param_schemas is not None:

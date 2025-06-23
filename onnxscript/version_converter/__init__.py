@@ -11,11 +11,10 @@ import logging
 
 import onnx
 
+import onnxscript.ir.passes
+import onnxscript.ir.passes.common
 from onnxscript import ir
-from onnxscript.ir.passes.common import _c_api_utils
-from onnxscript.ir.passes.common import inliner as _inliner
-from onnxscript.ir.passes.common import unused_removal as _unused_removal
-from onnxscript.version_converter import _version_converter
+from onnxscript.version_converter import _c_api_utils, _version_converter
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +39,14 @@ class ConvertVersionPass(ir.passes.InPlacePass):
         self.target_version = target_version
         self.fallback = fallback
         self.convert_pass = ir.passes.Sequential(
-            _inliner.InlinePass(),
+            onnxscript.ir.passes.common.InlinePass(),
             _ConvertVersionPassRequiresInline(
                 target_version=target_version,
                 fallback=fallback,
             ),
-            _unused_removal.RemoveUnusedNodesPass(),
-            _unused_removal.RemoveUnusedFunctionsPass(),
-            _unused_removal.RemoveUnusedOpsetsPass(),
+            onnxscript.ir.passes.common.RemoveUnusedNodesPass(),
+            onnxscript.ir.passes.common.RemoveUnusedFunctionsPass(),
+            onnxscript.ir.passes.common.RemoveUnusedOpsetsPass(),
         )
 
     def call(self, model: ir.Model) -> ir.passes.PassResult:
@@ -78,7 +77,7 @@ class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
         if model.functions:
             raise ValueError(
                 "The model contains functions. The version conversion pass does not support "
-                "functions. Please use `onnxscript.ir.passes.common.inliner.InlinePass` to inline the "
+                "functions. Please use `onnxscript.ir.passes.common.InlinePass` to inline the "
                 f"functions before applying this pass ({self.__class__.__name__})."
             )
         if "" in model.graph.opset_imports:
@@ -147,7 +146,9 @@ class _ConvertVersionPassRequiresInline(ir.passes.InPlacePass):
         return ir.passes.PassResult(model, True)
 
 
-def convert_version(model: ir.Model, target_version: int, fallback=False) -> None:
+def convert_version(
+    model: ir.Model | onnx.ModelProto, target_version: int, fallback=None
+) -> None:
     """Convert the model to the specified ONNX opset version.
 
     Args:
@@ -156,4 +157,17 @@ def convert_version(model: ir.Model, target_version: int, fallback=False) -> Non
         fallback: Whether to fallback to the onnx version converter if the
             target version is not supported. Default is False.
     """
+    if isinstance(model, onnx.ModelProto):
+        model_proto = model
+        model = ir.from_proto(model)
+    else:
+        model_proto = None
+
+    assert isinstance(model, ir.Model)
     ConvertVersionPass(target_version=target_version, fallback=fallback)(model)
+
+    if model_proto is not None:
+        # Update the model proto in-place
+        model_proto.graph.Clear()
+        del model_proto.functions[:]
+        model_proto.graph.CopyFrom(ir.to_proto(model.graph))

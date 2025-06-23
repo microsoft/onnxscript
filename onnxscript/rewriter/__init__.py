@@ -12,14 +12,13 @@ __all__ = [
 
 import onnx
 
+import onnxscript.ir.passes.common as common_passes
 from onnxscript import ir
-from onnxscript.ir.passes.common import unused_removal
 from onnxscript.rewriter import (
+    basic_rules,
     broadcast_to_matmul,
     cast_constant_of_shape,
     collapse_slices,
-    gemm_to_matmul_add,
-    llama_rule_sets,
     no_op,
     pattern,
 )
@@ -28,10 +27,9 @@ _ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
 _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
     *no_op.rules.rules,  # TODO: merge this rule into constant folding?
     *broadcast_to_matmul.rules.rules,
-    gemm_to_matmul_add.rule,  # type: ignore[has-type]
     *cast_constant_of_shape.rules.rules,
     *collapse_slices.rules.rules,
-    *llama_rule_sets.llama_p0_rule_set().rules,
+    *basic_rules.basic_optimization_rules().rules,
 )
 
 
@@ -90,9 +88,9 @@ def rewrite(
     rewrite_pass = ir.passes.PassManager(
         (
             RewritePass(pattern_rewrite_rules),
-            unused_removal.RemoveUnusedNodesPass(),
-            unused_removal.RemoveUnusedFunctionsPass(),
-            unused_removal.RemoveUnusedOpsetsPass(),
+            common_passes.RemoveUnusedNodesPass(),
+            common_passes.RemoveUnusedFunctionsPass(),
+            common_passes.RemoveUnusedOpsetsPass(),
         )
     )
     model_ir = rewrite_pass(model_ir).model

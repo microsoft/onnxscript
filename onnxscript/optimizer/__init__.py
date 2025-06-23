@@ -16,8 +16,7 @@ __all__ = [
 
 import onnx
 
-import onnxscript.ir.passes.common.inliner
-import onnxscript.ir.passes.common.unused_removal
+import onnxscript.ir.passes.common
 import onnxscript.optimizer._constant_folding as constant_folding
 from onnxscript import ir
 from onnxscript.optimizer._constant_folding import (
@@ -91,7 +90,7 @@ def optimize(
 def inline(model: ir.Model) -> None:
     """Inline all function calls (recursively) in the model."""
     if model.functions:
-        onnxscript.ir.passes.common.inliner.InlinePass()(model)
+        onnxscript.ir.passes.common.InlinePass()(model)
 
 
 def fold_constants(
@@ -112,19 +111,13 @@ def fold_constants(
         return result
 
 
-def remove_unused_nodes(
-    model: ir.Model | onnx.ModelProto, remove_initialized_inputs: bool = False
-) -> None:
+def remove_unused_nodes(model: ir.Model | onnx.ModelProto) -> None:
     """Removes unused nodes from a model inplace."""
     if isinstance(model, ir.Model):
-        onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass(
-            remove_initialized_inputs=remove_initialized_inputs
-        )(model)
+        onnxscript.ir.passes.common.RemoveUnusedNodesPass()(model)
     else:
         model_ir = ir.serde.deserialize_model(model)
-        model_ir = onnxscript.ir.passes.common.unused_removal.RemoveUnusedNodesPass(
-            remove_initialized_inputs=remove_initialized_inputs
-        )(model_ir).model
+        model_ir = onnxscript.ir.passes.common.RemoveUnusedNodesPass()(model_ir).model
         new_proto = ir.serde.serialize_model(model_ir)
         model.Clear()
         model.CopyFrom(new_proto)
@@ -133,12 +126,10 @@ def remove_unused_nodes(
 def remove_unused_functions(model: ir.Model | onnx.ModelProto) -> None:
     """Removes unused functions from a model inplace."""
     if isinstance(model, ir.Model):
-        onnxscript.ir.passes.common.unused_removal.RemoveUnusedFunctionsPass()(model)
+        onnxscript.ir.passes.common.RemoveUnusedFunctionsPass()(model)
     else:
         model_ir = ir.serde.deserialize_model(model)
-        model_ir = onnxscript.ir.passes.common.unused_removal.RemoveUnusedFunctionsPass()(
-            model_ir
-        ).model
+        model_ir = onnxscript.ir.passes.common.RemoveUnusedFunctionsPass()(model_ir).model
         new_proto = ir.serde.serialize_model(model_ir)
         model.Clear()
         model.CopyFrom(new_proto)

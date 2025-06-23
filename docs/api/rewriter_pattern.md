@@ -25,14 +25,15 @@
     rewriter.pattern.NodeOutputPattern
     rewriter.pattern.AnyValue
     rewriter.pattern.Constant
+    rewriter.pattern.OrValue
     rewriter.pattern.GraphPattern
     rewriter.pattern.ReplacementSubgraph
     rewriter.pattern.ReplacementPatternFunction
     rewriter.pattern.PatternMatcher
     rewriter.pattern.SimplePatternMatcher
     rewriter.pattern.RewriteRule
-    rewriter.pattern.RewriteRuleAsClass
     rewriter.pattern.RewriteRuleSet
+    rewriter.pattern.RewriteRuleClassBase
     rewriter.pattern.MatchStatus
     rewriter.pattern.MatchInfo
     rewriter.pattern.MatchingTracer

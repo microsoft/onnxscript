@@ -17,8 +17,6 @@ from __future__ import annotations
 import math
 from typing import Optional, Sequence, Tuple, TypeVar, Union
 
-import onnx
-
 from onnxscript import BFLOAT16, BOOL, DOUBLE, FLOAT, FLOAT16, INT64, ir
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
@@ -827,10 +825,15 @@ def aten_leaky_relu_backward(
 def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) -> TFloat:
     """linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor"""
 
-    if len(input.shape) == 2:
+    if len(input.shape) == 2 and len(weight.shape) == 2:
         # Use Gemm for the rank 2 input
         return op.Gemm(input, weight, bias, transB=True)
-    weight_transposed = op.Transpose(weight, perm=[1, 0])
+    if len(weight.shape) == 1:
+        # In rare cases the weight can be 1d
+        weight_transposed = op.Unsqueeze(weight, [1])
+    else:
+        assert len(weight.shape) == 2
+        weight_transposed = op.Transpose(weight, perm=[1, 0])
     mul = op.MatMul(input, weight_transposed)
     if bias is None:
         return mul
@@ -1798,15 +1801,11 @@ def _aten__scaled_dot_product_flash_attention_fillin_empty_outputs(
         op.Shape(query), op.Constant(value_ints=[0]), op.Constant(value_ints=[3])
     )
     logsumexp = op.Expand(0.0, query_first_three_dims)
-    # TODO: Eliminate `make_tensor` usage when ORT supports empty tensor.
-    empty_tensor_int = op.Cast(
-        op.ConstantOfShape(
-            op.Constant(value=onnx.helper.make_tensor("Empty_INTS", INT64.dtype, [0], []))
-        ),
-        to=INT64.dtype,
+    empty_tensor_int = op.ConstantOfShape(
+        op.Constant(value=ir.tensor([], dtype=ir.DataType.INT64))
     )
     empty_tensor_float = op.ConstantOfShape(
-        op.Constant(value=onnx.helper.make_tensor("Empty_FLOATS", INT64.dtype, [0], []))
+        op.Constant(value=ir.tensor([], dtype=ir.DataType.FLOAT))
     )
     empty_int = op.Constant(value_int=0)
 
@@ -1881,11 +1880,8 @@ def _aten_scaled_dot_product_efficient_attention_fillin_empty_outputs(
         logsum_exp = op.Expand(0.0, op.Concat(query_first_dims, num_heads, [0], axis=0))
 
     # See Note [Seed and Offset]:
-    empty_tensor_int = op.Cast(
-        op.ConstantOfShape(
-            op.Constant(value=onnx.helper.make_tensor("Empty_INTS", INT64.dtype, [0], []))
-        ),
-        to=INT64.dtype,
+    empty_tensor_int = op.ConstantOfShape(
+        op.Constant(value=ir.tensor([], dtype=ir.DataType.INT64))
     )
 
     return logsum_exp, empty_tensor_int
@@ -2321,6 +2317,7 @@ def _aten_upsample_output_size(
     output_size: INT64,
     mode: str,
     coordinate_transformation_mode: str,
+    antialias: int = 0,
 ) -> TReal:
     batch_and_channel = op.Shape(self, end=2, start=0)
     # When output_size is passed in as a list of integers, the torch.onnx
@@ -2337,6 +2334,7 @@ def _aten_upsample_output_size(
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
         nearest_mode="floor",
+        antialias=antialias,
     )
 
 
@@ -2345,6 +2343,7 @@ def _aten_upsample_scales(
     scale_factors: Sequence[float],
     mode: str,
     coordinate_transformation_mode: str,
+    antialias: int = 0,
 ) -> TReal:
     return op.Resize(
         self,
@@ -2356,6 +2355,7 @@ def _aten_upsample_scales(
         mode=mode,
         coordinate_transformation_mode=coordinate_transformation_mode,
         nearest_mode="floor",
+        antialias=antialias,
     )
 
 
@@ -2377,6 +2377,28 @@ def aten_upsample_bicubic2d(
         output_size,
         mode="cubic",
         coordinate_transformation_mode=coordinate_transformation_mode,
+    )
+
+
+@torch_op("aten::_upsample_bicubic2d_aa", trace_only=True)
+def aten__upsample_bicubic2d_aa(
+    self: TReal,
+    output_size: INT64,
+    align_corners: bool,
+    scales_h: Optional[float] = None,
+    scales_w: Optional[float] = None,
+) -> TReal:
+    """_upsample_bicubic2d_aa(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
+
+    # NOTE: Based on experimentation, scales_h and scales_w are always ignored in PyTorch,
+    # unless when align_corners is True, in which case we do not know what is going on.
+    coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    return _aten_upsample_output_size(
+        self,
+        output_size,
+        mode="cubic",
+        coordinate_transformation_mode=coordinate_transformation_mode,
+        antialias=1,
     )
 
 
@@ -2439,6 +2461,28 @@ def aten_upsample_bilinear2d(
         output_size,
         coordinate_transformation_mode=coordinate_transformation_mode,
         mode="linear",
+    )
+
+
+@torch_op("aten::_upsample_bilinear2d_aa", trace_only=True)
+def aten__upsample_bilinear2d_aa(
+    self: TReal,
+    output_size: INT64,
+    align_corners: bool,
+    scales_h: Optional[float] = None,
+    scales_w: Optional[float] = None,
+) -> TReal:
+    """_upsample_bilinear2d_aa(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
+
+    # NOTE: Based on experimentation, scales_h and scales_w are always ignored in PyTorch,
+    # unless when align_corners is True, in which case we do not know what is going on.
+    coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    return _aten_upsample_output_size(
+        self,
+        output_size,
+        coordinate_transformation_mode=coordinate_transformation_mode,
+        mode="linear",
+        antialias=1,
     )
 
 

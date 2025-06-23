@@ -59,9 +59,8 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
     def max_pos_id(self, max_pos_id: int):
         self._max_pos_id = max_pos_id  # type: ignore[assignment]
 
-    def _compute_const_freqs(self, op, freqs):
+    def _compute_const_freqs(self, op, angles: np.ndarray):
         """Compute cos/sin values when frequencies are constant."""
-        angles = freqs.const_value.numpy()
         cos_value = np.cos(angles)
         sin_value = np.sin(angles)
         cos_2d = op.Constant(value=ir.tensor(cos_value))
@@ -107,7 +106,16 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         self._inv_freq_cos_sin_cache.clear()
 
     def pattern(
-        self, op, x, inv_freq, position_ids, interleaved, num_heads, freqs, dtype, extra_dims
+        self,
+        op,
+        x,
+        inv_freq,
+        position_ids,
+        interleaved,
+        num_heads,
+        freqs,
+        dtype,
+        extra_dims,
     ):
         if not self._const_freqs:
             # Compute freqs from inv_freq and position_ids. In the _const_freqs case,
@@ -122,6 +130,13 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
             # if self._reshape:
             #     position_ids_expanded = op.Expand(position_ids_expanded, _allow_other_inputs=True)
             #     position_ids_expanded = op.Reshape(position_ids_expanded, _allow_other_inputs=True)
+            # inv_freq may optionally be expanded to shape [B, E, 1]
+            inv_freq = pattern.OrValue(
+                [
+                    op.Expand(inv_freq, pattern.ANY_VALUE, _outputs=["expanded_inv_freq"]),
+                    inv_freq,
+                ]
+            )
             freqs = op.MatMul(inv_freq, position_ids_expanded)  # [B, E, S]
         # if self._reshape:
         #     freqs = op.Reshape(freqs, freqs_3d_shape)  # redundant reshape
@@ -141,11 +156,11 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
             sin_4d,
             interleaved=interleaved,
             num_heads=num_heads,
-            _domain="ai.onnxruntime.fusion",
+            _domain="ai.onnxruntime._fusion",
         )
 
     def check(
-        self, context, inv_freq, position_ids, freqs, extra_dims, **_
+        self, context, inv_freq, position_ids, freqs, extra_dims, expanded_inv_freq=None, **_
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         check_result = pattern.MatchResult()
         # TODO(rama): handle redundant reshape/expand
@@ -165,6 +180,10 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         if not _ir_utils.has_rank(inv_freq, 3):
             return check_result.fail("inv_freq is not 3D.", inv_freq)
         inv_freq_shape = inv_freq.shape
+        if expanded_inv_freq is not None:
+            if not _ir_utils.has_rank(expanded_inv_freq, 3):
+                return check_result.fail("expanded_inv_freq is not 3D.", expanded_inv_freq)
+            # TODO: check expanded_inv_freq shape
         if inv_freq.const_value is None:  # TODO: should this be inv_freq_shape?
             return check_result.fail("inv_freq is not a constant.", inv_freq)
         if inv_freq_shape[0] != 1 or inv_freq_shape[2] != 1:
@@ -179,7 +198,7 @@ class CosSinCacheFusion(pattern.RewriteRuleClassBase):
         else:
             # Compute cos/sin values based on whether frequencies are constant
             if self._const_freqs:
-                cos_2d, sin_2d = self._compute_const_freqs(op, freqs)
+                cos_2d, sin_2d = self._compute_const_freqs(op, freqs.const_value.numpy())
             else:
                 cos_2d, sin_2d = self._compute_dynamic_freqs(op, inv_freq, position_ids, dtype)
             if self._cast:

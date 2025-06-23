@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0.0"]
+requires = ["setuptools>=70.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,7 @@ dynamic = ["version", "urls"]
 description = "Naturally author ONNX functions and models using a subset of Python"
 authors = [{ name = "Microsoft Corporation", email = "onnx@microsoft.com" }]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = { file = "LICENSE" }
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -17,7 +17,6 @@ classifiers = [
   "Operating System :: POSIX",
   "Operating System :: MacOS :: MacOS X",
   "Operating System :: Microsoft :: Windows",
-  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -25,7 +24,14 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "License :: OSI Approved :: MIT License",
 ]
-dependencies = ["numpy", "onnx>=1.16", "typing_extensions>=4.10", "ml_dtypes", "packaging"]
+dependencies = [
+  "ml_dtypes",
+  "numpy",
+  "onnx_ir>=0.1.1,<2",  # Expect onnx_ir to have a breaking change in 2.0. If not, extend this range.
+  "onnx>=1.16",
+  "packaging",
+  "typing_extensions>=4.10",
+]
 
 [tool.setuptools.packages.find]
 include = ["onnxscript*"]
@@ -107,18 +113,6 @@ warn_incomplete_stub = true
 warn_no_return = true
 warn_unused_configs = true
 warn_unused_ignores = false
-
-[tool.black]
-target-version = ["py39", "py310", "py311"]
-# Black's extend-exclude needs to be a regex string
-extend-exclude = "/tests/models|/tests/onnx_backend_test_code"
-line-length = 95
-
-[tool.isort]
-profile = "black"
-extend_skip_glob = [
-  "tests/onnx_backend_test_code/*.py",
-]
 
 [tool.pylint.messages_control]
 # NOTE: This list is for vscode. Add new disables in pyproject_pylint.toml for lintrunner
@@ -209,6 +203,8 @@ ignore-init-module-imports = true
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "pathlib".msg = "Using pathlib can impact performance. Use os.path instead"
+"onnx.helper".msg = "onnx helpers tend to be protobuf-y and slow. Consider using ir.tensor, ir.DataType and related methods instead"
+"onnx.numpy_helper".msg = "onnx numpy helpers tend to be slow. Consider using ir.tensor, ir.DataType and related methods instead"
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["TID252"] # Allow relative imports in init files

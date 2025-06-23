@@ -9,27 +9,22 @@ import dataclasses
 import logging
 import math
 import typing
-from typing import Any, Callable, Iterable, Sequence, Union
+from typing import Any, Callable, Collection, Iterable, Sequence, Union
 
 import numpy as np
 import onnx
 import onnx.reference.ops
 
 import onnxscript.ir as ir
-import onnxscript.rewriter.pattern as orp
 import onnxscript.utils.utils as utils
+from onnxscript.ir import _tape
 
-DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 1024
+DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 512
 
-DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = 1024 * 1024
-
-
-def is_control_flow_op(node: ir.Node) -> bool:
-    graph_types = {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}
-    return any(attr.type in graph_types for attr in node.attributes.values())
+DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = 512 * 512
 
 
-non_deterministic_ops = frozenset(
+_NON_DETERMINISTIC_OPS = frozenset(
     {
         "RandomUniform",
         "RandomNormal",
@@ -40,21 +35,21 @@ non_deterministic_ops = frozenset(
 )
 
 
-def is_non_deterministic_op(node: ir.Node) -> bool:
-    return node.op_type in non_deterministic_ops and utils.is_onnx_domain(node.domain)
+logger = logging.getLogger(__name__)
 
 
-def is_onnx_op(node: ir.Node, op_type: str) -> bool:
+def _is_control_flow_op(node: ir.Node) -> bool:
+    graph_types = {ir.AttributeType.GRAPH, ir.AttributeType.GRAPHS}
+    return any(attr.type in graph_types for attr in node.attributes.values())
+
+
+def _is_non_deterministic_op(node: ir.Node) -> bool:
+    return node.op_type in _NON_DETERMINISTIC_OPS and utils.is_onnx_domain(node.domain)
+
+
+def _is_onnx_op(node: ir.Node, op_type: str) -> bool:
     return node.op_type == op_type and utils.is_onnx_domain(node.domain)
 
-
-def is_constant_op(node: ir.Node) -> bool:
-    return node.op_type in {"Constant", "ConstantOfShape"} and utils.is_onnx_domain(
-        node.domain
-    )
-
-
-logger = logging.getLogger(__name__)
 
 # "Standard" evaluators are used to perform constant-folding.
 # The API below works only for non-control-flow ops (ops without any graph-attributes).
@@ -64,7 +59,7 @@ logger = logging.getLogger(__name__)
 
 def _process_constant_node(node: ir.Node) -> None:
     """Sets const_value of output value of a Constant op node."""
-    if node.op_type != "Constant" or node.domain not in {"", "ai.onnx"}:
+    if node.op_type != "Constant" or node.domain != "":
         return
     if len(node.attributes) != 1:
         return
@@ -168,19 +163,6 @@ class OptimizerState:
     def set_sym_value(self, value: ir.Value, sym_value: SymbolicValue) -> None:
         self._sym_value_map[value] = sym_value
 
-    def push_initializer_inputs(self) -> None:
-        self._initializer_inputs.append(set())
-
-    def pop_initializer_inputs(self) -> None:
-        self._initializer_inputs.pop()
-
-    def add_initializer_input(self, value: ir.Value) -> None:
-        assert self._initializer_inputs
-        self._initializer_inputs[-1].add(value)
-
-    def is_initializer_input(self, value: ir.Value) -> bool:
-        return any(value in inputs for inputs in self._initializer_inputs)
-
     def get_shape_value(self, value: ir.Value | None) -> ir.Shape | None:
         const_value = _get_numpy_value(value, ir.DataType.INT64, size_limit=10)
         if const_value is not None:
@@ -202,10 +184,9 @@ class OptimizerState:
 # the ir.Value or ir.Values to replace the output values of the node, when the new nodes
 # can be inferred from the RewriterContext used to build the new nodes.
 
+RewriterContext = _tape.Builder
 ReturnValue = Union[Replacement, Sequence[ir.Value], ir.Value, None]
-PartialEvaluatorFunction = Callable[
-    [ir.Node, orp.RewriterContext, OptimizerState], ReturnValue
-]
+PartialEvaluatorFunction = Callable[[ir.Node, RewriterContext, OptimizerState], ReturnValue]
 
 
 @dataclasses.dataclass
@@ -302,6 +283,11 @@ def _get_numpy_value(
             array = const_value.numpy().view(const_value.dtype.numpy())
         except FileNotFoundError:
             # External data is not available.
+            logger.warning(
+                "External data for value '%s' is not available. "
+                "This may lead to incorrect constant folding.",
+                val.name,
+            )
             return None
         assert isinstance(array, np.ndarray)
         return array
@@ -514,7 +500,9 @@ def if_op(node: ir.Node, op, state: OptimizerState) -> ReturnValue:
             return None
         assert isinstance(graph_attr, ir.Attr)
         graph = graph_attr.as_graph()
-        formal_outs = graph.outputs
+        # Copy the graph outputs and clear the graph outputs so that the values are free to move
+        formal_outs = list(graph.outputs)
+        graph.outputs.clear()
         actual_outs = node.outputs
         renamings = {
             formal.name: actual.name
@@ -840,28 +828,48 @@ def _merge_shapes(shape1: ir.Shape | None, shape2: ir.Shape | None) -> ir.Shape 
 
 
 class FoldConstantsPass(ir.passes.InPlacePass):
+    """A pass that folds constant expressions in the model.
+
+    Attributes:
+        shape_inference: Whether to perform shape inference.
+        input_size_limit: Maximum size of input tensors to fold.
+        output_size_limit: Maximum size of output tensors to fold.
+        always_fold_ops: Collection of op types that should always be folded.
+            For ops from the default opset, only op_type is neede (e.g. "Transpose"),
+            otherwise specify the domain with ``{domain}::{op_type}``.
+    """
+
     def __init__(
         self,
         *,
         shape_inference: bool,
         input_size_limit: int,
         output_size_limit: int,
+        always_fold_ops: Collection[str] = frozenset(["Transpose"]),
     ) -> None:
-        self._shape_inference = shape_inference
-        self._input_size_limit = input_size_limit
-        self._output_size_limit = output_size_limit
-        self.opset_imports: dict[str, int] = {}
-        self.counts: dict[str, int] = {}
-        self.sizes: dict[str, int] = {}
-        self.modified: bool = False
+        self.shape_inference = shape_inference
+        self.input_size_limit = input_size_limit
+        self.output_size_limit = output_size_limit
+        ops = []
+        for name in always_fold_ops:
+            domain, op_type = name.split("::", 1) if "::" in name else ("", name)
+            if domain == "ai.onnx":
+                domain = ""
+            ops.append((domain, op_type))
+        self.always_fold_ops: frozenset[tuple[str, str]] = frozenset(ops)
+
+        self._opset_imports: dict[str, int] = {}
+        self._counts: dict[str, int] = {}
+        self._sizes: dict[str, int] = {}
+        self._modified: bool = False
         self._state = OptimizerState()
         self._reset()
 
     def _reset(self) -> None:
         """Reset internal states for a new run."""
-        self.counts = {}
-        self.sizes = {}
-        self.modified = False
+        self._counts = {}
+        self._sizes = {}
+        self._modified = False
         self._state = OptimizerState()
 
     def _do_inference(self, node: ir.Node) -> None:
@@ -895,7 +903,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             # TODO: pass in constant values, ir_version
             try:
                 schema = onnx.defs.get_schema(
-                    node.op_type, self.opset_imports[node.domain], node.domain
+                    node.op_type, self._opset_imports[node.domain], node.domain
                 )
                 output_types = onnx.shape_inference.infer_node_outputs(
                     schema,
@@ -936,7 +944,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         tensor.name = irvalue.name
         irvalue.const_value = tensor
 
-        if value.nbytes > self._output_size_limit:
+        if value.size > self.output_size_limit:
             # Handle examples like Transpose(weight) to be folded even if the size is large,
             # as long as weight has no other uses. This won't increase model size.
             removed_input_size = 0
@@ -944,13 +952,13 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 if (input is not None) and (len(input.uses()) == 1):
                     array = _get_numpy_value(input)
                     if array is not None:
-                        removed_input_size += array.nbytes
-            increased_size = value.nbytes - removed_input_size
+                        removed_input_size += array.size
+            increased_size = value.size - removed_input_size
             if increased_size > 0:
                 logger.info(
                     "Skip storing constant folded nvalue %s due to large size %s.",
                     irvalue.name,
-                    value.nbytes,
+                    value.size,
                 )
                 return None
 
@@ -966,6 +974,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         return node
 
     def process_node(self, node: ir.Node) -> Replacement | None:
+        """Process a node and return a Replacement if the node can be replaced."""
         for i, value in enumerate(node.inputs):
             sym_value = self._state.get_sym_value(value)
             if isinstance(sym_value, ir.Value):
@@ -976,20 +985,20 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                     sym_value.name,
                 )
                 node.replace_input_with(i, sym_value)
-                self.modified = True
+                self._modified = True
                 # TODO(rama): consider merging type/other info from both values
 
         # Do incremental shape inference
-        if self._shape_inference and not is_control_flow_op(node):
+        if self.shape_inference and not _is_control_flow_op(node):
             self._do_inference(node)
 
-        if node.domain not in self.opset_imports:
+        if node.domain not in self._opset_imports:
             return None
-        version = self.opset_imports[node.domain]
+        version = self._opset_imports[node.domain]
         op_optimizers = registry.lookup_evaluators(node.domain, node.op_type, version)
         for optimizer in op_optimizers:
             assert optimizer
-            context = orp.RewriterContext()
+            context = RewriterContext()
             output = optimizer(node, context, self._state)
             if output is not None:
                 if isinstance(output, Replacement):
@@ -998,31 +1007,57 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                     output = [output]
                 return Replacement(output, context.nodes)
 
-        if is_control_flow_op(node) or is_non_deterministic_op(node):
+        if _is_control_flow_op(node) or _is_non_deterministic_op(node):
             return None
 
-        if is_onnx_op(node, "Constant"):
+        if _is_onnx_op(node, "Constant"):
             _process_constant_node(node)
             return None
 
-        input_values = [_get_numpy_value(x) for x in node.inputs]
-        if any(x is None for x in input_values):
+        if any(x.is_graph_input() for x in node.inputs if x is not None):
+            # Do not fold any graph inputs to preserve graph signature
             return None
 
-        if any(self._state.is_initializer_input(x) for x in node.inputs):  # type: ignore[arg-type]
-            return None
-
-        if any(input.nbytes > self._input_size_limit for input in input_values):  # type: ignore[union-attr]
+        # Ensure all node inputs are constants
+        if any(x.const_value is None for x in node.inputs if x is not None):
             if logger.isEnabledFor(logging.DEBUG):
-                input_sizes = [input.size for input in input_values]  # type: ignore[union-attr]
                 logger.debug(
-                    "Skipping constant folding for op %s due to large input size: %s",
-                    node.op_type,
-                    input_sizes,
+                    "Skipping constant folding for node %s because it has non-constant inputs",
+                    node,
+                    [x.name for x in node.inputs if x is not None],
                 )
             return None
 
-        # Filter out bfloat16 cases?
+        input_tensors = [x.const_value if x is not None else None for x in node.inputs]
+        if any(
+            tensor.size > self.input_size_limit
+            for tensor in input_tensors
+            if tensor is not None
+        ):
+            if (node.domain, node.op_type) in self.always_fold_ops and all(
+                len(input.consumers()) == 1 for input in node.inputs if input is not None
+            ):
+                # If the op is in always_fold_ops and all inputs are used only by this node,
+                # we can still fold it even if the input size exceeds the limit.
+                logger.debug(
+                    "Folding large constant for node %s because it is in the always_fold_ops list",
+                    node,
+                )
+            else:
+                # Skip folding large tensors
+                if logger.isEnabledFor(logging.DEBUG):
+                    input_sizes = [
+                        tensor.size for tensor in input_tensors if tensor is not None
+                    ]
+                    logger.debug(
+                        "Skipping constant folding for node %s due to large input size: %s",
+                        node,
+                        input_sizes,
+                    )
+                return None
+
+        input_values = [_get_numpy_value(x) for x in node.inputs]
+
         def convert(av):
             if av.type == ir.AttributeType.TENSOR:
                 return ir.serde.serialize_tensor(av.value)
@@ -1037,7 +1072,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             return None
         if len(node.outputs) == 1 and not isinstance(outputs, (tuple, list)):
             replacement = self.new_constant(node, outputs)
-            if is_onnx_op(node, "ConstantOfShape") or replacement is None:
+            if _is_onnx_op(node, "ConstantOfShape") or replacement is None:
                 return None
             return Replacement(replacement.outputs, [replacement])
         else:
@@ -1053,18 +1088,19 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             root, node, [node], replacement.new_nodes, node.outputs, replacement.new_outputs
         )
 
-        self.modified = True
+        self._modified = True
 
         # TODO: what about new opset_imports?
         # TODO: track statistics about replaced nodes and sizes of new constants
 
-    def visit_attribute(self, attr: ir.Attr | ir.RefAttr) -> None:
-        if isinstance(attr, ir.Attr):
-            if attr.type == ir.AttributeType.GRAPH:
-                self.visit_graph(attr.as_graph())
-            elif attr.type == ir.AttributeType.GRAPHS:
-                for graph in attr.as_graphs():
-                    self.visit_graph(graph)
+    def visit_attribute(self, attr: ir.Attr) -> None:
+        if attr.is_ref():
+            return
+        if attr.type == ir.AttributeType.GRAPH:
+            self.visit_graph(attr.as_graph())
+        elif attr.type == ir.AttributeType.GRAPHS:
+            for graph in attr.as_graphs():
+                self.visit_graph(graph)
 
     def visit_node(self, node: ir.Node, root: ir.Graph | ir.Function) -> None:
         replacement = self.process_node(node)
@@ -1077,13 +1113,6 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             self.replace_node(node, replacement, root)
 
     def visit_graph(self, graph: ir.Graph) -> None:
-        # Track inputs that have a const_value (which is really a default-value, and should not
-        # be used for constant-folding).
-        self._state.push_initializer_inputs()
-        for input in graph.inputs:
-            if input.const_value is not None:
-                self._state.add_initializer_input(input)
-
         for node in graph:
             self.visit_node(node, graph)
 
@@ -1101,22 +1130,20 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             # Rename sym_value to match the output name
             sym_value.name = output.name
             graph.outputs[i] = sym_value
-            self.modified = True
-
-        self._state.pop_initializer_inputs()
+            self._modified = True
 
     def visit_function(self, function: ir.Function) -> None:
         for node in function:
             self.visit_node(node, function)
 
-    def call(self, model: ir.Model) -> ir.passes.PassResult:
+    def call(self, model: ir.Model) -> FoldConstantsResult:
         self._reset()
-        self.opset_imports = model.opset_imports
+        self._opset_imports = model.opset_imports
         self.visit_graph(model.graph)
         for function in model.functions.values():
             # TODO(rama): Should we specialize functions?
             self.visit_function(function)
-        return FoldConstantsResult(model, self.modified, self._state.symbolic_value_map)
+        return FoldConstantsResult(model, self._modified, self._state.symbolic_value_map)
 
 
 def _sym_value_can_replace_graph_output(
@@ -1153,6 +1180,7 @@ def fold_constants(
     onnx_shape_inference: bool = False,
     input_size_limit: int = DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT,
     output_size_limit: int = DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT,
+    always_fold_ops: Collection[str] = frozenset(["Transpose"]),
 ) -> FoldConstantsResult:
     """
     Applies constant folding optimization to the model.
@@ -1161,12 +1189,16 @@ def fold_constants(
         model: The ONNX model to optimize.
         onnx_shape_inference: Whether to enable ONNX shape inference during
             constant folding. Defaults to False.
-        input_size_limit: The maximum size (in bytes) of input tensors
+        input_size_limit: The maximum size of input tensors
             that can be considered for constant folding. Defaults to
             `DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT`.
-        output_size_limit: The maximum size (in bytes) of output tensors
+        output_size_limit: The maximum size of output tensors
             that can be stored after constant folding. Defaults to
             `DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT`.
+        always_fold_ops: A collection of op types that should always be folded,
+            regardless of their input or output sizes. For ops from the default opset,
+            only op_type is neede (e.g. "Transpose"), otherwise specify the domain
+            with ``{domain}::{op_type}``.
 
     Returns:
         An instance of `FoldConstantsResult`.
@@ -1176,5 +1208,6 @@ def fold_constants(
         shape_inference=onnx_shape_inference,
         input_size_limit=input_size_limit,
         output_size_limit=output_size_limit,
+        always_fold_ops=always_fold_ops,
     )
     return folder_pass(model)  # type: ignore[return-value]
