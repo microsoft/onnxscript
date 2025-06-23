@@ -362,6 +362,7 @@ class GQAFusionTest(unittest.TestCase):
 
 
 class GQAFusionTest2(unittest.TestCase):
+    @unittest.skip("Needs too much memory.")
     def test_phi4lm(self):
         test_case = phi4lm_test()
         model = test_case.get_onnx_model()
