@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 
 # Generated from Phi2LM 1 Layer ONNX model produced by the new (Dynamo) exporter
+# ruff: noqa: F821
 
 import numpy
 import onnx_ir as ir
