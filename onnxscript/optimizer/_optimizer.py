@@ -54,6 +54,7 @@ def optimize_ir(
         onnxscript.ir.passes.common.CommonSubexpressionEliminationPass(),
         onnxscript.ir.passes.common.LiftConstantsToInitializersPass(),
         onnxscript.ir.passes.common.LiftSubgraphInitializersToMainGraphPass(),
+        onnxscript.ir.passes.common.DeduplicateInitializersPass(),
     ]
     if inline:
         # Inline all functions first before optimizing
