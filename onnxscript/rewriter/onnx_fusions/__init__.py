@@ -7,4 +7,3 @@ from onnxscript.rewriter.onnx_fusions._onnx_fusions import fuse
 __all__ = [
     "fuse",
 ]
-
