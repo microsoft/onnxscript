@@ -195,17 +195,32 @@ class _NormalizePadFormatBase(orp.RewriteRuleClassBase):
 
         # Conv constraints: attributes
         conv_node = conv.producer()
-        auto_pad = conv_node.attributes.get("auto_pad", None)
-        if auto_pad is None or auto_pad.as_string() == "NOTSET":
+        auto_pad = conv_node.attributes.get_string("auto_pad", None)
+        if auto_pad in [None, "NOTSET"]:
             return check_result.fail(
                 f"{conv_node.name} auto_pad must be different to 'NOTSET'."
             )
 
         # Conv constraints: inputs/outputs
-        if conv_node.inputs[0].shape is None:
+        input_shape = conv_node.inputs[0].shape
+        output_shape = conv_node.outputs[0].shape
+        if len(input_shape) <= 2:
             return check_result.fail(f"Input shapes are not defined on {conv_node.name}.")
-        if conv_node.outputs[0].shape is None:
+        if len(output_shape) <= 2:
             return check_result.fail(f"Output shapes are not defined on {conv_node.name}.")
+
+        # Conv constraints: values
+        if auto_pad != "VALID":
+            error_msg = "Expected static spatial {} shapes on " + conv_node.name + "."
+            if not all(isinstance(x, int) for x in input_shape[2:]):
+                return check_result.fail(error_msg.format("input"))
+            if not all(isinstance(x, int) for x in output_shape[2:]):
+                return check_result.fail(error_msg.format("output"))
+            attributes = read_conv_attributes(conv_node)
+            if len(attributes["kernel_shape"]) != len(attributes["strides"]):
+                return check_result.fail(
+                    f"strides must have the same length than kernel_shape on {conv_node.name}."
+                )
         return check_result
 
 
@@ -220,10 +235,12 @@ class NormalizePadFormatConv(_NormalizePadFormatBase):
     ) -> Sequence[int]:
         # Compute pads, following auto_pad/pads attributes
         if attributes["auto_pad"] in ["NOTSET", "VALID"]:
+            assert len(input_shape) > 0
             return attributes.get("pads", [0] * len(input_shape) * 2)
 
         bottom_pads, top_pads = [], []
         kernel_shape, strides = attributes["kernel_shape"], attributes["strides"]
+        assert len(kernel_shape) == len(strides) == len(input_shape) == len(output_shape)
         for x, y, k, s in zip(input_shape, output_shape, kernel_shape, strides):
             # Compute the output shape and the total padding to apply
             total_pads = max(0, (y - 1) * s + k - x)

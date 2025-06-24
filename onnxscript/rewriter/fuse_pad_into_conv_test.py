@@ -268,24 +268,73 @@ class FusePadConvIntegerTest(FusePadConvBaseTest):
 
 
 class NormalizePadFormatTest(FusePadConvBaseTest):
+    def build_model(
+        self,
+        input_shape: ir.Shape,
+        conv_inputs: Sequence[int],
+        conv_attributes: Mapping[str, ir.Attr] | None = None,
+        infer_shapes=True,
+    ) -> ir.Model:
+        tape = ir.tape.Tape()
+        inputs = []
+        output_shape = ir.Shape(("?",) * len(input_shape))
+
+        # Convert conv_inputs to initializers (if needed)
+        conv_inputs = list(conv_inputs)
+        for idx, x in enumerate(conv_inputs):
+            if isinstance(x, ir.TensorProtocol):
+                conv_inputs[idx] = tape.initializer(x)
+            elif isinstance(x, ir.Value):
+                inputs.append(x)
+            elif x is not None:
+                raise ValueError(f"Unsupported type for pad input ({x}): {type(x)}.")
+
+        # Register operations in the tape
+        x = ir.Input("X", shape=input_shape, type=ir.TensorType(ir.DataType.FLOAT))
+        y = tape.op(
+            "Conv",
+            inputs=[x, *conv_inputs],
+            attributes=conv_attributes,
+            output=ir.Input("Y", shape=output_shape, type=x.type),
+        )
+
+        # Build the model
+        ir_model = ir.Model(
+            ir.Graph(
+                inputs=[x, *inputs],
+                outputs=[y],
+                nodes=tape.nodes,
+                initializers=tape.initializers,
+                opset_imports={"": 20},
+                name="model",
+            ),
+            ir_version=10,
+        )
+        if len(input_shape) > 0 and infer_shapes:
+            onnx_checker.CheckerPass(True)(ir_model)
+            ir_model = shape_inference.infer_shapes(ir_model)
+        else:
+            onnx_checker.CheckerPass(False)(ir_model)
+        return ir_model
+
     @parameterized.parameterized.expand(
         [
-            (strides, kernel_shape, auto_pad)
+            (dynamic_shape, strides, kernel_shape, auto_pad)
             for strides, kernel_shape in [((2, 3), (1, 4)), ((2, 1), (5, 2))]
-            for auto_pad in ["SAME_UPPER", "SAME_LOWER", "VALID"]
+            for dynamic_shape, auto_pad in [
+                (False, "SAME_UPPER"),
+                (False, "SAME_LOWER"),
+                (True, "VALID"),
+            ]
         ]
     )
-    def test_normalize_pad_format(self, strides, kernel_shape, auto_pad):
-        pad_inputs = [
-            ir.tensor([1, 1, 1, 1], name="pads"),
-            None,
-            ir.tensor([2, 3], name="axes"),
-        ]
+    def test_normalize_pad_format(self, dynamic_shape, strides, kernel_shape, auto_pad):
+        input_shape = (
+            ir.Shape(("N", "A", "B", "C")) if dynamic_shape else ir.Shape(("N", 32, 22, 27))
+        )
         base_model = self.build_model(
-            op_type="Conv",
-            input_shape=ir.Shape(("N", 32, 22, 27)),
-            weight_shape=(32, 32, *kernel_shape),
-            pad_inputs=pad_inputs,
+            input_shape=input_shape,
+            conv_inputs=[ir.tensor(self.get_conv_weights((32, 32, *kernel_shape)), name="W")],
             conv_attributes={
                 "strides": strides,
                 "auto_pad": auto_pad,
@@ -296,27 +345,30 @@ class NormalizePadFormatTest(FusePadConvBaseTest):
 
         # Apply rule
         count = fuse_pad_into_conv_rule_set().apply_to_model(updated_model)
-
-        # Check that Pad was fused
-        self.assertEqual(count, 2)
-        self.assertEqual(updated_model.graph.num_nodes(), 1)
         onnx_checker.CheckerPass(True)(updated_model)
+
+        # Check conv has changed
+        self.assertEqual(count, 1)
+        self.assertEqual(updated_model.graph[0].attributes.get_string("auto_pad"), "NOTSET")
 
         # Check inference
         inputs = self.rng.random((1, 32, 22, 27), dtype="float32")
         testing.assert_numerically_equal(base_model, updated_model, (inputs,), atol=0, rtol=0)
 
-    def test_unsupported_normalize_pad_format(self):
+    @parameterized.parameterized.expand(
+        [
+            (ir.Shape([]), False, "Input shapes are not defined"),
+            (ir.Shape(("N", "C", "A")), False, "Expected static spatial input shapes"),
+            (ir.Shape(("N", "C", 32)), False, "Expected static spatial output shapes"),
+        ]
+    )
+    def test_unsupported_normalize_pad_format(self, input_shape, infer_shapes, error_msg):
         base_model = self.build_model(
-            op_type="Conv",
-            input_shape=ir.Shape(("N", 32, 14)),
-            weight_shape=(32, 11, 4),
-            pad_inputs=[ir.tensor([0, 0, 0, 0, 0, 0], name="pads")],
-            conv_attributes={"auto_pad": "VALID"},
+            input_shape=input_shape,
+            conv_inputs=[ir.tensor(np.ones((32, 11, 4)), name="W")],
+            conv_attributes={"auto_pad": "SAME_UPPER"},
+            infer_shapes=infer_shapes,
         )
-        # Drop convolutional input shape
-        base_model.graph[0].outputs[0].shape = None
-        onnx_checker.CheckerPass(True)(base_model)
 
         # Apply rule and check it was not applied
         tracer = orp.MatchingTracer()
@@ -326,7 +378,28 @@ class NormalizePadFormatTest(FusePadConvBaseTest):
         # Check that the error message is the expected one
         tracer_match = tracer.best_matches_map[normalize_pad_format_conv][0]
         self.assertEqual(tracer_match.status.value, orp.MatchStatus.CONDITION_FAILED)
-        self.assertRegex(tracer_match.match_result.reason, "Input shapes are not defined")
+        self.assertRegex(tracer_match.match_result.reason, error_msg)
+
+    def test_unsupported_normalize_pad_format_on_weights(self):
+        W = ir.Value(name="W", shape=ir.Shape([]), type=ir.TensorType(ir.DataType.FLOAT))
+        base_model = self.build_model(
+            input_shape=ir.Shape(("N", 2, 32)),
+            conv_inputs=[W],
+            conv_attributes={"auto_pad": "SAME_UPPER"},
+            infer_shapes=False,
+        )
+        # Set output shape to analyze error due to weights
+        base_model.graph[0].outputs[0].shape = ir.Shape(("N", 10, 32))
+
+        # Apply rule and check it was not applied
+        tracer = orp.MatchingTracer()
+        count = normalize_pad_format_conv.apply_to_model(base_model, tracer=tracer)
+        self.assertEqual(count, 0)
+
+        # Check that the error message is the expected one
+        tracer_match = tracer.best_matches_map[normalize_pad_format_conv][0]
+        self.assertEqual(tracer_match.status.value, orp.MatchStatus.CONDITION_FAILED)
+        self.assertRegex(tracer_match.match_result.reason, "same length than kernel_shape")
 
 
 if __name__ == "__main__":
