@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import onnx_ir as ir
+
 from onnxscript.rewriter.onnx_fusions import rms_normalization
 
 
@@ -19,19 +20,13 @@ def _get_onnx_opset_version(model: ir.Model) -> int | None:
 
 
 def _opset_23_fuse(model: ir.Model, *, debug: bool = False) -> dict[str, int]:
-    """
-    Apply fusions targetting ONNX opset 23.
-    """
+    """Apply fusions targetting ONNX opset 23."""
     counts: dict[str, int] = {}
-    counts["RMSNormalization"] = rms_normalization.fuse(
-        model, debug=debug
-    )
+    counts["RMSNormalization"] = rms_normalization.fuse_rms_normalization(model, debug=debug)
 
 
 def fuse(model: ir.Model, *, debug: bool = False) -> dict[str, int]:
-    """
-    Apply fusions targetting ONNX ops.
-    """
+    """Apply fusions targetting ONNX ops."""
     model_opset_version = _get_onnx_opset_version(model)
     if model_opset_version == 23:
         return _opset_23_fuse(model, debug=debug)
