@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-import typing
+from __future__ import annotations
+
 import unittest
+from typing import Mapping, Sequence
 
 import numpy as np
 import onnx_ir as ir
@@ -26,7 +28,7 @@ class FusePadConvBaseTest(unittest.TestCase):
     def rng(self):
         return np.random.default_rng(20250522)
 
-    def get_conv_weights(self, shape: typing.Sequence[int], tape: ir.tape.Tape = None):
+    def get_conv_weights(self, shape: Sequence[int], tape: ir.tape.Tape = None):
         w = ir.tensor(self.rng.uniform(-0.5, 0.5, shape).astype("float32"), name="W")
         if tape is not None:
             w = tape.initializer(w)
@@ -36,11 +38,10 @@ class FusePadConvBaseTest(unittest.TestCase):
         self,
         op_type: str,
         input_shape: ir.Shape,
-        weight_shape: typing.Sequence[int],
-        pad_inputs: typing.Sequence[ir.TensorProtocol | ir.Value | None],
-        pad_attributes: typing.Mapping[str, ir.Attr] | None = None,
-        conv_attributes: typing.Mapping[str, ir.Attr] | None = None,
-        opset_imports: typing.Mapping[str, int] = {"": 20},
+        weight_shape: Sequence[int],
+        pad_inputs: Sequence[ir.TensorProtocol | ir.Value | None],
+        pad_attributes: Mapping[str, ir.Attr] | None = None,
+        conv_attributes: Mapping[str, ir.Attr] | None = None,
     ) -> ir.Model:
         tape = ir.tape.Tape()
         inputs = []
@@ -78,10 +79,10 @@ class FusePadConvBaseTest(unittest.TestCase):
                 outputs=[y],
                 nodes=tape.nodes,
                 initializers=tape.initializers,
-                opset_imports=opset_imports,
+                opset_imports={"": 20},
                 name="model",
             ),
-            ir_version=9,
+            ir_version=10,
         )
         onnx_checker.CheckerPass(True)(ir_model)
         ir_model = shape_inference.infer_shapes(ir_model)
@@ -218,7 +219,7 @@ class FusePadConvTest(FusePadConvBaseTest):
 
 
 class FusePadConvIntegerTest(FusePadConvBaseTest):
-    def get_conv_weights(self, shape: typing.Sequence[int], tape: ir.tape.Tape = None):
+    def get_conv_weights(self, shape: Sequence[int], tape: ir.tape.Tape = None):
         w = ir.tensor(self.rng.integers(0, 256, shape).astype("uint8"), name="W")
         if tape is not None:
             w = tape.initializer(w)
