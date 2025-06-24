@@ -191,6 +191,27 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(y_value_info.type.tensor_type.elem_type, onnx.TensorProto.INT64)
         self.assertEqual(output_value_info.type.tensor_type.elem_type, onnx.TensorProto.FLOAT)
 
+    def test_set_value_info(self):
+        @script()
+        def double_square(x):
+            square = op.Mul(x, x)
+            return op.Add(square, square)
+
+        # Converting "cast_add" to a ModelProto will generate an incomplete ModelProto,
+        # with input-types undefined (since the script has no type-annotation).
+        model = double_square.to_model_proto()
+        graph = model.graph
+        self.assertEqual(len(graph.value_info), 0)
+        model = double_square.to_model_proto(
+            io_types=FLOAT["N"], value_infos={"square": FLOAT["N"]}
+        )
+        graph = model.graph
+        self.assertEqual(len(graph.value_info), 1)
+        value_info = graph.value_info[0]
+        self.assertEqual(value_info.name, "square")
+        self.assertEqual(value_info.type.tensor_type.elem_type, onnx.TensorProto.FLOAT)
+        self.assertEqual(value_info.type.tensor_type.shape.dim[0].dim_param, "N")
+
     def test_onnxfns1(self):
         from tests.models import onnxfns1
 
