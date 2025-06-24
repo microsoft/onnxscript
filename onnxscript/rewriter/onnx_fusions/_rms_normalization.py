@@ -18,13 +18,15 @@ indicated by stash_type.
 * Scale must be: float or double or float16 or bfloat16
 """
 
-float_types = [
-    ir.DataType.FLOAT,
-    ir.DataType.FLOAT16,
-    ir.DataType.BFLOAT16,
-    ir.DataType.DOUBLE,
-]
-fp_float_types = [ir.DataType.FLOAT, ir.DataType.DOUBLE]
+float_types = frozenset(
+    [
+        ir.DataType.FLOAT,
+        ir.DataType.FLOAT16,
+        ir.DataType.BFLOAT16,
+        ir.DataType.DOUBLE,
+    ]
+)
+fp_float_types = frozenset([ir.DataType.FLOAT, ir.DataType.DOUBLE])
 
 
 class RmsNormFusion(pattern.RewriteRuleClassBase):

@@ -18,13 +18,15 @@ which is also the precision of reciprocal_rms returned by operation.
 * Normalization precision must be float or double
 """
 
-float_types = [
-    ir.DataType.FLOAT,
-    ir.DataType.FLOAT16,
-    ir.DataType.BFLOAT16,
-    ir.DataType.DOUBLE,
-]
-fp_float_types = [ir.DataType.FLOAT, ir.DataType.DOUBLE]
+float_types = frozenset(
+    [
+        ir.DataType.FLOAT,
+        ir.DataType.FLOAT16,
+        ir.DataType.BFLOAT16,
+        ir.DataType.DOUBLE,
+    ]
+)
+fp_float_types = frozenset([ir.DataType.FLOAT, ir.DataType.DOUBLE])
 
 
 class RmsNormFusion(pattern.RewriteRuleClassBase):

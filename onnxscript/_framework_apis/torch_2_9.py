@@ -12,14 +12,17 @@ __all__ = [
     "save_model_with_external_data",
 ]
 
+import onnx_ir as ir
+
+from onnxscript import optimizer
 from onnxscript._framework_apis.torch_2_6 import (
     check_model,
     convert_version,
     get_torchlib_ops,
     save_model_with_external_data,
 )
-from onnxscript import optimizer
 from onnxscript.rewriter import onnx_fusions
+
 
 def optimize(model: ir.Model) -> ir.Model:
     """Optimize the model."""

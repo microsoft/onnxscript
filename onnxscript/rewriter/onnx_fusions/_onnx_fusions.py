@@ -30,3 +30,4 @@ def fuse(model: ir.Model, *, debug: bool = False) -> dict[str, int]:
     model_opset_version = _get_onnx_opset_version(model)
     if model_opset_version == 23:
         return _opset_23_fuse(model, debug=debug)
+    return {}
