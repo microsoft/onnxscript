@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+import onnx_ir
+
 import onnxscript.ir.passes.common
 from onnxscript import ir, rewriter
 from onnxscript.optimizer import _constant_folding
@@ -54,7 +56,7 @@ def optimize_ir(
         onnxscript.ir.passes.common.CommonSubexpressionEliminationPass(),
         onnxscript.ir.passes.common.LiftConstantsToInitializersPass(),
         onnxscript.ir.passes.common.LiftSubgraphInitializersToMainGraphPass(),
-        onnxscript.ir.passes.common.DeduplicateInitializersPass(),
+        onnx_ir.passes.common.DeduplicateInitializersPass(),
     ]
     if inline:
         # Inline all functions first before optimizing
