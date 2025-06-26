@@ -5,7 +5,8 @@
 
 from __future__ import annotations
 
-import onnxscript.ir as ir
+import onnx_ir as ir
+
 import onnxscript.rewriter._ir_utils as _ir_utils
 import onnxscript.rewriter.pattern as pattern
 

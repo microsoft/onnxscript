@@ -7,8 +7,8 @@ This is an onnxscript version of the model.
 """
 
 import numpy
+import onnx_ir as ir
 
-import onnxscript.ir as ir
 from onnxscript import script
 from onnxscript.onnx_opset import opset18
 from onnxscript.onnx_types import FLOAT, INT64
