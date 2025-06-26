@@ -4324,91 +4324,44 @@ def aten_index_copy(
 @torch_op(("aten::index_put", "aten::_unsafe_index_put"), trace_only=True)
 def aten_index_put(
     self: TReal,
-    indices: Sequence[INT64],
+    indices: Sequence[Optional[INT64]],
     values: TReal,
     accumulate: bool = False,
 ) -> TReal:
-    """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor
-
-    See implementation of `torch.onnx.symbolic_opset11.index_put
-    <https://github.com/pytorch/pytorch/blob/main/torch/onnx/symbolic_opset11.py#L212>`_.
-    """
-
-    def _make_reshape_list_broadcastable(reshape_list: list[INT64], values_shape, values_rank: int):
-        # Remove ones until the rank of reshape_list matches values_shape.
-        while len(reshape_list) > values_rank and 1 in reshape_list:
-            reshape_list.remove(1)
-
-        TODO(justinchuby): Here
-        # Now ensure each dimension is broadcastable:
-        # This is mandatory when mixing basic and advanced indexing
-        # Example: data((10, 3, 4)), indices([[0, 1], :, [0, 1]]) values(2, 3)
-        # the reshape list should be : [[2, 1], [1, 3], [2, 1]]
-        for i, r in enumerate(reshape_list):
-            if isinstance(r, int) and r not in (1, values_shape[i]):
-                value_index = values_shape.index(r)
-                # Swap elements
-                # For the example above the current reshape list is [1, 2] for last dim,
-                # to make it broadcastable, we swap the elements
-                reshape_list[value_index], reshape_list[i] = r, 1
-
-        return reshape_list
+    """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
 
     # Ensure the number of indices matches the tensor rank.
     self_rank = len(self.shape)
-    if len(indices) < self_rank:
-        indices = list(indices) + [None] * (self_rank - len(indices))
+    index_ranks = [len(index.shape) for index in indices if index is not None]
+    advanced_indexing_rank = max(index_ranks)
 
-    # Get values shape
-    values_shape = op.Shape(values)
-    values_rank = len(values.shape)  # Statically known
+    # reordered_positions is the permutation of the index positions where
+    # positions with None are move to the end of the list
+    # For example, if indices = [None, 1, None, 2], then reordered_positions = [1, 3, 0, 2]
+    reordered_positions = sorted(range(len(indices)), key=lambda i: (indices[i] is None, i))
 
-    index_vectors = []
-    for i in range(self_rank):
-        if indices[i] is None:
-            # For a full slice along dim i, create a range index [0, self.shape[i]).
-            idx = op.Range(0, op.Shape(self), 1)
-            reshape_update = op.Shape(self, start=i, end=i+1)
-        else:
-            idx = indices[i]
-            reshape_update = op.ReduceProd(op.Shape(idx), keepdims=True)
-            # when Index is more than 1D, flatten it and also the values shape
-            # Example: self shape: (10, 3), indices[i] shape: (2, 4), values shape: (2, 4, 3)
-            # Indices -> (2*4,) and values shape (2*4, 32)
-            idx_rank = len(idx.shape)
-            if idx_rank > 1:
-                values_shape = op.Concat(reshape_update, op.Shape(values, start=idx_rank, end=values_rank))
+    # Fill the list with the remaining indices up to the rank of the tensor self.
+    # For example, if indices = [None, 1, None, 2], and the rank of self is 6,
+    # then reordered_positions = [1, 3, 0, 2, 4, 5]
+    reordered_positions = [
+        *reordered_positions,
+        *range(len(reordered_positions), self_rank),
+    ]
+    # Transpose self according to the reordered positions
+    self = op.Transpose(self, perm=reordered_positions)
 
-            # Flatten index (always working with 1D index in each dim)
-            idx = op.Reshape(idx, [-1])
-
-        # Create a reshape pattern: one value per index dimension,
-        # with the current dimension set to the update size.
-        reshape_list = [[1]] * len(indices)
-        reshape_list[i] = reshape_update
-
-        # Adjust the reshape list to match the values shape.
-        reshape_list = _make_reshape_list_broadcastable(reshape_list, values_shape, values_rank)
-
-        # Reshape and expand the index.
-        idx = op.Reshape(idx, reshape_list, allowzero=True)
-        idx = op.Expand(idx, values_shape)
-
-        # Flatten the index to 1D and unsqueeze to form a column vector.
-        idx = op.Reshape(idx, [-1])
-        idx = op.Unsqueeze(idx, axes=[1])
-        index_vectors.append(idx)
-
-    # Concatenate the index vectors along axis=1 to form the final indices.
-    new_index = op.Concat(*index_vectors, axis=1)
-
-    # Flatten values to match the indices
-    flat_values = op.Reshape(values, [-1])
+    # Broadcast the indices to the same shape then concatenate
+    not_none_indices = [idx for idx in indices if idx is not None]
+    broadcast_shape = _shape_of_broadcast_tensors(*not_none_indices)
+    final_index = op.Concat(
+        *(op.Unsqueeze(op.Expand(idx, broadcast_shape), [-1]) for idx in not_none_indices),
+        axis=-1,
+    )
 
     if accumulate:
-        result = op.ScatterND(self, new_index, flat_values, reduction="add")
+        self = op.ScatterND(self, final_index, values, reduction="add")
     else:
-        result = op.ScatterND(self, new_index, flat_values)
+        self = op.ScatterND(self, final_index, values)
 
     return result
 
