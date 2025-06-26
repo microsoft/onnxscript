@@ -320,6 +320,7 @@ class IRFunction:
         io_types: Optional[ONNXType] = None,
         input_types: Optional[Sequence[ONNXType]] = None,
         output_types: Optional[Sequence[ONNXType]] = None,
+        value_infos: dict[str, ONNXType] | None = None,
         **kwargs,
     ) -> onnx.ModelProto:
         """Converts this instance into a `onnx.ModelProto`.
@@ -333,12 +334,24 @@ class IRFunction:
                 are set to be of the corresponding type in this list.
             output_types: When specified, all the outputs of the model
                 are set to be of the corresponding type in this list.
+            value_infos: A dictionary mapping intermediate variable names to ONNX types.
+                Used to set value_info for intermediate variables.
             kwargs: Additional parameters given to function :func:`onnx.helper.make_model`.
 
         Returns:
             An instance of :class:`onnx.ModelProto`.
         """
-        graph, sub_functions = self.to_graph_and_functions(use_default_type=False)
+        value_infos = (
+            [
+                onnx.helper.make_value_info(name, type.to_type_proto())
+                for name, type in value_infos.items()
+            ]
+            if value_infos
+            else None
+        )
+        graph, sub_functions = self.to_graph_and_functions(
+            use_default_type=False, value_infos=value_infos
+        )
         if io_types is not None:
             for input in graph.input:
                 if not input.HasField("type"):
@@ -394,7 +407,9 @@ class IRFunction:
         )
 
     def to_graph_and_functions(
-        self, use_default_type: bool = True
+        self,
+        use_default_type: bool = True,
+        value_infos: Sequence[ValueInfoProto] | None = None,
     ) -> tuple[onnx.GraphProto, dict[str, onnx.FunctionProto]]:
         """Converts this instance into a `onnx.GraphProto` and a map from
         function-name to `onnx.FunctionProto`.
@@ -402,6 +417,8 @@ class IRFunction:
         Args:
             use_default_type: if True, the function uses a default type
                 for inputs and outputs that do not have a type
+            value_infos: a sequence of :class:`onnx.ValueInfoProto` to be added
+                to the graph.
 
         Returns:
             a pair of a :class:`onnx.GraphProto` and list of :class:`onnx.FunctionProto`
@@ -415,6 +432,7 @@ class IRFunction:
             self.name,
             [x.to_value_info(use_default_type) for x in self.inputs],
             [y.to_value_info(use_default_type) for y in self.outputs],
+            value_info=value_infos,
         )
         return graph, called_functions
 
