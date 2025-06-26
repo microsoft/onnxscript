@@ -20,13 +20,14 @@ def _get_onnx_opset_version(model: ir.Model) -> int | None:
 
 
 def _opset_23_fuse(model: ir.Model, *, debug: bool = False) -> dict[str, int]:
-    """Apply fusions targetting ONNX opset 23."""
+    """Apply fusions targeting ONNX opset 23."""
     counts: dict[str, int] = {}
     counts["RMSNormalization"] = _rms_normalization.fuse_rms_normalization(model, debug=debug)
+    return counts
 
 
 def fuse(model: ir.Model, *, debug: bool = False) -> dict[str, int]:
-    """Apply fusions targetting ONNX ops."""
+    """Apply fusions targeting ONNX ops."""
     model_opset_version = _get_onnx_opset_version(model)
     if model_opset_version == 23:
         return _opset_23_fuse(model, debug=debug)
