@@ -2,8 +2,9 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import onnxscript.ir as ir
-import onnxscript.ir.passes.common as common_passes
+import onnx_ir as ir
+import onnx_ir.passes.common as common_passes
+
 import onnxscript.rewriter.ort_fusions.fused_matmul_rule_sets as fused_matmul_rule_sets
 import onnxscript.rewriter.ort_fusions.shape_optimization as shape_optimization
 from onnxscript.optimizer import optimize

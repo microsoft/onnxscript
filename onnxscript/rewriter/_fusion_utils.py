@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Callable, Sequence, Union
 
-import onnxscript.ir as ir
-import onnxscript.ir.passes.common as common_passes
+import onnx_ir as ir
+import onnx_ir.passes.common as common_passes
+
 from onnxscript.rewriter import pattern
 from onnxscript.rewriter._basics import MatchFailureError
 

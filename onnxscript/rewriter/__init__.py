@@ -11,8 +11,8 @@ __all__ = [
 ]
 
 import onnx
+import onnx_ir.passes.common as common_passes
 
-import onnxscript.ir.passes.common as common_passes
 from onnxscript import ir
 from onnxscript.rewriter import (
     basic_rules,

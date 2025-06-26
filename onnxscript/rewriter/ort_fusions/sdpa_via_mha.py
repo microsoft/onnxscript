@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Union
 
-import onnxscript.ir as ir
+import onnx_ir as ir
+
 from onnxscript.rewriter import _fusion_utils, pattern
 
 Dim = Union[int, ir.SymbolicDim]

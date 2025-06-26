@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import unittest
 
+import onnx_ir.passes.common as common_passes
 import packaging.version
 
-import onnxscript.ir.passes.common as common_passes
 import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
 from onnxscript.rewriter.ort_fusions._test_utils import ORT_VERSION, assert_allclose, ort_run

@@ -9,9 +9,9 @@ import math
 import unittest
 
 import numpy
+import onnx_ir as ir
 import parameterized
 
-import onnxscript.ir as ir
 import onnxscript.optimizer
 from onnxscript import script
 from onnxscript.onnx_opset import opset18 as op
