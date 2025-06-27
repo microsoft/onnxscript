@@ -4,8 +4,8 @@
 import unittest
 
 import onnx
+import onnx_ir as ir
 
-import onnxscript.ir as ir
 import onnxscript.optimizer as optimizer
 
 

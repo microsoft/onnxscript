@@ -5,8 +5,8 @@ import math
 import unittest
 
 import numpy as np
+import onnx_ir as ir
 
-import onnxscript.ir as ir
 import onnxscript.rewriter.ort_fusions._test_utils as test_utils
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op

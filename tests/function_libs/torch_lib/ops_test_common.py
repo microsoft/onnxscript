@@ -26,6 +26,7 @@ from typing import (
 
 import numpy as np
 import onnx
+import onnx_ir.passes.common as common_passes
 import onnxruntime as ort
 import onnxruntime.capi.onnxruntime_pybind11_state
 import pytest
@@ -35,7 +36,6 @@ from torch.testing._internal.opinfo import core as opinfo_core
 
 import onnxscript
 import onnxscript.evaluator
-import onnxscript.ir.passes.common
 from onnxscript import ir
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from tests.function_libs.torch_lib import error_reproduction
@@ -420,7 +420,7 @@ def add_torchlib_common_imports(model: ir.Model) -> None:
     is_scalar_func = ir.serde.deserialize_function(common_ops.IsScalar.to_function_proto())
     model.functions[rank_func.identifier()] = rank_func
     model.functions[is_scalar_func.identifier()] = is_scalar_func
-    removal_pass = onnxscript.ir.passes.common.RemoveUnusedFunctionsPass()
+    removal_pass = common_passes.RemoveUnusedFunctionsPass()
     assert removal_pass.in_place
     removal_pass(model)
 
