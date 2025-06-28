@@ -1,22 +1,29 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+# ruff: noqa: F821
+
 import unittest
 
 import numpy as np
 import onnx_ir as ir
-from onnx_ir.passes.common import CheckerPass, ShapeInferencePass
 import onnxruntime
-from onnxscript import opset18 as op, FLOAT, script
+from onnx_ir.passes.common import CheckerPass, ShapeInferencePass
+
 import onnxscript.optimizer
+from onnxscript import FLOAT, script
+from onnxscript import opset18 as op
 from onnxscript.rewriter import redundant_scatter_nd
 
 shape_inference = ShapeInferencePass()
 onnx_check = CheckerPass(True)
 
+
 class RedundantScatterNdTest(unittest.TestCase):
     def test_redundant_scatter_nd(self):
         @script()
-        def model_script(data: FLOAT[8, "N", 16], updates: FLOAT[8, "N", 16]) -> FLOAT[8, "N", 16]:
+        def model_script(
+            data: FLOAT[8, "N", 16], updates: FLOAT[8, "N", 16]
+        ) -> FLOAT[8, "N", 16]:
             # Construct update-indices spanning an entire axis:
             axis = op.Constant(value_int=1)
             shape = op.Shape(data, start=0)
@@ -26,7 +33,9 @@ class RedundantScatterNdTest(unittest.TestCase):
             # The update is applied to the data transposed to bring the updated axis to the front:
             transposed_data = op.Transpose(data, perm=[1, 0, 2])
             transposed_updates = op.Transpose(updates, perm=[1, 0, 2])
-            scattered = op.ScatterND(transposed_data, full_range_2d, transposed_updates, reduction='none')
+            scattered = op.ScatterND(
+                transposed_data, full_range_2d, transposed_updates, reduction="none"
+            )
             # Transpose the result back to the original shape:
             output = op.Transpose(scattered, perm=[1, 0, 2])
             return output
