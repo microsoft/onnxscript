@@ -34,8 +34,8 @@ class ScatterAll(orp.RewriteRuleClassBase):
         if not isinstance(axis_value, int):
             # Cannot determine the axis statically, so we cannot apply this rule.
             return False
-        shape = data.shape
-        if not isinstance(shape, ir.Shape):
+        shape: ir.Shape | None = data.shape
+        if shape is None:
             # The data shape is not known, so we cannot apply this rule.
             return False
         updated_dim_value = shape[axis_value]
@@ -55,3 +55,5 @@ class ScatterAll(orp.RewriteRuleClassBase):
 
 
 rule = ScatterAll.rule()
+
+rules = orp.RewriteRuleSet([rule])

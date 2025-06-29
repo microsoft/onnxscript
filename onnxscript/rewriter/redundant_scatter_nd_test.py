@@ -45,7 +45,7 @@ class RedundantScatterNdTest(unittest.TestCase):
         onnx_check(model)
         shape_inference(model)
         onnxscript.optimizer.fold_constants(model)
-        count = redundant_scatter_nd.rule.apply_to_model(model)
+        count = redundant_scatter_nd.rules.apply_to_model(model)
         self.assertEqual(count, 1)
         onnx_check(model)
         optimized_model_proto = ir.serde.serialize_model(model)
