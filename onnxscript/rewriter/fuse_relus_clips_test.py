@@ -4,11 +4,11 @@ import unittest
 
 import numpy as np
 import onnx
+import onnx_ir as ir
 import onnxruntime as ort
 import parameterized
 from onnx_ir.passes.common import onnx_checker, shape_inference
 
-from onnxscript import ir
 from onnxscript.rewriter import fuse_relus_clips, testing
 from onnxscript.rewriter import pattern as orp
 from onnxscript.rewriter.fuse_relus_clips import (
@@ -29,18 +29,16 @@ class _FuseReluClipTestBase(unittest.TestCase):
     def run_test(
         self,
         base_model: ir.Model,
-        expected_op_type: str,
+        expected_op_types: list[str],
         dtype: str = "float",
     ):
         onnx_checker.CheckerPass(True)(base_model)
         base_model = shape_inference.infer_shapes(base_model)
-
         updated_model = self.clone_model(base_model)
         _ = fuse_relus_clips.fuse_relus_clips_rules().apply_to_model(updated_model)
 
-        # Check Relu/Clip are fused
-        self.assertEqual(len(updated_model.graph), 1)
-        self.assertEqual(updated_model.graph[0].op_type, expected_op_type)
+        # Check expected op_types
+        self.assertEqual([node.op_type for node in updated_model.graph], expected_op_types)
 
         # Check inference
         inputs = (self.rng.integers(low=-10, high=10, size=(2, 32, 14), dtype=np.int32),)
@@ -83,7 +81,7 @@ class _FuseReluClipTestBase(unittest.TestCase):
 
 
 class FuseSuccessiveReluTest(_FuseReluClipTestBase):
-    def test_fuse_succesive_relus(self):
+    def test_successful_fuse_successive_relus(self):
         model = ir.from_onnx_text("""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
@@ -93,7 +91,7 @@ class FuseSuccessiveReluTest(_FuseReluClipTestBase):
                 Y = Relu(x2)
             }
         """)
-        self.run_test(model, expected_op_type="Relu")
+        self.run_test(model, expected_op_types=["Relu"])
 
 
 class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
@@ -133,7 +131,7 @@ class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
             ),
         ]
     )
-    def test_fuse_successive_relu_clip(self, _, nodes, dtype):
+    def test_successful_fuse_successive_relu_clip(self, _, nodes, dtype):
         model = ir.from_onnx_text(f"""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model ({dtype}[N, 32, 14] X) => ({dtype} [N, ?, ?] Y)
@@ -142,7 +140,37 @@ class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
                 {nodes}
             }}
         """)
-        self.run_test(model, expected_op_type="Clip", dtype=dtype)
+        self.run_test(model, expected_op_types=["Clip"], dtype=dtype)
+
+    @parameterized.parameterized.expand(
+        [
+            (
+                "relu_then_clip",
+                """
+                    x1 = Relu(X)
+                    min = Constant<value_float=-2.0>()
+                    Y = Clip(x1, min)
+                """,
+            ),
+            (
+                "clip_then_relu",
+                """
+                    min = Constant<value_float=-2.0>()
+                    x1 = Clip(X, min)
+                    Y = Relu(x1)
+                """,
+            ),
+        ]
+    )
+    def test_successful_fuse_successive_relu_clip_constant_nodes(self, _, nodes):
+        model = ir.from_onnx_text(f"""
+            < ir_version: 10, opset_import: ["" : 20] >
+            test_model (float[N, 32, 14] X) => (float[N, ?, ?] Y)
+            {{
+                {nodes}
+            }}
+        """)
+        self.run_test(model, expected_op_types=["Constant", "Clip"])
 
     @parameterized.parameterized.expand(
         [
@@ -162,7 +190,7 @@ class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
             ),
         ]
     )
-    def test_fuse_successive_relu_clip_no_min(self, _, nodes):
+    def test_successful_fuse_successive_relu_clip_no_min(self, _, nodes):
         model = ir.from_onnx_text(f"""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
@@ -171,7 +199,7 @@ class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
                 {nodes}
             }}
         """)
-        self.run_test(model, expected_op_type="Clip")
+        self.run_test(model, expected_op_types=["Clip"])
 
     @parameterized.parameterized.expand(
         [
@@ -193,7 +221,7 @@ class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
             ),
         ]
     )
-    def test_fuse_successive_relu_clip_non_initializers(self, _, nodes, rewrite_rule):
+    def test_fail_fuse_successive_relu_clip_non_initializers(self, _, nodes, rewrite_rule):
         model = ir.from_onnx_text(f"""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
@@ -202,7 +230,7 @@ class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
                 {nodes}
             }}
         """)
-        self.run_failed_condition_test(model, rewrite_rule, "is not a constant initializer.")
+        self.run_failed_condition_test(model, rewrite_rule, "is not a constant.")
 
     @parameterized.parameterized.expand(
         [
@@ -224,7 +252,7 @@ class FuseSuccessiveReluClipTest(_FuseReluClipTestBase):
             ),
         ]
     )
-    def test_fuse_successive_relu_clip_graph_inputs(self, _, nodes, rewrite_rule):
+    def test_fail_fuse_successive_relu_clip_graph_inputs(self, _, nodes, rewrite_rule):
         model = ir.from_onnx_text(f"""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model (float[N, 32, 14] X, float min) => (float [N, ?, ?] Y)
@@ -242,7 +270,7 @@ class FuseSuccessiveClipTest(_FuseReluClipTestBase):
             ("int32", "int32"),
         ]
     )
-    def test_fuse_succesive_clips(self, _, dtype):
+    def test_successful_fuse_successive_clips(self, _, dtype):
         model = ir.from_onnx_text(f"""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model ({dtype}[N, 32, 14] X) => ({dtype} [N, ?, ?] Y)
@@ -255,9 +283,26 @@ class FuseSuccessiveClipTest(_FuseReluClipTestBase):
                 Y  = Clip(x2, min3, max3)
             }}
         """)
-        self.run_test(model, expected_op_type="Clip", dtype=dtype)
+        self.run_test(model, expected_op_types=["Clip"], dtype=dtype)
 
-    def test_fuse_succesive_clips_no_min(self):
+    def test_successful_fuse_successive_clips_node_constants(self):
+        model = ir.from_onnx_text("""
+            < ir_version: 10, opset_import: ["" : 20] >
+            test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
+            {
+                min1 = Constant<value_float=-2.0>()
+                max1 = Constant<value_float=6.0>()
+                min2 = Constant<value_float=-3.0>()
+                max2 = Constant<value_float=3.0>()
+                x1 = Clip(X, min1, max1)
+                Y  = Clip(x1, min2, max2)
+            }
+        """)
+        self.run_test(
+            model, expected_op_types=["Constant", "Constant", "Constant", "Constant", "Clip"]
+        )
+
+    def test_successful_fuse_successive_clips_no_min(self):
         model = ir.from_onnx_text("""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
@@ -267,9 +312,9 @@ class FuseSuccessiveClipTest(_FuseReluClipTestBase):
                 Y  = Clip(x1,, max2)
             }
         """)
-        self.run_test(model, expected_op_type="Clip")
+        self.run_test(model, expected_op_types=["Clip"])
 
-    def test_fuse_successive_clips_non_initializers(self):
+    def test_fail_fuse_successive_clips_non_initializers(self):
         model = ir.from_onnx_text("""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
@@ -281,11 +326,9 @@ class FuseSuccessiveClipTest(_FuseReluClipTestBase):
                 Y = Clip(x1, min2)
             }
         """)
-        self.run_failed_condition_test(
-            model, fuse_successive_clip_rule, "is not a constant initializer."
-        )
+        self.run_failed_condition_test(model, fuse_successive_clip_rule, "is not a constant.")
 
-    def test_fuse_successive_clips_graph_inputs(self):
+    def test_fail_fuse_successive_clips_graph_inputs(self):
         model = ir.from_onnx_text("""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model (float[N, 32, 14] X, float min1, float min2) => (float [N, ?, ?] Y)
@@ -299,7 +342,7 @@ class FuseSuccessiveClipTest(_FuseReluClipTestBase):
 
 
 class FuseReluClipIntegrationTest(_FuseReluClipTestBase):
-    def test_full_chain_fusion(self):
+    def test_successful_full_chain_fusion(self):
         model = ir.from_onnx_text("""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model (float[N, 32, 14] X) => (float [N, ?, ?] Y)
@@ -313,7 +356,7 @@ class FuseReluClipIntegrationTest(_FuseReluClipTestBase):
                 Y = Clip(x6)
             }
         """)
-        self.run_test(model, expected_op_type="Clip")
+        self.run_test(model, expected_op_types=["Clip"])
 
 
 if __name__ == "__main__":

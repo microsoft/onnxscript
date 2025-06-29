@@ -10,8 +10,8 @@
 import abc
 
 import numpy as np
+import onnx_ir as ir
 
-from onnxscript import ir
 from onnxscript.rewriter import pattern as orp
 
 
@@ -34,10 +34,10 @@ class _FuseReluClipBase(orp.RewriteRuleClassBase, abc.ABC):
             second_clip_node = out_second_clip.producer()
 
         min_clip, max_clip = self.compute_clip_min_max(first_clip_node, second_clip_node)
-        clip_initializers = []
+        clip_min_max = []
 
         if min_clip is not None:
-            clip_initializers.append(
+            clip_min_max.append(
                 op.initializer(min_clip, name=f"{first_clip_node.inputs[0].name}_min")
             )
 
@@ -45,13 +45,13 @@ class _FuseReluClipBase(orp.RewriteRuleClassBase, abc.ABC):
             # ONNX Clip expects min and max inputs in order.
             # If min is not provided, we insert None to maintain correct argument positions.
             if min_clip is None:
-                clip_initializers.append(None)
+                clip_min_max.append(None)
 
-            clip_initializers.append(
+            clip_min_max.append(
                 op.initializer(max_clip, name=f"{first_clip_node.inputs[0].name}_max")
             )
 
-        return op.Clip(x, *clip_initializers)
+        return op.Clip(x, *clip_min_max)
 
     @abc.abstractmethod
     def compute_clip_min_max(
@@ -76,27 +76,36 @@ class _FuseReluClipBase(orp.RewriteRuleClassBase, abc.ABC):
         return min_clip, max_clip, dtype
 
     def check(self, context, **kwargs):
+        """Condition to check if we need to replace the pattern.
+
+        The pattern is applied only when the min and max inputs of the Clip nodes are
+        not graph inputs and are constant values (i.e., provided by Constant nodes or initializers).
+
+        Returns:
+            MatchResult:
+                Success if we need to replace the pattern, Failure otherwise.
+        """
         del context  # Unused
         check_result = orp.MatchResult()
 
-        # check clip min/max are initializers
-        initializers = []
+        # Check if clip min/max are initializers
+        clip_min_max = []
 
         first_clip_node = kwargs.get("out_first_clip").producer()
-        initializers.extend([inp for inp in first_clip_node.inputs[1:] if inp is not None])
+        clip_min_max.extend([inp for inp in first_clip_node.inputs[1:] if inp is not None])
 
         if out_second_clip := kwargs.get("out_second_clip"):
             second_clip_node = out_second_clip.producer()
-            initializers.extend(
+            clip_min_max.extend(
                 [inp for inp in second_clip_node.inputs[1:] if inp is not None]
             )
 
-        for initializer in initializers:
-            if initializer.is_graph_input():
-                return check_result.fail(f"{initializer.name} is a graph input.")
+        for m in clip_min_max:
+            if m.is_graph_input():
+                return check_result.fail(f"{m.name} is a graph input.")
 
-            if not initializer.is_initializer() or initializer.const_value is None:
-                return check_result.fail(f"{initializer.name} is not a constant initializer.")
+            if ir.convenience.get_const_tensor(m) is None:
+                return check_result.fail(f"{m.name} is not a constant.")
 
         return check_result
 

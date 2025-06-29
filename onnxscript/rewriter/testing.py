@@ -24,10 +24,10 @@ def assert_numerically_equal(
     Args:
         original_model_proto: The original model proto or ir.Model.
         rewritten_model_proto: The rewritten by the rules model proto or ir.Model.
+        args: The positional arguments to pass to the model.
         ort_optimization_level: Onnxruntime optimization level.
         rtol: Relative tolerance.
         atol: Absolute tolerance.
-        args: The positional arguments to pass to the model.
     """
 
     if isinstance(original_model_proto, ir.Model):
