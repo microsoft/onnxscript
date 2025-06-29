@@ -13,8 +13,13 @@ from __future__ import annotations
 
 import onnx_ir as ir
 
+import onnxscript.rewriter
 from onnxscript.rewriter import _ir_utils as ir_utils
 from onnxscript.rewriter import pattern as orp
+
+
+def fail(*args):
+    return onnxscript.rewriter.MatchResult().fail(*args)
 
 
 class ScatterAll(orp.RewriteRuleClassBase):
@@ -32,22 +37,23 @@ class ScatterAll(orp.RewriteRuleClassBase):
         # That is: check that the data.shape[axis] matches transposed_data.shape[0].
         axis_value = ir_utils.get_singleton_value(axis)
         if not isinstance(axis_value, int):
-            # Cannot determine the axis statically, so we cannot apply this rule.
-            return False
+            return fail("Axis value must be a constant integer.", axis)
         shape: ir.Shape | None = data.shape
         if shape is None:
-            # The data shape is not known, so we cannot apply this rule.
-            return False
+            return fail("Data shape is not statically known.", data)
         updated_dim_value = shape[axis_value]
-        transposed_data_shape = transposed_data.shape
-        if not isinstance(transposed_data_shape, ir.Shape):
-            # The transposed data shape is not known, so we cannot apply this rule.
-            return False
+        transposed_data_shape: ir.Shape | None = transposed_data.shape
+        if transposed_data_shape is None:
+            return fail("Transposed data shape is not statically known.", transposed_data)
         actual_dim_value = transposed_data_shape[0]
         if updated_dim_value != actual_dim_value:
             # The first dimension of the transposed data does not match the updated dimension,
             # so we cannot apply this rule.
-            return False
+            return fail(
+                "The first dimension of the transposed data does not match the updated dimension.",
+                data,
+                transposed_data,
+            )
         return True
 
     def rewrite(self, op, updates, **_):
