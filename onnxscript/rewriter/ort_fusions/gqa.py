@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import numpy as np
+import onnx_ir as ir
 
-import onnxscript.ir as ir
 import onnxscript.rewriter._fusion_utils as _fusion_utils
 from onnxscript.rewriter import _ir_utils, pattern
 

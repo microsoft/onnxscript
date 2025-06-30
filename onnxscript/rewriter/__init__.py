@@ -8,11 +8,12 @@ __all__ = [
     "pattern",
     "rewrite",
     "RewritePass",
+    "MatchResult",
 ]
 
 import onnx
+import onnx_ir.passes.common as common_passes
 
-import onnxscript.ir.passes.common as common_passes
 from onnxscript import ir
 from onnxscript.rewriter import (
     basic_rules,
@@ -21,7 +22,9 @@ from onnxscript.rewriter import (
     collapse_slices,
     no_op,
     pattern,
+    redundant_scatter_nd,
 )
+from onnxscript.rewriter._basics import MatchResult
 
 _ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
 _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
@@ -30,6 +33,7 @@ _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
     *cast_constant_of_shape.rules.rules,
     *collapse_slices.rules.rules,
     *basic_rules.basic_optimization_rules().rules,
+    *redundant_scatter_nd.rules.rules,
 )
 
 

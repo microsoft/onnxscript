@@ -32,7 +32,7 @@ Similarly for writing the condition checking function, we require only `input_a`
 :::
 
 In order to validate whether matmul broadcast is sufficient, we write a condition checking function as below.
-Note that the relevant inputs passed to the check function are all instances of :class:`onnx_ir.Value`. These represent
+Note that the relevant inputs passed to the check function are all instances of {py:class}`onnx_ir.Value`. These represent
 the values in the input graph IR that matched against the corresponding _pattern variables_ in the target
 pattern. Please see documentation of the [IR API](https://onnx.ai/ir-py/) for more details on how to use it, for example to identify
 the type or shape or rank of these values.
@@ -50,4 +50,3 @@ With all the necessary components in place, the pattern rewrite rule with the `m
 The final graph with the applied rewrite looks as follows:
 
 ![broadcast_rewrite](examples/img/broadcast_02.png){align=center}
-

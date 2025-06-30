@@ -5,12 +5,12 @@ from __future__ import annotations
 import unittest
 
 import numpy as np
+import onnx_ir as ir
+import onnx_ir.passes.common as common_passes
 import packaging.version
 import parameterized
 
 import onnxscript
-import onnxscript.ir as ir
-import onnxscript.ir.passes.common as common_passes
 import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
 from onnxscript import FLOAT, script
