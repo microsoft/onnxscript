@@ -1,6 +1,56 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Rewrite rules for ONNX models."""
+"""Rewrite rules for ONNX models.
+
+This module provides the core functionality for pattern-based rewriting of ONNX models.
+It includes:
+
+- RewriteRuleClassBase: Recommended base class for implementing rewrite rules using a class-based API
+- RewriteRule: Defines a single pattern-to-replacement rewrite transformation
+- RewriteRuleSet: Manages a collection of rewrite rules and applies them to models
+- Supporting utilities for pattern matching, replacement, and context management
+
+The rewriter enables users to define patterns that match subgraphs in ONNX models
+and replace them with equivalent but potentially more efficient implementations.
+
+Example usage with class-based rules (recommended):
+    
+    ```python
+    class ConstantFolding(RewriteRuleClassBase):
+        \"\"\"Fold Add operations with two constants\"\"\"
+        
+        def pattern(self, op, x, y):
+            return op.Add(x, y)
+        
+        def check(self, context, x, y):
+            # Only apply if both inputs are constants
+            return (x.const_value is not None and 
+                    y.const_value is not None)
+        
+        def rewrite(self, op, x, y):
+            # Compute the result and create a constant
+            result = x.const_value + y.const_value
+            return op.Constant(value=result)
+    
+    # Apply the rule
+    rule = ConstantFolding.rule()
+    rule.apply_to_model(model)
+    ```
+    
+Function-based usage (lower-level API):
+    
+    ```python
+    def add_zero_pattern(op, x):
+        return op.Add(x, op.Constant(value=0.0))
+    
+    def identity_replacement(op, x):
+        return op.Identity(x)
+    
+    # Create and apply the rule
+    rule = RewriteRule(add_zero_pattern, identity_replacement)
+    rule.apply_to_model(model)
+    ```
+"""
 
 from __future__ import annotations
 

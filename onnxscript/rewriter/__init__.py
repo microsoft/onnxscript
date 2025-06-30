@@ -1,5 +1,38 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+"""ONNX Model Rewriter.
+
+This module provides pattern-based rewriting capabilities for ONNX models.
+The rewriter allows you to define patterns that match subgraphs in ONNX models
+and replace them with equivalent but potentially more efficient implementations.
+
+Main Components:
+    - pattern: Main API for defining and applying rewrite rules
+    - rewrite(): High-level function to apply rules to models
+    - RewritePass: Integration with the IR passes framework
+
+Example Usage:
+    
+    ```python
+    import onnxscript.rewriter as rewriter
+    
+    # Apply default optimization rules
+    optimized_model = rewriter.rewrite(model)
+    
+    # Apply custom rules
+    from onnxscript.rewriter import pattern
+    
+    class MyOptimization(pattern.RewriteRuleClassBase):
+        def pattern(self, op, x):
+            return op.Add(x, op.Constant(value=0.0))
+        
+        def rewrite(self, op, x, zero=None):
+            return op.Identity(x)
+    
+    custom_rules = [MyOptimization.rule()]
+    optimized_model = rewriter.rewrite(model, custom_rules)
+    ```
+"""
 from __future__ import annotations
 
 from typing import Sequence, TypeVar, Union
