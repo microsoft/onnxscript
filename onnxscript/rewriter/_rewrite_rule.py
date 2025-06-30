@@ -465,12 +465,12 @@ class RewriteRuleSet:
         """
         count = 0
 
-        # NOTE: Rules should be prioritized in the order they are added to the RewriteRuleSet.
-        # And the graph is applied in order.
         for rule in self.rules:
             if rule.graph_pre_visitor:
                 rule.graph_pre_visitor()
-            for node in graph_or_function:
+
+        for node in graph_or_function:
+            for rule in self.rules:
                 delta = rule.try_rewrite(
                     model, graph_or_function, node, verbose=verbose, tracer=tracer
                 )
@@ -549,6 +549,9 @@ class RewriteRuleSet:
                 )
 
                 count += 1
+                break
+
+        for rule in self.rules:
             if rule.graph_post_visitor:
                 rule.graph_post_visitor()
 
