@@ -82,35 +82,3 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         model = ir.serde.deserialize_model(model_proto)
         count = collapse_slices.rules.apply_to_model(model)
         self.assertEqual(count, 0)
-
-    def test_scatternd_is_redundant_when_it_is_updating_the_whole_input_in_order(self):
-        model_proto = onnx.parser.parse_model(
-            """
-            <ir_version: 7, opset_import: [ "" : 17]>
-            agraph (float[112, 16, 512] data, float[112, 16, 512] updates) => (float[112, 16, 512] output)
-            {
-                output = ScatterND (data, indices, updates)
-            }
-        """
-        )
-        # Use inserted initializers to avoid manually coding the large constants
-        indices = np.arange(112).reshape(112, 1).astype(np.int64)
-        model = ir.serde.deserialize_model(model_proto)
-        # from numpy to ir.Tensor
-        indices_ir_tensor = ir.Tensor(
-            name="indices",
-            value=indices,
-        )
-        # assign the tensor to a value
-        indices = model.graph[0].inputs[1]
-        indices.const_value = indices_ir_tensor
-        model.graph.initializers["indices"] = indices
-        original_model_proto = ir.serde.serialize_model(model)
-
-        count = collapse_slices.rules.apply_to_model(model)
-        self.assertEqual(count, 1)
-        self.assertEqual(len(model.graph), 1)
-        self.assertIn("Identity", [node.op_type for node in model.graph])
-
-        input = np.random.rand(112, 16, 512).astype(np.float32)
-        testing.assert_numerically_equal(original_model_proto, model, (input, input))

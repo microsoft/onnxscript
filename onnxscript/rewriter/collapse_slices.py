@@ -71,57 +71,9 @@ def _identity_to_itself(op, data, **_):
     return op.Identity(data)
 
 
-def _identity_to_updates(op, data, indices, updates, **_):
-    """Return the updates as the output.
-
-    This is used when the ScatterND is redundant in terms of
-    updating the whole data with the updates.
-
-    """
-    return op.Identity(updates)
-
-
 def _potential_redundant_slice(op, data, starts, ends, axes, steps):
     """To identify a slice op"""
     return op.Slice(data, starts, ends, axes, steps)
-
-
-def _potential_redundant_scatternd(op, data, indices, updates):
-    """To identify a ScatterND op"""
-    return op.ScatterND(data, indices, updates)
-
-
-def _check_if_redundant_scatternd(
-    context,
-    data: ir.Value,
-    indices: ir.Value,
-    updates: ir.Value,
-    **_,
-):
-    """If the indices is the same length as the first dim of data, and the shape of updates is equal to data, we can simply swap the whole value."""
-    del context  # Reserved for future extensions
-
-    # To validate data can be replaced directly by updates, we need to check the following:
-    # 1. they have the same shape
-    if data.shape is None:
-        logger.info("The value 'data' shape is not statically known.")
-        return False
-    if updates.shape is None:
-        logger.info("The value 'updates' shape is not statically known.")
-        return False
-    if data.shape != updates.shape:
-        logger.info("The shape of 'data' and 'updates' are different.")
-        return False
-
-    # 2. the indices is referring to the whole data, which is from 0 to data.shape[0]
-    if indices.const_value is None:
-        logger.info("The value 'indices' is not statically known.")
-        return False
-    if indices.const_value.numpy().tolist() != [[i] for i in range(data.shape[0])]:  # type: ignore[arg-type]
-        logger.info("The 'indices' is not referring to the whole data.")
-        return False
-
-    return True
 
 
 # Register the rewrite rules
@@ -131,11 +83,5 @@ remove_redundant_slice = pattern.RewriteRule(
     _check_if_redundant_slice,
 )
 
-remove_redundant_scatternd = pattern.RewriteRule(
-    _potential_redundant_scatternd,
-    _identity_to_updates,
-    _check_if_redundant_scatternd,
-)
-
 # NOTE: The order of the rules is important. Larger pattern should be checked first.
-rules = pattern.RewriteRuleSet([remove_redundant_slice, remove_redundant_scatternd])
+rules = pattern.RewriteRuleSet([remove_redundant_slice])
