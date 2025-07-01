@@ -88,7 +88,7 @@ class _FuseReluClipBase(orp.RewriteRuleClassBase, abc.ABC):
         del context  # Unused
         check_result = orp.MatchResult()
 
-        # Check if clip min/max are initializers
+        # Check if Clip min/max are not graph inputs and are constant values
         clip_min_max = []
 
         first_clip_node = kwargs.get("out_first_clip").producer()
