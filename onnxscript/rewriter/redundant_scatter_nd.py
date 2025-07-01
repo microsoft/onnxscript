@@ -24,8 +24,11 @@ from onnxscript.rewriter import _ir_utils as ir_utils
 from onnxscript.rewriter import pattern as orp
 
 
-def fail(*args):
-    return onnxscript.rewriter.MatchResult().fail(*args)
+def fail(reason, *failure_sources):
+    if failure_sources:
+        return onnxscript.rewriter.MatchResult().fail(reason, list(failure_sources))
+    else:
+        return onnxscript.rewriter.MatchResult().fail(reason)
 
 
 class ScatterAllDynamic(orp.RewriteRuleClassBase):
