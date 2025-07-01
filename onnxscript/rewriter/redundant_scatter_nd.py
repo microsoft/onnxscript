@@ -17,7 +17,7 @@ Both rules detect when the scatter-update ends up being an assignment of a new v
 
 from __future__ import annotations
 
-import onnx_ir as ir  # type: ignore[import-not-found]
+import onnx_ir as ir
 
 import onnxscript.rewriter
 from onnxscript.rewriter import _ir_utils as ir_utils
