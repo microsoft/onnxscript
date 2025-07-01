@@ -17,7 +17,7 @@ Both rules detect when the scatter-update ends up being an assignment of a new v
 
 from __future__ import annotations
 
-import onnx_ir as ir
+import onnx_ir as ir  # type: ignore[import-not-found]
 
 import onnxscript.rewriter
 from onnxscript.rewriter import _ir_utils as ir_utils
@@ -68,15 +68,15 @@ class ScatterAllDynamic(orp.RewriteRuleClassBase):
 
 class ScatterAllStatic(orp.RewriteRuleClassBase):
     """Rewrite rule for eliminating redundant ScatterND with statically known indices.
-    
+
     This handles the case where indices are constant values in the form [[0], [1], ..., [n-1]]
     that update the entire first dimension of the data tensor.
     """
-    
+
     def pattern(self, op, data, indices, updates):
         """Pattern to match ScatterND with static indices."""
         return op.ScatterND(data, indices, updates)
-    
+
     def check(self, context, data, indices, updates, **_):
         """Check if the ScatterND is redundant due to static indices covering entire tensor."""
         # To validate data can be replaced directly by updates, we need to check the following:
@@ -97,7 +97,7 @@ class ScatterAllStatic(orp.RewriteRuleClassBase):
             return fail("The 'indices' is not referring to the whole data.", indices)
 
         return True
-    
+
     def rewrite(self, op, updates, **_):
         """Replace ScatterND with Identity since updates covers entire tensor."""
         return op.Identity(updates)

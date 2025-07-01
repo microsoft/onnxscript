@@ -22,6 +22,7 @@ onnx_check = CheckerPass(True)
 class RedundantScatterNdTest(unittest.TestCase):
     def test_redundant_scatter_nd_dynamic_indices(self):
         """Test redundant ScatterND with dynamically constructed indices."""
+
         @script()
         def model_script(
             data: FLOAT[8, "N", 16], updates: FLOAT[8, "N", 16]
@@ -64,6 +65,10 @@ class RedundantScatterNdTest(unittest.TestCase):
             optimized_model_proto.SerializeToString(), providers=["CPUExecutionProvider"]
         )
         optimized_outputs = optimized_session.run(None, inputs)
+        # Compare outputs
+        for output, optimized_output in zip(outputs, optimized_outputs):
+            np.testing.assert_allclose(output, optimized_output, rtol=1e-6, atol=1e-6)
+
     def test_redundant_scatter_nd_static_indices(self):
         """Test redundant ScatterND with static indices (moved from collapse_slices_test.py)."""
         model_proto = onnx.parser.parse_model(
@@ -97,20 +102,20 @@ class RedundantScatterNdTest(unittest.TestCase):
         # Test numerical equivalence
         input_data = np.random.rand(112, 16, 512).astype(np.float32)
         inputs = {"data": input_data, "updates": input_data}
-        
+
         # Run original model
         session = onnxruntime.InferenceSession(
             original_model_proto.SerializeToString(), providers=["CPUExecutionProvider"]
         )
         original_outputs = session.run(None, inputs)
-        
+
         # Run optimized model
         optimized_model_proto = ir.serde.serialize_model(model)
         optimized_session = onnxruntime.InferenceSession(
             optimized_model_proto.SerializeToString(), providers=["CPUExecutionProvider"]
         )
         optimized_outputs = optimized_session.run(None, inputs)
-        
+
         # Compare outputs
         for original_output, optimized_output in zip(original_outputs, optimized_outputs):
             np.testing.assert_allclose(original_output, optimized_output, rtol=1e-6, atol=1e-6)
