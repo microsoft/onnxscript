@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 
+import onnx_ir as ir
 import onnx_ir.passes.common as common_passes
 
-from onnxscript import ir, rewriter
+from onnxscript import rewriter
 from onnxscript.optimizer import _constant_folding
 
 logger = logging.getLogger(__name__)
