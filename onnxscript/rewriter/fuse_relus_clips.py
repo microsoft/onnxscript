@@ -124,15 +124,17 @@ class FuseSuccessiveClip(_FuseReluClipBase):
         min_clip1, max_clip1, dtype = self.extract_min_max(first_clip_node)
         min_clip2, max_clip2, _ = self.extract_min_max(second_clip_node)
 
-        if min_clip1 is not None and min_clip2 is not None:
-            min_clip = ir.tensor(np.array(np.maximum(min_clip1, min_clip2), dtype=dtype))
-        else:
-            min_clip = min_clip1 if min_clip1 is not None else min_clip2
+        def combine(val1, val2, op):
+            if val1 is not None and val2 is not None:
+                return ir.tensor(np.array(op(val1, val2), dtype=dtype))
+            elif val1 is not None:
+                return ir.tensor(val1)
+            elif val2 is not None:
+                return ir.tensor(val2)
+            return None
 
-        if max_clip1 is not None and max_clip2 is not None:
-            max_clip = ir.tensor(np.array(np.minimum(max_clip1, max_clip2), dtype=dtype))
-        else:
-            max_clip = max_clip1 if max_clip1 is not None else max_clip2
+        min_clip = combine(min_clip1, min_clip2, np.maximum)
+        max_clip = combine(max_clip1, max_clip2, np.minimum)
 
         return min_clip, max_clip
 

@@ -274,13 +274,16 @@ class FuseSuccessiveClipTest(_FuseReluClipTestBase):
         model = ir.from_onnx_text(f"""
             < ir_version: 10, opset_import: ["" : 20] >
             test_model ({dtype}[N, 32, 14] X) => ({dtype} [N, ?, ?] Y)
-            <{dtype} min1 = {{0}}, {dtype} max1 = {{4}},
-            {dtype} min2 = {{1}}, {dtype} max2 = {{11}},
-            {dtype} min3 = {{3}}, {dtype} max3 = {{7}}>
+            <{dtype} max1 = {{4}}, {dtype} min2 = {{0}},
+             {dtype} max2 = {{11}}, {dtype} min3 = {{1}},
+            {dtype} max3 = {{7}}, {dtype} max4 = {{13}}>
             {{
-                x1 = Clip(X, min1, max1)
-                x2 = Clip(x1, min2, max2)
-                Y  = Clip(x2, min3, max3)
+                x1 = Clip(X)
+                x2 = Clip(x1,,max1)
+                x3 = Clip(x2, min2, max2)
+                x4 = Clip(x3, min3, max3)
+                x5  = Clip(x4,,max4)
+                Y = Clip(x5)
             }}
         """)
         self.run_test(model, expected_op_types=["Clip"], dtype=dtype)
