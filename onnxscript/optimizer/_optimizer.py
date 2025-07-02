@@ -53,10 +53,10 @@ def optimize_ir(
             early_stop=stop_if_no_change,
         ),
         common_passes.RemoveUnusedNodesPass(),
-        common_passes.CommonSubexpressionEliminationPass(),
-        common_passes.LiftConstantsToInitializersPass(),
+        common_passes.LiftConstantsToInitializersPass(lift_all_constants=True, size_limit=0),
         common_passes.LiftSubgraphInitializersToMainGraphPass(),
         common_passes.DeduplicateInitializersPass(),
+        common_passes.CommonSubexpressionEliminationPass(),
     ]
     if inline:
         # Inline all functions first before optimizing
