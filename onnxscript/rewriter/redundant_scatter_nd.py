@@ -29,6 +29,9 @@ def fail(*args):
 
 
 class ScatterAllDynamic(orp.RewriteRuleClassBase):
+    def __init__(self):
+        super().__init__(remove_nodes=False)
+
     def pattern(self, op, data, axis, transposed_data, updates):
         # Construct update-indices spanning an entire axis:
         shape = op.Shape(data, start=0)
