@@ -47,7 +47,9 @@ class ScatterAllDynamic(orp.RewriteRuleClassBase):
         updated_dim_value = shape[axis_value]
         transposed_data_shape: ir.Shape | None = transposed_data.shape
         if transposed_data_shape is None:
-            return result.fail("Transposed data shape is not statically known.", transposed_data)
+            return result.fail(
+                "Transposed data shape is not statically known.", transposed_data
+            )
         actual_dim_value = transposed_data_shape[0]
         if updated_dim_value != actual_dim_value:
             # The first dimension of the transposed data does not match the updated dimension,
@@ -83,7 +85,9 @@ class ScatterAllStatic(orp.RewriteRuleClassBase):
         if updates.shape is None:
             return result.fail("The value 'updates' shape is not statically known.", updates)
         if data.shape != updates.shape:
-            return result.fail("The shape of 'data' and 'updates' are different.", [data, updates])
+            return result.fail(
+                "The shape of 'data' and 'updates' are different.", [data, updates]
+            )
 
         # 2. the indices is referring to the whole data, which is from 0 to data.shape[0]
         if indices.const_value is None:
