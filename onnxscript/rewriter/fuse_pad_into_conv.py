@@ -18,6 +18,20 @@ from onnxscript.rewriter import pattern as orp
 
 
 def fill_pads_with_axes(pads: Sequence[int], axes: Sequence[int], rank: int) -> List[int]:
+    """Converts the parameters of the ONNX Pad operator into an explicit list of values.
+
+    A filled list of pads will be returned following the format:
+    [x1_begin, x2_begin, ..., x{rank}_begin, x1_end, x2_end, ..., x{rank}_end]
+
+    Args:
+        pads: list of integers indicating the number of padding elements to add at
+            the beginning and end of each axis.
+        axes: list of axes that pads apply to.
+        rank: value to compute the size of the filled list (2 * rank).
+
+    Returns:
+        The filled list of pads.
+    """
     new_pads = [0] * 2 * rank
     N = len(axes)
     for start_idx, axis in enumerate(axes):
@@ -42,11 +56,13 @@ def read_conv_attributes(ir_conv: ir.Node) -> dict[str, Sequence[int] | str]:
     return attributes
 
 
-class _FusePadConvBase(orp.RewriteRuleClassBase):
+class _FuseConvPadBase(orp.RewriteRuleClassBase):
     """Interface for PadConv nodes fusion."""
 
     def __init__(self, as_function: bool = False):
-        # Remove nodes is set to False to remove unused nodes after the rewrite.
+        # Remove nodes is set to False to remove unused nodes after the rewrite, since
+        # Pad or Conv inputs can come from constant nodes.
+        # With remove_nodes=False these nodes are removed if these nodes are no longer needed.
         super().__init__(remove_nodes=False, as_function=as_function)
 
     def rewrite(
@@ -84,6 +100,22 @@ class _FusePadConvBase(orp.RewriteRuleClassBase):
         )
 
     def check(self, context, x: ir.Value, pad: ir.Value, conv: ir.Value) -> orp.MatchResult:
+        """Condition to check if we need to replace the pattern.
+
+        If Pad inputs can be added in 'pads' attribute of the Conv operator.
+
+        To validate this, we need to check the following:
+        1. `Pad<mode>` attribute has 'constant' as value
+        2. `Pad` operator inputs are constants ('pads', 'constant_value', 'axes')
+        3. 'constant_value' is equal to 0.0.
+        4. `Pad` operator is only used for the spatial dimensions (batch dimension and channels
+           remain unchanged).
+
+        If the above are true, then we don't need the reshapes.
+
+        Returns:
+            True if we need to replace the pattern, False otherwise.
+        """
         del context  # Unused
         check_result = orp.MatchResult()
         pad_node = pad.producer()
@@ -91,7 +123,9 @@ class _FusePadConvBase(orp.RewriteRuleClassBase):
 
         # Pad constraints: attributes
         if (mode := pad_node.attributes.get("mode", None)) and mode.as_string() != "constant":
-            return check_result.fail(f"{pad_node.name} mode must be 'constant'.")
+            return check_result.fail(
+                f"{pad_node.name} ({pad_node.op_type}) mode must be 'constant'."
+            )
 
         # Pad constraints: inputs
         if (pads := pad_node.inputs[1]).const_value is None:
@@ -118,8 +152,8 @@ class _FusePadConvBase(orp.RewriteRuleClassBase):
         return check_result
 
 
-class FusePadConv(_FusePadConvBase):
-    """Replaces ``Pad(Conv(x))`` with ``Conv(x)``."""
+class FuseConvPad(_FuseConvPadBase):
+    """Replaces ``Conv(Pad(x))`` with ``Conv(x)``."""
 
     def pattern(self, op: ir.tape.Tape, x: ir.Value) -> ir.Value:
         return op.Conv(
@@ -138,12 +172,14 @@ class FusePadConv(_FusePadConvBase):
         if (
             apad := conv_node.attributes.get("auto_pad", None)
         ) and apad.as_string() != "NOTSET":
-            return check_result.fail(f"{conv_node.name} auto_pad must be 'NOTSET'.")
+            return check_result.fail(
+                f"{conv_node.name} ({conv_node.op_type}) auto_pad must be 'NOTSET'."
+            )
         return check_result
 
 
-class FusePadConvInteger(FusePadConv):
-    """Replaces ``Pad(ConvInteger(x))`` with ``ConvInteger(x)``."""
+class FuseConvIntegerPad(FuseConvPad):
+    """Replaces ``ConvInteger(Pad(x))`` with ``ConvInteger(x)``."""
 
     def pattern(self, op: ir.tape.Tape, x: ir.Value) -> ir.Value:
         return op.ConvInteger(
@@ -190,28 +226,54 @@ class _NormalizePadFormatBase(orp.RewriteRuleClassBase):
         )
 
     def check(self, context, conv: ir.Value, **__) -> orp.MatchResult:
+        """Condition to check if we need to replace the pattern.
+
+        If it is possible to deduce 'pads'.
+
+        To validate this, we need to check the following:
+        1. `Conv<auto_pad != "NOTSET">` (nothing to do in this case, since 'pads' are
+           already explicit)
+        2. it is possible to deduce the input rank when `Conv<auto_pad == "VALID">`
+        3. When `Conv<auto_pad != "VALID">`:
+            * spatial input/output shapes are static
+            * it is possible to infer `kernel_shape` either from the `Conv` operator attribute
+              or from the kernel input
+
+        If the above are true, then we don't need the reshapes.
+
+        Returns:
+            True if we need to replace the pattern, False otherwise.
+        """
         del context
         check_result = orp.MatchResult()
 
         # Conv constraints: attributes
         conv_node = conv.producer()
         auto_pad = conv_node.attributes.get_string("auto_pad", None)
-        if auto_pad in [None, "NOTSET"]:
+        if auto_pad in {None, "NOTSET"}:
             return check_result.fail(
-                f"{conv_node.name} auto_pad must be different to 'NOTSET'."
+                f"{conv_node.name} ({conv_node.op_type}) auto_pad must be different to 'NOTSET'."
             )
 
         # Conv constraints: inputs/outputs
         input_shape = conv_node.inputs[0].shape
         output_shape = conv_node.outputs[0].shape
         if len(input_shape) <= 2:
-            return check_result.fail(f"Input shapes are not defined on {conv_node.name}.")
+            return check_result.fail(
+                f"Input shapes are not defined on {conv_node.name} ({conv_node.op_type})."
+            )
         if len(output_shape) <= 2:
-            return check_result.fail(f"Output shapes are not defined on {conv_node.name}.")
+            return check_result.fail(
+                f"Output shapes are not defined on {conv_node.name} ({conv_node.op_type})."
+            )
 
         # Conv constraints: values
         if auto_pad != "VALID":
-            error_msg = "Expected static spatial {} shapes on " + conv_node.name + "."
+            error_msg = (
+                "Expected static spatial {} shapes on "
+                + conv_node.name
+                + f" ({conv_node.op_type})."
+            )
             if not all(isinstance(x, int) for x in input_shape[2:]):
                 return check_result.fail(error_msg.format("input"))
             if not all(isinstance(x, int) for x in output_shape[2:]):
@@ -219,7 +281,8 @@ class _NormalizePadFormatBase(orp.RewriteRuleClassBase):
             attributes = read_conv_attributes(conv_node)
             if len(attributes["kernel_shape"]) != len(attributes["strides"]):
                 return check_result.fail(
-                    f"strides must have the same length than kernel_shape on {conv_node.name}."
+                    "strides must have the same length than kernel_shape on "
+                    f"{conv_node.name} ({conv_node.op_type})."
                 )
         return check_result
 
@@ -234,7 +297,7 @@ class NormalizePadFormatConv(_NormalizePadFormatBase):
         attributes: dict[str, Sequence[int] | str],
     ) -> Sequence[int]:
         # Compute pads, following auto_pad/pads attributes
-        if attributes["auto_pad"] in ["NOTSET", "VALID"]:
+        if attributes["auto_pad"] in {"NOTSET", "VALID"}:
             assert len(input_shape) > 0
             return attributes.get("pads", [0] * len(input_shape) * 2)
 
@@ -269,8 +332,8 @@ class NormalizePadFormatConvInteger(NormalizePadFormatConv):
 
 normalize_pad_format_conv = NormalizePadFormatConv.rule()
 normalize_pad_format_conv_integer = NormalizePadFormatConvInteger.rule()
-fuse_pad_into_conv = FusePadConv.rule()
-fuse_pad_into_conv_integer = FusePadConvInteger.rule()
+fuse_pad_into_conv = FuseConvPad.rule()
+fuse_pad_into_conv_integer = FuseConvIntegerPad.rule()
 
 
 def fuse_pad_into_conv_rule_set() -> orp.RewriteRuleSet:
