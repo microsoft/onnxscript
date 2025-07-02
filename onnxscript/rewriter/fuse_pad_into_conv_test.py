@@ -23,7 +23,7 @@ def _clone_model(model: ir.Model) -> ir.Model:
     return ir.from_proto(ir.to_proto(model))
 
 
-class FusePadConvBaseTest(unittest.TestCase):
+class FuseConvPadBaseTest(unittest.TestCase):
     @property
     def rng(self):
         return np.random.default_rng(20250522)
@@ -89,7 +89,7 @@ class FusePadConvBaseTest(unittest.TestCase):
         return ir_model
 
 
-class FusePadConvTest(FusePadConvBaseTest):
+class FuseConvPadTest(FuseConvPadBaseTest):
     @parameterized.parameterized.expand(
         [
             (pad_pads, const_value, axes, conv_pads, conv_auto_pad)
@@ -218,7 +218,7 @@ class FusePadConvTest(FusePadConvBaseTest):
         self.assertRegex(tracer_match.match_result.reason, err_msg)
 
 
-class FusePadConvIntegerTest(FusePadConvBaseTest):
+class FuseConvIntegerPadTest(FuseConvPadBaseTest):
     def get_conv_weights(self, shape: Sequence[int], tape: ir.tape.Tape = None):
         w = ir.tensor(self.rng.integers(0, 256, shape).astype("uint8"), name="W")
         if tape is not None:
@@ -267,7 +267,7 @@ class FusePadConvIntegerTest(FusePadConvBaseTest):
         testing.assert_numerically_equal(base_model, updated_model, (inputs,), atol=0, rtol=0)
 
 
-class NormalizePadFormatTest(FusePadConvBaseTest):
+class NormalizePadFormatTest(FuseConvPadBaseTest):
     def build_model(
         self,
         input_shape: ir.Shape,
