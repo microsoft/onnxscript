@@ -7,7 +7,7 @@ import logging
 import numpy as np
 import onnx
 
-from onnxscript.rewriter._pattern_ir import torch_module_op
+
 from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
 logger = logging.getLogger(__name__)
