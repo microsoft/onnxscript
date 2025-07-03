@@ -10,7 +10,7 @@ from parameterized import parameterized
 
 from onnxscript import ir
 from onnxscript.rewriter import matmul_add_to_gemm, testing
-from onnxscript.rewriter._basics import MatchingTracer, MatchStatus
+from onnxscript.rewriter import MatchingTracer, MatchStatus
 from onnxscript.rewriter.matmul_add_to_gemm import matmul_add_to_gemm_rule
 
 

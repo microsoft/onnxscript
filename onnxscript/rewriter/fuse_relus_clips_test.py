@@ -10,8 +10,7 @@ import parameterized
 from onnx_ir.passes.common import onnx_checker, shape_inference
 
 from onnxscript.rewriter import fuse_relus_clips, testing
-from onnxscript.rewriter._rewrite_rule import RewriteRule
-from onnxscript.rewriter._basics import MatchingTracer, MatchStatus
+from onnxscript.rewriter import RewriteRule, MatchingTracer, MatchStatus
 from onnxscript.rewriter.fuse_relus_clips import (
     fuse_successive_clip_relu_rule,
     fuse_successive_clip_rule,
