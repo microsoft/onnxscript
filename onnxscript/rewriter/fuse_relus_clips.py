@@ -14,10 +14,11 @@ import abc
 import numpy as np
 import onnx_ir as ir
 
-from onnxscript.rewriter import pattern as orp
+from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
+from onnxscript.rewriter._basics import MatchResult
 
 
-class FuseSuccessiveRelu(orp.RewriteRuleClassBase):
+class FuseSuccessiveRelu(RewriteRuleClassBase):
     """Replaces ``Relu(Relu(X))`` with ``Relu(X)``."""
 
     def rewrite(self, op, x):
@@ -27,7 +28,7 @@ class FuseSuccessiveRelu(orp.RewriteRuleClassBase):
         return op.Relu(op.Relu(x))
 
 
-class _FuseReluClipBase(orp.RewriteRuleClassBase, abc.ABC):
+class _FuseReluClipBase(RewriteRuleClassBase, abc.ABC):
     def rewrite(self, op, x, **kwargs):
         first_clip_node = kwargs.get("out_first_clip").producer()
         second_clip_node = None
@@ -88,7 +89,7 @@ class _FuseReluClipBase(orp.RewriteRuleClassBase, abc.ABC):
                 Success if we need to replace the pattern, Failure otherwise.
         """
         del context  # Unused
-        check_result = orp.MatchResult()
+        check_result = MatchResult()
 
         # Check if Clip min/max are not graph inputs and are constant values
         clip_min_max = []
@@ -174,7 +175,7 @@ fuse_successive_clip_relu_rule = FuseSuccessiveClipRelu().rule()
 fuse_successive_relu_clip_rule = FuseSuccessiveReluClip().rule()
 
 
-def fuse_relus_clips_rules() -> orp.RewriteRuleSet:
+def fuse_relus_clips_rules() -> RewriteRuleSet:
     """Returns a set of rewrite rules that fuse successive Relu/Clip nodes.
 
     Returns:
@@ -182,7 +183,7 @@ def fuse_relus_clips_rules() -> orp.RewriteRuleSet:
     """
 
     # Order is important
-    return orp.RewriteRuleSet(
+    return RewriteRuleSet(
         [
             fuse_successive_clip_relu_rule,
             fuse_successive_relu_clip_rule,

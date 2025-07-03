@@ -10,7 +10,8 @@ import parameterized
 from onnx_ir.passes.common import onnx_checker, shape_inference
 
 from onnxscript.rewriter import fuse_relus_clips, testing
-from onnxscript.rewriter import pattern as orp
+from onnxscript.rewriter._rewrite_rule import RewriteRule
+from onnxscript.rewriter._basics import MatchingTracer, MatchStatus
 from onnxscript.rewriter.fuse_relus_clips import (
     fuse_successive_clip_relu_rule,
     fuse_successive_clip_rule,
@@ -62,13 +63,13 @@ class _FuseReluClipTestBase(unittest.TestCase):
     def run_failed_condition_test(
         self,
         base_model: ir.Model,
-        rewrite_rule: orp.RewriteRule,
+        rewrite_rule: RewriteRule,
         expected_message: str,
     ):
         onnx_checker.CheckerPass(True)(base_model)
 
         updated_model = self.clone_model(base_model)
-        tracer = orp.MatchingTracer()
+        tracer = MatchingTracer()
         count = rewrite_rule.apply_to_model(updated_model, tracer=tracer)
 
         # Check that the model is unchanged
@@ -76,7 +77,7 @@ class _FuseReluClipTestBase(unittest.TestCase):
 
         # Check that the error message is the expected one
         tracer_match = tracer.best_matches_map[rewrite_rule][0]
-        self.assertEqual(tracer_match.status.value, orp.MatchStatus.CONDITION_FAILED)
+        self.assertEqual(tracer_match.status.value, MatchStatus.CONDITION_FAILED)
         self.assertRegex(tracer_match.match_result.reason, expected_message)
 
 

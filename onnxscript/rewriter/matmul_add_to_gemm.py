@@ -10,10 +10,11 @@
 import abc
 from typing import ClassVar
 
-from onnxscript.rewriter import pattern as orp
+from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
+from onnxscript.rewriter._basics import MatchResult
 
 
-class _MatMulAddToGemmBase(orp.RewriteRuleClassBase, abc.ABC):
+class _MatMulAddToGemmBase(RewriteRuleClassBase, abc.ABC):
     trans_a: ClassVar = False
     trans_b: ClassVar = False
 
@@ -27,7 +28,7 @@ class _MatMulAddToGemmBase(orp.RewriteRuleClassBase, abc.ABC):
 
     def check(self, context, input_a, input_b, **_):
         del context  # Not used
-        check_result = orp.MatchResult()
+        check_result = MatchResult()
         # Rank of input_a and input_b must be 2
         if len(input_a.shape) != 2 or len(input_b.shape) != 2:
             return check_result.fail("Rank of input_a and input_b must be 2")
@@ -82,7 +83,7 @@ transpose_b_matmul_add_to_gemm_rule = TransBMatMulAddToGemm().rule()
 transpose_ab_matmul_add_to_gemm_rule = TransABMatMulAddToGemm().rule()
 
 
-def gemm_rule_set() -> orp.RewriteRuleSet:
+def gemm_rule_set() -> RewriteRuleSet:
     """Returns a set of rewrite rules that fuse MatMul + Add patterns into a single Gemm node,
     handling cases where one or both MatMul inputs are transposed.
 
@@ -91,7 +92,7 @@ def gemm_rule_set() -> orp.RewriteRuleSet:
     """
 
     # Order is important
-    return orp.RewriteRuleSet(
+    return RewriteRuleSet(
         [
             transpose_ab_matmul_add_to_gemm_rule,
             transpose_a_matmul_add_to_gemm_rule,

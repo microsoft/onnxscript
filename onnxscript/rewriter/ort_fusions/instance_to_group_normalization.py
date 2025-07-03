@@ -7,9 +7,8 @@ import logging
 import numpy as np
 import onnx
 
-from onnxscript.rewriter import pattern
-
-torch_module_op = pattern.torch_module_op
+from onnxscript.rewriter._pattern_ir import torch_module_op
+from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +143,7 @@ def group_normalization(op, input_x, weight_for_norm, weight_full, bias_full, ep
 
 
 # Register the rewrite rules
-instance_norm_to_group_norm_rule = pattern.RewriteRule(
+instance_norm_to_group_norm_rule = RewriteRule(
     instance_simulates_group_normalization_pattern,
     group_normalization,
     check_if_simulated_instance_norm_is_used,
@@ -152,4 +151,4 @@ instance_norm_to_group_norm_rule = pattern.RewriteRule(
 
 # NOTE: instance_norm_to_group_norm_rule is subset of instance_norm_to_group_norm_with_silu_rule,
 # so we need to run instance_norm_to_group_norm_with_silu_rule first.
-rules = pattern.RewriteRuleSet([instance_norm_to_group_norm_rule])
+rules = RewriteRuleSet([instance_norm_to_group_norm_rule])

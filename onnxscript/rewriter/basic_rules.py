@@ -13,10 +13,11 @@ from typing import ClassVar, Sequence
 
 from onnxscript import ir
 from onnxscript.rewriter import _ir_utils as ir_utils
-from onnxscript.rewriter import pattern as orp
+from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
+from onnxscript.rewriter._basics import MatchResult
 
 
-class SqueezeReshape(orp.RewriteRuleClassBase):
+class SqueezeReshape(RewriteRuleClassBase):
     """Replaces ``Reshape(Squeeze(x), [-1]])`` with ``Identity(x)`` for 1D x.
 
     This pattern arises from the translation of pytorch symints.
@@ -31,15 +32,15 @@ class SqueezeReshape(orp.RewriteRuleClassBase):
     def rewrite(self, op, x: ir.Value):
         return op.Identity(x)
 
-    def check(self, context, x) -> orp.MatchResult:
+    def check(self, context, x) -> MatchResult:
         del context  # Unused
-        check_result = orp.MatchResult()
+        check_result = MatchResult()
         if not ir_utils.has_rank(x, 1):
             return check_result.fail("Input is not 1D")
         return check_result
 
 
-class CastIdentity(orp.RewriteRuleClassBase):
+class CastIdentity(RewriteRuleClassBase):
     """Replaces ``Cast(., to=to)`` by ``Identity`` if possible."""
 
     def pattern(self, op, x, to):
@@ -48,14 +49,14 @@ class CastIdentity(orp.RewriteRuleClassBase):
     def rewrite(self, op, x: ir.Value, to: ir.Attr):
         return op.Identity(x)
 
-    def check(self, context, x, to) -> orp.MatchResult:
-        check_result = orp.MatchResult()
+    def check(self, context, x, to) -> MatchResult:
+        check_result = MatchResult()
         if x.dtype != to.as_int():
             return check_result.fail("Input and output types are not the same")
         return check_result
 
 
-class CastCast(orp.RewriteRuleClassBase):
+class CastCast(RewriteRuleClassBase):
     """Replaces ``Cast(Cast(X, ...), to=to)`` by ``Cast(X, to=to)``."""
 
     # Simplify "cast type1 => type2 => type3" to "cast type1 => type3".
@@ -73,8 +74,8 @@ class CastCast(orp.RewriteRuleClassBase):
     def pattern(self, op, x, to, to_ignored):
         return op.Cast(op.Cast(x, to=to_ignored), to=to)
 
-    def check(self, context, x: ir.Value, to: ir.Attr, to_ignored: ir.Attr) -> orp.MatchResult:
-        check_result = orp.MatchResult()
+    def check(self, context, x: ir.Value, to: ir.Attr, to_ignored: ir.Attr) -> MatchResult:
+        check_result = MatchResult()
         type2 = to_ignored.as_int()
         type3 = to.as_int()
         if (type2, type3) not in self._allowed_type2_type3:
@@ -88,7 +89,7 @@ class CastCast(orp.RewriteRuleClassBase):
         return op.Cast(x, to=to)
 
 
-class ExpandIdentity(orp.RewriteRuleClassBase):
+class ExpandIdentity(RewriteRuleClassBase):
     """Replaces ``Expand(..., shape)`` by ``Identity`` if possible."""
 
     def pattern(self, op, x, shape):
@@ -97,8 +98,8 @@ class ExpandIdentity(orp.RewriteRuleClassBase):
     def rewrite(self, op, x: ir.Value, shape: ir.Value):
         return op.Identity(x)
 
-    def check(self, context, x, shape) -> orp.MatchResult:
-        check_result = orp.MatchResult()
+    def check(self, context, x, shape) -> MatchResult:
+        check_result = MatchResult()
         if shape.const_value is None:
             # Shape is not a constant and cannot be guessed.
             return check_result.fail("Shape is not a constant and cannot be guessed.")
@@ -112,7 +113,7 @@ class ExpandIdentity(orp.RewriteRuleClassBase):
         return check_result
 
 
-class ReshapeReshape(orp.RewriteRuleClassBase):
+class ReshapeReshape(RewriteRuleClassBase):
     """Replaces ``Reshape(Reshape(X, ...), shape)`` by ``Reshape(X, shape)``.
     The pattern matches only if second reshape reshapes into a shape
     with positive values.
@@ -124,8 +125,8 @@ class ReshapeReshape(orp.RewriteRuleClassBase):
     def rewrite(self, op, x: ir.Value, shape_ignored: ir.Value, shape: ir.Value):
         return op.Reshape(x, shape)
 
-    def check(self, context, x, shape_ignored, shape) -> orp.MatchResult:
-        check_result = orp.MatchResult()
+    def check(self, context, x, shape_ignored, shape) -> MatchResult:
+        check_result = MatchResult()
         if shape_ignored.const_value is None:
             return check_result.fail("Shape ignored is not a constant.")
         if shape.const_value is None:
@@ -135,7 +136,7 @@ class ReshapeReshape(orp.RewriteRuleClassBase):
         return check_result
 
 
-class SlicesSplit(orp.RewriteRuleClassBase):
+class SlicesSplit(RewriteRuleClassBase):
     """Replaces ``Slice(x, ...), Slice(x, ...)``
     by ``Split(x, ...)`` if possible.
     """
@@ -143,8 +144,8 @@ class SlicesSplit(orp.RewriteRuleClassBase):
     def pattern(self, op, x, begin0, end0, axes0, begin1, end1, axes1):
         return op.Slice(x, begin0, end0, axes0), op.Slice(x, begin1, end1, axes1)
 
-    def check(self, context, x, begin0, end0, axes0, begin1, end1, axes1) -> orp.MatchResult:
-        check_result = orp.MatchResult()
+    def check(self, context, x, begin0, end0, axes0, begin1, end1, axes1) -> MatchResult:
+        check_result = MatchResult()
         if (
             axes0.const_value is None
             or axes1.const_value is None
@@ -192,7 +193,7 @@ class SlicesSplit(orp.RewriteRuleClassBase):
         return op.Split(x, num_outputs=2, axis=-1, _outputs=2)
 
 
-class TransposeIdentity(orp.RewriteRuleClassBase):
+class TransposeIdentity(RewriteRuleClassBase):
     """Replaces ``Transpose(. perm=perm)``
     when the permutation is identity.
     """
@@ -200,8 +201,8 @@ class TransposeIdentity(orp.RewriteRuleClassBase):
     def pattern(self, op, x, perm):
         return op.Transpose(x, perm=perm)
 
-    def check(self, context, x: ir.Value, perm: ir.Attr) -> orp.MatchResult:
-        check_result = orp.MatchResult()
+    def check(self, context, x: ir.Value, perm: ir.Attr) -> MatchResult:
+        check_result = MatchResult()
         if perm.is_ref():
             return check_result.fail("Permutation is a reference attribute.")
         if perm.type == ir.AttributeType.INTS:
@@ -214,7 +215,7 @@ class TransposeIdentity(orp.RewriteRuleClassBase):
         return op.Identity(x)
 
 
-class TransposeTranspose(orp.RewriteRuleClassBase):
+class TransposeTranspose(RewriteRuleClassBase):
     """Replaces ``Transpose(Transpose(., perm=perm1), perm=perm2)``
     when both permutations are inverse.
     """
@@ -222,8 +223,8 @@ class TransposeTranspose(orp.RewriteRuleClassBase):
     def pattern(self, op, x, perm1, perm2):
         return op.Transpose(op.Transpose(x, perm=perm1), perm=perm2)
 
-    def check(self, context, x: ir.Value, perm1: ir.Attr, perm2: ir.Attr) -> orp.MatchResult:
-        check_result = orp.MatchResult()
+    def check(self, context, x: ir.Value, perm1: ir.Attr, perm2: ir.Attr) -> MatchResult:
+        check_result = MatchResult()
         if perm1.is_ref() or perm2.is_ref():
             return check_result.fail("Permutation is a reference attribute.")
         return check_result
@@ -252,7 +253,7 @@ class TransposeTranspose(orp.RewriteRuleClassBase):
         return op.Transpose(x, perm=last)
 
 
-class UnsqueezeUnsqueeze(orp.RewriteRuleClassBase):
+class UnsqueezeUnsqueeze(RewriteRuleClassBase):
     """Replaces ``Unsqueeze(Unsqueeze(., axes1), axes2)`` with one Unsqueeze."""
 
     def pattern(self, op, x, axes1, axes2):
@@ -264,8 +265,8 @@ class UnsqueezeUnsqueeze(orp.RewriteRuleClassBase):
         axes = [v1, v2] if v1 < v2 else [v2, v1 + 1]
         return op.Unsqueeze(x, op.Constant(value=ir.tensor(axes, dtype=ir.DataType.INT64)))
 
-    def check(self, context, x, axes1, axes2) -> orp.MatchResult:
-        check_result = orp.MatchResult()
+    def check(self, context, x, axes1, axes2) -> MatchResult:
+        check_result = MatchResult()
         del context  # Unused
         del x  # Unused
         # Currently restricted to single element positive axis
@@ -290,7 +291,7 @@ unsqueeze_unsqueeze_rule = UnsqueezeUnsqueeze.rule()
 squeeze_reshape_1d_rule = SqueezeReshape.rule()
 
 
-def basic_optimization_rules() -> orp.RewriteRuleSet:
+def basic_optimization_rules() -> RewriteRuleSet:
     """Returns a set of basic optimization rules.
 
     These rules perform fundamental optimizations such as:
@@ -305,7 +306,7 @@ def basic_optimization_rules() -> orp.RewriteRuleSet:
     Returns:
         RewriteRuleSet: A collection of basic optimization rules
     """
-    return orp.RewriteRuleSet(
+    return RewriteRuleSet(
         [
             cast_cast_rule,
             cast_identity_rule,
