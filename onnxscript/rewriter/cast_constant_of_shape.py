@@ -32,9 +32,7 @@ def fused_cast_constant_of_shape_without_value(op, shape, dtype, **_):
     return op.ConstantOfShape(shape, value=zero)
 
 
-cast_constant_of_shape_rule = RewriteRule(
-    cast_constant_of_shape, fused_cast_constant_of_shape
-)
+cast_constant_of_shape_rule = RewriteRule(cast_constant_of_shape, fused_cast_constant_of_shape)
 
 cast_constant_of_shape_without_value_rule = RewriteRule(
     cast_constant_of_shape_without_value, fused_cast_constant_of_shape_without_value

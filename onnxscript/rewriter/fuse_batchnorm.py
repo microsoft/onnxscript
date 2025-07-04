@@ -20,8 +20,8 @@ from typing import Mapping
 import numpy as np
 
 from onnxscript import ir
-from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 from onnxscript.rewriter._basics import MatchResult
+from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 
 
 def _reshape_for_broadcast(x: np.ndarray, rank: int, axis: int = 1) -> np.ndarray:
@@ -91,9 +91,7 @@ class _FuseBatchNormBase(RewriteRuleClassBase, ABC):
             attributes=inbound_node.attributes,
         )
 
-    def check(
-        self, context, x, inbound_out: ir.Value, batchnorm_out: ir.Value
-    ) -> MatchResult:
+    def check(self, context, x, inbound_out: ir.Value, batchnorm_out: ir.Value) -> MatchResult:
         del context  # Unused
         check_result = MatchResult()
 

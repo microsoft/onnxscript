@@ -9,8 +9,13 @@ import onnxruntime as ort
 import parameterized
 from onnx_ir.passes.common import onnx_checker, shape_inference
 
-from onnxscript.rewriter import fuse_relus_clips, testing
-from onnxscript.rewriter import RewriteRule, MatchingTracer, MatchStatus
+from onnxscript.rewriter import (
+    MatchingTracer,
+    MatchStatus,
+    RewriteRule,
+    fuse_relus_clips,
+    testing,
+)
 from onnxscript.rewriter.fuse_relus_clips import (
     fuse_successive_clip_relu_rule,
     fuse_successive_clip_rule,

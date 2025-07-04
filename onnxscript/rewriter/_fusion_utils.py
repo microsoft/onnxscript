@@ -7,8 +7,8 @@ from typing import Callable, Sequence, Union
 import onnx_ir as ir
 import onnx_ir.passes.common as common_passes
 
-from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 from onnxscript.rewriter._basics import MatchFailureError, MatchingTracer
+from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
 Dim = Union[int, ir.SymbolicDim]
 

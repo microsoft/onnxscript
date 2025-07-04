@@ -13,8 +13,8 @@ from typing import ClassVar, Sequence
 
 from onnxscript import ir
 from onnxscript.rewriter import _ir_utils as ir_utils
-from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 from onnxscript.rewriter._basics import MatchResult
+from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 
 
 class SqueezeReshape(RewriteRuleClassBase):

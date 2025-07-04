@@ -9,8 +9,7 @@ from onnx_ir.passes.common import onnx_checker, shape_inference
 from parameterized import parameterized
 
 from onnxscript import ir
-from onnxscript.rewriter import matmul_add_to_gemm, testing
-from onnxscript.rewriter import MatchingTracer, MatchStatus
+from onnxscript.rewriter import MatchingTracer, MatchStatus, matmul_add_to_gemm, testing
 from onnxscript.rewriter.matmul_add_to_gemm import matmul_add_to_gemm_rule
 
 

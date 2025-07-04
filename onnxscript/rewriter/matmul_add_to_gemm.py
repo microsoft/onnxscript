@@ -10,8 +10,8 @@
 import abc
 from typing import ClassVar
 
-from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 from onnxscript.rewriter._basics import MatchResult
+from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 
 
 class _MatMulAddToGemmBase(RewriteRuleClassBase, abc.ABC):

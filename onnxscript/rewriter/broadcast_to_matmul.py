@@ -175,6 +175,4 @@ one_reshape_matmul_reshape_rule = RewriteRule(
 )
 
 # NOTE: The order of the rules is important. Larger pattern should be checked first.
-rules = RewriteRuleSet(
-    [two_reshapes_matmul_reshape_rule, one_reshape_matmul_reshape_rule]
-)
+rules = RewriteRuleSet([two_reshapes_matmul_reshape_rule, one_reshape_matmul_reshape_rule])
