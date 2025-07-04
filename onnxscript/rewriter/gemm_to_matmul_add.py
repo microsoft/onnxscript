@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter._rewrite_rule import RewriteRule
 from onnxscript.rewriter.broadcast_to_matmul import check_if_not_need_reshape
 
 
@@ -18,4 +18,4 @@ def matmul_add(op, input_a, input_b, input_c, **_):
     return op.Add(matmul, input_c)
 
 
-rule = pattern.RewriteRule(reshape_gemm_reshape_pattern, matmul_add, check_if_not_need_reshape)
+rule = RewriteRule(reshape_gemm_reshape_pattern, matmul_add, check_if_not_need_reshape)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from onnxscript import ir
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
 logger = logging.getLogger(__name__)
 _INT64_MAX = 9223372036854775807
@@ -77,11 +77,11 @@ def _potential_redundant_slice(op, data, starts, ends, axes, steps):
 
 
 # Register the rewrite rules
-remove_redundant_slice = pattern.RewriteRule(
+remove_redundant_slice = RewriteRule(
     _potential_redundant_slice,
     _identity_to_itself,
     _check_if_redundant_slice,
 )
 
 # NOTE: The order of the rules is important. Larger pattern should be checked first.
-rules = pattern.RewriteRuleSet([remove_redundant_slice])
+rules = RewriteRuleSet([remove_redundant_slice])
