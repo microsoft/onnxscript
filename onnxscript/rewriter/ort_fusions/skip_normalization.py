@@ -144,7 +144,11 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
         if self._has_bias and self._bias_pre_add:
             input = op.Add(input, bias)
 
-        skip_sum = op.Add(input, skip)
+        # Support different combinations of addition of input and skip
+        skip_sum_pattern_1 = op.Add(skip, input)
+        skip_sum_pattern_2 = op.Add(input, skip)
+        skip_sum = pattern.OrValue([skip_sum_pattern_1, skip_sum_pattern_2], name="skip_sum")
+
         if self._has_bias and not self._bias_pre_add:
             skip_sum = op.Add(skip_sum, bias)
 
@@ -239,9 +243,9 @@ _skip_layer_rule = SkipLayerNormFusion.rule("SkipLayerNorm", has_bias=False)
 
 skip_layer_normalization_ruleset = pattern.RewriteRuleSet(
     [
-        *_skip_layer_pre_add_bias_rule.commute(),
-        *_skip_layer_add_bias_rule.commute(),
-        *_skip_layer_rule.commute(),
+        _skip_layer_pre_add_bias_rule,
+        _skip_layer_add_bias_rule,
+        _skip_layer_rule,
     ]
 )
 
