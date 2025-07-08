@@ -4340,6 +4340,8 @@ def aten_index_put(
     # For example, if indices = [None, 1, None, 2], then reordered_positions = [1, 3, 0, 2]
     reordered_positions = sorted(range(len(indices)), key=lambda i: (indices[i] is None, i))
 
+    values = op.Transpose(values, perm=reordered_positions)
+
     # Fill the list with the remaining indices up to the rank of the tensor self.
     # For example, if indices = [None, 1, None, 2], and the rank of self is 6,
     # then reordered_positions = [1, 3, 0, 2, 4, 5]
@@ -4363,8 +4365,52 @@ def aten_index_put(
     else:
         self = op.ScatterND(self, final_index, values)
 
-    return result
+    if _has_none_in_middle(indices):
+        # If there is None in the middle, Advanced Indexing cannot decide where to put
+        # the new dimensions. So it places them in the front, like GatherND does.
+        return op.Identity(self)
 
+    # When the indices are consecutive, Advanced Indexing will place the new dimensions
+    # (aka. the broadcasted shape) in the middle, replacing the original [x1, ..., xk] axes.
+    #
+    # Input index axes (three parts):
+    #   [
+    #      x_None_front_1, ... x_None_front_m,
+    #      x1, ..., xk,
+    #      x_None_back_1, ..., x_None_back_m
+    #   ]
+    # GatherND result axes:
+    #   [
+    #      *broadcasted_shape(x1, x2, ..., xk),
+    #      x_None_front_1, ... x_None_front_m,
+    #      x_None_back_1, ..., x_None_back_m
+    #   ]
+    # (Transpose here)
+    # Advanced indexing result axes:
+    #   [
+    #      x_None_front_1, ... x_None_front_m,
+    #      *brocasted_shape(x1, x2, ..., xk),
+    #      x_None_back_1, ..., x_None_back_m
+    #   ]
+    #
+    # Need to transpose the result of GatherND to match this axes ordering.
+    first_not_none_position = reordered_positions[0]  # x_None_front_m + 1
+    starting_position_of_none_in_back = (
+        advanced_indexing_rank + first_not_none_position
+    )  # x_None_back_1
+    result_rank = self_rank - len(not_none_indices) + advanced_indexing_rank
+    perm = [
+        *range(
+            advanced_indexing_rank, starting_position_of_none_in_back
+        ),  # None_front_1...x_None_back_1
+        *range(advanced_indexing_rank),  # 0...len(broadcasted_shape)
+        *range(
+            starting_position_of_none_in_back,
+            result_rank,
+        ),  # None_back_1...None_back_m
+    ]
+
+    return op.Transpose(self, perm=perm)
 
 @torch_op("aten::index_put", trace_only=True)
 def aten_index_put_bool(
