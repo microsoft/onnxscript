@@ -33,7 +33,7 @@ After this, create a replacement pattern that consists of the GELU onnxscript op
 :::{note}
 :name: type annotate ir.Value
 
-The inputs to the replacement pattern are of type `ir.Value`. For detailed usage of `ir.Value` refer to the {py:class}`ir.Value <onnxscript.ir._core.Value>` class.
+The inputs to the replacement pattern are of type `ir.Value`. For detailed usage of `ir.Value` refer to the {py:class}`ir.Value <onnx_ir.Value>` class.
 :::
 
 

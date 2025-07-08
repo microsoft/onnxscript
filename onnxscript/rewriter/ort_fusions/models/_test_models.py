@@ -2,11 +2,11 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
+import onnx_ir as ir
 import torch
 import transformers
 from transformers import LlamaConfig
 
-import onnxscript.ir as ir
 import onnxscript.optimizer
 
 # Create a LlamaConfig object with the desired parameters

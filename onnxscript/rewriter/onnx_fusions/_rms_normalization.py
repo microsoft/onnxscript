@@ -2,21 +2,20 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import onnx_ir as ir
-
+import onnxscript.ir as ir
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 """
-RMS Normalization: This is referred to as SimplifiedLayerNormalization in the ORT codebase.
-See https://github.com/microsoft/onnxruntime/blob/6d9636f07cccdb6e4ac453087ad54c3bc9854d50/onnxruntime/core/graph/contrib_ops/contrib_defs.cc#L2981
+RMS Normalization: ONNX Opset 23 op
+See: https://onnx.ai/onnx/operators/onnx__RMSNormalization.html#l-onnx-doc-rmsnormalization
+
 
 Key points for the fusion optimization:
 * Input and scale are allowed to be of different types.
 * The normalization of the input can be done in a different precision than the input type,
-which is also the precision of reciprocal_rms returned by operation.
+indicated by stash_type.
 * Input (x) must be: float or double or float16 or bfloat16
 * Scale must be: float or double or float16 or bfloat16
-* Normalization precision must be float or double
 """
 
 float_types = frozenset(
@@ -52,11 +51,13 @@ class RmsNormFusion(pattern.RewriteRuleClassBase):
         if not isinstance(epsilon_value, float):  # TODO: support other types
             return check_result.fail("Epsilon is not a float value.", epsilon)
         if x.dtype not in float_types:
-            return check_result.fail("Input is not a float type.", x)
+            return check_result.fail("Input is not a supported float type.", x)
         if scale.dtype not in float_types:
-            return check_result.fail("Scale is not a float type.", scale)
+            return check_result.fail("Scale is not a supported float type.", scale)
         self._stash_dtype = compute_dtype.as_int() if compute_dtype is not None else x.dtype
         if self._stash_dtype not in fp_float_types:
+            # TODO: ONNX documentation does not specify restrictions on stash_type, though
+            # ORT's SimplifiedLayerNormalization requires it to be float or double.
             return check_result.fail("Normalization precision is not a float or double type.")
         # target_dtype is guaranteed to be the same as scale type in a well-typed input
         # for Mul(scale, normalized) to work. There is no need to check it here for a well-typed input.
@@ -66,7 +67,7 @@ class RmsNormFusion(pattern.RewriteRuleClassBase):
     def rewrite(self, op, x, scale, epsilon, **_):
         # Note: ORT's SimplifiedLayerNormalization was placed in onnx domain by mistake.
         # No need to use com.microsoft domain here; but this is a custom op in ORT.
-        return op.SimplifiedLayerNormalization(
+        return op.RMSNormalization(
             x,
             scale,
             axis=-1,

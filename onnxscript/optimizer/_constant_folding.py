@@ -14,8 +14,8 @@ from typing import Any, Callable, Collection, Iterable, Sequence, Union
 import numpy as np
 import onnx
 import onnx.reference.ops
+import onnx_ir as ir
 
-import onnxscript.ir as ir
 import onnxscript.utils.utils as utils
 from onnxscript.ir import _tape
 

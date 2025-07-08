@@ -7,7 +7,7 @@ import logging
 import onnx
 
 from onnxscript import ir
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +51,10 @@ overflow into account. Hence it is safe to remove the surrounding casts
 to free up memory as well as saving performance.
 """
 # pylint: enable=pointless-string-statement
-rules = pattern.RewriteRuleSet(
+rules = RewriteRuleSet(
     [
-        pattern.RewriteRule(softmax_with_fp32_upcast, softmax, check_if_fp16_input),
-        pattern.RewriteRule(
+        RewriteRule(softmax_with_fp32_upcast, softmax, check_if_fp16_input),
+        RewriteRule(
             softmax_with_fp32_upcast_without_axis,
             softmax_without_axis,
             check_if_fp16_input,
