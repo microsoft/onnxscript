@@ -65,7 +65,25 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
             (np.random.rand(512, 16, 112).astype(np.float32),),
         )
 
-    def test_slice_pattern_is_not_matched_when_input_is_dynamic(self):
+    def test_slice_unequal_dynamic_shape(self):
+        model_proto = onnx.parser.parse_model(
+            f"""
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[L, M, N] data) => (float[P, M, N] output)
+            {{
+                starts = Constant<value: tensor = int64[1] {{0}}>()
+                ends = Constant<value: tensor = int64[1] {{{9}}}>()
+                axes = Constant<value: tensor = int64[1] {{0}}>()
+                steps = Constant<value: tensor = int64[1] {{1}}>()
+                output = Slice (data, starts, ends, axes, steps)
+            }}
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        count = collapse_slices.rules.apply_to_model(model)
+        self.assertEqual(count, 0)
+
+    def test_slice_equal_dynamic_shape(self):
         model_proto = onnx.parser.parse_model(
             f"""
             <ir_version: 7, opset_import: [ "" : 17]>
@@ -81,4 +99,4 @@ class TwoReshapesMatMulReshapeTest(unittest.TestCase):
         )
         model = ir.serde.deserialize_model(model_proto)
         count = collapse_slices.rules.apply_to_model(model)
-        self.assertEqual(count, 0)
+        self.assertEqual(count, 1)
