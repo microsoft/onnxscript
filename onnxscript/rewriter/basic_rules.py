@@ -206,8 +206,8 @@ class TransposeIdentity(RewriteRuleClassBase):
         if perm.is_ref():
             return check_result.fail("Permutation is a reference attribute.")
         if perm.type == ir.AttributeType.INTS:
-            perm_ints = perm.as_ints()
-            if perm_ints == list(range(len(perm_ints))):
+            perm_ints = tuple(perm.as_ints())
+            if perm_ints == tuple(range(len(perm_ints))):
                 return check_result
         return check_result.fail("Permutation is not identity.")
 
