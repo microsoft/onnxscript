@@ -4218,23 +4218,9 @@ def _aten_index_onnx(
     #   ]
     #
     # Need to transpose the result of GatherND to match this axes ordering.
-    first_not_none_position = reordered_positions[0]  # x_None_front_m + 1
-    starting_position_of_none_in_back = (
-        advanced_indexing_rank + first_not_none_position
-    )  # x_None_back_1
-    result_rank = self_rank - len(not_none_indices) + advanced_indexing_rank
-    perm = [
-        *range(
-            advanced_indexing_rank, starting_position_of_none_in_back
-        ),  # None_front_1...x_None_back_1
-        *range(advanced_indexing_rank),  # 0...len(broadcasted_shape)
-        *range(
-            starting_position_of_none_in_back,
-            result_rank,
-        ),  # None_back_1...None_back_m
-    ]
+    inverse_positions = np.argsort(reordered_positions).tolist()
 
-    return op.Transpose(self, perm=perm)
+    return op.Transpose(self, perm=inverse_positions)
 
 
 @torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
@@ -4332,85 +4318,47 @@ def aten_index_put(
 
     # Ensure the number of indices matches the tensor rank.
     self_rank = len(self.shape)
-    index_ranks = [len(index.shape) for index in indices if index is not None]
-    advanced_indexing_rank = max(index_ranks)
 
-    # reordered_positions is the permutation of the index positions where
-    # positions with None are move to the end of the list
-    # For example, if indices = [None, 1, None, 2], then reordered_positions = [1, 3, 0, 2]
+    # 1. Reorder input tensor so that None-indexed axes are last
+    # This logic is identical to the aten.index implementation.
     reordered_positions = sorted(range(len(indices)), key=lambda i: (indices[i] is None, i))
+    remaining_dims = [i for i in range(self_rank) if i not in reordered_positions]
+    reordered_positions.extend(remaining_dims)
 
-    values = op.Transpose(values, perm=reordered_positions)
+    # Transpose the input data to group the indexed dimensions first
+    transposed_self = op.Transpose(self, perm=reordered_positions)
 
-    # Fill the list with the remaining indices up to the rank of the tensor self.
-    # For example, if indices = [None, 1, None, 2], and the rank of self is 6,
-    # then reordered_positions = [1, 3, 0, 2, 4, 5]
-    reordered_positions = [
-        *reordered_positions,
-        *range(len(reordered_positions), self_rank),
-    ]
-    # Transpose self according to the reordered positions
-    self = op.Transpose(self, perm=reordered_positions)
-
-    # Broadcast the indices to the same shape then concatenate
+    # 2. Prepare indices for ScatterND
+    # This logic is also identical.
     not_none_indices = [idx for idx in indices if idx is not None]
     broadcast_shape = _shape_of_broadcast_tensors(*not_none_indices)
-    final_index = op.Concat(
-        *(op.Unsqueeze(op.Expand(idx, broadcast_shape), [-1]) for idx in not_none_indices),
-        axis=-1,
-    )
 
+    final_index_parts = []
+    for idx in not_none_indices:
+        # Unsqueeze is needed to make indices broadcastable to the common shape
+        expanded_idx = op.Expand(idx, broadcast_shape)
+        final_index_parts.append(op.Unsqueeze(expanded_idx, [-1]))
+
+    final_index = op.Concat(*final_index_parts, axis=-1)
+
+    # 3. Prepare the 'updates' tensor (values)
+    # The 'values' tensor must be broadcast to match the shape of the
+    # broadcasted indices.
+    expanded_values = op.Expand(values, broadcast_shape)
+
+    # 4. Perform the scatter operation
     if accumulate:
-        self = op.ScatterND(self, final_index, values, reduction="add")
+        scattered_data = op.ScatterND(transposed_self, final_index, expanded_values, reduction="add")
     else:
-        self = op.ScatterND(self, final_index, values)
+        scattered_data = op.ScatterND(transposed_self, final_index, expanded_values)
 
-    if _has_none_in_middle(indices):
-        # If there is None in the middle, Advanced Indexing cannot decide where to put
-        # the new dimensions. So it places them in the front, like GatherND does.
-        return op.Identity(self)
+    # 5. Restore original dimension order
+    # The output of ScatterND has the same shape as the transposed input.
+    # We must apply an "inverse" transpose to get the final result.
+    inverse_positions = np.argsort(reordered_positions).tolist()
+    final_output = op.Transpose(scattered_data, perm=inverse_positions)
 
-    # When the indices are consecutive, Advanced Indexing will place the new dimensions
-    # (aka. the broadcasted shape) in the middle, replacing the original [x1, ..., xk] axes.
-    #
-    # Input index axes (three parts):
-    #   [
-    #      x_None_front_1, ... x_None_front_m,
-    #      x1, ..., xk,
-    #      x_None_back_1, ..., x_None_back_m
-    #   ]
-    # GatherND result axes:
-    #   [
-    #      *broadcasted_shape(x1, x2, ..., xk),
-    #      x_None_front_1, ... x_None_front_m,
-    #      x_None_back_1, ..., x_None_back_m
-    #   ]
-    # (Transpose here)
-    # Advanced indexing result axes:
-    #   [
-    #      x_None_front_1, ... x_None_front_m,
-    #      *brocasted_shape(x1, x2, ..., xk),
-    #      x_None_back_1, ..., x_None_back_m
-    #   ]
-    #
-    # Need to transpose the result of GatherND to match this axes ordering.
-    first_not_none_position = reordered_positions[0]  # x_None_front_m + 1
-    starting_position_of_none_in_back = (
-        advanced_indexing_rank + first_not_none_position
-    )  # x_None_back_1
-    result_rank = self_rank - len(not_none_indices) + advanced_indexing_rank
-    perm = [
-        *range(
-            advanced_indexing_rank, starting_position_of_none_in_back
-        ),  # None_front_1...x_None_back_1
-        *range(advanced_indexing_rank),  # 0...len(broadcasted_shape)
-        *range(
-            starting_position_of_none_in_back,
-            result_rank,
-        ),  # None_back_1...None_back_m
-    ]
-
-    return op.Transpose(self, perm=perm)
+    return final_output
 
 @torch_op("aten::index_put", trace_only=True)
 def aten_index_put_bool(
