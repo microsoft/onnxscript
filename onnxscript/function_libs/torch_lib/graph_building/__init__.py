@@ -14,7 +14,7 @@ class _RemovedClass:
 
     def __init__(self, *_, **__):
         raise NotImplementedError(
-            "Support for dynamo_export is dropped since onnxscript 0.4.0. "
+            "Support for dynamo_export has been dropped since onnxscript 0.4.0. "
             "Please use `torch.onnx.export(..., dynamo=True)`, or downgrade to onnxscript<0.4"
         )
 
