@@ -4345,6 +4345,8 @@ def aten_index_put(
     # The 'values' tensor must be broadcast to match the shape of the
     # broadcasted indices.
     expanded_values = op.Expand(values, broadcast_shape)
+    # TODO: Handle None
+    expanded_values = op.Transpose(expanded_values, perm=reordered_positions)
 
     # 4. Perform the scatter operation
     if accumulate:
