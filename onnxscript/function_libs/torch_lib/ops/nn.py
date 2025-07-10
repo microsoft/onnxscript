@@ -1714,12 +1714,10 @@ def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     # }
     attn_mask = op.Trilu(attn_mask, upper=0)
     # The causal mask has 0s in the lower triangle and -inf in the upper triangle.
-    zero = op.CastLike(op.Constant(value_float=0.0), attn_mask)
-    neg_inf = op.CastLike(op.Constant(value_float=-float("inf")), attn_mask)
     attn_mask = op.Where(
-        op.Equal(attn_mask, zero),
-        neg_inf,
-        zero,
+        op.Equal(attn_mask, op.Constant(value_float=0.0)),
+        op.Constant(value_float=-float("inf")),
+        op.Constant(value_float=0.0),
     )
     attn_mask = op.CastLike(attn_mask, query)
     return attn_mask
