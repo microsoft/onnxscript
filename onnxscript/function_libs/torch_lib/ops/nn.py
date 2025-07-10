@@ -1714,10 +1714,12 @@ def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     # }
     attn_mask = op.Trilu(attn_mask, upper=0)
     # The causal mask has 0s in the lower triangle and -inf in the upper triangle.
+    zero = op.CastLike(op.Constant(value_float=0.0), attn_mask)
+    neg_inf = op.CastLike(op.Constant(value_float=-float("inf")), attn_mask)
     attn_mask = op.Where(
-        op.Equal(attn_mask, op.Constant(value_float=0.0)),
-        op.Constant(value_float=-float("inf")),
-        op.Constant(value_float=0.0),
+        op.Equal(attn_mask, zero),
+        neg_inf,
+        zero,
     )
     attn_mask = op.CastLike(attn_mask, query)
     return attn_mask
@@ -2069,9 +2071,9 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
     query_scaled = op.Mul(query, op.Sqrt(scale))
     key_transposed_scaled = op.Mul(key_transposed, op.Sqrt(scale))
     # Turn the Boolean mask to float: attn_mask.masked_fill(not attn_mask, -float('inf'))
-    attn_mask = op.Where(
-        attn_mask, op.Constant(value_float=0.0), op.Constant(value_float=-float("inf"))
-    )
+    zero = op.CastLike(op.Constant(value_float=0.0), query_scaled)
+    neg_inf = op.CastLike(op.Constant(value_float=-float("inf")), query_scaled)
+    attn_mask = op.Where(attn_mask, zero, neg_inf)
     attn_weight = op.Softmax(
         op.Add(op.MatMul(query_scaled, key_transposed_scaled), attn_mask),
         axis=-1,
