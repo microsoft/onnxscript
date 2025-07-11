@@ -103,7 +103,7 @@ class PatternImpl:
         node: ir.Node,
         *,
         verbose: int | None = None,
-        remove_nodes: bool = True,
+        check_nodes_are_removable: bool = True,
         tracer: _basics.MatchingTracer | None = None,
     ) -> _basics.MatchResult | None:
         """Check if the node matches the pattern and return the match result.
@@ -113,7 +113,7 @@ class PatternImpl:
             graph_or_function: The graph or function to match against.
             node: The node to try to match the pattern against.
             verbose: The verbosity level of messages.
-            remove_nodes: If True, validate that matched nodes can be safely removed.
+            check_nodes_are_removable: If True, validate that matched nodes can be safely removed.
             tracer: The tracer for debugging.
             
         Returns:
@@ -124,7 +124,7 @@ class PatternImpl:
             print(f"[match] {self}")
         verbose = verbose if verbose is not None else self._verbose
         match = self._matcher.match(
-            model, graph_or_function, node, verbose=verbose, remove_nodes=remove_nodes
+            model, graph_or_function, node, verbose=verbose, remove_nodes=check_nodes_are_removable
         )
         if match:
             context = None  # TODO(rama)
@@ -267,7 +267,7 @@ class RewriteRule(PatternImpl):
         """If the node matches the pattern, then replace the node with the replacement pattern."""
         # Use the inherited match method from PatternImpl
         match = self.match(
-            model, graph_or_function, node, verbose=verbose, remove_nodes=self.remove_nodes, tracer=tracer
+            model, graph_or_function, node, verbose=verbose, check_nodes_are_removable=self.remove_nodes, tracer=tracer
         )
         if not match:
             return None
@@ -367,6 +367,44 @@ class PatternBase(abc.ABC):
             self.check,
             name=self.name,
             **kwargs
+        )
+
+    def match(
+        self,
+        model: ir.Model,
+        graph_or_function: ir.Graph | ir.Function,
+        node: ir.Node,
+        *,
+        verbose: int | None = None,
+        check_nodes_are_removable: bool = True,
+        tracer: _basics.MatchingTracer | None = None,
+    ) -> _basics.MatchResult | None:
+        """Utility method that creates a PatternImpl and calls match on it.
+        
+        This is a convenience method for one-off pattern matching. For performing
+        multiple matches, it is recommended to create the PatternImpl once using
+        create_pattern_impl() and call match on that multiple times for efficiency.
+        
+        Args:
+            model: The model containing the graph or function.
+            graph_or_function: The graph or function to match against.
+            node: The node to try to match the pattern against.
+            verbose: The verbosity level of messages.
+            check_nodes_are_removable: If True, validate that matched nodes can be safely removed.
+            tracer: The tracer for debugging.
+            
+        Returns:
+            MatchResult if the pattern matches successfully and passes the condition function,
+            None otherwise.
+        """
+        pattern_impl = self.create_pattern_impl()
+        return pattern_impl.match(
+            model, 
+            graph_or_function, 
+            node, 
+            verbose=verbose, 
+            check_nodes_are_removable=check_nodes_are_removable, 
+            tracer=tracer
         )
 
 
