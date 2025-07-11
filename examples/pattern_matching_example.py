@@ -8,7 +8,7 @@ from onnxscript.rewriter import pattern
 
 
 def example_standalone_pattern_matching():
-    """Example showing how to use PatternImpl for standalone pattern matching."""
+    """Example showing how to use CompiledPattern for standalone pattern matching."""
     
     print("=== Standalone Pattern Matching Example ===")
     
@@ -16,8 +16,8 @@ def example_standalone_pattern_matching():
     def identity_pattern(op, x):
         return op.Identity(x)
     
-    # Create a PatternImpl for standalone pattern matching (no replacement)
-    pattern_matcher = pattern.PatternImpl(identity_pattern, name="IdentityMatcher")
+    # Create a CompiledPattern for standalone pattern matching (no replacement)
+    pattern_matcher = pattern.CompiledPattern(identity_pattern, name="IdentityMatcher")
     
     # Create a model with an Identity node
     model_proto = onnx.parser.parse_model(
@@ -62,12 +62,12 @@ def example_class_based_pattern():
     # Create an instance of the pattern class
     identity_pattern_class = IdentityPatternClass(name="ClassBasedIdentity")
     
-    # Create a PatternImpl from the class
-    pattern_impl = identity_pattern_class.create_pattern_impl()
+    # Create a CompiledPattern from the class
+    pattern_impl = identity_pattern_class.create_compiled_pattern()
     
     print(f"Created pattern matcher: {pattern_impl.name}")
     
-    # Use it like any other PatternImpl
+    # Use it like any other CompiledPattern
     model_proto = onnx.parser.parse_model(
         """
         <ir_version: 7, opset_import: [ "" : 17]>
@@ -101,11 +101,11 @@ def example_rewrite_rule_still_works():
     def identity_replacement(op, x):
         return op.Identity(x)  # No-op replacement
 
-    # Create a RewriteRule (which now inherits from PatternImpl)
+    # Create a RewriteRule (which now inherits from CompiledPattern)
     rule = pattern.RewriteRule(identity_pattern, identity_replacement, name="IdentityRule")
     
     print(f"Created rewrite rule: {rule.name}")
-    print(f"Rule is also a PatternImpl: {isinstance(rule, pattern.PatternImpl)}")
+    print(f"Rule is also a CompiledPattern: {isinstance(rule, pattern.CompiledPattern)}")
     
     # The rule can be used both for pattern matching and rewriting
     model_proto = onnx.parser.parse_model(
@@ -119,7 +119,7 @@ def example_rewrite_rule_still_works():
     )
     model = ir.serde.deserialize_model(model_proto)
     
-    # Use it for just pattern matching (inherited from PatternImpl)
+    # Use it for just pattern matching (inherited from CompiledPattern)
     for node in model.graph:
         if node.op_type == "Identity":
             print(f"Using RewriteRule for pattern matching on {node.op_type}...")

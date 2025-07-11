@@ -15,7 +15,7 @@ from onnxscript.rewriter._pattern_ir import (
 )
 from onnxscript.rewriter._rewrite_rule import (
     PatternBase,
-    PatternImpl,
+    CompiledPattern,
     RewriteRule,
     RewriteRuleClassBase,
     RewriteRuleSet,
@@ -30,7 +30,7 @@ __all__ = [
     "OpsetPatternBuilder",
     "pattern_builder",
     "PatternBase",
-    "PatternImpl",
+    "CompiledPattern",
     "RewriteRule",
     "RewriteRuleClassBase",
     "RewriteRuleSet",

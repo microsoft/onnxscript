@@ -45,11 +45,11 @@ def always_true(*args, **kwargs) -> bool:
     return True
 
 
-class PatternImpl:
-    """Base class that encapsulates pattern matching functionality.
+class CompiledPattern:
+    """A compiled pattern ready for matching operations.
     
-    This class contains the core pattern matching logic without replacement functionality,
-    allowing users to use just the matching part of rewrite rules.
+    This class contains a pattern definition along with its matcher and condition function,
+    providing a complete pattern matching capability without replacement functionality.
     """
     
     def __init__(
@@ -198,7 +198,7 @@ def _update_opset_imports(
             )
 
 
-class RewriteRule(PatternImpl):
+class RewriteRule(CompiledPattern):
     def __init__(
         self,
         target_pattern: _pattern_ir.GraphPattern | Callable,
@@ -265,7 +265,7 @@ class RewriteRule(PatternImpl):
         tracer: _basics.MatchingTracer | None = None,
     ) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
-        # Use the inherited match method from PatternImpl
+        # Use the inherited match method from CompiledPattern
         match = self.match(
             model, graph_or_function, node, verbose=verbose, check_nodes_are_removable=self.remove_nodes, tracer=tracer
         )
@@ -360,9 +360,9 @@ class PatternBase(abc.ABC):
         """Default check function that returns a _basics.MatchResult object with success always set to True."""
         return _basics.MatchResult()
 
-    def create_pattern_impl(self, **kwargs) -> PatternImpl:
-        """Create a PatternImpl instance from this pattern class."""
-        return PatternImpl(
+    def create_compiled_pattern(self, **kwargs) -> CompiledPattern:
+        """Create a CompiledPattern instance from this pattern class."""
+        return CompiledPattern(
             self.pattern,
             self.check,
             name=self.name,
@@ -379,11 +379,11 @@ class PatternBase(abc.ABC):
         check_nodes_are_removable: bool = True,
         tracer: _basics.MatchingTracer | None = None,
     ) -> _basics.MatchResult | None:
-        """Utility method that creates a PatternImpl and calls match on it.
+        """Utility method that creates a CompiledPattern and calls match on it.
         
         This is a convenience method for one-off pattern matching. For performing
-        multiple matches, it is recommended to create the PatternImpl once using
-        create_pattern_impl() and call match on that multiple times for efficiency.
+        multiple matches, it is recommended to create the CompiledPattern once using
+        create_compiled_pattern() and call match on that multiple times for efficiency.
         
         Args:
             model: The model containing the graph or function.
@@ -397,8 +397,8 @@ class PatternBase(abc.ABC):
             MatchResult if the pattern matches successfully and passes the condition function,
             None otherwise.
         """
-        pattern_impl = self.create_pattern_impl()
-        return pattern_impl.match(
+        pattern_matcher = self.create_compiled_pattern()
+        return pattern_matcher.match(
             model, 
             graph_or_function, 
             node, 

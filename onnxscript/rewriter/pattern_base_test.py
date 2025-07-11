@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Test for the new PatternImpl and PatternBase classes."""
+"""Test for the new CompiledPattern and PatternBase classes."""
 
 import unittest
 
@@ -10,17 +10,17 @@ from onnxscript import ir
 from onnxscript.rewriter import pattern
 
 
-class PatternImplTest(unittest.TestCase):
-    """Test PatternImpl functionality."""
+class CompiledPatternTest(unittest.TestCase):
+    """Test CompiledPattern functionality."""
 
     def test_pattern_impl_basic_functionality(self):
-        """Test that PatternImpl can be created and used independently."""
+        """Test that CompiledPattern can be created and used independently."""
 
         def simple_pattern(op, x):
             return op.Identity(x)
 
-        # Create a PatternImpl
-        pattern_impl = pattern.PatternImpl(simple_pattern, name="SimpleIdentity")
+        # Create a CompiledPattern
+        pattern_impl = pattern.CompiledPattern(simple_pattern, name="SimpleIdentity")
 
         # Verify basic properties
         self.assertEqual(pattern_impl.name, "SimpleIdentity")
@@ -29,12 +29,12 @@ class PatternImplTest(unittest.TestCase):
         self.assertIsNotNone(pattern_impl._condition_function)
 
     def test_pattern_impl_match_method(self):
-        """Test that PatternImpl.match method works correctly."""
+        """Test that CompiledPattern.match method works correctly."""
 
         def identity_pattern(op, x):
             return op.Identity(x)
 
-        pattern_impl = pattern.PatternImpl(identity_pattern, name="IdentityPattern")
+        pattern_impl = pattern.CompiledPattern(identity_pattern, name="IdentityPattern")
 
         # Create a model with an Identity node
         model_proto = onnx.parser.parse_model(
@@ -65,7 +65,7 @@ class PatternImplTest(unittest.TestCase):
         self.assertIsInstance(match_result, (pattern.MatchResult, type(None)))
 
     def test_pattern_impl_with_condition_function(self):
-        """Test PatternImpl with a custom condition function."""
+        """Test CompiledPattern with a custom condition function."""
 
         def identity_pattern(op, x):
             return op.Identity(x)
@@ -73,7 +73,7 @@ class PatternImplTest(unittest.TestCase):
         def always_fail_condition(context, x):
             return False
 
-        pattern_impl = pattern.PatternImpl(
+        pattern_impl = pattern.CompiledPattern(
             identity_pattern, condition_function=always_fail_condition, name="FailingIdentity"
         )
 
@@ -104,12 +104,12 @@ class PatternImplTest(unittest.TestCase):
         self.assertIsNone(match_result)
 
     def test_pattern_impl_no_match_returns_match_object(self):
-        """Test that PatternImpl.match returns match object (not always None) when available."""
+        """Test that CompiledPattern.match returns match object (not always None) when available."""
 
         def identity_pattern(op, x):
             return op.Identity(x)
 
-        pattern_impl = pattern.PatternImpl(identity_pattern, name="IdentityPattern")
+        pattern_impl = pattern.CompiledPattern(identity_pattern, name="IdentityPattern")
 
         # Create a model with an Add node (should not match Identity pattern)
         model_proto = onnx.parser.parse_model(
@@ -152,8 +152,8 @@ class PatternBaseTest(unittest.TestCase):
         test_pattern = TestPattern(name="TestPattern")
         self.assertEqual(test_pattern.name, "TestPattern")
 
-    def test_pattern_base_create_pattern_impl(self):
-        """Test that PatternBase can create a PatternImpl."""
+    def test_pattern_base_create_compiled_pattern(self):
+        """Test that PatternBase can create a CompiledPattern."""
 
         class TestPattern(pattern.PatternBase):
             def pattern(self, op, x):
@@ -163,9 +163,9 @@ class PatternBaseTest(unittest.TestCase):
                 return pattern.MatchResult()  # Always succeeds
 
         test_pattern = TestPattern(name="TestPattern")
-        pattern_impl = test_pattern.create_pattern_impl()
+        pattern_impl = test_pattern.create_compiled_pattern()
 
-        self.assertIsInstance(pattern_impl, pattern.PatternImpl)
+        self.assertIsInstance(pattern_impl, pattern.CompiledPattern)
         self.assertEqual(pattern_impl.name, "TestPattern")
 
     def test_pattern_base_default_name(self):
@@ -180,7 +180,7 @@ class PatternBaseTest(unittest.TestCase):
 
 
 class RewriteRuleInheritanceTest(unittest.TestCase):
-    """Test that RewriteRule still works after inheriting from PatternImpl."""
+    """Test that RewriteRule still works after inheriting from CompiledPattern."""
 
     def test_rewrite_rule_still_works(self):
         """Test that existing RewriteRule functionality is preserved."""
