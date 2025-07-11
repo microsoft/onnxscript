@@ -62,12 +62,10 @@ def example_class_based_pattern():
     # Create an instance of the pattern class
     identity_pattern_class = IdentityPatternClass(name="ClassBasedIdentity")
     
-    # Create a CompiledPattern from the class
-    pattern_impl = identity_pattern_class.create_compiled_pattern()
+    # The CompiledPattern is created internally, we can use the pattern directly
+    print(f"Created pattern matcher: {identity_pattern_class.name}")
     
-    print(f"Created pattern matcher: {pattern_impl.name}")
-    
-    # Use it like any other CompiledPattern
+    # Use it directly with the match method
     model_proto = onnx.parser.parse_model(
         """
         <ir_version: 7, opset_import: [ "" : 17]>
@@ -82,7 +80,7 @@ def example_class_based_pattern():
     for node in model.graph:
         if node.op_type == "Identity":
             print(f"Testing class-based pattern against {node.op_type} node...")
-            match_result = pattern_impl.match(model, model.graph, node)
+            match_result = identity_pattern_class.match(model, model.graph, node)
             
             if match_result is not None:
                 print(f"  ✓ Class-based pattern matched!")

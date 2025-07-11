@@ -152,8 +152,8 @@ class PatternBaseTest(unittest.TestCase):
         test_pattern = TestPattern(name="TestPattern")
         self.assertEqual(test_pattern.name, "TestPattern")
 
-    def test_pattern_base_create_compiled_pattern(self):
-        """Test that PatternBase can create a CompiledPattern."""
+    def test_pattern_base_compiled_pattern_access(self):
+        """Test that PatternBase has an internal CompiledPattern."""
 
         class TestPattern(pattern.PatternBase):
             def pattern(self, op, x):
@@ -163,10 +163,10 @@ class PatternBaseTest(unittest.TestCase):
                 return pattern.MatchResult()  # Always succeeds
 
         test_pattern = TestPattern(name="TestPattern")
-        pattern_impl = test_pattern.create_compiled_pattern()
-
-        self.assertIsInstance(pattern_impl, pattern.CompiledPattern)
-        self.assertEqual(pattern_impl.name, "TestPattern")
+        
+        # The CompiledPattern should be created internally
+        self.assertIsInstance(test_pattern._compiled_pattern, pattern.CompiledPattern)
+        self.assertEqual(test_pattern._compiled_pattern.name, "TestPattern")
 
     def test_pattern_base_default_name(self):
         """Test that PatternBase uses class name as default."""

@@ -349,8 +349,15 @@ class PatternBase(abc.ABC):
                 return False
     """
 
-    def __init__(self, name: str | None = None) -> None:
+    def __init__(self, name: str | None = None, **kwargs) -> None:
         self.name = name or self.__class__.__name__
+        # Create and store the CompiledPattern internally
+        self._compiled_pattern = CompiledPattern(
+            self.pattern,
+            self.check,
+            name=self.name,
+            **kwargs
+        )
 
     @abc.abstractmethod
     def pattern(self, op, *args, **kwargs):
@@ -359,15 +366,6 @@ class PatternBase(abc.ABC):
     def check(self, op, *args, **kwargs) -> _basics.MatchResult:
         """Default check function that returns a _basics.MatchResult object with success always set to True."""
         return _basics.MatchResult()
-
-    def create_compiled_pattern(self, **kwargs) -> CompiledPattern:
-        """Create a CompiledPattern instance from this pattern class."""
-        return CompiledPattern(
-            self.pattern,
-            self.check,
-            name=self.name,
-            **kwargs
-        )
 
     def match(
         self,
@@ -379,11 +377,7 @@ class PatternBase(abc.ABC):
         check_nodes_are_removable: bool = True,
         tracer: _basics.MatchingTracer | None = None,
     ) -> _basics.MatchResult | None:
-        """Utility method that creates a CompiledPattern and calls match on it.
-        
-        This is a convenience method for one-off pattern matching. For performing
-        multiple matches, it is recommended to create the CompiledPattern once using
-        create_compiled_pattern() and call match on that multiple times for efficiency.
+        """Check if the node matches the pattern and return the match result.
         
         Args:
             model: The model containing the graph or function.
@@ -397,8 +391,7 @@ class PatternBase(abc.ABC):
             MatchResult if the pattern matches successfully and passes the condition function,
             None otherwise.
         """
-        pattern_matcher = self.create_compiled_pattern()
-        return pattern_matcher.match(
+        return self._compiled_pattern.match(
             model, 
             graph_or_function, 
             node, 
