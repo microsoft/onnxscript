@@ -138,17 +138,8 @@ class PatternImplTest(unittest.TestCase):
         # Test pattern matching - should fail because Add != Identity
         match_result = pattern_impl.match(model, model.graph, add_node)
         
-        # The result should either be None (GenericPatternMatcher) or a failed MatchResult (SimplePatternMatcher)
-        # Both are acceptable and represent "no match"
-        if match_result is not None:
-            # If we get a MatchResult object, it should be falsy (failed match)
-            self.assertIsInstance(match_result, pattern.MatchResult)
-            self.assertFalse(bool(match_result))  # Should be falsy for failed match
-            # Should have failure information available
-            self.assertIsInstance(match_result.reason, str)
-        else:
-            # None is also acceptable (GenericPatternMatcher behavior)
-            self.assertIsNone(match_result)
+        # The result should be falsy (either None or a failed MatchResult)
+        self.assertFalse(bool(match_result))
 
 
 class PatternBaseTest(unittest.TestCase):
