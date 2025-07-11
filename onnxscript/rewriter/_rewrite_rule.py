@@ -158,7 +158,7 @@ class PatternImpl:
             return match
         if tracer:
             tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.NO_MATCH)
-        return None
+        return match
 
 
 class ReplacementPatternFunction:
@@ -269,7 +269,7 @@ class RewriteRule(PatternImpl):
         match = self.match(
             model, graph_or_function, node, verbose=verbose, remove_nodes=self.remove_nodes, tracer=tracer
         )
-        if match is None:
+        if not match:
             return None
             
         replacement_subgraph = self._replacement_pattern.get_replacement(match)

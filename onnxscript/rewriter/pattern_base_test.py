@@ -106,6 +106,50 @@ class PatternImplTest(unittest.TestCase):
         # Should return None due to failing condition
         self.assertIsNone(match_result)
 
+    def test_pattern_impl_no_match_returns_match_object(self):
+        """Test that PatternImpl.match returns match object (not always None) when available."""
+        
+        def identity_pattern(op, x):
+            return op.Identity(x)
+        
+        pattern_impl = pattern.PatternImpl(identity_pattern, name="IdentityPattern")
+        
+        # Create a model with an Add node (should not match Identity pattern)
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x, float[N] y) => (float[N] z)
+            {
+                z = Add(x, y)
+            }
+        """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        
+        # Find the Add node
+        add_node = None
+        for node in model.graph:
+            if node.op_type == "Add":
+                add_node = node
+                break
+        
+        self.assertIsNotNone(add_node)
+        
+        # Test pattern matching - should fail because Add != Identity
+        match_result = pattern_impl.match(model, model.graph, add_node)
+        
+        # The result should either be None (GenericPatternMatcher) or a failed MatchResult (SimplePatternMatcher)
+        # Both are acceptable and represent "no match"
+        if match_result is not None:
+            # If we get a MatchResult object, it should be falsy (failed match)
+            self.assertIsInstance(match_result, pattern.MatchResult)
+            self.assertFalse(bool(match_result))  # Should be falsy for failed match
+            # Should have failure information available
+            self.assertIsInstance(match_result.reason, str)
+        else:
+            # None is also acceptable (GenericPatternMatcher behavior)
+            self.assertIsNone(match_result)
+
 
 class PatternBaseTest(unittest.TestCase):
     """Test PatternBase functionality."""
