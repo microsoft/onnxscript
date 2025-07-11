@@ -80,16 +80,15 @@ class PatternImplTest(unittest.TestCase):
         )
         
         # Create a model with an Identity node
-        model_proto = onnx.parser.parse_model(
+        model = ir.from_onnx_text(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[N] x) => (float[N] z)
             {
                 z = Identity(x)
             }
-        """
+            """
         )
-        model = ir.serde.deserialize_model(model_proto)
         
         # Find the Identity node
         identity_node = None
