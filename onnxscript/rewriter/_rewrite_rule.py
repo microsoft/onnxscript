@@ -45,13 +45,13 @@ def always_true(*args, **kwargs) -> bool:
     return True
 
 
-class CompiledPattern:
-    """A compiled pattern ready for matching operations.
-    
-    This class contains a pattern definition along with its matcher and condition function,
-    providing a complete pattern matching capability without replacement functionality.
+class Pattern:
+    """A pattern that can be matched against nodes in an ONNX graph.
+
+    This class encapsulates pattern matching functionality, providing the ability to
+    match patterns against nodes without requiring replacement functionality.
     """
-    
+
     def __init__(
         self,
         target_pattern: _pattern_ir.GraphPattern | Callable,
@@ -107,7 +107,7 @@ class CompiledPattern:
         tracer: _basics.MatchingTracer | None = None,
     ) -> _basics.MatchResult | None:
         """Check if the node matches the pattern and return the match result.
-        
+
         Args:
             model: The model containing the graph or function.
             graph_or_function: The graph or function to match against.
@@ -115,7 +115,7 @@ class CompiledPattern:
             verbose: The verbosity level of messages.
             check_nodes_are_removable: If True, validate that matched nodes can be safely removed.
             tracer: The tracer for debugging.
-            
+
         Returns:
             MatchResult if the pattern matches successfully and passes the condition function,
             None otherwise.
@@ -124,7 +124,11 @@ class CompiledPattern:
             print(f"[match] {self}")
         verbose = verbose if verbose is not None else self._verbose
         match = self._matcher.match(
-            model, graph_or_function, node, verbose=verbose, remove_nodes=check_nodes_are_removable
+            model,
+            graph_or_function,
+            node,
+            verbose=verbose,
+            remove_nodes=check_nodes_are_removable,
         )
         if match:
             context = None  # TODO(rama)
@@ -198,7 +202,7 @@ def _update_opset_imports(
             )
 
 
-class RewriteRule(CompiledPattern):
+class RewriteRule(Pattern):
     def __init__(
         self,
         target_pattern: _pattern_ir.GraphPattern | Callable,
@@ -240,7 +244,7 @@ class RewriteRule(CompiledPattern):
         """
         if as_function and not remove_nodes:
             raise ValueError("as_function=True is only supported when remove_nodes=True.")
-        
+
         # Initialize the base pattern matching functionality
         super().__init__(target_pattern, condition_function, matcher, verbose, name)
 
@@ -265,13 +269,18 @@ class RewriteRule(CompiledPattern):
         tracer: _basics.MatchingTracer | None = None,
     ) -> ReplacementSubgraph | None:
         """If the node matches the pattern, then replace the node with the replacement pattern."""
-        # Use the inherited match method from CompiledPattern
+        # Use the inherited match method from Pattern
         match = self.match(
-            model, graph_or_function, node, verbose=verbose, check_nodes_are_removable=self.remove_nodes, tracer=tracer
+            model,
+            graph_or_function,
+            node,
+            verbose=verbose,
+            check_nodes_are_removable=self.remove_nodes,
+            tracer=tracer,
         )
         if not match:
             return None
-            
+
         replacement_subgraph = self._replacement_pattern.get_replacement(match)
         if replacement_subgraph is None:
             if tracer:
@@ -351,13 +360,8 @@ class PatternBase(abc.ABC):
 
     def __init__(self, name: str | None = None, **kwargs) -> None:
         self.name = name or self.__class__.__name__
-        # Create and store the CompiledPattern internally
-        self._compiled_pattern = CompiledPattern(
-            self.pattern,
-            self.check,
-            name=self.name,
-            **kwargs
-        )
+        # Create and store the Pattern internally
+        self._compiled_pattern = Pattern(self.pattern, self.check, name=self.name, **kwargs)
 
     @abc.abstractmethod
     def pattern(self, op, *args, **kwargs):
@@ -378,7 +382,7 @@ class PatternBase(abc.ABC):
         tracer: _basics.MatchingTracer | None = None,
     ) -> _basics.MatchResult | None:
         """Check if the node matches the pattern and return the match result.
-        
+
         Args:
             model: The model containing the graph or function.
             graph_or_function: The graph or function to match against.
@@ -386,18 +390,18 @@ class PatternBase(abc.ABC):
             verbose: The verbosity level of messages.
             check_nodes_are_removable: If True, validate that matched nodes can be safely removed.
             tracer: The tracer for debugging.
-            
+
         Returns:
             MatchResult if the pattern matches successfully and passes the condition function,
             None otherwise.
         """
         return self._compiled_pattern.match(
-            model, 
-            graph_or_function, 
-            node, 
-            verbose=verbose, 
-            check_nodes_are_removable=check_nodes_are_removable, 
-            tracer=tracer
+            model,
+            graph_or_function,
+            node,
+            verbose=verbose,
+            check_nodes_are_removable=check_nodes_are_removable,
+            tracer=tracer,
         )
 
 
