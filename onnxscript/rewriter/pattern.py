@@ -14,6 +14,8 @@ from onnxscript.rewriter._pattern_ir import (
     torch_module_op,
 )
 from onnxscript.rewriter._rewrite_rule import (
+    PatternBase,
+    PatternImpl,
     RewriteRule,
     RewriteRuleClassBase,
     RewriteRuleSet,
@@ -27,6 +29,8 @@ __all__ = [
     "Constant",
     "OpsetPatternBuilder",
     "pattern_builder",
+    "PatternBase",
+    "PatternImpl",
     "RewriteRule",
     "RewriteRuleClassBase",
     "RewriteRuleSet",
