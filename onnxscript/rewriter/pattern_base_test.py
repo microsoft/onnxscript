@@ -4,8 +4,6 @@
 
 import unittest
 
-import onnx.parser
-
 from onnxscript import ir
 from onnxscript.rewriter import pattern
 
@@ -37,16 +35,15 @@ class PatternTest(unittest.TestCase):
         pattern_impl = pattern.Pattern(identity_pattern, name="IdentityPattern")
 
         # Create a model with an Identity node
-        model_proto = onnx.parser.parse_model(
+        model = ir.from_onnx_text(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[N] x) => (float[N] z)
             {
                 z = Identity(x)
             }
-        """
+            """
         )
-        model = ir.serde.deserialize_model(model_proto)
 
         # Find the Identity node
         identity_node = None
@@ -112,16 +109,15 @@ class PatternTest(unittest.TestCase):
         pattern_impl = pattern.Pattern(identity_pattern, name="IdentityPattern")
 
         # Create a model with an Add node (should not match Identity pattern)
-        model_proto = onnx.parser.parse_model(
+        model = ir.from_onnx_text(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[N] x, float[N] y) => (float[N] z)
             {
                 z = Add(x, y)
             }
-        """
+            """
         )
-        model = ir.serde.deserialize_model(model_proto)
 
         # Find the Add node
         add_node = None
@@ -194,7 +190,7 @@ class RewriteRuleInheritanceTest(unittest.TestCase):
         rule = pattern.RewriteRule(reciprocal_mul_pattern, div_replacement)
 
         # Create a model that should match
-        model_proto = onnx.parser.parse_model(
+        model = ir.from_onnx_text(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
             agraph (float[N] x, float[N] y) => (float[N] z)
@@ -204,9 +200,8 @@ class RewriteRuleInheritanceTest(unittest.TestCase):
                 z1 = Mul(t1, y)
                 z = Identity(z1)
             }
-        """
+            """
         )
-        model = ir.serde.deserialize_model(model_proto)
 
         # Apply the rule
         count = rule.apply_to_model(model)
