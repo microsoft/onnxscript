@@ -3,6 +3,7 @@
 """Example demonstrating the new pattern matching functionality."""
 
 import onnx.parser
+
 from onnxscript import ir
 from onnxscript.rewriter import pattern
 
@@ -83,9 +84,9 @@ def example_class_based_pattern():
             match_result = identity_pattern_class.match(model, model.graph, node)
 
             if match_result is not None:
-                print(f"  ✓ Class-based pattern matched!")
+                print("  ✓ Class-based pattern matched!")
             else:
-                print(f"  ✗ Class-based pattern did not match.")
+                print("  ✗ Class-based pattern did not match.")
 
 
 def example_rewrite_rule_still_works():
@@ -124,10 +125,10 @@ def example_rewrite_rule_still_works():
             match_result = rule.match(model, model.graph, node)
 
             if match_result is not None:
-                print(f"  ✓ RewriteRule matched as a pattern matcher!")
+                print("  ✓ RewriteRule matched as a pattern matcher!")
 
             # Use it for rewriting (original functionality)
-            print(f"Using RewriteRule for rewriting...")
+            print("Using RewriteRule for rewriting...")
             count = rule.apply_to_model(model)
             print(f"  Applied rule {count} times")
 
