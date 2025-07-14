@@ -16,11 +16,7 @@ from onnxscript.rewriter.ort_fusions import ORT_PATTERN_REWRITE_RULES
 __all__ = [
     "rewrite",
     "ORT_PATTERN_REWRITE_RULES",
-    "ORT_FUNCTION_REWRITE_RULES",
 ]
-
-ORT_FUNCTION_REWRITE_RULES: list[Any] = []
-
 
 def rewrite(
     model_proto: onnx.ModelProto,
