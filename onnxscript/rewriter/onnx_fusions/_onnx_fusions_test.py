@@ -5,9 +5,11 @@ from __future__ import annotations
 import unittest
 
 import onnx_ir as ir
+from parameterized import parameterized
 
 import onnxscript
 import onnxscript.rewriter.onnx_fusions as onnx_fusions
+from onnxscript.rewriter.models import _rotary_embedding_models
 
 
 class OnnxFusionsTest(unittest.TestCase):
@@ -34,6 +36,27 @@ class OnnxFusionsTest(unittest.TestCase):
         model = ir.serde.deserialize_model(rms_norm_model_proto)
         onnx_fusions.fuse(model, debug=True)
         self.assertEqual(model.graph.node(-1).op_type, "RMSNormalization")
+
+    @parameterized.expand(
+        [
+            (
+                "test_case_1",
+                _rotary_embedding_models.test_case_1,
+            ),
+            (
+                "test_case_2",
+                _rotary_embedding_models.test_case_2,
+            ),
+        ]
+    )
+    def test_rotary_embedding_fusion(self, _: str, test_data_constructor):
+        test = test_data_constructor()
+        model: ir.Model = test.get_onnx_model()
+        model.graph.opset_imports[""] = 23  # Test case is a valid opset 23 model
+        onnxscript.optimizer.optimize(model)
+        onnx_fusions.fuse(model)
+        op_types = [n.op_type for n in model.graph]
+        self.assertIn("RotaryEmbedding", op_types)
 
 
 if __name__ == "__main__":

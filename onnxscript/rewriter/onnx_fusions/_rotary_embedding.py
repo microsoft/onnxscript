@@ -8,6 +8,7 @@ from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 # for full rotation without interleaving.
 # TODO(rama): Add pattern variations to handle other cases (interleaved, as well as partial rotation).
 
+
 def _rotate_half_pattern(op, x, start1, end1, start2, end2):
     # Slice(input, starts, ends, axes, steps)
     x1 = op.Slice(x, start1, end1, [3], [1])
@@ -51,7 +52,11 @@ class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
     def rewrite(self, op, x, cos, sin, **_):
         num_heads = x.shape[1]
         return op.RotaryEmbedding(
-            x, cos, sin, interleaved=0, num_heads=num_heads,
+            x,
+            cos,
+            sin,
+            interleaved=0,
+            num_heads=num_heads,
         )
 
 
