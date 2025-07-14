@@ -149,7 +149,7 @@ class PatternBaseTest(unittest.TestCase):
         self.assertEqual(test_pattern.name, "TestPattern")
 
     def test_pattern_base_compiled_pattern_access(self):
-        """Test that PatternBase has an internal Pattern."""
+        """Test that PatternBase has an internal Pattern that is created on demand."""
 
         class TestPattern(pattern.PatternBase):
             def pattern(self, op, x):
@@ -160,7 +160,26 @@ class PatternBaseTest(unittest.TestCase):
 
         test_pattern = TestPattern(name="TestPattern")
 
-        # The Pattern should be created internally
+        # Initially, the Pattern should not be created (lazy initialization)
+        self.assertIsNone(test_pattern._compiled_pattern)
+
+        # Create a simple model to trigger pattern creation
+        model = ir.from_onnx_text(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x) => (float[N] z)
+            {
+                z = Identity(x)
+            }
+            """
+        )
+        graph = model.graph
+        node = next(iter(graph))
+
+        # Calling match() should trigger the creation of _compiled_pattern
+        test_pattern.match(model, graph, node)
+
+        # Now the Pattern should be created
         self.assertIsInstance(test_pattern._compiled_pattern, pattern.Pattern)
         self.assertEqual(test_pattern._compiled_pattern.name, "TestPattern")
 

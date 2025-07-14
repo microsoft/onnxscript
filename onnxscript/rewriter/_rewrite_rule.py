@@ -150,7 +150,7 @@ class Pattern:
                     )
                 if tracer:
                     tracer.log(
-                        self,
+                        self,  # type: ignore[arg-type]
                         graph_or_function,
                         node,
                         match,
@@ -158,10 +158,10 @@ class Pattern:
                     )
                 return None
             if tracer:
-                tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.SUCCESS)
+                tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.SUCCESS)  # type: ignore[arg-type]
             return match
         if tracer:
-            tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.NO_MATCH)
+            tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.NO_MATCH)  # type: ignore[arg-type]
         return match
 
 
@@ -360,8 +360,9 @@ class PatternBase(abc.ABC):
 
     def __init__(self, name: str | None = None, **kwargs) -> None:
         self.name = name or self.__class__.__name__
-        # Create and store the Pattern internally
-        self._compiled_pattern = Pattern(self.pattern, self.check, name=self.name, **kwargs)
+        # Initialize to None and create on demand to avoid construction order issues
+        self._compiled_pattern: Pattern | None = None
+        self._pattern_kwargs = kwargs
 
     @abc.abstractmethod
     def pattern(self, op, *args, **kwargs):
@@ -395,6 +396,11 @@ class PatternBase(abc.ABC):
             MatchResult if the pattern matches successfully and passes the condition function,
             None otherwise.
         """
+        # Create the compiled pattern on demand if not already created
+        if self._compiled_pattern is None:
+            self._compiled_pattern = Pattern(
+                self.pattern, self.check, name=self.name, **self._pattern_kwargs
+            )
         return self._compiled_pattern.match(
             model,
             graph_or_function,
