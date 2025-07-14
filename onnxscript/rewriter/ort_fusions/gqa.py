@@ -32,8 +32,19 @@ T: total sequence length (after concatenation of past and current key/value)
 Dim = Union[int, ir.SymbolicDim]
 
 
-def _causal_mask(op, past_seq_len_0D, total_seq_len_0D_1, total_seq_len_0D_2, seq_len, total_seq_len, shape_B111, min_val, window_size, dtype):
-    """Defines a pattern for a pure causal mask."""
+def _causal_mask(
+    op,
+    past_seq_len_0D,
+    total_seq_len_0D_1,
+    total_seq_len_0D_2,
+    seq_len,
+    total_seq_len,
+    shape_B111,
+    min_val,
+    window_size,
+    dtype,
+):
+    """Defines a pattern for a pure causal mask, with optional sliding window support."""
     current_range = op.Range(past_seq_len_0D, total_seq_len_0D_1, 1)
     mask_shape = op.Concat(seq_len, total_seq_len, axis=0)
     mask_all_min_expand = op.Expand(min_val, mask_shape)
@@ -48,10 +59,10 @@ def _causal_mask(op, past_seq_len_0D, total_seq_len_0D_1, total_seq_len_0D_2, se
     # sliding window support:
     current_range_minus_window = op.Sub(current_range_as_column, window_size)
     out_of_sliding_window = op.LessOrEqual(total_range_as_row, current_range_minus_window)
-    irrelevant = op.Or(non_causal, out_of_sliding_window)
+    non_causal_sliding_window = op.Or(non_causal, out_of_sliding_window)
 
-    boolean_mask = pattern.OrValue([non_causal, irrelevant])
-    
+    boolean_mask = pattern.OrValue([non_causal, non_causal_sliding_window])
+
     float_0_1_mask = op.Cast(boolean_mask, to=dtype)
     float_0_min_mask = op.Mul(mask_all_min, float_0_1_mask)
     mask_4d_11ST = op.Unsqueeze(float_0_min_mask, [0, 1])
@@ -59,9 +70,35 @@ def _causal_mask(op, past_seq_len_0D, total_seq_len_0D_1, total_seq_len_0D_2, se
 
     return mask_4d_B1ST
 
+
 class _CausalMaskPattern(pattern.PatternBase):
-    def pattern(self, op, past_seq_len_0D, total_seq_len_0D_1, total_seq_len_0D_2, seq_len, total_seq_len, shape_B111, min_val, window_size, dtype1, attn_mask_2d, dtype2):
-        causal_mask = _causal_mask(op, past_seq_len_0D, total_seq_len_0D_1, total_seq_len_0D_2, seq_len, total_seq_len, shape_B111, min_val, window_size, dtype1)
+    def pattern(
+        self,
+        op,
+        past_seq_len_0D,
+        total_seq_len_0D_1,
+        total_seq_len_0D_2,
+        seq_len,
+        total_seq_len,
+        shape_B111,
+        min_val,
+        window_size,
+        dtype1,
+        attn_mask_2d,
+        dtype2,
+    ):
+        causal_mask = _causal_mask(
+            op,
+            past_seq_len_0D,
+            total_seq_len_0D_1,
+            total_seq_len_0D_2,
+            seq_len,
+            total_seq_len,
+            shape_B111,
+            min_val,
+            window_size,
+            dtype1,
+        )
 
         attn_mask_4d = op.Unsqueeze(attn_mask_2d, [1, 2])
         attn_mask_4d_cast = op.Cast(attn_mask_4d, to=dtype2)
@@ -74,12 +111,33 @@ class _CausalMaskPattern(pattern.PatternBase):
         result = op.Where(is_zero, min_val, causal_mask)
         return result
 
-    def check (self, context, dtype1, dtype2, **_):
+    def check(self, context, dtype1, dtype2, min_val, attn_mask_2d, sliding_window=None, **_):
+        # Check that attn_mask_2d is the model input "attention_mask"
+        if attn_mask_2d.name != "attention_mask" or not attn_mask_2d.is_graph_input():
+            return pattern.MatchResult().fail("Invalid attention_mask input", attn_mask_2d)
+
         if dtype1.as_int() != dtype2.as_int():
             return pattern.MatchResult().fail("Dtype mismatch", [dtype1, dtype2])
+        # Check that min_val is a constant and matches the expected minimum value for the dtype.
+        min_value = _ir_utils.get_singleton_value(min_val)
+        if min_value is None:
+            return pattern.MatchResult().fail("Minval is not a constant.", min_val)
+        expected_min_value = np.finfo(min_val.dtype.numpy()).min
+        if min_value != expected_min_value:
+            return pattern.MatchResult().fail(
+                f"Expected min value {expected_min_value}, got {min_value}", min_val
+            )
+        # TODO(rama) Sliding window: not yet supported.
+        if sliding_window:
+            return pattern.MatchResult().fail(
+                "Sliding window not yet supported", sliding_window
+            )
         return True
 
+
 _causal_mask_pattern = _CausalMaskPattern()
+
+
 class GroupQueryAttention(pattern.RewriteRuleClassBase):
     def __init__(self):
         super().__init__("GQA", remove_nodes=False)
@@ -228,11 +286,13 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         mask_node = mask.producer()
         if mask_node is None:
             return pattern.MatchResult().fail("Unhandled mask pattern", mask)
-        mask_bindings = _causal_mask_pattern.match(None, None, mask_node, check_nodes_are_removable=False)
+        mask_bindings = _causal_mask_pattern.match(
+            None, None, mask_node, check_nodes_are_removable=False
+        )
         if mask_bindings is None:
             return pattern.MatchResult().fail("Mask does not match causal mask pattern", mask)
         # TODO: handle sliding window support in mask
-        
+
         return True
 
     def rewrite(
@@ -249,8 +309,6 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         mask,
         **_,
     ):
-        # Check the mask:
-
         # Construct seqlens_k and total_seq_length_int32 from position_ids
         # seqlens_k : int32[batch_size] indicates total_sequence-length-1 for each batch
         # position_ids: int64[batch_size, sequence_length] indicates the position of each token
@@ -279,6 +337,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
             _domain="com.microsoft",
             _outputs=3,
         )
+
 
 _basic_gqa_rule = GroupQueryAttention.rule()
 
