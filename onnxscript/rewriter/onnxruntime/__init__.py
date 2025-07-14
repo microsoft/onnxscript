@@ -18,6 +18,7 @@ __all__ = [
     "ORT_PATTERN_REWRITE_RULES",
 ]
 
+
 def rewrite(
     model_proto: onnx.ModelProto,
     /,
