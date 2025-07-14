@@ -116,8 +116,6 @@ rotary_embedding_rules = pattern.RewriteRuleSet([_rule])
 
 partial_embedding_rules = pattern.RewriteRuleSet([_partial_embedding_rule])
 
-
 fuse_rotary_embedding = _fusion_utils.apply_fusion_rules(rotary_embedding_rules)
-
 
 fuse_partial_rotary_embedding = _fusion_utils.apply_fusion_rules(partial_embedding_rules)
