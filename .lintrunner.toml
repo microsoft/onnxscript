@@ -54,10 +54,8 @@ exclude_patterns = [
     'onnxscript/rewriter/ort_fusions/models/_phi2lm.py',  # onnxscript code
     'onnxscript/rewriter/ort_fusions/models/_phi4lm.py',  # onnxscript code
     'onnxscript/rewriter/ort_fusions/_rotary_embedding_models.py',  # onnxscript code
-    'onnxscript/_legacy_ir/irbuilder.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/multihead_attention.py',  # FIXME
     'onnxscript/tools/function_unittest_producer.py',  # FIXME
-    'onnxscript/_legacy_ir/visitor.py',  # FIXME
     'onnxscript/rewriter/onnxruntime/transformers/layernorm.py',  # FIXME
     'onnxscript/rewriter/generic_pattern.py',  # FIXME
 ]
@@ -125,7 +123,6 @@ exclude_patterns = [
     'tests/onnx_backend_test_code/**',
     'onnxscript/optimizer/**',  # FIXME
     'onnxscript/rewriter/**',  # FIXME
-    'onnxscript/_legacy_ir/**',  # FIXME
 ]
 command = [
     'python',
