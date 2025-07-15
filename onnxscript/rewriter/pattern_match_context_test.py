@@ -186,7 +186,7 @@ class PatternMatchContextTest(unittest.TestCase):
         
         def condition_using_context(context, x, y):
             # Use context to check properties of the match
-            self.assertIsNotNone(context.model)
+            self.assertIs(context.model, model)
             self.assertIsNotNone(context.graph_or_function)
             self.assertIsNotNone(context.main_root_node)
             
