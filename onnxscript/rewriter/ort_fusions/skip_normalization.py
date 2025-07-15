@@ -51,6 +51,7 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         skip,
         gamma,
         bias,
+        simplified_layer_norm,
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         """Check if the pattern matches conditions for use of SkipSimplifiedLayerNormalization op."""
@@ -82,6 +83,10 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
                     bias,
                 )
 
+        stash_type = simplified_layer_norm.producer().attributes.get_int("stash_type", 1)
+        if stash_type != 1:
+            return check_result.fail("Stash type is not supported.")
+
         return check_result
 
     def rewrite(
@@ -94,7 +99,7 @@ class SkipRmsNormFusion(pattern.RewriteRuleClassBase):
         simplified_layer_norm,
         **_,
     ):
-        epsilon = simplified_layer_norm.producer().attributes.get_float("epsilon")
+        epsilon = simplified_layer_norm.producer().attributes.get_float("epsilon", 1e-5)
 
         if self._has_bias:
             normalized, _mean, _inv_std_var, skip_sum = op.SkipSimplifiedLayerNormalization(
@@ -170,6 +175,7 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
         gamma,
         beta,
         bias,
+        layer_norm,
         **_,
     ) -> pattern.MatchResult:  # type: ignore[name-defined]
         """Check if the pattern matches conditions for use of SimplifiedLayerNormalization op."""
@@ -206,6 +212,9 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
                     bias,
                 )
 
+        stash_type = layer_norm.producer().attributes.get_int("stash_type", 1)
+        if stash_type != 1:
+            return check_result.fail("Stash type is not supported.")
         return check_result
 
     def rewrite(
@@ -219,7 +228,8 @@ class SkipLayerNormFusion(pattern.RewriteRuleClassBase):
         layer_norm,
         **_,
     ):
-        epsilon = layer_norm.producer().attributes.get_float("epsilon")
+        epsilon = layer_norm.producer().attributes.get_float("epsilon", 1e-5)
+
         normalized, _mean, _inv_std_var, skip_sum = op.SkipLayerNormalization(
             input,
             skip,
