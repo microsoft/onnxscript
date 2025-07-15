@@ -340,6 +340,60 @@ class MatchInfo:
         print(separator)
 
 
+class PatternMatchContext:
+    """A read-only context containing information about a pattern match.
+    
+    This class captures information about the context describing a match to a given pattern,
+    providing access to the model, graph/function, main root node, output values, and all
+    nodes of the matching subgraph.
+    """
+
+    def __init__(
+        self,
+        model: ir.Model,
+        graph_or_function: ir.Graph | ir.Function,
+        main_root_node: ir.Node,
+        match_result: MatchResult,
+    ) -> None:
+        """Initialize the pattern match context.
+        
+        Args:
+            model: The model being matched.
+            graph_or_function: The graph or function being matched.
+            main_root_node: The main root node of the matching subgraph.
+            match_result: The match result containing matched nodes and outputs.
+        """
+        self._model = model
+        self._graph_or_function = graph_or_function
+        self._main_root_node = main_root_node
+        self._match_result = match_result
+
+    @property
+    def model(self) -> ir.Model:
+        """The model being matched."""
+        return self._model
+
+    @property
+    def graph_or_function(self) -> ir.Graph | ir.Function:
+        """The graph or function being matched."""
+        return self._graph_or_function
+
+    @property
+    def main_root_node(self) -> ir.Node:
+        """The main root node of the matching subgraph."""
+        return self._main_root_node
+
+    @property
+    def output_values(self) -> Sequence[ir.Value]:
+        """The output values of the matching subgraph."""
+        return self._match_result.outputs
+
+    @property
+    def nodes(self) -> Sequence[ir.Node]:
+        """All the nodes of the matching subgraph."""
+        return self._match_result.nodes
+
+
 class MatchingTracer:
     """A debugging helper class to trace the matching of a pattern against a graph.
 
