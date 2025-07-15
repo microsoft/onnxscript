@@ -61,7 +61,7 @@ The MatchContext provides the following read-only properties:
 
 - `model`: The entire ONNX model being matched
 - `graph_or_function`: The specific graph or function being matched
-- `main_root_node`: The primary root node of the matching subgraph
+- `root`: The root node of the matching subgraph
 - `output_values`: The output values of the matching subgraph
 - `nodes`: All nodes that are part of the matching subgraph
 
@@ -74,7 +74,7 @@ def advanced_condition_check(context, x, y, **_):
     """Example condition function using MatchContext."""
     
     # Access the main node of the pattern match
-    main_node = context.main_root_node
+    main_node = context.root
     
     # Check that the main_node does not have an attribute called "alpha"
     if "alpha" in main_node.attributes:

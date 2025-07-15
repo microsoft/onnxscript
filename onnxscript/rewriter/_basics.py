@@ -344,7 +344,7 @@ class MatchContext:
     """A read-only context containing information about a pattern match.
     
     This class captures information about the context describing a match to a given pattern,
-    providing access to the model, graph/function, main root node, output values, and all
+    providing access to the model, graph/function, root node, output values, and all
     nodes of the matching subgraph.
     """
 
@@ -352,7 +352,7 @@ class MatchContext:
         self,
         model: ir.Model,
         graph_or_function: ir.Graph | ir.Function,
-        main_root_node: ir.Node,
+        root: ir.Node,
         match_result: MatchResult,
     ) -> None:
         """Initialize the pattern match context.
@@ -360,12 +360,12 @@ class MatchContext:
         Args:
             model: The model being matched.
             graph_or_function: The graph or function being matched.
-            main_root_node: The main root node of the matching subgraph.
+            root: The root node of the matching subgraph.
             match_result: The match result containing matched nodes and outputs.
         """
         self._model = model
         self._graph_or_function = graph_or_function
-        self._main_root_node = main_root_node
+        self._root = root
         self._match_result = match_result
 
     @property
@@ -379,9 +379,9 @@ class MatchContext:
         return self._graph_or_function
 
     @property
-    def main_root_node(self) -> ir.Node:
-        """The main root node of the matching subgraph."""
-        return self._main_root_node
+    def root(self) -> ir.Node:
+        """The root node of the matching subgraph."""
+        return self._root
 
     @property
     def output_values(self) -> Sequence[ir.Value]:

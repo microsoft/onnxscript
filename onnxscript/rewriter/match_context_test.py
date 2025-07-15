@@ -31,7 +31,7 @@ class MatchContextTest(unittest.TestCase):
             # Use context to check properties of the match
             self.assertIs(context.model, model)
             self.assertIs(context.graph_or_function, model.graph)
-            self.assertIs(context.main_root_node, model.graph[2])
+            self.assertIs(context.root, model.graph[2])
             
             # Verify that we can inspect the matched nodes
             self.assertEqual(len(context.nodes), 2)
