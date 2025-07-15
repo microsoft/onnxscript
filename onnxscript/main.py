@@ -11,7 +11,7 @@ from typing import Any, Callable, Optional, Sequence, TypeVar
 from typing_extensions import ParamSpec
 
 import onnxscript
-from onnxscript import converter, ir, irbuilder, values
+from onnxscript import _converter, ir, irbuilder, values
 from onnxscript._internal import ast_utils
 
 _R = TypeVar("_R")
@@ -29,7 +29,7 @@ def script_check(
     # See if conversion succeeds.
     # TODO: cleanup Converter interface/API, separating checker from
     # converter
-    convert = converter.Converter(
+    convert = _converter.Converter(
         opset=opset,
         global_names=global_names,
         source=source,

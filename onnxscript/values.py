@@ -25,8 +25,7 @@ import onnx
 import onnx.defs
 from typing_extensions import ParamSpec
 
-from onnxscript import converter as converter_module
-from onnxscript import irbuilder, sourceinfo, type_annotation
+from onnxscript import _converter, irbuilder, sourceinfo, type_annotation
 from onnxscript._internal import ast_utils, deprecation
 from onnxscript.ir import _schemas
 
@@ -638,7 +637,7 @@ class TracedOnnxFunction(Op):
         closure = inspect.getclosurevars(self.func)
         global_names = module.__dict__.copy()
         global_names.update(closure.nonlocals)
-        converter = converter_module.Converter(
+        converter = _converter.Converter(
             opset=self._opset,
             global_names=global_names,
             source=src,

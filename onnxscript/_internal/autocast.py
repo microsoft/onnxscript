@@ -13,7 +13,7 @@ from onnx.defs import OpSchema
 from onnxscript import ir, tensor
 
 if TYPE_CHECKING:
-    from onnxscript import converter
+    from onnxscript import _converter
 
 # Conversions from python values to ONNX are used by both the script converter as well
 # as the eager-mode runtime and both need to be consistent. The script converter converts
@@ -187,16 +187,16 @@ def dynamic_cast_inputs(op_schema: OpSchema, args):
 
 
 def static_cast_inputs(
-    converter_: converter.Converter,
+    converter_: _converter.Converter,
     op_schema: Optional[OpSchema],
-    args: Sequence[Optional[converter.Variable]],
+    args: Sequence[Optional[_converter.Variable]],
 ) -> tuple[str, ...]:
     """Used for autocast during script-translation.
     This is meant to transform expressions like "Add(X, 1)" to "Add(X, CastLike(1, X))"
     Polymorphic constants (like 0 and 1) are cast to the type of other operands as needed.
     """
 
-    def get_type_info(x: Optional[converter.Variable]) -> Optional[converter.Variable]:
+    def get_type_info(x: Optional[_converter.Variable]) -> Optional[_converter.Variable]:
         """Returns x back if x can serve as the target-type for a cast (as the second
         argument of CastLike) and None otherwise. In the expression "Add(X, 1), 1 is
         castable, while X can serve as the target-type.
@@ -204,7 +204,7 @@ def static_cast_inputs(
         return None if x is None or x.is_castable else x
 
     def cast_like(
-        x: Optional[converter.Variable], y: Optional[converter.Variable]
+        x: Optional[_converter.Variable], y: Optional[_converter.Variable]
     ) -> Optional[str]:
         if x is None:
             return None

@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+"""Python-to-IR converter"""
 from __future__ import annotations
 
 import ast
@@ -17,25 +18,23 @@ from typing import (
 )
 
 import onnx
+import onnx_ir as ir
 
 import onnxscript
 from onnxscript import irbuilder, onnx_types, sourceinfo, values
 from onnxscript import type_annotation as ta
 from onnxscript._internal import analysis, ast_utils, autocast, param_manipulation
 
-logger = logging.getLogger("onnxscript")
+logger = logging.getLogger(__name__)
 
-
-# Python-to-IR converter:
 
 
 def not_allowed(construct):
     return f"{construct}not supported."
 
 
-class TranslationError(Exception):
-    def __init__(self, *args: object) -> None:
-        super().__init__(*args)
+class TranslationError(RuntimeError):
+    pass
 
 
 def warn(msg):
@@ -139,10 +138,6 @@ if TYPE_CHECKING:
 class Converter:
     """Main class to translate python code into ONNX operators.
 
-    Args:
-        ir_builder: convert AST node into ONNX structures, if None,
-            class :class:`onnxscript.irbuilder.IRBuilder` is used
-
     The class uses logger `onnxscript`. Logging can be enabled with the following code:
 
     ::
@@ -169,7 +164,7 @@ class Converter:
         source: Optional[str] = None,
         default_opset: Optional[values.Opset] = None,
     ):
-        self.ir_builder = ir_builder or irbuilder.IRBuilder()
+        self._model = ir.
         self.source = source
         if global_names is not None:
             # We make a copy in case function eval modifies it.

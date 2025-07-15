@@ -23,7 +23,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 
 import onnxscript
 import onnxscript.testing
-from onnxscript import BOOL, FLOAT, INT64, converter, graph, script, tensor
+from onnxscript import BOOL, FLOAT, INT64, _converter, graph, script, tensor
 from onnxscript.onnx_opset import opset11 as op11
 from onnxscript.onnx_opset import opset15 as op
 from tests.common import onnx_script_test_case, testutils
@@ -437,12 +437,12 @@ class TestConverter(testutils.TestBase):
         global_names = globals().copy()
         top_level_ast = ast.parse(source)
         f_ast = top_level_ast.body[0]
-        cvt = converter.Converter(
+        cvt = _converter.Converter(
             opset=op, global_names=global_names, source=source, default_opset=op
         )
         try:
             cvt.translate_function_def(f_ast)
-        except converter.TranslationError as e:
+        except _converter.TranslationError as e:
             if msg not in str(e):
                 raise AssertionError(f"Unable to find {msg!r} in {e!r} in\n{source}") from e
             return
