@@ -182,6 +182,18 @@ class IRAttributeParameter:
 
 
 class IRStmt:
+    """An IR statement (representing an operation).
+
+    Details:
+    - `result`: A sequence of variable names that this statement assigns to.
+    - `callee`: The operation being called, represented as an instance of `values.Op`.
+    - `args`: A sequence of arguments to the operation, which can be variable names or
+      `None` for optional arguments.
+    - `attrs`: A sequence of attributes for the operation, represented as `IRAttributeValue`
+      instances.
+    - `sub_functions`: A dictionary of sub-functions that this statement may call, mapping
+      function names to `onnx.FunctionProto` instances.
+    """
     def __init__(
         self,
         result: Sequence[str],

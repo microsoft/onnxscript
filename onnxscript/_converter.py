@@ -172,6 +172,7 @@ class Converter:
 
         # TODO(justinchuby): Update ir version to be user defined
         self._model = ir.Model(ir.Graph((), (), nodes=()), ir_version=10)
+        self._tape = ir.tape.Tape(self._model.graph)
 
         # A stack of functions in the outer scope
         self._outer: list[ir.Function] = []
@@ -265,12 +266,13 @@ class Converter:
         self._locals.append({})
         logger.debug("Converter:_enter_scope:%d:node:%s", len(self._locals), type(parent_node))
 
-    def _exit_scope(self) -> irbuilder.IRFunction:
+    def _exit_scope(self) -> ir.Function:
         """Exit from a control-flow block (a loop body or if-then-else branch)."""
         logger.debug("Converter:_exit_scope:%d", len(self._locals))
         graph = self._current_fn
         self._current_fn = self._outer.pop()
         self._locals.pop()
+        assert graph is not None
         return graph
 
     def _current_scope(self) -> Dict[str, LocalSymValue]:
@@ -301,17 +303,17 @@ class Converter:
         self._used_vars.add(r)
         return r
 
-    def _make_onnx_attr(
-        self, attrname: str, attrval: Any, attrtype: int | None = None
-    ) -> irbuilder.IRAttributeValue:
-        def tensor_name_generator() -> str:
-            """Return name to be used for tensor, if we need to create one."""
-            return self.generate_unique_name(f"attr_{attrname}")
+    # def _make_onnx_attr(
+    #     self, attrname: str, attrval: Any, attrtype: int | None = None
+    # ) -> irbuilder.IRAttributeValue:
+    #     def tensor_name_generator() -> str:
+    #         """Return name to be used for tensor, if we need to create one."""
+    #         return self.generate_unique_name(f"attr_{attrname}")
 
-        proto = autocast.pyvalue_to_onnx_attribute(
-            attrname, attrval, tensor_name_generator, attrtype
-        )
-        return self.ir_builder.make_attr(proto)
+    #     proto = autocast.pyvalue_to_onnx_attribute(
+    #         attrname, attrval, tensor_name_generator, attrtype
+    #     )
+    #     return self.ir_builder.make_attr(proto)
 
     def _to_onnx_attr_ref(
         self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]
@@ -369,18 +371,16 @@ class Converter:
 
     def emit(
         self,
-        outputs: Sequence[str],
+        outputs: Sequence[ir.Value],
         callee: values.Op | str,
-        inputs: Sequence[Optional[str]],
-        attrs: Optional[Sequence[irbuilder.IRAttributeValue]] = None,
-        sub_functions: Optional[dict[str, onnx.FunctionProto]] = None,
+        inputs: Sequence[ir.Value | None],
+        attrs: Any = None,
     ):
         if not isinstance(callee, values.Op):
             callee = values.Op(self.default_opset, callee)
         if attrs is None:
-            attrs = []
-        if sub_functions is None:
-            sub_functions = {}
+            attrs = {}
+
         self.ir_builder.add_stmt(
             self._current_fn,
             outputs,
