@@ -77,9 +77,8 @@ def advanced_condition_check(context, x, y, **_):
     main_node = context.main_root_node
     
     # Check that the main_node does not have an attribute called "alpha"
-    for attr in main_node.attribute:
-        if attr.name == "alpha":
-            return False
+    if "alpha" in main_node.attributes:
+        return False
     
     # Access the broader graph context and check that x occurs as a graph-input
     model = context.model
