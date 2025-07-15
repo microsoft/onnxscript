@@ -72,31 +72,31 @@ Here's an example showing how to use the MatchContext to implement more sophisti
 ```python
 def advanced_condition_check(context, x, y, **_):
     """Example condition function using MatchContext."""
-    
+
     # Access the main node of the pattern match
     main_node = context.root
-    
+
     # Check that the main_node does not have an attribute called "alpha"
     if "alpha" in main_node.attributes:
         return False
-    
+
     # Access the broader graph context and check that x occurs as a graph-input
     model = context.model
     if x not in model.graph.inputs:
         return False
-    
+
     # You can inspect the matched nodes for advanced validation
     for node in context.nodes:
         if node.op_type == "Constant":
             # Check properties of constant nodes in the match
             pass
-    
+
     # Access output values for shape/type validation
     outputs = context.output_values
     if len(outputs) > 0 and outputs[0].shape is not None:
         # Validate output shapes
         pass
-    
+
     return True
 ```
 
