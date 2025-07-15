@@ -25,6 +25,38 @@ from onnxscript import irbuilder, onnx_types, sourceinfo, values
 from onnxscript import type_annotation as ta
 from onnxscript._internal import analysis, ast_utils, autocast, param_manipulation
 
+if TYPE_CHECKING:
+    # The type-alias LocalSymValue represents the types of values that local names in a
+    # script-function may be bound to during translation, (ONNX IR values).
+    # TODO(rama): Rationalize this and values.SymbolValue
+
+    LocalSymValue = Union[values.SymbolValue, irbuilder.IRFunction]
+
+    # The type-alias PyValue is used to represent the types of python values that may be used
+    # in an ONNX Script function.
+    # TODO(rama): Flesh out the set of valid types here. These include values such as
+    # 1 (int), 1.0 (float), [2, 4], [1.0], etc. which will be converted to ONNX, for
+    # use as value-parameters or attribute-parameters in an ONNX call (Node).
+
+    PyValue = Any
+
+    # The type-alias SymValue denotes values that an identifier may be bound to during
+    # translation. A local name will be bound to a LocalSymValue, while a global name
+    # will be bound to a PyValue.
+
+    SymValue = Union[LocalSymValue, PyValue]
+
+    # PreferredName is a type-alias used to represent the preferred name used in the generated
+    # ONNX for a value returned by an expression. There is no guarantee that the specified
+    # name will be used exactly. The converter will modify the name (with a suffix),
+    # if necesssary, to ensure that it is unique (to ensure ONNX's SSA requirement).
+
+    PreferredName = str
+
+    # The type-alias OnnxVar indicates variable names used in the generated ONNX.
+    OnnxVarName = str
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -56,7 +88,7 @@ def ignore(cond, msg):
 
 
 # map from python operators to ONNX ops
-primop_map = {
+_PRIMOP_MAP = {
     ast.Add: "Add",
     ast.And: "And",
     ast.BitAnd: "And",
@@ -103,36 +135,7 @@ class Variable:
         return self.name
 
 
-if TYPE_CHECKING:
-    # The type-alias LocalSymValue represents the types of values that local names in a
-    # script-function may be bound to during translation, (ONNX IR values).
-    # TODO(rama): Rationalize this and values.SymbolValue
 
-    LocalSymValue = Union[values.SymbolValue, irbuilder.IRFunction]
-
-    # The type-alias PyValue is used to represent the types of python values that may be used
-    # in an ONNX Script function.
-    # TODO(rama): Flesh out the set of valid types here. These include values such as
-    # 1 (int), 1.0 (float), [2, 4], [1.0], etc. which will be converted to ONNX, for
-    # use as value-parameters or attribute-parameters in an ONNX call (Node).
-
-    PyValue = Any
-
-    # The type-alias SymValue denotes values that an identifier may be bound to during
-    # translation. A local name will be bound to a LocalSymValue, while a global name
-    # will be bound to a PyValue.
-
-    SymValue = Union[LocalSymValue, PyValue]
-
-    # PreferredName is a type-alias used to represent the preferred name used in the generated
-    # ONNX for a value returned by an expression. There is no guarantee that the specified
-    # name will be used exactly. The converter will modify the name (with a suffix),
-    # if necesssary, to ensure that it is unique (to ensure ONNX's SSA requirement).
-
-    PreferredName = str
-
-    # The type-alias OnnxVar indicates variable names used in the generated ONNX.
-    OnnxVarName = str
 
 
 class Converter:
@@ -158,19 +161,20 @@ class Converter:
 
     def __init__(
         self,
-        ir_builder: Optional[irbuilder.IRBuilder] = None,
         opset: Optional[values.Opset] = None,
         global_names: Optional[dict[str, Any]] = None,
         source: Optional[str] = None,
         default_opset: Optional[values.Opset] = None,
     ):
-        self._model = ir.
-        self.source = source
+        self._source = source
         if global_names is not None:
             # We make a copy in case function eval modifies it.
-            self.globals = global_names.copy()
-        self.this_module = opset
-        self.default_opset_ = default_opset
+            self._globals = global_names.copy()
+        self._this_module = opset
+        self._default_opset = default_opset
+
+        # TODO(justinchuby): Update ir version to be user defined
+        self._model = ir.Model(ir.Graph((), (), nodes=()), ir_version=10)
 
         # States initialized by `_init_function_translation`
         self._outer: List[irbuilder.IRFunction] = []
@@ -181,26 +185,26 @@ class Converter:
 
     @property
     def default_opset(self) -> values.Opset:
-        if self.default_opset_ is None:
+        if self._default_opset is None:
             raise RuntimeError(
                 "default_opset must be specified in script for functions "
                 "that do not contain any use of an ONNX opset."
             )
-        return self.default_opset_
+        return self._default_opset
 
     def _set_default_opset(self, opset: values.Opset, node: ast.AST) -> None:
         if opset.domain != "":
             return
-        if self.default_opset_ is not None:
+        if self._default_opset is not None:
             if (
-                opset.domain != self.default_opset_.domain
-                or opset.version != self.default_opset_.version
+                opset.domain != self._default_opset.domain
+                or opset.version != self._default_opset.version
             ):
                 self.fail(
-                    node, f"Two distincts opset were used ({opset} != {self.default_opset_})."
+                    node, f"Two distincts opset were used ({opset} != {self._default_opset})."
                 )
         else:
-            self.default_opset_ = opset
+            self._default_opset = opset
 
     def _find_onnx_opset(self, node: ast.AST) -> Optional[values.Opset]:
         """Find the (first) ONNX opset used in the function, if any."""
@@ -209,8 +213,8 @@ class Converter:
             if isinstance(node.func, ast.Attribute):
                 opset_expr = node.func.value
                 if isinstance(opset_expr, ast.Name):
-                    if opset_expr.id in self.globals:
-                        opset = self.globals[opset_expr.id]
+                    if opset_expr.id in self._globals:
+                        opset = self._globals[opset_expr.id]
                         if isinstance(opset, values.Opset) and opset.domain == "":
                             return opset
         for child in ast.iter_child_nodes(node):
@@ -228,7 +232,7 @@ class Converter:
         self._locals: List[Dict[str, LocalSymValue]] = [{}]
 
     def _source_of(self, node: ast.AST) -> sourceinfo.SourceInfo:
-        return sourceinfo.SourceInfo(node, self.source, self._current_fn.name)
+        return sourceinfo.SourceInfo(node, self._source, self._current_fn.name)
 
     def _message(self, node: ast.AST, error_msg: str) -> str:
         """Constructs an error _message containing source information about an ast node."""
@@ -277,8 +281,8 @@ class Converter:
         for scope in self._locals:
             if name in scope:
                 return scope[name]
-        if name in self.globals:
-            return self.globals[name]
+        if name in self._globals:
+            return self._globals[name]
         if raise_exception:
             raise ValueError(info.msg(f"Unbound name: {name}."))
         return None
@@ -452,12 +456,12 @@ class Converter:
         expr = ast.Expression(expr, lineno=expr.lineno, col_offset=expr.col_offset)
         cpl = compile(expr, filename="<ast>", mode="eval")
         try:
-            return eval(cpl, self.globals, locals)  # pylint: disable=eval-used
+            return eval(cpl, self._globals, locals)  # pylint: disable=eval-used
         except NameError as e:
             raise NameError(
                 self._message(
                     expr,
-                    f"Missing names, globals contains {list(self.globals)!r}, "
+                    f"Missing names, globals contains {list(self._globals)!r}, "
                     f"locals {list(locals)!r}.",
                 )
             ) from e
@@ -838,7 +842,7 @@ class Converter:
 
     def _translate_binary_op_expr(self, node: ast.BinOp):
         op = type(node.op)
-        if op not in primop_map:
+        if op not in _PRIMOP_MAP:
             raise ValueError(self._message(node, f"Unsupported operator {op!r}."))
 
         attr = []
@@ -849,7 +853,7 @@ class Converter:
             if isinstance(cst, float):
                 attr = [self._make_onnx_attr("fmod", 1)]
 
-        op = values.Op(self.default_opset, primop_map[op])
+        op = values.Op(self.default_opset, _PRIMOP_MAP[op])
         left, right = self._cast_like_binary_expression(
             op, self._translate_expr(node.left), self._translate_expr(node.right)
         )
@@ -857,7 +861,7 @@ class Converter:
 
     def _translate_unary_op_expr(self, node):
         op = type(node.op)
-        if op not in primop_map:
+        if op not in _PRIMOP_MAP:
             raise ValueError(self._message(node, self).msg(f"Unsupported operator {op!r}."))
         if self._is_constant_expr(node.operand):
             # This function changed the constant node.operand
@@ -878,7 +882,7 @@ class Converter:
                 return self._translate_expr(cst)
             if op == ast.UAdd:
                 return self._translate_expr(node.operand)
-        opname = primop_map[op]
+        opname = _PRIMOP_MAP[op]
         operand = self._translate_expr(node.operand)
         return values.Op(self.default_opset, opname), [operand], []
 
@@ -887,9 +891,9 @@ class Converter:
         assert len(node.ops) == 1
         assert len(node.comparators) == 1
         op = type(node.ops[0])
-        if op not in primop_map:
+        if op not in _PRIMOP_MAP:
             raise ValueError(self._message(node, f"Unsupported operator {op!r}."))
-        opname = primop_map[op]
+        opname = _PRIMOP_MAP[op]
         left = self._translate_expr(node.left)
         right = self._translate_expr(node.comparators[0])
 
@@ -1437,21 +1441,21 @@ class Converter:
     def translate_function_def(self, stmt: ast.FunctionDef) -> irbuilder.IRFunction:
         if isinstance(stmt, ast.FunctionDef):
             self._init_function_translation()
-            if self.default_opset_ is None:
+            if self._default_opset is None:
                 opset = self._find_onnx_opset(stmt)
                 if opset:
                     self._set_default_opset(opset, stmt)
-            domain = self.this_module.domain
+            domain = self._this_module.domain
             self._current_fn = self.ir_builder.new_function(stmt.name, domain, True)
             analysis.do_liveness_analysis(stmt, self._message)
             fn_ir = self._translate_function_def_common(stmt)
             fn_ir.debug_print()
-            self.this_module.add_function_def(fn_ir)
+            self._this_module.add_function_def(fn_ir)
             return fn_ir
         raise ValueError(f"Unsupported top-level statement type {type(stmt)!r}.")
 
     def translate_function_signature(self, fn: ast.FunctionDef) -> irbuilder.IRFunction:
         """Translate a (top-level) function signature."""
-        domain = self.this_module.domain
+        domain = self._this_module.domain
         self._current_fn = self.ir_builder.new_function(fn.name, domain, True)
         return self._translate_function_signature_common(fn)
