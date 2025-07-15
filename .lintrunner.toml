@@ -114,9 +114,8 @@ include_patterns = [
     '**/*.py',
 ]
 exclude_patterns = [
-    'examples/**',  # TODO: Merge with docs/examples
-    'docs/examples/**',
-    'docs/tutorial/examples/**',
+    'examples/**',
+    'docs/**',
     'onnxscript/converter_test.py',
     'tests/functions/**',
     'tests/models/**',

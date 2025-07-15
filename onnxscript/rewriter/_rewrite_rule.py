@@ -131,7 +131,7 @@ class Pattern:
             remove_nodes=check_nodes_are_removable,
         )
         if match:
-            context = None  # TODO(rama)
+            context = _basics.MatchContext(model, graph_or_function, node, match)
             for var in self._target_pattern.inputs:
                 if var.name is not None:
                     if var.name not in match.bindings:
