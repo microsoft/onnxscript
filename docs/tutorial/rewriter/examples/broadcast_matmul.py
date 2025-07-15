@@ -79,7 +79,11 @@ def check_if_not_need_reshape(
     Returns:
         True if we need to replace the pattern, False otherwise.
     """
-    del context  # Reserved for future extensions
+    # Use context to verify we have the expected pattern structure
+    # This helps ensure we're matching the complete intended pattern
+    if len(context.nodes) != 3:  # Should have 2 Reshape nodes + 1 MatMul node
+        logger.info("Expected 3 nodes in the matched pattern, got %d", len(context.nodes))
+        return False
 
     input_a_shape = input_a.shape
     input_b_shape = input_b.shape
