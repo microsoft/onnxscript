@@ -76,12 +76,16 @@ def advanced_condition_check(context, x, y, **_):
     # Access the main node of the pattern match
     main_node = context.main_root_node
     
-    # Check if we have multiple nodes in the match
-    if len(context.nodes) < 2:
-        return False
+    # Check that the main_node does not have an attribute called "alpha"
+    for attr in main_node.attribute:
+        if attr.name == "alpha":
+            return False
     
-    # Access the broader graph context
-    graph = context.graph_or_function
+    # Access the broader graph context and check that x occurs as a graph-input
+    model = context.model
+    input_names = [input.name for input in model.graph.input]
+    if x not in input_names:
+        return False
     
     # You can inspect the matched nodes for advanced validation
     for node in context.nodes:
