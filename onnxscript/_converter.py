@@ -262,7 +262,7 @@ class Converter:
             graph=ir.Graph((), (), nodes=[]),
             attributes={},
         )
-        self._locals.insert(0, {})
+        self._locals.append({})
         logger.debug("Converter:_enter_scope:%d:node:%s", len(self._locals), type(parent_node))
 
     def _exit_scope(self) -> irbuilder.IRFunction:
@@ -270,20 +270,20 @@ class Converter:
         logger.debug("Converter:_exit_scope:%d", len(self._locals))
         graph = self._current_fn
         self._current_fn = self._outer.pop()
-        self._locals.pop(0)
+        self._locals.pop()
         return graph
 
     def _current_scope(self) -> Dict[str, LocalSymValue]:
-        return self._locals[0]
+        return self._locals[-1]
 
     def _bind(self, name: str, val: LocalSymValue) -> None:
         logger.debug("Converter:_bind:%s", name)
-        self._locals[0][name] = val
+        self._locals[-1][name] = val
 
     def _lookup(
         self, name: str, info: sourceinfo.SourceInfo, raise_exception: bool = True
     ) -> SymValue:
-        for scope in self._locals:
+        for scope in reversed(self._locals):
             if name in scope:
                 return scope[name]
         if name in self._globals:
@@ -1342,7 +1342,7 @@ class Converter:
                 )
             else:
                 pv_val = None
-                for scope in self._locals:  # TODO: skip _current_scope
+                for scope in reversed(self._locals):  # TODO: skip _current_scope
                     if pvar in scope:
                         pv_val = scope[pvar]
                         break
