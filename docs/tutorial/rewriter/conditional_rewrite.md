@@ -51,13 +51,13 @@ The final graph with the applied rewrite looks as follows:
 
 ![broadcast_rewrite](examples/img/broadcast_02.png){align=center}
 
-# Using PatternMatchContext for Advanced Condition Checking
+# Using MatchContext for Advanced Condition Checking
 
-The `context` parameter passed to condition functions is an instance of {py:class}`onnxscript.rewriter.PatternMatchContext`, which provides access to additional information about the pattern match that can be useful for sophisticated condition checking.
+The `context` parameter passed to condition functions is an instance of {py:class}`onnxscript.rewriter.MatchContext`, which provides access to additional information about the pattern match that can be useful for sophisticated condition checking.
 
-## PatternMatchContext Properties
+## MatchContext Properties
 
-The PatternMatchContext provides the following read-only properties:
+The MatchContext provides the following read-only properties:
 
 - `model`: The entire ONNX model being matched
 - `graph_or_function`: The specific graph or function being matched
@@ -67,11 +67,11 @@ The PatternMatchContext provides the following read-only properties:
 
 ## Example Usage
 
-Here's an example showing how to use the PatternMatchContext to implement more sophisticated condition checking:
+Here's an example showing how to use the MatchContext to implement more sophisticated condition checking:
 
 ```python
 def advanced_condition_check(context, x, y, **_):
-    """Example condition function using PatternMatchContext."""
+    """Example condition function using MatchContext."""
     
     # Access the main node of the pattern match
     main_node = context.main_root_node
@@ -82,7 +82,7 @@ def advanced_condition_check(context, x, y, **_):
     
     # Access the broader graph context and check that x occurs as a graph-input
     model = context.model
-    if x not in model.graph.input:
+    if x not in model.graph.inputs:
         return False
     
     # You can inspect the matched nodes for advanced validation

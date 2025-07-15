@@ -340,7 +340,7 @@ class MatchInfo:
         print(separator)
 
 
-class PatternMatchContext:
+class MatchContext:
     """A read-only context containing information about a pattern match.
     
     This class captures information about the context describing a match to a given pattern,

@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Test for PatternMatchContext functionality."""
+"""Test for MatchContext functionality."""
 
 import unittest
 
@@ -10,9 +10,9 @@ from onnxscript import ir
 from onnxscript.rewriter import pattern
 
 
-class PatternMatchContextTest(unittest.TestCase):
+class MatchContextTest(unittest.TestCase):
     def test_context_usage_in_condition_function(self):
-        """Test that PatternMatchContext can be meaningfully used in condition functions."""
+        """Test that MatchContext can be meaningfully used in condition functions."""
         
         model_proto = onnx.parser.parse_model(
             """

@@ -9,7 +9,7 @@ __all__ = [
     "rewrite",
     "RewritePass",
     "MatchResult",
-    "PatternMatchContext",
+    "MatchContext",
     "RewriteRule",
     "RewriteRuleClassBase",
     "RewriteRuleSet",
@@ -32,7 +32,7 @@ from onnxscript.rewriter import (
     pattern,
     redundant_scatter_nd,
 )
-from onnxscript.rewriter._basics import MatchingTracer, MatchResult, MatchStatus, PatternMatchContext
+from onnxscript.rewriter._basics import MatchingTracer, MatchResult, MatchStatus, MatchContext
 from onnxscript.rewriter._rewrite_rule import (
     RewriterContext,
     RewriteRule,
