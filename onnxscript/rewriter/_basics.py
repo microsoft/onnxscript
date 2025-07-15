@@ -342,7 +342,7 @@ class MatchInfo:
 
 class MatchContext:
     """A read-only context containing information about a pattern match.
-    
+
     This class captures information about the context describing a match to a given pattern,
     providing access to the model, graph/function, root node, output values, and all
     nodes of the matching subgraph.
@@ -356,7 +356,7 @@ class MatchContext:
         match_result: MatchResult,
     ) -> None:
         """Initialize the pattern match context.
-        
+
         Args:
             model: The model being matched.
             graph_or_function: The graph or function being matched.
@@ -395,7 +395,7 @@ class MatchContext:
 
     def display(self, *, in_graph_order: bool = True) -> None:
         """Display the nodes in the pattern match context.
-        
+
         Args:
             in_graph_order: If True, display nodes in the order they appear in the
                 graph/function. If False, display nodes in the order they appear
@@ -404,7 +404,7 @@ class MatchContext:
         nodes = self.nodes
         if not nodes:
             return
-            
+
         if in_graph_order:
             # Display nodes in same order as in graph/function
             for node in self._graph_or_function:
