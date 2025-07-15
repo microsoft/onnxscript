@@ -393,6 +393,28 @@ class PatternMatchContext:
         """All the nodes of the matching subgraph."""
         return self._match_result.nodes
 
+    def display(self, *, in_graph_order: bool = True) -> None:
+        """Display the nodes in the pattern match context.
+        
+        Args:
+            in_graph_order: If True, display nodes in the order they appear in the
+                graph/function. If False, display nodes in the order they appear
+                in the match result.
+        """
+        nodes = self.nodes
+        if not nodes:
+            return
+            
+        if in_graph_order:
+            # Display nodes in same order as in graph/function
+            for node in self._graph_or_function:
+                if node in nodes:
+                    node.display()
+        else:
+            # Display nodes in match order
+            for node in nodes:
+                node.display()
+
 
 class MatchingTracer:
     """A debugging helper class to trace the matching of a pattern against a graph.

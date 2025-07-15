@@ -82,8 +82,7 @@ def advanced_condition_check(context, x, y, **_):
     
     # Access the broader graph context and check that x occurs as a graph-input
     model = context.model
-    input_names = [input.name for input in model.graph.input]
-    if x not in input_names:
+    if x not in model.graph.input:
         return False
     
     # You can inspect the matched nodes for advanced validation
