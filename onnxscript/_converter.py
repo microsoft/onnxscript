@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 """Python-to-IR converter"""
+
 from __future__ import annotations
 
 import ast
@@ -58,7 +59,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-
 
 
 def not_allowed(construct):
@@ -135,9 +135,6 @@ class Variable:
         return self.name
 
 
-
-
-
 class Converter:
     """Main class to translate python code into ONNX operators.
 
@@ -176,12 +173,12 @@ class Converter:
         # TODO(justinchuby): Update ir version to be user defined
         self._model = ir.Model(ir.Graph((), (), nodes=()), ir_version=10)
 
-        # States initialized by `_init_function_translation`
-        self._outer: List[irbuilder.IRFunction] = []
-        self._current_fn: irbuilder.IRFunction = None
+        # A stack of functions in the outer scope
+        self._outer: list[ir.Function] = []
+        self._current_fn: ir.Function | None = None
         self._nextvar: int = 0
         self._used_vars: set[str] = set()
-        self._locals: List[Dict[str, LocalSymValue]] = [{}]
+        self._locals: list[dict[str, LocalSymValue]] = [{}]
 
     @property
     def default_opset(self) -> values.Opset:
@@ -226,12 +223,13 @@ class Converter:
     def _init_function_translation(self) -> None:
         """Initialize self for translating a new (top-level) function."""
         self._outer = []
-        self._current_fn: Optional[irbuilder.IRFunction] = None
+        self._current_fn = None
         self._nextvar = 0
         self._used_vars = set()
         self._locals: List[Dict[str, LocalSymValue]] = [{}]
 
     def _source_of(self, node: ast.AST) -> sourceinfo.SourceInfo:
+        assert self._current_fn is not None
         return sourceinfo.SourceInfo(node, self._source, self._current_fn.name)
 
     def _message(self, node: ast.AST, error_msg: str) -> str:
@@ -255,8 +253,15 @@ class Converter:
         """Enter a control-flow block (a loop body or if-then-else branch).
         The block is translated into a nested-scope in ONNX.
         """
-        self._outer.insert(0, self._current_fn)
-        self._current_fn = self.ir_builder.new_function(name)
+        assert self._current_fn is not None
+        self._outer.append(self._current_fn)
+        assert self._this_module is not None
+        self._current_fn = ir.Function(
+            domain=self._this_module.domain,
+            name=name,
+            graph=ir.Graph((), (), nodes=[]),
+            attributes={},
+        )
         self._locals.insert(0, {})
         logger.debug("Converter:_enter_scope:%d:node:%s", len(self._locals), type(parent_node))
 
@@ -264,7 +269,7 @@ class Converter:
         """Exit from a control-flow block (a loop body or if-then-else branch)."""
         logger.debug("Converter:_exit_scope:%d", len(self._locals))
         graph = self._current_fn
-        self._current_fn = self._outer.pop(0)
+        self._current_fn = self._outer.pop()
         self._locals.pop(0)
         return graph
 
