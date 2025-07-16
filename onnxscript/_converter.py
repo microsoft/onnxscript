@@ -397,17 +397,11 @@ class Converter:
         # Obtain a name for the constant
         if suggested_name is None:
             if isinstance(pyvalue, int):
-                if pyvalue >= 0:
-                    suggested_name = f"int64_{pyvalue}"
-                else:
-                    suggested_name = f"int64_m{abs(pyvalue)}"
+                suggested_name = f"int64_{pyvalue}"
             elif (
                 isinstance(pyvalue, list) and len(pyvalue) == 1 and isinstance(pyvalue[0], int)
             ):
-                if pyvalue[0] >= 0:
-                    suggested_name = f"int64_{pyvalue[0]}_1d"
-                else:
-                    suggested_name = f"int64_m{abs(pyvalue[0])}_1d"
+                suggested_name = f"int64_{pyvalue[0]}_1d"
             else:
                 suggested_name = "const"
         var_name = self.generate_unique_name(suggested_name)
@@ -424,7 +418,7 @@ class Converter:
     def _emit_copy(self, original_var: str, suggested_name: str) -> str:
         """Emits a copy statement, using the ONNX Identity operator."""
         new_var = self.generate_unique_name(suggested_name)
-        self.emit([new_var], "Identity", [original_var])
+        self.emit("Identity", [original_var], [new_var])
         return new_var
 
     def _eval_constant_expr(self, expr: ast.AST) -> PyValue:
@@ -438,7 +432,7 @@ class Converter:
         function.)
         """
         # TODO: assert (_is_constant_expr(expr))
-        # TODO: Refine types
+        # TODO(justinchuby): Expand locals?
         locals: dict[Any, Any] = {}
         expr = ast.Expression(expr, lineno=expr.lineno, col_offset=expr.col_offset)
         cpl = compile(expr, filename="<ast>", mode="eval")
