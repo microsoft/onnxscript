@@ -11,6 +11,7 @@ from typing import (
     Any,
     Dict,
     List,
+    Mapping,
     NoReturn,
     Optional,
     Sequence,
@@ -315,27 +316,6 @@ class Converter:
     #     )
     #     return self.ir_builder.make_attr(proto)
 
-    def _to_onnx_attr_ref(
-        self, val: values.AttrRef, info: sourceinfo.SourceInfo | None
-    ) -> ir.Attr:
-        """Convert an attribute reference to an ONNX ref attribute."""
-        pytype = val.typeinfo
-        attrtype = _schemas.get_attr_type(pytype)
-        attrname = None
-        if attrtype is ir.AttributeType.FLOAT:
-            attrname = "value_float"
-        elif attrtype is ir.AttributeType.INT:
-            attrname = "value_int"
-        elif attrtype is ir.AttributeType.STRING:
-            attrname = "value_string"
-        elif attrtype is ir.AttributeType.INTS:
-            attrname = "value_ints"
-        else:
-            msg = f"Unsupported attribute type {pytype!r}."
-            fail(info.msg(msg) if info else msg)
-        # TODO(justinchuby): What is the ref attr name?
-        return ir.RefAttr(attrname, val.value, attrtype)
-
     def _to_onnx_var(
         self,
         val: values.SymbolValue | PyValue,
@@ -347,7 +327,7 @@ class Converter:
         if isinstance(val, values.AttrRef):
             # promote attribute to value
             result = self.generate_unique_name(target)
-            attr = self._to_onnx_attr_ref(val, info)
+            attr = _to_onnx_ref_attr(val, info)
             self.emit("Constant", [], [result], [attr])
             if ta.base_type_is_bool(val.typeinfo):
                 # ONNX attributes use an int-encoding for bools, but ONNX tensor types
@@ -434,6 +414,7 @@ class Converter:
         # TODO: assert (_is_constant_expr(expr))
         # TODO(justinchuby): Expand locals?
         locals: dict[Any, Any] = {}
+        # TODO(justinchuby): Find a better way to pass lineno and col_offset
         expr = ast.Expression(expr, lineno=expr.lineno, col_offset=expr.col_offset)
         cpl = compile(expr, filename="<ast>", mode="eval")
         try:
@@ -451,7 +432,7 @@ class Converter:
         self,
         attr_name: str,
         expr: ast.AST,
-        attr_meta: Optional[onnx.defs.OpSchema.Attribute] = None,
+        attr_meta: Optional[ir.Attr] = None,
     ) -> Optional[irbuilder.IRAttributeValue]:
         """Translate an attribute-value specification of the form `attr_name=<expr>`
         in a call to an op. expr is an AST. The following cases are supported:
@@ -465,7 +446,7 @@ class Converter:
         if isinstance(expr, ast.Name):
             val = self._lookup(expr.id, self._source_of(expr))
             if isinstance(val, values.AttrRef):
-                attr_ref = self.ir_builder.make_attr_ref(attr_name, val.value, val.typeinfo)
+                attr_ref = _to_onnx_ref_attr(val, val.typeinfo)
                 if attr_meta is not None and (attr_ref.type != attr_meta.type):
                     self.fail(
                         expr,
@@ -793,17 +774,20 @@ class Converter:
     def _translate_call_expr(self, node: ast.Call):
         """Translates a call-expression."""
         callee = self._translate_callee_expr(node.func)
-        param_schemas = callee.param_schemas()
+        op_signature = callee.op_signature
         # If the callee's schema is available, we use it to determine the inputs and attributes.
         # Otherwise, we map named arguments to attributes and positional arguments to inputs.
-        if param_schemas:
-            kwargs = {x.arg: x.value for x in node.keywords}
-            args, attrs = param_manipulation.separate_input_attributes_from_arguments(
-                param_schemas, node.args, kwargs, fill_defaults=False
+        if op_signature is not None:
+            args = node.args
+            kwargs: dict[str, ast.expr] = {x.arg: x.value for x in node.keywords}
+            # First separate inputs from attributes. This is needed because in Python
+            # it is possible to pass onnx inputs as kwargs
+            inputs, attrs = _separate_inputs_and_attrs(
+                op_signature, args, kwargs
             )
-            args = [self._translate_opt_expr(x) for x in args]
+            onnx_inputs = [self._translate_opt_expr(x) for x in inputs]
             attrs = [
-                self._translate_attr(x, y, callee.op_schema.attributes[x])
+                self._translate_attr(x, y, op_signature.params_map[x])
                 for x, y in attrs.items()
             ]
         else:
@@ -1461,3 +1445,107 @@ def _is_constant_expr(node: ast.AST) -> bool:
     ):
         return all(_is_constant_expr(c) for c in ast.iter_child_nodes(node))
     return False
+
+
+
+def _separate_inputs_and_attrs(
+    signature: _schemas.OpSignature,
+    args: Sequence[ast.expr],
+    kwargs: Mapping[str, ast.expr],
+) -> tuple[Sequence[ast.expr], dict[str, ast.expr]]:
+    """Construct two mappings: name to inputs and named to attributes based on the signature and args/kwargs.
+
+    This function uses the OpSignature to determine which argument in args and kwargs corresponds to
+    which parameter in the signature. ONNX node inputs are stored in named_inputs, and attributes are
+    stored in named_attrs. If an _optional input_ is not provided, it is filled with None.
+
+    Args:
+        signature: The OpSignature for the node.
+        args: The positional arguments for the node.
+        kwargs: The keyword arguments for the node.
+
+    Returns:
+        A tuple of two mappings: named_inputs and named_attrs.
+
+    Raises:
+        ValueError: If a required parameter is not provided.
+    """
+    # 1. Construct inputs, attrs based on (args, kwargs) and the signature.
+    #   a. Loop over all parameters in the signature and args together
+    #   b. Depending on param.is_input, Record inputs or named_attrs[param.name] = arg
+    #   c. Handle kwargs as well
+    inputs_reversed: Sequence[Any] = []
+    named_attrs: dict[str, Any] = {}
+    reversed_args_stack = list(reversed(args))
+    for param in signature.params:
+        if isinstance(param, _schemas.Parameter):
+            # Handle inputs
+            if reversed_args_stack:
+                # First exhaust the positional arguments
+                if param.variadic:
+                    # Handle variadic arguments
+                    inputs_reversed = [*reversed(args)]
+                    reversed_args_stack.clear()
+                else:
+                    inputs_reversed.append(reversed_args_stack.pop())
+            elif param.name in kwargs:
+                inputs_reversed.append(kwargs[param.name])
+            elif param.required:
+                raise ValueError(
+                    f"Required parameter '{param.name}' is not provided. "
+                    f"Signature: {signature}. Args: {args}. Kwargs: {kwargs}."
+                )
+            else:
+                logger.debug(
+                    "Optional parameter '%s' is not provided. Added as None. Signature: %s",
+                    param.name,
+                    signature,
+                )
+                inputs_reversed.append(None)
+        else:
+            # Handle attributes
+            attribute: ir.Attr | None
+            assert isinstance(param, _schemas.AttributeParameter), (
+                f"Expected AttributeParameter, got {type(param)}"
+            )
+            if reversed_args_stack:
+                # First exhaust the positional arguments
+                attribute = reversed_args_stack.pop()  # type: ignore[assignment]
+            elif kwargs.get(param.name) is not None:
+                attribute = kwargs[param.name]  # type: ignore[assignment]
+            else:
+                if param.required:
+                    raise ValueError(
+                        f"Required attribute '{param.name}' is not provided. "
+                        f"Signature: {signature}. Args: {args}. Kwargs: {kwargs}."
+                    )
+                else:
+                    logger.debug(
+                        "Optional attribute '%s' is None. Dropped. Signature: %s",
+                        param.name,
+                        signature,
+                    )
+                    continue
+            named_attrs[param.name] = attribute
+    return tuple(reversed(inputs_reversed)), named_attrs
+
+def _to_onnx_ref_attr(
+     val: values.AttrRef, info: sourceinfo.SourceInfo | None
+) -> ir.Attr:
+    """Convert an attribute reference to an ONNX ref attribute."""
+    pytype = val.typeinfo
+    attrtype = _schemas.get_attr_type(pytype)
+    attrname = None
+    if attrtype is ir.AttributeType.FLOAT:
+        attrname = "value_float"
+    elif attrtype is ir.AttributeType.INT:
+        attrname = "value_int"
+    elif attrtype is ir.AttributeType.STRING:
+        attrname = "value_string"
+    elif attrtype is ir.AttributeType.INTS:
+        attrname = "value_ints"
+    else:
+        msg = f"Unsupported attribute type {pytype!r}."
+        fail(info.msg(msg) if info else msg)
+    # TODO(justinchuby): What is the ref attr name?
+    return ir.RefAttr(attrname, val.value, attrtype)
