@@ -740,12 +740,11 @@ class AttrRef(SymbolValue):
         """
         super().__init__(info)
         self.value = attr_name
-        self.typeinfo = typeinfo
+
         if not isinstance(typeinfo, (type, _GenericAlias)):
             # typing._GenericAlias for List[int] and List[str], etc.
             raise TypeError(f"Expecting a type not f{type(typeinfo)} for typeinfo.")
         self.typeinfo = typeinfo
-
 
 class DynamicKind(IntFlag):
     Unknown = 0

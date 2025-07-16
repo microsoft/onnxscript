@@ -8,6 +8,7 @@ import typing
 from typing import Optional, Sequence, Union
 
 import onnx
+import onnx_ir as ir
 
 from onnxscript import onnx_types
 from onnxscript._internal import version_utils
@@ -25,35 +26,35 @@ TypeAnnotationValue = typing.Any
 
 # Map from python type to corresponding ONNX AttributeProto type
 _PYTYPE_TO_ATTRTYPE_MAP = {
-    float: onnx.AttributeProto.FLOAT,
-    int: onnx.AttributeProto.INT,
-    str: onnx.AttributeProto.STRING,
-    bool: onnx.AttributeProto.INT,  # experimental
+    float: ir.AttributeType.FLOAT,
+    int: ir.AttributeType.INT,
+    str: ir.AttributeType.STRING,
+    bool: ir.AttributeType.INT,  # experimental
 }
 
 # Map from python type to corresponding ONNX AttributeProto type,
 # for repeated (i.e., list of) values
 _LISTTYPE_TO_ATTRTYPE_MAP = {
-    float: onnx.AttributeProto.FLOATS,
-    int: onnx.AttributeProto.INTS,
-    str: onnx.AttributeProto.STRINGS,
-    bool: onnx.AttributeProto.INTS,  # experimental
+    float: ir.AttributeType.FLOATS,
+    int: ir.AttributeType.INTS,
+    str: ir.AttributeType.STRINGS,
+    bool: ir.AttributeType.INTS,  # experimental
 }
 
 _LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
 
 # Map from ONNX AttributeProto type to its representation (in ONNX Script).
 _ATTRTYPE_TO_REPR = {
-    onnx.AttributeProto.FLOAT: "float",
-    onnx.AttributeProto.INT: "int",
-    onnx.AttributeProto.STRING: "str",
-    onnx.AttributeProto.FLOATS: "Sequence[float]",
-    onnx.AttributeProto.INTS: "Sequence[int]",
-    onnx.AttributeProto.STRINGS: "Sequence[str]",
+    ir.AttributeType.FLOAT: "float",
+    ir.AttributeType.INT: "int",
+    ir.AttributeType.STRING: "str",
+    ir.AttributeType.FLOATS: "Sequence[float]",
+    ir.AttributeType.INTS: "Sequence[int]",
+    ir.AttributeType.STRINGS: "Sequence[str]",
 }
 
 
-def onnx_attr_type_to_onnxscript_repr(attr_type: onnx.AttributeProto.AttributeType) -> str:
+def onnx_attr_type_to_onnxscript_repr(attr_type: ir.AttributeType) -> str:
     if attr_type not in _ATTRTYPE_TO_REPR:
         supported = ", ".join(
             f"'{onnx.AttributeProto.AttributeType.Name(v)}'" for v in _ATTRTYPE_TO_REPR
@@ -85,26 +86,6 @@ def _remove_annotation(typeinfo: TypeAnnotationValue) -> TypeAnnotationValue:
 
 def _is_primitive_attr_type(typeinfo: TypeAnnotationValue) -> bool:
     return typeinfo in _PYTYPE_TO_ATTRTYPE_MAP
-
-
-def pytype_to_attrtype(
-    pytype: TypeAnnotationValue,
-) -> Optional[onnx.AttributeProto.AttributeType]:
-    pytype = _remove_annotation(pytype)
-    if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
-        return _PYTYPE_TO_ATTRTYPE_MAP[pytype]
-    type_constructor = typing.get_origin(pytype)
-    # Remove Optional wrapper if present, which is represented as an Union[..., type(None)]
-    if type_constructor is typing.Union:
-        # Filter out type(None), since typing.Optional[X] evaluates to Union[X, type(None)]
-        args = [x for x in typing.get_args(pytype) if x is not type(None)]
-        if len(args) == 1:
-            return pytype_to_attrtype(args[0])
-    if type_constructor in _LIST_CONSTRUCTORS:
-        elt_type = typing.get_args(pytype)[0]
-        if elt_type in _LISTTYPE_TO_ATTRTYPE_MAP:
-            return _LISTTYPE_TO_ATTRTYPE_MAP[elt_type]
-    return None
 
 
 def base_type_is_bool(pytype: TypeAnnotationValue) -> bool:

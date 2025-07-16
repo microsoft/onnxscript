@@ -20,6 +20,7 @@ from typing import (
 
 import onnx
 import onnx_ir as ir
+from onnxscript.ir import _schemas
 
 import onnxscript
 from onnxscript import irbuilder, onnx_types, sourceinfo, values
@@ -172,7 +173,6 @@ class Converter:
 
         # TODO(justinchuby): Update ir version to be user defined
         self._model = ir.Model(ir.Graph((), (), nodes=()), ir_version=10)
-        self._tape = ir.tape.Tape(self._model.graph)
 
         # A stack of functions in the outer scope
         self._outer: list[ir.Function] = []
@@ -316,86 +316,85 @@ class Converter:
     #     return self.ir_builder.make_attr(proto)
 
     def _to_onnx_attr_ref(
-        self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]
-    ) -> irbuilder.IRAttributeValue:
+        self, val: values.AttrRef, info: sourceinfo.SourceInfo | None
+    ) -> ir.Attr:
+        """Convert an attribute reference to an ONNX ref attribute."""
         pytype = val.typeinfo
-        attrtype = ta.pytype_to_attrtype(pytype)
+        attrtype = _schemas.get_attr_type(pytype)
         attrname = None
-        if attrtype is onnx.AttributeProto.FLOAT:
+        if attrtype is ir.AttributeType.FLOAT:
             attrname = "value_float"
-        elif attrtype is onnx.AttributeProto.INT:
+        elif attrtype is ir.AttributeType.INT:
             attrname = "value_int"
-        elif attrtype is onnx.AttributeProto.STRING:
+        elif attrtype is ir.AttributeType.STRING:
             attrname = "value_string"
-        elif attrtype is onnx.AttributeProto.INTS:
+        elif attrtype is ir.AttributeType.INTS:
             attrname = "value_ints"
         else:
             msg = f"Unsupported attribute type {pytype!r}."
             fail(info.msg(msg) if info else msg)
-        return self.ir_builder.make_attr_ref(attrname, val.value, pytype)
+        # TODO(justinchuby): What is the ref attr name?
+        return ir.RefAttr(attrname, val.value, attrtype)
 
     def _to_onnx_var(
         self,
         val: values.SymbolValue | PyValue,
-        target: Optional[PreferredName] = None,
-        info: Optional[sourceinfo.SourceInfo] = None,
+        target: PreferredName = "tmp",
+        *,
+        info: sourceinfo.SourceInfo,
     ) -> Variable:
+        """Convert a value to an ONNX variable."""
         if isinstance(val, values.AttrRef):
             # promote attribute to value
-            result = self.generate_unique_name(target or "tmp")
+            result = self.generate_unique_name(target)
             attr = self._to_onnx_attr_ref(val, info)
-            self.emit([result], values.Op(self.default_opset, "Constant"), [], [attr])
+            self.emit("Constant", [], [result], [attr])
             if ta.base_type_is_bool(val.typeinfo):
                 # ONNX attributes use an int-encoding for bools, but ONNX tensor types
                 # distinguish between int and bool. So we cast the int tensor to a bool tensor,
                 # to promote a (python) bool attribute to a ONNX bool tensor.
                 result_as_bool = self.generate_unique_name(result + "_as_bool")
-                cast_attr = self._make_onnx_attr("to", onnx_types.BOOL.dtype)
-                self.emit(
-                    [result_as_bool],
-                    values.Op(self.default_opset, "Cast"),
-                    [result],
-                    [cast_attr],
-                )
-                return Variable(result_as_bool, True)
-            return Variable(result, True)
+                self.emit("Cast", [result], [result_as_bool], [ir.AttrInt64("to", ir.DataType.BOOL)])
+                return Variable(result_as_bool, castable=True)
+            return Variable(result, castable=True)
+
         if isinstance(val, values.Dynamic):
             return Variable(val.value)
+
         # Assume value is a python-value convertible to a tensor
-        # TODO: check if value is convertible to a TensorProto, so that we can
-        # produce a better error _message otherwise
-        return self._emit_const(val, target or "tmp", info)
+        return self._emit_const(val, target, info)
 
     def _py_var_to_onnx_var(self, py_var: str, info: sourceinfo.SourceInfo) -> Variable:
+        """Convert a python variable to an ONNX variable."""
         return self._to_onnx_var(self._lookup(py_var, info), target=py_var, info=info)
 
     def emit(
         self,
-        outputs: Sequence[ir.Value],
-        callee: values.Op | str,
-        inputs: Sequence[ir.Value | None],
-        attrs: Any = None,
+        op_type: str,
+        inputs: Sequence[str],
+        outputs: Sequence[str],
+        attrs: Sequence[ir.Attr] = (),
+        domain: str = "",
     ):
-        if not isinstance(callee, values.Op):
-            callee = values.Op(self.default_opset, callee)
-        if attrs is None:
-            attrs = {}
-
-        self.ir_builder.add_stmt(
-            self._current_fn,
-            outputs,
-            callee,
-            inputs,
-            attrs,
-            sub_functions,
+        """Emit an ONNX operator with the given inputs, outputs, and attributes."""
+        node = ir.Node(
+            domain=domain,
+            op_type=op_type,
+            inputs=[self._lookup(inp, self._source_of(inputs[0])) for inp in inputs],
+            attributes=attrs,
+            outputs=[self._lookup(out, self._source_of(outputs[0])) for out in outputs],
         )
+        assert self._current_fn is not None
+        self._current_fn.append(node)
 
     def _emit_const(
         self,
         pyvalue: PyValue,
-        suggested_name: Optional[PreferredName],
+        suggested_name: PreferredName | None,
         info: sourceinfo.SourceInfo,
     ) -> Variable:
+        """Emit a constant value as an ONNX Constant node."""
+        # Obtain a name for the constant
         if suggested_name is None:
             if isinstance(pyvalue, int):
                 if pyvalue >= 0:
@@ -411,39 +410,22 @@ class Converter:
                     suggested_name = f"int64_m{abs(pyvalue[0])}_1d"
             else:
                 suggested_name = "const"
-        ovar = self.generate_unique_name(suggested_name)
+        var_name = self.generate_unique_name(suggested_name)
+
+        # Create a tensor from the python value
         try:
-            tensor = autocast.pyvalue_to_onnx_tensor(ovar, pyvalue)
-        except ValueError as e:
+            tensor = ir.tensor(pyvalue, name=var_name)
+        except Exception as e:
             fail(info.msg(str(e)))
-        attr = self._make_onnx_attr("value", tensor)
-        self.emit([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
-        return Variable(ovar, True)
+
+        self.emit("Constant", [], [var_name], [ir.AttrTensor("value", tensor)])
+        return Variable(var_name, True)
 
     def _emit_copy(self, original_var: str, suggested_name: str) -> str:
         """Emits a copy statement, using the ONNX Identity operator."""
         new_var = self.generate_unique_name(suggested_name)
         self.emit([new_var], "Identity", [original_var])
         return new_var
-
-    def _is_constant_expr(self, node: ast.AST) -> None:
-        if isinstance(node, ast.UnaryOp):
-            return self._is_constant_expr(node.operand)
-        if isinstance(
-            node,
-            (
-                ast.Call,
-                ast.BinOp,
-                ast.UnaryOp,
-                ast.Compare,
-                ast.Attribute,
-                ast.List,
-                ast.Load,
-                ast.Constant,
-            ),
-        ):
-            return all(self._is_constant_expr(c) for c in ast.iter_child_nodes(node))
-        return False
 
     def _eval_constant_expr(self, expr: ast.AST) -> PyValue:
         """Evaluates a sub-expression that is assumed to represent a constant value.
@@ -455,7 +437,7 @@ class Converter:
         as divergence between eager-mode execution and evaluation of the ONNX
         function.)
         """
-        # TODO: assert (self._is_constant_expr(expr))
+        # TODO: assert (_is_constant_expr(expr))
         # TODO: Refine types
         locals: dict[Any, Any] = {}
         expr = ast.Expression(expr, lineno=expr.lineno, col_offset=expr.col_offset)
@@ -558,7 +540,7 @@ class Converter:
             r = self._translate_name_expr(node)
         elif isinstance(node, ast.Subscript):
             r = self._translate_subscript_expr(node, target)
-        elif self._is_constant_expr(node):
+        elif _is_constant_expr(node):
             r = self._emit_const(self._eval_constant_expr(node), target, self._source_of(node))
         else:
             raise ValueError(
@@ -657,7 +639,7 @@ class Converter:
                     )
                 return const_1d(default_value), default_value
 
-            if self._is_constant_expr(node_arg):
+            if _is_constant_expr(node_arg):
                 cst = self._eval_constant_expr(node_arg)
                 if isinstance(cst, int):
                     return const_1d(cst), cst
@@ -709,7 +691,7 @@ class Converter:
                 # Add to sliced_indices, unless it is "::", which is a no-op.
                 if not (elt.lower is None and elt.upper is None and elt.step is None):
                     sliced_indices.append((axis, elt))
-            elif self._is_constant_expr(elt) and isinstance(
+            elif _is_constant_expr(elt) and isinstance(
                 self._eval_constant_expr(elt), int
             ):
                 scalar_indices.append((axis, elt))
@@ -851,7 +833,7 @@ class Converter:
             raise ValueError(self._message(node, f"Unsupported operator {op!r}."))
 
         attr = []
-        if isinstance(node.op, ast.Mod) and self._is_constant_expr(node.right):
+        if isinstance(node.op, ast.Mod) and _is_constant_expr(node.right):
             # specific case X % f where f is a float.
             # attribute fmod=1 is added in that case.
             cst = self._eval_constant_expr(node.right)
@@ -868,7 +850,7 @@ class Converter:
         op = type(node.op)
         if op not in _PRIMOP_MAP:
             raise ValueError(self._message(node, self).msg(f"Unsupported operator {op!r}."))
-        if self._is_constant_expr(node.operand):
+        if _is_constant_expr(node.operand):
             # This function changed the constant node.operand
             # and returns it. The function calling this one
             # should intercept this call and replace node
@@ -1464,3 +1446,24 @@ class Converter:
         domain = self._this_module.domain
         self._current_fn = self.ir_builder.new_function(fn.name, domain, True)
         return self._translate_function_signature_common(fn)
+
+
+def _is_constant_expr(node: ast.AST) -> bool:
+    """Check if the AST node is a constant expression."""
+    if isinstance(node, ast.UnaryOp):
+        return _is_constant_expr(node.operand)
+    if isinstance(
+        node,
+        (
+            ast.Call,
+            ast.BinOp,
+            ast.UnaryOp,
+            ast.Compare,
+            ast.Attribute,
+            ast.List,
+            ast.Load,
+            ast.Constant,
+        ),
+    ):
+        return all(_is_constant_expr(c) for c in ast.iter_child_nodes(node))
+    return False
