@@ -432,17 +432,18 @@ class Converter:
         self,
         attr_name: str,
         expr: ast.AST,
-        attr_meta: Optional[ir.Attr] = None,
-    ) -> Optional[irbuilder.IRAttributeValue]:
-        """Translate an attribute-value specification of the form `attr_name=<expr>`
-        in a call to an op. expr is an AST. The following cases are supported:
+        # TODO(justinchuby): Is attr_meta needed?
+        attr_meta: ir.Attr | None = None,
+    ) -> ir.Attr | None:
+        """Translate an attribute-value specification of the form `attr_name=<expr>` in a call to an op. expr is an AST.
+
+        The following cases are supported:
         * Expr evaluates to a script-time constant (a python-value) that can be mapped
         into an ONNX attribute value, or
         * Expr evaluates to None, in which case None is returned, or
         * Expr must be an attribute-reference, that is a name representing an
         attribute-parameter of a containing function.
         """
-
         if isinstance(expr, ast.Name):
             val = self._lookup(expr.id, self._source_of(expr))
             if isinstance(val, values.AttrRef):
@@ -453,19 +454,24 @@ class Converter:
                         f"Attribute type '{attr_ref.type}' does not match expected type '{attr_meta.type}'",
                     )
                 return attr_ref
-            if isinstance(val, irbuilder.IRFunction):
+            if isinstance(val, ir.Function):
+            # if isinstance(val, irbuilder.IRFunction):
                 # Check that outer-scope variables referenced by function have same value
                 # at function-definition site and use-as-attribute site, to avoid errors.
-                for pyvar, previous in val.outer_scope_variables:
-                    current = self._lookup(pyvar, self._source_of(expr))
-                    if current.value != previous.value:
-                        self.fail(
-                            expr,
-                            f"Outer scope variable '{pyvar}' referenced by function "
-                            f"'{expr.id!r}' modified.",
-                        )
+
+                # TODO(justinchuby): Capture outer_scope_variables
+                # And implement the following
+                # for pyvar, previous in val.outer_scope_variables:
+                #     current = self._lookup(pyvar, self._source_of(expr))
+                #     if current.value != previous.value:
+                #         self.fail(
+                #             expr,
+                #             f"Outer scope variable '{pyvar}' referenced by function "
+                #             f"'{expr.id!r}' modified.",
+                #         )
 
                 # Create GraphProto attribute
+                # TODO: Fix this
                 val = val.to_graph_proto()
         else:
             val = self._eval_constant_expr(expr)
