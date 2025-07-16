@@ -42,7 +42,7 @@ ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "packaging",
     "protobuf",
 )
-ONNX_IR = "onnx_ir==0.1.1"
+ONNX_IR = "onnx_ir==0.1.3"
 ONNX_IR_MAIN = "git+https://github.com/onnx/ir-py.git@main#egg=onnx_ir"
 
 

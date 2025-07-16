@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import numpy
+import onnx_ir as ir
 
-import onnxscript.ir as ir
 from onnxscript.rewriter import _fusion_utils, pattern
 
 valid_float_types = [ir.DataType.FLOAT, ir.DataType.FLOAT16]

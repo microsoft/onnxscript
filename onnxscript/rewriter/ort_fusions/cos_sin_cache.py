@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import numpy as np
+import onnx_ir as ir
 
-import onnxscript.ir as ir
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 # Rewrite the computation of cos/sin cache into the form expected by ORT's custom ops.

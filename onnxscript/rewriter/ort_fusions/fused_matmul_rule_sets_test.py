@@ -9,9 +9,9 @@ import numpy as np
 import onnx
 import onnx.reference
 import onnx.reference.op_run
+import onnx_ir.passes.common as common_passes
 import parameterized
 
-import onnxscript.ir.passes.common as common_passes
 import onnxscript.rewriter.ort_fusions.fused_matmul_rule_sets as fused_matmul_rule_sets
 from onnxscript import FLOAT, ir, script
 from onnxscript.onnx_opset import opset18 as op

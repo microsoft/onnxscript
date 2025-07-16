@@ -15,6 +15,7 @@ def assert_numerically_equal(
     original_model_proto: onnx.ModelProto | ir.Model,
     rewritten_model_proto: onnx.ModelProto | ir.Model,
     args: tuple[Any, ...],
+    ort_optimization_level: ort.GraphOptimizationLevel = ort.GraphOptimizationLevel.ORT_ENABLE_ALL,
     rtol: float = 1,
     atol: float = 1e-3,
 ):
@@ -23,9 +24,10 @@ def assert_numerically_equal(
     Args:
         original_model_proto: The original model proto or ir.Model.
         rewritten_model_proto: The rewritten by the rules model proto or ir.Model.
+        args: The positional arguments to pass to the model.
+        ort_optimization_level: Onnxruntime optimization level.
         rtol: Relative tolerance.
         atol: Absolute tolerance.
-        args: The positional arguments to pass to the model.
     """
 
     if isinstance(original_model_proto, ir.Model):
@@ -37,7 +39,7 @@ def assert_numerically_equal(
         k.name: v for k, v in zip(original_model_proto.graph.input, args)
     }
     original_proto_ort_inference_session = _ort_session_initializer(
-        original_model_proto.SerializeToString()
+        original_model_proto.SerializeToString(), ort_optimization_level
     )
     run_options = ort.RunOptions()
     run_options.log_severity_level = 3  # 3: Error
@@ -49,7 +51,7 @@ def assert_numerically_equal(
         k.name: v for k, v in zip(rewritten_model_proto.graph.input, args)
     }
     the_rewritten_proto_ort_inference_session = _ort_session_initializer(
-        rewritten_model_proto.SerializeToString()
+        rewritten_model_proto.SerializeToString(), ort_optimization_level
     )
     the_rewritten_outputs = the_rewritten_proto_ort_inference_session.run(
         None, the_rewritten_proto_ort_inputs, run_options=run_options
@@ -60,12 +62,15 @@ def assert_numerically_equal(
     )
 
 
-def _ort_session_initializer(model: str | bytes) -> ort.InferenceSession:
+def _ort_session_initializer(
+    model: str | bytes, ort_optimization_level: ort.GraphOptimizationLevel
+) -> ort.InferenceSession:
     """Initialize an ONNX Runtime inference session with the specified model."""
     import onnxruntime as ort
 
     session_options = ort.SessionOptions()
     session_options.log_severity_level = 3  # 3: Error
+    session_options.graph_optimization_level = ort_optimization_level
     possible_providers = (
         "CUDAExecutionProvider",
         "CPUExecutionProvider",

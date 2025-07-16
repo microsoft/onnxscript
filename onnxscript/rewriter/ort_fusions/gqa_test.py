@@ -7,17 +7,19 @@ import unittest
 
 import numpy as np
 import onnx
+import onnx_ir as ir
 import onnx_ir.passes.common.shape_inference as shape_inference
 import onnxruntime as ort
 import torch
 
 import onnxscript
-import onnxscript.ir as ir
 import onnxscript.optimizer
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
+from onnxscript.rewriter.ort_fusions import optimize_for_ort
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
+from onnxscript.rewriter.ort_fusions.models._phi4lm import phi4lm_test
 from onnxscript.rewriter.ort_fusions.sdpa import fuse_sdpa
 
 msft_op = onnxscript.values.Opset("com.microsoft", 1)
@@ -357,6 +359,17 @@ class GQAFusionTest(unittest.TestCase):
 
         self.assertEqual(len(outputs3), len(source_model_outputs))
         assert_allclose(outputs3, source_model_outputs)
+
+
+class GQAFusionTest2(unittest.TestCase):
+    @unittest.skip("Needs too much memory.")
+    def test_phi4lm(self):
+        test_case = phi4lm_test()
+        model = test_case.get_onnx_model()
+        onnxscript.optimizer.optimize(model)
+        optimize_for_ort(model, debug=True)
+        gqa_nodes = [n for n in model.graph if n.op_type == "GQA"]
+        self.assertEqual(len(gqa_nodes), 2, "Expected 2i GQA nodes after fusion")
 
 
 if __name__ == "__main__":

@@ -14,14 +14,14 @@ from typing import Any, Callable, Collection, Iterable, Sequence, Union
 import numpy as np
 import onnx
 import onnx.reference.ops
+import onnx_ir as ir
 
-import onnxscript.ir as ir
 import onnxscript.utils.utils as utils
 from onnxscript.ir import _tape
 
-DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 1024
+DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT = 512
 
-DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = 1024 * 1024
+DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT = 512 * 512
 
 
 _NON_DETERMINISTIC_OPS = frozenset(
@@ -944,7 +944,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
         tensor.name = irvalue.name
         irvalue.const_value = tensor
 
-        if value.nbytes > self.output_size_limit:
+        if value.size > self.output_size_limit:
             # Handle examples like Transpose(weight) to be folded even if the size is large,
             # as long as weight has no other uses. This won't increase model size.
             removed_input_size = 0
@@ -952,13 +952,13 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 if (input is not None) and (len(input.uses()) == 1):
                     array = _get_numpy_value(input)
                     if array is not None:
-                        removed_input_size += array.nbytes
-            increased_size = value.nbytes - removed_input_size
+                        removed_input_size += array.size
+            increased_size = value.size - removed_input_size
             if increased_size > 0:
                 logger.info(
                     "Skip storing constant folded nvalue %s due to large size %s.",
                     irvalue.name,
-                    value.nbytes,
+                    value.size,
                 )
                 return None
 
@@ -1029,9 +1029,8 @@ class FoldConstantsPass(ir.passes.InPlacePass):
             return None
 
         input_tensors = [x.const_value if x is not None else None for x in node.inputs]
-
         if any(
-            tensor.nbytes > self.input_size_limit
+            tensor.size > self.input_size_limit
             for tensor in input_tensors
             if tensor is not None
         ):
@@ -1048,7 +1047,7 @@ class FoldConstantsPass(ir.passes.InPlacePass):
                 # Skip folding large tensors
                 if logger.isEnabledFor(logging.DEBUG):
                     input_sizes = [
-                        tensor.nbytes for tensor in input_tensors if tensor is not None
+                        tensor.size for tensor in input_tensors if tensor is not None
                     ]
                     logger.debug(
                         "Skipping constant folding for node %s due to large input size: %s",
@@ -1190,10 +1189,10 @@ def fold_constants(
         model: The ONNX model to optimize.
         onnx_shape_inference: Whether to enable ONNX shape inference during
             constant folding. Defaults to False.
-        input_size_limit: The maximum size (in bytes) of input tensors
+        input_size_limit: The maximum size of input tensors
             that can be considered for constant folding. Defaults to
             `DEFAULT_CONSTANT_FOLD_INPUT_SIZE_LIMIT`.
-        output_size_limit: The maximum size (in bytes) of output tensors
+        output_size_limit: The maximum size of output tensors
             that can be stored after constant folding. Defaults to
             `DEFAULT_CONSTANT_FOLD_OUTPUT_SIZE_LIMIT`.
         always_fold_ops: A collection of op types that should always be folded,

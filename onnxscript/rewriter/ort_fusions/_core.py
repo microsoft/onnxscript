@@ -2,14 +2,14 @@
 # Licensed under the MIT License.
 from __future__ import annotations
 
-import onnxscript.ir as ir
-import onnxscript.ir.passes.common as common_passes
+import onnx_ir as ir
+import onnx_ir.passes.common as common_passes
+
 import onnxscript.rewriter.ort_fusions.fused_matmul_rule_sets as fused_matmul_rule_sets
 import onnxscript.rewriter.ort_fusions.shape_optimization as shape_optimization
 from onnxscript.optimizer import optimize
-from onnxscript.rewriter import rewrite
+from onnxscript.rewriter import gemm_to_matmul_add, rewrite
 from onnxscript.rewriter.ort_fusions import (
-    # group_normalization_merge_silu,
     instance_to_group_normalization,
     softmax,
 )
@@ -38,7 +38,7 @@ ORT_PATTERN_REWRITE_RULES = [
     *instance_to_group_normalization.rules.rules,
     # NOTE: group normalization merge silu should be applied after instance to group normalization
     # *group_normalization_merge_silu.rules.rules,
-    *fused_matmul_rule_sets.fused_matmul_rule_sets().rules,
+    *fused_matmul_rule_sets.fused_matmul_rule_sets(),
 ]
 
 
@@ -81,8 +81,9 @@ def fuse_xformers(model: ir.Model, debug: bool = False) -> tuple[ir.Model, dict[
     fusion_count["skip_layer_normalization"] = fuse(fuse_skip_layer_normalization)
     fusion_count["skip_rms_normalization"] = fuse(fuse_skip_rms_normalization)
     fusion_count["rotary_embedding"] = fuse(fuse_rotary_embedding)
-    fusion_count["partial_rotary_embedding"] = fuse(fuse_partial_rotary_embedding)
     fusion_count["cos_sin_cache"] = fuse(fuse_cos_sin_cache)
+    fusion_count["partial_rotary_embedding"] = fuse(fuse_partial_rotary_embedding)
+
     # We apply shape inference after the SDPA fusion as new nodes are added
     # in the rewrite rule for certain patterns of SDPA.
     fusion_count["sdpa"] = fuse(fuse_sdpa, apply_shape_inference=True)
@@ -130,7 +131,7 @@ def optimize_for_ort(
         - The optimized `ir.Model` after applying transformer-specific fusions.
         - A dictionary with a count of each of the fusions applied.
     """
-
+    rewrite(model, [gemm_to_matmul_add.rule])
     model, fusion_count = fuse_xformers(
         model,
         debug=debug,

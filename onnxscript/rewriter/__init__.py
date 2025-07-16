@@ -8,30 +8,47 @@ __all__ = [
     "pattern",
     "rewrite",
     "RewritePass",
+    "MatchResult",
+    "MatchContext",
+    "RewriteRule",
+    "RewriteRuleClassBase",
+    "RewriteRuleSet",
+    "RewriterContext",
+    "MatchingTracer",
+    "MatchStatus",
 ]
 
 import onnx
+import onnx_ir.passes.common as common_passes
 
-import onnxscript.ir.passes.common as common_passes
 from onnxscript import ir
 from onnxscript.rewriter import (
+    basic_rules,
     broadcast_to_matmul,
     cast_constant_of_shape,
     collapse_slices,
-    gemm_to_matmul_add,
-    llama_rule_sets,
+    fuse_relus_clips,
     no_op,
     pattern,
+    redundant_scatter_nd,
+)
+from onnxscript.rewriter._basics import MatchContext, MatchingTracer, MatchResult, MatchStatus
+from onnxscript.rewriter._rewrite_rule import (
+    RewriterContext,
+    RewriteRule,
+    RewriteRuleClassBase,
+    RewriteRuleSet,
 )
 
 _ModelProtoOrIr = TypeVar("_ModelProtoOrIr", onnx.ModelProto, ir.Model)
 _DEFAULT_REWRITE_RULES: tuple[pattern.RewriteRule, ...] = (
     *no_op.rules.rules,  # TODO: merge this rule into constant folding?
     *broadcast_to_matmul.rules.rules,
-    gemm_to_matmul_add.rule,  # type: ignore[has-type]
     *cast_constant_of_shape.rules.rules,
     *collapse_slices.rules.rules,
-    *llama_rule_sets.llama_p0_rule_set().rules,
+    *fuse_relus_clips.fuse_relus_clips_rules().rules,
+    *basic_rules.basic_optimization_rules().rules,
+    *redundant_scatter_nd.rules.rules,
 )
 
 
