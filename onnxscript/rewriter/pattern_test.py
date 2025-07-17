@@ -785,16 +785,17 @@ class ValueNodeCheckersTest(unittest.TestCase):
 
     def test_pattern_match_with_node_checker(self):
         """Test Pattern.match with node-level checker."""
+
         def add_node_checker(context, node):
             return node.op_type == "Add"
-        
+
         # Create a pattern that matches Add operations with a node checker
         def add_pattern(op, x, y):
             return op.Add(x, y, _check=add_node_checker)
-        
+
         # Create the pattern
         rule_pattern = pattern.Pattern(add_pattern)
-        
+
         # Create a simple model
         model_proto = onnx.parser.parse_model(
             """
@@ -806,31 +807,32 @@ class ValueNodeCheckersTest(unittest.TestCase):
             """
         )
         model = ir.serde.deserialize_model(model_proto)
-        
+
         # Find the Add node in the model
         nodes = list(model.graph.all_nodes())
         add_node = nodes[0]
         self.assertEqual(add_node.op_type, "Add")
-        
+
         # Try to match the pattern
         match_result = rule_pattern.match(model, model.graph, add_node)
-        
+
         self.assertIsNotNone(match_result)
         self.assertEqual(len(match_result.nodes), 1)
         self.assertEqual(len(match_result.node_bindings), 1)
 
     def test_pattern_match_with_failing_node_checker(self):
         """Test Pattern.match with failing node-level checker."""
+
         def failing_node_checker(context, node):
             return False  # Always fail
-        
+
         # Create a pattern that matches Add operations with a failing node checker
         def add_pattern(op, x, y):
             return op.Add(x, y, _check=failing_node_checker)
-        
+
         # Create the pattern
         rule_pattern = pattern.Pattern(add_pattern)
-        
+
         # Create a simple model
         model_proto = onnx.parser.parse_model(
             """
@@ -842,61 +844,50 @@ class ValueNodeCheckersTest(unittest.TestCase):
             """
         )
         model = ir.serde.deserialize_model(model_proto)
-        
+
         # Find the Add node in the model
         nodes = list(model.graph.all_nodes())
         add_node = nodes[0]
         self.assertEqual(add_node.op_type, "Add")
-        
+
         # Try to match the pattern
         match_result = rule_pattern.match(model, model.graph, add_node)
-        
+
         # Should fail due to failing checker
         self.assertIsNone(match_result)
 
     def test_pattern_match_with_value_checker(self):
         """Test Pattern.match with value-level checker."""
+
         def is_positive_constant(context, value):
             """Check if value has a const_value, and check if that const_value (a numpy array) represents a single value that is positive."""
             # First try the direct const_value
-            if hasattr(value, 'const_value') and value.const_value is not None:
+            if hasattr(value, "const_value") and value.const_value is not None:
                 # Get the numpy array from const_value
                 numpy_array = value.const_value.numpy()
-                
+
                 # Check if it represents a single value and is positive
                 if numpy_array.size != 1:
                     return False
-                    
+
                 return float(numpy_array.item()) > 0
-            
-            # If const_value is None, check if this value is produced by a Constant node
-            if hasattr(value, 'producer'):
-                producer = value.producer()  # Call the method
-                
-                if producer is not None and producer.op_type == "Constant":
-                    # Check for value_float attribute
-                    if 'value_float' in producer.attributes:
-                        float_val = producer.attributes['value_float'].value
-                        return float_val > 0
-                    # Check for value_int attribute
-                    elif 'value_int' in producer.attributes:
-                        int_val = producer.attributes['value_int'].value
-                        return int_val > 0
-            
+
             return False
-        
+
         # Create a pattern with value checker using callable directly
         def add_pattern(op, x, y):
             # Use callable as input to create ValuePattern with checker
-            checked_x = is_positive_constant  # This should be converted to ValuePattern with check
+            checked_x = (
+                is_positive_constant  # This should be converted to ValuePattern with check
+            )
             return op.Add(checked_x, y)
-        
+
         # Create the pattern
         rule_pattern = pattern.Pattern(add_pattern)
-        
+
         # Create a model with several calls to Add:
         # - one with first parameter non-constant
-        # - one with first parameter a positive constant 
+        # - one with first parameter a positive constant
         # - one with first parameter a negative constant
         model_proto = onnx.parser.parse_model(
             """
@@ -906,28 +897,31 @@ class ValueNodeCheckersTest(unittest.TestCase):
                 pos_const = Constant <value_float = 2.5> ()
                 neg_const = Constant <value_float = -1.5> ()
                 z1 = Add(x, y)           # non-constant first parameter
-                z2 = Add(pos_const, y)   # positive constant first parameter  
+                z2 = Add(pos_const, y)   # positive constant first parameter
                 z3 = Add(neg_const, y)   # negative constant first parameter
             }
             """
         )
         model = ir.serde.deserialize_model(model_proto)
-        
+
+        # Apply constant propagation to set const_value fields
+        onnxscript.optimizer.basic_constant_propagation(model.graph.all_nodes())
+
         # Find the Add nodes in the model
         nodes = list(model.graph.all_nodes())
         add_nodes = [node for node in nodes if node.op_type == "Add"]
         self.assertEqual(len(add_nodes), 3)
-        
+
         # Test case 1: Non-constant first parameter - should not match
         match_result = rule_pattern.match(model, model.graph, add_nodes[0])
         self.assertIsNone(match_result)
-        
+
         # Test case 2: Positive constant first parameter - should match
         match_result = rule_pattern.match(model, model.graph, add_nodes[1])
         self.assertIsNotNone(match_result)
         self.assertEqual(len(match_result.nodes), 1)
         self.assertGreaterEqual(len(match_result.value_bindings), 1)
-        
+
         # Test case 3: Negative constant first parameter - should not match
         match_result = rule_pattern.match(model, model.graph, add_nodes[2])
         self.assertIsNone(match_result)
