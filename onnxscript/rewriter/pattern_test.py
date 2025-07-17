@@ -839,12 +839,9 @@ class ValueNodeCheckersTest(unittest.TestCase):
         def node_checker(context, node):
             return True
         
-        # Create OpPatternBuilder
+        # Create OpPatternBuilder and call with _check parameter
         opset_builder = _pattern_ir.OpsetPatternBuilder("")
-        op_builder = opset_builder.Add
-        
-        # Call with _check parameter
-        result = op_builder(None, None, _check=node_checker)
+        result = opset_builder.Add(None, None, _check=node_checker)
         
         # The result should be a NodeOutputPattern, and its producer should have the check
         self.assertTrue(hasattr(result, 'producer'))
