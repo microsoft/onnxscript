@@ -136,12 +136,12 @@ class Pattern:
                 if var.name is not None:
                     if var.name not in match.bindings:
                         match.bind(var.name, None)
-            
+
             # Perform value/node level checks before condition function
             try:
                 # Check node-level checkers
                 for pattern_node, ir_node in match.node_bindings.items():
-                    if hasattr(pattern_node, '_check') and pattern_node._check is not None:
+                    if pattern_node._check is not None:
                         check_result = pattern_node._check(context, ir_node)
                         if isinstance(check_result, _basics.MatchResult):
                             if not check_result:
@@ -172,7 +172,7 @@ class Pattern:
 
                 # Check value-level checkers
                 for pattern_value, ir_value in match.value_bindings.items():
-                    if hasattr(pattern_value, '_check') and pattern_value._check is not None:
+                    if pattern_value._check is not None:
                         check_result = pattern_value._check(context, ir_value)
                         if isinstance(check_result, _basics.MatchResult):
                             if not check_result:

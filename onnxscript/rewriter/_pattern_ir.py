@@ -334,6 +334,10 @@ class ValuePattern:
     def name(self) -> str | None:
         return self._name
 
+    @property
+    def check_method(self) -> Callable | None:
+        return self._check
+
     def producer(self) -> NodePattern | None:
         return None
 
@@ -453,6 +457,10 @@ class NodePattern:
     @property
     def op_type(self) -> str:
         return str(self.op)
+
+    @property
+    def check_method(self) -> Callable | None:
+        return self._check
 
     def matches(self, node: ir.Node, match: _basics.MatchResult) -> _basics.MatchResult:
         """Matches the pattern represented by self against a node.
