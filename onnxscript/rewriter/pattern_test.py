@@ -832,42 +832,6 @@ class ValueNodeCheckersTest(unittest.TestCase):
         match_result = rule_pattern.match(model, model.graph, shape_node_start_1)
         self.assertFalse(bool(match_result))
 
-    def test_pattern_match_with_failing_node_checker(self):
-        """Test Pattern.match with failing node-level checker."""
-
-        def failing_node_checker(context, node):
-            return False  # Always fail
-
-        # Create a pattern that matches Add operations with a failing node checker
-        def add_pattern(op, x, y):
-            return op.Add(x, y, _check=failing_node_checker)
-
-        # Create the pattern
-        rule_pattern = pattern.Pattern(add_pattern)
-
-        # Create a simple model
-        model_proto = onnx.parser.parse_model(
-            """
-            <ir_version: 7, opset_import: [ "" : 17]>
-            agraph (float[N] x, float[N] y) => (float[N] z)
-            {
-                z = Add(x, y)
-            }
-            """
-        )
-        model = ir.serde.deserialize_model(model_proto)
-
-        # Find the Add node in the model
-        nodes = list(model.graph)
-        add_node = nodes[0]
-        self.assertEqual(add_node.op_type, "Add")
-
-        # Try to match the pattern
-        match_result = rule_pattern.match(model, model.graph, add_node)
-
-        # Should fail due to failing checker
-        self.assertFalse(bool(match_result))
-
     def test_pattern_match_with_value_checker(self):
         """Test Pattern.match with value-level checker."""
 

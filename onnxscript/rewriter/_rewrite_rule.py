@@ -159,6 +159,7 @@ class Pattern:
 
             def wrap_try(f):
                 """Encapsulates try-except pattern for check functions."""
+
                 def wrapped(*args, **kwargs):
                     try:
                         return f(*args, **kwargs)
@@ -166,6 +167,7 @@ class Pattern:
                         result = _basics.MatchResult()
                         result.fail(e.reason, list(e.failure_sources))
                         return result
+
                 return wrapped
 
             # Check node-level checkers
