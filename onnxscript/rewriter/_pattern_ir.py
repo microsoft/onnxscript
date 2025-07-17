@@ -284,19 +284,19 @@ def _to_value_pattern(
     explicitly write this as:
     ::
         z = op.Add(x, op.Constant(0))
-    
+
     If a callable is provided, it will be converted to a ValuePattern with the callable as the check attribute.
     """
     if x is None or isinstance(x, ValuePattern):
         return x
-    if callable(x):
-        return ValuePattern(None, check=x)
     if isinstance(x, (int, float)):
         return Constant(x)
     if isinstance(x, Sequence):
         if all(isinstance(i, (int, float)) for i in x):
             return Constant(x)
         raise ValueError("Only lists of int/float can be used as a ValuePattern")
+    if callable(x):
+        return ValuePattern(None, check=x)
 
     raise TypeError(f"Cannot convert {type(x)} to ValuePattern")
 
