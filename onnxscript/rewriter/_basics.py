@@ -340,6 +340,82 @@ class MatchInfo:
         print(separator)
 
 
+class MatchContext:
+    """A read-only context containing information about a pattern match.
+
+    This class captures information about the context describing a match to a given pattern,
+    providing access to the model, graph/function, root node, output values, and all
+    nodes of the matching subgraph.
+    """
+
+    def __init__(
+        self,
+        model: ir.Model,
+        graph_or_function: ir.Graph | ir.Function,
+        root: ir.Node,
+        match_result: MatchResult,
+    ) -> None:
+        """Initialize the pattern match context.
+
+        Args:
+            model: The model being matched.
+            graph_or_function: The graph or function being matched.
+            root: The root node of the matching subgraph.
+            match_result: The match result containing matched nodes and outputs.
+        """
+        self._model = model
+        self._graph_or_function = graph_or_function
+        self._root = root
+        self._match_result = match_result
+
+    @property
+    def model(self) -> ir.Model:
+        """The model being matched."""
+        return self._model
+
+    @property
+    def graph_or_function(self) -> ir.Graph | ir.Function:
+        """The graph or function being matched."""
+        return self._graph_or_function
+
+    @property
+    def root(self) -> ir.Node:
+        """The root node of the matching subgraph."""
+        return self._root
+
+    @property
+    def output_values(self) -> Sequence[ir.Value]:
+        """The output values of the matching subgraph."""
+        return self._match_result.outputs
+
+    @property
+    def nodes(self) -> Sequence[ir.Node]:
+        """All the nodes of the matching subgraph."""
+        return self._match_result.nodes
+
+    def display(self, *, in_graph_order: bool = True) -> None:
+        """Display the nodes in the pattern match context.
+
+        Args:
+            in_graph_order: If True, display nodes in the order they appear in the
+                graph/function. If False, display nodes in the order they appear
+                in the match result.
+        """
+        nodes = self.nodes
+        if not nodes:
+            return
+
+        if in_graph_order:
+            # Display nodes in same order as in graph/function
+            for node in self._graph_or_function:
+                if node in nodes:
+                    node.display()
+        else:
+            # Display nodes in match order
+            for node in nodes:
+                node.display()
+
+
 class MatchingTracer:
     """A debugging helper class to trace the matching of a pattern against a graph.
 
