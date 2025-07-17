@@ -138,68 +138,15 @@ class Pattern:
                         match.bind(var.name, None)
 
             # Perform value/node level checks before condition function
-            try:
-                # Check node-level checkers
-                for pattern_node, ir_node in match.node_bindings.items():
-                    if pattern_node.check_method is not None:
-                        check_result = pattern_node.check_method(context, ir_node)
-                        if not check_result:
-                            if isinstance(check_result, _basics.MatchResult):
-                                match.fail(
-                                    check_result.reason,
-                                    check_result.failure_nodes_and_values,
-                                )
-                            else:
-                                match.fail(
-                                    f"Node-level check failed for pattern node {pattern_node}",
-                                    ir_node,
-                                )
-                            if tracer:
-                                tracer.log(
-                                    self,  # type: ignore[arg-type]
-                                    graph_or_function,
-                                    node,
-                                    match,
-                                    _basics.MatchStatus.CONDITION_FAILED,
-                                )
-                            return None
-
-                # Check value-level checkers
-                for pattern_value, ir_value in match.value_bindings.items():
-                    if pattern_value.check_method is not None:
-                        check_result = pattern_value.check_method(context, ir_value)
-                        if not check_result:
-                            if isinstance(check_result, _basics.MatchResult):
-                                match.fail(
-                                    check_result.reason,
-                                    check_result.failure_nodes_and_values,
-                                )
-                            else:
-                                match.fail(
-                                    f"Value-level check failed for pattern value {pattern_value}",
-                                    ir_value,
-                                )
-                            if tracer:
-                                tracer.log(
-                                    self,  # type: ignore[arg-type]
-                                    graph_or_function,
-                                    node,
-                                    match,
-                                    _basics.MatchStatus.CONDITION_FAILED,
-                                )
-                            return None
-
-                check_match_result = self._condition_function(context, **match.bindings)
-            except _basics.MatchFailureError as e:
-                check_match_result = _basics.MatchResult()
-                check_match_result.fail(e.reason, list(e.failure_sources))
-            if not check_match_result:
-                # If check function was provided, but it failed, return the reason for failure to the tracer.
-                if isinstance(check_match_result, _basics.MatchResult):
+            def fail(check_result, default_message, failure_object=None):
+                """Local utility to handle check failures consistently."""
+                if isinstance(check_result, _basics.MatchResult):
                     match.fail(
-                        check_match_result.reason,
-                        check_match_result.failure_nodes_and_values,
+                        check_result.reason,
+                        check_result.failure_nodes_and_values,
                     )
+                else:
+                    match.fail(default_message, failure_object)
                 if tracer:
                     tracer.log(
                         self,  # type: ignore[arg-type]
@@ -209,6 +156,37 @@ class Pattern:
                         _basics.MatchStatus.CONDITION_FAILED,
                     )
                 return None
+
+            try:
+                # Check node-level checkers
+                for pattern_node, ir_node in match.node_bindings.items():
+                    if pattern_node.check_method is not None:
+                        check_result = pattern_node.check_method(context, ir_node)
+                        if not check_result:
+                            return fail(
+                                check_result,
+                                f"Node-level check failed for pattern node {pattern_node}",
+                                ir_node,
+                            )
+
+                # Check value-level checkers
+                for pattern_value, ir_value in match.value_bindings.items():
+                    if pattern_value.check_method is not None:
+                        check_result = pattern_value.check_method(context, ir_value)
+                        if not check_result:
+                            return fail(
+                                check_result,
+                                f"Value-level check failed for pattern value {pattern_value}",
+                                ir_value,
+                            )
+
+                check_match_result = self._condition_function(context, **match.bindings)
+            except _basics.MatchFailureError as e:
+                check_match_result = _basics.MatchResult()
+                check_match_result.fail(e.reason, list(e.failure_sources))
+            if not check_match_result:
+                # If check function was provided, but it failed, return the reason for failure to the tracer.
+                return fail(check_match_result, "Condition function check failed")
             if tracer:
                 tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.SUCCESS)  # type: ignore[arg-type]
             return match
