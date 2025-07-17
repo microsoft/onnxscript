@@ -141,8 +141,8 @@ class Pattern:
             try:
                 # Check node-level checkers
                 for pattern_node, ir_node in match.node_bindings.items():
-                    if pattern_node._check is not None:
-                        check_result = pattern_node._check(context, ir_node)
+                    if pattern_node.check_method is not None:
+                        check_result = pattern_node.check_method(context, ir_node)
                         if isinstance(check_result, _basics.MatchResult):
                             if not check_result:
                                 match.fail(
@@ -159,7 +159,10 @@ class Pattern:
                                     )
                                 return None
                         elif not check_result:
-                            match.fail(f"Node-level check failed for pattern node {pattern_node}", ir_node)
+                            match.fail(
+                                f"Node-level check failed for pattern node {pattern_node}",
+                                ir_node,
+                            )
                             if tracer:
                                 tracer.log(
                                     self,  # type: ignore[arg-type]
@@ -172,8 +175,8 @@ class Pattern:
 
                 # Check value-level checkers
                 for pattern_value, ir_value in match.value_bindings.items():
-                    if pattern_value._check is not None:
-                        check_result = pattern_value._check(context, ir_value)
+                    if pattern_value.check_method is not None:
+                        check_result = pattern_value.check_method(context, ir_value)
                         if isinstance(check_result, _basics.MatchResult):
                             if not check_result:
                                 match.fail(
@@ -190,7 +193,10 @@ class Pattern:
                                     )
                                 return None
                         elif not check_result:
-                            match.fail(f"Value-level check failed for pattern value {pattern_value}", ir_value)
+                            match.fail(
+                                f"Value-level check failed for pattern value {pattern_value}",
+                                ir_value,
+                            )
                             if tracer:
                                 tracer.log(
                                     self,  # type: ignore[arg-type]
