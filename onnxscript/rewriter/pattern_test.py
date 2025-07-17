@@ -780,6 +780,189 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual([x.op_type for x in model.graph], ["ReluPlus"])
 
 
+class ValueNodeCheckersTest(unittest.TestCase):
+    """Test value/node level checkers functionality."""
+
+    def test_value_pattern_with_check(self):
+        """Test ValuePattern with check attribute."""
+        from onnxscript.rewriter import _pattern_ir
+        
+        def value_checker(context, value):
+            return True
+        
+        # Test creating ValuePattern with check
+        value_pattern = _pattern_ir.ValuePattern("test_value", check=value_checker)
+        self.assertEqual(value_pattern._check, value_checker)
+        self.assertEqual(value_pattern.name, "test_value")
+
+    def test_node_pattern_with_check(self):
+        """Test NodePattern with check attribute."""
+        from onnxscript.rewriter import _pattern_ir
+        
+        def node_checker(context, node):
+            return True
+        
+        # Test creating NodePattern with check
+        domain_pattern = _pattern_ir.StringConstantPattern("")
+        inputs = []
+        attributes = {}
+        outputs = ["output"]
+        
+        node_pattern = _pattern_ir.NodePattern(
+            domain_pattern,
+            "Add",
+            inputs,
+            attributes,
+            outputs,
+            allow_other_attributes=True,
+            allow_other_inputs=True,
+            check=node_checker
+        )
+        self.assertEqual(node_pattern._check, node_checker)
+
+    def test_to_value_pattern_with_callable(self):
+        """Test _to_value_pattern function with callable input."""
+        from onnxscript.rewriter import _pattern_ir
+        
+        def my_checker(context, value):
+            return True
+        
+        result = _pattern_ir._to_value_pattern(my_checker)
+        self.assertIsInstance(result, _pattern_ir.ValuePattern)
+        self.assertEqual(result._check, my_checker)
+        self.assertIsNone(result.name)
+
+    def test_op_pattern_builder_with_check(self):
+        """Test OpPatternBuilder with _check parameter."""
+        from onnxscript.rewriter import _pattern_ir
+        
+        def node_checker(context, node):
+            return True
+        
+        # Create OpPatternBuilder
+        opset_builder = _pattern_ir.OpsetPatternBuilder("")
+        op_builder = opset_builder.Add
+        
+        # Call with _check parameter
+        result = op_builder(None, None, _check=node_checker)
+        
+        # The result should be a NodeOutputPattern, and its producer should have the check
+        self.assertTrue(hasattr(result, 'producer'))
+        producer = result.producer()
+        self.assertIsNotNone(producer)
+        self.assertTrue(hasattr(producer, '_check'))
+        self.assertEqual(producer._check, node_checker)
+
+    def test_pattern_match_with_node_checker(self):
+        """Test Pattern.match with node-level checker."""
+        def add_node_checker(context, node):
+            return node.op_type == "Add"
+        
+        # Create a pattern that matches Add operations with a node checker
+        def add_pattern(op, x, y):
+            return op.Add(x, y, _check=add_node_checker)
+        
+        # Create the pattern
+        rule_pattern = pattern.Pattern(add_pattern)
+        
+        # Create a simple model
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x, float[N] y) => (float[N] z)
+            {
+                z = Add(x, y)
+            }
+            """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        
+        # Find the Add node in the model
+        nodes = list(model.graph.all_nodes())
+        add_node = nodes[0]
+        self.assertEqual(add_node.op_type, "Add")
+        
+        # Try to match the pattern
+        match_result = rule_pattern.match(model, model.graph, add_node)
+        
+        self.assertIsNotNone(match_result)
+        self.assertEqual(len(match_result.nodes), 1)
+        self.assertEqual(len(match_result.node_bindings), 1)
+
+    def test_pattern_match_with_failing_node_checker(self):
+        """Test Pattern.match with failing node-level checker."""
+        def failing_node_checker(context, node):
+            return False  # Always fail
+        
+        # Create a pattern that matches Add operations with a failing node checker
+        def add_pattern(op, x, y):
+            return op.Add(x, y, _check=failing_node_checker)
+        
+        # Create the pattern
+        rule_pattern = pattern.Pattern(add_pattern)
+        
+        # Create a simple model
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x, float[N] y) => (float[N] z)
+            {
+                z = Add(x, y)
+            }
+            """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        
+        # Find the Add node in the model
+        nodes = list(model.graph.all_nodes())
+        add_node = nodes[0]
+        self.assertEqual(add_node.op_type, "Add")
+        
+        # Try to match the pattern
+        match_result = rule_pattern.match(model, model.graph, add_node)
+        
+        # Should fail due to failing checker
+        self.assertIsNone(match_result)
+
+    def test_pattern_match_with_value_checker(self):
+        """Test Pattern.match with value-level checker."""
+        def value_checker(context, value):
+            return True  # Always pass
+        
+        # Create a pattern with value checker using callable directly
+        def add_pattern(op, x, y):
+            # Use callable as input to create ValuePattern with checker
+            checked_x = value_checker  # This should be converted to ValuePattern with check
+            return op.Add(checked_x, y)
+        
+        # Create the pattern
+        rule_pattern = pattern.Pattern(add_pattern)
+        
+        # Create a simple model
+        model_proto = onnx.parser.parse_model(
+            """
+            <ir_version: 7, opset_import: [ "" : 17]>
+            agraph (float[N] x, float[N] y) => (float[N] z)
+            {
+                z = Add(x, y)
+            }
+            """
+        )
+        model = ir.serde.deserialize_model(model_proto)
+        
+        # Find the Add node in the model
+        nodes = list(model.graph.all_nodes())
+        add_node = nodes[0]
+        self.assertEqual(add_node.op_type, "Add")
+        
+        # Try to match the pattern
+        match_result = rule_pattern.match(model, model.graph, add_node)
+        
+        self.assertIsNotNone(match_result)
+        self.assertEqual(len(match_result.nodes), 1)
+        self.assertGreaterEqual(len(match_result.value_bindings), 1)
+
+
 class PatternBuilderTest(unittest.TestCase):
     def test_pattern_builder_context(self):
         builder = pattern.OpsetPatternBuilder("", True)

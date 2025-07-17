@@ -189,6 +189,13 @@ class MatchResult:
         return self._current_match.value_bindings
 
     @property
+    def node_bindings(self) -> dict[_pattern_ir.NodePattern, ir.Node]:
+        """Returns the bindings for the node variables."""
+        if len(self._partial_matches) > 1:
+            raise ValueError("Node bindings can be accessed only at the top-level match.")
+        return self._current_match.node_bindings
+
+    @property
     def outputs(self) -> MutableSequence[ir.Value]:
         """Returns the list of output values that matched the pattern."""
         if len(self._partial_matches) > 1:
