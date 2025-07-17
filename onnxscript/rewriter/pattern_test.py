@@ -786,39 +786,51 @@ class ValueNodeCheckersTest(unittest.TestCase):
     def test_pattern_match_with_node_checker(self):
         """Test Pattern.match with node-level checker."""
 
-        def add_node_checker(context, node):
-            return node.op_type == "Add"
+        def shape_node_checker(context, node):
+            return node.attributes.get_int("start", 0) == 0
 
-        # Create a pattern that matches Add operations with a node checker
-        def add_pattern(op, x, y):
-            return op.Add(x, y, _check=add_node_checker)
+        # Create a pattern that matches Shape operations with a node checker
+        def shape_pattern(op, x):
+            return op.Shape(x, _check=shape_node_checker)
 
         # Create the pattern
-        rule_pattern = pattern.Pattern(add_pattern)
+        rule_pattern = pattern.Pattern(shape_pattern)
 
-        # Create a simple model
+        # Create a model with multiple Shape nodes with different start attributes
         model_proto = onnx.parser.parse_model(
             """
             <ir_version: 7, opset_import: [ "" : 17]>
-            agraph (float[N] x, float[N] y) => (float[N] z)
+            agraph (float[N, M] x) => (int64[2] z1, int64[2] z2, int64[1] z3)
             {
-                z = Add(x, y)
+                z1 = Shape(x)
+                z2 = Shape <start: int = 0>(x)
+                z3 = Shape <start: int = 1>(x)
             }
             """
         )
         model = ir.serde.deserialize_model(model_proto)
 
-        # Find the Add node in the model
+        # Find the Shape nodes in the model
         nodes = list(model.graph)
-        add_node = nodes[0]
-        self.assertEqual(add_node.op_type, "Add")
+        shape_node_no_attr = nodes[0]  # Shape without start attribute
+        shape_node_start_0 = nodes[1]  # Shape with start=0
+        shape_node_start_1 = nodes[2]  # Shape with start=1
 
-        # Try to match the pattern
-        match_result = rule_pattern.match(model, model.graph, add_node)
+        self.assertEqual(shape_node_no_attr.op_type, "Shape")
+        self.assertEqual(shape_node_start_0.op_type, "Shape")
+        self.assertEqual(shape_node_start_1.op_type, "Shape")
 
+        # Test case 1: Shape without start attribute (should match, default is 0)
+        match_result = rule_pattern.match(model, model.graph, shape_node_no_attr)
         self.assertTrue(bool(match_result))
-        self.assertEqual(len(match_result.nodes), 1)
-        self.assertEqual(len(match_result.node_bindings), 1)
+
+        # Test case 2: Shape with start=0 (should match)
+        match_result = rule_pattern.match(model, model.graph, shape_node_start_0)
+        self.assertTrue(bool(match_result))
+
+        # Test case 3: Shape with start=1 (should not match)
+        match_result = rule_pattern.match(model, model.graph, shape_node_start_1)
+        self.assertFalse(bool(match_result))
 
     def test_pattern_match_with_failing_node_checker(self):
         """Test Pattern.match with failing node-level checker."""
