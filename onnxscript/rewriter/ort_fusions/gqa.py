@@ -8,7 +8,7 @@ import numpy as np
 import onnx_ir as ir
 
 import onnxscript.rewriter._fusion_utils as _fusion_utils
-from onnxscript.rewriter import _ir_utils, pattern
+from onnxscript.rewriter import _basics, _ir_utils, pattern
 
 """
 GroupQueryAttention: This generalizes MHA by allowing the number of heads to be different
@@ -30,6 +30,10 @@ T: total sequence length (after concatenation of past and current key/value)
 """
 
 Dim = Union[int, ir.SymbolicDim]
+
+
+def _is_model_input(value: ir.Value, name: str, model: ir.Model) -> bool:
+    return value in model.graph.inputs and value.name == name
 
 
 def _causal_mask(
@@ -113,11 +117,12 @@ class _CausalMaskPattern(pattern.PatternBase):
 
     def check(self, context, dtype1, dtype2, min_val, attn_mask_2d, sliding_window=None, **_):
         # Check that attn_mask_2d is the model input "attention_mask"
-        if attn_mask_2d.name != "attention_mask" or not attn_mask_2d.is_graph_input():
+        if not _is_model_input(attn_mask_2d, "attention_mask", context.model):
             return pattern.MatchResult().fail("Invalid attention_mask input", attn_mask_2d)
 
         if dtype1.as_int() != dtype2.as_int():
             return pattern.MatchResult().fail("Dtype mismatch", [dtype1, dtype2])
+
         # Check that min_val is a constant and matches the expected minimum value for the dtype.
         min_value = _ir_utils.get_singleton_value(min_val)
         if min_value is None:
@@ -127,6 +132,7 @@ class _CausalMaskPattern(pattern.PatternBase):
             return pattern.MatchResult().fail(
                 f"Expected min value {expected_min_value}, got {min_value}", min_val
             )
+
         # TODO(rama) Sliding window: not yet supported.
         if sliding_window:
             return pattern.MatchResult().fail(
@@ -225,7 +231,7 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
 
     def check(
         self,
-        op,
+        context: _basics.MatchContext,
         query_BSD,
         key_BSDkv,
         value_BSDkv,
@@ -286,10 +292,13 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         mask_node = mask.producer()
         if mask_node is None:
             return pattern.MatchResult().fail("Unhandled mask pattern", mask)
-        mask_bindings = _causal_mask_pattern.match(
-            None, None, mask_node, check_nodes_are_removable=False
+        mask_match_result = _causal_mask_pattern.match(
+            context.model,
+            context.graph_or_function,
+            mask_node,
+            check_nodes_are_removable=False,
         )
-        if mask_bindings is None:
+        if mask_match_result is None:
             return pattern.MatchResult().fail("Mask does not match causal mask pattern", mask)
         # TODO: handle sliding window support in mask
 
