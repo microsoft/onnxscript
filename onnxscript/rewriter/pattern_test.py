@@ -860,8 +860,6 @@ class ValueNodeCheckersTest(unittest.TestCase):
         """Test Pattern.match with value-level checker."""
 
         def is_positive_constant(context, value: ir.Value):
-            """Check if value has a const_value, and check if that const_value (a numpy array) represents a single value that is positive."""
-            # First try the direct const_value
             if value.const_value is not None:
                 # Get the numpy array from const_value
                 numpy_array = value.const_value.numpy()
@@ -905,8 +903,7 @@ class ValueNodeCheckersTest(unittest.TestCase):
         onnxscript.optimizer.basic_constant_propagation(model.graph.all_nodes())
 
         # Find the Add nodes in the model
-        nodes = list(model.graph)
-        add_nodes = [node for node in nodes if node.op_type == "Add"]
+        add_nodes = [node for node in model.graph if node.op_type == "Add"]
         self.assertEqual(len(add_nodes), 3)
 
         # Test case 1: Non-constant first parameter - should not match
