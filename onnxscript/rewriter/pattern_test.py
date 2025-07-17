@@ -877,10 +877,7 @@ class ValueNodeCheckersTest(unittest.TestCase):
         # Create a pattern with value checker using callable directly
         def add_pattern(op, x, y):
             # Use callable as input to create ValuePattern with checker
-            checked_x = (
-                is_positive_constant  # This should be converted to ValuePattern with check
-            )
-            return op.Add(checked_x, y)
+            return op.Add(is_positive_constant, y)
 
         # Create the pattern
         rule_pattern = pattern.Pattern(add_pattern)
