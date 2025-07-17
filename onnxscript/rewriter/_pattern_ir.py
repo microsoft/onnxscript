@@ -224,6 +224,7 @@ class OpPatternBuilder:
         _outputs: int | list[str | None] = 1,
         _allow_other_attributes: bool | None = None,
         _allow_other_inputs: bool | None = None,
+        _check: Callable | None = None,
         **kwargs,
     ):
         if _version is not None:
@@ -255,6 +256,7 @@ class OpPatternBuilder:
             _outputs,
             allow_other_attributes=_allow_other_attributes,
             allow_other_inputs=_allow_other_inputs,
+            check=_check,
         )
         self.pattern_builder.add_node(node_pattern)
         output_values = node_pattern.outputs
@@ -266,7 +268,7 @@ class OpPatternBuilder:
 
 
 def _to_value_pattern(
-    x: ValuePattern | int | float | None,
+    x: ValuePattern | int | float | Callable | None,
 ) -> ValuePattern | None:
     """Promotes an input-value used to construct a NodePattern to a ValuePattern.
 
@@ -282,9 +284,13 @@ def _to_value_pattern(
     explicitly write this as:
     ::
         z = op.Add(x, op.Constant(0))
+    
+    If a callable is provided, it will be converted to a ValuePattern with the callable as the check attribute.
     """
     if x is None or isinstance(x, ValuePattern):
         return x
+    if callable(x):
+        return ValuePattern(None, check=x)
     if isinstance(x, (int, float)):
         return Constant(x)
     if isinstance(x, Sequence):
@@ -314,14 +320,15 @@ class ValuePattern:
     operations, so that we can write patterns like `x + 1` and `1 + x`.
     """
 
-    def __init__(self, name: str | None) -> None:
+    def __init__(self, name: str | None, *, check: Callable | None = None) -> None:
         self._name = name
+        self._check = check
         # Note: uses will be computed only when the full graph-pattern is constructed.
         self._uses: list[tuple[NodePattern, int]] = []
 
     def clone(self, node_map: dict[NodePattern, NodePattern]) -> ValuePattern:
         del node_map
-        return ValuePattern(self._name)
+        return ValuePattern(self._name, check=self._check)
 
     @property
     def name(self) -> str | None:
@@ -397,6 +404,7 @@ class NodePattern:
         *,
         allow_other_attributes: bool | None,
         allow_other_inputs: bool | None,
+        check: Callable | None = None,
     ):
         if allow_other_attributes is None:
             # Default behavior: allow other unmatched attributes in the node.
@@ -410,6 +418,7 @@ class NodePattern:
         self.attributes = attributes
         self.allow_other_attributes = allow_other_attributes
         self.allow_other_inputs = allow_other_inputs
+        self._check = check
         # In the common case, domain and op are constants, which can be used to optimize matching.
         if isinstance(op, str) and isinstance(domain, StringConstantPattern):
             # TODO(rama): support overloaded operators.
@@ -498,6 +507,7 @@ class NodePattern:
             outputs,
             allow_other_attributes=self.allow_other_attributes,
             allow_other_inputs=self.allow_other_inputs,
+            check=self._check,
         )
         node_map[self] = copied
         return copied
