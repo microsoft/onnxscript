@@ -15,8 +15,8 @@ import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
+from onnxscript.rewriter.models._whisper_encoder import whisper_encoder_test
 from onnxscript.rewriter.ort_fusions._test_utils import ORT_VERSION, assert_allclose, ort_run
-from onnxscript.rewriter.ort_fusions.models._whisper_encoder import whisper_encoder_test
 
 msft_op = onnxscript.values.Opset("com.microsoft", 1)
 

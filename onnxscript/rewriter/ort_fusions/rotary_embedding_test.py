@@ -7,8 +7,8 @@ import unittest
 from parameterized import parameterized
 
 import onnxscript.optimizer
+from onnxscript.rewriter.models import _rotary_embedding_models, _smollm_1
 from onnxscript.rewriter.ort_fusions import rotary_embedding
-from onnxscript.rewriter.ort_fusions.models import _rotary_embedding_models, _smollm_1
 
 
 class TestRotaryEmbedding(unittest.TestCase):
