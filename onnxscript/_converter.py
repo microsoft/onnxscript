@@ -177,7 +177,12 @@ class Converter:
 
         # A stack of functions in the outer scope
         self._outer: list[ir.Function] = []
-        self._current_fn: ir.Function | None = None
+        self._current_fn: ir.Function = ir.Function(
+            domain=self._this_module.domain,
+            name="",
+            graph=ir.Graph((), (), nodes=[]),
+            attributes={},
+        )
         self._nextvar: int = 0
         self._used_vars: set[str] = set()
         self._locals: list[dict[str, LocalSymValue]] = [{}]
@@ -225,13 +230,18 @@ class Converter:
     def _init_function_translation(self) -> None:
         """Initialize self for translating a new (top-level) function."""
         self._outer = []
-        self._current_fn = None
+        # TODO(justinchuby): Update this
+        self._current_fn = ir.Function(
+            domain=self._this_module.domain,
+            name="",
+            graph=ir.Graph((), (), nodes=[]),
+            attributes={},
+        )
         self._nextvar = 0
         self._used_vars = set()
         self._locals: List[Dict[str, LocalSymValue]] = [{}]
 
     def _source_of(self, node: ast.AST) -> sourceinfo.SourceInfo:
-        assert self._current_fn is not None
         return sourceinfo.SourceInfo(node, self._source, self._current_fn.name)
 
     def _message(self, node: ast.AST, error_msg: str) -> str:
@@ -255,7 +265,6 @@ class Converter:
         """Enter a control-flow block (a loop body or if-then-else branch).
         The block is translated into a nested-scope in ONNX.
         """
-        assert self._current_fn is not None
         self._outer.append(self._current_fn)
         assert self._this_module is not None
         self._current_fn = ir.Function(
@@ -334,7 +343,9 @@ class Converter:
                 # distinguish between int and bool. So we cast the int tensor to a bool tensor,
                 # to promote a (python) bool attribute to a ONNX bool tensor.
                 result_as_bool = self.generate_unique_name(result + "_as_bool")
-                self.emit("Cast", [result], [result_as_bool], [ir.AttrInt64("to", ir.DataType.BOOL)])
+                self.emit(
+                    "Cast", [result], [result_as_bool], [ir.AttrInt64("to", ir.DataType.BOOL)]
+                )
                 return Variable(result_as_bool, castable=True)
             return Variable(result, castable=True)
 
@@ -364,7 +375,6 @@ class Converter:
             attributes=attrs,
             outputs=[self._lookup(out, self._source_of(outputs[0])) for out in outputs],
         )
-        assert self._current_fn is not None
         self._current_fn.append(node)
 
     def _emit_const(
@@ -454,12 +464,12 @@ class Converter:
                         f"Attribute type '{attr_ref.type}' does not match expected type '{attr_meta.type}'",
                     )
                 return attr_ref
-            if isinstance(val, ir.Function):
-            # if isinstance(val, irbuilder.IRFunction):
+            if isinstance(val, ir.Graph):
+                # if isinstance(val, irbuilder.IRFunction):
                 # Check that outer-scope variables referenced by function have same value
                 # at function-definition site and use-as-attribute site, to avoid errors.
 
-                # TODO(justinchuby): Capture outer_scope_variables
+                # TODO(justinchuby): Capture outer_scope_variables?
                 # And implement the following
                 # for pyvar, previous in val.outer_scope_variables:
                 #     current = self._lookup(pyvar, self._source_of(expr))
@@ -470,9 +480,8 @@ class Converter:
                 #             f"'{expr.id!r}' modified.",
                 #         )
 
-                # Create GraphProto attribute
-                # TODO: Fix this
-                val = val.to_graph_proto()
+                # Create Graph attribute
+                pass
         else:
             val = self._eval_constant_expr(expr)
 
@@ -482,25 +491,15 @@ class Converter:
         # The caller is responsible for omitting such attribute-values from the list of attributes
         # in a NodeProto.
         if val is None:
-            if attr_meta and attr_meta.required:
-                self.fail(expr, f"Attribute '{attr_name}' is required.")
             return None
-        attr_type = int(attr_meta.type) if attr_meta else None
-        attr = self._make_onnx_attr(attr_name, val, attrtype=attr_type)
-        if attr_meta and (attr.type != attr_meta.type):
-            self.fail(
-                expr,
-                f"Attribute type '{attr.type}' does not match expected type '{attr_meta.type}'",
-            )
+        attr = ir.convenience.convert_attribute(
+            attr_name, val, attr_type=attr_meta.type if attr_meta else None
+        )
         return attr
 
-    def _translate_docstring(self, node: ast.Expr) -> None:
-        if hasattr(node.value, "value"):
-            # python 3.8+
-            return self.ir_builder.add_docstring(self._current_fn, node.value.value)
-        raise TypeError(
-            f"Unexpected type {type(node)!r} for node. Unsupoorted version of python."
-        )
+    def _translate_docstring(self, node: ast.FunctionDef) -> None:
+        if docstring := ast.get_docstring(node):
+                self._current_fn.doc_string = docstring
 
     def _translate_expr(
         self, node: ast.AST, target: Optional[PreferredName] = None
@@ -672,9 +671,7 @@ class Converter:
                 # Add to sliced_indices, unless it is "::", which is a no-op.
                 if not (elt.lower is None and elt.upper is None and elt.step is None):
                     sliced_indices.append((axis, elt))
-            elif _is_constant_expr(elt) and isinstance(
-                self._eval_constant_expr(elt), int
-            ):
+            elif _is_constant_expr(elt) and isinstance(self._eval_constant_expr(elt), int):
                 scalar_indices.append((axis, elt))
             else:
                 non_scalar_indices.append((axis, elt))
@@ -788,9 +785,7 @@ class Converter:
             kwargs: dict[str, ast.expr] = {x.arg: x.value for x in node.keywords}
             # First separate inputs from attributes. This is needed because in Python
             # it is possible to pass onnx inputs as kwargs
-            inputs, attrs = _separate_inputs_and_attrs(
-                op_signature, args, kwargs
-            )
+            inputs, attrs = _separate_inputs_and_attrs(op_signature, args, kwargs)
             onnx_inputs = [self._translate_opt_expr(x) for x in inputs]
             attrs = [
                 self._translate_attr(x, y, op_signature.params_map[x])
@@ -944,8 +939,6 @@ class Converter:
         if isinstance(node, (ast.For, ast.While)):
             return self._translate_loop_stmt(node)
         if ast_utils.is_doc_string(node):
-            if index_of_stmt == 0:
-                return self._translate_docstring(node)
             return None
         if isinstance(node, ast.FunctionDef):
             return self._translate_nested_function_def(node)
@@ -1401,12 +1394,16 @@ class Converter:
 
         return self._current_fn
 
-    def _translate_function_def_common(self, fn: ast.FunctionDef) -> irbuilder.IRFunction:
+    def _translate_function_def_common(self, node: ast.FunctionDef) -> ir.Function:
         """Translate a function definition, including the signature and its body."""
-        logger.debug("Converter:_translate_function_def_common:%s", fn.name)
-        _ = self._translate_function_signature_common(fn)
-        for i, s in enumerate(fn.body):
+        logger.debug("Converter:_translate_function_def_common:%s", node.name)
+        _ = self._translate_function_signature_common(node)
+        for i, s in enumerate(node.body):
             self._translate_stmt(s, index_of_stmt=i)
+
+        # Update docstring if available
+        if docstring := ast.get_docstring(node):
+                self._current_fn.doc_string = docstring
         return self._current_fn
 
     def translate_function_def(self, stmt: ast.FunctionDef) -> irbuilder.IRFunction:
@@ -1451,7 +1448,6 @@ def _is_constant_expr(node: ast.AST) -> bool:
     ):
         return all(_is_constant_expr(c) for c in ast.iter_child_nodes(node))
     return False
-
 
 
 def _separate_inputs_and_attrs(
@@ -1535,9 +1531,8 @@ def _separate_inputs_and_attrs(
             named_attrs[param.name] = attribute
     return tuple(reversed(inputs_reversed)), named_attrs
 
-def _to_onnx_ref_attr(
-     val: values.AttrRef, info: sourceinfo.SourceInfo | None
-) -> ir.Attr:
+
+def _to_onnx_ref_attr(val: values.AttrRef, info: sourceinfo.SourceInfo | None) -> ir.Attr:
     """Convert an attribute reference to an ONNX ref attribute."""
     pytype = val.typeinfo
     attrtype = _schemas.get_attr_type(pytype)
