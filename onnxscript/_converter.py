@@ -229,7 +229,7 @@ class Converter:
                 or opset.version != self._default_opset.version
             ):
                 self.fail(
-                    node, f"Two distincts opset were used ({opset} != {self._default_opset})."
+                    node, f"Two distinct opset were used ({opset} != {self._default_opset})."
                 )
         else:
             self._default_opset = opset
@@ -251,19 +251,19 @@ class Converter:
                 return res
         return None
 
-    def _init_function_translation(self) -> None:
-        """Initialize self for translating a new (top-level) function."""
-        self._outer = []
-        # TODO(justinchuby): Update this
-        self._current_fn = ir.Function(
-            domain=self._opset.domain,
-            name="",
-            graph=ir.Graph((), (), nodes=[]),
-            attributes={},
-        )
-        self._nextvar = 0
-        self._used_vars = set()
-        self._locals: List[Dict[str, LocalSymValue]] = [{}]
+    # def _init_function_translation(self) -> None:
+    #     """Initialize self for translating a new (top-level) function."""
+    #     self._outer = []
+    #     # TODO(justinchuby): Update this
+    #     self._current_fn = ir.Function(
+    #         domain=self._opset.domain,
+    #         name="",
+    #         graph=ir.Graph((), (), nodes=[]),
+    #         attributes={},
+    #     )
+    #     self._nextvar = 0
+    #     self._used_vars = set()
+    #     self._locals: List[Dict[str, LocalSymValue]] = [{}]
 
     def _source_of(self, node: ast.AST) -> sourceinfo.SourceInfo:
         return sourceinfo.SourceInfo(node, self._source, self._current_fn.name)
@@ -328,7 +328,7 @@ class Converter:
             raise ValueError(info.msg(f"Unbound name: {name}."))
         return None
 
-    def generate_unique_name(self, candidate: str = "tmp") -> str:
+    def _generate_unique_name(self, candidate: str = "tmp") -> str:
         # TODO(justinchuby): Can we reduce the O complexity of this function?
         r = candidate
         while r in self._used_vars:
@@ -347,14 +347,14 @@ class Converter:
         """Convert a value to an ONNX variable."""
         if isinstance(val, values.AttrRef):
             # promote attribute to value
-            result = self.generate_unique_name(target)
+            result = self._generate_unique_name(target)
             attr = _to_onnx_ref_attr(val, info)
             self.emit("Constant", [], [result], [attr])
             if ta.base_type_is_bool(val.typeinfo):
                 # ONNX attributes use an int-encoding for bools, but ONNX tensor types
                 # distinguish between int and bool. So we cast the int tensor to a bool tensor,
                 # to promote a (python) bool attribute to a ONNX bool tensor.
-                result_as_bool = self.generate_unique_name(result + "_as_bool")
+                result_as_bool = self._generate_unique_name(result + "_as_bool")
                 self.emit(
                     "Cast", [result], [result_as_bool], [ir.AttrInt64("to", ir.DataType.BOOL)]
                 )
@@ -406,7 +406,7 @@ class Converter:
                 suggested_name = f"int64_{pyvalue[0]}_1d"
             else:
                 suggested_name = "const"
-        var_name = self.generate_unique_name(suggested_name)
+        var_name = self._generate_unique_name(suggested_name)
 
         # Create a tensor from the python value
         try:
@@ -419,7 +419,7 @@ class Converter:
 
     def _emit_copy(self, original_var: str, suggested_name: str) -> str:
         """Emits a copy statement, using the ONNX Identity operator."""
-        new_var = self.generate_unique_name(suggested_name)
+        new_var = self._generate_unique_name(suggested_name)
         self.emit("Identity", [original_var], [new_var])
         return new_var
 
@@ -539,7 +539,7 @@ class Converter:
         callee, args, attrs = r
         target = "tmp" if target is None else target
         assert isinstance(target, str)
-        result = self.generate_unique_name(target)
+        result = self._generate_unique_name(target)
         self.emit([result], callee, args, attrs)
         return Variable(result)
 
@@ -594,7 +594,7 @@ class Converter:
         var_name = var.name
         if target is None:
             target = f"{var_name}_subscripted"
-        target = self.generate_unique_name(target)
+        target = self._generate_unique_name(target)
         indices = ast_utils.normalize_subscript_expr(node)
         info = self._source_of(node.slice)
 
@@ -635,7 +635,7 @@ class Converter:
                     raise RuntimeError(f"Slice component type must be int, not {type(cst)}")
             else:
                 name = self._translate_expr(node_arg).name
-                reshaped = self.generate_unique_name(f"{name}_reshaped")
+                reshaped = self._generate_unique_name(f"{name}_reshaped")
                 self.emit(
                     [reshaped],
                     values.Op(self.default_opset, "Reshape"),
@@ -721,16 +721,16 @@ class Converter:
 
             if len(starts) > 1:
                 axis_0_attr = self._make_onnx_attr("axis", 0)
-                start_name = self.generate_unique_name(f"{var_name}_start")
+                start_name = self._generate_unique_name(f"{var_name}_start")
                 self.emit([start_name], "Concat", starts, [axis_0_attr])
 
-                end_name = self.generate_unique_name(f"{var_name}_end")
+                end_name = self._generate_unique_name(f"{var_name}_end")
                 self.emit([end_name], "Concat", ends, [axis_0_attr])
 
-                axes_name = self.generate_unique_name(f"{var_name}_axis")
+                axes_name = self._generate_unique_name(f"{var_name}_axis")
                 self.emit([axes_name], "Concat", axes, [axis_0_attr])
 
-                steps_name = self.generate_unique_name(f"{var_name}_step")
+                steps_name = self._generate_unique_name(f"{var_name}_step")
                 self.emit([steps_name], "Concat", steps, [axis_0_attr])
             else:
                 start_name = starts[0]
@@ -739,7 +739,7 @@ class Converter:
                 steps_name = steps[0]
 
             if squeezed_axes:
-                sliced_name = self.generate_unique_name(f"{var_name}_sliced")
+                sliced_name = self._generate_unique_name(f"{var_name}_sliced")
                 self.emit(
                     [sliced_name],
                     "Slice",
@@ -748,14 +748,14 @@ class Converter:
                 squeezed_axes = self._emit_const(squeezed_axes, "squeezed_axes", info)
 
                 if non_scalar_indices:  # use temporary to store result of squeeze
-                    result = self.generate_unique_name(f"{var_name}_squeezed")
+                    result = self._generate_unique_name(f"{var_name}_squeezed")
                 else:  # store squeezed result in final target
                     result = target
 
                 self.emit([result], "Squeeze", [sliced_name, squeezed_axes])
             else:
                 if non_scalar_indices:  # use temporary to store result of Slice
-                    result = self.generate_unique_name(f"{var_name}_sliced")
+                    result = self._generate_unique_name(f"{var_name}_sliced")
                 else:  # store result of Slice in final target
                     result = target
                 slice_inputs = [var_name, start_name, end_name, axes_name, steps_name]
@@ -774,7 +774,7 @@ class Converter:
             # use Gather to perform indexing
             # Assign gathered value to either temporary or final target
             if axis != last_axis:  # use temporary to store result of Gather
-                gathered = self.generate_unique_name(f"{var_name}_axis_{axis}")
+                gathered = self._generate_unique_name(f"{var_name}_axis_{axis}")
             else:  # store result of Gather in final target
                 gathered = target
             self.emit([gathered], "Gather", [str(result), index_value], [axis_attr])
@@ -876,7 +876,7 @@ class Converter:
         op = values.Op(self.default_opset, opname if opname != "NotEqual" else "Equal")
         left, right = self._cast_like_binary_expression(op, left, right)
         if opname == "NotEqual":
-            tmp = self.generate_unique_name()
+            tmp = self._generate_unique_name()
             self.emit([tmp], op, [left, right])
             not_op = values.Op(self.default_opset, "Not")
             return not_op, [tmp], []
@@ -979,7 +979,7 @@ class Converter:
                 def generate_onnx_name(x: ast.AST):
                     if not isinstance(x, ast.Name):
                         self.fail(x, f"LHS must be a Name for unpacking, found: '{type(x)!r}'")
-                    onnx_name = self.generate_unique_name(x.id)
+                    onnx_name = self._generate_unique_name(x.id)
                     self._bind(
                         x.id,
                         values.Dynamic(
@@ -1078,7 +1078,7 @@ class Converter:
         elseAttr = self._make_onnx_attr("else_branch", elseGraph)
 
         def rename(x):
-            r = self.generate_unique_name(x)
+            r = self._generate_unique_name(x)
             self._bind(
                 x,
                 values.Dynamic(r, values.DynamicKind.Intermediate, self._source_of(stmt)),
@@ -1122,7 +1122,7 @@ class Converter:
                 self.fail(loop_stmt, "Unsupported loop bound, it should be 'range(?)'.")
             assert not iter.keywords, "Unsupported loop bound."
             o_loop_bound = self._translate_expr(iter.args[0], "loop_bound").name
-            o_cond_var = self.generate_unique_name("cond_in")
+            o_cond_var = self._generate_unique_name("cond_in")
             i_cond_var = o_cond_var
             cond_while = None
             o_loop_condition = ""  # No condition for a for loop.
@@ -1156,7 +1156,7 @@ class Converter:
 
         # build loop_body
         self._enter_scope("loop_body", loop_stmt)
-        o_loop_var = self.generate_unique_name(p_loop_var)
+        o_loop_var = self._generate_unique_name(p_loop_var)
         self.ir_builder.add_input(
             self._current_fn,
             o_loop_var,
@@ -1176,7 +1176,7 @@ class Converter:
         )
 
         for pv in loop_state_vars:
-            ov = self.generate_unique_name(pv)
+            ov = self._generate_unique_name(pv)
             # TODO: retrieve the annotation for variable pv is any is specified.
             # typeinfo = self._eval_constant_expr(pv.annotation)
             typeinfo = None
@@ -1217,7 +1217,7 @@ class Converter:
                 continue
             self._translate_stmt(s)
 
-        o_cond_out = self.generate_unique_name("cond_out")
+        o_cond_out = self._generate_unique_name("cond_out")
 
         if cond_while is not None:
             # Loop while
@@ -1267,7 +1267,7 @@ class Converter:
         info = self._source_of(loop_stmt)
 
         def rename(x):
-            r = self.generate_unique_name(x)
+            r = self._generate_unique_name(x)
             self._bind(x, values.Dynamic(r, values.DynamicKind.Output, info))
             return r
 
