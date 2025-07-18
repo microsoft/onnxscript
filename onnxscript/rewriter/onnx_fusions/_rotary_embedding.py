@@ -4,9 +4,19 @@ from __future__ import annotations
 
 from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
-# Add first version of the RotaryEmbeddingFusion rule. This considers only one simple pattern
-# for full rotation without interleaving.
-# TODO(rama): Add pattern variations to handle other cases (interleaved, as well as partial rotation).
+# Fusions for RotaryEmbedding:
+# Fuse computation patterns seen in HF transformer models for RotaryEmbedding
+# and map them to ONNX opset 23 RotaryEmbedding op.
+
+# Basic pattern: For example, see
+# https://github.com/huggingface/transformers/blob/541bed22d6e4f97946a3a7d74f7e1a353e58643b/src/transformers/models/llama/modeling_llama.py#L104
+# def rotate_half(x):
+#     """Rotates half the hidden dims of the input."""
+#     x1 = x[..., : x.shape[-1] // 2]
+#     x2 = x[..., x.shape[-1] // 2 :]
+#     return torch.cat((-x2, x1), dim=-1)
+# and
+#     q_embed = (q * cos) + (rotate_half(q) * sin)
 
 
 def _rotate_half_pattern(op, x, start1, end1, start2, end2):
@@ -29,12 +39,12 @@ class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
         check_result = pattern.MatchResult()
         # x needs to be a 4D tensor with known last dimension size (== head_size) and known second dimension (num_heads)
         if x is None or x.shape is None or len(x.shape) != 4:
-            return check_result.fail("Input is not a 4D tensor.", x)
+            return check_result.fail("Input is not known to be a 4D tensor.", x)
         if not isinstance(x.shape[1], int):
-            return check_result.fail("Input dimension 1 is not an integer.", x)
+            return check_result.fail("Input dimension 1 (num_heads) is not static.", x)
         head_size = x.shape[3]
         if not isinstance(head_size, int):
-            return check_result.fail("Head size is not an integer.", x)
+            return check_result.fail("Head size is not static.", x)
         half_head_size = head_size // 2
 
         # Check that x is being split into two equal halves of size half_head_size
@@ -60,10 +70,17 @@ class RotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
         )
 
 
+# Extensions for partial rotary embedding fusion: with partial rotary embedding,
+# embedding is applied only to the first part of the input, and the second part is left unchanged,
+# as captured in the pattern below.
+
+MAX_INT64 = 9223372036854775807
+
+
 class PartialRotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
     def pattern(self, op, x, end1, start2):
         x_part_1 = op.Slice(x, [0], end1, [3], [1])
-        x_part_2 = op.Slice(x, start2, [9223372036854775807], [3], [1])
+        x_part_2 = op.Slice(x, start2, [MAX_INT64], [3], [1])
         x_part_1_rope = op.RotaryEmbedding(
             x_part_1,
             _allow_other_inputs=True,
@@ -77,9 +94,7 @@ class PartialRotaryEmbedding23Fusion(pattern.RewriteRuleClassBase):
         end1_value = _ir_utils.get_singleton_value(end1)
         start2_value = _ir_utils.get_singleton_value(start2)
         if not isinstance(end1_value, int) or not isinstance(start2_value, int):
-            return check_result.fail(
-                "The end1 value of first slice and start2 value of second slice are not integers."
-            )
+            return check_result.fail("Unable to validate slice start/end values.")
         if end1_value != start2_value:
             return check_result.fail(
                 "The end1 value of first slice and start2 value of second slice are not equal."
