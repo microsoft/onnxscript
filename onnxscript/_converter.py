@@ -140,32 +140,41 @@ class Variable:
 class Converter:
     """Main class to translate python code into ONNX operators.
 
-    The class uses logger `onnxscript`. Logging can be enabled with the following code:
+    The converter translates a Python function into an ONNX function by
+    traversing the Python AST of the function and generating ONNX nodes
+    that represent the operations in the Python code.
 
-    ::
+    ..tip::
 
-        import logging
-        logging.basicConfig(level=logging.DEBUG)
+        The class uses logger `onnxscript`. Logging can be enabled with the following code:
 
-    Or if you need to enable only the logger used by this module:
+        ::
 
-    ::
+            import logging
+            logging.basicConfig(level=logging.DEBUG)
 
-        import logging
-        logger = logging.getLogger('onnxscript')
-        logger.setLevel(logging.DEBUG)
-        console = logging.StreamHandler()
-        logger.addHandler(console)
+        Or if you need to enable only the logger used by this module:
+
+        ::
+
+            import logging
+            logger = logging.getLogger('onnxscript')
+            logger.setLevel(logging.DEBUG)
+            console = logging.StreamHandler()
+            logger.addHandler(console)
     """
 
     def __init__(
         self,
+        root: ast.FunctionDef,
         opset: Optional[values.Opset] = None,
         global_names: Optional[dict[str, Any]] = None,
         source: Optional[str] = None,
         default_opset: Optional[values.Opset] = None,
     ):
         self._source = source
+        self._root = root
+
         if global_names is not None:
             # We make a copy in case function eval modifies it.
             self._globals = global_names.copy()
@@ -312,18 +321,6 @@ class Converter:
             self._nextvar = self._nextvar + 1
         self._used_vars.add(r)
         return r
-
-    # def _make_onnx_attr(
-    #     self, attrname: str, attrval: Any, attrtype: int | None = None
-    # ) -> irbuilder.IRAttributeValue:
-    #     def tensor_name_generator() -> str:
-    #         """Return name to be used for tensor, if we need to create one."""
-    #         return self.generate_unique_name(f"attr_{attrname}")
-
-    #     proto = autocast.pyvalue_to_onnx_attribute(
-    #         attrname, attrval, tensor_name_generator, attrtype
-    #     )
-    #     return self.ir_builder.make_attr(proto)
 
     def _to_onnx_var(
         self,
@@ -496,10 +493,6 @@ class Converter:
             attr_name, val, attr_type=attr_meta.type if attr_meta else None
         )
         return attr
-
-    def _translate_docstring(self, node: ast.FunctionDef) -> None:
-        if docstring := ast.get_docstring(node):
-                self._current_fn.doc_string = docstring
 
     def _translate_expr(
         self, node: ast.AST, target: Optional[PreferredName] = None
@@ -1323,7 +1316,7 @@ class Converter:
     def _translate_nested_function_def(self, fn: ast.FunctionDef) -> None:
         """Translate a nested function definition."""
         self._enter_scope(fn.name, fn)
-        self._translate_function_def_common(fn)
+        self._translate_function_def(fn)
         function_ir = self._exit_scope()
         outer_scope_vars = analysis.outer_scope_variables(fn, self._message)
         function_ir.outer_scope_variables = [
@@ -1394,16 +1387,16 @@ class Converter:
 
         return self._current_fn
 
-    def _translate_function_def_common(self, node: ast.FunctionDef) -> ir.Function:
+    def _translate_function_def(self, node: ast.FunctionDef) -> ir.Function:
         """Translate a function definition, including the signature and its body."""
-        logger.debug("Converter:_translate_function_def_common:%s", node.name)
+        logger.debug("Converter:_translate_function_def:%s", node.name)
         _ = self._translate_function_signature_common(node)
         for i, s in enumerate(node.body):
             self._translate_stmt(s, index_of_stmt=i)
 
         # Update docstring if available
         if docstring := ast.get_docstring(node):
-                self._current_fn.doc_string = docstring
+            self._current_fn.doc_string = docstring
         return self._current_fn
 
     def translate_function_def(self, stmt: ast.FunctionDef) -> irbuilder.IRFunction:
@@ -1416,7 +1409,7 @@ class Converter:
             domain = self._this_module.domain
             self._current_fn = self.ir_builder.new_function(stmt.name, domain, True)
             analysis.do_liveness_analysis(stmt, self._message)
-            fn_ir = self._translate_function_def_common(stmt)
+            fn_ir = self._translate_function_def(stmt)
             fn_ir.debug_print()
             self._this_module.add_function_def(fn_ir)
             return fn_ir
@@ -1424,6 +1417,7 @@ class Converter:
 
     def translate_function_signature(self, fn: ast.FunctionDef) -> irbuilder.IRFunction:
         """Translate a (top-level) function signature."""
+        assert self._this_module is not None
         domain = self._this_module.domain
         self._current_fn = self.ir_builder.new_function(fn.name, domain, True)
         return self._translate_function_signature_common(fn)
@@ -1534,6 +1528,8 @@ def _separate_inputs_and_attrs(
 
 def _to_onnx_ref_attr(val: values.AttrRef, info: sourceinfo.SourceInfo | None) -> ir.Attr:
     """Convert an attribute reference to an ONNX ref attribute."""
+
+    # TODO(justinchuby): Consider using a convenience function
     pytype = val.typeinfo
     attrtype = _schemas.get_attr_type(pytype)
     attrname = None
