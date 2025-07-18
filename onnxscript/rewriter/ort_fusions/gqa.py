@@ -38,24 +38,30 @@ def _is_model_input(value: ir.Value, name: str, model: ir.Model) -> bool:
 
 def _causal_mask(
     op,
-    past_seq_len_0D,
-    total_seq_len_0D_1,
-    total_seq_len_0D_2,
-    seq_len,
-    total_seq_len,
+    input_ids,
+    past_kv_cache,
     shape_B111,
     min_val,
     window_size,
     dtype,
 ):
     """Defines a pattern for a pure causal mask, with optional sliding window support."""
-    current_range = op.Range(past_seq_len_0D, total_seq_len_0D_1, 1)
+    seq_len = op.Shape(input_ids, end=2, start=1)
+    seq_len_0D = op.Squeeze(seq_len)
+
+    past_seq_len = op.Shape(past_kv_cache, end=3, start=2)
+    past_seq_len_0D = op.Squeeze(past_seq_len)
+
+    total_seq_len_0D = op.Add(past_seq_len_0D, seq_len_0D)
+    total_seq_len = op.Reshape(total_seq_len_0D, [-1])
+
+    current_range = op.Range(past_seq_len_0D, total_seq_len_0D, 1)
     mask_shape = op.Concat(seq_len, total_seq_len, axis=0)
     mask_all_min_expand = op.Expand(min_val, mask_shape)
     # The following Trilu is optional: not used in Phi models, but used in LLama.
     mask_all_min_trilu = op.Trilu(mask_all_min_expand, 1, upper=1)
     mask_all_min = pattern.OrValue([mask_all_min_expand, mask_all_min_trilu])
-    total_range_as_row = op.Range(0, total_seq_len_0D_2, 1)
+    total_range_as_row = op.Range(0, total_seq_len_0D, 1)
     current_range_as_column = op.Reshape(current_range, [-1, 1])
 
     non_causal = op.Greater(total_range_as_row, current_range_as_column)
@@ -79,11 +85,8 @@ class _CausalMaskPattern(pattern.PatternBase):
     def pattern(
         self,
         op,
-        past_seq_len_0D,
-        total_seq_len_0D_1,
-        total_seq_len_0D_2,
-        seq_len,
-        total_seq_len,
+        input_ids,
+        past_kv_cache,
         shape_B111,
         min_val,
         window_size,
@@ -93,11 +96,8 @@ class _CausalMaskPattern(pattern.PatternBase):
     ):
         causal_mask = _causal_mask(
             op,
-            past_seq_len_0D,
-            total_seq_len_0D_1,
-            total_seq_len_0D_2,
-            seq_len,
-            total_seq_len,
+            input_ids,
+            past_kv_cache,
             shape_B111,
             min_val,
             window_size,
