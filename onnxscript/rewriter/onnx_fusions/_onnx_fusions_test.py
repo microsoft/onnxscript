@@ -51,12 +51,16 @@ class OnnxFusionsTest(unittest.TestCase):
     )
     def test_rotary_embedding_fusion(self, _: str, test_data_constructor):
         test = test_data_constructor()
-        model: ir.Model = test.get_onnx_model()
-        model.graph.opset_imports[""] = 23  # Test case is a valid opset 23 model
-        onnxscript.optimizer.optimize(model)
-        onnx_fusions.fuse(model)
-        op_types = [n.op_type for n in model.graph]
-        self.assertIn("RotaryEmbedding", op_types)
+        for opset_version in [22, 23]:
+            model: ir.Model = test.get_onnx_model()
+            model.graph.opset_imports[""] = opset_version
+            onnxscript.optimizer.optimize(model)
+            onnx_fusions.fuse(model)
+            op_types = [n.op_type for n in model.graph]
+            if opset_version == 22:
+                self.assertNotIn("RotaryEmbedding", op_types)
+            else:
+                self.assertIn("RotaryEmbedding", op_types)
 
 
 if __name__ == "__main__":
