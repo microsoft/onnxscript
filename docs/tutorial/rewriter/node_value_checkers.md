@@ -158,6 +158,25 @@ This pattern will only match `Add` operations where:
 1. The first input is a positive constant (value-level check)
 2. The node has no custom attributes (node-level check)
 
+## Execution Timing and Limitations
+
+### When Checkers Are Called
+
+Node-level and value-level checkers are called **only at the end of the complete structural match**. This means:
+
+1. **Structural matching happens first**: The pattern matching engine first validates that the graph structure matches the pattern (correct operators, connections, etc.)
+2. **Checkers run after structural validation**: Only after the structural match succeeds do the node and value checkers execute
+3. **Order of execution**: Value-level checkers run first, followed by node-level checkers, and finally the pattern's condition function
+
+### Limitations with Pattern Disjunctions
+
+One important limitation of this design is that these checks don't compose well with pattern disjunctions (multiple alternative patterns). When searching among multiple value patterns:
+
+- **Only structural checking is performed initially**: If structural matching succeeds for the first alternative, other alternatives are not considered
+- **Checker failures don't trigger backtracking**: If a checker fails, the entire pattern match fails rather than trying the next alternative pattern
+
+This means you should be careful when designing patterns with multiple alternatives that rely on checkers, as the checker logic may prevent exploration of valid alternative matches.
+
 ## Error Handling
 
 Checkers can return either:
