@@ -167,27 +167,42 @@ class Converter:
     def __init__(
         self,
         root: ast.FunctionDef,
+        *,
         opset: Optional[values.Opset] = None,
         global_names: Optional[dict[str, Any]] = None,
         source: Optional[str] = None,
         default_opset: Optional[values.Opset] = None,
     ):
-        self._source = source
+        """Initialize the converter.
+
+        Args:
+            root: The root AST node of the function to be converted.
+            opset: The ONNX opset to use for the conversion. If None, the default opset is used.
+            global_names: A dictionary of global names available in the script.
+            source: Optional source code string for error reporting.
+            default_opset: The default ONNX opset to use if no ONNX opset is specified in the script.
+        """
+
         self._root = root
+        self._opset = opset
 
         if global_names is not None:
             # We make a copy in case function eval modifies it.
             self._globals = global_names.copy()
-        self._this_module = opset
+        else:
+            self._globals = {}
+
+        self._source = source
         self._default_opset = default_opset
 
         # TODO(justinchuby): Update ir version to be user defined
+        # TODO(justinchuby): Maybe just store a list of functions
         self._model = ir.Model(ir.Graph((), (), nodes=()), ir_version=10)
 
         # A stack of functions in the outer scope
         self._outer: list[ir.Function] = []
         self._current_fn: ir.Function = ir.Function(
-            domain=self._this_module.domain,
+            domain=self._opset.domain,
             name="",
             graph=ir.Graph((), (), nodes=[]),
             attributes={},
@@ -241,7 +256,7 @@ class Converter:
         self._outer = []
         # TODO(justinchuby): Update this
         self._current_fn = ir.Function(
-            domain=self._this_module.domain,
+            domain=self._opset.domain,
             name="",
             graph=ir.Graph((), (), nodes=[]),
             attributes={},
@@ -275,9 +290,9 @@ class Converter:
         The block is translated into a nested-scope in ONNX.
         """
         self._outer.append(self._current_fn)
-        assert self._this_module is not None
+        assert self._opset is not None
         self._current_fn = ir.Function(
-            domain=self._this_module.domain,
+            domain=self._opset.domain,
             name=name,
             graph=ir.Graph((), (), nodes=[]),
             attributes={},
@@ -1406,19 +1421,19 @@ class Converter:
                 opset = self._find_onnx_opset(stmt)
                 if opset:
                     self._set_default_opset(opset, stmt)
-            domain = self._this_module.domain
+            domain = self._opset.domain
             self._current_fn = self.ir_builder.new_function(stmt.name, domain, True)
             analysis.do_liveness_analysis(stmt, self._message)
             fn_ir = self._translate_function_def(stmt)
             fn_ir.debug_print()
-            self._this_module.add_function_def(fn_ir)
+            self._opset.add_function_def(fn_ir)
             return fn_ir
         raise ValueError(f"Unsupported top-level statement type {type(stmt)!r}.")
 
     def translate_function_signature(self, fn: ast.FunctionDef) -> irbuilder.IRFunction:
         """Translate a (top-level) function signature."""
-        assert self._this_module is not None
-        domain = self._this_module.domain
+        assert self._opset is not None
+        domain = self._opset.domain
         self._current_fn = self.ir_builder.new_function(fn.name, domain, True)
         return self._translate_function_signature_common(fn)
 
