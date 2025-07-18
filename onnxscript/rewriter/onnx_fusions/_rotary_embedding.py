@@ -10,13 +10,13 @@ from onnxscript.rewriter import _fusion_utils, _ir_utils, pattern
 
 # Basic pattern: For example, see
 # https://github.com/huggingface/transformers/blob/541bed22d6e4f97946a3a7d74f7e1a353e58643b/src/transformers/models/llama/modeling_llama.py#L104
-# def rotate_half(x):
-#     """Rotates half the hidden dims of the input."""
-#     x1 = x[..., : x.shape[-1] // 2]
-#     x2 = x[..., x.shape[-1] // 2 :]
-#     return torch.cat((-x2, x1), dim=-1)
+#    def rotate_half(x):
+#        """Rotates half the hidden dims of the input."""
+#        x1 = x[..., : x.shape[-1] // 2]
+#        x2 = x[..., x.shape[-1] // 2 :]
+#        return torch.cat((-x2, x1), dim=-1)
 # and
-#     q_embed = (q * cos) + (rotate_half(q) * sin)
+#        q_embed = (q * cos) + (rotate_half(q) * sin)
 
 
 def _rotate_half_pattern(op, x, start1, end1, start2, end2):
