@@ -454,7 +454,9 @@ class Converter:
         # TODO: assert (self._is_constant_expr(expr))
         # TODO: Refine types
         locals: dict[Any, Any] = {}
-        expr = ast.Expression(expr, lineno=expr.lineno, col_offset=expr.col_offset)
+        expr = ast.Expression(body=expr)
+        expr.lineno = expr.body.lineno
+        expr.col_offset = expr.body.col_offset
         cpl = compile(expr, filename="<ast>", mode="eval")
         try:
             return eval(cpl, self.globals, locals)  # pylint: disable=eval-used
