@@ -32,7 +32,8 @@ onnx.checker.check_model(_model)
 
 def split_pattern(op, input):
     # Pattern to match Split operations with 2 outputs
-    # _outputs=2 specifies that this operation produces 2 outputs
+    # num_outputs=2 corresponds to the attribute of the ONNX Split op
+    # _outputs=2 is an option controlling the pattern constructor
     return op.Split(input, num_outputs=2, axis=0, _outputs=2)
 
 
