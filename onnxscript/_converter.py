@@ -1052,14 +1052,16 @@ class Converter:
             live_defs = list(_analysis.assigned_vars(stmt, self._message))
         test = self._translate_expr(stmt.test, "cond").name
         lineno = self._source_of(stmt).lineno
-        thenGraph, sub_fct_then = self._translate_block(
-            stmt.body, f"thenGraph_{lineno}", live_defs, parent_stmt=stmt
+
+        # TODO(justinchuby): Ensure the values are obtained from the live_defs
+        then_graph, sub_fct_then = self._translate_block(
+            stmt.body, f"then_graph_{lineno}", live_defs, parent_stmt=stmt
         )
-        thenAttr = self._make_onnx_attr("then_branch", thenGraph)
-        elseGraph, sub_fct_else = self._translate_block(
-            stmt.orelse, f"elseGraph_{lineno}", live_defs, parent_stmt=stmt
+        then_attr = ir.AttrGraph("then_branch", then_graph)
+        else_graph, sub_fct_else = self._translate_block(
+            stmt.orelse, f"else_graph_{lineno}", live_defs, parent_stmt=stmt
         )
-        elseAttr = self._make_onnx_attr("else_branch", elseGraph)
+        else_attr = ir.AttrGraph("else_branch", else_graph)
 
         def rename(x):
             r = self._generate_unique_name(x)
@@ -1072,19 +1074,20 @@ class Converter:
         # no break condition
         renamed = [rename(x) for x in live_defs]
         if not renamed:
-            self.fail(stmt, "A subgraph for a test do not have any output variable.")
+            # TODO(justinchuby): This needs comments. What is it doing?
+            self.fail(stmt, "A subgraph for an if condition has no outputs.")
 
+        # TODO(justinchuby): Collect the subfunctions to self
         sub_functions = {}
         sub_functions.update(sub_fct_then)
         sub_functions.update(sub_fct_else)
         if renamed == [test]:
             self.fail(stmt, f"Input and output cannot be the same {renamed!r}.")
         self.emit(
-            renamed,
-            values.Op(self._default_opset, "If"),
+            "If",
             [test],
-            [thenAttr, elseAttr],
-            sub_functions=sub_functions,
+            renamed,
+            [then_attr, else_attr],
         )
 
     def _translate_loop_stmt(self, loop_stmt: Union[ast.For, ast.While]) -> None:
