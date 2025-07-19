@@ -197,9 +197,7 @@ class Converter:
             default_opset: The default ONNX opset to use if no ONNX opset is specified in the script.
         """
         if not isinstance(root, ast.FunctionDef):
-            raise TypeError(
-                f"Converter expects an AST FunctionDef node, got {type(root)}."
-            )
+            raise TypeError(f"Converter expects an AST FunctionDef node, got {type(root)}.")
         self._ast_root = root
         self._opset = opset
 
@@ -1329,9 +1327,7 @@ class Converter:
         # TODO: Does not yet handle nested functions within nested functions.
         self._current_fn.add_nested_function(function_ir)
 
-    def _translate_function_signature_common(
-        self, fn: ast.FunctionDef
-    ) -> ir.Function:
+    def _translate_function_signature_common(self, fn: ast.FunctionDef) -> ir.Function:
         """Translate a function signature (top-level or nested)."""
         args = fn.args
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
