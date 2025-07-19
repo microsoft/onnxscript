@@ -147,8 +147,8 @@ class ASTMeta:
     """
 
     # For liveness analysis,
-    live_out: set[ast.AST] = dataclasses.field(default_factory=set)
-    live_in: set[ast.AST] = dataclasses.field(default_factory=set)
+    live_out: set[str] | None = None
+    live_in: set[str] | None = None
 
 
 class Converter:
@@ -1044,9 +1044,9 @@ class Converter:
         return ret(val, 0, "")
 
     def _translate_if_stmt(self, stmt: ast.If) -> None:
-        if hasattr(stmt, "live_out"):
+        if (live_out := self.meta[stmt].live_out) is not None:
             live_defs = list(
-                stmt.live_out.intersection(_analysis.assigned_vars(stmt, self._message))
+                live_out.intersection(_analysis.assigned_vars(stmt, self._message))
             )
         else:
             live_defs = list(_analysis.assigned_vars(stmt, self._message))
@@ -1131,7 +1131,8 @@ class Converter:
         # analyze loop body
         exposed_uses = _analysis.exposed_uses(loop_stmt.body, self._message)
         vars_def_in_loop = _analysis.assigned_vars(loop_stmt.body, self._message)
-        loop_state_vars = vars_def_in_loop.intersection(exposed_uses | loop_stmt.live_out)
+        live_out = self.meta[loop_stmt].live_out or set()
+        loop_state_vars = vars_def_in_loop.intersection(exposed_uses | live_out)
         scan_outputs = set()  # TODO
         outputs = list(loop_state_vars | scan_outputs)
 
