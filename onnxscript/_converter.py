@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import ast
+from collections import defaultdict
+import dataclasses
 import logging
 from typing import (
     TYPE_CHECKING,
@@ -26,7 +28,7 @@ from onnxscript.ir import _schemas
 import onnxscript
 from onnxscript import irbuilder, onnx_types, sourceinfo, values
 from onnxscript import type_annotation as ta
-from onnxscript._internal import analysis, ast_utils, autocast, param_manipulation
+from onnxscript._internal import _analysis, ast_utils, autocast, param_manipulation
 
 if TYPE_CHECKING:
     # The type-alias LocalSymValue represents the types of values that local names in a
@@ -137,6 +139,18 @@ class Variable:
         return self.name
 
 
+@dataclasses.dataclass
+class ASTMeta:
+    """Metadata for an AST node.
+
+    This class is used to store metadata about an AST node.
+    """
+
+    # For liveness analysis,
+    live_out: set[ast.AST] = dataclasses.field(default_factory=set)
+    live_in: set[ast.AST] = dataclasses.field(default_factory=set)
+
+
 class Converter:
     """Main class to translate python code into ONNX operators.
 
@@ -182,8 +196,11 @@ class Converter:
             source: Optional source code string for error reporting.
             default_opset: The default ONNX opset to use if no ONNX opset is specified in the script.
         """
-
-        self._root = root
+        if not isinstance(root, ast.FunctionDef):
+            raise TypeError(
+                f"Converter expects an AST FunctionDef node, got {type(root)}."
+            )
+        self._ast_root = root
         self._opset = opset
 
         if global_names is not None:
@@ -193,7 +210,12 @@ class Converter:
             self._globals = {}
 
         self._source = source
-        self._default_opset = default_opset
+        self._default_opset = default_opset or _find_onnx_opset(root, self._globals)
+        if self._default_opset is None:
+            raise ValueError(
+                "default_opset must be specified in script for functions "
+                "that do not contain any use of an ONNX opset."
+            )
 
         # TODO(justinchuby): Update ir version to be user defined
         # TODO(justinchuby): Maybe just store a list of functions
@@ -210,46 +232,8 @@ class Converter:
         self._nextvar: int = 0
         self._used_vars: set[str] = set()
         self._locals: list[dict[str, LocalSymValue]] = [{}]
-
-    @property
-    def default_opset(self) -> values.Opset:
-        if self._default_opset is None:
-            raise RuntimeError(
-                "default_opset must be specified in script for functions "
-                "that do not contain any use of an ONNX opset."
-            )
-        return self._default_opset
-
-    def _set_default_opset(self, opset: values.Opset, node: ast.AST) -> None:
-        if opset.domain != "":
-            return
-        if self._default_opset is not None:
-            if (
-                opset.domain != self._default_opset.domain
-                or opset.version != self._default_opset.version
-            ):
-                self.fail(
-                    node, f"Two distinct opset were used ({opset} != {self._default_opset})."
-                )
-        else:
-            self._default_opset = opset
-
-    def _find_onnx_opset(self, node: ast.AST) -> Optional[values.Opset]:
-        """Find the (first) ONNX opset used in the function, if any."""
-        # Search for a Call expression of form "op.OpName(...)"
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Attribute):
-                opset_expr = node.func.value
-                if isinstance(opset_expr, ast.Name):
-                    if opset_expr.id in self._globals:
-                        opset = self._globals[opset_expr.id]
-                        if isinstance(opset, values.Opset) and opset.domain == "":
-                            return opset
-        for child in ast.iter_child_nodes(node):
-            res = self._find_onnx_opset(child)
-            if res is not None:
-                return res
-        return None
+        self._finalized = False
+        self.meta: defaultdict[ast.AST, ASTMeta] = defaultdict(ASTMeta)
 
     # def _init_function_translation(self) -> None:
     #     """Initialize self for translating a new (top-level) function."""
@@ -638,7 +622,7 @@ class Converter:
                 reshaped = self._generate_unique_name(f"{name}_reshaped")
                 self.emit(
                     [reshaped],
-                    values.Op(self.default_opset, "Reshape"),
+                    values.Op(self._default_opset, "Reshape"),
                     [name, one_1d().name],
                     [],
                 )
@@ -827,7 +811,7 @@ class Converter:
             if isinstance(cst, float):
                 attr = [self._make_onnx_attr("fmod", 1)]
 
-        op = values.Op(self.default_opset, _PRIMOP_MAP[op])
+        op = values.Op(self._default_opset, _PRIMOP_MAP[op])
         left, right = self._cast_like_binary_expression(
             op, self._translate_expr(node.left), self._translate_expr(node.right)
         )
@@ -858,7 +842,7 @@ class Converter:
                 return self._translate_expr(node.operand)
         opname = _PRIMOP_MAP[op]
         operand = self._translate_expr(node.operand)
-        return values.Op(self.default_opset, opname), [operand], []
+        return values.Op(self._default_opset, opname), [operand], []
 
     def _translate_compare_expr(self, node):
         # TODO: handle multiple comparisons in one expression
@@ -873,12 +857,12 @@ class Converter:
 
         # NotEqual is not a standard ONNX op, and needs to be translated into
         # an Equal op/node followed by a Not op/node.
-        op = values.Op(self.default_opset, opname if opname != "NotEqual" else "Equal")
+        op = values.Op(self._default_opset, opname if opname != "NotEqual" else "Equal")
         left, right = self._cast_like_binary_expression(op, left, right)
         if opname == "NotEqual":
             tmp = self._generate_unique_name()
             self.emit([tmp], op, [left, right])
-            not_op = values.Op(self.default_opset, "Not")
+            not_op = values.Op(self._default_opset, "Not")
             return not_op, [tmp], []
 
         return op, [left, right], []
@@ -918,12 +902,12 @@ class Converter:
             if isinstance(found, values.Op):
                 return found
             if not found:
-                if function_name not in self.default_opset:
+                if function_name not in self._default_opset:
                     warn(
                         f"Unknown function name {function_name!r}. "
                         f"The ONNX graph may not work."
                     )
-                return values.Op(self.default_opset, function_name)
+                return values.Op(self._default_opset, function_name)
         self.fail(node, "Invalid callee")
 
     def _translate_stmt(self, node: ast.stmt, index_of_stmt=None) -> None:
@@ -1062,10 +1046,10 @@ class Converter:
     def _translate_if_stmt(self, stmt: ast.If) -> None:
         if hasattr(stmt, "live_out"):
             live_defs = list(
-                stmt.live_out.intersection(analysis.assigned_vars(stmt, self._message))
+                stmt.live_out.intersection(_analysis.assigned_vars(stmt, self._message))
             )
         else:
-            live_defs = list(analysis.assigned_vars(stmt, self._message))
+            live_defs = list(_analysis.assigned_vars(stmt, self._message))
         test = self._translate_expr(stmt.test, "cond").name
         lineno = self._source_of(stmt).lineno
         thenGraph, sub_fct_then = self._translate_block(
@@ -1097,7 +1081,7 @@ class Converter:
             self.fail(stmt, f"Input and output cannot be the same {renamed!r}.")
         self.emit(
             renamed,
-            values.Op(self.default_opset, "If"),
+            values.Op(self._default_opset, "If"),
             [test],
             [thenAttr, elseAttr],
             sub_functions=sub_functions,
@@ -1145,8 +1129,8 @@ class Converter:
         else:
             self.fail(loop_stmt, f"Unexpected loop type {type(loop_stmt)!r}.")
         # analyze loop body
-        exposed_uses = analysis.exposed_uses(loop_stmt.body, self._message)
-        vars_def_in_loop = analysis.assigned_vars(loop_stmt.body, self._message)
+        exposed_uses = _analysis.exposed_uses(loop_stmt.body, self._message)
+        vars_def_in_loop = _analysis.assigned_vars(loop_stmt.body, self._message)
         loop_state_vars = vars_def_in_loop.intersection(exposed_uses | loop_stmt.live_out)
         scan_outputs = set()  # TODO
         outputs = list(loop_state_vars | scan_outputs)
@@ -1232,7 +1216,7 @@ class Converter:
 
         self.emit(
             [o_cond_out],
-            values.Op(self.default_opset, operator_name),
+            values.Op(self._default_opset, operator_name),
             [condition_name or o_cond_var],
             [],
         )
@@ -1333,7 +1317,7 @@ class Converter:
         self._enter_scope(fn.name, fn)
         self._translate_function_def(fn)
         function_ir = self._exit_scope()
-        outer_scope_vars = analysis.outer_scope_variables(fn, self._message)
+        outer_scope_vars = _analysis.outer_scope_variables(fn, self._message)
         function_ir.outer_scope_variables = [
             (var, self._lookup(var, self._source_of(fn))) for var in outer_scope_vars
         ]
@@ -1343,7 +1327,7 @@ class Converter:
 
     def _translate_function_signature_common(
         self, fn: ast.FunctionDef
-    ) -> irbuilder.IRFunction:
+    ) -> ir.Function:
         """Translate a function signature (top-level or nested)."""
         args = fn.args
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
@@ -1414,28 +1398,19 @@ class Converter:
             self._current_fn.doc_string = docstring
         return self._current_fn
 
-    def translate_function_def(self, stmt: ast.FunctionDef) -> irbuilder.IRFunction:
-        if isinstance(stmt, ast.FunctionDef):
-            self._init_function_translation()
-            if self._default_opset is None:
-                opset = self._find_onnx_opset(stmt)
-                if opset:
-                    self._set_default_opset(opset, stmt)
-            domain = self._opset.domain
-            self._current_fn = self.ir_builder.new_function(stmt.name, domain, True)
-            analysis.do_liveness_analysis(stmt, self._message)
-            fn_ir = self._translate_function_def(stmt)
-            fn_ir.debug_print()
-            self._opset.add_function_def(fn_ir)
-            return fn_ir
-        raise ValueError(f"Unsupported top-level statement type {type(stmt)!r}.")
+    def _finalize(self) -> None:
+        self._finalized = True
 
-    def translate_function_signature(self, fn: ast.FunctionDef) -> irbuilder.IRFunction:
-        """Translate a (top-level) function signature."""
-        assert self._opset is not None
-        domain = self._opset.domain
-        self._current_fn = self.ir_builder.new_function(fn.name, domain, True)
-        return self._translate_function_signature_common(fn)
+    def convert(self) -> ir.Function:
+        """Convert the Python AST to an ONNX IR function."""
+        if self._finalized:
+            return self._current_fn
+
+        func_def = self._ast_root
+        _analysis.do_liveness_analysis(func_def, self._message, self.meta)
+        return self._translate_function_def(func_def)
+        # TODO(justinchuby): Handle function registration to the opset
+        # self._opset.add_function_def(fn_ir)
 
 
 def _is_constant_expr(node: ast.AST) -> bool:
@@ -1561,3 +1536,21 @@ def _to_onnx_ref_attr(val: values.AttrRef, info: sourceinfo.SourceInfo | None) -
         fail(info.msg(msg) if info else msg)
     # TODO(justinchuby): What is the ref attr name?
     return ir.RefAttr(attrname, val.value, attrtype)
+
+
+def _find_onnx_opset(node: ast.AST, globals: dict[str, Any]) -> values.Opset | None:
+    """Find the (first) ONNX opset used in the function, if any."""
+    # Search for a Call expression of form "op.OpName(...)"
+    if isinstance(node, ast.Call):
+        if isinstance(node.func, ast.Attribute):
+            opset_expr = node.func.value
+            if isinstance(opset_expr, ast.Name):
+                if opset_expr.id in globals:
+                    opset = globals[opset_expr.id]
+                    if isinstance(opset, values.Opset) and opset.domain == "":
+                        return opset
+    for child in ast.iter_child_nodes(node):
+        res = _find_onnx_opset(child, globals)
+        if res is not None:
+            return res
+    return None
