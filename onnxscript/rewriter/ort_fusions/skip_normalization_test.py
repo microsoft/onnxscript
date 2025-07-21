@@ -5,11 +5,11 @@ from __future__ import annotations
 import unittest
 
 import onnxscript.optimizer
+from onnxscript.rewriter.models._bart_encoder import bart_encoder_test
+from onnxscript.rewriter.models._smollm_1 import smollm_test_1
+from onnxscript.rewriter.models._whisper_decoder import whisper_decoder_test
+from onnxscript.rewriter.models._whisper_encoder import whisper_encoder_test
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
-from onnxscript.rewriter.ort_fusions.models._bart_encoder import bart_encoder_test
-from onnxscript.rewriter.ort_fusions.models._smollm_1 import smollm_test_1
-from onnxscript.rewriter.ort_fusions.models._whisper_decoder import whisper_decoder_test
-from onnxscript.rewriter.ort_fusions.models._whisper_encoder import whisper_encoder_test
 from onnxscript.rewriter.ort_fusions.rms_normalization import fuse_rms_normalization
 from onnxscript.rewriter.ort_fusions.skip_normalization import (
     fuse_skip_layer_normalization,
