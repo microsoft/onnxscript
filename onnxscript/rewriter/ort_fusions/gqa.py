@@ -318,6 +318,13 @@ class GroupQueryAttention(pattern.RewriteRuleClassBase):
         mask,
         **_,
     ):
+        # Note that the following optimization is specific to current ORT GenAI attention-mask
+        # usage. Specifically, it assumes that the model-input "attention_mask" is a 2D
+        # mask with shape [batch_size, sequence_length], and that the mask is a 0/1 mask
+        # that is used only to indicate the current tokens. Hence, the input attention_mask
+        # is redundant as long as past-sequence-length and current-sequence-length can be
+        # computed.
+
         # Construct seqlens_k and total_seq_length_int32 from position_ids
         # seqlens_k : int32[batch_size] indicates total_sequence-length-1 for each batch
         # position_ids: int64[batch_size, sequence_length] indicates the position of each token
