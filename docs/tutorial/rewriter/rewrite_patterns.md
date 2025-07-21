@@ -24,3 +24,6 @@ There are three main components needed when rewriting patterns in the graph:
 
 ```{include} commute.md
 ```
+
+```{include} node_value_checkers.md
+```
