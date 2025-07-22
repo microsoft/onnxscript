@@ -187,10 +187,7 @@ We will cover the new PyTorch ONNX exporter in a separate post with more depth a
 By deeply weaving ONNX Script support into the PyTorch ONNX exporter, we have also made it possible to augment PyTorch model code with specialized ONNX functions as custom operators. We introduced initial support for this in the TorchScript exporter starting with [PyTorch 1.13][torch-onnx-customops] and continue to refine this capability in the new exporter.
 
 ## An End-to-End Example
-
 Let’s look at an example slightly more complicated than GELU. In fact, the following example is adapted directly from the new PyTorch ONNX exporter, implementing support for [`torch.chunk`][torch-chunk], which attempts to split a tensor into the number of specified chunks.
-
-.. TODO: change this example
 
 ```python
 from typing import Sequence
