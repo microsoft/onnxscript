@@ -746,6 +746,7 @@ class AttrRef(SymbolValue):
             raise TypeError(f"Expecting a type not f{type(typeinfo)} for typeinfo.")
         self.typeinfo = typeinfo
 
+
 class DynamicKind(IntFlag):
     Unknown = 0
     Input = 1

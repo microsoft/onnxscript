@@ -21,21 +21,20 @@ from typing import (
     Union,
 )
 
-import onnx
 import onnx_ir as ir
 from onnxscript.ir import _schemas
 
 import onnxscript
 from onnxscript import irbuilder, onnx_types, sourceinfo, values
 from onnxscript import type_annotation as ta
-from onnxscript._internal import _analysis, ast_utils, autocast, param_manipulation
+from onnxscript._internal import _analysis, ast_utils, autocast
 
 if TYPE_CHECKING:
     # The type-alias LocalSymValue represents the types of values that local names in a
     # script-function may be bound to during translation, (ONNX IR values).
     # TODO(rama): Rationalize this and values.SymbolValue
 
-    LocalSymValue = Union[values.SymbolValue, irbuilder.IRFunction]
+    LocalSymValue = Union[values.SymbolValue, ir.Function]
 
     # The type-alias PyValue is used to represent the types of python values that may be used
     # in an ONNX Script function.
@@ -115,28 +114,11 @@ _PRIMOP_MAP = {
 }
 
 
-class Variable:
-    """Represents an ONNX variable.
+_CASTABLE_FIELD = "pkg.onnxscript.converter.castable"
 
-    TODO(rama): Consider merging this with IRVar. However, "castable" is specific to this
-    converter.
-    """
-
-    def __init__(self, name: str, castable: bool = False):
-        """Initialize the instance.
-
-        Args:
-           name: Name of the ONNX variable
-           castable: Whether this variable is castable to a desired target type.
-              Used for ONNX variables representing constants created from python values
-              like 0 or 1 or 0.5 which are treated as polymorphic values castable to other
-              types as needed.
-        """
-        self.name = name
-        self.is_castable = castable
-
-    def __str__(self) -> str:
-        return self.name
+def mark_castable(value: ir.Value):
+    """Mark an ONNX value as auto-castable."""
+    value.meta[_CASTABLE_FIELD] = True
 
 
 @dataclasses.dataclass
@@ -227,6 +209,8 @@ class Converter:
             graph=ir.Graph((), (), nodes=[]),
             attributes={},
         )
+        # A mapping from value names to the values for each function
+        # self._scoped_values: dict[ir.Function, dict[str, ir.Value]] = {}
         self._nextvar: int = 0
         self._used_vars: set[str] = set()
         self._locals: list[dict[str, LocalSymValue]] = [{}]
@@ -325,26 +309,25 @@ class Converter:
         target: PreferredName = "tmp",
         *,
         info: sourceinfo.SourceInfo,
-    ) -> Variable:
+    ) -> ir.Value:
         """Convert a value to an ONNX variable."""
         if isinstance(val, values.AttrRef):
             # promote attribute to value
             result = self._generate_unique_name(target)
             attr = _to_onnx_ref_attr(val, info)
-            self.emit([], "Constant", [result], attrs=[attr])
+            result_val = self.emit([result], "Constant", [], attrs=[attr])[0]
             if ta.base_type_is_bool(val.typeinfo):
                 # ONNX attributes use an int-encoding for bools, but ONNX tensor types
                 # distinguish between int and bool. So we cast the int tensor to a bool tensor,
                 # to promote a (python) bool attribute to a ONNX bool tensor.
                 result_as_bool = self._generate_unique_name(result + "_as_bool")
-                self.emit(
-                    [result],
-                    "Cast",
+                return self.emit(
                     [result_as_bool],
+                    "Cast",
+                    [result],
                     attrs=[ir.AttrInt64("to", ir.DataType.BOOL)],
-                )
-                return Variable(result_as_bool, castable=True)
-            return Variable(result, castable=True)
+                )[0]
+            return result_val
 
         if isinstance(val, values.Dynamic):
             return Variable(val.value)
@@ -364,16 +347,17 @@ class Converter:
         *,
         attrs: Sequence[ir.Attr] = (),
         domain: str = "",
-    ):
+    ) -> Sequence[ir.Value]:
         """Emit an ONNX operator with the given inputs, outputs, and attributes."""
         node = ir.Node(
             domain=domain,
             op_type=op_type,
-            inputs=[self._lookup(inp, self._source_of(inputs[0])) for inp in inputs],
+            inputs=[self._lookup(inp, self._source_of(inp)) for inp in inputs],
             attributes=attrs,
-            outputs=[self._lookup(out, self._source_of(outputs[0])) for out in outputs],
+            outputs=[self._lookup(out, self._source_of(out)) for out in outputs],
         )
         self._current_fn.append(node)
+        return node.outputs
 
     def _emit_const(
         self,
