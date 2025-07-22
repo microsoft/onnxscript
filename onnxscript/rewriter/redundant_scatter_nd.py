@@ -21,10 +21,13 @@ import onnx_ir as ir
 
 import onnxscript.rewriter
 from onnxscript.rewriter import _ir_utils as ir_utils
-from onnxscript.rewriter import pattern as orp
+from onnxscript.rewriter._rewrite_rule import RewriteRuleClassBase, RewriteRuleSet
 
 
-class ScatterAllDynamic(orp.RewriteRuleClassBase):
+class ScatterAllDynamic(RewriteRuleClassBase):
+    def __init__(self):
+        super().__init__(remove_nodes=False)
+
     def pattern(self, op, data, axis, transposed_data, updates):
         # Construct update-indices spanning an entire axis:
         shape = op.Shape(data, start=0)
@@ -64,7 +67,7 @@ class ScatterAllDynamic(orp.RewriteRuleClassBase):
         return op.Identity(updates)
 
 
-class ScatterAllStatic(orp.RewriteRuleClassBase):
+class ScatterAllStatic(RewriteRuleClassBase):
     """Rewrite rule for eliminating redundant ScatterND with statically known indices.
 
     This handles the case where indices are constant values in the form [[0], [1], ..., [n-1]]
@@ -107,4 +110,4 @@ class ScatterAllStatic(orp.RewriteRuleClassBase):
 rule = ScatterAllDynamic.rule()
 static_rule = ScatterAllStatic.rule()
 
-rules = orp.RewriteRuleSet([rule, static_rule])
+rules = RewriteRuleSet([rule, static_rule])

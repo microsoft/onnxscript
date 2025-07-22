@@ -9,8 +9,7 @@ from onnx_ir.passes.common import onnx_checker, shape_inference
 from parameterized import parameterized
 
 from onnxscript import ir
-from onnxscript.rewriter import matmul_add_to_gemm, testing
-from onnxscript.rewriter import pattern as orp
+from onnxscript.rewriter import MatchingTracer, MatchStatus, matmul_add_to_gemm, testing
 from onnxscript.rewriter.matmul_add_to_gemm import matmul_add_to_gemm_rule
 
 
@@ -101,7 +100,7 @@ class _MatMulAddToGemmTestBase(unittest.TestCase):
         base_model = self.get_test_model(**kwargs)
 
         updated_model = self.clone_model(base_model)
-        tracer = orp.MatchingTracer()
+        tracer = MatchingTracer()
         count = matmul_add_to_gemm_rule.apply_to_model(updated_model, tracer=tracer)
 
         # Check that the model is unchanged
@@ -109,7 +108,7 @@ class _MatMulAddToGemmTestBase(unittest.TestCase):
 
         # Check that the error message is the expected one
         tracer_match = tracer.best_matches_map[matmul_add_to_gemm_rule][0]
-        self.assertEqual(tracer_match.status.value, orp.MatchStatus.CONDITION_FAILED)
+        self.assertEqual(tracer_match.status.value, MatchStatus.CONDITION_FAILED)
         self.assertRegex(
             tracer_match.match_result.reason, "Rank of input_a and input_b must be 2"
         )

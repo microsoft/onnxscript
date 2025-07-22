@@ -9,11 +9,11 @@ import packaging.version
 
 import onnxscript.optimizer
 import onnxscript.rewriter.ort_fusions._core as xformers
+from onnxscript.rewriter.models._phi2lm import phi2lm_test
+from onnxscript.rewriter.models._smollm_2 import smollm_test_2
+from onnxscript.rewriter.models._whisper_decoder import whisper_decoder_test
+from onnxscript.rewriter.models._whisper_encoder import whisper_encoder_test
 from onnxscript.rewriter.ort_fusions._test_utils import ORT_VERSION, assert_allclose, ort_run
-from onnxscript.rewriter.ort_fusions.models._phi2lm import phi2lm_test
-from onnxscript.rewriter.ort_fusions.models._smollm_2 import smollm_test_2
-from onnxscript.rewriter.ort_fusions.models._whisper_decoder import whisper_decoder_test
-from onnxscript.rewriter.ort_fusions.models._whisper_encoder import whisper_encoder_test
 
 
 class TestMultiHeadAttention(unittest.TestCase):

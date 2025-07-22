@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from onnxscript import ir
-from onnxscript.rewriter import pattern
+from onnxscript.rewriter._rewrite_rule import RewriteRule, RewriteRuleSet
 
 logger = logging.getLogger(__name__)
 _INT64_MAX = 9223372036854775807
@@ -73,15 +73,30 @@ def _identity_to_itself(op, data, **_):
 
 def _potential_redundant_slice(op, data, starts, ends, axes, steps):
     """To identify a slice op"""
-    return op.Slice(data, starts, ends, axes, steps)
+    return op.Slice(data, starts, ends, axes, steps, _outputs=["slice_output"])
+
+
+def _same_shape(op, data: ir.Value, slice_output: ir.Value, **_):
+    """Check if the shape of the slice output is the same as the data."""
+    if data.shape is None or slice_output.shape is None:
+        return False
+    return data.shape == slice_output.shape
 
 
 # Register the rewrite rules
-remove_redundant_slice = pattern.RewriteRule(
+remove_redundant_slice = RewriteRule(
     _potential_redundant_slice,
     _identity_to_itself,
     _check_if_redundant_slice,
 )
 
-# NOTE: The order of the rules is important. Larger pattern should be checked first.
-rules = pattern.RewriteRuleSet([remove_redundant_slice])
+remove_redundant_slice2 = RewriteRule(
+    _potential_redundant_slice,
+    _identity_to_itself,
+    _same_shape,
+)
+
+# NOTE: The second rule subsumes the first one. So, we may be able to remove the first one,
+# provided shape-inference is run before the rewriter and computes the shape of the slice output.
+
+rules = RewriteRuleSet([remove_redundant_slice, remove_redundant_slice2])

@@ -5,10 +5,11 @@ from __future__ import annotations
 import unittest
 
 import onnxscript.optimizer
+from onnxscript.rewriter.models._bart_encoder import bart_encoder_test
+from onnxscript.rewriter.models._smollm_1 import smollm_test_1
+from onnxscript.rewriter.models._whisper_decoder import whisper_decoder_test
+from onnxscript.rewriter.models._whisper_encoder import whisper_encoder_test
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose, ort_run
-from onnxscript.rewriter.ort_fusions.models._smollm_1 import smollm_test_1
-from onnxscript.rewriter.ort_fusions.models._whisper_decoder import whisper_decoder_test
-from onnxscript.rewriter.ort_fusions.models._whisper_encoder import whisper_encoder_test
 from onnxscript.rewriter.ort_fusions.rms_normalization import fuse_rms_normalization
 from onnxscript.rewriter.ort_fusions.skip_normalization import (
     fuse_skip_layer_normalization,
@@ -58,6 +59,21 @@ class TestSkipNormalization(unittest.TestCase):
         op_types = [n.op_type for n in model.graph]
         self.assertIn("SkipLayerNormalization", op_types)
 
+        new_outputs = ort_run("optimized", model, inputs)
+        assert_allclose(new_outputs, original_outputs)
+
+    def test_bart_encoder(self):
+        bart_encoder = bart_encoder_test()
+        model = bart_encoder.get_onnx_model()
+        onnxscript.optimizer.optimize(model)
+
+        inputs = bart_encoder.get_ort_inputs()
+        original_outputs = ort_run("original", model, inputs)
+
+        fuse_skip_layer_normalization(model)
+        op_types = [n.op_type for n in model.graph]
+        self.assertIn("SkipLayerNormalization", op_types)
+        self.assertEqual(op_types.count("SkipLayerNormalization"), 5)
         new_outputs = ort_run("optimized", model, inputs)
         assert_allclose(new_outputs, original_outputs)
 
