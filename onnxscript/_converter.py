@@ -705,7 +705,7 @@ class Converter:
                 steps.append(inputs[2])
 
             if len(starts) > 1:
-                axis_0_attr = self._make_onnx_attr("axis", 0)
+                axis_0_attr = ir.AttrInt64("axis", 0)
                 start_name = self._generate_unique_name(f"{var_name}_start")
                 self.emit([start_name], "Concat", starts, attrs=[axis_0_attr])
 
@@ -755,7 +755,7 @@ class Converter:
             last_axis = None
         for axis, index_expr in non_scalar_indices:
             index_value = self._translate_expr(index_expr)
-            axis_attr = self._make_onnx_attr("axis", axis)
+            axis_attr = ir.AttrInt64("axis", axis)
             # use Gather to perform indexing
             # Assign gathered value to either temporary or final target
             if axis != last_axis:  # use temporary to store result of Gather
@@ -810,13 +810,13 @@ class Converter:
             # attribute fmod=1 is added in that case.
             cst = self._eval_constant_expr(node.right)
             if isinstance(cst, float):
-                attr = [self._make_onnx_attr("fmod", 1)]
+                attr = [ir.AttrInt64("fmod", 1)]
 
-        op = values.Op(self._default_opset, _PRIMOP_MAP[op])
+        onnx_op = _PRIMOP_MAP[op]
         left, right = self._cast_like_binary_expression(
-            op, self._translate_expr(node.left), self._translate_expr(node.right)
+            onnx_op, self._translate_expr(node.left), self._translate_expr(node.right)
         )
-        return op, [left, right], attr
+        return onnx_op, [left, right], attr
 
     def _translate_unary_op_expr(self, node):
         op = type(node.op)
