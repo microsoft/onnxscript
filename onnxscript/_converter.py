@@ -331,14 +331,17 @@ class Converter:
             # promote attribute to value
             result = self._generate_unique_name(target)
             attr = _to_onnx_ref_attr(val, info)
-            self.emit([], "Constant", [result], [attr])
+            self.emit([], "Constant", [result], attrs=[attr])
             if ta.base_type_is_bool(val.typeinfo):
                 # ONNX attributes use an int-encoding for bools, but ONNX tensor types
                 # distinguish between int and bool. So we cast the int tensor to a bool tensor,
                 # to promote a (python) bool attribute to a ONNX bool tensor.
                 result_as_bool = self._generate_unique_name(result + "_as_bool")
                 self.emit(
-                    [result], "Cast", [result_as_bool], [ir.AttrInt64("to", ir.DataType.BOOL)]
+                    [result],
+                    "Cast",
+                    [result_as_bool],
+                    attrs=[ir.AttrInt64("to", ir.DataType.BOOL)],
                 )
                 return Variable(result_as_bool, castable=True)
             return Variable(result, castable=True)
@@ -358,6 +361,7 @@ class Converter:
         outputs: Sequence[str],
         op_type: str,
         inputs: Sequence[str],
+        *,
         attrs: Sequence[ir.Attr] = (),
         domain: str = "",
     ):
@@ -396,7 +400,7 @@ class Converter:
         except Exception as e:
             fail(info.msg(str(e)))
 
-        self.emit([], "Constant", [var_name], [ir.AttrTensor("value", tensor)])
+        self.emit([], "Constant", [var_name], attrs=[ir.AttrTensor("value", tensor)])
         return Variable(var_name, True)
 
     def _emit_copy(self, original_var: str, suggested_name: str) -> str:
@@ -522,7 +526,7 @@ class Converter:
         target = "tmp" if target is None else target
         assert isinstance(target, str)
         result = self._generate_unique_name(target)
-        self.emit([result], callee, args, attrs)
+        self.emit([result], callee, args, attrs=attrs)
         return Variable(result)
 
     def _translate_opt_expr(self, node: ast.expr) -> Optional[Variable]:
@@ -620,9 +624,8 @@ class Converter:
                 reshaped = self._generate_unique_name(f"{name}_reshaped")
                 self.emit(
                     [reshaped],
-                    values.Op(self._default_opset, "Reshape"),
+                    "Reshape",
                     [name, one_1d().name],
-                    [],
                 )
                 return reshaped, None
 
@@ -704,16 +707,16 @@ class Converter:
             if len(starts) > 1:
                 axis_0_attr = self._make_onnx_attr("axis", 0)
                 start_name = self._generate_unique_name(f"{var_name}_start")
-                self.emit([start_name], "Concat", starts, [axis_0_attr])
+                self.emit([start_name], "Concat", starts, attrs=[axis_0_attr])
 
                 end_name = self._generate_unique_name(f"{var_name}_end")
-                self.emit([end_name], "Concat", ends, [axis_0_attr])
+                self.emit([end_name], "Concat", ends, attrs=[axis_0_attr])
 
                 axes_name = self._generate_unique_name(f"{var_name}_axis")
-                self.emit([axes_name], "Concat", axes, [axis_0_attr])
+                self.emit([axes_name], "Concat", axes, attrs=[axis_0_attr])
 
                 steps_name = self._generate_unique_name(f"{var_name}_step")
-                self.emit([steps_name], "Concat", steps, [axis_0_attr])
+                self.emit([steps_name], "Concat", steps, attrs=[axis_0_attr])
             else:
                 start_name = starts[0]
                 end_name = ends[0]
@@ -759,7 +762,7 @@ class Converter:
                 gathered = self._generate_unique_name(f"{var_name}_axis_{axis}")
             else:  # store result of Gather in final target
                 gathered = target
-            self.emit([gathered], "Gather", [str(result), index_value], [axis_attr])
+            self.emit([gathered], "Gather", [str(result), index_value], attrs=[axis_attr])
             result = gathered
 
         return Variable(result)
@@ -971,7 +974,7 @@ class Converter:
                     return onnx_name
 
                 outputs = [generate_onnx_name(x) for x in lhs.elts]
-                self.emit(outputs, callee, inputs, attrs)
+                self.emit(outputs, callee, inputs, attrs=attrs)
             else:
                 self.fail(lhs, f"Unsupported construct in LHS of assignment: '{type(lhs)!r}'")
 
@@ -1085,7 +1088,7 @@ class Converter:
             [test],
             "If",
             renamed,
-            [then_attr, else_attr],
+            attrs=[then_attr, else_attr],
         )
 
     def _translate_loop_stmt(self, loop_stmt: Union[ast.For, ast.While]) -> None:
@@ -1218,9 +1221,8 @@ class Converter:
 
         self.emit(
             [o_cond_out],
-            values.Op(self._default_opset, operator_name),
+            operator_name,
             [condition_name or o_cond_var],
-            [],
         )
 
         self.ir_builder.add_output(
@@ -1262,8 +1264,8 @@ class Converter:
             onnx_outputs,
             "Loop",
             inputs,
-            attrs,
-            sub_functions=sub_functions,
+            attrs=attrs,
+            # sub_functions=sub_functions,
         )
 
     def _translate_block(
