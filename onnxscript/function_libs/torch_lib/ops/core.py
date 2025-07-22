@@ -1651,8 +1651,8 @@ def aten_choose_qparams_optimized(
 def aten_chunk(self: TTensor, chunks: int, dim: int = 0) -> Sequence[TTensor]:
     """chunk(Tensor(a -> *) self, int chunks, int dim=0) -> Tensor(a)[]"""
     if chunks == 1:
-        return g.op.Identity(self)
-    return g.op.Split(self, axis=dim, num_outputs=chunks)
+        return op.Identity(self)
+    return op.Split(self, axis=dim, num_outputs=chunks)
 
 
 @torch_op("aten::clamp", trace_only=True)
