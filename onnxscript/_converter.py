@@ -331,14 +331,14 @@ class Converter:
             # promote attribute to value
             result = self._generate_unique_name(target)
             attr = _to_onnx_ref_attr(val, info)
-            self.emit("Constant", [], [result], [attr])
+            self.emit([], "Constant", [result], [attr])
             if ta.base_type_is_bool(val.typeinfo):
                 # ONNX attributes use an int-encoding for bools, but ONNX tensor types
                 # distinguish between int and bool. So we cast the int tensor to a bool tensor,
                 # to promote a (python) bool attribute to a ONNX bool tensor.
                 result_as_bool = self._generate_unique_name(result + "_as_bool")
                 self.emit(
-                    "Cast", [result], [result_as_bool], [ir.AttrInt64("to", ir.DataType.BOOL)]
+                    [result], "Cast", [result_as_bool], [ir.AttrInt64("to", ir.DataType.BOOL)]
                 )
                 return Variable(result_as_bool, castable=True)
             return Variable(result, castable=True)
@@ -355,9 +355,9 @@ class Converter:
 
     def emit(
         self,
+        outputs: Sequence[str],
         op_type: str,
         inputs: Sequence[str],
-        outputs: Sequence[str],
         attrs: Sequence[ir.Attr] = (),
         domain: str = "",
     ):
@@ -396,13 +396,13 @@ class Converter:
         except Exception as e:
             fail(info.msg(str(e)))
 
-        self.emit("Constant", [], [var_name], [ir.AttrTensor("value", tensor)])
+        self.emit([], "Constant", [var_name], [ir.AttrTensor("value", tensor)])
         return Variable(var_name, True)
 
     def _emit_copy(self, original_var: str, suggested_name: str) -> str:
         """Emits a copy statement, using the ONNX Identity operator."""
         new_var = self._generate_unique_name(suggested_name)
-        self.emit("Identity", [original_var], [new_var])
+        self.emit([original_var], "Identity", [new_var])
         return new_var
 
     def _eval_constant_expr(self, expr: ast.AST) -> PyValue:
@@ -1082,8 +1082,8 @@ class Converter:
         if renamed == [test]:
             self.fail(stmt, f"Input and output cannot be the same {renamed!r}.")
         self.emit(
-            "If",
             [test],
+            "If",
             renamed,
             [then_attr, else_attr],
         )
