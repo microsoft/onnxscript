@@ -149,18 +149,19 @@ class SimplePatternMatcher(PatternMatcher):
         match.bind_node(pattern_node, node)
 
         # TODO: Revisit this to handle optional trailing inputs better.
-        if pattern_node.allow_other_inputs:
-            if len(node.inputs) < len(pattern_node.inputs):
+
+        if len(node.inputs) > len(pattern_node.inputs):
+            if not pattern_node.allow_other_inputs:
                 return self.fail(
-                    f"Number of inputs ({len(node.inputs)}) is less than expected ({len(pattern_node.inputs)})"
-                )
-        else:
-            if len(node.inputs) != len(pattern_node.inputs):
-                return self.fail(
-                    f"Input nums mismatch. {len(node.inputs)} vs {len(pattern_node.inputs)}"
+                    f"Number of inputs ({len(node.inputs)}) is greater than expected ({len(pattern_node.inputs)})"
                 )
 
-        for arg_value, arg_pattern in zip(node.inputs, pattern_node.inputs):
+        # In ONNX, trailing Nones can be omitted in the inputs of a node. So, we extend actual
+        # node inputs with None values to match the pattern node inputs length when zipping.
+
+        for arg_value, arg_pattern in itertools.zip_longest(
+            node.inputs, pattern_node.inputs, fillvalue=None
+        ):
             # arg_pattern could be a Var, if it's the original arg.
             if arg_pattern is None:
                 if arg_value is None:
@@ -216,6 +217,11 @@ class SimplePatternMatcher(PatternMatcher):
                 if pattern_value.tag_var is not None:
                     self._match.bind(pattern_value.tag_var, i)
             return result
+        # Default case: a plain pattern variable (ValuePattern)
+        if value is None and not pattern_value.can_match_none:
+            return self.fail(
+                f"Mismatch: pattern variable {pattern_value} does not match None."
+            )
         return True
 
     def _match_node_output(
