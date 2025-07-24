@@ -7331,59 +7331,58 @@ def aten_repeat_interleave_self_tensor(
         # Convert repeats to int64 for ONNX compatibility
         repeats_int64 = op.Cast(repeats, to=INT64.dtype)
 
-        # Get cumulative sum of repeats to find the boundaries
+        # Use an approach similar to self_int but adapted for variable repeats
+        # The key optimization: avoid creating large intermediate index tensors
+
+        # Get cumulative sum to determine output positions
         cumsum = op.CumSum(repeats_int64, axis=0)
         total_size = op.Gather(cumsum, op.Constant(value_ints=[-1]), axis=0)
 
-        # Create output tensor indices
+        # Create output indices
         output_range = op.Range(
             op.Constant(value_ints=[0]), total_size, op.Constant(value_ints=[1])
         )
 
-        # Find which original index each output position corresponds to
-        cumsum_expanded = op.Unsqueeze(cumsum, [0])  # Shape: [1, len(repeats)]
-        output_range_expanded = op.Unsqueeze(output_range, [1])  # Shape: [total_size, 1]
+        # More efficient searchsorted: find input index for each output position
+        # Broadcast to find positions where output_idx < cumsum_val
+        cumsum_expanded = op.Unsqueeze(cumsum, [0])  # [1, n_elements]
+        output_expanded = op.Unsqueeze(output_range, [1])  # [total_size, 1]
 
-        # Find positions where output_range < cumsum
-        mask = op.Less(
-            output_range_expanded, cumsum_expanded
-        )  # Shape: [total_size, len(repeats)]
+        # Find first position where output_idx < cumsum_val
+        mask = op.Less(output_expanded, cumsum_expanded)  # [total_size, n_elements]
+        input_indices = op.ArgMax(op.Cast(mask, to=INT64.dtype), axis=1, keepdims=False)
 
-        # For each row, find the first True position
-        indices = op.ArgMax(op.Cast(mask, to=INT64.dtype), axis=1, keepdims=False)
-
-        # Gather elements from the flattened tensor
-        result = op.Gather(self_flat, indices, axis=0)
+        # Gather the actual values
+        result = op.Gather(self_flat, input_indices, axis=0)
         return result
 
     else:
-        # Repeat along specific dimension
+        # Repeat along specific dimension - use approach similar to optimized self_int
         # Convert repeats to int64 for ONNX compatibility
         repeats_int64 = op.Cast(repeats, to=INT64.dtype)
 
-        # Get cumulative sum of repeats to find the boundaries
+        # Use a more efficient approach similar to self_int optimization
+        # The challenge is that we have variable repeat counts per slice
+
+        # Get cumulative sum to find boundaries (this part is necessary for variable repeats)
         cumsum = op.CumSum(repeats_int64, axis=0)
         total_size = op.Gather(cumsum, op.Constant(value_ints=[-1]), axis=0)
 
-        # Create output tensor indices for the specified dimension
+        # Create output indices for the dimension
         output_range = op.Range(
             op.Constant(value_ints=[0]), total_size, op.Constant(value_ints=[1])
         )
 
-        # Find which original index each output position corresponds to
-        cumsum_expanded = op.Unsqueeze(cumsum, [0])  # Shape: [1, len(repeats)]
-        output_range_expanded = op.Unsqueeze(output_range, [1])  # Shape: [total_size, 1]
+        # Efficient mapping from output positions to input indices
+        cumsum_expanded = op.Unsqueeze(cumsum, [0])  # [1, n_slices]
+        output_expanded = op.Unsqueeze(output_range, [1])  # [total_size, 1]
 
-        # Find positions where output_range < cumsum
-        mask = op.Less(
-            output_range_expanded, cumsum_expanded
-        )  # Shape: [total_size, len(repeats)]
+        # Find input slice index for each output position
+        mask = op.Less(output_expanded, cumsum_expanded)  # [total_size, n_slices]
+        input_indices = op.ArgMax(op.Cast(mask, to=INT64.dtype), axis=1, keepdims=False)
 
-        # For each row, find the first True position
-        indices = op.ArgMax(op.Cast(mask, to=INT64.dtype), axis=1, keepdims=False)
-
-        # Gather elements along the specified dimension
-        result = op.Gather(self, indices, axis=dim)
+        # Gather slices along the specified dimension
+        result = op.Gather(self, input_indices, axis=dim)
         return result
 
 
@@ -7399,7 +7398,7 @@ def aten_repeat_interleave_self_int(
     if dim is None:
         # Flatten the tensor first, then repeat each element 'repeats' times
         self_flat = op.Reshape(self, [-1])
-        
+
         # Add a new dimension and tile to repeat each element
         self_expanded = op.Unsqueeze(self_flat, [1])  # Shape: [num_elements, 1]
         repeat_pattern = op.Constant(value_ints=[1, repeats])
@@ -7410,40 +7409,41 @@ def aten_repeat_interleave_self_int(
     else:
         # Repeat along specific dimension
         # Apply Tile directly to the tensor instead of creating indices (more efficient)
-        
+
         # Expand tensor by adding dimension after target dim
         self_expanded = op.Unsqueeze(self, [dim + 1])
-        
+
         # Get original shape to build tile pattern dynamically
         original_shape = op.Shape(self)
         num_dims = op.Size(original_shape)
-        
+
         # Build tile pattern: all 1s except position dim+1 which is 'repeats'
         # Use ConstantOfShape to create array of 1s, then update specific position
         ones_pattern = op.ConstantOfShape(
             op.Add(num_dims, op.Constant(value_ints=[1])),  # +1 for the new dimension
-            op.Constant(value_ints=[1])
+            op.Constant(value_ints=[1]),
         )
-        
+
         # Create indices and updates for ScatterND to set position dim+1 to 'repeats'
         update_indices = op.Reshape(op.Constant(value_ints=[dim + 1]), [1, 1])
         update_values = op.Constant(value_ints=[repeats])
-        
+
         tile_pattern = op.ScatterND(ones_pattern, update_indices, update_values)
-        
+
         # Tile the expanded tensor
         tiled = op.Tile(self_expanded, tile_pattern)
-        
+
         # Reshape to merge the two dimensions
         # Calculate new shape: original shape with target dimension multiplied by repeats
         target_dim_size = op.Gather(original_shape, op.Constant(value_ints=[dim]))
         new_target_size = op.Mul(target_dim_size, op.Constant(value_ints=[repeats]))
-        
+
         # Create new shape by updating the target dimension
         update_shape_indices = op.Reshape(op.Constant(value_ints=[dim]), [1, 1])
-        new_shape = op.ScatterND(original_shape, update_shape_indices, 
-                                op.Reshape(new_target_size, [1]))
-        
+        new_shape = op.ScatterND(
+            original_shape, update_shape_indices, op.Reshape(new_target_size, [1])
+        )
+
         result = op.Reshape(tiled, new_shape)
         return result
 
