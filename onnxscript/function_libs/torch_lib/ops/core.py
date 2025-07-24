@@ -7285,94 +7285,103 @@ def aten_repeat_interleave(
     repeats: TensorType, output_size: Optional[int] = None
 ) -> TensorType:
     """repeat_interleave.Tensor(Tensor repeats, *, int? output_size=None) -> Tensor"""
-    
+
     # Convert repeats to int64 for ONNX compatibility
     repeats_int64 = op.Cast(repeats, to=INT64.dtype)
-    
-    # Create indices [0, 1, 2, ..., len(repeats)-1]
-    num_elements = op.Shape(repeats_int64, start=0, end=1)
-    indices = op.Range(op.Constant(value_ints=[0]), num_elements, op.Constant(value_ints=[1]))
-    
+
     # Get cumulative sum of repeats to find the boundaries
     cumsum = op.CumSum(repeats_int64, axis=0)
     total_size = op.Gather(cumsum, op.Constant(value_ints=[-1]), axis=0)
-    
+
     # Create output tensor indices
-    output_range = op.Range(op.Constant(value_ints=[0]), total_size, op.Constant(value_ints=[1]))
-    
+    output_range = op.Range(
+        op.Constant(value_ints=[0]), total_size, op.Constant(value_ints=[1])
+    )
+
     # Find which original index each output position corresponds to
     # We need to find the first cumsum position > each output position
     # This is equivalent to a searchsorted operation
-    
+
     # Expand dimensions for broadcasting
     cumsum_expanded = op.Unsqueeze(cumsum, [0])  # Shape: [1, len(repeats)]
     output_range_expanded = op.Unsqueeze(output_range, [1])  # Shape: [total_size, 1]
-    
-    # Find positions where output_range < cumsum 
+
+    # Find positions where output_range < cumsum
     mask = op.Less(output_range_expanded, cumsum_expanded)  # Shape: [total_size, len(repeats)]
-    
+
     # For each row, find the first True position (argmax will do this since True=1, False=0)
     result_indices = op.ArgMax(op.Cast(mask, to=INT64.dtype), axis=1, keepdims=False)
-    
+
     return result_indices
 
 
 @torch_op("aten::repeat_interleave.self_Tensor", trace_only=True)
 def aten_repeat_interleave_self_tensor(
-    self: TensorType, repeats: TensorType, dim: Optional[int] = None, output_size: Optional[int] = None
+    self: TensorType,
+    repeats: TensorType,
+    dim: Optional[int] = None,
+    output_size: Optional[int] = None,
 ) -> TensorType:
     """repeat_interleave.self_Tensor(Tensor self, Tensor repeats, int? dim=None, *, SymInt? output_size=None) -> Tensor"""
-    
+
     if dim is None:
         # Flatten the tensor first, then repeat elements
         self_flat = op.Reshape(self, [-1])
-        
+
         # Convert repeats to int64 for ONNX compatibility
         repeats_int64 = op.Cast(repeats, to=INT64.dtype)
-        
+
         # Get cumulative sum of repeats to find the boundaries
         cumsum = op.CumSum(repeats_int64, axis=0)
         total_size = op.Gather(cumsum, op.Constant(value_ints=[-1]), axis=0)
-        
+
         # Create output tensor indices
-        output_range = op.Range(op.Constant(value_ints=[0]), total_size, op.Constant(value_ints=[1]))
-        
+        output_range = op.Range(
+            op.Constant(value_ints=[0]), total_size, op.Constant(value_ints=[1])
+        )
+
         # Find which original index each output position corresponds to
         cumsum_expanded = op.Unsqueeze(cumsum, [0])  # Shape: [1, len(repeats)]
         output_range_expanded = op.Unsqueeze(output_range, [1])  # Shape: [total_size, 1]
-        
-        # Find positions where output_range < cumsum 
-        mask = op.Less(output_range_expanded, cumsum_expanded)  # Shape: [total_size, len(repeats)]
-        
+
+        # Find positions where output_range < cumsum
+        mask = op.Less(
+            output_range_expanded, cumsum_expanded
+        )  # Shape: [total_size, len(repeats)]
+
         # For each row, find the first True position
         indices = op.ArgMax(op.Cast(mask, to=INT64.dtype), axis=1, keepdims=False)
-        
+
         # Gather elements from the flattened tensor
         result = op.Gather(self_flat, indices, axis=0)
         return result
-        
+
     else:
         # Repeat along specific dimension
         # Convert repeats to int64 for ONNX compatibility
         repeats_int64 = op.Cast(repeats, to=INT64.dtype)
-        
+
         # Get cumulative sum of repeats to find the boundaries
         cumsum = op.CumSum(repeats_int64, axis=0)
         total_size = op.Gather(cumsum, op.Constant(value_ints=[-1]), axis=0)
-        
+
         # Create output tensor indices for the specified dimension
-        output_range = op.Range(op.Constant(value_ints=[0]), total_size, op.Constant(value_ints=[1]))
-        
+        output_range = op.Range(
+            op.Constant(value_ints=[0]), total_size, op.Constant(value_ints=[1])
+        )
+
         # Find which original index each output position corresponds to
         cumsum_expanded = op.Unsqueeze(cumsum, [0])  # Shape: [1, len(repeats)]
         output_range_expanded = op.Unsqueeze(output_range, [1])  # Shape: [total_size, 1]
-        
-        # Find positions where output_range < cumsum 
-        mask = op.Less(output_range_expanded, cumsum_expanded)  # Shape: [total_size, len(repeats)]
-        
+
+        # Find positions where output_range < cumsum
+        mask = op.Less(
+            output_range_expanded, cumsum_expanded
+        )  # Shape: [total_size, len(repeats)]
+
         # For each row, find the first True position
         indices = op.ArgMax(op.Cast(mask, to=INT64.dtype), axis=1, keepdims=False)
-        
+
         # Gather elements along the specified dimension
         result = op.Gather(self, indices, axis=dim)
         return result
@@ -7380,43 +7389,54 @@ def aten_repeat_interleave_self_tensor(
 
 @torch_op("aten::repeat_interleave.self_int", trace_only=True)
 def aten_repeat_interleave_self_int(
-    self: TensorType, repeats: int, dim: Optional[int] = None, output_size: Optional[int] = None
+    self: TensorType,
+    repeats: int,
+    dim: Optional[int] = None,
+    output_size: Optional[int] = None,
 ) -> TensorType:
     """repeat_interleave.self_int(Tensor self, SymInt repeats, int? dim=None, *, SymInt? output_size=None) -> Tensor"""
-    
+
     if dim is None:
         # Flatten the tensor first, then repeat each element 'repeats' times
         self_flat = op.Reshape(self, [-1])
         num_elements = op.Shape(self_flat, start=0, end=1)
-        
+
         # Create indices that repeat each original index 'repeats' times
         # For input [a, b, c] with repeats=2, we want indices [0, 0, 1, 1, 2, 2]
-        original_indices = op.Range(op.Constant(value_ints=[0]), num_elements, op.Constant(value_ints=[1]))
-        
+        original_indices = op.Range(
+            op.Constant(value_ints=[0]), num_elements, op.Constant(value_ints=[1])
+        )
+
         # Repeat each index 'repeats' times
         # We can use Tile with appropriate reshaping
         indices_reshaped = op.Unsqueeze(original_indices, [1])  # Shape: [num_elements, 1]
         repeat_pattern = op.Constant(value_ints=[1, repeats])
-        repeated_indices = op.Tile(indices_reshaped, repeat_pattern)  # Shape: [num_elements, repeats]
+        repeated_indices = op.Tile(
+            indices_reshaped, repeat_pattern
+        )  # Shape: [num_elements, repeats]
         final_indices = op.Reshape(repeated_indices, [-1])  # Shape: [num_elements * repeats]
-        
+
         # Gather elements from the flattened tensor
         result = op.Gather(self_flat, final_indices, axis=0)
         return result
-        
+
     else:
         # Repeat along specific dimension
-        dim_size = op.Shape(self, start=dim, end=dim+1)
-        
+        dim_size = op.Shape(self, start=dim, end=dim + 1)
+
         # Create indices that repeat each original index 'repeats' times
-        original_indices = op.Range(op.Constant(value_ints=[0]), dim_size, op.Constant(value_ints=[1]))
-        
+        original_indices = op.Range(
+            op.Constant(value_ints=[0]), dim_size, op.Constant(value_ints=[1])
+        )
+
         # Repeat each index 'repeats' times
         indices_reshaped = op.Unsqueeze(original_indices, [1])  # Shape: [dim_size, 1]
         repeat_pattern = op.Constant(value_ints=[1, repeats])
-        repeated_indices = op.Tile(indices_reshaped, repeat_pattern)  # Shape: [dim_size, repeats]
+        repeated_indices = op.Tile(
+            indices_reshaped, repeat_pattern
+        )  # Shape: [dim_size, repeats]
         final_indices = op.Reshape(repeated_indices, [-1])  # Shape: [dim_size * repeats]
-        
+
         # Gather elements along the specified dimension
         result = op.Gather(self, final_indices, axis=dim)
         return result
