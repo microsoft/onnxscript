@@ -7399,46 +7399,52 @@ def aten_repeat_interleave_self_int(
     if dim is None:
         # Flatten the tensor first, then repeat each element 'repeats' times
         self_flat = op.Reshape(self, [-1])
-        num_elements = op.Shape(self_flat, start=0, end=1)
-
-        # Create indices that repeat each original index 'repeats' times
-        # For input [a, b, c] with repeats=2, we want indices [0, 0, 1, 1, 2, 2]
-        original_indices = op.Range(
-            op.Constant(value_ints=[0]), num_elements, op.Constant(value_ints=[1])
-        )
-
-        # Repeat each index 'repeats' times
-        # We can use Tile with appropriate reshaping
-        indices_reshaped = op.Unsqueeze(original_indices, [1])  # Shape: [num_elements, 1]
+        
+        # Add a new dimension and tile to repeat each element
+        self_expanded = op.Unsqueeze(self_flat, [1])  # Shape: [num_elements, 1]
         repeat_pattern = op.Constant(value_ints=[1, repeats])
-        repeated_indices = op.Tile(
-            indices_reshaped, repeat_pattern
-        )  # Shape: [num_elements, repeats]
-        final_indices = op.Reshape(repeated_indices, [-1])  # Shape: [num_elements * repeats]
-
-        # Gather elements from the flattened tensor
-        result = op.Gather(self_flat, final_indices, axis=0)
+        tiled = op.Tile(self_expanded, repeat_pattern)  # Shape: [num_elements, repeats]
+        result = op.Reshape(tiled, [-1])  # Shape: [num_elements * repeats]
         return result
 
     else:
         # Repeat along specific dimension
-        dim_size = op.Shape(self, start=dim, end=dim + 1)
-
-        # Create indices that repeat each original index 'repeats' times
-        original_indices = op.Range(
-            op.Constant(value_ints=[0]), dim_size, op.Constant(value_ints=[1])
+        # Apply Tile directly to the tensor instead of creating indices (more efficient)
+        
+        # Expand tensor by adding dimension after target dim
+        self_expanded = op.Unsqueeze(self, [dim + 1])
+        
+        # Get original shape to build tile pattern dynamically
+        original_shape = op.Shape(self)
+        num_dims = op.Size(original_shape)
+        
+        # Build tile pattern: all 1s except position dim+1 which is 'repeats'
+        # Use ConstantOfShape to create array of 1s, then update specific position
+        ones_pattern = op.ConstantOfShape(
+            op.Add(num_dims, op.Constant(value_ints=[1])),  # +1 for the new dimension
+            op.Constant(value_ints=[1])
         )
-
-        # Repeat each index 'repeats' times
-        indices_reshaped = op.Unsqueeze(original_indices, [1])  # Shape: [dim_size, 1]
-        repeat_pattern = op.Constant(value_ints=[1, repeats])
-        repeated_indices = op.Tile(
-            indices_reshaped, repeat_pattern
-        )  # Shape: [dim_size, repeats]
-        final_indices = op.Reshape(repeated_indices, [-1])  # Shape: [dim_size * repeats]
-
-        # Gather elements along the specified dimension
-        result = op.Gather(self, final_indices, axis=dim)
+        
+        # Create indices and updates for ScatterND to set position dim+1 to 'repeats'
+        update_indices = op.Reshape(op.Constant(value_ints=[dim + 1]), [1, 1])
+        update_values = op.Constant(value_ints=[repeats])
+        
+        tile_pattern = op.ScatterND(ones_pattern, update_indices, update_values)
+        
+        # Tile the expanded tensor
+        tiled = op.Tile(self_expanded, tile_pattern)
+        
+        # Reshape to merge the two dimensions
+        # Calculate new shape: original shape with target dimension multiplied by repeats
+        target_dim_size = op.Gather(original_shape, op.Constant(value_ints=[dim]))
+        new_target_size = op.Mul(target_dim_size, op.Constant(value_ints=[repeats]))
+        
+        # Create new shape by updating the target dimension
+        update_shape_indices = op.Reshape(op.Constant(value_ints=[dim]), [1, 1])
+        new_shape = op.ScatterND(original_shape, update_shape_indices, 
+                                op.Reshape(new_target_size, [1]))
+        
+        result = op.Reshape(tiled, new_shape)
         return result
 
 
