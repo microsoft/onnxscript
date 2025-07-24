@@ -7285,67 +7285,62 @@ def aten_repeat_interleave(
     repeats: TensorType, output_size: Optional[int] = None
 ) -> TensorType:
     """repeat_interleave.Tensor(Tensor repeats, *, int? output_size=None) -> Tensor"""
-    
+
     # This variant creates indices based on the repeats tensor
     # For repeats = [3, 1, 2], output should be [0, 0, 0, 1, 2, 2]
-    
+
     # Convert repeats to int64 for proper indexing
     repeats_int64 = op.Cast(repeats, to=INT64.dtype)
-    
+
     # Get the number of elements
     n_elements = op.Size(repeats_int64)
-    
-    # Create range of input indices [0, 1, 2, ..., n_elements-1]
-    start = op.Constant(value_int=0)
-    delta = op.Constant(value_int=1)
-    input_range = op.Range(start, n_elements, delta)
-    
+
     # Calculate cumulative sum to determine output positions
     cumsum = op.CumSum(repeats_int64, axis=op.Constant(value_int=0))
-    
+
     # Total output size
     total_size = op.Gather(cumsum, op.Sub(n_elements, op.Constant(value_int=1)))
-    
+
     # Create output range [0, 1, 2, ..., total_size-1]
+    start = op.Constant(value_int=0)
+    delta = op.Constant(value_int=1)
     output_range = op.Range(start, total_size, delta)
-    
+
     # We need to map each output position to the correct input index
     # This requires a more complex mapping using cumulative sum offsets
-    
+
     # Create a cumulative sum with 0 prepended for easier indexing
     zero = op.Constant(value_ints=[0])
     cumsum_with_zero = op.Concat(zero, cumsum, axis=0)
-    
+
     # For each output position, find which input index it belongs to
     # This is done by finding the rightmost cumsum position that is <= output_pos
-    
+
     # Create a binary search-like structure using comparisons
     # For now, use a simpler approach that leverages existing ops
-    
+
     # Use SearchSorted-like operation to find the indices
     # Since ONNX doesn't have searchsorted, we'll use a different approach
-    
+
     # Create a mask for each possible input index
     expanded_output_range = op.Unsqueeze(output_range, axes=[1])  # [total_size, 1]
-    expanded_cumsum = op.Unsqueeze(cumsum_with_zero, axes=[0])    # [1, n_elements+1]
-    
+    expanded_cumsum = op.Unsqueeze(cumsum_with_zero, axes=[0])  # [1, n_elements+1]
+
     # Find where each output position falls in the cumulative sum
     # output_pos >= cumsum_with_zero[i] and output_pos < cumsum_with_zero[i+1]
-    
+
     # Create masks for each cumsum boundary
-    mask_ge = op.GreaterOrEqual(expanded_output_range, expanded_cumsum)  # [total_size, n_elements+1]
-    
+    mask_ge = op.GreaterOrEqual(
+        expanded_output_range, expanded_cumsum
+    )  # [total_size, n_elements+1]
+
     # Sum along the cumsum dimension to get the index
     # The number of True values gives us the input index
-    result_indices = op.ReduceSum(
-        op.Cast(mask_ge, to=INT64.dtype), 
-        axes=[1], 
-        keepdims=False
-    )
-    
+    result_indices = op.ReduceSum(op.Cast(mask_ge, to=INT64.dtype), axes=[1], keepdims=False)
+
     # Subtract 1 since we added a zero at the beginning
     result_indices = op.Sub(result_indices, op.Constant(value_int=1))
-    
+
     return result_indices
 
 
@@ -7354,27 +7349,29 @@ def aten_repeat_interleave_self_int(
     self: TTensor, repeats: TInt, dim: int = 0, output_size: Optional[int] = None
 ) -> TTensor:
     """repeat_interleave.self_int(Tensor self, SymInt repeats, int? dim=None, *, SymInt? output_size=None) -> Tensor"""
-    
+
     # Simple implementation: repeat along specified dimension
     repeats_int64 = op.Cast(repeats, to=INT64.dtype)
-    
+
     # Get input shape
     input_shape = op.Shape(self)
     dim_size = op.Gather(input_shape, op.Constant(value_int=dim))
-    
+
     # Create indices for the specified dimension
     start = op.Constant(value_int=0)
     delta = op.Constant(value_int=1)
     range_tensor = op.Range(start, dim_size, delta)
-    
+
     # Repeat each index 'repeats' times
     unsqueezed_range = op.Unsqueeze(range_tensor, axes=[1])
-    
+
     # Create the tiling shape: [1, repeats]
-    tile_shape = op.Concat(op.Constant(value_ints=[1]), op.Unsqueeze(repeats_int64, axes=[0]), axis=0)
+    tile_shape = op.Concat(
+        op.Constant(value_ints=[1]), op.Unsqueeze(repeats_int64, axes=[0]), axis=0
+    )
     tiled_indices = op.Tile(unsqueezed_range, tile_shape)
     flattened_indices = op.Flatten(tiled_indices, axis=0)
-    
+
     return op.Gather(self, flattened_indices, axis=dim)
 
 
@@ -7383,43 +7380,39 @@ def aten_repeat_interleave_self_tensor(
     self: TTensor, repeats: TensorType, dim: int = 0, output_size: Optional[int] = None
 ) -> TTensor:
     """repeat_interleave.self_Tensor(Tensor self, Tensor repeats, int? dim=None, *, SymInt? output_size=None) -> Tensor"""
-    
+
     # Simple implementation: repeat along specified dimension with tensor repeats
     repeats_int64 = op.Cast(repeats, to=INT64.dtype)
-    
+
     # Get input shape
     input_shape = op.Shape(self)
     dim_size = op.Gather(input_shape, op.Constant(value_int=dim))
-    
+
     # Use cumulative sum approach to build indices
     cumsum = op.CumSum(repeats_int64, axis=op.Constant(value_int=0))
-    
+
     # Total output size for this dimension
     total_size = op.Gather(cumsum, op.Sub(dim_size, op.Constant(value_int=1)))
-    
+
     # Create output range
     start = op.Constant(value_int=0)
     delta = op.Constant(value_int=1)
     output_range = op.Range(start, total_size, delta)
-    
+
     # Create cumulative sum with 0 prepended
     zero = op.Constant(value_ints=[0])
     cumsum_with_zero = op.Concat(zero, cumsum, axis=0)
-    
+
     # Map each output position to input index
     expanded_output_range = op.Unsqueeze(output_range, axes=[1])
     expanded_cumsum = op.Unsqueeze(cumsum_with_zero, axes=[0])
-    
+
     mask_ge = op.GreaterOrEqual(expanded_output_range, expanded_cumsum)
-    
-    result_indices = op.ReduceSum(
-        op.Cast(mask_ge, to=INT64.dtype),
-        axes=[1],
-        keepdims=False
-    )
-    
+
+    result_indices = op.ReduceSum(op.Cast(mask_ge, to=INT64.dtype), axes=[1], keepdims=False)
+
     result_indices = op.Sub(result_indices, op.Constant(value_int=1))
-    
+
     return op.Gather(self, result_indices, axis=dim)
 
 
