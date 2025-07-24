@@ -493,7 +493,7 @@ class RewriteRuleTest(unittest.TestCase):
 
         @script()
         def test_model(x: FLOAT[1024], y: FLOAT[1024], z: FLOAT[1024]) -> FLOAT[1024]:
-            # Pattern should NOT match following 2 call, since pattern requires first input to be non-None
+            # Pattern should NOT match following 2 calls, since pattern requires first input to be non-None
             t0 = op.Original()
             t1 = op.Original(None, x)
 
