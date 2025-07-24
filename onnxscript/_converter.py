@@ -385,6 +385,7 @@ class Converter:
             fail(info.msg(str(e)))
 
         self.emit([], "Constant", [var_name], attrs=[ir.AttrTensor("value", tensor)])
+        # TODO: I am here
         return Variable(var_name, True)
 
     def _emit_copy(self, original_var: str, suggested_name: str) -> str:
