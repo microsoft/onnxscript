@@ -7331,58 +7331,59 @@ def aten_repeat_interleave_self_tensor(
         # Convert repeats to int64 for ONNX compatibility
         repeats_int64 = op.Cast(repeats, to=INT64.dtype)
 
-        # Use an approach similar to self_int but adapted for variable repeats
-        # The key optimization: avoid creating large intermediate index tensors
-
-        # Get cumulative sum to determine output positions
+        # Get cumulative sum of repeats to find the boundaries
         cumsum = op.CumSum(repeats_int64, axis=0)
         total_size = op.Gather(cumsum, op.Constant(value_ints=[-1]), axis=0)
 
-        # Create output indices
+        # Create output tensor indices
         output_range = op.Range(
             op.Constant(value_ints=[0]), total_size, op.Constant(value_ints=[1])
         )
 
-        # More efficient searchsorted: find input index for each output position
-        # Broadcast to find positions where output_idx < cumsum_val
-        cumsum_expanded = op.Unsqueeze(cumsum, [0])  # [1, n_elements]
-        output_expanded = op.Unsqueeze(output_range, [1])  # [total_size, 1]
+        # Find which original index each output position corresponds to
+        cumsum_expanded = op.Unsqueeze(cumsum, [0])  # Shape: [1, len(repeats)]
+        output_range_expanded = op.Unsqueeze(output_range, [1])  # Shape: [total_size, 1]
 
-        # Find first position where output_idx < cumsum_val
-        mask = op.Less(output_expanded, cumsum_expanded)  # [total_size, n_elements]
-        input_indices = op.ArgMax(op.Cast(mask, to=INT64.dtype), axis=1, keepdims=False)
+        # Find positions where output_range < cumsum
+        mask = op.Less(
+            output_range_expanded, cumsum_expanded
+        )  # Shape: [total_size, len(repeats)]
 
-        # Gather the actual values
-        result = op.Gather(self_flat, input_indices, axis=0)
+        # For each row, find the first True position
+        indices = op.ArgMax(op.Cast(mask, to=INT64.dtype), axis=1, keepdims=False)
+
+        # Gather elements from the flattened tensor
+        result = op.Gather(self_flat, indices, axis=0)
         return result
 
     else:
-        # Repeat along specific dimension - use approach similar to optimized self_int
+        # Repeat along specific dimension
         # Convert repeats to int64 for ONNX compatibility
         repeats_int64 = op.Cast(repeats, to=INT64.dtype)
 
-        # Use a more efficient approach similar to self_int optimization
-        # The challenge is that we have variable repeat counts per slice
-
-        # Get cumulative sum to find boundaries (this part is necessary for variable repeats)
+        # Get cumulative sum of repeats to find the boundaries
         cumsum = op.CumSum(repeats_int64, axis=0)
         total_size = op.Gather(cumsum, op.Constant(value_ints=[-1]), axis=0)
 
-        # Create output indices for the dimension
+        # Create output tensor indices for the specified dimension
         output_range = op.Range(
             op.Constant(value_ints=[0]), total_size, op.Constant(value_ints=[1])
         )
 
-        # Efficient mapping from output positions to input indices
-        cumsum_expanded = op.Unsqueeze(cumsum, [0])  # [1, n_slices]
-        output_expanded = op.Unsqueeze(output_range, [1])  # [total_size, 1]
+        # Find which original index each output position corresponds to
+        cumsum_expanded = op.Unsqueeze(cumsum, [0])  # Shape: [1, len(repeats)]
+        output_range_expanded = op.Unsqueeze(output_range, [1])  # Shape: [total_size, 1]
 
-        # Find input slice index for each output position
-        mask = op.Less(output_expanded, cumsum_expanded)  # [total_size, n_slices]
-        input_indices = op.ArgMax(op.Cast(mask, to=INT64.dtype), axis=1, keepdims=False)
+        # Find positions where output_range < cumsum
+        mask = op.Less(
+            output_range_expanded, cumsum_expanded
+        )  # Shape: [total_size, len(repeats)]
 
-        # Gather slices along the specified dimension
-        result = op.Gather(self, input_indices, axis=dim)
+        # For each row, find the first True position
+        indices = op.ArgMax(op.Cast(mask, to=INT64.dtype), axis=1, keepdims=False)
+
+        # Gather elements along the specified dimension
+        result = op.Gather(self, indices, axis=dim)
         return result
 
 
