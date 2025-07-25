@@ -450,8 +450,9 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(model.graph.node(1).op_type, "Original")
 
     def test_match_optional_input(self):
-        def none_pattern(op, optional_input, x):
+        def none_pattern(op, x):
             # match against a call to Original where the first input may or may not be None
+            optional_input = pattern.Var("optional_input", can_match_none=True)
             return op.Original(optional_input, x)
 
         def replacement(op, optional_input, x):
@@ -477,6 +478,44 @@ class RewriteRuleTest(unittest.TestCase):
         self.assertEqual(len(model.graph), 2)
         self.assertEqual(model.graph.node(0).op_type, "ReplacedNone")
         self.assertEqual(model.graph.node(1).op_type, "ReplacedNotNone")
+
+    def test_mismatched_number_of_inputs(self):
+        def var_length_pattern(op):
+            # match against a call to Original where the first input may or may not be None
+            input1 = pattern.Var("input1", can_match_none=False)
+            input2 = pattern.Var("input2", can_match_none=True)
+            return op.Original(input1, input2)
+
+        def replacement(op, input1, input2):
+            return op.Replaced(input1, input2)
+
+        rule = pattern.RewriteRule(var_length_pattern, replacement)
+
+        @script()
+        def test_model(x: FLOAT[1024], y: FLOAT[1024], z: FLOAT[1024]) -> FLOAT[1024]:
+            # Pattern should NOT match following 2 calls, since pattern requires first input to be non-None
+            t0 = op.Original()
+            t1 = op.Original(None, x)
+
+            # Pattern should match following 3 calls, since second input can be None
+            t2 = op.Original(x)
+            t3 = op.Original(x, None)
+            t4 = op.Original(x, y)
+
+            # Pattern should NOT match following call, since it has more than 2 inputs
+            t5 = op.Original(x, y, z)
+            return op.All(t0, t1, t2, t3, t4, t5)
+
+        model_proto = test_model.to_model_proto()
+        model = ir.serde.deserialize_model(model_proto)
+
+        count = rule.apply_to_model(model)
+        self.assertEqual(count, 3)
+        self.assertEqual(len(model.graph), 7)
+        self.assertEqual(
+            [n.op_type for n in model.graph],
+            ["Original", "Original", "Replaced", "Replaced", "Replaced", "Original", "All"],
+        )
 
     def test_graph_visitor(self):
         class ReplaceFoo(pattern.RewriteRuleClassBase):
