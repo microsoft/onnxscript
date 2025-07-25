@@ -52,9 +52,9 @@ class FuseBiasMHA(pattern.RewriteRuleClassBase):
             value_BSD,
             None,  # bias
             None,  # key padding mask
-            mask,  # attention mask/bias
-            past_key,
-            past_value,
+            pattern.Var("mask", can_match_none=True),  # attention mask/bias
+            pattern.Var("past_key", can_match_none=True),
+            pattern.Var("past_value", can_match_none=True),
             num_heads=num_heads,
             # scale=scale,
             _domain="com.microsoft",

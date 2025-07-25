@@ -155,13 +155,15 @@ class SimplePatternMatcher(PatternMatcher):
                 return self.fail(
                     f"Number of inputs ({len(node.inputs)}) is greater than expected ({len(pattern_node.inputs)})"
                 )
+            checked_inputs = zip(node.inputs, pattern_node.inputs)
+        else:
+            # In ONNX, trailing Nones can be omitted in the inputs of a node. So, we extend actual
+            # node inputs with None values to match the pattern node inputs length when zipping.
+            checked_inputs = itertools.zip_longest(
+                node.inputs, pattern_node.inputs, fillvalue=None
+            )
 
-        # In ONNX, trailing Nones can be omitted in the inputs of a node. So, we extend actual
-        # node inputs with None values to match the pattern node inputs length when zipping.
-
-        for arg_value, arg_pattern in itertools.zip_longest(
-            node.inputs, pattern_node.inputs, fillvalue=None
-        ):
+        for arg_value, arg_pattern in checked_inputs:
             # arg_pattern could be a Var, if it's the original arg.
             if arg_pattern is None:
                 if arg_value is None:
