@@ -365,7 +365,7 @@ class Converter:
         pyvalue: PyValue,
         suggested_name: PreferredName | None,
         info: sourceinfo.SourceInfo,
-    ) -> Variable:
+    ) -> ir.Value:
         """Emit a constant value as an ONNX Constant node."""
         # Obtain a name for the constant
         if suggested_name is None:
@@ -385,15 +385,14 @@ class Converter:
         except Exception as e:
             fail(info.msg(str(e)))
 
-        self.emit([], "Constant", [var_name], attrs=[ir.AttrTensor("value", tensor)])
-        # TODO: I am here
-        return Variable(var_name, True)
+        const = self.emit([var_name], "Constant", [], attrs=[ir.AttrTensor("value", tensor)])[0]
+        mark_castable(const)
+        return const
 
-    def _emit_copy(self, original_var: str, suggested_name: str) -> str:
+    def _emit_copy(self, original_var: str, suggested_name: str) -> ir.Value:
         """Emits a copy statement, using the ONNX Identity operator."""
         new_var = self._generate_unique_name(suggested_name)
-        self.emit([original_var], "Identity", [new_var])
-        return new_var
+        return self.emit([new_var], "Identity", [original_var])[0]
 
     def _eval_constant_expr(self, expr: ast.AST) -> PyValue:
         """Evaluates a sub-expression that is assumed to represent a constant value.
@@ -1002,10 +1001,11 @@ class Converter:
                         )
                     )
 
-        def ret(exp, i, suffix):
+        def ret(exp: ast.AST, i: int, suffix: str) -> str:
             preferred_name = f"return_val{suffix}"
             return_var = self._translate_expr(exp, preferred_name).name
             val = self._lookup(return_var, self._source_of(exp), False)
+            assert type(val) is values.Dynamic
             if val and val.kind == values.DynamicKind.Input:
                 # In ONNX, a graph-input cannot be an output of the graph.
                 # We need to insert a copy.
@@ -1013,13 +1013,17 @@ class Converter:
             for prev_output in self._current_fn.outputs:
                 if prev_output.name == return_var:
                     # ONNX does not allow duplicate output names.
+                    # TODO(justinchuby): Maybe pass in ir.Value in _emit_copy
                     return_var = self._emit_copy(return_var, f"{return_var}_copy")
                     break
             if self.returntype is None:
                 t = None
             else:
                 t = self.returntype[i]
-            self.ir_builder.add_output(self._current_fn, return_var, t, self._source_of(stmt))
+            self._current_fn.outputs.append(return_var)
+            # TODO(justinchuby): Set type for return var from t
+            # TODO(justinchuby): Get self._source_of(stmt)
+            # self.ir_builder.add_output(self._current_fn, return_var, t, self._source_of(stmt))
             return return_var
 
         val = stmt.value
