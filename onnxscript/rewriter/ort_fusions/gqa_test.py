@@ -16,10 +16,10 @@ import onnxscript
 import onnxscript.optimizer
 from onnxscript import FLOAT, script
 from onnxscript import opset18 as op
+from onnxscript.rewriter.models._phi4lm import phi4lm_test
 from onnxscript.rewriter.ort_fusions import optimize_for_ort
 from onnxscript.rewriter.ort_fusions._test_utils import assert_allclose
 from onnxscript.rewriter.ort_fusions.gqa import fuse_gqa
-from onnxscript.rewriter.ort_fusions.models._phi4lm import phi4lm_test
 from onnxscript.rewriter.ort_fusions.sdpa import fuse_sdpa
 
 msft_op = onnxscript.values.Opset("com.microsoft", 1)

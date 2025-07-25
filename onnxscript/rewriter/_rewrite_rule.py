@@ -131,23 +131,22 @@ class Pattern:
             remove_nodes=check_nodes_are_removable,
         )
         if match:
-            context = None  # TODO(rama)
+            context = _basics.MatchContext(model, graph_or_function, node, match)
             for var in self._target_pattern.inputs:
                 if var.name is not None:
                     if var.name not in match.bindings:
                         match.bind(var.name, None)
-            try:
-                check_match_result = self._condition_function(context, **match.bindings)
-            except _basics.MatchFailureError as e:
-                check_match_result = _basics.MatchResult()
-                check_match_result.fail(e.reason, list(e.failure_sources))
-            if not check_match_result:
-                # If check function was provided, but it failed, return the reason for failure to the tracer.
-                if isinstance(check_match_result, _basics.MatchResult):
+
+            # Perform value/node level checks before condition function
+            def fail(check_result, default_message, failure_object=None):
+                """Local utility to handle check failures consistently."""
+                if isinstance(check_result, _basics.MatchResult):
                     match.fail(
-                        check_match_result.reason,
-                        check_match_result.failure_nodes_and_values,
+                        check_result.reason,
+                        check_result.failure_nodes_and_values,
                     )
+                else:
+                    match.fail(default_message, failure_object)
                 if tracer:
                     tracer.log(
                         self,  # type: ignore[arg-type]
@@ -157,6 +156,46 @@ class Pattern:
                         _basics.MatchStatus.CONDITION_FAILED,
                     )
                 return None
+
+            def wrap_try(f):
+                """Encapsulates try-except pattern for check functions."""
+
+                def wrapped(*args, **kwargs):
+                    try:
+                        return f(*args, **kwargs)
+                    except _basics.MatchFailureError as e:
+                        result = _basics.MatchResult()
+                        result.fail(e.reason, list(e.failure_sources))
+                        return result
+
+                return wrapped
+
+            # Check node-level checkers
+            for pattern_node, ir_node in match.node_bindings.items():
+                if pattern_node.check_method is not None:
+                    check_result = wrap_try(pattern_node.check_method)(context, ir_node)
+                    if not check_result:
+                        return fail(
+                            check_result,
+                            f"Node-level check failed for pattern node {pattern_node}",
+                            ir_node,
+                        )
+
+            # Check value-level checkers
+            for pattern_value, ir_value in match.value_bindings.items():
+                if pattern_value.check_method is not None:
+                    check_result = wrap_try(pattern_value.check_method)(context, ir_value)
+                    if not check_result:
+                        return fail(
+                            check_result,
+                            f"Value-level check failed for pattern value {pattern_value}",
+                            ir_value,
+                        )
+
+            check_match_result = wrap_try(self._condition_function)(context, **match.bindings)
+            if not check_match_result:
+                # If check function was provided, but it failed, return the reason for failure to the tracer.
+                return fail(check_match_result, "Condition function check failed")
             if tracer:
                 tracer.log(self, graph_or_function, node, match, _basics.MatchStatus.SUCCESS)  # type: ignore[arg-type]
             return match
