@@ -25,7 +25,7 @@ import onnx_ir as ir
 from onnxscript.ir import _schemas
 
 import onnxscript
-from onnxscript import irbuilder, onnx_types, sourceinfo, values
+from onnxscript import onnx_types, sourceinfo, values
 from onnxscript import type_annotation as ta
 from onnxscript._internal import _analysis, ast_utils, autocast
 
@@ -310,7 +310,7 @@ class Converter:
         *,
         info: sourceinfo.SourceInfo,
     ) -> ir.Value:
-        """Convert a value to an ONNX variable."""
+        """Convert a Python or symbolic value to an ONNX Value."""
         if isinstance(val, values.AttrRef):
             # promote attribute to value
             result = self._generate_unique_name(target)
@@ -330,7 +330,8 @@ class Converter:
             return result_val
 
         if isinstance(val, values.Dynamic):
-            return Variable(val.value)
+            # A value in ONNX
+            return ir.Value(name=val.value)
 
         # Assume value is a python-value convertible to a tensor
         return self._emit_const(val, target, info)
